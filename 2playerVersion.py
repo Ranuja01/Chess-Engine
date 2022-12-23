@@ -146,107 +146,108 @@ class Layout(tk.Tk):
         
         # self.board[1][3] = self.canvas.create_rectangle(0, 450, 90, 540, fill="#%02x%02x%02x" % (0, 0, 0), tags=f"tile{1}{3}")    
         # self.canvas.tag_bind(f"tile{1}{3}","<Button-1>", lambda e, i=col+1, j=row+1: self.get_location(e,123,321))    
-        blackPawnWhiteSquare = Image.open('BlackPawnWhiteSquare.png')
+        
+        blackPawnWhiteSquare = Image.open('Images/BlackPawnWhiteSquare.png')
         blackPawnWhiteSquare = blackPawnWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackPawnWhiteSquareImage = ImageTk.PhotoImage(blackPawnWhiteSquare,master = self)
         
-        blackPawnBlackSquare = Image.open('BlackPawnBlackSquare.png')
+        blackPawnBlackSquare = Image.open('Images/BlackPawnBlackSquare.png')
         blackPawnBlackSquare = blackPawnBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackPawnBlackSquareImage = ImageTk.PhotoImage(blackPawnBlackSquare,master = self)
         
-        blackRookWhiteSquare = Image.open('BlackRookWhiteSquare.png')
+        blackRookWhiteSquare = Image.open('Images/BlackRookWhiteSquare.png')
         blackRookWhiteSquare = blackRookWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackRookWhiteSquareImage = ImageTk.PhotoImage(blackRookWhiteSquare,master = self)
         
-        blackKingWhiteSquare = Image.open('BlackKingWhiteSquare.png')
+        blackKingWhiteSquare = Image.open('Images/BlackKingWhiteSquare.png')
         blackKingWhiteSquare = blackKingWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackKingWhiteSquareImage = ImageTk.PhotoImage(blackKingWhiteSquare,master = self)
         
-        blackKingBlackSquare = Image.open('BlackKingBlackSquare.png')
+        blackKingBlackSquare = Image.open('Images/BlackKingBlackSquare.png')
         blackKingBlackSquare = blackKingBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackKingBlackSquareImage = ImageTk.PhotoImage(blackKingBlackSquare,master = self)
         
-        blackKnightWhiteSquare = Image.open('BlackKnightWhiteSquare.png')
+        blackKnightWhiteSquare = Image.open('Images/BlackKnightWhiteSquare.png')
         blackKnightWhiteSquare = blackKnightWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackKnightWhiteSquareImage = ImageTk.PhotoImage(blackKnightWhiteSquare,master = self)
         
-        blackKnightBlackSquare = Image.open('BlackKnightBlackSquare.png')
+        blackKnightBlackSquare = Image.open('Images/BlackKnightBlackSquare.png')
         blackKnightBlackSquare = blackKnightBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackKnightBlackSquareImage = ImageTk.PhotoImage(blackKnightBlackSquare,master = self)
         
-        blackRookBlackSquare = Image.open('BlackRookBlackSquare.png')
+        blackRookBlackSquare = Image.open('Images/BlackRookBlackSquare.png')
         blackRookBlackSquare = blackRookBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackRookBlackSquareImage = ImageTk.PhotoImage(blackRookBlackSquare,master = self)
         
-        blackQueenBlackSquare = Image.open('BlackQueenBlackSquare.png')
+        blackQueenBlackSquare = Image.open('Images/BlackQueenBlackSquare.png')
         blackQueenBlackSquare = blackQueenBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackQueenBlackSquareImage = ImageTk.PhotoImage(blackQueenBlackSquare,master = self)
         
-        blackQueenWhiteSquare = Image.open('BlackQueenWhiteSquare.png')
+        blackQueenWhiteSquare = Image.open('Images/BlackQueenWhiteSquare.png')
         blackQueenWhiteSquare = blackQueenWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackQueenWhiteSquareImage = ImageTk.PhotoImage(blackQueenWhiteSquare,master = self)
         
-        blackBishopWhiteSquare = Image.open('BlackBishopWhiteSquare.png')
+        blackBishopWhiteSquare = Image.open('Images/BlackBishopWhiteSquare.png')
         blackBishopWhiteSquare = blackBishopWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackBishopWhiteSquareImage = ImageTk.PhotoImage(blackBishopWhiteSquare,master = self)
           
-        blackBishopBlackSquare = Image.open('BlackBishopBlackSquare.png')
+        blackBishopBlackSquare = Image.open('Images/BlackBishopBlackSquare.png')
         blackBishopBlackSquare = blackBishopBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackBishopBlackSquareImage = ImageTk.PhotoImage(blackBishopBlackSquare,master = self) 
         
-        whitePawnWhiteSquare = Image.open('whitePawnWhiteSquare.png')
+        whitePawnWhiteSquare = Image.open('Images/whitePawnWhiteSquare.png')
         whitePawnWhiteSquare = whitePawnWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whitePawnWhiteSquareImage = ImageTk.PhotoImage(whitePawnWhiteSquare,master = self)
 
-        whitePawnBlackSquare = Image.open('whitePawnBlackSquare.png')
+        whitePawnBlackSquare = Image.open('Images/whitePawnBlackSquare.png')
         whitePawnBlackSquare = whitePawnBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whitePawnBlackSquareImage = ImageTk.PhotoImage(whitePawnBlackSquare,master = self)
         
-        whiteRookWhiteSquare = Image.open('whiteRookWhiteSquare.png')
+        whiteRookWhiteSquare = Image.open('Images/whiteRookWhiteSquare.png')
         whiteRookWhiteSquare = whiteRookWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteRookWhiteSquareImage = ImageTk.PhotoImage(whiteRookWhiteSquare,master = self)
         
-        whiteRookBlackSquare = Image.open('whiteRookBlackSquare.png')
+        whiteRookBlackSquare = Image.open('Images/whiteRookBlackSquare.png')
         whiteRookBlackSquare = whiteRookBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteRookBlackSquareImage = ImageTk.PhotoImage(whiteRookBlackSquare,master = self)
         
-        whiteKnightWhiteSquare = Image.open('whiteKnightWhiteSquare.png')
+        whiteKnightWhiteSquare = Image.open('Images/whiteKnightWhiteSquare.png')
         whiteKnightWhiteSquare = whiteKnightWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteKnightWhiteSquareImage = ImageTk.PhotoImage(whiteKnightWhiteSquare,master = self)
         
-        whiteKnightBlackSquare = Image.open('whiteKnightBlackSquare.png')
+        whiteKnightBlackSquare = Image.open('Images/whiteKnightBlackSquare.png')
         whiteKnightBlackSquare = whiteKnightBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteKnightBlackSquareImage = ImageTk.PhotoImage(whiteKnightBlackSquare,master = self)
         
-        whiteKingBlackSquare = Image.open('whiteKingBlackSquare.png')
+        whiteKingBlackSquare = Image.open('Images/whiteKingBlackSquare.png')
         whiteKingBlackSquare = whiteKingBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteKingBlackSquareImage = ImageTk.PhotoImage(whiteKingBlackSquare,master = self)
         
-        whiteBishopWhiteSquare = Image.open('whiteBishopWhiteSquare.png')
+        whiteBishopWhiteSquare = Image.open('Images/whiteBishopWhiteSquare.png')
         whiteBishopWhiteSquare = whiteBishopWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteBishopWhiteSquareImage = ImageTk.PhotoImage(whiteBishopWhiteSquare,master = self)
         
-        whiteBishopBlackSquare = Image.open('whiteBishopBlackSquare.png')
+        whiteBishopBlackSquare = Image.open('Images/whiteBishopBlackSquare.png')
         whiteBishopBlackSquare = whiteBishopBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteBishopBlackSquareImage = ImageTk.PhotoImage(whiteBishopBlackSquare,master = self)
         
-        whiteQueenWhiteSquare = Image.open('whiteQueenWhiteSquare.png')
+        whiteQueenWhiteSquare = Image.open('Images/whiteQueenWhiteSquare.png')
         whiteQueenWhiteSquare = whiteQueenWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteQueenWhiteSquareImage = ImageTk.PhotoImage(whiteQueenWhiteSquare,master = self)
         
-        whiteQueenBlackSquare = Image.open('whiteQueenBlackSquare.png')
+        whiteQueenBlackSquare = Image.open('Images/whiteQueenBlackSquare.png')
         whiteQueenBlackSquare = whiteQueenBlackSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteQueenBlackSquareImage = ImageTk.PhotoImage(whiteQueenBlackSquare,master = self)
         
-        whiteKingWhiteSquare = Image.open('whiteKingWhiteSquare.png')
+        whiteKingWhiteSquare = Image.open('Images/whiteKingWhiteSquare.png')
         whiteKingWhiteSquare = whiteKingWhiteSquare.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteKingWhiteSquareImage = ImageTk.PhotoImage(whiteKingWhiteSquare,master = self)
         
-        whiteKingInCheck = Image.open('WhiteKingInCheck.png')
+        whiteKingInCheck = Image.open('Images/WhiteKingInCheck.png')
         whiteKingInCheck = whiteKingInCheck.resize((90, 90), Image.ANTIALIAS)
         self.canvas.whiteKingInCheckImage = ImageTk.PhotoImage(whiteKingInCheck,master = self)
         
-        blackKingInCheck = Image.open('BlackKingInCheck.png')
+        blackKingInCheck = Image.open('Images/BlackKingInCheck.png')
         blackKingInCheck = blackKingInCheck.resize((90, 90), Image.ANTIALIAS)
         self.canvas.blackKingInCheckImage = ImageTk.PhotoImage(blackKingInCheck,master = self)
         

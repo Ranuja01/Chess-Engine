@@ -61,7 +61,7 @@ class Layout(tk.Tk):
         self.isCastle = False
         self.isCheck = False
         self.pieceChosen = "None"
-        self.depth = 3
+        self.depth = 2
         self.count = 0
         self.isComputerMove = False
         self.computerThinking = False
@@ -950,6 +950,7 @@ class Layout(tk.Tk):
                 if(curItem.colour == "White"):
                     isCapture = True
         else:
+            isLegal = False
             if (colour == "White"):
                 if (i == 7 and j == 1):
                     
@@ -975,18 +976,18 @@ class Layout(tk.Tk):
                                              self.isCastle = False
             else:
                 if (i == 7 and j == 8):
-                    #print("A")
+                    print("A")
                     if(not(self.blackKingHasMoved) and not(self.kingSideBlackRookHasMoved)):
-                        #print("B")
+                        print("B")
                         if (self.boardPieces[5][7].piece == "Empty" and self.boardPieces[6][7].piece == "Empty" and self.boardPieces[7][7].piece == "Rook" and self.boardPieces[7][7].colour == "Black"):
                             self.isCastle = True
-                            #print("C")
+                            print("C")
                             for x in self.boardPieces:
                                 for y in x:
                                     if (y.colour == "White"):
                                         if(self.IsAttacking(y,self.boardPieces[4][7]) or self.IsAttacking(y,self.boardPieces[5][7]) or self.IsAttacking(y,self.boardPieces[6][7])):
                                              self.isCastle = False
-                                             #print("D")
+                                             print("D")
                 if (i == 3 and j == 8):
                     #print("A")
                     if(not(self.blackKingHasMoved) and not(self.queenSideBlackRookHasMoved)):
@@ -1027,8 +1028,7 @@ class Layout(tk.Tk):
                         self.blackKingHasMoved = True
                         self.queenSideBlackRookHasMoved = True
                         self.blackHasCastled = True
-            else:
-                isLegal = True
+            
         if(self.move):
             return piece,isLegal,isCapture
         else:

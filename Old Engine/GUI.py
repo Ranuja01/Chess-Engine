@@ -1827,8 +1827,7 @@ class Layout(tk.Tk):
         return False   
     
     def alphaBeta(self,curDepth,depthLimit,evalColour):
-
-        
+  
         alpha = -999999998
         beta = 999999999
         if(evalColour == "Black"):
@@ -1859,10 +1858,6 @@ class Layout(tk.Tk):
 
                     for item in moves:
                         
-                        if (self.numMove== 11):
-                            with open('Unfiltered.txt', 'a') as file:                                    
-                                file.write("MIN CHOSEN: {}, {}, {}, {}\n\n".format(item.piece, item.colour, item.xLocation, item.yLocation))
-
                         self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
                         self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
                         self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
@@ -1892,18 +1887,18 @@ class Layout(tk.Tk):
                                         self.boardPieces[5][7].colour = evalColour
                                         self.boardPieces[5][7].value = self.boardPieces[7][7].value
                                         
-                                        self.boardPieces[7][7].piece == "Empty"
-                                        self.boardPieces[7][7].colour == "None"
-                                        self.boardPieces[7][7].value == 0
+                                        self.boardPieces[7][7].piece = "Empty"
+                                        self.boardPieces[7][7].colour = "None"
+                                        self.boardPieces[7][7].value = 0
                                     if(item.xLocation == 3):
                                         
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
                                         self.boardPieces[3][7].value = self.boardPieces[0][7].value
                                         
-                                        self.boardPieces[0][7].piece == "Empty"
-                                        self.boardPieces[0][7].colour == "None"
-                                        self.boardPieces[0][7].value == 0
+                                        self.boardPieces[0][7].piece = "Empty"
+                                        self.boardPieces[0][7].colour = "None"
+                                        self.boardPieces[0][7].value = 0
                                     
                                 else:
                                     self.whiteHasCastled = True
@@ -1913,9 +1908,9 @@ class Layout(tk.Tk):
                                         self.boardPieces[5][0].colour = evalColour
                                         self.boardPieces[5][0].value = self.boardPieces[7][0].value
                                         
-                                        self.boardPieces[7][0].piece == "Empty"
-                                        self.boardPieces[7][0].colour == "None"
-                                        self.boardPieces[7][0].value == 0
+                                        self.boardPieces[7][0].piece = "Empty"
+                                        self.boardPieces[7][0].colour = "None"
+                                        self.boardPieces[7][0].value = 0
                                         
                                     if(item.xLocation == 3):
                                         
@@ -1923,9 +1918,9 @@ class Layout(tk.Tk):
                                         self.boardPieces[3][0].colour = evalColour
                                         self.boardPieces[3][0].value = self.boardPieces[0][0].value
                                         
-                                        self.boardPieces[0][0].piece == "Empty"
-                                        self.boardPieces[0][0].colour == "None"
-                                        self.boardPieces[0][0].value == 0
+                                        self.boardPieces[0][0].piece = "Empty"
+                                        self.boardPieces[0][0].colour = "None"
+                                        self.boardPieces[0][0].value = 0
                                         
                             self.isCastle = False              
                             #print(item.colour + item.piece + str(1))
@@ -1942,9 +1937,18 @@ class Layout(tk.Tk):
                                 print()
                             """
                             #if(self.evaluateBoard(evalColour) - self.evaluateBoard(oppositeColour) > highestScore):
+                            '''
+                            if (self.numMove == 11):
+                                print("AAA")
+                                print ("BLACK MOVES: ", item.piece, item.colour, item.xLocation, item.yLocation)
+                            '''
                             score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
                             
-                            
+                            '''
+                            if (self.numMove == 11):
+                                with open('Unfiltered_Full.txt', 'a') as file:
+                                    file.write("MAX CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
+                            '''
                             #print ("MIN CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
                             #print (score)  
                             if (castleFlag):
@@ -1981,13 +1985,11 @@ class Layout(tk.Tk):
                                 
                             promotion = False
                             self.boardPieces = copy.deepcopy(boardCopy)
-                            if (highestScore > beta):
-                                return highestScore
                             
                             alpha = max(alpha,highestScore)
                         
                             if beta <= alpha:
-                                break                                
+                                return curItem,pieceToBeMoved,highestScore,pieceToBePromoted                                
         if (curDepth == 0):
             
             return curItem,pieceToBeMoved,highestScore,pieceToBePromoted
@@ -2028,11 +2030,6 @@ class Layout(tk.Tk):
 
                     for item in moves:
                         
-                        if (self.numMove == 11):
-                            with open('Unfiltered.txt', 'a') as file:                                    
-                                file.write("FINAL MOVE: {}, {}, {}, {}\n".format(item.piece, item.colour, item.xLocation, item.yLocation))  
-                            
-
                         self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
                         self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
                         self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
@@ -2062,18 +2059,18 @@ class Layout(tk.Tk):
                                         self.boardPieces[5][7].colour = evalColour
                                         self.boardPieces[5][7].value = self.boardPieces[7][7].value
                                         
-                                        self.boardPieces[7][7].piece == "Empty"
-                                        self.boardPieces[7][7].colour == "None"
-                                        self.boardPieces[7][7].value == 0
+                                        self.boardPieces[7][7].piece = "Empty"
+                                        self.boardPieces[7][7].colour = "None"
+                                        self.boardPieces[7][7].value = 0
                                     if(item.xLocation == 3):
                                         
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
                                         self.boardPieces[3][7].value = self.boardPieces[0][7].value
                                         
-                                        self.boardPieces[0][7].piece == "Empty"
-                                        self.boardPieces[0][7].colour == "None"
-                                        self.boardPieces[0][7].value == 0
+                                        self.boardPieces[0][7].piece = "Empty"
+                                        self.boardPieces[0][7].colour = "None"
+                                        self.boardPieces[0][7].value = 0
                                     
                                 else:
                                     self.whiteHasCastled = True
@@ -2083,9 +2080,9 @@ class Layout(tk.Tk):
                                         self.boardPieces[5][0].colour = evalColour
                                         self.boardPieces[5][0].value = self.boardPieces[7][0].value
                                         
-                                        self.boardPieces[7][0].piece == "Empty"
-                                        self.boardPieces[7][0].colour == "None"
-                                        self.boardPieces[7][0].value == 0
+                                        self.boardPieces[7][0].piece = "Empty"
+                                        self.boardPieces[7][0].colour = "None"
+                                        self.boardPieces[7][0].value = 0
                                         
                                     if(item.xLocation == 3):
                                         
@@ -2093,9 +2090,9 @@ class Layout(tk.Tk):
                                         self.boardPieces[3][0].colour = evalColour
                                         self.boardPieces[3][0].value = self.boardPieces[0][0].value
                                         
-                                        self.boardPieces[0][0].piece == "Empty"
-                                        self.boardPieces[0][0].colour == "None"
-                                        self.boardPieces[0][0].value == 0
+                                        self.boardPieces[0][0].piece = "Empty"
+                                        self.boardPieces[0][0].colour = "None"
+                                        self.boardPieces[0][0].value = 0
                                
                                 self.isCastle = False 
                             #print(item.colour + item.piece + str(1))
@@ -2112,8 +2109,18 @@ class Layout(tk.Tk):
                                 print()
                             """
                             #if(self.evaluateBoard(evalColour) - self.evaluateBoard(oppositeColour) > highestScore):
-                            score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
                             
+                            score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
+                            '''
+                            if (self.numMove == 11):
+                                if (castleFlag):
+                                    print ("RIGHT CORNER: ", score, self.boardPieces[7][7].piece, self.boardPieces[7][7].colour, self.boardPieces[7][7].value, self.boardPieces[7][7].xLocation, self.boardPieces[7][7].yLocation)
+                                    print ("CASTLED ROOK: ", score, self.boardPieces[5][7].piece, self.boardPieces[5][7].colour, self.boardPieces[5][7].value, self.boardPieces[5][7].xLocation, self.boardPieces[5][7].yLocation)
+                                    print()
+                                
+                                with open('Unfiltered_Full.txt', 'a') as file:
+                                    file.write("FINAL MOVE: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
+                            '''
                             #if (item.piece == "Pawn" and item.xLocation == 6 and item.yLocation == 6):
                              #   print ("FINAL MOVE: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
                                 
@@ -2135,14 +2142,16 @@ class Layout(tk.Tk):
                                 print(item.colour + " " + item.piece)
                                 """
                                 highestScore = score
-                            self.boardPieces = copy.deepcopy(boardCopy)    
+                            self.boardPieces = copy.deepcopy(boardCopy)
+                            
                             if (highestScore > beta):
                                 return highestScore
                                 
                             alpha = max(alpha,highestScore)
                         
                             if beta <= alpha:
-                                break                         
+                                return highestScore                             
+                    
                             
         return highestScore
         
@@ -2165,19 +2174,22 @@ class Layout(tk.Tk):
         boardCopy = copy.deepcopy(self.boardPieces)
         lowestScore = 99999999
         castleFlag = False
-
+        #if (self.numMove == 11):
+         #   print("BBB")
         for x in self.boardPieces:
             for y in x:
+                #if (self.numMove == 11):
+                    #print(y.xLocation, y.yLocation)
+                    #if (y.xLocation == 5 and y.yLocation == 5):
+                        #print (y.piece, y.colour)
                 if (y.colour == evalColour and not(y.piece == "Empty")):
                     moves = []
+                    
+                        #print (self.boardPieces[4][4].piece, self.boardPieces[4][4].colour)
                     self.moveAppender(moves,y,evalColour)
                     
                     for item in moves:
                         
-                        if (self.numMove == 11):
-                            with open('Unfiltered.txt', 'a') as file:
-                                file.write("MAX CHOSEN: {}, {}, {}, {}\n".format(item.piece, item.colour, item.xLocation, item.yLocation))  
-
                         self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
                         self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
                         self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
@@ -2207,18 +2219,18 @@ class Layout(tk.Tk):
                                         self.boardPieces[5][7].colour = evalColour
                                         self.boardPieces[5][7].value = self.boardPieces[7][7].value
                                         
-                                        self.boardPieces[7][7].piece == "Empty"
-                                        self.boardPieces[7][7].colour == "None"
-                                        self.boardPieces[7][7].value == 0
+                                        self.boardPieces[7][7].piece = "Empty"
+                                        self.boardPieces[7][7].colour = "None"
+                                        self.boardPieces[7][7].value = 0
                                     if(item.xLocation == 3):
                                         
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
                                         self.boardPieces[3][7].value = self.boardPieces[0][7].value
                                         
-                                        self.boardPieces[0][7].piece == "Empty"
-                                        self.boardPieces[0][7].colour == "None"
-                                        self.boardPieces[0][7].value == 0
+                                        self.boardPieces[0][7].piece = "Empty"
+                                        self.boardPieces[0][7].colour = "None"
+                                        self.boardPieces[0][7].value = 0
                                     
                                 else:
                                     self.whiteHasCastled = True
@@ -2228,9 +2240,9 @@ class Layout(tk.Tk):
                                         self.boardPieces[5][0].colour = evalColour
                                         self.boardPieces[5][0].value = self.boardPieces[7][0].value
                                         
-                                        self.boardPieces[7][0].piece == "Empty"
-                                        self.boardPieces[7][0].colour == "None"
-                                        self.boardPieces[7][0].value == 0
+                                        self.boardPieces[7][0].piece = "Empty"
+                                        self.boardPieces[7][0].colour = "None"
+                                        self.boardPieces[7][0].value = 0
                                         
                                     if(item.xLocation == 3):
                                         
@@ -2238,9 +2250,9 @@ class Layout(tk.Tk):
                                         self.boardPieces[3][0].colour = evalColour
                                         self.boardPieces[3][0].value = self.boardPieces[0][0].value
                                         
-                                        self.boardPieces[0][0].piece == "Empty"
-                                        self.boardPieces[0][0].colour == "None"
-                                        self.boardPieces[0][0].value == 0
+                                        self.boardPieces[0][0].piece = "Empty"
+                                        self.boardPieces[0][0].colour = "None"
+                                        self.boardPieces[0][0].value = 0
                             self.isCastle = False
                             """
                             if(colour == "Black"):
@@ -2258,8 +2270,11 @@ class Layout(tk.Tk):
                             #if(self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour) < lowestScore):
                             score = self.maximizer(curDepth + 1,depthLimit,oppositeColour, alpha, beta)
                             #print ("MAX CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
-                            
-                            
+                            '''
+                            if (self.numMove == 11):
+                                with open('Unfiltered_Full.txt', 'a') as file:
+                                    file.write("MAX CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
+                            '''
                                     
                             if (castleFlag):
                                 castleFlag = False
@@ -2272,17 +2287,15 @@ class Layout(tk.Tk):
                                 lowestScore = score
                             
                             self.boardPieces = copy.deepcopy(boardCopy)
+
+                            self.boardPieces = copy.deepcopy(boardCopy)
                             if (lowestScore < alpha):
                                 return lowestScore
                                 
                             beta = min(beta,lowestScore)    
                              
                             if beta <= alpha:
-                                break
-                               
-                            
-                        
-                    
+                                return lowestScore            
         return lowestScore
 
     def isCheckMate(self,colour):
@@ -2373,6 +2386,10 @@ class Layout(tk.Tk):
         return True
     
     def moveAppender(self,moves,y,colour):
+        
+        
+        # All moves assume that white is on the bottom (Location numbers start at 1 but indices start at 0)
+        
         if(colour =="Black"):
             oppositeColour = "White"
         else:
@@ -2382,40 +2399,64 @@ class Layout(tk.Tk):
             
             if (colour == "Black"):
                 if(not(y.yLocation == 2)):
-                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation - 1)) 
-                    if (y.xLocation >= 1 and y.xLocation <= 7 and self.boardPieces[y.xLocation][y.yLocation - 2].colour == oppositeColour):                            
+                    
+                    # Regular black pawn move - 1 down
+                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation - 1))
+                    
+                    # Black pawn capture to the right
+                    if (y.xLocation < 8 and self.boardPieces[y.xLocation][y.yLocation - 2].colour == oppositeColour):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation - 1))
-                    if (y.xLocation >= 2 and y.xLocation <= 8 and self.boardPieces[y.xLocation - 2][y.yLocation - 2].colour == oppositeColour):                            
+                        
+                    # Black pawn capture to the left
+                    if (y.xLocation > 1 and y.xLocation < 9 and self.boardPieces[y.xLocation - 2][y.yLocation - 2].colour == oppositeColour):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation - 1))        
+                    
+                    # Black pawn moves 2 squares down initially
                     if (y.yLocation == 7):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation - 2))
                 else:
+                    # Black pawn moves downward to promotion
                     moves.append(Pieces("Queen",y.colour,y.xLocation , y.yLocation - 1))
                     moves.append(Pieces("Knight",y.colour,y.xLocation , y.yLocation - 1)) 
                     
-                    if (y.xLocation >= 1 and y.xLocation <= 7):                            
+                    # Black pawn captures to the right to promotion
+                    if (y.xLocation < 8):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation + 1, y.yLocation - 1))
                         moves.append(Pieces("Knight",y.colour,y.xLocation + 1, y.yLocation - 1))
-                        
-                    if (y.xLocation >= 2 and y.xLocation <= 8):                            
+                    
+                    # Black pawn captures to the left to promotion
+                    if (y.xLocation > 1 and y.xLocation < 9):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation - 1, y.yLocation - 1))
                         moves.append(Pieces("Knight",y.colour,y.xLocation - 1, y.yLocation - 1))   
             else:
                 if(not(y.yLocation == 7)):
-                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation + 1)) 
-                    if (y.xLocation >= 1 and y.xLocation <= 7 and self.boardPieces[y.xLocation][y.yLocation].colour == oppositeColour):                            
+                    
+                    # Regular white pawn move - 1 up
+                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation + 1))
+                    
+                    # White pawn capture to the right
+                    if (y.xLocation < 8 and self.boardPieces[y.xLocation][y.yLocation].colour == oppositeColour):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation + 1))
-                    if (y.xLocation >= 2 and y.xLocation <= 8 and self.boardPieces[y.xLocation - 2][y.yLocation].colour == oppositeColour):                            
-                        moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1))        
+                        
+                    # White pawn capture to the left
+                    if (y.xLocation > 1 and y.xLocation < 9 and self.boardPieces[y.xLocation - 2][y.yLocation].colour == oppositeColour):                            
+                        moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1))
+                        
+                    # White pawn moves 2 squares up initially
                     if (y.yLocation == 2):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation + 2))
                 else:
+                    # White pawn moves upward to promotion
                     moves.append(Pieces("Queen",y.colour,y.xLocation , y.yLocation + 1)) 
                     moves.append(Pieces("Knight",y.colour,y.xLocation , y.yLocation + 1))
-                    if (y.xLocation >= 1 and y.xLocation <= 7):                            
+                    
+                    # White pawn capture to the right to promotion
+                    if (y.xLocation < 8):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation + 1, y.yLocation + 1))
                         moves.append(Pieces("Knight",y.colour,y.xLocation + 1, y.yLocation + 1))
-                    if (y.xLocation >= 2 and y.xLocation <= 8):                            
+                        
+                    # White pawn capture to the left to promotion
+                    if (y.xLocation > 1 and y.xLocation < 9):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation - 1, y.yLocation + 1)) 
                         moves.append(Pieces("Knight",y.colour,y.xLocation - 1, y.yLocation + 1)) 
             

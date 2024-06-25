@@ -7,7 +7,6 @@ from numba import njit
 
 from PIL import ImageTk, Image
 
-
 class Pieces():
     
     def __init__(self,pieceType,colour,x,y):
@@ -44,9 +43,9 @@ class Layout(tk.Tk):
         self.canvas.grid(row=0, column=1, columnspan=8, rowspan=8)
         self.board = [[None for row in range(n)] for col in range(n)]
         self.move = False
-        self.pieceToBeMoved = Pieces("Empty","Empty",0,0)
-        self.pawnToBePromoted = Pieces("Empty","Empty",0,0)
-        self.numMove = 0
+        self.pieceToBeMoved = None
+        self.pawnToBePromoted = None
+        self.numMove = 1
         self.whiteKingHasMoved = False
         self.blackKingHasMoved = False
         self.queenSideWhiteRookHasMoved = False
@@ -158,107 +157,107 @@ class Layout(tk.Tk):
         # self.board[1][3] = self.canvas.create_rectangle(0, 450, 90, 540, fill="#%02x%02x%02x" % (0, 0, 0), tags=f"tile{1}{3}")    
         # self.canvas.tag_bind(f"tile{1}{3}","<Button-1>", lambda e, i=col+1, j=row+1: self.get_location(e,123,321))    
         
-        blackPawnWhiteSquare = Image.open('../Images/BlackPawnWhiteSquare.png')
+        blackPawnWhiteSquare = Image.open('Images/BlackPawnWhiteSquare.png')
         blackPawnWhiteSquare = blackPawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackPawnWhiteSquareImage = ImageTk.PhotoImage(blackPawnWhiteSquare,master = self)
         
-        blackPawnBlackSquare = Image.open('../Images/BlackPawnBlackSquare.png')
+        blackPawnBlackSquare = Image.open('Images/BlackPawnBlackSquare.png')
         blackPawnBlackSquare = blackPawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackPawnBlackSquareImage = ImageTk.PhotoImage(blackPawnBlackSquare,master = self)
         
-        blackRookWhiteSquare = Image.open('../Images/BlackRookWhiteSquare.png')
+        blackRookWhiteSquare = Image.open('Images/BlackRookWhiteSquare.png')
         blackRookWhiteSquare = blackRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackRookWhiteSquareImage = ImageTk.PhotoImage(blackRookWhiteSquare,master = self)
         
-        blackKingWhiteSquare = Image.open('../Images/BlackKingWhiteSquare.png')
+        blackKingWhiteSquare = Image.open('Images/BlackKingWhiteSquare.png')
         blackKingWhiteSquare = blackKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackKingWhiteSquareImage = ImageTk.PhotoImage(blackKingWhiteSquare,master = self)
         
-        blackKingBlackSquare = Image.open('../Images/BlackKingBlackSquare.png')
+        blackKingBlackSquare = Image.open('Images/BlackKingBlackSquare.png')
         blackKingBlackSquare = blackKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackKingBlackSquareImage = ImageTk.PhotoImage(blackKingBlackSquare,master = self)
         
-        blackKnightWhiteSquare = Image.open('../Images/BlackKnightWhiteSquare.png')
+        blackKnightWhiteSquare = Image.open('Images/BlackKnightWhiteSquare.png')
         blackKnightWhiteSquare = blackKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackKnightWhiteSquareImage = ImageTk.PhotoImage(blackKnightWhiteSquare,master = self)
         
-        blackKnightBlackSquare = Image.open('../Images/BlackKnightBlackSquare.png')
+        blackKnightBlackSquare = Image.open('Images/BlackKnightBlackSquare.png')
         blackKnightBlackSquare = blackKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackKnightBlackSquareImage = ImageTk.PhotoImage(blackKnightBlackSquare,master = self)
         
-        blackRookBlackSquare = Image.open('../Images/BlackRookBlackSquare.png')
+        blackRookBlackSquare = Image.open('Images/BlackRookBlackSquare.png')
         blackRookBlackSquare = blackRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackRookBlackSquareImage = ImageTk.PhotoImage(blackRookBlackSquare,master = self)
         
-        blackQueenBlackSquare = Image.open('../Images/BlackQueenBlackSquare.png')
+        blackQueenBlackSquare = Image.open('Images/BlackQueenBlackSquare.png')
         blackQueenBlackSquare = blackQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackQueenBlackSquareImage = ImageTk.PhotoImage(blackQueenBlackSquare,master = self)
         
-        blackQueenWhiteSquare = Image.open('../Images/BlackQueenWhiteSquare.png')
+        blackQueenWhiteSquare = Image.open('Images/BlackQueenWhiteSquare.png')
         blackQueenWhiteSquare = blackQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackQueenWhiteSquareImage = ImageTk.PhotoImage(blackQueenWhiteSquare,master = self)
         
-        blackBishopWhiteSquare = Image.open('../Images/BlackBishopWhiteSquare.png')
+        blackBishopWhiteSquare = Image.open('Images/BlackBishopWhiteSquare.png')
         blackBishopWhiteSquare = blackBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackBishopWhiteSquareImage = ImageTk.PhotoImage(blackBishopWhiteSquare,master = self)
           
-        blackBishopBlackSquare = Image.open('../Images/BlackBishopBlackSquare.png')
+        blackBishopBlackSquare = Image.open('Images/BlackBishopBlackSquare.png')
         blackBishopBlackSquare = blackBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackBishopBlackSquareImage = ImageTk.PhotoImage(blackBishopBlackSquare,master = self) 
         
-        whitePawnWhiteSquare = Image.open('../Images/whitePawnWhiteSquare.png')
+        whitePawnWhiteSquare = Image.open('Images/whitePawnWhiteSquare.png')
         whitePawnWhiteSquare = whitePawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whitePawnWhiteSquareImage = ImageTk.PhotoImage(whitePawnWhiteSquare,master = self)
 
-        whitePawnBlackSquare = Image.open('../Images/whitePawnBlackSquare.png')
+        whitePawnBlackSquare = Image.open('Images/whitePawnBlackSquare.png')
         whitePawnBlackSquare = whitePawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whitePawnBlackSquareImage = ImageTk.PhotoImage(whitePawnBlackSquare,master = self)
         
-        whiteRookWhiteSquare = Image.open('../Images/whiteRookWhiteSquare.png')
+        whiteRookWhiteSquare = Image.open('Images/whiteRookWhiteSquare.png')
         whiteRookWhiteSquare = whiteRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteRookWhiteSquareImage = ImageTk.PhotoImage(whiteRookWhiteSquare,master = self)
         
-        whiteRookBlackSquare = Image.open('../Images/whiteRookBlackSquare.png')
+        whiteRookBlackSquare = Image.open('Images/whiteRookBlackSquare.png')
         whiteRookBlackSquare = whiteRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteRookBlackSquareImage = ImageTk.PhotoImage(whiteRookBlackSquare,master = self)
         
-        whiteKnightWhiteSquare = Image.open('../Images/whiteKnightWhiteSquare.png')
+        whiteKnightWhiteSquare = Image.open('Images/whiteKnightWhiteSquare.png')
         whiteKnightWhiteSquare = whiteKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteKnightWhiteSquareImage = ImageTk.PhotoImage(whiteKnightWhiteSquare,master = self)
         
-        whiteKnightBlackSquare = Image.open('../Images/whiteKnightBlackSquare.png')
+        whiteKnightBlackSquare = Image.open('Images/whiteKnightBlackSquare.png')
         whiteKnightBlackSquare = whiteKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteKnightBlackSquareImage = ImageTk.PhotoImage(whiteKnightBlackSquare,master = self)
         
-        whiteKingBlackSquare = Image.open('../Images/whiteKingBlackSquare.png')
+        whiteKingBlackSquare = Image.open('Images/whiteKingBlackSquare.png')
         whiteKingBlackSquare = whiteKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteKingBlackSquareImage = ImageTk.PhotoImage(whiteKingBlackSquare,master = self)
         
-        whiteBishopWhiteSquare = Image.open('../Images/whiteBishopWhiteSquare.png')
+        whiteBishopWhiteSquare = Image.open('Images/whiteBishopWhiteSquare.png')
         whiteBishopWhiteSquare = whiteBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteBishopWhiteSquareImage = ImageTk.PhotoImage(whiteBishopWhiteSquare,master = self)
         
-        whiteBishopBlackSquare = Image.open('../Images/whiteBishopBlackSquare.png')
+        whiteBishopBlackSquare = Image.open('Images/whiteBishopBlackSquare.png')
         whiteBishopBlackSquare = whiteBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteBishopBlackSquareImage = ImageTk.PhotoImage(whiteBishopBlackSquare,master = self)
         
-        whiteQueenWhiteSquare = Image.open('../Images/whiteQueenWhiteSquare.png')
+        whiteQueenWhiteSquare = Image.open('Images/whiteQueenWhiteSquare.png')
         whiteQueenWhiteSquare = whiteQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteQueenWhiteSquareImage = ImageTk.PhotoImage(whiteQueenWhiteSquare,master = self)
         
-        whiteQueenBlackSquare = Image.open('../Images/whiteQueenBlackSquare.png')
+        whiteQueenBlackSquare = Image.open('Images/whiteQueenBlackSquare.png')
         whiteQueenBlackSquare = whiteQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteQueenBlackSquareImage = ImageTk.PhotoImage(whiteQueenBlackSquare,master = self)
         
-        whiteKingWhiteSquare = Image.open('../Images/whiteKingWhiteSquare.png')
+        whiteKingWhiteSquare = Image.open('Images/whiteKingWhiteSquare.png')
         whiteKingWhiteSquare = whiteKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteKingWhiteSquareImage = ImageTk.PhotoImage(whiteKingWhiteSquare,master = self)
         
-        whiteKingInCheck = Image.open('../Images/WhiteKingInCheck.png')
+        whiteKingInCheck = Image.open('Images/WhiteKingInCheck.png')
         whiteKingInCheck = whiteKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.whiteKingInCheckImage = ImageTk.PhotoImage(whiteKingInCheck,master = self)
         
-        blackKingInCheck = Image.open('../Images/BlackKingInCheck.png')
+        blackKingInCheck = Image.open('Images/BlackKingInCheck.png')
         blackKingInCheck = blackKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackKingInCheckImage = ImageTk.PhotoImage(blackKingInCheck,master = self)
         
@@ -514,9 +513,13 @@ class Layout(tk.Tk):
         
         return sum
     
-    def evaluateBoard3(this,colour):
-
-
+    
+    def evaluateBoard(self,colour):
+        '''
+        USE SLOPE REGRESSION TO CHANGE WEIGHTS TO SATISFY 
+        EVALUATION FROM THIS FUNCTION
+        '''
+        
         layer = [[
                 [0,0,0,0,0,0,0,0], # First Column
                 [0,0,5,5,5,5,3,0], # Second Column
@@ -584,7 +587,7 @@ class Layout(tk.Tk):
         
         
         
-        if(this.move >= 18):
+        if(self.move >= 18):
             activeLayer = layer2
             activePlacementLayer = layer2
         else:
@@ -593,20 +596,20 @@ class Layout(tk.Tk):
         sum = 0
         if (colour == "Black"):
             
-            if(this.whiteHasCastled):
+            if(self.whiteHasCastled):
                 sum -= 500
-            if(this.blackHasCastled):
+            if(self.blackHasCastled):
                 sum += 500
             oppositeColour = "White"
         else:
             
-            if(this.blackHasCastled):
+            if(self.blackHasCastled):
                 sum -= 500
-            if(this.whiteHasCastled):
+            if(self.whiteHasCastled):
                 sum += 500
             oppositeColour = "Black"
             
-        for item in this.boardPieces:
+        for item in self.boardPieces:
             for square in item:
                 if(square.piece == "King"):
                     if(square.colour == "Black"):
@@ -614,31 +617,31 @@ class Layout(tk.Tk):
                     else:
                         whiteKingPiece = square
             
-        if(this.isInCheck(colour)):
+        if(self.isInCheck(colour)):
             sum -= 150
-            if(this.isCheckMate(colour)):
+            if(self.isCheckMate(colour)):
                 sum = -99999995
         else:
             if(colour == "Black"):
-                if(not(this.blackHasCastled)):
+                if(not(self.blackHasCastled)):
                     if(not(blackKingPiece.xLocation == 5 and blackKingPiece.yLocation == 8 )):
                         sum -= 500
             else:
-                if(not(this.whiteHasCastled)):
+                if(not(self.whiteHasCastled)):
                     if(not(whiteKingPiece.xLocation == 5 and whiteKingPiece.yLocation == 1 )):
                         sum -= 500
             
-        if(this.isInCheck(oppositeColour)):
+        if(self.isInCheck(oppositeColour)):
             sum += 150
-            if(this.isCheckMate(oppositeColour)):
+            if(self.isCheckMate(oppositeColour)):
                 sum = 9999999999999
-        elif(this.numMove >= 30):
-            if(this.isCheckMate(oppositeColour)):
+        elif(self.numMove >= 30):
+            if(self.isCheckMate(oppositeColour)):
                 #print("ASASDASD")
                 sum = -99999994
         
         
-        for item in this.boardPieces:
+        for item in self.boardPieces:
             for square in item:
                 if(square.colour == colour):
                     
@@ -651,11 +654,11 @@ class Layout(tk.Tk):
                                 sum += activePlacementLayer[0][square.xLocation - 1][square.yLocation - 1]
                             else:
                                 sum += activePlacementLayer[1][square.xLocation - 1][square.yLocation - 1]
-        
+ 
                         if(sum >= 13200):
                             activeLayer = layer
                             activePlacementLayer = placementLayer
-                        elif(this.numMove >= 18):
+                        elif(self.numMove >= 18):
                             if(square.piece == "Pawn"):
                                 if(colour == "White"):
                                     sum += square.yLocation * 25
@@ -663,17 +666,17 @@ class Layout(tk.Tk):
                                     sum += (9 - square.yLocation) * 25
                                 
           
-        for x in this.boardPieces:
+        for x in self.boardPieces:
             for y in x:
                 if (y.colour == colour and not(y.piece == "Empty") and not(y.piece == "King")):
                     moves = []
-                    this.moveAppender(moves,y,colour)
+                    self.moveAppender(moves,y,colour)
                     
                     for item in moves:
-                        this.pieceToBeMoved = this.boardPieces[y.xLocation - 1][y.yLocation - 1]
-                        isLegal,isCapture = this.isLegalMove(this.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,colour)
+                        self.pieceToBeMoved = self.boardPieces[y.xLocation - 1][y.yLocation - 1]
+                        isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,colour)
                         if (isLegal):
-                            if (this.IsAttacking(y,this.boardPieces[item.xLocation - 1][item.yLocation - 1])):
+                            if (self.IsAttacking(y,self.boardPieces[item.xLocation - 1][item.yLocation - 1])):
                                 
                                 if(y.piece == "Pawn"):
                                     multiplier = 9
@@ -694,49 +697,7 @@ class Layout(tk.Tk):
                                     sum += activeLayer[0][item.xLocation - 1][item.yLocation - 1] * multiplier
                                 else:
                                     sum += activeLayer[1][item.xLocation - 1][item.yLocation - 1] * multiplier
-        return sum  
-        
-    def evaluateBoard(self):
-        sum = 0
-
-        #print ('\n')
-        if(self.blackHasCastled):
-            sum += 1500
-        if(self.whiteHasCastled):
-            sum -= 1500
-
-        if(self.isInCheck("White")):
-            if(self.isCheckMate("White")):
-                print("AAAAA")
-                sum = 10000000
-        elif(self.isInCheck("Black")):
-            if(self.isCheckMate("Black")):
-                print("BBBB")
-                sum = -10000000
-                
-        
-        # Check for center square control
-        for item in self.boardPieces:
-            for square in item:
-                if(not(square.piece == "King")):
-                    
-                    if (square.colour == "Black"):
-                        sum += square.value
-                    elif (square.colour == "White"):
-                        sum -= square.value
-                    #if (not(self.boardPieces[6][6].piece == "Pawn")):
-                        #print(square.piece,square.colour,square.xLocation,square.yLocation, sum)
-                        #print(self.boardPieces[6][6].piece,self.boardPieces[6][6].colour,self.boardPieces[6][6].xLocation,self.boardPieces[6][6].yLocation, sum)    
-                        
-                    if(square.xLocation == 4 and square.yLocation == 4 or square.xLocation == 4 and square.yLocation == 5 or square.xLocation == 5 and square.yLocation == 4 or square.xLocation == 5 and square.yLocation == 5):
-                        #print("AAAAA", square.piece,square.colour,square.xLocation,square.yLocation, sum)
-                        if (square.colour == "Black"):
-                            sum += 150
-                        elif (square.colour == "White"):
-                            sum -= 150
-        
-        return sum   
-   
+        return sum
     
     def promotion(self,event,pieceChosen,colour):
         print(colour + " " + pieceChosen)
@@ -744,7 +705,7 @@ class Layout(tk.Tk):
         allow = False
         #print(self.isPromotion)
         if(self.isPromotion):
-            if (self.numMove % 2 == 0):
+            if (self.numMove % 2 == 1):
                 if (colour == "Black"):
                     allow = True
                     if (pieceChosen == "Queen"):
@@ -844,13 +805,15 @@ class Layout(tk.Tk):
                 if(not(self.isComputerMove)):
                     self.computerThinking = True
                     print ("Move: " + str(self.numMove))
-                    print("Position: " + str(self.evaluateBoard()))
+                    print("White Position: " + str(self.evaluateBoard("White")))
+                    print("Black Position: " + str(self.evaluateBoard("Black")))
                     self.computerThinking = False
                     
                     self.engineMove("Black")
                     
+                
+            
         pass
-    
     def isLegalPawnMove(self,curItem,i,j,colour):
         isLegal = False
         isCapture = False
@@ -869,6 +832,7 @@ class Layout(tk.Tk):
                 elif(self.blackSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.blackSideEnPasentPawnxLocation) == 1 and (i + 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation or i - 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation)):
                     isLegal = True
                     isCapture = True
+                    
                     
                 if (isLegal):    
                     if (self.findSquareColour(i,j) =="White"):   
@@ -895,6 +859,7 @@ class Layout(tk.Tk):
                     else:
                         piece = self.canvas.blackPawnBlackSquareImage
 
+            
         else:
 
             if (colour == "White"):
@@ -915,9 +880,11 @@ class Layout(tk.Tk):
                         piece = self.canvas.blackPawnBlackSquareImage
                     isLegal = True
                     isCapture = True
-
-        return piece,isLegal,isCapture
-
+        
+        if(self.move):
+            return piece,isLegal,isCapture
+        else:
+            return isLegal,isCapture
         
     def isLegalKnightMove(self,curItem,i,j,colour):
         isLegal = False
@@ -943,9 +910,10 @@ class Layout(tk.Tk):
                 isLegal = True
                 if(curItem.colour == "White"):
                     isCapture = True
-
-        return piece,isLegal,isCapture
-
+        if(self.move):
+            return piece,isLegal,isCapture
+        else:
+            return isLegal,isCapture
     
     def isLegalBishopMove(self,curItem,i,j,colour):
         isLegal = False
@@ -987,9 +955,11 @@ class Layout(tk.Tk):
                     isLegal = True
                     if(curItem.colour == "White"):
                         isCapture = True  
-
-        return piece,isLegal,isCapture
-
+        if(self.move):
+            return piece,isLegal,isCapture
+        else:
+            return isLegal,isCapture
+    
     def isLegalRookMove(self,curItem,i,j,colour):
         isLegal = False
         isCapture = False
@@ -1040,9 +1010,13 @@ class Layout(tk.Tk):
                     isLegal = True
                     if(curItem.colour == "White"):
                         isCapture = True 
-                       
-        return piece,isLegal,isCapture
-
+                        
+                      
+                        
+        if(self.move):
+            return piece,isLegal,isCapture
+        else:
+            return isLegal,isCapture
     
     def isLegalQueenMove(self,curItem,i,j,colour):
         isLegal = False
@@ -1102,8 +1076,10 @@ class Layout(tk.Tk):
                     isLegal = True
                     if(curItem.colour == "White"):
                         isCapture = True 
-        
-        return piece,isLegal,isCapture
+        if(self.move):
+            return piece,isLegal,isCapture
+        else:
+            return isLegal,isCapture
     
     def isLegalKingMove(self,curItem,i,j,colour):
         isLegal = False
@@ -1182,11 +1158,12 @@ class Layout(tk.Tk):
                                             #print("D") 
                                             self.isCastle = False
             
-            if(self.isCastle):
-                
-                isLegal = True
-                if(not(self.computerThinking)):
-                
+            
+            if(not(self.computerThinking)):
+                if(self.isCastle):
+                    
+                    
+                    isLegal = True
                     if(i == 7 and j == 1):
                         piece = self.canvas.whiteKingBlackSquareImage
                         self.whiteKingHasMoved = True
@@ -1208,102 +1185,105 @@ class Layout(tk.Tk):
                         self.queenSideBlackRookHasMoved = True
                         self.blackHasCastled = True
             
-        return piece,isLegal,isCapture
-
+        if(self.move):
+            return piece,isLegal,isCapture
+        else:
+            return isLegal,isCapture
     
     def isLegalMove(self,curItem,i,j,colour):
-        
-        boardCopy = copy.deepcopy(self.boardPieces)
         if(self.pieceToBeMoved.colour == colour and not(curItem.colour == colour) and not(curItem.piece == "King")):
             if(self.pieceToBeMoved.piece == "Pawn"):
                 #print("AAAA")
-                piece,isLegal,isCapture = self.isLegalPawnMove(curItem,i,j,colour)     
+                return self.isLegalPawnMove(curItem,i,j,colour)     
             elif(self.pieceToBeMoved.piece == "Knight"):
-                piece,isLegal,isCapture = self.isLegalKnightMove(curItem,i,j,colour) 
+                return self.isLegalKnightMove(curItem,i,j,colour) 
             elif(self.pieceToBeMoved.piece == "Bishop"):
-                piece,isLegal,isCapture = self.isLegalBishopMove(curItem,i,j,colour) 
+                return self.isLegalBishopMove(curItem,i,j,colour) 
             elif(self.pieceToBeMoved.piece == "Rook"):
-                piece,isLegal,isCapture = self.isLegalRookMove(curItem,i,j,colour)  
+                return self.isLegalRookMove(curItem,i,j,colour)  
             elif(self.pieceToBeMoved.piece == "Queen"):
-                piece,isLegal,isCapture = self.isLegalQueenMove(curItem,i,j,colour)                     
+                return self.isLegalQueenMove(curItem,i,j,colour)                     
             elif(self.pieceToBeMoved.piece == "King"):
-                piece,isLegal,isCapture = self.isLegalKingMove(curItem,i,j,colour)
-        
-            if (isLegal):
-
-                # Make the location square hold the moving piece
-                self.boardPieces[i-1][j-1].piece = self.pieceToBeMoved.piece
-                self.boardPieces[i-1][j-1].colour = self.pieceToBeMoved.colour
-                self.boardPieces[i-1][j-1].xLocation = i
-                self.boardPieces[i-1][j-1].yLocation = j
-               # print("CCC2", self.pieceToBeMoved.piece,self.pieceToBeMoved.colour, self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,self.pieceToBeMoved.value)
-                self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
-                self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
-                #print("CCC3", self.pieceToBeMoved.piece,self.pieceToBeMoved.colour, self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,self.pieceToBeMoved.value)
-                
-                if (self.numMove % 2 == 0):
-                    
-                    if(self.isInCheck("White")):
-                        #print("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")  
-                        isLegal = False
-                else:
-                    if(self.isInCheck("Black")):    
-                         #print("TTTTTTTTT") 
-                         isLegal = False
-                
-                self.boardPieces = copy.deepcopy(boardCopy)     
-                #print("CCC4", self.pieceToBeMoved.piece,self.pieceToBeMoved.colour, self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,self.pieceToBeMoved.value)
-                if(self.move):
-                    return piece,isLegal,isCapture
-                else:
-                    return isLegal,isCapture
-            else:
-
-                if(self.move):
-                    return piece,isLegal,isCapture
-                else:
-                    return isLegal,isCapture
-        
+                return self.isLegalKingMove(curItem,i,j,colour)
         else:
-
-            
             if(self.move):
                 return None,False,False
             else:
                 return False,False
-
     
     def get_location(self, event, i, j):
-        #print (i, j)
+        print (i, j)
         
         isLegal = False
         isCapture = False
         piece = None
-        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+        
         if (not(self.isPromotion)):
             
             if (self.move):
                 
-                #print("AAA")
-                # Current item holds the square that wil be moved to
+    
+                #easygui.msgbox("HEEELOOOOOOO", title="simple gui")
                 curItem = self.boardPieces[i-1][j-1] 
                 curColour = self.pieceToBeMoved.colour
                 piece,isLegal,isCapture = self.isLegalMove(curItem,i,j,curColour)
-                #print(isLegal)
+                
                 if (self.numMove % 2 == 1):
                     if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
                         #print("DDDDWE")
-                        curItem.piece = self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece
-                        curItem.colour = self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour
+                        curItem = self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4]
+                        
                 else:
                     if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.whiteSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 4):
-                        curItem.piece = self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece
-                        curItem.colour = self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour
+                        curItem = self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3]
+                        
               
                 if(isLegal):
+
+                    curItem.xLocation = self.pieceToBeMoved.xLocation
+                    curItem.yLocation = self.pieceToBeMoved.yLocation
                     
+                    temp = copy.copy(curItem)
                     
-                    #print(isLegal)
+                    self.pieceToBeMoved.xLocation = i
+                    self.pieceToBeMoved.yLocation = j
+                    
+                    self.boardPieces[i-1][j-1] = self.pieceToBeMoved
+                    self.boardPieces[temp.xLocation - 1][temp.yLocation-1] = temp
+                    
+                    if(isCapture):
+                        #print("WAAAAA")
+                        self.boardPieces[temp.xLocation - 1][temp.yLocation-1].piece = "Empty"
+                        self.boardPieces[temp.xLocation - 1][temp.yLocation-1].colour = "None"
+                        #self.boardPieces[temp.xLocation - 1][temp.yLocation-1].activity = False
+                    
+                    if (self.numMove % 2 == 1):
+                        #print("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM") 
+                        if(self.isInCheck("White")):
+                             
+                             isLegal = False
+                    else:
+                        if(self.isInCheck("Black")):    
+                             #print("TTTTTTTTT") 
+                             isLegal = False
+                    
+                    if(isCapture):
+                        self.boardPieces[temp.xLocation - 1][temp.yLocation-1].piece = curItem.piece
+                        self.boardPieces[temp.xLocation - 1][temp.yLocation-1].colour = curItem.colour
+                        #self.boardPieces[temp.xLocation - 1][temp.yLocation-1].active = curItem.active
+                    
+                    self.pieceToBeMoved.xLocation = temp.xLocation
+                    self.pieceToBeMoved.yLocation = temp.yLocation
+                    
+                    temp.xLocation = i
+                    temp.yLocation = j
+                    
+                    curitem = copy.copy(temp)
+                    #print (curitem.piece + " " +  str(curItem.xLocation) + " " +  str(curItem.yLocation))
+                    self.boardPieces[i-1][j-1] = curitem
+                    #print (self.boardPieces[i-1][j-1].piece + " " +  str(self.boardPieces[i-1][j-1].xLocation) + " " +  str(self.boardPieces[i-1][j-1].yLocation))
+                    self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1] = self.pieceToBeMoved
+                    print(isLegal)
                     if(isLegal): 
                         #print("AAAA")
                         
@@ -1334,7 +1314,7 @@ class Layout(tk.Tk):
                                     self.blackKingHasMoved = True
                         
                         
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+                        
                         x1 = (self.pieceToBeMoved.xLocation - 1) * 90
                         y1 = (8-self.pieceToBeMoved.yLocation) * 90
                         x2 = x1 + 90
@@ -1352,18 +1332,19 @@ class Layout(tk.Tk):
                         self.board[i-1][j-1] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}")    
                         self.canvas.tag_bind(f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}","<Button-1>", lambda e, x=self.pieceToBeMoved.xLocation, y=self.pieceToBeMoved.yLocation: self.get_location(e,x,y))
                         
-                        self.boardPieces[i-1][j-1].piece = self.pieceToBeMoved.piece
-                        self.boardPieces[i-1][j-1].colour = self.pieceToBeMoved.colour
-                        self.boardPieces[i-1][j-1].value = self.pieceToBeMoved.value
-                        #print("BBBB", i,j, temp.piece)
+                        curItem.xLocation = self.pieceToBeMoved.xLocation
+                        curItem.yLocation = self.pieceToBeMoved.yLocation
                         
-                        self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
-                        self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
-                        self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
+                        temp = copy.copy(curItem)
                         
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+                        self.pieceToBeMoved.xLocation = i
+                        self.pieceToBeMoved.yLocation = j
+                        
+                        self.boardPieces[i-1][j-1] = self.pieceToBeMoved
+                        self.boardPieces[temp.xLocation - 1][temp.yLocation-1] = temp
+                        
                         if (self.numMove % 2 == 1):
-                            if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
+                            if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and temp.yLocation == 5):
                                 x1 = (self.blackSideEnPasentPawnxLocation - 1) * 90
                                 y1 = (8-5) * 90
                                 x2 = x1 + 90
@@ -1378,9 +1359,8 @@ class Layout(tk.Tk):
                                 self.canvas.tag_bind(f"tile{self.blackSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.blackSideEnPasentPawnxLocation, y=5: self.get_location(e,x,y))
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
-                                self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
                         else:
-                            if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.whiteSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 4):
+                            if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.whiteSideEnPasentPawnxLocation and isCapture and temp.yLocation == 4):
                                 x1 = (self.whiteSideEnPasentPawnxLocation - 1) * 90
                                 y1 = (8-4) * 90
                                 x2 = x1 + 90
@@ -1395,10 +1375,9 @@ class Layout(tk.Tk):
                                 self.canvas.tag_bind(f"tile{self.whiteSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.whiteSideEnPasentPawnxLocation, y=4: self.get_location(e,x,y))
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
-                                self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
                         
                         
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+                        
                         #isLegal = False
                         #print(self.isCastle)
                         #print(str(self.pieceToBeMoved.xLocation) + " " + str(self.pieceToBeMoved.yLocation) + " " + self.boardPieces[self.pieceToBeMoved.xLocation-1][self.pieceToBeMoved.yLocation-1].colour + self.boardPieces[self.pieceToBeMoved.xLocation-1][self.pieceToBeMoved.yLocation-1].piece)
@@ -1445,23 +1424,17 @@ class Layout(tk.Tk):
                             self.canvas.tag_bind(f"tile{emptySpace.xLocation}{emptySpace.yLocation}","<Button-1>", lambda e, x=emptySpace.xLocation, y=emptySpace.yLocation: self.get_location(e,x,y))
     
                             
-                            self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].piece = emptySpace.piece
-                            self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].colour = emptySpace.colour
-                            self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].value = emptySpace.value
-                            
-                            self.boardPieces[rookToBeMoved.xLocation - 1][rookToBeMoved.yLocation-1].piece = rookToBeMoved.piece
-                            self.boardPieces[rookToBeMoved.xLocation - 1][rookToBeMoved.yLocation-1].colour = rookToBeMoved.colour
-                            self.boardPieces[rookToBeMoved.xLocation - 1][rookToBeMoved.yLocation-1].value = rookToBeMoved.value
+                            self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1] = emptySpace
+                            self.boardPieces[rookToBeMoved.xLocation - 1][rookToBeMoved.yLocation-1] = rookToBeMoved
                             self.isCastle = False
     
                         if(isCapture):
-                            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
-                            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
-                            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
+                            self.boardPieces[temp.xLocation - 1][temp.yLocation-1].piece = "Empty"
+                            self.boardPieces[temp.xLocation - 1][temp.yLocation-1].colour = "None"
                             #self.boardPieces[temp.xLocation - 1][temp.yLocation-1].activity = False
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+                        
                         if (self.isCheck):
-                            if (self.numMove % 2 == 0):
+                            if (self.numMove % 2 == 1):
                                 self.isCheck = False
                                 for x in self.boardPieces:
                                     for y in x:
@@ -1484,14 +1457,14 @@ class Layout(tk.Tk):
                                                 piece = self.canvas.blackKingBlackSquareImage
                             pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
                             self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))               
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)                    
+                                            
                         self.move = False
-                        if (self.numMove % 2 == 0):
+                        if (self.numMove % 2 == 1):
                             
                             if(self.whiteSideEnPasent):
                                 self.whiteSideEnPasent = False
                             
-                            if(self.pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 4 and self.pieceToBeMoved.yLocation == 2):
+                            if(self.pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 4 and curItem.yLocation == 2):
                                 self.whiteSideEnPasent = True
                                 self.whiteSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
                                 #print("QWEQWE")
@@ -1511,12 +1484,12 @@ class Layout(tk.Tk):
                                             self.isCheck = True
                             elif(self.pieceToBeMoved.piece == "Pawn" and j == 8):
                                 self.isPromotion = True
-                                self.pawnToBePromoted = curItem
+                                self.pawnToBePromoted = self.pieceToBeMoved
                                 if(self.isComputerMove):
-                                    self.numMove += 1
-                                    self.promotion(None,self.pieceChosen,"White")
                                     self.numMove -= 1
+                                    self.promotion(None,self.pieceChosen,"White")
                                     self.isCheck = False
+                                    self.numMove += 1
                             elif(self.isCheckMate("Black")):
                                 easygui.msgbox("Draw by stalemate", title="Draw")
                               
@@ -1526,7 +1499,7 @@ class Layout(tk.Tk):
                             if(self.blackSideEnPasent):
                                 self.blackSideEnPasent = False
                             
-                            if(self.pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 5 and self.pieceToBeMoved.yLocation == 7):
+                            if(self.pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 5 and curItem.yLocation == 7):
                                 
                                 self.blackSideEnPasent = True
                                 self.blackSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
@@ -1544,32 +1517,28 @@ class Layout(tk.Tk):
                                             self.isCheck = True
                             elif(self.pieceToBeMoved.piece == "Pawn" and j == 1):
                                 self.isPromotion = True
-                                self.pawnToBePromoted = curItem
+                                self.pawnToBePromoted = self.pieceToBeMoved
                                 if(self.isComputerMove):
-                                    self.numMove += 1
-                                    self.promotion(None,self.pieceChosen,"Black")
                                     self.numMove -= 1
+                                    self.promotion(None,self.pieceChosen,"Black")
                                     self.isCheck = False
+                                    self.numMove += 1
                             elif(self.isCheckMate("White")):
                                 easygui.msgbox("Draw by stalemate", title="Draw")
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+                                    
                         if(self.isCheck): 
                             
                             pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
                             self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))
                         
                         self.numMove += 1
-                        
-                        print ("Moves to ", i,j)
-                        print ("Move: " + str(self.numMove))
-                        print("Position: " + str(self.evaluateBoard()))
-                        print('\n')
-                        
                         board.update()
                         if(not(self.isPromotion)):
                             self.computerThinking = True
                             self.move = False
-
+                            print ("Move: " + str(self.numMove))
+                            print("White Position: " + str(self.evaluateBoard("White")))
+                            print("Black Position: " + str(self.evaluateBoard("Black")))
                             self.computerThinking = False
                             if (not(self.isComputerMove)):
                                 self.engineMove("Black")
@@ -1583,16 +1552,9 @@ class Layout(tk.Tk):
                 if (self.boardPieces[i-1][j-1].piece == "Empty"):
                     print(self.boardPieces[i-1][j-1].piece)
                 else:            
-                    print(self.boardPieces[i-1][j-1].colour + " " + self.boardPieces[i-1][j-1].piece + " at " + str(i) + " " + str(j))
-                    if(self.numMove % 2 == 0 and self.boardPieces[i-1][j-1].colour == "White" or self.numMove % 2 == 1 and self.boardPieces[i-1][j-1].colour == "Black"):
-                        
-                        self.pieceToBeMoved.piece = self.boardPieces[i-1][j-1].piece
-                        self.pieceToBeMoved.colour = self.boardPieces[i-1][j-1].colour
-                        self.pieceToBeMoved.xLocation = i
-                        self.pieceToBeMoved.yLocation = j
-                        self.pieceToBeMoved.value = self.boardPieces[i-1][j-1].value
-                        
-                        #print(self.pieceToBeMoved.piece,self.pieceToBeMoved.colour,self.pieceToBeMoved.xLocation,self.pieceToBeMoved.xLocation)
+                    print(self.boardPieces[i-1][j-1].colour + " " + self.boardPieces[i-1][j-1].piece)
+                    if(self.numMove % 2 == 1 and self.boardPieces[i-1][j-1].colour == "White" or self.numMove % 2 == 0 and self.boardPieces[i-1][j-1].colour == "Black"):
+                        self.pieceToBeMoved = self.boardPieces[i-1][j-1]
                         self.move = True
     
     
@@ -1600,35 +1562,21 @@ class Layout(tk.Tk):
         t0= timer()
     
         self.computerThinking = True
-        currentItem,pieceToBeMoved,val,self.pieceChosen = self.alphaBeta(0,self.depth,"Black")
-        #currentItem,pieceToBeMoved,val,self.pieceChosen = self.maximizer(0,self.depth,"Black",0,0) 
+        currentItem,pieceToBeMoved,val,self.pieceChosen = self.alphaBeta(0,self.depth,"Black")  
         self.computerThinking = False
-        if(not(pieceToBeMoved == None or pieceToBeMoved.piece == "Empty") ):
-            
-            print(pieceToBeMoved.colour + " " + pieceToBeMoved.piece + " at " + str(pieceToBeMoved.xLocation) + " " + str(pieceToBeMoved.yLocation))
-            #print(str(pieceToBeMoved.xLocation) + " " + str(pieceToBeMoved.yLocation) + " " + self.boardPieces[pieceToBeMoved.xLocation-1][pieceToBeMoved.yLocation-1].colour + self.boardPieces[pieceToBeMoved.xLocation-1][pieceToBeMoved.yLocation-1].piece)
-            #print ("Moves to ", currentItem.xLocation,currentItem.yLocation)
-            #print ("Move: " + str(self.numMove))
-            print ("Computer Evaluation: " + str(val))
-            #print("Position: " + str(self.evaluateBoard()))
+        if(not(pieceToBeMoved == None)):
+            print(str(pieceToBeMoved.xLocation) + " " + str(pieceToBeMoved.yLocation) + " " + self.boardPieces[pieceToBeMoved.xLocation-1][pieceToBeMoved.yLocation-1].colour + self.boardPieces[pieceToBeMoved.xLocation-1][pieceToBeMoved.yLocation-1].piece)
+            print(str(currentItem.xLocation) + " " + str(currentItem.yLocation) + " " + self.boardPieces[currentItem.xLocation-1][currentItem.yLocation-1].colour + self.boardPieces[currentItem.xLocation-1][currentItem.yLocation-1].piece)
+            print ("Difference in position: " + str(val))
             print ("Number of Iterations: " + str(self.count))
-            t1 = timer()
-            print("Time elapsed: ", t1 - t0)
-            #print('\n')
-            #print(str(currentItem.xLocation) + " " + str(currentItem.yLocation) + " " + self.boardPieces[currentItem.xLocation-1][currentItem.yLocation-1].colour + self.boardPieces[currentItem.xLocation-1][currentItem.yLocation-1].piece)
-            
-            
             self.count = 0
             self.isComputerMove = True
-            
-            self.pieceToBeMoved.piece = pieceToBeMoved.piece
-            self.pieceToBeMoved.colour = pieceToBeMoved.colour
-            self.pieceToBeMoved.xLocation = pieceToBeMoved.xLocation
-            self.pieceToBeMoved.yLocation = pieceToBeMoved.yLocation
-            self.pieceToBeMoved.value = pieceToBeMoved.value
+            self.pieceToBeMoved = self.boardPieces[pieceToBeMoved.xLocation-1][pieceToBeMoved.yLocation-1]
             self.move = True
             self.get_location(None, currentItem.xLocation, currentItem.yLocation)
-
+            t1 = timer()
+            print("Time elapsed: ", t1 - t0)
+            print()
         else:
             print ("Difference in position ASDASD: " + str(val))
             print ("Number of Iterations DASDGEEAASD: " + str(self.count))
@@ -1787,28 +1735,37 @@ class Layout(tk.Tk):
         return False   
     
     def alphaBeta(self,curDepth,depthLimit,evalColour):
-  
-        alpha = -999999998
-        beta = 999999999
-        if(evalColour == "Black"):
-            oppositeColour = "White"
-        else:
-            oppositeColour = "Black"
-        
-        if (curDepth >= depthLimit):
-            
-            return self.evaluateBoard()
         
         isLegal = False
         isCapture = False
         moves = []
         boardCopy = copy.deepcopy(self.boardPieces)
-        highestScore = -99999999
+        
+        alpha = -999999998
+        beta = 999999999
+        
+        highestScore = -999999997
+        score = highestScore
         pieceToBePromoted = "None"
         promotion = False
-        curItem = Pieces ("Empty","None",0,0)
-        pieceToBeMoved = Pieces ("Empty","None",0,0)
-        castleFlag = False
+        curItem = None
+        pieceToBeMoved = None
+        hasCastled = True
+        
+        
+        if(evalColour == "Black"):
+            
+            if(not(self.blackHasCastled)):
+                #print("A")
+                hasCastled = False
+            oppositeColour = "White"
+        else:
+            
+            if(not(self.whiteHasCastled)):
+                hasCastled = False
+            oppositeColour = "Black"
+        
+       
         
         for x in self.boardPieces:
             for y in x:
@@ -1817,177 +1774,134 @@ class Layout(tk.Tk):
                     self.moveAppender(moves,y,evalColour)
 
                     for item in moves:
-                        #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                        self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
-                        self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
-                        self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
-                        self.pieceToBeMoved.xLocation = y.xLocation
-                        self.pieceToBeMoved.yLocation = y.yLocation
-                        #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
+                        
+
+                        self.pieceToBeMoved = self.boardPieces[y.xLocation - 1][y.yLocation - 1]
+
                         isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
-                        #print("CCC1", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
+
                         if(isLegal):
-                            if(not(item.piece == y.piece)):
+                            promotion = False
+                            if(not(item.piece == self.pieceToBeMoved.piece)):
                                 promotion = True
-                            #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
+                                temp = copy.deepcopy(item)
+                                
+                            self.boardPieces[item.xLocation - 1][item.yLocation - 1] = item
                             
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
-                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].value = 0
-                            #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
+                            
+                            
+                            
                             if(self.isCastle):
-                                castleFlag = True
+                                
                                 if(evalColour == "Black"):
                                     self.blackHasCastled = True
                                     if(item.xLocation == 7):
                                         self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
                                         self.boardPieces[5][7].colour = evalColour
-                                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
-                                        
-                                        self.boardPieces[7][7].piece = "Empty"
-                                        self.boardPieces[7][7].colour = "None"
-                                        self.boardPieces[7][7].value = 0
+                                        self.boardPieces[7][7].piece == "Empty"
+                                        self.boardPieces[7][7].colour == "None"
                                     if(item.xLocation == 3):
-                                        
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
-                                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
-                                        
-                                        self.boardPieces[0][7].piece = "Empty"
-                                        self.boardPieces[0][7].colour = "None"
-                                        self.boardPieces[0][7].value = 0
+                                        self.boardPieces[0][7].piece == "Empty"
+                                        self.boardPieces[0][7].colour == "None"
                                     
                                 else:
                                     self.whiteHasCastled = True
                                     if(item.xLocation == 7):
-                                        
                                         self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
                                         self.boardPieces[5][0].colour = evalColour
-                                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
-                                        
-                                        self.boardPieces[7][0].piece = "Empty"
-                                        self.boardPieces[7][0].colour = "None"
-                                        self.boardPieces[7][0].value = 0
-                                        
+                                        self.boardPieces[7][0].piece == "Empty"
+                                        self.boardPieces[7][0].colour == "None"
                                     if(item.xLocation == 3):
-                                        
                                         self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
                                         self.boardPieces[3][0].colour = evalColour
-                                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
-                                        
-                                        self.boardPieces[0][0].piece = "Empty"
-                                        self.boardPieces[0][0].colour = "None"
-                                        self.boardPieces[0][0].value = 0
-                                        
-                            self.isCastle = False              
-                            #print(item.colour + item.piece + str(1))
-                            """
-                            if(item.piece == "Pawn" and item.xLocation == 6 and item.yLocation == 6):
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
-                            
-                            if(test and item.xLocation == 3 and item.yLocation == 4):
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
-                            """
-                            #if(self.evaluateBoard(evalColour) - self.evaluateBoard(oppositeColour) > highestScore):
-                            '''
-                            if (self.numMove == 11):
-                                print("AAA")
-                                print ("BLACK MOVES: ", item.piece, item.colour, item.xLocation, item.yLocation)
-                            '''
-                            self.numMove += 1
-                            score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
-                            self.numMove -= 1
-                            
-                            '''
-                            if (self.numMove == 21):
-                                with open('Unfiltered_Full.txt', 'a') as file:
-                                    file.write("MIN CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
-                            
-                            if (self.numMove == 11):
-                                print ("MIN CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
-                                print (score)  
-                            '''
-                            if (castleFlag):
+                                        self.boardPieces[0][0].piece == "Empty"
+                                        self.boardPieces[0][0].colour == "None"
+                                    
+                            self.isCastle = False
                                 
-                                castleFlag = False
-                                if (evalColour == "Black"):
+                            if(not(self.isInCheck(evalColour))):
+                  
+                                
+                                score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
+                                
+                                
+                                if(score >= highestScore):
+                               
+                                    if(promotion):
+                                        pieceToBePromoted = temp.piece
+                                       
+                                    highestScore = score
+                                    curItem = item
+                                    pieceToBeMoved = y
+                                    
+                                promotion = False 
+                                alpha = max(alpha,highestScore)
+                           
+                                if beta <= alpha:
+                                    break
+                           
+                            if(evalColour == "Black"):
+                                if(not(hasCastled)):
+                                    #print("123")
                                     self.blackHasCastled = False
-                                else:
-                                    self.whiteHasCastled = False                                     
-                                    
-                                    
-                            if(score > highestScore):
-                                """
-                                print("Score: " + str(score))
-                                print("Highest Score: " + str(highestScore))
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                """
-                                if(promotion):
-                                    pieceToBePromoted = item.piece
-                                highestScore = score
-                                
-                                curItem.xLocation = item.xLocation 
-                                curItem.yLocation = item.yLocation
-                                
-                                self.boardPieces = copy.deepcopy(boardCopy)
-                                
-                                pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
-                                pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
-                                pieceToBeMoved.xLocation = y.xLocation 
-                                pieceToBeMoved.yLocation = y.yLocation
-                                pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
-                                
-                                #print("AAAA", curItem.piece,curItem.colour, curItem.xLocation,curItem.yLocation,curItem.value)
-                                #print("BBBB", pieceToBeMoved.piece,pieceToBeMoved.colour, pieceToBeMoved.xLocation,pieceToBeMoved.yLocation,pieceToBeMoved.value)
-                                #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                            promotion = False
-                            self.boardPieces = copy.deepcopy(boardCopy)
+                            else:
+                                if(not(hasCastled)):
+                                    self.whiteHasCastled = False
                             
-                            alpha = max(alpha,highestScore)
+                            self.isCastle = False
+                            self.boardPieces = copy.deepcopy(boardCopy)
+                    
                         
-                            if beta <= alpha:
-                                print("AAA")
-                                return curItem,pieceToBeMoved,highestScore,pieceToBePromoted                                
         if (curDepth == 0):
-            print("BBB")
+            
             return curItem,pieceToBeMoved,highestScore,pieceToBePromoted
         else:
             return highestScore
-
-    def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
+        
+        
+    
+    
+    def maximizer(self,curDepth,depthLimit,evalColour, alpha, beta):
         """
         if(self.count % 10 == 0):
             print(self.count)
         self.count += 1
         """
-        if(evalColour == "Black"):
-            oppositeColour = "White"
-        else:
-            oppositeColour = "Black"
-        
-        if (curDepth >= depthLimit):
-            
-            return self.evaluateBoard()
         
         isLegal = False
         isCapture = False
         moves = []
         boardCopy = copy.deepcopy(self.boardPieces)
-        highestScore = -99999999
-        pieceToBePromoted = "None"
-        promotion = False
-        curItem = None
-        pieceToBeMoved = None
-        castleFlag = False
+        highestScore = -999999999
+        score = highestScore
+        #pieceToBePromoted = "None"
+        #promotion = False
+       # curItem = None
+       # pieceToBeMoved = None
+        hasCastled = True
+        
+        
+        if(evalColour == "Black"):
+            
+            if(not(self.blackHasCastled)):
+                #print("A")
+                hasCastled = False
+            oppositeColour = "White"
+        else:
+            
+            if(not(self.whiteHasCastled)):
+                hasCastled = False
+            oppositeColour = "Black"
+        
+        if (curDepth >= depthLimit):
+            
+            return self.evaluateBoard(evalColour) - self.evaluateBoard(oppositeColour)
+        
+        
         
         for x in self.boardPieces:
             for y in x:
@@ -1997,287 +1911,240 @@ class Layout(tk.Tk):
 
                     for item in moves:
                         
-                        self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
-                        self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
-                        self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
-                        self.pieceToBeMoved.xLocation = y.xLocation
-                        self.pieceToBeMoved.yLocation = y.yLocation
+
+                        self.pieceToBeMoved = self.boardPieces[y.xLocation - 1][y.yLocation - 1]
 
                         isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
 
                         if(isLegal):
-                            if(not(item.piece == y.piece)):
-                                promotion = True
                             
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
+                            
+                                
+                            self.boardPieces[item.xLocation - 1][item.yLocation - 1] = item
                             
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
-                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].value = 0
+                            
+                            
                             
                             if(self.isCastle):
-                                castleFlag = True
+                                
                                 if(evalColour == "Black"):
                                     self.blackHasCastled = True
                                     if(item.xLocation == 7):
                                         self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
                                         self.boardPieces[5][7].colour = evalColour
-                                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
-                                        
-                                        self.boardPieces[7][7].piece = "Empty"
-                                        self.boardPieces[7][7].colour = "None"
-                                        self.boardPieces[7][7].value = 0
+                                        self.boardPieces[7][7].piece == "Empty"
+                                        self.boardPieces[7][7].colour == "None"
                                     if(item.xLocation == 3):
-                                        
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
-                                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
-                                        
-                                        self.boardPieces[0][7].piece = "Empty"
-                                        self.boardPieces[0][7].colour = "None"
-                                        self.boardPieces[0][7].value = 0
+                                        self.boardPieces[0][7].piece == "Empty"
+                                        self.boardPieces[0][7].colour == "None"
                                     
                                 else:
                                     self.whiteHasCastled = True
                                     if(item.xLocation == 7):
-                                        
                                         self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
                                         self.boardPieces[5][0].colour = evalColour
-                                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
-                                        
-                                        self.boardPieces[7][0].piece = "Empty"
-                                        self.boardPieces[7][0].colour = "None"
-                                        self.boardPieces[7][0].value = 0
-                                        
+                                        self.boardPieces[7][0].piece == "Empty"
+                                        self.boardPieces[7][0].colour == "None"
                                     if(item.xLocation == 3):
-                                        
                                         self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
                                         self.boardPieces[3][0].colour = evalColour
-                                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
-                                        
-                                        self.boardPieces[0][0].piece = "Empty"
-                                        self.boardPieces[0][0].colour = "None"
-                                        self.boardPieces[0][0].value = 0
-                               
-                                self.isCastle = False 
-                            #print(item.colour + item.piece + str(1))
-                            """
-                            if(item.piece == "Pawn" and item.xLocation == 6 and item.yLocation == 6):
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
-                            
-                            if(test and item.xLocation == 3 and item.yLocation == 4):
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
-                            """
-                            #if(self.evaluateBoard(evalColour) - self.evaluateBoard(oppositeColour) > highestScore):
-                            self.numMove += 1
-                            score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
-                            self.numMove -= 1
-                                                        
-                            '''
-                            if (self.numMove == 23):  
-                                with open('Unfiltered_Full.txt', 'a') as file:
-                                    file.write("FINAL MOVE: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
-                            
-                            if (self.numMove == 11):
-                                if (castleFlag):
-                                    print ("RIGHT CORNER: ", score, self.boardPieces[7][7].piece, self.boardPieces[7][7].colour, self.boardPieces[7][7].value, self.boardPieces[7][7].xLocation, self.boardPieces[7][7].yLocation)
-                                    print ("CASTLED ROOK: ", score, self.boardPieces[5][7].piece, self.boardPieces[5][7].colour, self.boardPieces[5][7].value, self.boardPieces[5][7].xLocation, self.boardPieces[5][7].yLocation)
+                                        self.boardPieces[0][0].piece == "Empty"
+                                        self.boardPieces[0][0].colour == "None"
+                                    
+                            self.isCastle = False
+                                
+                            if(not(self.isInCheck(evalColour))):
+                                
+                                #print(item.colour + item.piece + str(1))
+                                """
+                                if(item.piece == "King" and item.xLocation == 3 and item.yLocation == 8):
+                                    print(item.colour + " " + item.piece)
+                                    print (highestScore)
                                     print()
-                            
-                            if (self.numMove == 11):
-                                print ("FINAL MOVE: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
-                            '''
-                            #if (item.piece == "Pawn" and item.xLocation == 6 and item.yLocation == 6):
+                                    """
+                                """
+                                if(test and item.xLocation == 3 and item.yLocation == 4):
+                                    print(item.xLocation,item.yLocation)
+                                    print(item.colour + " " + item.piece)
+                                    print (highestScore)
+                                    print()
+                                """
+                                """
+                                if(item.piece == "Empty"):
+                                    print("IYUIYUI")
+                                    print(item.xLocation,item.yLocation)
+                                    print(item.piece)
+                                """
                                 
-                            if (castleFlag):
-                                castleFlag = False
-                                if (evalColour == "Black"):
+                                score = self.minimizer(curDepth + 1,depthLimit,oppositeColour, alpha, beta)
+                                
+                                
+                                if(score >= highestScore):
+                                    """
+                                    print("Score: " + str(score))
+                                    print("Highest Score: " + str(highestScore))
+                                    print(item.xLocation,item.yLocation)
+                                    print(item.colour + " " + item.piece)
+                                    """
+                                    
+                                        
+                                    highestScore = score
+                                
+                                if (highestScore >= beta):
+                                    if (highestScore == -999999996):
+                                        print("AAAAA")
+                                    return highestScore
+                                
+                                alpha = max(alpha,highestScore)
+                            
+                                if beta <= alpha:
+                                    if (highestScore == -999999996):
+                                        print("BBBBB")
+                                    break
+                            
+                            
+                            if(evalColour == "Black"):
+                                if(not(hasCastled)):
+                                    #print("123")
                                     self.blackHasCastled = False
-                                else:
-                                    self.whiteHasCastled = False 
-                                 
+                            else:
+                                if(not(hasCastled)):
+                                    self.whiteHasCastled = False
                             
-                            if(score > highestScore):
-                                """
-                                print("Score: " + str(score))
-                                print("Highest Score: " + str(highestScore))
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                """
-                                highestScore = score
+                            self.isCastle = False
                             self.boardPieces = copy.deepcopy(boardCopy)
-                            
-                            if (highestScore > beta):
-                                return highestScore
-                                
-                            alpha = max(alpha,highestScore)
-                        
-                            if beta <= alpha:
-                                return highestScore                             
                     
-                            
-        return highestScore
+                        
+            if (highestScore == -999999996):
+                print("CCCC")           
+            return highestScore
         
         
     def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
         
-        if(evalColour == "Black"):
-            oppositeColour = "White"
-        else:
-            oppositeColour = "Black"
-        
-        if (curDepth >= depthLimit):
-            
-            return self.evaluateBoard()
-            #return self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour)
-        
         isLegal = False
         isCapture = False
         moves = []
         boardCopy = copy.deepcopy(self.boardPieces)
-        lowestScore = 99999999
-        castleFlag = False
-        #if (self.numMove == 11):
-         #   print("BBB")
+        lowestScore = 999999999
+        score = lowestScore
+        hasCastled = True
+
+        if(evalColour == "Black"):
+            
+            if(not(self.blackHasCastled)):
+                hasCastled = False
+            oppositeColour = "White"
+        else:
+            
+            if(not(self.whiteHasCastled)):
+                hasCastled = False
+            oppositeColour = "Black"
+        
+        if (curDepth >= depthLimit):
+            
+
+            return self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour)
+            #return self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour)
+        
+
         for x in self.boardPieces:
             for y in x:
-                #if (self.numMove == 11):
-                    #print(y.xLocation, y.yLocation)
-                    #if (y.xLocation == 5 and y.yLocation == 5):
-                        #print (y.piece, y.colour)
                 if (y.colour == evalColour and not(y.piece == "Empty")):
                     moves = []
-                    
-                        #print (self.boardPieces[4][4].piece, self.boardPieces[4][4].colour)
                     self.moveAppender(moves,y,evalColour)
                     
                     for item in moves:
-                        
 
-                        
-                        self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
-                        self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
-                        self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
-                        self.pieceToBeMoved.xLocation = y.xLocation
-                        self.pieceToBeMoved.yLocation = y.yLocation
+                        self.pieceToBeMoved = self.boardPieces[y.xLocation - 1][y.yLocation - 1]
 
                         isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
 
                         if(isLegal):
-                            if(not(item.piece == y.piece)):
-                                promotion = True
                             
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
+                            self.boardPieces[item.xLocation - 1][item.yLocation - 1] = item
                             
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
-                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].value = 0
                             
                             if(self.isCastle):
-                                castleFlag = True
                                 if(evalColour == "Black"):
                                     self.blackHasCastled = True
                                     if(item.xLocation == 7):
                                         self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
                                         self.boardPieces[5][7].colour = evalColour
-                                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
-                                        
-                                        self.boardPieces[7][7].piece = "Empty"
-                                        self.boardPieces[7][7].colour = "None"
-                                        self.boardPieces[7][7].value = 0
+                                        self.boardPieces[7][7].piece == "Empty"
+                                        self.boardPieces[7][7].colour == "None"
                                     if(item.xLocation == 3):
-                                        
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
-                                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
-                                        
-                                        self.boardPieces[0][7].piece = "Empty"
-                                        self.boardPieces[0][7].colour = "None"
-                                        self.boardPieces[0][7].value = 0
-                                    
+                                        self.boardPieces[0][7].piece == "Empty"
+                                        self.boardPieces[0][7].colour == "None"
                                 else:
                                     self.whiteHasCastled = True
                                     if(item.xLocation == 7):
-                                        
                                         self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
                                         self.boardPieces[5][0].colour = evalColour
-                                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
-                                        
-                                        self.boardPieces[7][0].piece = "Empty"
-                                        self.boardPieces[7][0].colour = "None"
-                                        self.boardPieces[7][0].value = 0
-                                        
+                                        self.boardPieces[7][0].piece == "Empty"
+                                        self.boardPieces[7][0].colour == "None"
                                     if(item.xLocation == 3):
-                                        
                                         self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
                                         self.boardPieces[3][0].colour = evalColour
-                                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
-                                        
-                                        self.boardPieces[0][0].piece = "Empty"
-                                        self.boardPieces[0][0].colour = "None"
-                                        self.boardPieces[0][0].value = 0
+                                        self.boardPieces[0][0].piece == "Empty"
+                                        self.boardPieces[0][0].colour == "None"
+                                    #print("456")
+                                    #print(self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour))
                             self.isCastle = False
-                            """
-                            if(colour == "Black"):
-                                colour = "White"
-                            else:
-                                colour = "Black"
+                            
+                            if(not(self.isInCheck(evalColour))):
                                 """
-                            """ 
-                            if(item.xLocation == 3 and item.yLocation == 4):
-                                print(item.colour + " " + item.piece)
-                                print (lowestScore)
-                                print()
-                            """
-                            #print(item.colour + item.piece + str(2))
-                            #if(self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour) < lowestScore):
-                            self.numMove += 1
-                            score = self.maximizer(curDepth + 1,depthLimit,oppositeColour, alpha, beta)
-                            self.numMove -= 1
-                            
-                            '''
-                            if (self.numMove == 22):
-                                with open('Unfiltered_Full.txt', 'a') as file:
-                                    file.write("MAX CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
-                            
-                            if (self.numMove == 11):
-                                print ("MAX CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
-                            '''
-                            
-                            if (castleFlag):
-                                castleFlag = False
-                                if (evalColour == "Black"):
-                                    self.blackHasCastled = False
+                                if(colour == "Black"):
+                                    colour = "White"
                                 else:
-                                    self.whiteHasCastled = False  
+                                    colour = "Black"
+                                    """
+                                """ 
+                                if(item.xLocation == 3 and item.yLocation == 4):
+                                    print(item.colour + " " + item.piece)
+                                    print (lowestScore)
+                                    print()
+                                """
+                                #print(item.colour + item.piece + str(2))
                                 
-                            if(score < lowestScore):
-                                lowestScore = score
-                            
-                            self.boardPieces = copy.deepcopy(boardCopy)
-
-                            self.boardPieces = copy.deepcopy(boardCopy)
-                            
-                            
-                            if (lowestScore < alpha):
-                                return lowestScore
+                                score = self.maximizer(curDepth + 1,depthLimit,oppositeColour, alpha, beta)
+                                if(score < lowestScore):
+                                    lowestScore = score
+                                   
+                                if (lowestScore <= alpha):
+                                    return lowestScore
                                 
-                            beta = min(beta,lowestScore)    
-                             
-                            if beta <= alpha:
-                                return lowestScore  
-                            
+                                beta = min(beta,lowestScore)    
+                                 
+                                if beta <= alpha:
+                                    break
+                                
+                            if(evalColour == "Black"):
+                                if(not(hasCastled)):
+                                    self.blackHasCastled = False
+                            else:
+                                if(not(hasCastled)):
+                                    #print("456")
+                                    self.whiteHasCastled = False
+                                
+                            self.isCastle = False  
+                            self.boardPieces = copy.deepcopy(boardCopy)
+                        
+                    
         return lowestScore
+        
 
+    
+    
+    
     def isCheckMate(self,colour):
         isLegal = False
         isCapture = False
@@ -2304,10 +2171,7 @@ class Layout(tk.Tk):
                         print(y.piece)
                         print(item.xLocation, item.yLocation)
                         """
-                        self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
-                        self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
-                        self.pieceToBeMoved.xLocation = self.boardPieces[y.xLocation - 1][y.yLocation - 1].xLocation
-                        self.pieceToBeMoved.yLocation = self.boardPieces[y.xLocation - 1][y.yLocation - 1].yLocation
+                        self.pieceToBeMoved = self.boardPieces[y.xLocation - 1][y.yLocation - 1]
                         """
                         print(y.xLocation - 1,y.yLocation - 1)
                         print(self.boardPieces[4][7].piece + self.boardPieces[4][7].colour)
@@ -2366,9 +2230,6 @@ class Layout(tk.Tk):
         return True
     
     def moveAppender(self,moves,y,colour):
-        
-        # All moves assume that white is on the bottom (Location numbers start at 1 but indices start at 0)
-        
         if(colour =="Black"):
             oppositeColour = "White"
         else:
@@ -2378,138 +2239,93 @@ class Layout(tk.Tk):
             
             if (colour == "Black"):
                 if(not(y.yLocation == 2)):
-                    
-                    # Regular black pawn move - 1 down
-                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation - 1))
-                    
-                    # Black pawn capture to the right
-                    if (y.xLocation < 8 and self.boardPieces[y.xLocation][y.yLocation - 2].colour == oppositeColour):                            
+                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation - 1)) 
+                    if (y.xLocation >= 1 and y.xLocation <= 7 and self.boardPieces[y.xLocation][y.yLocation - 2].colour == oppositeColour):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation - 1))
-                        
-                    # Black pawn capture to the left
-                    if (y.xLocation > 1 and y.xLocation < 9 and self.boardPieces[y.xLocation - 2][y.yLocation - 2].colour == oppositeColour):                            
+                    if (y.xLocation >= 2 and y.xLocation <= 8 and self.boardPieces[y.xLocation - 2][y.yLocation - 2].colour == oppositeColour):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation - 1))        
-                    
-                    # Black pawn moves 2 squares down initially
                     if (y.yLocation == 7):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation - 2))
                 else:
-                    # Black pawn moves downward to promotion
                     moves.append(Pieces("Queen",y.colour,y.xLocation , y.yLocation - 1))
                     moves.append(Pieces("Knight",y.colour,y.xLocation , y.yLocation - 1)) 
                     
-                    # Black pawn captures to the right to promotion
-                    if (y.xLocation < 8):                            
+                    if (y.xLocation >= 1 and y.xLocation <= 7):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation + 1, y.yLocation - 1))
                         moves.append(Pieces("Knight",y.colour,y.xLocation + 1, y.yLocation - 1))
-                    
-                    # Black pawn captures to the left to promotion
-                    if (y.xLocation > 1 and y.xLocation < 9):                            
+                        
+                    if (y.xLocation >= 2 and y.xLocation <= 8):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation - 1, y.yLocation - 1))
                         moves.append(Pieces("Knight",y.colour,y.xLocation - 1, y.yLocation - 1))   
             else:
                 if(not(y.yLocation == 7)):
-                    
-                    # Regular white pawn move - 1 up
-                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation + 1))
-                    
-                    # White pawn capture to the right
-                    if (y.xLocation < 8 and self.boardPieces[y.xLocation][y.yLocation].colour == oppositeColour):                            
+                    moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation + 1)) 
+                    if (y.xLocation >= 1 and y.xLocation <= 7 and self.boardPieces[y.xLocation][y.yLocation].colour == oppositeColour):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation + 1))
-                        
-                    # White pawn capture to the left
-                    if (y.xLocation > 1 and y.xLocation < 9 and self.boardPieces[y.xLocation - 2][y.yLocation].colour == oppositeColour):                            
-                        moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1))
-                        
-                    # White pawn moves 2 squares up initially
+                    if (y.xLocation >= 2 and y.xLocation <= 8 and self.boardPieces[y.xLocation - 2][y.yLocation].colour == oppositeColour):                            
+                        moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1))        
                     if (y.yLocation == 2):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation + 2))
                 else:
-                    # White pawn moves upward to promotion
                     moves.append(Pieces("Queen",y.colour,y.xLocation , y.yLocation + 1)) 
                     moves.append(Pieces("Knight",y.colour,y.xLocation , y.yLocation + 1))
-                    
-                    # White pawn capture to the right to promotion
-                    if (y.xLocation < 8):                            
+                    if (y.xLocation >= 1 and y.xLocation <= 7):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation + 1, y.yLocation + 1))
                         moves.append(Pieces("Knight",y.colour,y.xLocation + 1, y.yLocation + 1))
-                        
-                    # White pawn capture to the left to promotion
-                    if (y.xLocation > 1 and y.xLocation < 9):                            
+                    if (y.xLocation >= 2 and y.xLocation <= 8):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation - 1, y.yLocation + 1)) 
                         moves.append(Pieces("Knight",y.colour,y.xLocation - 1, y.yLocation + 1)) 
             
         elif (y.piece == "Knight"):
             
-            # Knight moves right 2 up 1
-            if (y.xLocation + 2 < 9 and y.yLocation + 1 < 9 and not(self.boardPieces[y.xLocation + 1][y.yLocation].colour == colour)):
+            if (y.xLocation + 2 <= 8 and y.yLocation + 1 <= 8 and not(self.boardPieces[y.xLocation + 1][y.yLocation].colour == colour)):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation + 2, y.yLocation + 1))
-                
-            # Knight moves right 2 down 1
-            if (y.xLocation + 2 < 9 and y.yLocation - 1 > 0 and not(self.boardPieces[y.xLocation + 1][y.yLocation - 2].colour == colour)):
+            if (y.xLocation + 2 <= 8 and y.yLocation - 1 >= 1 and not(self.boardPieces[y.xLocation + 1][y.yLocation - 2].colour == colour)):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation + 2, y.yLocation - 1))
-            
-            # Knight moves left 2 up 1
-            if (y.xLocation - 2 > 0 and y.yLocation + 1 < 9 and not(self.boardPieces[y.xLocation - 3][y.yLocation].colour == colour)):
+            if (y.xLocation - 2 >= 1 and y.yLocation + 1 <= 8 and not(self.boardPieces[y.xLocation - 3][y.yLocation].colour == colour)):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation - 2, y.yLocation + 1))
-            
-            # Knight moves left 2 down 1
-            if (y.xLocation - 2 > 0 and y.yLocation - 1 > 0 and not(self.boardPieces[y.xLocation - 3][y.yLocation - 2].colour == colour)):
+            if (y.xLocation - 2 >= 1 and y.yLocation - 1 >= 1 and not(self.boardPieces[y.xLocation - 3][y.yLocation - 2].colour == colour)):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation - 2, y.yLocation - 1))
             
-            # Knight moves right 1 up 2
-            if (y.xLocation + 1 < 9 and y.yLocation + 2 < 9 and not(self.boardPieces[y.xLocation][y.yLocation + 1].colour == colour)):
+            if (y.xLocation + 1 <= 8 and y.yLocation + 2 <= 8 and not(self.boardPieces[y.xLocation][y.yLocation + 1].colour == colour)):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation + 2))
-            
-            # Knight moves right 1 down 2
-            if (y.xLocation + 1 < 9 and y.yLocation - 2 > 0 and not(self.boardPieces[y.xLocation][y.yLocation - 3].colour == colour)):
+            if (y.xLocation + 1 <= 8 and y.yLocation - 2 >= 1 and not(self.boardPieces[y.xLocation][y.yLocation - 3].colour == colour)):
+                #print("WAZOO")
                 moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation - 2))
-            
-            # Knight moves left 1 up 2    
-            if (y.xLocation - 1 > 0 and y.yLocation + 2 < 9 and not(self.boardPieces[y.xLocation - 2][y.yLocation + 1].colour == colour)):
+            if (y.xLocation - 1 >= 1 and y.yLocation + 2 <= 8 and not(self.boardPieces[y.xLocation - 2][y.yLocation + 1].colour == colour)):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 2))
-            
-            # Knight moves left 1 down 2
-            if (y.xLocation - 1 > 0 and y.yLocation - 2 > 0 and not(self.boardPieces[y.xLocation - 2][y.yLocation - 3].colour == colour)):
+            if (y.xLocation - 1 >= 1 and y.yLocation - 2 >= 1 and not(self.boardPieces[y.xLocation - 2][y.yLocation - 3].colour == colour)):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation - 2))
+            
             
         elif (y.piece == "Bishop"):
             continuation = [True]* 4
             for i in range(1,8):
-                
-                # Bishop move upward right diagonal
-                if(y.xLocation + i < 9 and y.yLocation + i < 9 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation + i - 1].colour == colour) and continuation [0] == True):
+                if(y.xLocation + i <= 8 and y.yLocation + i <= 8 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation + i - 1].colour == colour) and continuation [0] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + i, y.yLocation + i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation + i - 1][y.yLocation + i - 1].piece == "Empty")):
                         continuation [0] == False
-                
-                # Bishop move downward right diagonal       
-                if(y.xLocation + i < 9 and y.yLocation - i > 0 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - i - 1].colour == colour) and continuation [1] == True):
+                        
+                if(y.xLocation + i <= 8 and y.yLocation - i >= 1 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - i - 1].colour == colour) and continuation [1] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + i, y.yLocation - i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation + i - 1][y.yLocation - i - 1].piece == "Empty")):
                         continuation [1] == False
-                
-                # Bishop move upward left diagonal
-                if(y.xLocation - i > 0 and y.yLocation + i < 9 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation + i - 1].colour == colour) and continuation [2] == True):
+
+                if(y.xLocation - i >= 1 and y.yLocation + i <= 8 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation + i - 1].colour == colour) and continuation [2] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - i, y.yLocation + i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - i - 1][y.yLocation + i - 1].piece == "Empty")):
                         continuation [2] == False
-                
-                # Bishop move downward left diagonal
-                if(y.xLocation - i > 0 and y.yLocation - i > 0 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - i - 1].colour == colour) and continuation [3] == True):
+                    
+                if(y.xLocation - i >= 1 and y.yLocation - i >= 1 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - i - 1].colour == colour) and continuation [3] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - i, y.yLocation - i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - i - 1][y.yLocation - i - 1].piece == "Empty")):
                         continuation [3] == False
 
@@ -2517,40 +2333,31 @@ class Layout(tk.Tk):
         elif (y.piece == "Rook"):
             continuation = [True]* 4
             for i in range(1,8):
-                
-                # Rook move right
-                if(y.xLocation + i < 9 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - 1].colour == colour) and continuation [0] == True):
+                if(y.xLocation + i <= 8 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - 1].colour == colour) and continuation [0] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + i, y.yLocation))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation + i - 1][y.yLocation - 1].piece == "Empty")):
                         continuation [0] == False
                     
-                # Rook move down
-                if(y.yLocation - i > 0 and not(self.boardPieces[y.xLocation - 1][y.yLocation - i - 1].colour == colour) and continuation [1] == True):
+                if(y.yLocation - i >= 1 and not(self.boardPieces[y.xLocation - 1][y.yLocation - i - 1].colour == colour) and continuation [1] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation - i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - 1][y.yLocation - i - 1].piece == "Empty")):
                         continuation [1] == False
-                
-                # Rook move left
-                if(y.xLocation - i > 0 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - 1].colour == colour) and continuation [2] == True):
+                    
+                if(y.xLocation - i >= 1 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - 1].colour == colour) and continuation [2] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - i, y.yLocation))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - i - 1][y.yLocation - 1].piece == "Empty")):
                         continuation [2] == False
-                
-                # Rook move up    
-                if(y.yLocation + i < 9 and not(self.boardPieces[y.xLocation - 1][y.yLocation + i - 1].colour == colour) and continuation [3] == True):
+                    
+                if(y.yLocation + i <= 8 and not(self.boardPieces[y.xLocation - 1][y.yLocation + i - 1].colour == colour) and continuation [3] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation + i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - 1][y.yLocation + i - 1].piece == "Empty")):
                         continuation [3] == False
 
@@ -2559,142 +2366,94 @@ class Layout(tk.Tk):
             
             continuation = [True]* 8
             for i in range(1,8):
-                
-                # Diagonal Moves
-                
-                # Queen move upward right diagonal
-                if(y.xLocation + i < 9 and y.yLocation + i < 9 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation + i - 1].colour == colour) and continuation [0] == True):
+                if(y.xLocation + i <= 8 and y.yLocation + i <= 8 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation + i - 1].colour == colour) and continuation [0] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + i, y.yLocation + i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation + i - 1][y.yLocation + i - 1].piece == "Empty")):
                         continuation [0] == False
-                
-                # Queen move downward right diagonal
-                if(y.xLocation + i < 9 and y.yLocation - i > 0 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - i - 1].colour == colour) and continuation [1] == True):
+                        
+                if(y.xLocation + i <= 8 and y.yLocation - i >= 1 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - i - 1].colour == colour) and continuation [1] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + i, y.yLocation - i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation + i - 1][y.yLocation - i - 1].piece == "Empty")):
                         continuation [1] == False
-                
-                # Queen move upward left diagonal
-                if(y.xLocation - i > 0 and y.yLocation + i < 9 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation + i - 1].colour == colour) and continuation [2] == True):
+
+                if(y.xLocation - i >= 1 and y.yLocation + i <= 8 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation + i - 1].colour == colour) and continuation [2] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - i, y.yLocation + i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - i - 1][y.yLocation + i - 1].piece == "Empty")):
                         continuation [2] == False
-                
-                # Queen move downward left diagonal
-                if(y.xLocation - i > 0 and y.yLocation - i > 0 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - i - 1].colour == colour) and continuation [3] == True):
+                    
+                if(y.xLocation - i >= 1 and y.yLocation - i >= 1 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - i - 1].colour == colour) and continuation [3] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - i, y.yLocation - i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - i - 1][y.yLocation - i - 1].piece == "Empty")):
                         continuation [3] == False
 
-
-                # Horizontal and Vertical Moves
                 
-                # Queen move right horizontally
-                if(y.xLocation + i < 9 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - 1].colour == colour) and continuation [4] == True):
+                if(y.xLocation + i <= 8 and not(self.boardPieces[y.xLocation + i - 1][y.yLocation - 1].colour == colour) and continuation [4] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + i, y.yLocation))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation + i - 1][y.yLocation - 1].piece == "Empty")):
                         continuation [4] == False
-                
-                # Queen move downward vertically
-                if(y.yLocation - i > 0 and not(self.boardPieces[y.xLocation - 1][y.yLocation - i - 1].colour == colour) and continuation [5] == True):
+                    
+                if(y.yLocation - i >= 1 and not(self.boardPieces[y.xLocation - 1][y.yLocation - i - 1].colour == colour) and continuation [5] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation - i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - 1][y.yLocation - i - 1].piece == "Empty")):
                         continuation [5] == False
-                
-                # Queen move left horizontally
-                if(y.xLocation - i > 0 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - 1].colour == colour) and continuation [6] == True):
+                    
+                if(y.xLocation - i >= 1 and not(self.boardPieces[y.xLocation - i - 1][y.yLocation - 1].colour == colour) and continuation [6] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - i, y.yLocation))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - i - 1][y.yLocation - 1].piece == "Empty")):
                         continuation [6] == False
-                
-                # Queen move upward vertically
-                if(y.yLocation + i < 9 and not(self.boardPieces[y.xLocation - 1][y.yLocation + i - 1].colour == colour) and continuation [7] == True):
+                    
+                if(y.yLocation + i <= 8 and not(self.boardPieces[y.xLocation - 1][y.yLocation + i - 1].colour == colour) and continuation [7] == True):
                     
                     moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation + i))
                     
-                    # Check if there is an obstacle preventing further exploration
                     if(not(self.boardPieces[y.xLocation - 1][y.yLocation + i - 1].piece == "Empty")):
                         continuation [7] == False
 
             
         elif (y.piece == "King"):
-            
-            # Check if the King can move to the right
-            if (y.xLocation + 1 < 9):
+            if (y.xLocation + 1 <= 8):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation))
-                
-                # Check if the king can also move up and to the right
-                if(y.yLocation + 1 < 9):
+                if(y.yLocation + 1 <= 8):
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation + 1))
-                
-                # Check if the king can also move down and to the right
-                if(y.yLocation - 1 > 0):            
+                if(y.yLocation - 1 >= 1):
                     moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation - 1))
-            
-            # Check if the King can move to the left                    
-            if(y.xLocation - 1 > 0):
+            if(y.xLocation - 1 >= 1):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation))
-                
-                # Check if the king can also move up and to the left
-                if(y.yLocation + 1 < 9):
+                if(y.yLocation + 1 <= 8):
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1))
-                    
-                # Check if the king can also move down and to the left
-                if(y.yLocation - 1 > 0):
+                if(y.yLocation - 1 >= 1):
                     moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation - 1))
-            
-            # Check if the King can move up
-            if (y.yLocation + 1 < 9):
+            if (y.yLocation + 1 <= 8):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation + 1))
-                
-            # Check if the King can move down
-            if (y.yLocation - 1 > 0):
+            if (y.yLocation - 1 >= 1):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation - 1))
-                
-            # Check if White's King has moved for castling purposes    
             if(colour == "White" and not(self.whiteKingHasMoved)):
-                
-                # Check if the king side rook has moved
                 if(not(self.kingSideWhiteRookHasMoved)):
                     moves.append(Pieces(y.piece,y.colour,7, 1))
-                    
-                # Check if the queen side rook has moved
                 if(not(self.queenSideWhiteRookHasMoved)):
                     moves.append(Pieces(y.piece,y.colour,3, 1))
-                    
-            # Check if White's King has moved for castling purposes        
             elif(colour == "Black" and not(self.blackKingHasMoved)):
-                
-                # Check if the king side rook has moved
                 if(not(self.kingSideBlackRookHasMoved)):
                     moves.append(Pieces(y.piece,y.colour,7, 8))
-                    
-                # Check if the queen side rook has moved
                 if(not(self.queenSideBlackRookHasMoved)):
                     moves.append(Pieces(y.piece,y.colour,3, 8))
-                    
+            
 board = Layout()
 board.drawboard()
 #board.test()
-board.mainloop()   
+board.mainloop()
+

@@ -7,7 +7,7 @@ from numba import njit
 
 from PIL import ImageTk, Image
 
-
+# Class to define a piece
 class Pieces():
     
     def __init__(self,pieceType,colour,x,y):
@@ -35,6 +35,8 @@ class Layout(tk.Tk):
             
     def __init__(self, n=8):
         super().__init__()
+        
+        # Variables for drawing the board graphically
         self.n = n
         self.leftframe = tk.Frame(self)
         self.leftframe.grid(row=0, column=0, rowspan=10, padx=40)
@@ -43,30 +45,47 @@ class Layout(tk.Tk):
         self.canvas = tk.Canvas(self, width=950, height=768, )
         self.canvas.grid(row=0, column=1, columnspan=8, rowspan=8)
         self.board = [[None for row in range(n)] for col in range(n)]
+        
+        # Variables to flag movement and count the current move
         self.move = False
+        self.numMove = 0
+        
+        # Variables to hold the moves selected
         self.pieceToBeMoved = Pieces("Empty","Empty",0,0)
         self.pawnToBePromoted = Pieces("Empty","Empty",0,0)
-        self.numMove = 0
+        
+        # Variables to help with engine calculation
+        self.isComputerMove = False
+        self.computerThinking = False
+        self.depth = 3
+        self.pieceChosen = "None"
+        
+        # Variables to hold castling status
         self.whiteKingHasMoved = False
         self.blackKingHasMoved = False
         self.queenSideWhiteRookHasMoved = False
         self.kingSideWhiteRookHasMoved = False
         self.queenSideBlackRookHasMoved = False
         self.kingSideBlackRookHasMoved = False
+        self.blackHasCastled = False
+        self.whiteHasCastled = False
+        self.isCastle = False
+        
+        # Variables to hold en pasent info
         self.blackSideEnPasent = False
         self.blackSideEnPasentPawnxLocation = 0
         self.whiteSideEnPasent = False
         self.whiteSideEnPasentPawnxLocation = 0
-        self.blackHasCastled = False
-        self.whiteHasCastled = False
+
+        # Promotion flag
         self.isPromotion = False
-        self.isCastle = False
+        
+        # Check flag
         self.isCheck = False
-        self.pieceChosen = "None"
-        self.depth = 3
+        
+        # Calculation count
         self.count = 0
-        self.isComputerMove = False
-        self.computerThinking = False
+        
         self.boardPieces = [[Pieces("Rook","White",1,1),
                             Pieces("Pawn","White",1,2),
                             Pieces("Empty","None",1,3),
@@ -140,8 +159,10 @@ class Layout(tk.Tk):
                             Pieces("Rook","Black",8,8)]
                           ]
         
-        
+    # Function to draw the board and its pieces graphically    
     def drawboard(self):
+        
+        # Draw the board itself
         from itertools import cycle
         for col in range(self.n):
             color = cycle(self.colours[::-1] if not col % 2 else self.colours)
@@ -153,10 +174,8 @@ class Layout(tk.Tk):
                 y2 = y1 + 90
                 self.board[row][col] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=next(color), tags=f"tile{col+1}{row+1}")
                 self.canvas.tag_bind(f"tile{col+1}{row+1}","<Button-1>", lambda e, i=col+1, j=row+1: self.get_location(e,i,j))
-        
-        
-        # self.board[1][3] = self.canvas.create_rectangle(0, 450, 90, 540, fill="#%02x%02x%02x" % (0, 0, 0), tags=f"tile{1}{3}")    
-        # self.canvas.tag_bind(f"tile{1}{3}","<Button-1>", lambda e, i=col+1, j=row+1: self.get_location(e,123,321))    
+
+        # Read all the required images from the file
         
         blackPawnWhiteSquare = Image.open('../Images/BlackPawnWhiteSquare.png')
         blackPawnWhiteSquare = blackPawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
@@ -262,12 +281,8 @@ class Layout(tk.Tk):
         blackKingInCheck = blackKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
         self.canvas.blackKingInCheckImage = ImageTk.PhotoImage(blackKingInCheck,master = self)
         
-        """
-        for x in self.boardPieces:
-            for y in x:
-                print(y.piece + "X: " + str(y.xLocation) + ",Y: " + str(y.yLocation))
-       """ 
-       # print(self.canvas.image)
+        # Create the main board pieces and bind them to their respective coordinates
+
         for i in range(8):
             
             if i % 2 == 1:
@@ -282,7 +297,7 @@ class Layout(tk.Tk):
             whitePawns = self.canvas.create_image(45 + i*90,585,image = whitePawn, anchor = 'center')
             self.canvas.tag_bind(blackPawns,"<Button-1>", lambda e, i = index + 1, j=7: self.get_location(e,i,7))
             self.canvas.tag_bind(whitePawns,"<Button-1>", lambda e, i = index + 1, j=2: self.get_location(e,i,2))
-            
+        
         blackRookWS =self.canvas.create_image(45,45,image = self.canvas.blackRookWhiteSquareImage, anchor = 'center')
         self.canvas.tag_bind(blackRookWS,"<Button-1>", lambda e, i=col+1, j=row+1: self.get_location(e,1,8))    
         
@@ -742,13 +757,16 @@ class Layout(tk.Tk):
         print(colour + " " + pieceChosen)
         piece = None
         allow = False
-        #print(self.isPromotion)
+        
+        # Check if the promotion flag has been set
         if(self.isPromotion):
+            
+            # Ensure that the turn and the colour piece selected is correct
             if (self.numMove % 2 == 0):
                 if (colour == "Black"):
                     allow = True
+                    # Choose the correct image given the square colour of the promotion square
                     if (pieceChosen == "Queen"):
-                        #print("OOPOPOP")
                         self.pawnToBePromoted = Pieces("Queen","Black",self.pawnToBePromoted.xLocation,self.pawnToBePromoted.yLocation)
                         if (self.findSquareColour(self.pawnToBePromoted.xLocation,self.pawnToBePromoted.yLocation) == "White"):   
                             piece = self.canvas.create_image(45 + (self.pawnToBePromoted.xLocation - 1)*90,675,image = self.canvas.blackQueenWhiteSquareImage, anchor = 'center')
@@ -772,7 +790,10 @@ class Layout(tk.Tk):
                             piece = self.canvas.create_image(45 + (self.pawnToBePromoted.xLocation - 1)*90,675,image = self.canvas.blackKnightWhiteSquareImage, anchor = 'center')
                         else:
                             piece = self.canvas.create_image(45 + (self.pawnToBePromoted.xLocation - 1)*90,675,image = self.canvas.blackKnightBlackSquareImage, anchor = 'center')       
+            
+            # Ensure that the turn and the colour piece selected is correct
             else:
+                # Choose the correct image given the square colour of the promotion square
                 if (colour == "White"):
                     allow = True
                     if (pieceChosen == "Queen"):
@@ -800,17 +821,20 @@ class Layout(tk.Tk):
                         else:
                             piece = self.canvas.create_image(45 + (self.pawnToBePromoted.xLocation - 1)*90,45,image = self.canvas.whiteKnightBlackSquareImage, anchor = 'center') 
             
+            # Check if the above conditions were meet
             if (allow):
                 
+                # Bind the image with its coordinates
                 self.canvas.tag_bind(piece,"<Button-1>", lambda e, i=self.pawnToBePromoted.xLocation, j=self.pawnToBePromoted.yLocation: self.get_location(e,i,j))
                 self.boardPieces[self.pawnToBePromoted.xLocation - 1][self.pawnToBePromoted.yLocation - 1] = self.pawnToBePromoted
                 print(self.pawnToBePromoted.piece)
                 print(self.boardPieces[self.pawnToBePromoted.xLocation - 1][self.pawnToBePromoted.yLocation - 1].piece)
                 self.isPromotion = False
-                #print("KKKJHSJ")
+                
                 if (self.numMove % 2 == 1):
+                    
+                    # Check if the promotion leaves the opponent in check or checkmate
                     if(self.isInCheck("White")):
-                        #print("JOJOJ")
                         if(self.isCheckMate("White")):
                             easygui.msgbox("Black Wins!", title="Winner!")
                         kingPiece = None
@@ -822,7 +846,10 @@ class Layout(tk.Tk):
                                     self.isCheck = True
                     elif(self.isCheckMate("White")):
                         easygui.msgbox("Draw by stalement", title="Draw")
+                        
                 else:
+                    
+                    # Check if the promotion leaves the opponent in check or checkmate
                     if(self.isInCheck("Black")): 
                         if(self.isCheckMate("Black")):
                             easygui.msgbox("White Wins!", title="Winner!")
@@ -835,41 +862,56 @@ class Layout(tk.Tk):
                                     self.isCheck = True
                     elif(self.isCheckMate("Black")):
                         easygui.msgbox("Draw by stalement", title="Draw")
-                if(self.isCheck): 
-                    
+                
+                # If in check, change the king piece to reflect that
+                if(self.isCheck):                 
                     pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = newPiece, anchor = 'center')
                     self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))
                 
+                # Update the board graphics
                 board.update()
+                
+                # Call the engine to make its move
                 if(not(self.isComputerMove)):
                     self.computerThinking = True
                     print ("Move: " + str(self.numMove))
                     print("Position: " + str(self.evaluateBoard()))
                     self.computerThinking = False
-                    
                     self.engineMove("Black")
                     
         pass
-    
+   
+    # Function to define legal pawn moves
     def isLegalPawnMove(self,curItem,i,j,colour):
         isLegal = False
         isCapture = False
         piece = None
-        #print(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation)
+        
+        # Check if the pawn is moving to an empty location
         if(curItem.piece == "Empty"):
             if (colour == "White"):
+                
+                # Check if the white pawn is at its starting position
                 if(self.pieceToBeMoved.yLocation == 2):
+                    
+                    # From here check if the pawn is moving either 1 square or 2, then check if there are any pieces impeding its path
                     if(self.pieceToBeMoved.xLocation == i and (j == 3 or j == 4)):
                         if(j == 3 and self.boardPieces[i-1][2].piece == "Empty"):
                             isLegal = True
                         elif(j == 4 and self.boardPieces[i-1][2].piece == "Empty" and self.boardPieces[i-1][3].piece == "Empty"):
                             isLegal = True
+                
+                # Move the pawn 1 up
                 elif(self.pieceToBeMoved.xLocation == i and j - 1 == self.pieceToBeMoved.yLocation):
                     isLegal = True
+                    
+                # Check if the attempted move is an en pasent move
                 elif(self.blackSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.blackSideEnPasentPawnxLocation) == 1 and (i + 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation or i - 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation)):
+                    
                     isLegal = True
                     isCapture = True
-                    
+                
+                # Set the image variable    
                 if (isLegal):    
                     if (self.findSquareColour(i,j) =="White"):   
                         piece = self.canvas.whitePawnWhiteSquareImage
@@ -877,29 +919,41 @@ class Layout(tk.Tk):
                         piece = self.canvas.whitePawnBlackSquareImage
             else:
                 
+                # Check if the black pawn is at its starting position
                 if(self.pieceToBeMoved.yLocation == 7):
+                    
+                    # From here check if the pawn is moving either 1 square or 2, then check if there are any pieces impeding its path
                     if(self.pieceToBeMoved.xLocation == i and (j == 6 or j == 5)):
                          if(j == 6 and self.boardPieces[i-1][5].piece == "Empty"):
                             isLegal = True
                          elif(j == 5 and self.boardPieces[i-1][5].piece == "Empty" and self.boardPieces[i-1][4].piece == "Empty"):
                             isLegal = True
+                            
+                # Move the pawn 1 down
                 elif(self.pieceToBeMoved.xLocation == i and j + 1 == self.pieceToBeMoved.yLocation):
                     isLegal = True
+                    
+                # Check if the attempted move is an en pasent move
                 elif(self.whiteSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.whiteSideEnPasentPawnxLocation) == 1 and (i + 1 == self.pieceToBeMoved.xLocation and j + 1 == self.pieceToBeMoved.yLocation or i - 1 == self.pieceToBeMoved.xLocation and j + 1 == self.pieceToBeMoved.yLocation)):
                     isLegal = True
                     isCapture = True 
-                    
+                
+                # Set the image variable  
                 if (isLegal):    
                     if (self.findSquareColour(i,j) =="White"):   
                         piece = self.canvas.blackPawnWhiteSquareImage
                     else:
                         piece = self.canvas.blackPawnBlackSquareImage
-
+        
+        # Handle captures
         else:
 
             if (colour == "White"):
                 
+                # Check if the move is a legal capture
                 if(curItem.colour == "Black" and (i + 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation or i - 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation)):
+                
+                    # Set the image variable 
                     if (self.findSquareColour(i,j) =="White"):   
                         piece = self.canvas.whitePawnWhiteSquareImage
                     else:
@@ -907,8 +961,11 @@ class Layout(tk.Tk):
                     isLegal = True
                     isCapture = True
             else:
-
+                
+                # Check if the move is a legal capture    
                 if(curItem.colour == "White" and (i + 1 == self.pieceToBeMoved.xLocation and j + 1 == self.pieceToBeMoved.yLocation or i - 1 == self.pieceToBeMoved.xLocation and j + 1 == self.pieceToBeMoved.yLocation)):
+                    
+                    # Check if the move is a legal capture
                     if (self.findSquareColour(i,j) =="White"):   
                         piece = self.canvas.blackPawnWhiteSquareImage
                     else:
@@ -918,13 +975,16 @@ class Layout(tk.Tk):
 
         return piece,isLegal,isCapture
 
-        
+    # Function to define legal knight moves    
     def isLegalKnightMove(self,curItem,i,j,colour):
         isLegal = False
         isCapture = False
         piece = None
-        #print(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation)
+        
+        # Check if the destination is a knights move away
         if (abs(i - self.pieceToBeMoved.xLocation) == 2 and abs(j - self.pieceToBeMoved.yLocation) == 1 or abs(i - self.pieceToBeMoved.xLocation) == 1 and abs(j - self.pieceToBeMoved.yLocation) == 2):
+            
+            # Set the image variable and set isLegal as true
             if (colour == "White"):
                 
                 if (self.findSquareColour(i,j) =="White"):   
@@ -932,6 +992,8 @@ class Layout(tk.Tk):
                 else:
                     piece = self.canvas.whiteKnightBlackSquareImage
                 isLegal = True
+                
+                # Check if the knight is capturing a piece
                 if(curItem.colour == "Black"):
                     isCapture = True
             else:
@@ -941,32 +1003,39 @@ class Layout(tk.Tk):
                 else:
                     piece = self.canvas.blackKnightBlackSquareImage
                 isLegal = True
+                
+                # Check if the knight is capturing a piece
                 if(curItem.colour == "White"):
                     isCapture = True
 
         return piece,isLegal,isCapture
 
-    
+    # Function to define legal bishop moves
     def isLegalBishopMove(self,curItem,i,j,colour):
+        
         isLegal = False
         isCapture = False
         piece = None
-        #print(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation)
+        
         if (abs(i - self.pieceToBeMoved.xLocation) ==abs(j - self.pieceToBeMoved.yLocation)):
             
             xMultiplier = 1
             yMultiplier = 1
             isLegal = True
             
+            # If the defending piece is ahead of the attacking, the check must be done in the other direction
             if(i > self.pieceToBeMoved.xLocation):
                 xMultiplier = -1
             if (j > self.pieceToBeMoved.yLocation):
                 yMultiplier = -1
+            
+            # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
             for square in range(1,abs(i - self.pieceToBeMoved.xLocation)):
                 
                 if(not(self.boardPieces[i + square*xMultiplier - 1][j + square*yMultiplier - 1].piece == "Empty")):
                     isLegal = False
-                    
+            
+            # Set the image variable and set isLegal as true
             if(isLegal):
                 isLegal = False
                 if (colour == "White"):
@@ -976,6 +1045,8 @@ class Layout(tk.Tk):
                     else:
                         piece = self.canvas.whiteBishopBlackSquareImage
                     isLegal = True
+                    
+                    # Check if the bishop is capturing a piece
                     if(curItem.colour == "Black"):
                         isCapture = True   
                 else:
@@ -985,11 +1056,14 @@ class Layout(tk.Tk):
                     else:
                         piece = self.canvas.blackBishopBlackSquareImage
                     isLegal = True
+                    
+                    # Check if the bishop is capturing a piece
                     if(curItem.colour == "White"):
                         isCapture = True  
 
         return piece,isLegal,isCapture
 
+    # Function to define legal rook moves
     def isLegalRookMove(self,curItem,i,j,colour):
         isLegal = False
         isCapture = False
@@ -1001,27 +1075,32 @@ class Layout(tk.Tk):
             yMultiplier = 1
             isLegal = True
             
+            # Vertical moves
             if (i == self.pieceToBeMoved.xLocation):
+                
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
                 if (j > self.pieceToBeMoved.yLocation):
                     yMultiplier = -1
-                for square in range(1,abs(j - self.pieceToBeMoved.yLocation)):
-                
+                    
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                for square in range(1,abs(j - self.pieceToBeMoved.yLocation)):                
                     if(not(self.boardPieces[i-1][j + square*yMultiplier - 1].piece == "Empty")):
                         isLegal = False
-                
+            # Horizontal moves
             else:
+                
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
                 if(i > self.pieceToBeMoved.xLocation):
                     xMultiplier = -1
             
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
                 for square in range(1,abs(i - self.pieceToBeMoved.xLocation)):
-                    #print (i+ square*xMultiplier - 1)
                     if(not(self.boardPieces[i+ square*xMultiplier - 1][j-1].piece == "Empty")):
                         isLegal = False
             
+            # Set the image variable and set isLegal as true
             if (isLegal):
                 isLegal = False
-                #print("WAAAAAAAAAAA")
-                #print(self.numMove)
                 if (colour == "White"):
                     
                     if (self.findSquareColour(i,j) =="White"):   
@@ -1029,6 +1108,8 @@ class Layout(tk.Tk):
                     else:
                         piece = self.canvas.whiteRookBlackSquareImage
                     isLegal = True
+                    
+                    # Check if the rook is capturing a piece
                     if(curItem.colour == "Black"):
                         isCapture = True   
                 else:
@@ -1038,50 +1119,67 @@ class Layout(tk.Tk):
                     else:
                         piece = self.canvas.blackRookBlackSquareImage
                     isLegal = True
+                    
+                    # Check if the rook is capturing a piece
                     if(curItem.colour == "White"):
                         isCapture = True 
                        
         return piece,isLegal,isCapture
 
-    
+    # Function to define legal queen moves
     def isLegalQueenMove(self,curItem,i,j,colour):
         isLegal = False
         isCapture = False
         piece = None
-        #print(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation)
+        # Set the default direction of exploration
         xMultiplier = 1
         yMultiplier = 1
         isLegal = True
-            
-            
+
+        # Check along diagonals    
         if (abs(i - self.pieceToBeMoved.xLocation) ==abs(j - self.pieceToBeMoved.yLocation)):
+            
+            # If the defending piece is ahead of the attacking, the check must be done in the other direction
             if(i > self.pieceToBeMoved.xLocation):
                 xMultiplier = -1
             if (j > self.pieceToBeMoved.yLocation):
                 yMultiplier = -1
+            
+            # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
             for square in range(1,abs(i - self.pieceToBeMoved.xLocation)):
                 
                 if(not(self.boardPieces[i + square*xMultiplier - 1][j + square*yMultiplier - 1].piece == "Empty")):
                     isLegal = False
+                    
+        # Check along rows and columns
         elif(i == self.pieceToBeMoved.xLocation or j == self.pieceToBeMoved.yLocation):
+            
+            # Vertical moves
             if (i == self.pieceToBeMoved.xLocation):
+                
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
                 if (j > self.pieceToBeMoved.yLocation):
                     yMultiplier = -1
-                for square in range(1,abs(j - self.pieceToBeMoved.yLocation)):
-                
+                    
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                for square in range(1,abs(j - self.pieceToBeMoved.yLocation)):                
                     if(not(self.boardPieces[i-1][j + square*yMultiplier - 1].piece == "Empty")):
                         isLegal = False
+            # Horizontal moves
             else:
+                
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
                 if(i > self.pieceToBeMoved.xLocation):
                     xMultiplier = -1
             
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
                 for square in range(1,abs(i - self.pieceToBeMoved.xLocation)):
-                
                     if(not(self.boardPieces[i+ square*xMultiplier - 1][j-1].piece == "Empty")):
                         isLegal = False
         else:
             isLegal = False
         
+        # Set the image variable and set isLegal as true
         if (isLegal):
                 isLegal = False
                 if (colour == "White"):
@@ -1091,6 +1189,8 @@ class Layout(tk.Tk):
                     else:
                         piece = self.canvas.whiteQueenBlackSquareImage
                     isLegal = True
+                    
+                    # Check if the queen is capturing a piece
                     if(curItem.colour == "Black"):
                         isCapture = True   
                 else:
@@ -1100,17 +1200,22 @@ class Layout(tk.Tk):
                     else:
                         piece = self.canvas.blackQueenBlackSquareImage
                     isLegal = True
+                    
+                    # Check if the queen is capturing a piece
                     if(curItem.colour == "White"):
                         isCapture = True 
         
         return piece,isLegal,isCapture
     
+    # Function to define legal king moves
     def isLegalKingMove(self,curItem,i,j,colour):
         isLegal = False
         isCapture = False
         piece = None
-        #print(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation)
-        if((abs(i - self.pieceToBeMoved.xLocation) == 1 and j == self.pieceToBeMoved.yLocation) or (abs(j - self.pieceToBeMoved.yLocation) == 1 and i == self.pieceToBeMoved.xLocation) or (abs(i - self.pieceToBeMoved.xLocation) == 1 and abs(j - self.pieceToBeMoved.yLocation) == 1)):
+        
+        if(abs(i - self.pieceToBeMoved.xLocation) < 2 and abs(j - self.pieceToBeMoved.yLocation) < 2):
+            
+            # Set the image variable and set isLegal as true
             if (colour == "White"):
                 
                 if (self.findSquareColour(i,j) =="White"):   
@@ -1118,6 +1223,8 @@ class Layout(tk.Tk):
                 else:
                     piece = self.canvas.whiteKingBlackSquareImage
                 isLegal = True
+                
+                # Check if the king is capturing a piece
                 if(curItem.colour == "Black"):
                     isCapture = True   
             else:
@@ -1127,63 +1234,86 @@ class Layout(tk.Tk):
                 else:
                     piece = self.canvas.blackKingBlackSquareImage
                 isLegal = True
+                
+                # Check if the king is capturing a piece
                 if(curItem.colour == "White"):
                     isCapture = True
+        
+        # Check for attempted castle
         else:
             isLegal = False
             if (colour == "White"):
+                
+                # White kingside castle
                 if (i == 7 and j == 1):
-                    
+                
+                    # Check that neither of the involved pieces have previously moved
                     if(not(self.whiteKingHasMoved) and not(self.kingSideWhiteRookHasMoved)):
                         
+                        # Check if there are no pieces obstructing castling
                         if (self.boardPieces[5][0].piece == "Empty" and self.boardPieces[6][0].piece == "Empty" and self.boardPieces[7][0].piece == "Rook" and self.boardPieces[7][0].colour == "White"):
                             self.isCastle = True
                             
+                            # Check if any opposing piece is attacking the castling path
                             for x in self.boardPieces:
                                 for y in x:
                                     if (y.colour == "Black"):
                                         if(self.IsAttacking(y,self.boardPieces[4][0]) or self.IsAttacking(y,self.boardPieces[5][0]) or self.IsAttacking(y,self.boardPieces[6][0])):
                                              self.isCastle = False
-                                             
+                # White queenside castle                             
                 if (i == 3 and j == 1):
+                    
+                    # Check that neither of the involved pieces have previously moved
                     if(not(self.whiteKingHasMoved) and not(self.queenSideWhiteRookHasMoved)):
+                        
+                        # Check if there are no pieces obstructing castling
                         if (self.boardPieces[1][0].piece == "Empty" and self.boardPieces[2][0].piece == "Empty" and self.boardPieces[3][0].piece == "Empty" and self.boardPieces[0][0].piece == "Rook" and self.boardPieces[0][0].colour == "White"):
                             self.isCastle = True
+                            
+                            # Check if any opposing piece is attacking the castling path
                             for x in self.boardPieces:
                                 for y in x:
                                     if (y.colour == "Black"):
                                         if(self.IsAttacking(y,self.boardPieces[4][0]) or self.IsAttacking(y,self.boardPieces[1][0]) or self.IsAttacking(y,self.boardPieces[2][0]) or self.IsAttacking(y,self.boardPieces[3][0])):
                                              self.isCastle = False
             else:
+                
+                # Black kingside castle
                 if (i == 7 and j == 8):
-                    #print("A")
+                    
+                    # Check that neither of the involved pieces have previously moved
                     if(not(self.blackKingHasMoved) and not(self.kingSideBlackRookHasMoved)):
-                        #print("B")
+                        
+                        # Check if there are no pieces obstructing castling
                         if (self.boardPieces[5][7].piece == "Empty" and self.boardPieces[6][7].piece == "Empty" and self.boardPieces[7][7].piece == "Rook" and self.boardPieces[7][7].colour == "Black"):
                             self.isCastle = True
-                            #print("C")
+                            
+                            # Check if any opposing piece is attacking the castling path
                             for x in self.boardPieces:
                                 for y in x:
                                     if (y.colour == "White"):
                                         if(self.IsAttacking(y,self.boardPieces[4][7]) or self.IsAttacking(y,self.boardPieces[5][7]) or self.IsAttacking(y,self.boardPieces[6][7])):
                                              self.isCastle = False
-                                             #print("D")
+                # Black queenside castle                             
                 if (i == 3 and j == 8):
-                    #print("A")
+                    
+                    # Check that neither of the involved pieces have previously moved
                     if(not(self.blackKingHasMoved) and not(self.queenSideBlackRookHasMoved)):
-                        #print("B")
+                        
+                        # Check if there are no pieces obstructing castling
                         if (self.boardPieces[1][7].piece == "Empty" and self.boardPieces[2][7].piece == "Empty" and self.boardPieces[3][7].piece == "Empty" and self.boardPieces[0][7].piece == "Rook" and self.boardPieces[0][7].colour == "Black"):
-                            #print("C")
                             self.isCastle = True
+                            
+                            # Check if any opposing piece is attacking the castling path
                             for x in self.boardPieces:
                                 for y in x:
                                     if (y.colour == "White"):
                                         if(self.IsAttacking(y,self.boardPieces[4][7]) or self.IsAttacking(y,self.boardPieces[1][7]) or self.IsAttacking(y,self.boardPieces[2][7]) or self.IsAttacking(y,self.boardPieces[3][7])):
-                                            #print("D") 
                                             self.isCastle = False
             
             if(self.isCastle):
-                
+                # Only if the move is actually to be made should the variables be set
+                # Otherwise just set as legal for the engine's calculation
                 isLegal = True
                 if(not(self.computerThinking)):
                 
@@ -1210,13 +1340,14 @@ class Layout(tk.Tk):
             
         return piece,isLegal,isCapture
 
-    
+    # Function to check if a move is legal
     def isLegalMove(self,curItem,i,j,colour):
         
         boardCopy = copy.deepcopy(self.boardPieces)
+        
+        # Check the required piece's rules to see if the move is legal
         if(self.pieceToBeMoved.colour == colour and not(curItem.colour == colour) and not(curItem.piece == "King")):
-            if(self.pieceToBeMoved.piece == "Pawn"):
-                #print("AAAA")
+            if(self.pieceToBeMoved.piece == "Pawn"):                
                 piece,isLegal,isCapture = self.isLegalPawnMove(curItem,i,j,colour)     
             elif(self.pieceToBeMoved.piece == "Knight"):
                 piece,isLegal,isCapture = self.isLegalKnightMove(curItem,i,j,colour) 
@@ -1234,25 +1365,22 @@ class Layout(tk.Tk):
                 # Make the location square hold the moving piece
                 self.boardPieces[i-1][j-1].piece = self.pieceToBeMoved.piece
                 self.boardPieces[i-1][j-1].colour = self.pieceToBeMoved.colour
-                self.boardPieces[i-1][j-1].xLocation = i
-                self.boardPieces[i-1][j-1].yLocation = j
-               # print("CCC2", self.pieceToBeMoved.piece,self.pieceToBeMoved.colour, self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,self.pieceToBeMoved.value)
+                
+                # Empty the previous square
                 self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
                 self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
-                #print("CCC3", self.pieceToBeMoved.piece,self.pieceToBeMoved.colour, self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,self.pieceToBeMoved.value)
                 
+                # Check if making this move puts the current player under check
+                # If so, the move is not legal
                 if (self.numMove % 2 == 0):
-                    
                     if(self.isInCheck("White")):
-                        #print("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")  
                         isLegal = False
                 else:
                     if(self.isInCheck("Black")):    
-                         #print("TTTTTTTTT") 
                          isLegal = False
                 
                 self.boardPieces = copy.deepcopy(boardCopy)     
-                #print("CCC4", self.pieceToBeMoved.piece,self.pieceToBeMoved.colour, self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,self.pieceToBeMoved.value)
+                
                 if(self.move):
                     return piece,isLegal,isCapture
                 else:
@@ -1262,37 +1390,36 @@ class Layout(tk.Tk):
                 if(self.move):
                     return piece,isLegal,isCapture
                 else:
-                    return isLegal,isCapture
-        
+                    return isLegal,isCapture        
         else:
 
-            
             if(self.move):
                 return None,False,False
             else:
                 return False,False
 
-    
+    # Function to make a move occur graphically
     def get_location(self, event, i, j):
-        #print (i, j)
         
         isLegal = False
         isCapture = False
         piece = None
-        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+        
         if (not(self.isPromotion)):
             
             if (self.move):
                 
-                #print("AAA")
                 # Current item holds the square that wil be moved to
                 curItem = self.boardPieces[i-1][j-1] 
                 curColour = self.pieceToBeMoved.colour
+                
+                # Check if it is legal to move the selected piece to the requested location
                 piece,isLegal,isCapture = self.isLegalMove(curItem,i,j,curColour)
-                #print(isLegal)
-                if (self.numMove % 2 == 1):
+                
+                # If the player attempts to capture via en pasent, then the captured item must be assigned explicitly
+                if (self.numMove % 2 == 0):
                     if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
-                        #print("DDDDWE")
+                        
                         curItem.piece = self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece
                         curItem.colour = self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour
                 else:
@@ -1302,11 +1429,10 @@ class Layout(tk.Tk):
               
                 if(isLegal):
                     
-                    
-                    #print(isLegal)
                     if(isLegal): 
-                        #print("AAAA")
                         
+                        # Assign variables pertaining to castling
+                        # Check if any of the involved pieces have moved
                         if(not(self.kingSideWhiteRookHasMoved)):
                             if (self.pieceToBeMoved.xLocation == 8 and self.pieceToBeMoved.yLocation == 1):
                                 self.kingSideWhiteRookHasMoved = True
@@ -1333,36 +1459,39 @@ class Layout(tk.Tk):
                                 if(self.pieceToBeMoved.colour == "Black"):
                                     self.blackKingHasMoved = True
                         
-                        
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+                        # Assign dimensions for the new square
                         x1 = (self.pieceToBeMoved.xLocation - 1) * 90
                         y1 = (8-self.pieceToBeMoved.yLocation) * 90
                         x2 = x1 + 90
                         y2 = y1 + 90
         
+                        # Assign the colour for the square
                         if self.findSquareColour(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation) == "White":
                             colour = "#%02x%02x%02x" % (255,255,255)
                         else:
                             colour = "#%02x%02x%02x" % (167,47,3)
         
+                        # Create the frame for the new square and bind it to the move function with its coordinates
                         pieces = self.canvas.create_image(45 + (i-1)*90,45 + (8-j)*90,image = piece, anchor = 'center')
-                        
                         self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = i, y=j: self.get_location(e,x,y))
             
+                        # Create the frame for the moving square and bind it to the move function with its coordinates
                         self.board[i-1][j-1] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}")    
                         self.canvas.tag_bind(f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}","<Button-1>", lambda e, x=self.pieceToBeMoved.xLocation, y=self.pieceToBeMoved.yLocation: self.get_location(e,x,y))
                         
+                        
+                        # Set the destination square as the piece to be moved
                         self.boardPieces[i-1][j-1].piece = self.pieceToBeMoved.piece
                         self.boardPieces[i-1][j-1].colour = self.pieceToBeMoved.colour
                         self.boardPieces[i-1][j-1].value = self.pieceToBeMoved.value
-                        #print("BBBB", i,j, temp.piece)
                         
+                        # Set the square of the piece to be moved as empty
                         self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
                         self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
                         self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
-                        
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
-                        if (self.numMove % 2 == 1):
+
+                        # If en pasent, make the new square to replace the captured pawn
+                        if (self.numMove % 2 == 0):
                             if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
                                 x1 = (self.blackSideEnPasentPawnxLocation - 1) * 90
                                 y1 = (8-5) * 90
@@ -1376,6 +1505,8 @@ class Layout(tk.Tk):
                                 
                                 self.board[self.blackSideEnPasentPawnxLocation - 1][4] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.blackSideEnPasentPawnxLocation}{5}")    
                                 self.canvas.tag_bind(f"tile{self.blackSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.blackSideEnPasentPawnxLocation, y=5: self.get_location(e,x,y))
+                                
+                                # Set the captured pawn as empty
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
@@ -1393,16 +1524,13 @@ class Layout(tk.Tk):
                                 
                                 self.board[self.whiteSideEnPasentPawnxLocation - 1][3] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.whiteSideEnPasentPawnxLocation}{4}")    
                                 self.canvas.tag_bind(f"tile{self.whiteSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.whiteSideEnPasentPawnxLocation, y=4: self.get_location(e,x,y))
+                                
+                                # Set the captured pawn as empty
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
-                        
-                        
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
-                        #isLegal = False
-                        #print(self.isCastle)
-                        #print(str(self.pieceToBeMoved.xLocation) + " " + str(self.pieceToBeMoved.yLocation) + " " + self.boardPieces[self.pieceToBeMoved.xLocation-1][self.pieceToBeMoved.yLocation-1].colour + self.boardPieces[self.pieceToBeMoved.xLocation-1][self.pieceToBeMoved.yLocation-1].piece)
-                        #print("QWERTY")
+
+                        # If the move is to castle, make the moved rook piece and the empty piece
                         if (self.isCastle):
                             if (i == 7 and j == 1):
                                 rookToBeMoved = Pieces("Rook","White",6,1)
@@ -1433,9 +1561,11 @@ class Layout(tk.Tk):
                                 self.queenSideBlackRookHasMoved = True
                                 self.blackKingHasMoved = True
                             
+                            # Graphically create the rook move when castled
                             pieces = self.canvas.create_image(45 + (rookToBeMoved.xLocation-1)*90,45 + (8-rookToBeMoved.yLocation)*90,image = piece, anchor = 'center')
                             self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = rookToBeMoved.xLocation, y=rookToBeMoved.yLocation: self.get_location(e,x,y))
-                                                 
+                              
+                            # Create the empty space
                             x1 = (emptySpace.xLocation - 1) * 90
                             y1 = (8-emptySpace.yLocation) * 90
                             x2 = x1 + 90
@@ -1444,7 +1574,7 @@ class Layout(tk.Tk):
                             self.board[emptySpace.xLocation-1][emptySpace.yLocation-1] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{emptySpace.xLocation}{emptySpace.yLocation}")    
                             self.canvas.tag_bind(f"tile{emptySpace.xLocation}{emptySpace.yLocation}","<Button-1>", lambda e, x=emptySpace.xLocation, y=emptySpace.yLocation: self.get_location(e,x,y))
     
-                            
+                            # Edit the board with the empty space and moved rook
                             self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].piece = emptySpace.piece
                             self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].colour = emptySpace.colour
                             self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].value = emptySpace.value
@@ -1458,8 +1588,8 @@ class Layout(tk.Tk):
                             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
                             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
                             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
-                            #self.boardPieces[temp.xLocation - 1][temp.yLocation-1].activity = False
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+
+                        # Once out of check, reset the king's image to normal
                         if (self.isCheck):
                             if (self.numMove % 2 == 0):
                                 self.isCheck = False
@@ -1484,20 +1614,20 @@ class Layout(tk.Tk):
                                                 piece = self.canvas.blackKingBlackSquareImage
                             pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
                             self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))               
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)                    
+                                        
                         self.move = False
                         if (self.numMove % 2 == 0):
                             
+                            # Set the en pasent variables
                             if(self.whiteSideEnPasent):
                                 self.whiteSideEnPasent = False
                             
-                            if(self.pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 4 and self.pieceToBeMoved.yLocation == 2):
+                            if(self.pieceToBeMoved.piece == "Pawn" and curItem.yLocation == 4 and self.pieceToBeMoved.yLocation == 2):
                                 self.whiteSideEnPasent = True
                                 self.whiteSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
-                                #print("QWEQWE")
                             
+                            # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
                             if(self.isInCheck("Black")):
-                                #print("JOJOJ")
                                 
                                 if(self.isCheckMate("Black")):
                                     easygui.msgbox("White Wins!", title="Winner!")
@@ -1509,6 +1639,8 @@ class Layout(tk.Tk):
                                             kingPiece = y
                                             piece = self.canvas.blackKingInCheckImage
                                             self.isCheck = True
+                                            
+                            # Check if the move is a pawn promotion
                             elif(self.pieceToBeMoved.piece == "Pawn" and j == 8):
                                 self.isPromotion = True
                                 self.pawnToBePromoted = curItem
@@ -1517,21 +1649,23 @@ class Layout(tk.Tk):
                                     self.promotion(None,self.pieceChosen,"White")
                                     self.numMove -= 1
                                     self.isCheck = False
+                                    
+                            # Check if the player has no moves yet is not in check (Stalemate)
                             elif(self.isCheckMate("Black")):
                                 easygui.msgbox("Draw by stalemate", title="Draw")
                               
-                        else:
+                        else:                            
                             
-                            
+                            # Set the en pasent variables
                             if(self.blackSideEnPasent):
                                 self.blackSideEnPasent = False
                             
-                            if(self.pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 5 and self.pieceToBeMoved.yLocation == 7):
-                                
+                            if(self.pieceToBeMoved.piece == "Pawn" and curItem.yLocation == 5 and self.pieceToBeMoved.yLocation == 7):
                                 self.blackSideEnPasent = True
                                 self.blackSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
-                            if(self.isInCheck("White")):    
-                                
+                            
+                            # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
+                            if(self.isInCheck("White")):   
                                 if(self.isCheckMate("White")):
                                     easygui.msgbox("Black Wins!", title="Winner!")
                                     
@@ -1542,6 +1676,8 @@ class Layout(tk.Tk):
                                             kingPiece = y
                                             piece = self.canvas.whiteKingInCheckImage
                                             self.isCheck = True
+                                            
+                            # Check if the move is a pawn promotion                
                             elif(self.pieceToBeMoved.piece == "Pawn" and j == 1):
                                 self.isPromotion = True
                                 self.pawnToBePromoted = curItem
@@ -1550,11 +1686,12 @@ class Layout(tk.Tk):
                                     self.promotion(None,self.pieceChosen,"Black")
                                     self.numMove -= 1
                                     self.isCheck = False
+                            # Check if the player has no moves yet is not in check (Stalemate)
                             elif(self.isCheckMate("White")):
                                 easygui.msgbox("Draw by stalemate", title="Draw")
-                        #print("AAAA " , self.boardPieces[4][3].piece, self.boardPieces[4][3].colour)
+                        
+                        # Set the piece graphically and bind it to its coordinates
                         if(self.isCheck): 
-                            
                             pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
                             self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))
                         
@@ -1565,7 +1702,10 @@ class Layout(tk.Tk):
                         print("Position: " + str(self.evaluateBoard()))
                         print('\n')
                         
+                        # Update the graphics
                         board.update()
+                        
+                        # Call the engine to make a move
                         if(not(self.isPromotion)):
                             self.computerThinking = True
                             self.move = False
@@ -1583,6 +1723,9 @@ class Layout(tk.Tk):
                 if (self.boardPieces[i-1][j-1].piece == "Empty"):
                     print(self.boardPieces[i-1][j-1].piece)
                 else:            
+                    
+                    # On first click, set the selected piece as the one to be moved
+                    # Checks if the correct colour piece is selected for the given turn
                     print(self.boardPieces[i-1][j-1].colour + " " + self.boardPieces[i-1][j-1].piece + " at " + str(i) + " " + str(j))
                     if(self.numMove % 2 == 0 and self.boardPieces[i-1][j-1].colour == "White" or self.numMove % 2 == 1 and self.boardPieces[i-1][j-1].colour == "Black"):
                         
@@ -1591,218 +1734,264 @@ class Layout(tk.Tk):
                         self.pieceToBeMoved.xLocation = i
                         self.pieceToBeMoved.yLocation = j
                         self.pieceToBeMoved.value = self.boardPieces[i-1][j-1].value
-                        
-                        #print(self.pieceToBeMoved.piece,self.pieceToBeMoved.colour,self.pieceToBeMoved.xLocation,self.pieceToBeMoved.xLocation)
                         self.move = True
     
-    
+    # Function that allows the engine to make a move
     def engineMove(self,colour):
         t0= timer()
     
+        # Set variable such that certain features know that an actual move is not being attempted
         self.computerThinking = True
+        
+        # Call the alpha beta algorithm to make a move decision
         currentItem,pieceToBeMoved,val,self.pieceChosen = self.alphaBeta(0,self.depth,"Black")
-        #currentItem,pieceToBeMoved,val,self.pieceChosen = self.maximizer(0,self.depth,"Black",0,0) 
         self.computerThinking = False
+        
+        # If the algorithm does not select a move, that suggests they are all equally bad and therefore the machine resigns
         if(not(pieceToBeMoved == None or pieceToBeMoved.piece == "Empty") ):
             
             print(pieceToBeMoved.colour + " " + pieceToBeMoved.piece + " at " + str(pieceToBeMoved.xLocation) + " " + str(pieceToBeMoved.yLocation))
-            #print(str(pieceToBeMoved.xLocation) + " " + str(pieceToBeMoved.yLocation) + " " + self.boardPieces[pieceToBeMoved.xLocation-1][pieceToBeMoved.yLocation-1].colour + self.boardPieces[pieceToBeMoved.xLocation-1][pieceToBeMoved.yLocation-1].piece)
-            #print ("Moves to ", currentItem.xLocation,currentItem.yLocation)
-            #print ("Move: " + str(self.numMove))
             print ("Computer Evaluation: " + str(val))
-            #print("Position: " + str(self.evaluateBoard()))
             print ("Number of Iterations: " + str(self.count))
             t1 = timer()
             print("Time elapsed: ", t1 - t0)
-            #print('\n')
-            #print(str(currentItem.xLocation) + " " + str(currentItem.yLocation) + " " + self.boardPieces[currentItem.xLocation-1][currentItem.yLocation-1].colour + self.boardPieces[currentItem.xLocation-1][currentItem.yLocation-1].piece)
-            
-            
+
             self.count = 0
             self.isComputerMove = True
             
+            # Set the piece to be moved and make it
             self.pieceToBeMoved.piece = pieceToBeMoved.piece
             self.pieceToBeMoved.colour = pieceToBeMoved.colour
             self.pieceToBeMoved.xLocation = pieceToBeMoved.xLocation
             self.pieceToBeMoved.yLocation = pieceToBeMoved.yLocation
             self.pieceToBeMoved.value = pieceToBeMoved.value
+            
             self.move = True
             self.get_location(None, currentItem.xLocation, currentItem.yLocation)
 
         else:
-            print ("Difference in position ASDASD: " + str(val))
-            print ("Number of Iterations DASDGEEAASD: " + str(self.count))
+            
+            print ("Position: " + str(val))
+            print ("Number of Iterations: " + str(self.count))
             easygui.msgbox("Black Resigns", title="Winner!")
-        
+    
+    # Function that returns the colour of the square on the board
     def findSquareColour(self,i,j):
         if (i + j) % 2 == 0:
             return "Black"
         else:
             return "White"
-        
+
+    # Function to check if the given side is in check        
     def isInCheck(self,colour):
         kingPiece = None
+        
+        # Find the king piece
         for x in self.boardPieces:
             for y in x:
                 if (y.piece == "King" and y.colour == colour):
                     kingPiece = y
         
-        #print(self.boardPieces[4][7].piece + self.boardPieces[4][7].colour)
-        #print(self.boardPieces[5][7].piece + self.boardPieces[5][7].colour)
-        #print(kingPiece.piece + " DDDDD " + kingPiece.colour)
-        
+        # Check if any piece is attacking the king
         for x in self.boardPieces:
             for y in x:
                 if (not(y.colour == colour) and not(y.piece == "Empty")):
-                    #print(self.boardPieces[7][4].piece + self.boardPieces[7][4].colour + "OOOOOO")
-                    #print(y.piece + " " + y.colour)
+
                     if(self.IsAttacking(y,kingPiece)):
-                        #print(y.piece + " " + y.colour)
                         return True
         return False
         
         
-    
+    # Function to check if a piece if attacking another piece
     def IsAttacking (self,attacker,defender):
-        #print("Attacker: " + attacker.colour + " " + attacker.piece)
-        #print("Defender: " + defender.colour + " " + defender.piece)
         curColour = attacker.colour
-        #print(attacker.xLocation, attacker.yLocation)
-        #print(attacker.piece + " " + attacker.colour)
-        #print(defender.piece + " " + defender.colour)
-        self.count+= 1
-        if (attacker.piece == "Pawn"):
         
-            if (curColour == "White"):
-                try:     
+        self.count+= 1
+        isLegal = False
+        
+        if (attacker.piece == "Pawn"):
+            try:
+                # Check either side of the defender
+                if (curColour == "White"):
                     if((defender.xLocation + 1 == attacker.xLocation and defender.yLocation - 1 == attacker.yLocation or defender.xLocation - 1 == attacker.xLocation and defender.yLocation - 1 == attacker.yLocation)):
-                        return True
-                except:
-                    pass
-      
-            elif(curColour == "Black"):
-                 try:  
+                        isLegal = True
+          
+                # Check either side of the defender
+                elif(curColour == "Black"):
                     if((defender.xLocation + 1 == attacker.xLocation and defender.yLocation + 1 == attacker.yLocation or defender.xLocation - 1 == attacker.xLocation and defender.yLocation + 1 == attacker.yLocation)):
-                        return True
-                 except:
-                     pass
-
+                        isLegal = True
+            except:
+                pass
+            
+        # Check knight moves
         elif(attacker.piece == "Knight"):
             try:
                 if (abs(defender.xLocation - attacker.xLocation) == 2 and abs(defender.yLocation - attacker.yLocation) == 1 or abs(defender.xLocation - attacker.xLocation) == 1 and abs(defender.yLocation - attacker.yLocation) == 2):
-                    
-                    #print(attacker.xLocation)
-                    #print(attacker.yLocation) 
-                    return True
+                    isLegal = True
             except:
                 pass
-                    
-                    
+              
         elif(attacker.piece == "Bishop"):
             
-            if (abs(defender.xLocation - attacker.xLocation) ==abs(defender.yLocation - attacker.yLocation)):
-                    
+            # Check along diagonals
+            if (abs(defender.xLocation - attacker.xLocation) == abs(defender.yLocation - attacker.yLocation)):
+                
                 xMultiplier = 1
                 yMultiplier = 1
-                isLegal = True
                 
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
                 if(defender.xLocation > attacker.xLocation):
                     xMultiplier = -1
                 if (defender.yLocation > attacker.yLocation):
                     yMultiplier = -1
+                
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
                 for square in range(1,abs(defender.xLocation - attacker.xLocation)):
-                    
                     if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
-                        isLegal = False
-                if (isLegal):
-                    return True
+                        return False
+                    
+                isLegal = True
             
         elif(attacker.piece == "Rook"):
-            #print(defender.piece + " AAAAA " + defender.colour)
+            
             if(defender.xLocation == attacker.xLocation or defender.yLocation == attacker.yLocation):
                     
                 xMultiplier = 1
                 yMultiplier = 1
-                isLegal = True
                 
+                # Vertical moves
                 if (defender.xLocation == attacker.xLocation):
+                    
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
                     if (defender.yLocation > attacker.yLocation):
                         yMultiplier = -1
+                        
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece    
                     for square in range(1,abs(defender.yLocation - attacker.yLocation)):
-                    
                         if(not(self.boardPieces[defender.xLocation-1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
-                            isLegal = False
-                    
+                            return False
+                
+                # Horizontal moves   
                 else:
+                    
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
                     if(defender.xLocation > attacker.xLocation):
                         xMultiplier = -1
                 
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece 
                     for square in range(1,abs(defender.xLocation - attacker.xLocation)):
-                    
                         if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation-1].piece == "Empty")):
-                            isLegal = False
-                if (isLegal):
-                    return True            
+                            return False
+                        
+                isLegal = True           
             
         elif(attacker.piece == "Queen"):
             
+            # Set the default direction of exploration
             xMultiplier = 1
             yMultiplier = 1
-            isLegal = True
-                
-                
+            
+            # Check along diagonals
             if (abs(defender.xLocation - attacker.xLocation) == abs(defender.yLocation - attacker.yLocation)):
+                
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
                 if(defender.xLocation > attacker.xLocation):
                     xMultiplier = -1
                 if (defender.yLocation > attacker.yLocation):
                     yMultiplier = -1
+                
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
                 for square in range(1,abs(defender.xLocation - attacker.xLocation)):
-                    
                     if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
-                        isLegal = False
+                        return False
+            
+            # Check along rows and columns
             elif(defender.xLocation == attacker.xLocation or defender.yLocation == attacker.yLocation):
+                
+                # Vertical moves
                 if (defender.xLocation == attacker.xLocation):
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
                     if (defender.yLocation > attacker.yLocation):
                         yMultiplier = -1
-                    for square in range(1,abs(defender.yLocation - attacker.yLocation)):
                     
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                    for square in range(1,abs(defender.yLocation - attacker.yLocation)):
                         if(not(self.boardPieces[defender.xLocation-1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
-                            isLegal = False
+                            return False           
+                
+                # Horizontal moves
                 else:
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
                     if(defender.xLocation > attacker.xLocation):
                         xMultiplier = -1
-                
-                    for square in range(1,abs(defender.xLocation - attacker.xLocation)):
                     
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                    for square in range(1,abs(defender.xLocation - attacker.xLocation)):
                         if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation-1].piece == "Empty")):
-                            isLegal = False
+                            return False
             else:
-                isLegal = False
-            if(isLegal):
-                return True
+                return False
+            
+            isLegal = True
             
         elif(attacker.piece == "King"):
-            if((abs(defender.xLocation - attacker.xLocation) == 1 and defender.yLocation == attacker.yLocation) or (abs(defender.yLocation - attacker.yLocation) == 1 and defender.xLocation == attacker.xLocation) or (abs(defender.xLocation - attacker.xLocation) == 1 and abs(defender.yLocation - attacker.yLocation) == 1)):
-                return True
-        return False   
+            # Check if the vertical and horizontal distance between the two pieces is 1 or less
+            if(abs(defender.xLocation - attacker.xLocation) < 2 and abs(defender.yLocation - attacker.yLocation) < 2):
+                isLegal = True
+            
+        if (isLegal):
+            
+            # Must check if the act of attacking would leave the attacker in check
+            # This would mean that the defender is not actually under attack
+            if (not(defender.piece == "King")):
+                boardCopy = copy.deepcopy(self.boardPieces)
     
+                # Make the location square hold the moving piece
+                self.boardPieces[defender.xLocation - 1][defender.yLocation - 1].piece = attacker.piece
+                self.boardPieces[defender.xLocation - 1][defender.yLocation - 1].colour = attacker.colour
+                
+                self.boardPieces[attacker.xLocation - 1][attacker.yLocation - 1].piece = "Empty"
+                self.boardPieces[attacker.xLocation - 1][attacker.yLocation - 1].colour = "None"
+                 
+                if (self.numMove % 2 == 0):
+                     
+                    if(self.isInCheck("White")):
+                        self.boardPieces = copy.deepcopy(boardCopy)
+                        return False
+                else:
+                    if(self.isInCheck("Black")):  
+                         self.boardPieces = copy.deepcopy(boardCopy) 
+                         return False
+                 
+                    
+                self.boardPieces = copy.deepcopy(boardCopy)  
+            return True  
+        
+        return False 
+    
+    # Function to begin alpha beta decision making
     def alphaBeta(self,curDepth,depthLimit,evalColour):
-  
+          
+        # Define the alpha and beta values
         alpha = -999999998
         beta = 999999999
+        
+        # Determine the colour of the active player and the opposing player
         if(evalColour == "Black"):
             oppositeColour = "White"
         else:
             oppositeColour = "Black"
         
+        # If the full depth is reached, return the evaluation immediately
         if (curDepth >= depthLimit):
-            
             return self.evaluateBoard()
+        
+        # Make copies of the en pasent status
+        EnPasentCopy = self.whiteSideEnPasent
+        EnPasentLocationCopy = self.whiteSideEnPasentPawnxLocation
         
         isLegal = False
         isCapture = False
-        moves = []
-        boardCopy = copy.deepcopy(self.boardPieces)
         highestScore = -99999999
         pieceToBePromoted = "None"
         promotion = False
@@ -1810,202 +1999,35 @@ class Layout(tk.Tk):
         pieceToBeMoved = Pieces ("Empty","None",0,0)
         castleFlag = False
         
-        for x in self.boardPieces:
-            for y in x:
-                if (y.colour == evalColour and not(y.piece == "Empty")):
-                    moves = []
-                    self.moveAppender(moves,y,evalColour)
-
-                    for item in moves:
-                        #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                        self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
-                        self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
-                        self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
-                        self.pieceToBeMoved.xLocation = y.xLocation
-                        self.pieceToBeMoved.yLocation = y.yLocation
-                        #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                        isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
-                        #print("CCC1", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                        if(isLegal):
-                            if(not(item.piece == y.piece)):
-                                promotion = True
-                            #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
-                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
-                            
-                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
-                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
-                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].value = 0
-                            #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                            if(self.isCastle):
-                                castleFlag = True
-                                if(evalColour == "Black"):
-                                    self.blackHasCastled = True
-                                    if(item.xLocation == 7):
-                                        self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
-                                        self.boardPieces[5][7].colour = evalColour
-                                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
-                                        
-                                        self.boardPieces[7][7].piece = "Empty"
-                                        self.boardPieces[7][7].colour = "None"
-                                        self.boardPieces[7][7].value = 0
-                                    if(item.xLocation == 3):
-                                        
-                                        self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
-                                        self.boardPieces[3][7].colour = evalColour
-                                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
-                                        
-                                        self.boardPieces[0][7].piece = "Empty"
-                                        self.boardPieces[0][7].colour = "None"
-                                        self.boardPieces[0][7].value = 0
-                                    
-                                else:
-                                    self.whiteHasCastled = True
-                                    if(item.xLocation == 7):
-                                        
-                                        self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
-                                        self.boardPieces[5][0].colour = evalColour
-                                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
-                                        
-                                        self.boardPieces[7][0].piece = "Empty"
-                                        self.boardPieces[7][0].colour = "None"
-                                        self.boardPieces[7][0].value = 0
-                                        
-                                    if(item.xLocation == 3):
-                                        
-                                        self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
-                                        self.boardPieces[3][0].colour = evalColour
-                                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
-                                        
-                                        self.boardPieces[0][0].piece = "Empty"
-                                        self.boardPieces[0][0].colour = "None"
-                                        self.boardPieces[0][0].value = 0
-                                        
-                            self.isCastle = False              
-                            #print(item.colour + item.piece + str(1))
-                            """
-                            if(item.piece == "Pawn" and item.xLocation == 6 and item.yLocation == 6):
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
-                            
-                            if(test and item.xLocation == 3 and item.yLocation == 4):
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
-                            """
-                            #if(self.evaluateBoard(evalColour) - self.evaluateBoard(oppositeColour) > highestScore):
-                            '''
-                            if (self.numMove == 11):
-                                print("AAA")
-                                print ("BLACK MOVES: ", item.piece, item.colour, item.xLocation, item.yLocation)
-                            '''
-                            self.numMove += 1
-                            score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
-                            self.numMove -= 1
-                            
-                            '''
-                            if (self.numMove == 21):
-                                with open('Unfiltered_Full.txt', 'a') as file:
-                                    file.write("MIN CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
-                            
-                            if (self.numMove == 11):
-                                print ("MIN CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
-                                print (score)  
-                            '''
-                            if (castleFlag):
-                                
-                                castleFlag = False
-                                if (evalColour == "Black"):
-                                    self.blackHasCastled = False
-                                else:
-                                    self.whiteHasCastled = False                                     
-                                    
-                                    
-                            if(score > highestScore):
-                                """
-                                print("Score: " + str(score))
-                                print("Highest Score: " + str(highestScore))
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                """
-                                if(promotion):
-                                    pieceToBePromoted = item.piece
-                                highestScore = score
-                                
-                                curItem.xLocation = item.xLocation 
-                                curItem.yLocation = item.yLocation
-                                
-                                self.boardPieces = copy.deepcopy(boardCopy)
-                                
-                                pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
-                                pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
-                                pieceToBeMoved.xLocation = y.xLocation 
-                                pieceToBeMoved.yLocation = y.yLocation
-                                pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
-                                
-                                #print("AAAA", curItem.piece,curItem.colour, curItem.xLocation,curItem.yLocation,curItem.value)
-                                #print("BBBB", pieceToBeMoved.piece,pieceToBeMoved.colour, pieceToBeMoved.xLocation,pieceToBeMoved.yLocation,pieceToBeMoved.value)
-                                #print("CCC", y.piece,y.colour, y.xLocation,y.yLocation,y.value)
-                            promotion = False
-                            self.boardPieces = copy.deepcopy(boardCopy)
-                            
-                            alpha = max(alpha,highestScore)
-                        
-                            if beta <= alpha:
-                                print("AAA")
-                                return curItem,pieceToBeMoved,highestScore,pieceToBePromoted                                
-        if (curDepth == 0):
-            print("BBB")
-            return curItem,pieceToBeMoved,highestScore,pieceToBePromoted
-        else:
-            return highestScore
-
-    def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
-        """
-        if(self.count % 10 == 0):
-            print(self.count)
-        self.count += 1
-        """
-        if(evalColour == "Black"):
-            oppositeColour = "White"
-        else:
-            oppositeColour = "Black"
-        
-        if (curDepth >= depthLimit):
-            
-            return self.evaluateBoard()
-        
-        isLegal = False
-        isCapture = False
-        moves = []
+        # Create a pre-move copy of the board
         boardCopy = copy.deepcopy(self.boardPieces)
-        highestScore = -99999999
-        pieceToBePromoted = "None"
-        promotion = False
-        curItem = None
-        pieceToBeMoved = None
-        castleFlag = False
         
+        # Loop through all pieces on the board
         for x in self.boardPieces:
             for y in x:
-                if (y.colour == evalColour and not(y.piece == "Empty")):
+                
+                # Check if the chosen piece is of the active player
+                if (y.colour == evalColour):
+                    
+                    # Acquire list of possible moves for the given piece
                     moves = []
                     self.moveAppender(moves,y,evalColour)
 
+                    # Loop through list of moves
                     for item in moves:
                         
+                        # Set the piece to be moved as the current piece                        
                         self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
                         self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
                         self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
                         self.pieceToBeMoved.xLocation = y.xLocation
                         self.pieceToBeMoved.yLocation = y.yLocation
-
+                        
+                        # Check if moving this piece to each move's location is legal
                         isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
 
                         if(isLegal):
+                            
                             if(not(item.piece == y.piece)):
                                 promotion = True
                             
@@ -2017,11 +2039,17 @@ class Layout(tk.Tk):
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].value = 0
                             
+                            # Check if the move made is a castling move
                             if(self.isCastle):
+                                
+                                # Set the castle flag within the scope of the current move
                                 castleFlag = True
                                 if(evalColour == "Black"):
+                                    
                                     self.blackHasCastled = True
                                     if(item.xLocation == 7):
+                                        
+                                        # Move the rook to complete kingside castling for black
                                         self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
                                         self.boardPieces[5][7].colour = evalColour
                                         self.boardPieces[5][7].value = self.boardPieces[7][7].value
@@ -2029,8 +2057,10 @@ class Layout(tk.Tk):
                                         self.boardPieces[7][7].piece = "Empty"
                                         self.boardPieces[7][7].colour = "None"
                                         self.boardPieces[7][7].value = 0
-                                    if(item.xLocation == 3):
+                                    
+                                    elif(item.xLocation == 3):
                                         
+                                        # Move the rook to complete queenside castling for black
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
                                         self.boardPieces[3][7].value = self.boardPieces[0][7].value
@@ -2040,9 +2070,11 @@ class Layout(tk.Tk):
                                         self.boardPieces[0][7].value = 0
                                     
                                 else:
+                                    
                                     self.whiteHasCastled = True
                                     if(item.xLocation == 7):
                                         
+                                        # Move the rook to complete kingside castling for white
                                         self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
                                         self.boardPieces[5][0].colour = evalColour
                                         self.boardPieces[5][0].value = self.boardPieces[7][0].value
@@ -2050,9 +2082,10 @@ class Layout(tk.Tk):
                                         self.boardPieces[7][0].piece = "Empty"
                                         self.boardPieces[7][0].colour = "None"
                                         self.boardPieces[7][0].value = 0
+                                    
+                                    elif(item.xLocation == 3):
                                         
-                                    if(item.xLocation == 3):
-                                        
+                                        # Move the rook to complete queenside castling for white
                                         self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
                                         self.boardPieces[3][0].colour = evalColour
                                         self.boardPieces[3][0].value = self.boardPieces[0][0].value
@@ -2061,132 +2094,181 @@ class Layout(tk.Tk):
                                         self.boardPieces[0][0].colour = "None"
                                         self.boardPieces[0][0].value = 0
                                
-                                self.isCastle = False 
-                            #print(item.colour + item.piece + str(1))
-                            """
-                            if(item.piece == "Pawn" and item.xLocation == 6 and item.yLocation == 6):
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
+                                # Set the universal castle flag as false to return to the previous state
+                                self.isCastle = False       
                             
-                            if(test and item.xLocation == 3 and item.yLocation == 4):
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                print (highestScore)
-                                print()
-                            """
-                            #if(self.evaluateBoard(evalColour) - self.evaluateBoard(oppositeColour) > highestScore):
+                            if (evalColour == "Black"):
+                                
+                                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
+                                if(self.blackSideEnPasent):
+                                    self.blackSideEnPasent = False
+                                
+                                # Set if the pawn is in en pasent position
+                                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 5 and y.yLocation == 7):
+                                    self.blackSideEnPasent = True
+                                    self.blackSideEnPasentPawnxLocation = y.xLocation
+                                    pass
+                                
+                                # Remove the pawn being captured if done through en pasent
+                                if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.whiteSideEnPasentPawnxLocation and isCapture and y.yLocation == 4):
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
+                                                    
+                            else:
+                                
+                                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
+                                if(self.whiteSideEnPasent):
+                                    self.whiteSideEnPasent = False
+                                
+                                # Set if the pawn is in en pasent position
+                                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 4 and y.yLocation == 2):
+                                    self.whiteSideEnPasent = True
+                                    self.whiteSideEnPasentPawnxLocation = y.xLocation  
+                                    pass 
+                                
+                                # Remove the pawn being captured if done through en pasent
+                                if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.blackSideEnPasentPawnxLocation and isCapture and y.yLocation == 5):
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
+                            
+                            
+                            # Increment the move number to simulate a move being made
                             self.numMove += 1
+                            # Call the minimizer to make the next move
                             score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
                             self.numMove -= 1
-                                                        
-                            '''
-                            if (self.numMove == 23):  
+                            
+                            
+                            if (self.numMove == 35):
                                 with open('Unfiltered_Full.txt', 'a') as file:
-                                    file.write("FINAL MOVE: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
-                            
-                            if (self.numMove == 11):
-                                if (castleFlag):
-                                    print ("RIGHT CORNER: ", score, self.boardPieces[7][7].piece, self.boardPieces[7][7].colour, self.boardPieces[7][7].value, self.boardPieces[7][7].xLocation, self.boardPieces[7][7].yLocation)
-                                    print ("CASTLED ROOK: ", score, self.boardPieces[5][7].piece, self.boardPieces[5][7].colour, self.boardPieces[5][7].value, self.boardPieces[5][7].xLocation, self.boardPieces[5][7].yLocation)
-                                    print()
-                            
-                            if (self.numMove == 11):
-                                print ("FINAL MOVE: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
+                                    file.write("MIN CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
                             '''
-                            #if (item.piece == "Pawn" and item.xLocation == 6 and item.yLocation == 6):
-                                
+                            if (self.numMove == 11):
+                                print ("MIN CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
+                                print (score)  
+                            '''
+                            
+                            # If the in-scope castling flag was set, then reset the universal castle flags
                             if (castleFlag):
+                                
                                 castleFlag = False
                                 if (evalColour == "Black"):
                                     self.blackHasCastled = False
                                 else:
-                                    self.whiteHasCastled = False 
-                                 
-                            
+                                    self.whiteHasCastled = False                                     
+                                    
+                            # Find the highest score        
                             if(score > highestScore):
-                                """
-                                print("Score: " + str(score))
-                                print("Highest Score: " + str(highestScore))
-                                print(item.xLocation,item.yLocation)
-                                print(item.colour + " " + item.piece)
-                                """
+                                
+                                # a pawn is to be promoted, set the promotion piece as the chosen one
+                                if(promotion):
+                                    pieceToBePromoted = item.piece
                                 highestScore = score
+                                
+                                # Set the destination location
+                                curItem.xLocation = item.xLocation 
+                                curItem.yLocation = item.yLocation
+                                
+                                # Reset the board to the pre-moved state
+                                self.boardPieces = copy.deepcopy(boardCopy)
+                                
+                                # Set the piece to be moved
+                                pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
+                                pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
+                                pieceToBeMoved.xLocation = y.xLocation 
+                                pieceToBeMoved.yLocation = y.yLocation
+                                pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
+                            
+                            # Reset the promotion variable
+                            promotion = False
+                            # Reset the board to the pre-moved state
                             self.boardPieces = copy.deepcopy(boardCopy)
                             
-                            if (highestScore > beta):
-                                return highestScore
-                                
                             alpha = max(alpha,highestScore)
                         
+                            # If the beta value becomes less than the alpha value, the branch is not viable to find the best move
                             if beta <= alpha:
-                                return highestScore                             
-                    
+                                self.whiteSideEnPasent = EnPasentCopy
+                                self.whiteSideEnPasentPawnxLocation = EnPasentLocationCopy
+                                return curItem,pieceToBeMoved,highestScore,pieceToBePromoted     
                             
-        return highestScore
+        if (curDepth == 0):
+            self.whiteSideEnPasent = EnPasentCopy
+            self.whiteSideEnPasentPawnxLocation = EnPasentLocationCopy
+            return curItem,pieceToBeMoved,highestScore,pieceToBePromoted
+        else:
+            return highestScore
+
+    # Function to find the maximum scoring move for a specific iteration
+    def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
         
-        
-    def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
-        
+        # Determine the colour of the active player and the opposing player
         if(evalColour == "Black"):
             oppositeColour = "White"
         else:
             oppositeColour = "Black"
         
+        # If the full depth is reached, return the evaluation immediately
         if (curDepth >= depthLimit):
-            
             return self.evaluateBoard()
-            #return self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour)
         
         isLegal = False
         isCapture = False
-        moves = []
-        boardCopy = copy.deepcopy(self.boardPieces)
-        lowestScore = 99999999
+        highestScore = -99999999
         castleFlag = False
-        #if (self.numMove == 11):
-         #   print("BBB")
+        
+        # Create a pre-move copy of the board
+        boardCopy = copy.deepcopy(self.boardPieces)
+        
+        # Loop through all pieces on the board
         for x in self.boardPieces:
             for y in x:
-                #if (self.numMove == 11):
-                    #print(y.xLocation, y.yLocation)
-                    #if (y.xLocation == 5 and y.yLocation == 5):
-                        #print (y.piece, y.colour)
-                if (y.colour == evalColour and not(y.piece == "Empty")):
+                
+                # Check if the chosen piece is of the active player
+                if (y.colour == evalColour):
+                    
+                    # Acquire list of possible moves for the given piece
                     moves = []
-                    
-                        #print (self.boardPieces[4][4].piece, self.boardPieces[4][4].colour)
                     self.moveAppender(moves,y,evalColour)
-                    
+
+                    # Loop through list of moves
                     for item in moves:
                         
-
-                        
+                        # Set the piece to be moved as the current piece                        
                         self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
                         self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
                         self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
                         self.pieceToBeMoved.xLocation = y.xLocation
                         self.pieceToBeMoved.yLocation = y.yLocation
-
+                        
+                        # Check if moving this piece to each move's location is legal
                         isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
 
                         if(isLegal):
-                            if(not(item.piece == y.piece)):
-                                promotion = True
-                            
+                           
+                            # If legal, make the move
                             self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
                             self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
                             self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
                             
+                            # Replace starting position with empty square
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].value = 0
                             
+                            # Check if the move made is a castling move
                             if(self.isCastle):
+                                
+                                # Set the castle flag within the scope of the current move
                                 castleFlag = True
                                 if(evalColour == "Black"):
+                                    
                                     self.blackHasCastled = True
                                     if(item.xLocation == 7):
+                                        
+                                        # Move the rook to complete kingside castling for black
                                         self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
                                         self.boardPieces[5][7].colour = evalColour
                                         self.boardPieces[5][7].value = self.boardPieces[7][7].value
@@ -2194,7 +2276,202 @@ class Layout(tk.Tk):
                                         self.boardPieces[7][7].piece = "Empty"
                                         self.boardPieces[7][7].colour = "None"
                                         self.boardPieces[7][7].value = 0
-                                    if(item.xLocation == 3):
+                                    
+                                    elif(item.xLocation == 3):
+                                        
+                                        # Move the rook to complete queenside castling for black
+                                        self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
+                                        self.boardPieces[3][7].colour = evalColour
+                                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
+                                        
+                                        self.boardPieces[0][7].piece = "Empty"
+                                        self.boardPieces[0][7].colour = "None"
+                                        self.boardPieces[0][7].value = 0
+                                    
+                                else:
+                                    
+                                    self.whiteHasCastled = True
+                                    if(item.xLocation == 7):
+                                        
+                                        # Move the rook to complete kingside castling for white
+                                        self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
+                                        self.boardPieces[5][0].colour = evalColour
+                                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
+                                        
+                                        self.boardPieces[7][0].piece = "Empty"
+                                        self.boardPieces[7][0].colour = "None"
+                                        self.boardPieces[7][0].value = 0
+                                    
+                                    elif(item.xLocation == 3):
+                                        
+                                        # Move the rook to complete queenside castling for white
+                                        self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
+                                        self.boardPieces[3][0].colour = evalColour
+                                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
+                                        
+                                        self.boardPieces[0][0].piece = "Empty"
+                                        self.boardPieces[0][0].colour = "None"
+                                        self.boardPieces[0][0].value = 0
+                               
+                                # Set the universal castle flag as false to return to the previous state
+                                self.isCastle = False
+
+                            if (evalColour == "Black"):
+                                
+                                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
+                                if(self.blackSideEnPasent):
+                                    self.blackSideEnPasent = False
+                                
+                                # Set if the pawn is in en pasent position
+                                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 5 and y.yLocation == 7):
+                                    self.blackSideEnPasent = True
+                                    self.blackSideEnPasentPawnxLocation = y.xLocation
+                                    pass
+                                
+                                # Remove the pawn being captured if done through en pasent
+                                if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.whiteSideEnPasentPawnxLocation and isCapture and y.yLocation == 4):
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
+                                                    
+                            else:
+                                
+                                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
+                                if(self.whiteSideEnPasent):
+                                    self.whiteSideEnPasent = False
+                                
+                                # Set if the pawn is in en pasent position
+                                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 4 and y.yLocation == 2):
+                                    self.whiteSideEnPasent = True
+                                    self.whiteSideEnPasentPawnxLocation = y.xLocation  
+                                    pass 
+                                
+                                # Remove the pawn being captured if done through en pasent
+                                if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.blackSideEnPasentPawnxLocation and isCapture and y.yLocation == 5):
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
+                            
+                            # Increment the move number to simulate a move being made
+                            self.numMove += 1
+                            # Call the minimizer to make the next move
+                            score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
+                            self.numMove -= 1
+                            
+                            
+                            if (self.numMove == 37):  
+                                with open('Unfiltered_Full.txt', 'a') as file:
+                                    file.write("FINAL MOVE: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
+                            '''
+                            if (self.numMove == 11):
+                                print ("FINAL MOVE: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
+                            '''
+                              
+                            # If the in-scope castling flag was set, then reset the universal castle flags
+                            if (castleFlag):
+                                castleFlag = False
+                                if (evalColour == "Black"):
+                                    self.blackHasCastled = False
+                                else:
+                                    self.whiteHasCastled = False 
+                            
+                            # Find the highest score
+                            if(score > highestScore):
+                                highestScore = score
+                                
+                            # Reset the board to the pre-moved state
+                            self.boardPieces = copy.deepcopy(boardCopy)
+                                
+                            alpha = max(alpha,highestScore)
+                        
+                            # If the beta value becomes less than the alpha value, the branch is not viable to find the best move
+                            if beta <= alpha:
+                                return highestScore                      
+        return highestScore
+    
+    # Function to find the minimum scoring move for a specific iteration      
+    def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
+        
+        # Determine the colour of the active player and the opposing player
+        if(evalColour == "Black"):
+            oppositeColour = "White"
+        else:
+            oppositeColour = "Black"
+        
+        # If the full depth is reached, return the evaluation immediately
+        if (curDepth >= depthLimit):
+            return self.evaluateBoard()
+        
+        isLegal = False
+        isCapture = False
+        lowestScore = 99999999
+        castleFlag = False
+        
+        # Create a pre-move copy of the board
+        boardCopy = copy.deepcopy(self.boardPieces)
+        
+        # Loop through all pieces on the board
+        for x in self.boardPieces:
+            for y in x:
+                
+                # Check if the chosen piece is of the active player
+                if (y.colour == evalColour):
+                    
+                    # Acquire list of possible moves for the given piece
+                    moves = []
+                    self.moveAppender(moves,y,evalColour)
+                    
+                    # Loop through list of moves
+                    for item in moves:
+                        
+                        # Set the piece to be moved as the current piece
+                        self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
+                        self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
+                        self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
+                        self.pieceToBeMoved.xLocation = y.xLocation
+                        self.pieceToBeMoved.yLocation = y.yLocation
+                        '''
+                        if (self.numMove == 4):
+                            with open('Unfiltered_Full.txt', 'a') as file:
+                                file.write("MAX CHOSEN: {}, {}, {}, {}\n".format(item.piece, item.colour, item.xLocation, item.yLocation))
+                        '''
+                        # Check if moving this piece to each move's location is legal
+                        isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
+
+                        if(isLegal):
+                            
+                            # If legal, make the move
+                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
+                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
+                            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
+                            
+                            # Replace starting position with empty square
+                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
+                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
+                            self.boardPieces[y.xLocation - 1][y.yLocation - 1].value = 0
+                            
+                            # Check if the move made is a castling move
+                            if(self.isCastle):
+                                
+                                # Set the castle flag within the scope of the current move
+                                castleFlag = True
+                                if(evalColour == "Black"):
+                                    
+                                    self.blackHasCastled = True
+                                    
+                                    # Move the rook to complete kingside castling for black
+                                    if(item.xLocation == 7):
+                                        
+                                        self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
+                                        self.boardPieces[5][7].colour = evalColour
+                                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
+                                        
+                                        self.boardPieces[7][7].piece = "Empty"
+                                        self.boardPieces[7][7].colour = "None"
+                                        self.boardPieces[7][7].value = 0
+                                        
+                                    # Move the rook to complete queenside castling for black
+                                    elif(item.xLocation == 3):
                                         
                                         self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
                                         self.boardPieces[3][7].colour = evalColour
@@ -2205,7 +2482,10 @@ class Layout(tk.Tk):
                                         self.boardPieces[0][7].value = 0
                                     
                                 else:
+                                    
                                     self.whiteHasCastled = True
+                                    
+                                    # Move the rook to complete kingside castling for white
                                     if(item.xLocation == 7):
                                         
                                         self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
@@ -2215,8 +2495,9 @@ class Layout(tk.Tk):
                                         self.boardPieces[7][0].piece = "Empty"
                                         self.boardPieces[7][0].colour = "None"
                                         self.boardPieces[7][0].value = 0
-                                        
-                                    if(item.xLocation == 3):
+                                    
+                                    # Move the rook to complete queenside castling for white
+                                    elif(item.xLocation == 3):
                                         
                                         self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
                                         self.boardPieces[3][0].colour = evalColour
@@ -2225,144 +2506,125 @@ class Layout(tk.Tk):
                                         self.boardPieces[0][0].piece = "Empty"
                                         self.boardPieces[0][0].colour = "None"
                                         self.boardPieces[0][0].value = 0
-                            self.isCastle = False
-                            """
-                            if(colour == "Black"):
-                                colour = "White"
+                                        
+                                # Set the universal castle flag as false to return to the previous state
+                                self.isCastle = False
+
+                            if (evalColour == "Black"):
+                                
+                                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
+                                if(self.blackSideEnPasent):
+                                    self.blackSideEnPasent = False
+                                
+                                # Set if the pawn is in en pasent position
+                                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 5 and y.yLocation == 7):
+                                    self.blackSideEnPasent = True
+                                    self.blackSideEnPasentPawnxLocation = y.xLocation
+                                    pass
+                                
+                                # Remove the pawn being captured if done through en pasent
+                                if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.whiteSideEnPasentPawnxLocation and isCapture and y.yLocation == 4):
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
+                                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
+                                                    
                             else:
-                                colour = "Black"
-                                """
-                            """ 
-                            if(item.xLocation == 3 and item.yLocation == 4):
-                                print(item.colour + " " + item.piece)
-                                print (lowestScore)
-                                print()
-                            """
-                            #print(item.colour + item.piece + str(2))
-                            #if(self.evaluateBoard(oppositeColour) - self.evaluateBoard(evalColour) < lowestScore):
+                                
+                                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
+                                if(self.whiteSideEnPasent):
+                                    self.whiteSideEnPasent = False
+                                
+                                # Set if the pawn is in en pasent position
+                                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 4 and y.yLocation == 2):
+                                    self.whiteSideEnPasent = True
+                                    self.whiteSideEnPasentPawnxLocation = y.xLocation  
+                                    pass 
+                                
+                                # Remove the pawn being captured if done through en pasent
+                                if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.blackSideEnPasentPawnxLocation and isCapture and y.yLocation == 5):
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
+                                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
+
+                            # Increment the move number to simulate a move being made
                             self.numMove += 1
+                            # Call the maximizer to make the next move
                             score = self.maximizer(curDepth + 1,depthLimit,oppositeColour, alpha, beta)
                             self.numMove -= 1
                             
-                            '''
-                            if (self.numMove == 22):
+                            if (self.numMove == 36):
                                 with open('Unfiltered_Full.txt', 'a') as file:
                                     file.write("MAX CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
                             
+                            '''
                             if (self.numMove == 11):
                                 print ("MAX CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
                             '''
                             
+                            # If the in-scope castling flag was set, then reset the universal castle flags
                             if (castleFlag):
                                 castleFlag = False
                                 if (evalColour == "Black"):
                                     self.blackHasCastled = False
                                 else:
                                     self.whiteHasCastled = False  
-                                
+                            
+                            # Find the lowest score
                             if(score < lowestScore):
                                 lowestScore = score
                             
+                            # Reset the board to the pre-moved state
                             self.boardPieces = copy.deepcopy(boardCopy)
-
-                            self.boardPieces = copy.deepcopy(boardCopy)
-                            
-                            
-                            if (lowestScore < alpha):
-                                return lowestScore
                                 
                             beta = min(beta,lowestScore)    
-                             
+                            
+                            # If the beta value becomes less than the alpha value, the branch is not viable to find the best move
                             if beta <= alpha:
                                 return lowestScore  
-                            
         return lowestScore
 
+    # Function to find out if a player is in checkmate
     def isCheckMate(self,colour):
         isLegal = False
         isCapture = False
         moves = []
         boardCopy = copy.deepcopy(self.boardPieces)
-        """
-        kingPiece = None
-        for x in self.boardPieces:
-            for y in x:
-                if (y.piece == "King" and y.colour == colour):
-                    kingPiece = y
-        """
+
+        # Makes all possible moves to see if it can avoid being in check
         for x in self.boardPieces:
             for y in x:
                 if (y.colour == colour and not(y.piece == "Empty")):
+                    
+                    # Acquire list of possible moves for the given piece
                     moves = []
                     self.moveAppender(moves,y,colour)
                     
+                    # Loop through list of moves
                     for item in moves:
-                        """
-                        print("KKKKKKKKKKKKKKKK")
-                        print(y.xLocation,y.yLocation)
-                        print(self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece)
-                        print(y.piece)
-                        print(item.xLocation, item.yLocation)
-                        """
+                        
+                        # Set the piece to be moved as the current piece
                         self.pieceToBeMoved.piece = self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece
                         self.pieceToBeMoved.colour = self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour
                         self.pieceToBeMoved.xLocation = self.boardPieces[y.xLocation - 1][y.yLocation - 1].xLocation
                         self.pieceToBeMoved.yLocation = self.boardPieces[y.xLocation - 1][y.yLocation - 1].yLocation
-                        """
-                        print(y.xLocation - 1,y.yLocation - 1)
-                        print(self.boardPieces[4][7].piece + self.boardPieces[4][7].colour)
-                        print(self.boardPieces[5][7].piece + self.boardPieces[5][7].colour)
-                        print(self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece + " " + self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour)
-                        print(self.boardPieces[item.xLocation - 1][item.yLocation - 1].xLocation,self.boardPieces[item.xLocation - 1][item.yLocation - 1].yLocation)
-                        """
+                        
+                        # Check if moving this piece to each move's location is legal
                         isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,colour)
-                        """
-                        print("QQQQQQQQQQQQQQQ")
-                        for a in self.boardPieces:
-                            for b in a:
-                                print(b.piece + "  ")
-                            print()
-                        print("EEEEEEEEEEEEEE")
-                        
-                        
-                        print(y.xLocation,y.yLocation)
-                        print(isLegal)
-                        print(item.piece)
-                        print(item.xLocation, item.yLocation)
-                        """
+
                         if(isLegal):
-                            #print(self.boardPieces[kingPiece.xLocation - 1][kingPiece.yLocation - 1].piece + " BBBBB " + self.boardPieces[kingPiece.xLocation - 1][kingPiece.yLocation - 1].colour)
+                            
+                            # If legal, make the move
                             self.boardPieces[item.xLocation - 1][item.yLocation - 1] = item
-                            #print(self.boardPieces[kingPiece.xLocation - 1][kingPiece.yLocation - 1].piece + " CCCCC " + self.boardPieces[kingPiece.xLocation - 1][kingPiece.yLocation - 1].colour)
-                            #print(self.boardPieces[4][7].piece + self.boardPieces[4][7].colour)
-                            #print(self.boardPieces[5][7].piece + self.boardPieces[5][7].colour)
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
                             self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
                             
-                            #print(y.xLocation,y.yLocation)
+                            # Check if the player is still in check after the move
                             if(not(self.isInCheck(colour))):
-                                """
-                                print("QEEEEEE")
-                                print(item.piece)
-                                print(item.xLocation, item.yLocation)
-                                print(self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece + "TTTT" + self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour)
-                                print(kingPiece.xLocation,kingPiece.yLocation)
-                                print(self.boardPieces[kingPiece.xLocation - 1][kingPiece.yLocation - 1].piece + " CCCCC " + self.boardPieces[kingPiece.xLocation - 1][kingPiece.yLocation - 1].colour)
                                 
-                                if(item.piece == self.boardPieces[kingPiece.xLocation - 1][kingPiece.yLocation - 1].piece):
-                                    print("QQQQQQQQQQQQQQQ")
-                                    for a in self.boardPieces:
-                                        for b in a:
-                                            print(b.piece + "  ")
-                                        print()
-                                    print("EEEEEEEEEEEEEE")
-                                """
-                                
+                                # If the player is not in check after a move, then the player is not in checkmate
                                 self.boardPieces = copy.deepcopy(boardCopy)
                                 return False
                             self.boardPieces = copy.deepcopy(boardCopy)
-                        #print(y.xLocation,y.yLocation)
-                    
         return True
     
     def moveAppender(self,moves,y,colour):
@@ -2383,16 +2645,23 @@ class Layout(tk.Tk):
                     moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation - 1))
                     
                     # Black pawn capture to the right
-                    if (y.xLocation < 8 and self.boardPieces[y.xLocation][y.yLocation - 2].colour == oppositeColour):                            
-                        moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation - 1))
+                    if (y.xLocation < 8):
+                        if (self.boardPieces[y.xLocation][y.yLocation - 2].colour == oppositeColour):                          
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation - 1))
+                        elif (self.whiteSideEnPasent and abs(y.xLocation - self.whiteSideEnPasentPawnxLocation) == 1):
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation - 1))
                         
                     # Black pawn capture to the left
-                    if (y.xLocation > 1 and y.xLocation < 9 and self.boardPieces[y.xLocation - 2][y.yLocation - 2].colour == oppositeColour):                            
-                        moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation - 1))        
-                    
+                    if (y.xLocation > 1):  
+                        if (self.boardPieces[y.xLocation - 2][y.yLocation - 2].colour == oppositeColour):                          
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation - 1)) 
+                        elif (self.whiteSideEnPasent and abs(y.xLocation - self.whiteSideEnPasentPawnxLocation) == 1):
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation - 1))                          
+                               
                     # Black pawn moves 2 squares down initially
                     if (y.yLocation == 7):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation - 2))
+                        
                 else:
                     # Black pawn moves downward to promotion
                     moves.append(Pieces("Queen",y.colour,y.xLocation , y.yLocation - 1))
@@ -2404,7 +2673,7 @@ class Layout(tk.Tk):
                         moves.append(Pieces("Knight",y.colour,y.xLocation + 1, y.yLocation - 1))
                     
                     # Black pawn captures to the left to promotion
-                    if (y.xLocation > 1 and y.xLocation < 9):                            
+                    if (y.xLocation > 1):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation - 1, y.yLocation - 1))
                         moves.append(Pieces("Knight",y.colour,y.xLocation - 1, y.yLocation - 1))   
             else:
@@ -2412,15 +2681,22 @@ class Layout(tk.Tk):
                     
                     # Regular white pawn move - 1 up
                     moves.append(Pieces(y.piece,y.colour,y.xLocation , y.yLocation + 1))
-                    
+
                     # White pawn capture to the right
-                    if (y.xLocation < 8 and self.boardPieces[y.xLocation][y.yLocation].colour == oppositeColour):                            
-                        moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation + 1))
+                    if (y.xLocation < 8):
+                        if (self.boardPieces[y.xLocation][y.yLocation].colour == oppositeColour):                          
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation + 1))
+                        elif (self.blackSideEnPasent and abs(y.xLocation - self.blackSideEnPasentPawnxLocation) == 1):
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation + 1))
                         
                     # White pawn capture to the left
-                    if (y.xLocation > 1 and y.xLocation < 9 and self.boardPieces[y.xLocation - 2][y.yLocation].colour == oppositeColour):                            
-                        moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1))
-                        
+                    if (y.xLocation > 1):
+
+                        if (self.boardPieces[y.xLocation - 2][y.yLocation].colour == oppositeColour):                          
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1)) 
+                        elif (self.blackSideEnPasent and abs(y.xLocation - self.blackSideEnPasentPawnxLocation) == 1):
+                            moves.append(Pieces(y.piece,y.colour,y.xLocation - 1, y.yLocation + 1)) 
+                       
                     # White pawn moves 2 squares up initially
                     if (y.yLocation == 2):                            
                         moves.append(Pieces(y.piece,y.colour,y.xLocation, y.yLocation + 2))
@@ -2435,7 +2711,7 @@ class Layout(tk.Tk):
                         moves.append(Pieces("Knight",y.colour,y.xLocation + 1, y.yLocation + 1))
                         
                     # White pawn capture to the left to promotion
-                    if (y.xLocation > 1 and y.xLocation < 9):                            
+                    if (y.xLocation > 1):                            
                         moves.append(Pieces("Queen",y.colour,y.xLocation - 1, y.yLocation + 1)) 
                         moves.append(Pieces("Knight",y.colour,y.xLocation - 1, y.yLocation + 1)) 
             

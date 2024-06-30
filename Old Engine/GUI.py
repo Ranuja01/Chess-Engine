@@ -831,7 +831,7 @@ class Layout(tk.Tk):
                 print(self.boardPieces[self.pawnToBePromoted.xLocation - 1][self.pawnToBePromoted.yLocation - 1].piece)
                 self.isPromotion = False
                 
-                if (self.numMove % 2 == 1):
+                if (self.numMove % 2 == 0):
                     
                     # Check if the promotion leaves the opponent in check or checkmate
                     if(self.isInCheck("White")):
@@ -1246,7 +1246,7 @@ class Layout(tk.Tk):
                 
                 # White kingside castle
                 if (i == 7 and j == 1):
-                
+                    
                     # Check that neither of the involved pieces have previously moved
                     if(not(self.whiteKingHasMoved) and not(self.kingSideWhiteRookHasMoved)):
                         
@@ -1260,6 +1260,7 @@ class Layout(tk.Tk):
                                     if (y.colour == "Black"):
                                         if(self.IsAttacking(y,self.boardPieces[4][0]) or self.IsAttacking(y,self.boardPieces[5][0]) or self.IsAttacking(y,self.boardPieces[6][0])):
                                              self.isCastle = False
+                                             
                 # White queenside castle                             
                 if (i == 3 and j == 1):
                     
@@ -1276,6 +1277,7 @@ class Layout(tk.Tk):
                                     if (y.colour == "Black"):
                                         if(self.IsAttacking(y,self.boardPieces[4][0]) or self.IsAttacking(y,self.boardPieces[1][0]) or self.IsAttacking(y,self.boardPieces[2][0]) or self.IsAttacking(y,self.boardPieces[3][0])):
                                              self.isCastle = False
+                                             
             else:
                 
                 # Black kingside castle
@@ -1887,6 +1889,9 @@ class Layout(tk.Tk):
             
         elif(attacker.piece == "Queen"):
             
+            
+                
+            
             # Set the default direction of exploration
             xMultiplier = 1
             yMultiplier = 1
@@ -1899,7 +1904,7 @@ class Layout(tk.Tk):
                     xMultiplier = -1
                 if (defender.yLocation > attacker.yLocation):
                     yMultiplier = -1
-                
+
                 # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
                 for square in range(1,abs(defender.xLocation - attacker.xLocation)):
                     if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
@@ -1953,14 +1958,14 @@ class Layout(tk.Tk):
                 self.boardPieces[attacker.xLocation - 1][attacker.yLocation - 1].piece = "Empty"
                 self.boardPieces[attacker.xLocation - 1][attacker.yLocation - 1].colour = "None"
                  
-                if (self.numMove % 2 == 0):
+                if (attacker.colour == "White"):
                      
                     if(self.isInCheck("White")):
                         self.boardPieces = copy.deepcopy(boardCopy)
                         return False
                 else:
                     if(self.isInCheck("Black")):  
-                         self.boardPieces = copy.deepcopy(boardCopy) 
+                         self.boardPieces = copy.deepcopy(boardCopy)
                          return False
                  
                     
@@ -2140,6 +2145,8 @@ class Layout(tk.Tk):
                             score = self.minimizer(curDepth + 1,depthLimit,oppositeColour,alpha, beta)
                             self.numMove -= 1
                             
+                            self.whiteSideEnPasent = EnPasentCopy
+                            self.whiteSideEnPasentPawnxLocation = EnPasentLocationCopy
                             
                             if (self.numMove == 35):
                                 with open('Unfiltered_Full.txt', 'a') as file:
@@ -2430,11 +2437,11 @@ class Layout(tk.Tk):
                         self.pieceToBeMoved.value = self.boardPieces[y.xLocation - 1][y.yLocation - 1].value
                         self.pieceToBeMoved.xLocation = y.xLocation
                         self.pieceToBeMoved.yLocation = y.yLocation
-                        '''
-                        if (self.numMove == 4):
+                        
+                        if (self.numMove == 36):
                             with open('Unfiltered_Full.txt', 'a') as file:
                                 file.write("MAX CHOSEN: {}, {}, {}, {}\n".format(item.piece, item.colour, item.xLocation, item.yLocation))
-                        '''
+                        
                         # Check if moving this piece to each move's location is legal
                         isLegal,isCapture = self.isLegalMove(self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
 
@@ -2551,11 +2558,11 @@ class Layout(tk.Tk):
                             # Call the maximizer to make the next move
                             score = self.maximizer(curDepth + 1,depthLimit,oppositeColour, alpha, beta)
                             self.numMove -= 1
-                            
+                            '''
                             if (self.numMove == 36):
                                 with open('Unfiltered_Full.txt', 'a') as file:
                                     file.write("MAX CHOSEN: {}, {}, {}, {}, {}\n".format(score, item.piece, item.colour, item.xLocation, item.yLocation))
-                            
+                            '''
                             '''
                             if (self.numMove == 11):
                                 print ("MAX CHOSEN: ", score, item.piece, item.colour, item.xLocation, item.yLocation)
@@ -2915,7 +2922,7 @@ class Layout(tk.Tk):
 
             
         elif (y.piece == "King"):
-            
+ 
             # Check if the King can move to the right
             if (y.xLocation + 1 < 9):
                 moves.append(Pieces(y.piece,y.colour,y.xLocation + 1, y.yLocation))

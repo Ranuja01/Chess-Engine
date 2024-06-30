@@ -7,6 +7,7 @@ Created on Thu Jun 27 21:08:39 2024
 
 from GUI import Pieces
 from timeit import default_timer as timer
+#from numba import njit
 import easygui
 import copy
 import Rules
@@ -107,9 +108,6 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
     # If the full depth is reached, return the evaluation immediately
     if (curDepth >= depthLimit):
         return evaluateBoard(self)
-    
-    whiteKingPositionCopy = copy.deepcopy(self.whiteKingPosition)
-    blackKingPositionCopy = copy.deepcopy(self.blackKingPosition)
     
     # Make copies of the en pasent status
     EnPasentCopy = self.whiteSideEnPasent
@@ -258,21 +256,12 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
                         
-                        
-                        if (item.piece == "King"):
-                            if (evalColour == "Black"):
-                                self.blackKingPosition = [item.xLocation, item.yLocation]
-                            else:
-                                self.whiteKingPosition = [item.xLocation, item.yLocation]
-                        
                         # Increment the move number to simulate a move being made
                         self.numMove += 1
                         # Call the minimizer to make the next move
                         score = minimizer(self, curDepth + 1,depthLimit,oppositeColour,alpha, beta)
                         self.numMove -= 1
-                        
-                        self.whiteKingPosition = copy.deepcopy(whiteKingPositionCopy)
-                        self.blackKingPosition  = copy.deepcopy(blackKingPositionCopy)
+
                         self.whiteSideEnPasent = EnPasentCopy
                         self.whiteSideEnPasentPawnxLocation = EnPasentLocationCopy
                         
@@ -353,9 +342,6 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
     isCapture = False
     highestScore = -99999999
     castleFlag = False
-    
-    whiteKingPositionCopy = copy.deepcopy(self.whiteKingPosition)
-    blackKingPositionCopy = copy.deepcopy(self.blackKingPosition)
     
     # Create a pre-move copy of the board
     boardCopy = copy.deepcopy(self.boardPieces)
@@ -489,19 +475,12 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
-                        
-                        if (item.piece == "King"):
-                            if (evalColour == "Black"):
-                                self.blackKingPosition = [item.xLocation, item.yLocation]
-                            else:
-                                self.whiteKingPosition = [item.xLocation, item.yLocation]
                                 
                         # Increment the move number to simulate a move being made
                         self.numMove += 1
                         # Call the minimizer to make the next move
                         score = minimizer(self, curDepth + 1,depthLimit,oppositeColour,alpha, beta)
                         self.numMove -= 1
-                        
                         
                         if (self.numMove == 37):  
                             with open('Unfiltered_Full.txt', 'a') as file:
@@ -545,9 +524,6 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
     # If the full depth is reached, return the evaluation immediately
     if (curDepth >= depthLimit):
         return evaluateBoard(self)
-    
-    whiteKingPositionCopy = copy.deepcopy(self.whiteKingPosition)
-    blackKingPositionCopy = copy.deepcopy(self.blackKingPosition)
     
     isLegal = False
     isCapture = False
@@ -692,22 +668,13 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
                                 self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
-                        
-                                
-                        if (item.piece == "King"):
-                            if (evalColour == "Black"):
-                                self.blackKingPosition = [item.xLocation, item.yLocation]
-                            else:
-                                self.whiteKingPosition = [item.xLocation, item.yLocation]
+
                                 
                         # Increment the move number to simulate a move being made
                         self.numMove += 1
                         # Call the maximizer to make the next move
                         score = maximizer(self, curDepth + 1,depthLimit,oppositeColour, alpha, beta)
                         self.numMove -= 1
-                        
-                        self.whiteKingPosition = copy.deepcopy(whiteKingPositionCopy)
-                        self.blackKingPosition  = copy.deepcopy(blackKingPositionCopy)
                         
                         '''
                         if (self.numMove == 36):
@@ -1083,5 +1050,3 @@ def moveAppender(self,moves,y,colour):
             # Check if the queen side rook has moved
             if(not(self.queenSideBlackRookHasMoved)):
                 moves.append(Pieces(y.piece,y.colour,3, 8))
-                
-  

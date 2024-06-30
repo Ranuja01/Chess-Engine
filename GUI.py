@@ -3,7 +3,7 @@ import copy
 import easygui
 import random
 from timeit import default_timer as timer
-from numba import njit
+#from numba import njit
 
 from PIL import ImageTk, Image
 
@@ -62,8 +62,6 @@ class Layout(tk.Tk):
         self.computerThinking = False
         self.depth = 3
         self.pieceChosen = "None"
-        self.blackKingPosition = [5,8]
-        self.whiteKingPosition = [5,1]
         
         # Variables to hold castling status
         self.whiteKingHasMoved = False
@@ -375,9 +373,7 @@ class Layout(tk.Tk):
         self.canvas.tag_bind(blackBishop,"<Button-1>", lambda e, i="Bishop", j = "Black": self.promotion(e,i,j))    
         
         blackKnight = self.canvas.create_image(855,675,image = self.canvas.blackKnightWhiteSquareImage, anchor = 'center')
-        self.canvas.tag_bind(blackKnight,"<Button-1>", lambda e, i="Knight", j = "Black": self.promotion(e,i,j))
-
- 
+        self.canvas.tag_bind(blackKnight,"<Button-1>", lambda e, i="Knight", j = "Black": self.promotion(e,i,j))  
     
     def promotion(self,event,pieceChosen,colour):
         print(colour + " " + pieceChosen)
@@ -463,11 +459,12 @@ class Layout(tk.Tk):
                     if(Rules.isInCheck(self, "White")):
                         if(Rules.isCheckMate(self, "White")):
                             easygui.msgbox("Black Wins!", title="Winner!")
-                        
-                        kingPiece = self.boardPieces[self.whiteKingPosition[0] - 1][self.whiteKingPosition[1] - 1]
+                        kingPiece = next(
+                            (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
+                            None
+                        )      
                         newPiece = self.canvas.whiteKingInCheckImage
                         self.isCheck = True
-                        
                     elif(Rules.isCheckMate(self, "White")):
                         easygui.msgbox("Draw by stalement", title="Draw")
                         
@@ -477,8 +474,10 @@ class Layout(tk.Tk):
                     if(Rules.isInCheck(self, "Black")): 
                         if(Rules.isCheckMate(self, "Black")):
                             easygui.msgbox("White Wins!", title="Winner!")
-                        
-                        kingPiece = self.boardPieces[self.blackKingPosition[0] - 1][self.blackKingPosition[1] - 1]
+                        kingPiece = next(
+                            (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
+                            None
+                        )      
                         newPiece = self.canvas.blackKingInCheckImage
                         self.isCheck = True
                     elif(Rules.isCheckMate(self, "Black")):
@@ -504,7 +503,7 @@ class Layout(tk.Tk):
 
     # Function to make a move occur graphically
     def get_location(self, event, i, j):
-        print(self.whiteKingPosition, self.blackKingPosition)
+        
         isLegal = False
         isCapture = False
         piece = None
@@ -515,9 +514,10 @@ class Layout(tk.Tk):
                 
                 # Current item holds the square that wil be moved to
                 curItem = self.boardPieces[i-1][j-1] 
+                curColour = self.pieceToBeMoved.colour
                 
                 # Check if it is legal to move the selected piece to the requested location
-                piece,isLegal,isCapture = Rules.isLegalMove(self,curItem,i,j,self.pieceToBeMoved.colour)
+                piece,isLegal,isCapture = Rules.isLegalMove(self,curItem,i,j,curColour)
                 
                 # If the player attempts to capture via en pasent, then the captured item must be assigned explicitly
                 if (self.numMove % 2 == 0):
@@ -529,7 +529,7 @@ class Layout(tk.Tk):
                     if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.whiteSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 4):
                         curItem.piece = self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece
                         curItem.colour = self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour
-                
+              
                 if(isLegal):
                     
                     if(isLegal): 
@@ -592,7 +592,7 @@ class Layout(tk.Tk):
                         self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
                         self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
                         self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
-                        
+
                         # If en pasent, make the new square to replace the captured pawn
                         if (self.numMove % 2 == 0):
                             if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
@@ -632,7 +632,7 @@ class Layout(tk.Tk):
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
                                 self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
-                        
+
                         # If the move is to castle, make the moved rook piece and the empty piece
                         if (self.isCastle):
                             if (i == 7 and j == 1):
@@ -691,41 +691,35 @@ class Layout(tk.Tk):
                             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
                             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
                             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
-                        
-                        
-                        if (self.boardPieces[i-1][j-1].piece == "King"):
-                            if (self.boardPieces[i-1][j-1].colour == "Black"):
-                                self.blackKingPosition = [i,j]
-                            else:
-                                self.whiteKingPosition = [i,j]
-                        
+
                         # Once out of check, reset the king's image to normal
                         if (self.isCheck):
                             if (self.numMove % 2 == 0):
-                                
-                                self.isCheck = False                            
-                                kingPiece = self.boardPieces[self.whiteKingPosition[0] - 1][self.whiteKingPosition[1] - 1]
+                                self.isCheck = False
+                                kingPiece = next(
+                                    (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
+                                    None
+                                )      
+                                            
                                 if (self.findSquareColour(kingPiece.xLocation,kingPiece.yLocation) =="White"):   
                                     piece = self.canvas.whiteKingWhiteSquareImage
                                 else:
                                     piece = self.canvas.whiteKingBlackSquareImage
-                                    
                             else:
-                                
                                 self.isCheck = False
-                                kingPiece = self.boardPieces[self.blackKingPosition[0] - 1][self.blackKingPosition[1] - 1]
+                                kingPiece = next(
+                                    (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
+                                    None
+                                )      
                                 if (self.findSquareColour(kingPiece.xLocation,kingPiece.yLocation) =="White"):   
                                     piece = self.canvas.blackKingWhiteSquareImage
                                 else:
                                     piece = self.canvas.blackKingBlackSquareImage
-                                    
+                                                
                             pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
                             self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))               
                                         
                         self.move = False
-                        
-                        
-                        
                         if (self.numMove % 2 == 0):
                             
                             # Set the en pasent variables
@@ -742,10 +736,13 @@ class Layout(tk.Tk):
                                 if(Rules.isCheckMate(self, "Black")):
                                     easygui.msgbox("White Wins!", title="Winner!")
                                 
-                                kingPiece = self.boardPieces[self.blackKingPosition[0] - 1][self.blackKingPosition[1] - 1]
+                                kingPiece = next(
+                                    (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
+                                    None
+                                )      
                                 piece = self.canvas.blackKingInCheckImage
                                 self.isCheck = True
-                                        
+                                            
                             # Check if the move is a pawn promotion
                             elif(self.pieceToBeMoved.piece == "Pawn" and j == 8):
                                 self.isPromotion = True
@@ -755,11 +752,11 @@ class Layout(tk.Tk):
                                     self.promotion(None,self.pieceChosen,"White")
                                     self.numMove -= 1
                                     self.isCheck = False
-                                     
+                                    
                             # Check if the player has no moves yet is not in check (Stalemate)
                             elif(Rules.isCheckMate(self, "Black")):
                                 easygui.msgbox("Draw by stalemate", title="Draw")
-                            
+                              
                         else:                            
                             
                             # Set the en pasent variables
@@ -774,10 +771,13 @@ class Layout(tk.Tk):
                             if(Rules.isInCheck(self, "White")):   
                                 if(Rules.isCheckMate(self, "White")):
                                     easygui.msgbox("Black Wins!", title="Winner!")
-                                
-                                kingPiece = self.boardPieces[self.whiteKingPosition[0] - 1][self.whiteKingPosition[1] - 1]
-                                piece = self.canvas.whiteKingInCheckImage
-                                self.isCheck = True
+                                    
+                                    kingPiece = next(
+                                        (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
+                                        None
+                                    )      
+                                    piece = self.canvas.whiteKingInCheckImage
+                                    self.isCheck = True
                                             
                             # Check if the move is a pawn promotion                
                             elif(self.pieceToBeMoved.piece == "Pawn" and j == 1):
@@ -791,14 +791,11 @@ class Layout(tk.Tk):
                             # Check if the player has no moves yet is not in check (Stalemate)
                             elif(Rules.isCheckMate(self, "White")):
                                 easygui.msgbox("Draw by stalemate", title="Draw")
-                            
+                        
                         # Set the piece graphically and bind it to its coordinates
                         if(self.isCheck): 
                             pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
                             self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))
-                        
-                        
-                        
                         
                         self.numMove += 1
                         
@@ -835,13 +832,12 @@ class Layout(tk.Tk):
                     if(self.numMove % 2 == 0 and self.boardPieces[i-1][j-1].colour == "White" or self.numMove % 2 == 1 and self.boardPieces[i-1][j-1].colour == "Black"):
                         
                         self.pieceToBeMoved.piece = self.boardPieces[i-1][j-1].piece
-                        print(self.pieceToBeMoved.piece, self.boardPieces[i-1][j-1].piece)
                         self.pieceToBeMoved.colour = self.boardPieces[i-1][j-1].colour
                         self.pieceToBeMoved.xLocation = i
                         self.pieceToBeMoved.yLocation = j
                         self.pieceToBeMoved.value = self.boardPieces[i-1][j-1].value
                         self.move = True
-                        
+    
     # Function that returns the colour of the square on the board
     def findSquareColour(self,i,j):
         if (i + j) % 2 == 0:

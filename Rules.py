@@ -7,7 +7,7 @@ Created on Thu Jun 27 20:53:20 2024
 
 import copy
 import Engine
-
+#from numba import njit
    
 # Function to define legal pawn moves
 def isLegalPawnMove(self,curItem,i,j,colour):
@@ -474,11 +474,7 @@ def isLegalKingMove(self,curItem,i,j,colour):
 def isLegalMove(self,curItem,i,j,colour):
     
     boardCopy = copy.deepcopy(self.boardPieces)
-    whiteKingPositionCopy = copy.deepcopy(self.whiteKingPosition)
-    blackKingPositionCopy = copy.deepcopy(self.blackKingPosition)
-                        
-
-                        
+                         
     # Check the required piece's rules to see if the move is legal
     if(self.pieceToBeMoved.colour == colour and not(curItem.colour == colour) and not(curItem.piece == "King")):
         if(self.pieceToBeMoved.piece == "Pawn"):                
@@ -503,12 +499,7 @@ def isLegalMove(self,curItem,i,j,colour):
             # Empty the previous square
             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
             self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
-            
-            if (self.boardPieces[i-1][j-1].piece == "King"):
-                if (colour == "Black"):
-                    self.blackKingPosition = [i, j]
-                else:
-                    self.whiteKingPosition = [i, j]
+
             # Check if making this move puts the current player under check
             # If so, the move is not legal
             if (self.numMove % 2 == 0):
@@ -519,8 +510,6 @@ def isLegalMove(self,curItem,i,j,colour):
                      isLegal = False
             
             self.boardPieces = copy.deepcopy(boardCopy)     
-            self.whiteKingPosition = copy.deepcopy(whiteKingPositionCopy)
-            self.blackKingPosition  = copy.deepcopy(blackKingPositionCopy)
             
             if(self.move):
                 return piece,isLegal,isCapture
@@ -545,9 +534,6 @@ def isCheckMate(self,colour):
     isCapture = False
     moves = []
     boardCopy = copy.deepcopy(self.boardPieces)
-    
-    whiteKingPositionCopy = copy.deepcopy(self.whiteKingPosition)
-    blackKingPositionCopy = copy.deepcopy(self.blackKingPosition)
     
     # Makes all possible moves to see if it can avoid being in check
     for x in self.boardPieces:
@@ -576,33 +562,23 @@ def isCheckMate(self,colour):
                         self.boardPieces[y.xLocation - 1][y.yLocation - 1].piece = "Empty"
                         self.boardPieces[y.xLocation - 1][y.yLocation - 1].colour = "None"
                         
-                        if (item.piece == "King"):
-                            if (colour == "Black"):
-                                self.blackKingPosition = [item.xLocation, item.yLocation]
-                            else:
-                                self.whiteKingPosition = [item.xLocation, item.yLocation]
-                        
                         # Check if the player is still in check after the move
                         if(not(isInCheck(self, colour))):
                             
                             # If the player is not in check after a move, then the player is not in checkmate
                             self.boardPieces = copy.deepcopy(boardCopy)
-                            self.whiteKingPosition = copy.deepcopy(whiteKingPositionCopy)
-                            self.blackKingPosition  = copy.deepcopy(blackKingPositionCopy)
                             return False
-                    self.whiteKingPosition = copy.deepcopy(whiteKingPositionCopy)
-                    self.blackKingPosition  = copy.deepcopy(blackKingPositionCopy)
-                    self.boardPieces = copy.deepcopy(boardCopy)
+                        self.boardPieces = copy.deepcopy(boardCopy)
     return True        
     
 # Function to check if the given side is in check        
 def isInCheck(self,colour):
-     
-    if (colour == "Black"):
-        kingPiece = self.boardPieces[self.blackKingPosition[0] - 1][self.blackKingPosition[1] - 1]
-    else:
-        kingPiece = self.boardPieces[self.whiteKingPosition[0] - 1][self.whiteKingPosition[1] - 1]
-           
+   
+    kingPiece = next(
+        (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == colour), 
+        None
+    )      
+                
     # Check if any piece is attacking the king
     for x in self.boardPieces:
         for y in x:

@@ -89,79 +89,83 @@ class Layout(tk.Tk):
         # Calculation count
         self.count = 0
         
-        self.boardPieces = [[Pieces("Rook","White",1,1),
-                            Pieces("Pawn","White",1,2),
-                            Pieces("Empty","None",1,3),
-                            Pieces("Empty","None",1,4),
-                            Pieces("Empty","None",1,5),
-                            Pieces("Empty","None",1,6),
-                            Pieces("Pawn","Black",1,7),
-                            Pieces("Rook","Black",1,8)],
-                            
-                            [Pieces("Knight","White",2,1),
-                            Pieces("Pawn","White",2,2),
-                            Pieces("Empty","None",2,3),
-                            Pieces("Empty","None",2,4),
-                            Pieces("Empty","None",2,5),
-                            Pieces("Empty","None",2,6),
-                            Pieces("Pawn","Black",2,7),
-                            Pieces("Knight","Black",2,8)],
-                            
-                            [Pieces("Bishop","White",3,1),
-                            Pieces("Pawn","White",3,2),
-                            Pieces("Empty","None",3,3),
-                            Pieces("Empty","None",3,4),
-                            Pieces("Empty","None",3,5),
-                            Pieces("Empty","None",3,6),
-                            Pieces("Pawn","Black",3,7),
-                            Pieces("Bishop","Black",3,8)],
-                            
-                            [Pieces("Queen","White",4,1),
-                            Pieces("Pawn","White",4,2),
-                            Pieces("Empty","None",4,3),
-                            Pieces("Empty","None",4,4),
-                            Pieces("Empty","None",4,5),
-                            Pieces("Empty","None",4,6),
-                            Pieces("Pawn","Black",4,7),
-                            Pieces("Queen","Black",4,8)],
-                            
-                            [Pieces("King","White",5,1),
-                            Pieces("Pawn","White",5,2),
-                            Pieces("Empty","None",5,3),
-                            Pieces("Empty","None",5,4),
-                            Pieces("Empty","None",5,5),
-                            Pieces("Empty","None",5,6),
-                            Pieces("Pawn","Black",5,7),
-                            Pieces("King","Black",5,8)],
-                            
-                            [Pieces("Bishop","White",6,1),
-                            Pieces("Pawn","White",6,2),
-                            Pieces("Empty","None",6,3),
-                            Pieces("Empty","None",6,4),
-                            Pieces("Empty","None",6,5),
-                            Pieces("Empty","None",6,6),
-                            Pieces("Pawn","Black",6,7),
-                            Pieces("Bishop","Black",6,8)],
-                            
-                            [Pieces("Knight","White",7,1),
-                            Pieces("Pawn","White",7,2),
-                            Pieces("Empty","None",7,3),
-                            Pieces("Empty","None",7,4),
-                            Pieces("Empty","None",7,5),
-                            Pieces("Empty","None",7,6),
-                            Pieces("Pawn","Black",7,7),
-                            Pieces("Knight","Black",7,8)],
-                            
-                            [Pieces("Rook","White",8,1),
-                            Pieces("Pawn","White",8,2),
-                            Pieces("Empty","None",8,3),
-                            Pieces("Empty","None",8,4),
-                            Pieces("Empty","None",8,5),
-                            Pieces("Empty","None",8,6),
-                            Pieces("Pawn","Black",8,7),
-                            Pieces("Rook","Black",8,8)]
-                          ]
-        
+        self.boardPieces = {
+            (0, 0): Pieces("Rook", "White", 1, 1),
+            (0, 1): Pieces("Pawn", "White", 1, 2),
+            (0, 2): Pieces("Empty", "None", 1, 3),
+            (0, 3): Pieces("Empty", "None", 1, 4),
+            (0, 4): Pieces("Empty", "None", 1, 5),
+            (0, 5): Pieces("Empty", "None", 1, 6),
+            (0, 6): Pieces("Pawn", "Black", 1, 7),
+            (0, 7): Pieces("Rook", "Black", 1, 8),
+            
+            (1, 0): Pieces("Knight", "White", 2, 1),
+            (1, 1): Pieces("Pawn", "White", 2, 2),
+            (1, 2): Pieces("Empty", "None", 2, 3),
+            (1, 3): Pieces("Empty", "None", 2, 4),
+            (1, 4): Pieces("Empty", "None", 2, 5),
+            (1, 5): Pieces("Empty", "None", 2, 6),
+            (1, 6): Pieces("Pawn", "Black", 2, 7),
+            (1, 7): Pieces("Knight", "Black", 2, 8),
+            
+            (2, 0): Pieces("Bishop", "White", 3, 1),
+            (2, 1): Pieces("Pawn", "White", 3, 2),
+            (2, 2): Pieces("Empty", "None", 3, 3),
+            (2, 3): Pieces("Empty", "None", 3, 4),
+            (2, 4): Pieces("Empty", "None", 3, 5),
+            (2, 5): Pieces("Empty", "None", 3, 6),
+            (2, 6): Pieces("Pawn", "Black", 3, 7),
+            (2, 7): Pieces("Bishop", "Black", 3, 8),
+            
+            (3, 0): Pieces("Queen", "White", 4, 1),
+            (3, 1): Pieces("Pawn", "White", 4, 2),
+            (3, 2): Pieces("Empty", "None", 4, 3),
+            (3, 3): Pieces("Empty", "None", 4, 4),
+            (3, 4): Pieces("Empty", "None", 4, 5),
+            (3, 5): Pieces("Empty", "None", 4, 6),
+            (3, 6): Pieces("Pawn", "Black", 4, 7),
+            (3, 7): Pieces("Queen", "Black", 4, 8),
+            
+            (4, 0): Pieces("King", "White", 5, 1),
+            (4, 1): Pieces("Pawn", "White", 5, 2),
+            (4, 2): Pieces("Empty", "None", 5, 3),
+            (4, 3): Pieces("Empty", "None", 5, 4),
+            (4, 4): Pieces("Empty", "None", 5, 5),
+            (4, 5): Pieces("Empty", "None", 5, 6),
+            (4, 6): Pieces("Pawn", "Black", 5, 7),
+            (4, 7): Pieces("King", "Black", 5, 8),
+            
+            (5, 0): Pieces("Bishop", "White", 6, 1),
+            (5, 1): Pieces("Pawn", "White", 6, 2),
+            (5, 2): Pieces("Empty", "None", 6, 3),
+            (5, 3): Pieces("Empty", "None", 6, 4),
+            (5, 4): Pieces("Empty", "None", 6, 5),
+            (5, 5): Pieces("Empty", "None", 6, 6),
+            (5, 6): Pieces("Pawn", "Black", 6, 7),
+            (5, 7): Pieces("Bishop", "Black", 6, 8),
+            
+            (6, 0): Pieces("Knight", "White", 7, 1),
+            (6, 1): Pieces("Pawn", "White", 7, 2),
+            (6, 2): Pieces("Empty", "None", 7, 3),
+            (6, 3): Pieces("Empty", "None", 7, 4),
+            (6, 4): Pieces("Empty", "None", 7, 5),
+            (6, 5): Pieces("Empty", "None", 7, 6),
+            (6, 6): Pieces("Pawn", "Black", 7, 7),
+            (6, 7): Pieces("Knight", "Black", 7, 8),
+            
+            (7, 0): Pieces("Rook", "White", 8, 1),
+            (7, 1): Pieces("Pawn", "White", 8, 2),
+            (7, 2): Pieces("Empty", "None", 8, 3),
+            (7, 3): Pieces("Empty", "None", 8, 4),
+            (7, 4): Pieces("Empty", "None", 8, 5),
+            (7, 5): Pieces("Empty", "None", 8, 6),
+            (7, 6): Pieces("Pawn", "Black", 8, 7),
+            (7, 7): Pieces("Rook", "Black", 8, 8)        
+            
+            # Continue similarly for other pieces...
+        }
+
+       
     # Function to draw the board and its pieces graphically    
     def drawboard(self):
         
@@ -448,7 +452,7 @@ class Layout(tk.Tk):
                 
                 # Bind the image with its coordinates
                 self.canvas.tag_bind(piece,"<Button-1>", lambda e, i=self.pawnToBePromoted.xLocation, j=self.pawnToBePromoted.yLocation: self.get_location(e,i,j))
-                self.boardPieces[self.pawnToBePromoted.xLocation - 1][self.pawnToBePromoted.yLocation - 1] = self.pawnToBePromoted
+                self.boardPieces[(self.pawnToBePromoted.xLocation - 1, self.pawnToBePromoted.yLocation - 1)] = self.pawnToBePromoted
                 print(self.pawnToBePromoted.piece)
                 print(self.boardPieces[self.pawnToBePromoted.xLocation - 1][self.pawnToBePromoted.yLocation - 1].piece)
                 self.isPromotion = False
@@ -460,9 +464,9 @@ class Layout(tk.Tk):
                         if(Rules.isCheckMate(self, "White")):
                             easygui.msgbox("Black Wins!", title="Winner!")
                         kingPiece = next(
-                            (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
+                            (piece for piece in self.boardPieces.values() if piece.piece == "King" and piece.colour == "White"), 
                             None
-                        )      
+                        )     
                         newPiece = self.canvas.whiteKingInCheckImage
                         self.isCheck = True
                     elif(Rules.isCheckMate(self, "White")):
@@ -475,9 +479,9 @@ class Layout(tk.Tk):
                         if(Rules.isCheckMate(self, "Black")):
                             easygui.msgbox("White Wins!", title="Winner!")
                         kingPiece = next(
-                            (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
+                            (piece for piece in self.boardPieces.values() if piece.piece == "King" and piece.colour == "White"), 
                             None
-                        )      
+                        )       
                         newPiece = self.canvas.blackKingInCheckImage
                         self.isCheck = True
                     elif(Rules.isCheckMate(self, "Black")):
@@ -513,7 +517,7 @@ class Layout(tk.Tk):
             if (self.move):
                 
                 # Current item holds the square that wil be moved to
-                curItem = self.boardPieces[i-1][j-1] 
+                curItem = self.boardPieces[(i-1,j-1)] 
                 curColour = self.pieceToBeMoved.colour
                 
                 # Check if it is legal to move the selected piece to the requested location
@@ -523,319 +527,319 @@ class Layout(tk.Tk):
                 if (self.numMove % 2 == 0):
                     if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
                         
-                        curItem.piece = self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece
-                        curItem.colour = self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour
+                        curItem.piece = self.boardPieces[(self.blackSideEnPasentPawnxLocation - 1, 4)].piece
+                        curItem.colour = self.boardPieces[(self.blackSideEnPasentPawnxLocation - 1, 4)].colour
                 else:
                     if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.whiteSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 4):
-                        curItem.piece = self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece
-                        curItem.colour = self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour
-              
+                        curItem.piece = self.boardPieces[(self.whiteSideEnPasentPawnxLocation - 1, 3)].piece
+                        curItem.colour = self.boardPieces[(self.whiteSideEnPasentPawnxLocation - 1, 3)].colour
+                
                 if(isLegal):
                     
-                    if(isLegal): 
-                        
-                        # Assign variables pertaining to castling
-                        # Check if any of the involved pieces have moved
-                        if(not(self.kingSideWhiteRookHasMoved)):
-                            if (self.pieceToBeMoved.xLocation == 8 and self.pieceToBeMoved.yLocation == 1):
-                                self.kingSideWhiteRookHasMoved = True
-                        
-                        if(not(self.queenSideWhiteRookHasMoved)):
-                            if (self.pieceToBeMoved.xLocation == 1 and self.pieceToBeMoved.yLocation == 1):
-                                self.queenSideWhiteRookHasMoved = True
-                                
-                        if(not(self.kingSideBlackRookHasMoved)):
-                            if (self.pieceToBeMoved.xLocation == 8 and self.pieceToBeMoved.yLocation == 8):
-                                self.kingSideBlackRookHasMoved = True
-                        
-                        if(not(self.queenSideBlackRookHasMoved)):
-                            if (self.pieceToBeMoved.xLocation == 1 and self.pieceToBeMoved.yLocation == 8):
-                                self.queenSideBlackRookHasMoved = True
-                        
-                        if(not(self.whiteKingHasMoved)):
-                            if (self.pieceToBeMoved.piece == "King"):
-                                if(self.pieceToBeMoved.colour == "White"):
-                                    self.whiteKingHasMoved = True
-                                    
-                        if(not(self.blackKingHasMoved)):
-                            if (self.pieceToBeMoved.piece == "King"):
-                                if(self.pieceToBeMoved.colour == "Black"):
-                                    self.blackKingHasMoved = True
-                        
-                        # Assign dimensions for the new square
-                        x1 = (self.pieceToBeMoved.xLocation - 1) * 90
-                        y1 = (8-self.pieceToBeMoved.yLocation) * 90
-                        x2 = x1 + 90
-                        y2 = y1 + 90
-        
-                        # Assign the colour for the square
-                        if self.findSquareColour(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation) == "White":
-                            colour = "#%02x%02x%02x" % (255,255,255)
-                        else:
-                            colour = "#%02x%02x%02x" % (167,47,3)
-        
-                        # Create the frame for the new square and bind it to the move function with its coordinates
-                        pieces = self.canvas.create_image(45 + (i-1)*90,45 + (8-j)*90,image = piece, anchor = 'center')
-                        self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = i, y=j: self.get_location(e,x,y))
-            
-                        # Create the frame for the moving square and bind it to the move function with its coordinates
-                        self.board[i-1][j-1] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}")    
-                        self.canvas.tag_bind(f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}","<Button-1>", lambda e, x=self.pieceToBeMoved.xLocation, y=self.pieceToBeMoved.yLocation: self.get_location(e,x,y))
-                        
-                        
-                        # Set the destination square as the piece to be moved
-                        self.boardPieces[i-1][j-1].piece = self.pieceToBeMoved.piece
-                        self.boardPieces[i-1][j-1].colour = self.pieceToBeMoved.colour
-                        self.boardPieces[i-1][j-1].value = self.pieceToBeMoved.value
-                        
-                        # Set the square of the piece to be moved as empty
-                        self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
-                        self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
-                        self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
-
-                        # If en pasent, make the new square to replace the captured pawn
-                        if (self.numMove % 2 == 0):
-                            if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
-                                x1 = (self.blackSideEnPasentPawnxLocation - 1) * 90
-                                y1 = (8-5) * 90
-                                x2 = x1 + 90
-                                y2 = y1 + 90
-                                
-                                if self.findSquareColour(self.blackSideEnPasentPawnxLocation,5) == "White":
-                                    colour = "#%02x%02x%02x" % (255,255,255)
-                                else:
-                                    colour = "#%02x%02x%02x" % (167,47,3)
-                                
-                                self.board[self.blackSideEnPasentPawnxLocation - 1][4] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.blackSideEnPasentPawnxLocation}{5}")    
-                                self.canvas.tag_bind(f"tile{self.blackSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.blackSideEnPasentPawnxLocation, y=5: self.get_location(e,x,y))
-                                
-                                # Set the captured pawn as empty
-                                self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
-                                self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
-                                self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
-                        else:
-                            if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.whiteSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 4):
-                                x1 = (self.whiteSideEnPasentPawnxLocation - 1) * 90
-                                y1 = (8-4) * 90
-                                x2 = x1 + 90
-                                y2 = y1 + 90
-                                
-                                if self.findSquareColour(self.whiteSideEnPasentPawnxLocation,4) == "White":
-                                    colour = "#%02x%02x%02x" % (255,255,255)
-                                else:
-                                    colour = "#%02x%02x%02x" % (167,47,3)
-                                
-                                self.board[self.whiteSideEnPasentPawnxLocation - 1][3] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.whiteSideEnPasentPawnxLocation}{4}")    
-                                self.canvas.tag_bind(f"tile{self.whiteSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.whiteSideEnPasentPawnxLocation, y=4: self.get_location(e,x,y))
-                                
-                                # Set the captured pawn as empty
-                                self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
-                                self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
-                                self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
-
-                        # If the move is to castle, make the moved rook piece and the empty piece
-                        if (self.isCastle):
-                            if (i == 7 and j == 1):
-                                rookToBeMoved = Pieces("Rook","White",6,1)
-                                emptySpace = Pieces("Empty","None",8,1)
-                                piece = self.canvas.whiteRookWhiteSquareImage                            
-                                colour = "#%02x%02x%02x" % (255,255,255)
-                                self.kingSideWhiteRookHasMoved = True
-                                self.whiteKingHasMoved = True
-                            elif(i == 3 and j == 1):
-                                rookToBeMoved = Pieces("Rook","White",4,1)
-                                emptySpace = Pieces("Empty","None",1,1)
-                                piece = self.canvas.whiteRookWhiteSquareImage
-                                colour = "#%02x%02x%02x" % (167,47,3)
-                                self.queenSideWhiteRookHasMoved = True
-                                self.whiteKingHasMoved = True
-                            elif (i == 7 and j == 8):
-                                rookToBeMoved = Pieces("Rook","Black",6,8)
-                                emptySpace = Pieces("Empty","None",8,8)
-                                piece = self.canvas.blackRookBlackSquareImage                            
-                                colour = "#%02x%02x%02x" % (167,47,3)
-                                self.kingSideBlackRookHasMoved = True
-                                self.blackKingHasMoved = True
-                            elif(i == 3 and j == 8):
-                                rookToBeMoved = Pieces("Rook","Black",4,8)
-                                emptySpace = Pieces("Empty","None",1,8)
-                                piece = self.canvas.blackRookBlackSquareImage     
-                                colour = "#%02x%02x%02x" % (255,255,255)
-                                self.queenSideBlackRookHasMoved = True
-                                self.blackKingHasMoved = True
+                    
+                    # Assign variables pertaining to castling
+                    # Check if any of the involved pieces have moved
+                    if(not(self.kingSideWhiteRookHasMoved)):
+                        if (self.pieceToBeMoved.xLocation == 8 and self.pieceToBeMoved.yLocation == 1):
+                            self.kingSideWhiteRookHasMoved = True
+                    
+                    if(not(self.queenSideWhiteRookHasMoved)):
+                        if (self.pieceToBeMoved.xLocation == 1 and self.pieceToBeMoved.yLocation == 1):
+                            self.queenSideWhiteRookHasMoved = True
                             
-                            # Graphically create the rook move when castled
-                            pieces = self.canvas.create_image(45 + (rookToBeMoved.xLocation-1)*90,45 + (8-rookToBeMoved.yLocation)*90,image = piece, anchor = 'center')
-                            self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = rookToBeMoved.xLocation, y=rookToBeMoved.yLocation: self.get_location(e,x,y))
-                              
-                            # Create the empty space
-                            x1 = (emptySpace.xLocation - 1) * 90
-                            y1 = (8-emptySpace.yLocation) * 90
+                    if(not(self.kingSideBlackRookHasMoved)):
+                        if (self.pieceToBeMoved.xLocation == 8 and self.pieceToBeMoved.yLocation == 8):
+                            self.kingSideBlackRookHasMoved = True
+                    
+                    if(not(self.queenSideBlackRookHasMoved)):
+                        if (self.pieceToBeMoved.xLocation == 1 and self.pieceToBeMoved.yLocation == 8):
+                            self.queenSideBlackRookHasMoved = True
+                    
+                    if(not(self.whiteKingHasMoved)):
+                        if (self.pieceToBeMoved.piece == "King"):
+                            if(self.pieceToBeMoved.colour == "White"):
+                                self.whiteKingHasMoved = True
+                                
+                    if(not(self.blackKingHasMoved)):
+                        if (self.pieceToBeMoved.piece == "King"):
+                            if(self.pieceToBeMoved.colour == "Black"):
+                                self.blackKingHasMoved = True
+                    
+                    # Assign dimensions for the new square
+                    x1 = (self.pieceToBeMoved.xLocation - 1) * 90
+                    y1 = (8-self.pieceToBeMoved.yLocation) * 90
+                    x2 = x1 + 90
+                    y2 = y1 + 90
+    
+                    # Assign the colour for the square
+                    if self.findSquareColour(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation) == "White":
+                        colour = "#%02x%02x%02x" % (255,255,255)
+                    else:
+                        colour = "#%02x%02x%02x" % (167,47,3)
+    
+                    # Create the frame for the new square and bind it to the move function with its coordinates
+                    pieces = self.canvas.create_image(45 + (i-1)*90,45 + (8-j)*90,image = piece, anchor = 'center')
+                    self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = i, y=j: self.get_location(e,x,y))
+        
+                    # Create the frame for the moving square and bind it to the move function with its coordinates
+                    self.board[i-1][j-1] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}")    
+                    self.canvas.tag_bind(f"tile{self.pieceToBeMoved.xLocation}{self.pieceToBeMoved.yLocation}","<Button-1>", lambda e, x=self.pieceToBeMoved.xLocation, y=self.pieceToBeMoved.yLocation: self.get_location(e,x,y))
+                    
+                    
+                    # Set the destination square as the piece to be moved
+                    self.boardPieces[(i-1, j-1)].piece = self.pieceToBeMoved.piece
+                    self.boardPieces[(i-1, j-1)].colour = self.pieceToBeMoved.colour
+                    self.boardPieces[(i-1, j-1)].value = self.pieceToBeMoved.value
+                    
+                    # Set the square of the piece to be moved as empty
+                    self.boardPieces[(self.pieceToBeMoved.xLocation - 1, self.pieceToBeMoved.yLocation-1)].piece = "Empty"
+                    self.boardPieces[(self.pieceToBeMoved.xLocation - 1, self.pieceToBeMoved.yLocation-1)].colour = "None"
+                    self.boardPieces[(self.pieceToBeMoved.xLocation - 1, self.pieceToBeMoved.yLocation-1)].value = 0
+
+                    # If en pasent, make the new square to replace the captured pawn
+                    if (self.numMove % 2 == 0):
+                        if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.blackSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 5):
+                            x1 = (self.blackSideEnPasentPawnxLocation - 1) * 90
+                            y1 = (8-5) * 90
                             x2 = x1 + 90
                             y2 = y1 + 90
                             
-                            self.board[emptySpace.xLocation-1][emptySpace.yLocation-1] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{emptySpace.xLocation}{emptySpace.yLocation}")    
-                            self.canvas.tag_bind(f"tile{emptySpace.xLocation}{emptySpace.yLocation}","<Button-1>", lambda e, x=emptySpace.xLocation, y=emptySpace.yLocation: self.get_location(e,x,y))
-    
-                            # Edit the board with the empty space and moved rook
-                            self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].piece = emptySpace.piece
-                            self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].colour = emptySpace.colour
-                            self.boardPieces[emptySpace.xLocation-1][emptySpace.yLocation-1].value = emptySpace.value
-                            
-                            self.boardPieces[rookToBeMoved.xLocation - 1][rookToBeMoved.yLocation-1].piece = rookToBeMoved.piece
-                            self.boardPieces[rookToBeMoved.xLocation - 1][rookToBeMoved.yLocation-1].colour = rookToBeMoved.colour
-                            self.boardPieces[rookToBeMoved.xLocation - 1][rookToBeMoved.yLocation-1].value = rookToBeMoved.value
-                            self.isCastle = False
-    
-                        if(isCapture):
-                            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
-                            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
-                            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
-
-                        # Once out of check, reset the king's image to normal
-                        if (self.isCheck):
-                            if (self.numMove % 2 == 0):
-                                self.isCheck = False
-                                kingPiece = next(
-                                    (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
-                                    None
-                                )      
-                                            
-                                if (self.findSquareColour(kingPiece.xLocation,kingPiece.yLocation) =="White"):   
-                                    piece = self.canvas.whiteKingWhiteSquareImage
-                                else:
-                                    piece = self.canvas.whiteKingBlackSquareImage
+                            if self.findSquareColour(self.blackSideEnPasentPawnxLocation,5) == "White":
+                                colour = "#%02x%02x%02x" % (255,255,255)
                             else:
-                                self.isCheck = False
-                                kingPiece = next(
-                                    (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
-                                    None
-                                )      
-                                if (self.findSquareColour(kingPiece.xLocation,kingPiece.yLocation) =="White"):   
-                                    piece = self.canvas.blackKingWhiteSquareImage
-                                else:
-                                    piece = self.canvas.blackKingBlackSquareImage
-                                                
-                            pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
-                            self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))               
-                                        
-                        self.move = False
+                                colour = "#%02x%02x%02x" % (167,47,3)
+                            
+                            self.board[self.blackSideEnPasentPawnxLocation - 1][4] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.blackSideEnPasentPawnxLocation}{5}")    
+                            self.canvas.tag_bind(f"tile{self.blackSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.blackSideEnPasentPawnxLocation, y=5: self.get_location(e,x,y))
+                            
+                            # Set the captured pawn as empty
+                            self.boardPieces[(self.blackSideEnPasentPawnxLocation - 1, 4)].piece = "Empty"
+                            self.boardPieces[(self.blackSideEnPasentPawnxLocation - 1, 4)].colour = "None"
+                            self.boardPieces[(self.blackSideEnPasentPawnxLocation - 1, 4)].value = 0
+                    else:
+                        if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and i == self.whiteSideEnPasentPawnxLocation and isCapture and self.pieceToBeMoved.yLocation == 4):
+                            x1 = (self.whiteSideEnPasentPawnxLocation - 1) * 90
+                            y1 = (8-4) * 90
+                            x2 = x1 + 90
+                            y2 = y1 + 90
+                            
+                            if self.findSquareColour(self.whiteSideEnPasentPawnxLocation,4) == "White":
+                                colour = "#%02x%02x%02x" % (255,255,255)
+                            else:
+                                colour = "#%02x%02x%02x" % (167,47,3)
+                            
+                            self.board[self.whiteSideEnPasentPawnxLocation - 1][3] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{self.whiteSideEnPasentPawnxLocation}{4}")    
+                            self.canvas.tag_bind(f"tile{self.whiteSideEnPasentPawnxLocation}{5}","<Button-1>", lambda e, x=self.whiteSideEnPasentPawnxLocation, y=4: self.get_location(e,x,y))
+                            
+                            # Set the captured pawn as empty
+                            self.boardPieces[(self.whiteSideEnPasentPawnxLocation - 1, 3)].piece = "Empty"
+                            self.boardPieces[(self.whiteSideEnPasentPawnxLocation - 1, 3)].colour = "None"
+                            self.boardPieces[(self.whiteSideEnPasentPawnxLocation - 1, 3)].value = 0
+
+                    # If the move is to castle, make the moved rook piece and the empty piece
+                    if (self.isCastle):
+                        if (i == 7 and j == 1):
+                            rookToBeMoved = Pieces("Rook","White",6,1)
+                            emptySpace = Pieces("Empty","None",8,1)
+                            piece = self.canvas.whiteRookWhiteSquareImage                            
+                            colour = "#%02x%02x%02x" % (255,255,255)
+                            self.kingSideWhiteRookHasMoved = True
+                            self.whiteKingHasMoved = True
+                        elif(i == 3 and j == 1):
+                            rookToBeMoved = Pieces("Rook","White",4,1)
+                            emptySpace = Pieces("Empty","None",1,1)
+                            piece = self.canvas.whiteRookWhiteSquareImage
+                            colour = "#%02x%02x%02x" % (167,47,3)
+                            self.queenSideWhiteRookHasMoved = True
+                            self.whiteKingHasMoved = True
+                        elif (i == 7 and j == 8):
+                            rookToBeMoved = Pieces("Rook","Black",6,8)
+                            emptySpace = Pieces("Empty","None",8,8)
+                            piece = self.canvas.blackRookBlackSquareImage                            
+                            colour = "#%02x%02x%02x" % (167,47,3)
+                            self.kingSideBlackRookHasMoved = True
+                            self.blackKingHasMoved = True
+                        elif(i == 3 and j == 8):
+                            rookToBeMoved = Pieces("Rook","Black",4,8)
+                            emptySpace = Pieces("Empty","None",1,8)
+                            piece = self.canvas.blackRookBlackSquareImage     
+                            colour = "#%02x%02x%02x" % (255,255,255)
+                            self.queenSideBlackRookHasMoved = True
+                            self.blackKingHasMoved = True
+                        
+                        # Graphically create the rook move when castled
+                        pieces = self.canvas.create_image(45 + (rookToBeMoved.xLocation-1)*90,45 + (8-rookToBeMoved.yLocation)*90,image = piece, anchor = 'center')
+                        self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = rookToBeMoved.xLocation, y=rookToBeMoved.yLocation: self.get_location(e,x,y))
+                          
+                        # Create the empty space
+                        x1 = (emptySpace.xLocation - 1) * 90
+                        y1 = (8-emptySpace.yLocation) * 90
+                        x2 = x1 + 90
+                        y2 = y1 + 90
+                        
+                        self.board[emptySpace.xLocation-1][emptySpace.yLocation-1] = self.canvas.create_rectangle(x1, y1, x2, y2, fill=colour, tags=f"tile{emptySpace.xLocation}{emptySpace.yLocation}")    
+                        self.canvas.tag_bind(f"tile{emptySpace.xLocation}{emptySpace.yLocation}","<Button-1>", lambda e, x=emptySpace.xLocation, y=emptySpace.yLocation: self.get_location(e,x,y))
+
+                        # Edit the board with the empty space and moved rook
+                        self.boardPieces[(emptySpace.xLocation - 1, emptySpace.yLocation - 1)].piece = emptySpace.piece
+                        self.boardPieces[(emptySpace.xLocation - 1, emptySpace.yLocation - 1)].colour = emptySpace.colour
+                        self.boardPieces[(emptySpace.xLocation - 1, emptySpace.yLocation - 1)].value = emptySpace.value
+                        
+                        self.boardPieces[(rookToBeMoved.xLocation - 1, rookToBeMoved.yLocation-1)].piece = rookToBeMoved.piece
+                        self.boardPieces[(rookToBeMoved.xLocation - 1, rookToBeMoved.yLocation-1)].colour = rookToBeMoved.colour
+                        self.boardPieces[(rookToBeMoved.xLocation - 1, rookToBeMoved.yLocation-1)].value = rookToBeMoved.value
+                        self.isCastle = False
+
+                    if(isCapture):
+                        self.boardPieces[(self.pieceToBeMoved.xLocation - 1, self.pieceToBeMoved.yLocation-1)].piece = "Empty"
+                        self.boardPieces[(self.pieceToBeMoved.xLocation - 1, self.pieceToBeMoved.yLocation-1)].colour = "None"
+                        self.boardPieces[(self.pieceToBeMoved.xLocation - 1, self.pieceToBeMoved.yLocation-1)].value = 0
+
+                    # Once out of check, reset the king's image to normal
+                    if (self.isCheck):
                         if (self.numMove % 2 == 0):
+                            self.isCheck = False
                             
-                            # Set the en pasent variables
-                            if(self.whiteSideEnPasent):
-                                self.whiteSideEnPasent = False
+                            kingPiece = next(
+                                (piece for piece in self.boardPieces.values() if piece.piece == "King" and piece.colour == "White"), 
+                                None
+                            )      
+                                        
+                            if (self.findSquareColour(kingPiece.xLocation,kingPiece.yLocation) =="White"):   
+                                piece = self.canvas.whiteKingWhiteSquareImage
+                            else:
+                                piece = self.canvas.whiteKingBlackSquareImage
+                        else:
+                            self.isCheck = False
+                            kingPiece = next(
+                                (piece for piece in self.boardPieces.values() if piece.piece == "King" and piece.colour == "White"), 
+                                None
+                            )      
+                            if (self.findSquareColour(kingPiece.xLocation,kingPiece.yLocation) =="White"):   
+                                piece = self.canvas.blackKingWhiteSquareImage
+                            else:
+                                piece = self.canvas.blackKingBlackSquareImage
+                                            
+                        pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
+                        self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))               
+                                    
+                    self.move = False
+                    if (self.numMove % 2 == 0):
+                        
+                        # Set the en pasent variables
+                        if(self.whiteSideEnPasent):
+                            self.whiteSideEnPasent = False
+                        
+                        if(self.pieceToBeMoved.piece == "Pawn" and curItem.yLocation == 4 and self.pieceToBeMoved.yLocation == 2):
+                            self.whiteSideEnPasent = True
+                            self.whiteSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
+                        
+                        # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
+                        if(Rules.isInCheck(self, "Black")):
                             
-                            if(self.pieceToBeMoved.piece == "Pawn" and curItem.yLocation == 4 and self.pieceToBeMoved.yLocation == 2):
-                                self.whiteSideEnPasent = True
-                                self.whiteSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
+                            if(Rules.isCheckMate(self, "Black")):
+                                easygui.msgbox("White Wins!", title="Winner!")
                             
-                            # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
-                            if(Rules.isInCheck(self, "Black")):
+                            kingPiece = next(
+                                (piece for piece in self.boardPieces.values() if piece.piece == "King" and piece.colour == "White"), 
+                                None
+                            )      
+                            piece = self.canvas.blackKingInCheckImage
+                            self.isCheck = True
+                                        
+                        # Check if the move is a pawn promotion
+                        elif(self.pieceToBeMoved.piece == "Pawn" and j == 8):
+                            self.isPromotion = True
+                            self.pawnToBePromoted = curItem
+                            if(self.isComputerMove):
+                                self.numMove += 1
+                                self.promotion(None,self.pieceChosen,"White")
+                                self.numMove -= 1
+                                self.isCheck = False
                                 
-                                if(Rules.isCheckMate(self, "Black")):
-                                    easygui.msgbox("White Wins!", title="Winner!")
+                        # Check if the player has no moves yet is not in check (Stalemate)
+                        elif(Rules.isCheckMate(self, "Black")):
+                            easygui.msgbox("Draw by stalemate", title="Draw")
+                          
+                    else:                            
+                        
+                        # Set the en pasent variables
+                        if(self.blackSideEnPasent):
+                            self.blackSideEnPasent = False
+                        
+                        if(self.pieceToBeMoved.piece == "Pawn" and curItem.yLocation == 5 and self.pieceToBeMoved.yLocation == 7):
+                            self.blackSideEnPasent = True
+                            self.blackSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
+                        
+                        # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
+                        if(Rules.isInCheck(self, "White")):   
+                            if(Rules.isCheckMate(self, "White")):
+                                easygui.msgbox("Black Wins!", title="Winner!")
                                 
                                 kingPiece = next(
-                                    (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
+                                    (piece for piece in self.boardPieces.values() if piece.piece == "King" and piece.colour == "White"), 
                                     None
-                                )      
-                                piece = self.canvas.blackKingInCheckImage
+                                )       
+                                piece = self.canvas.whiteKingInCheckImage
                                 self.isCheck = True
-                                            
-                            # Check if the move is a pawn promotion
-                            elif(self.pieceToBeMoved.piece == "Pawn" and j == 8):
-                                self.isPromotion = True
-                                self.pawnToBePromoted = curItem
-                                if(self.isComputerMove):
-                                    self.numMove += 1
-                                    self.promotion(None,self.pieceChosen,"White")
-                                    self.numMove -= 1
-                                    self.isCheck = False
-                                    
-                            # Check if the player has no moves yet is not in check (Stalemate)
-                            elif(Rules.isCheckMate(self, "Black")):
-                                easygui.msgbox("Draw by stalemate", title="Draw")
-                              
-                        else:                            
-                            
-                            # Set the en pasent variables
-                            if(self.blackSideEnPasent):
-                                self.blackSideEnPasent = False
-                            
-                            if(self.pieceToBeMoved.piece == "Pawn" and curItem.yLocation == 5 and self.pieceToBeMoved.yLocation == 7):
-                                self.blackSideEnPasent = True
-                                self.blackSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
-                            
-                            # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
-                            if(Rules.isInCheck(self, "White")):   
-                                if(Rules.isCheckMate(self, "White")):
-                                    easygui.msgbox("Black Wins!", title="Winner!")
-                                    
-                                    kingPiece = next(
-                                        (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
-                                        None
-                                    )      
-                                    piece = self.canvas.whiteKingInCheckImage
-                                    self.isCheck = True
-                                            
-                            # Check if the move is a pawn promotion                
-                            elif(self.pieceToBeMoved.piece == "Pawn" and j == 1):
-                                self.isPromotion = True
-                                self.pawnToBePromoted = curItem
-                                if(self.isComputerMove):
-                                    self.numMove += 1
-                                    self.promotion(None,self.pieceChosen,"Black")
-                                    self.numMove -= 1
-                                    self.isCheck = False
-                            # Check if the player has no moves yet is not in check (Stalemate)
-                            elif(Rules.isCheckMate(self, "White")):
-                                easygui.msgbox("Draw by stalemate", title="Draw")
-                        
-                        # Set the piece graphically and bind it to its coordinates
-                        if(self.isCheck): 
-                            pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
-                            self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))
-                        
-                        self.numMove += 1
-                        
-                        print ("Moves to ", i,j)
-                        print ("Move: " + str(self.numMove))
-                        print("Position: " + str(Engine.evaluateBoard(self)))
-                        print('\n')
-                        
-                        # Update the graphics
-                        board.update()
-                        
-                        # Call the engine to make a move
-                        if(not(self.isPromotion)):
-                            self.computerThinking = True
-                            self.move = False
+                                        
+                        # Check if the move is a pawn promotion                
+                        elif(self.pieceToBeMoved.piece == "Pawn" and j == 1):
+                            self.isPromotion = True
+                            self.pawnToBePromoted = curItem
+                            if(self.isComputerMove):
+                                self.numMove += 1
+                                self.promotion(None,self.pieceChosen,"Black")
+                                self.numMove -= 1
+                                self.isCheck = False
+                        # Check if the player has no moves yet is not in check (Stalemate)
+                        elif(Rules.isCheckMate(self, "White")):
+                            easygui.msgbox("Draw by stalemate", title="Draw")
+                    
+                    # Set the piece graphically and bind it to its coordinates
+                    if(self.isCheck): 
+                        pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
+                        self.canvas.tag_bind(pieces,"<Button-1>", lambda e, x = kingPiece.xLocation, y=kingPiece.yLocation: self.get_location(e,x,y))
+                    
+                    self.numMove += 1
+                    
+                    print ("Moves to ", i,j)
+                    print ("Move: " + str(self.numMove))
+                    print("Position: " + str(Engine.evaluateBoard(self)))
+                    print('\n')
+                    
+                    # Update the graphics
+                    board.update()
+                    
+                    # Call the engine to make a move
+                    if(not(self.isPromotion)):
+                        self.computerThinking = True
+                        self.move = False
 
-                            self.computerThinking = False
-                            if (not(self.isComputerMove)):
-                                Engine.engineMove(self, "Black")
-                            else:
-                                self.isComputerMove = False
+                        self.computerThinking = False
+                        if (not(self.isComputerMove)):
+                            Engine.engineMove(self, "Black")
+                        else:
+                            self.isComputerMove = False
                         
                 self.move = False            
                 
                 
             else:
-                if (self.boardPieces[i-1][j-1].piece == "Empty"):
-                    print(self.boardPieces[i-1][j-1].piece)
+                if (self.boardPieces[(i-1, j-1)].piece == "Empty"):
+                    print(self.boardPieces[(i-1, j-1)].piece)
                 else:            
                     
                     # On first click, set the selected piece as the one to be moved
                     # Checks if the correct colour piece is selected for the given turn
-                    print(self.boardPieces[i-1][j-1].colour + " " + self.boardPieces[i-1][j-1].piece + " at " + str(i) + " " + str(j))
-                    if(self.numMove % 2 == 0 and self.boardPieces[i-1][j-1].colour == "White" or self.numMove % 2 == 1 and self.boardPieces[i-1][j-1].colour == "Black"):
+                    print(self.boardPieces[(i-1, j-1)].colour + " " + self.boardPieces[(i-1, j-1)].piece + " at " + str(i) + " " + str(j))
+                    if(self.numMove % 2 == 0 and self.boardPieces[(i-1, j-1)].colour == "White" or self.numMove % 2 == 1 and self.boardPieces[(i-1, j-1)].colour == "Black"):
                         
-                        self.pieceToBeMoved.piece = self.boardPieces[i-1][j-1].piece
-                        self.pieceToBeMoved.colour = self.boardPieces[i-1][j-1].colour
+                        self.pieceToBeMoved.piece = self.boardPieces[(i-1, j-1)].piece
+                        self.pieceToBeMoved.colour = self.boardPieces[(i-1, j-1)].colour
                         self.pieceToBeMoved.xLocation = i
                         self.pieceToBeMoved.yLocation = j
-                        self.pieceToBeMoved.value = self.boardPieces[i-1][j-1].value
+                        self.pieceToBeMoved.value = self.boardPieces[(i-1, j-1)].value
                         self.move = True
     
     # Function that returns the colour of the square on the board

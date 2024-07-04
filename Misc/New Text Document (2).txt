@@ -1,0 +1,164 @@
+    # Function to check if a piece if attacking another piece
+    def IsAttacking (self,attacker,defender):
+        curColour = attacker.colour
+        
+        self.count+= 1
+        isLegal = False
+        
+        if (attacker.piece == "Pawn"):
+            try:
+                # Check either side of the defender
+                if (curColour == "White"):
+                    if((defender.xLocation + 1 == attacker.xLocation and defender.yLocation - 1 == attacker.yLocation or defender.xLocation - 1 == attacker.xLocation and defender.yLocation - 1 == attacker.yLocation)):
+                        isLegal = True
+          
+                # Check either side of the defender
+                elif(curColour == "Black"):
+                    if((defender.xLocation + 1 == attacker.xLocation and defender.yLocation + 1 == attacker.yLocation or defender.xLocation - 1 == attacker.xLocation and defender.yLocation + 1 == attacker.yLocation)):
+                        isLegal = True
+            except:
+                pass
+            
+        # Check knight moves
+        elif(attacker.piece == "Knight"):
+            try:
+                if (abs(defender.xLocation - attacker.xLocation) == 2 and abs(defender.yLocation - attacker.yLocation) == 1 or abs(defender.xLocation - attacker.xLocation) == 1 and abs(defender.yLocation - attacker.yLocation) == 2):
+                    isLegal = True
+            except:
+                pass
+              
+        elif(attacker.piece == "Bishop"):
+            
+            # Check along diagonals
+            if (abs(defender.xLocation - attacker.xLocation) == abs(defender.yLocation - attacker.yLocation)):
+                
+                xMultiplier = 1
+                yMultiplier = 1
+                
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
+                if(defender.xLocation > attacker.xLocation):
+                    xMultiplier = -1
+                if (defender.yLocation > attacker.yLocation):
+                    yMultiplier = -1
+                
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                for square in range(1,abs(defender.xLocation - attacker.xLocation)):
+                    if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
+                        return False
+                    
+                isLegal = True
+            
+        elif(attacker.piece == "Rook"):
+            
+            if(defender.xLocation == attacker.xLocation or defender.yLocation == attacker.yLocation):
+                    
+                xMultiplier = 1
+                yMultiplier = 1
+                
+                # Vertical moves
+                if (defender.xLocation == attacker.xLocation):
+                    
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
+                    if (defender.yLocation > attacker.yLocation):
+                        yMultiplier = -1
+                        
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece    
+                    for square in range(1,abs(defender.yLocation - attacker.yLocation)):
+                        if(not(self.boardPieces[defender.xLocation-1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
+                            return False
+                
+                # Horizontal moves   
+                else:
+                    
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
+                    if(defender.xLocation > attacker.xLocation):
+                        xMultiplier = -1
+                
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece 
+                    for square in range(1,abs(defender.xLocation - attacker.xLocation)):
+                        if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation-1].piece == "Empty")):
+                            return False
+                        
+                isLegal = True           
+            
+        elif(attacker.piece == "Queen"):
+            
+            # Set the default direction of exploration
+            xMultiplier = 1
+            yMultiplier = 1
+            
+            # Check along diagonals
+            if (abs(defender.xLocation - attacker.xLocation) == abs(defender.yLocation - attacker.yLocation)):
+                
+                # If the defending piece is ahead of the attacking, the check must be done in the other direction
+                if(defender.xLocation > attacker.xLocation):
+                    xMultiplier = -1
+                if (defender.yLocation > attacker.yLocation):
+                    yMultiplier = -1
+                
+                # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                for square in range(1,abs(defender.xLocation - attacker.xLocation)):
+                    if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
+                        return False
+            
+            # Check along rows and columns
+            elif(defender.xLocation == attacker.xLocation or defender.yLocation == attacker.yLocation):
+                
+                # Vertical moves
+                if (defender.xLocation == attacker.xLocation):
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
+                    if (defender.yLocation > attacker.yLocation):
+                        yMultiplier = -1
+                    
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                    for square in range(1,abs(defender.yLocation - attacker.yLocation)):
+                        if(not(self.boardPieces[defender.xLocation-1][defender.yLocation + square*yMultiplier - 1].piece == "Empty")):
+                            return False           
+                
+                # Horizontal moves
+                else:
+                    # If the defending piece is ahead of the attacking, the check must be done in the other direction
+                    if(defender.xLocation > attacker.xLocation):
+                        xMultiplier = -1
+                    
+                    # Check if there is an impeding piece in the way, if so the attacker is not attacking the defending piece
+                    for square in range(1,abs(defender.xLocation - attacker.xLocation)):
+                        if(not(self.boardPieces[defender.xLocation + square*xMultiplier - 1][defender.yLocation-1].piece == "Empty")):
+                            return False
+            else:
+                return False
+            
+            isLegal = True
+            
+        elif(attacker.piece == "King"):
+            # Check if the vertical and horizontal distance between the two pieces is 1 or less
+            if(abs(defender.xLocation - attacker.xLocation) < 2 and abs(defender.yLocation - attacker.yLocation) < 2):
+                isLegal = True
+            
+        if (isLegal):
+            boardCopy = copy.deepcopy(self.boardPieces)
+
+            # Make the location square hold the moving piece
+            self.boardPieces[attacker.xLocation - 1][attacker.yLocation - 1].piece = attacker.piece
+            self.boardPieces[attacker.xLocation - 1][attacker.yLocation - 1].colour = attacker.colour
+            
+            self.boardPieces[defender.xLocation - 1][defender.yLocation - 1].piece = "Empty"
+            self.boardPieces[defender.xLocation - 1][defender.yLocation - 1].colour = "None"
+             
+            if (self.numMove % 2 == 0):
+                 
+                if(self.isInCheck("White")):
+                    self.boardPieces = copy.deepcopy(boardCopy) 
+                    #print("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")  
+                    return False
+            else:
+                if(self.isInCheck("Black")):    
+                     #print("TTTTTTTTT")
+                     self.boardPieces = copy.deepcopy(boardCopy) 
+                     return False
+             
+                
+            self.boardPieces = copy.deepcopy(boardCopy)  
+            return True
+        
+        return False

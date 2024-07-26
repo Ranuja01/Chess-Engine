@@ -7,6 +7,7 @@ Created on Thu Jun 27 20:53:20 2024
 
 import copy
 import NNEngine
+import chess
 #from numba import njit
    
 # Function to define legal pawn moves
@@ -34,7 +35,7 @@ def isLegalPawnMove(self,curItem,i,j,colour):
                 isLegal = True
                 
             # Check if the attempted move is an en pasent move
-            elif(self.blackSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.blackSideEnPasentPawnxLocation) == 1 and (i + 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation or i - 1 == self.pieceToBeMoved.xLocation and j - 1 == self.pieceToBeMoved.yLocation) and self.pieceToBeMoved.yLocation == 5):
+            elif(self.blackSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.blackSideEnPasentPawnxLocation) == 1 and i == self.blackSideEnPasentPawnxLocation.xLocation and j == 6 and self.pieceToBeMoved.yLocation == 5):
                 
                 isLegal = True
                 isCapture = True
@@ -62,7 +63,7 @@ def isLegalPawnMove(self,curItem,i,j,colour):
                 isLegal = True
                 
             # Check if the attempted move is an en pasent move
-            elif(self.whiteSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.whiteSideEnPasentPawnxLocation) == 1 and (i + 1 == self.pieceToBeMoved.xLocation and j + 1 == self.pieceToBeMoved.yLocation or i - 1 == self.pieceToBeMoved.xLocation and j + 1 == self.pieceToBeMoved.yLocation) and self.pieceToBeMoved.yLocation == 4):
+            elif(self.whiteSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.whiteSideEnPasentPawnxLocation) == 1 and i == self.whiteSideEnPasentPawnxLocation.xLocation and j == 3 and self.pieceToBeMoved.yLocation == 4):
                 isLegal = True
                 isCapture = True 
             
@@ -371,7 +372,7 @@ def isLegalKingMove(self,curItem,i,j,colour):
     else:
         isLegal = False
         if (colour == "White"):
-            
+            NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.E1)
             # White kingside castle
             if (i == 7 and j == 1):
                 
@@ -383,11 +384,9 @@ def isLegalKingMove(self,curItem,i,j,colour):
                         self.isCastle = True
                         
                         # Check if any opposing piece is attacking the castling path
-                        for x in self.boardPieces:
-                            for y in x:
-                                if (y.colour == "Black"):
-                                    if(IsAttacking(self, y,self.boardPieces[4][0]) or IsAttacking(self, y,self.boardPieces[5][0]) or IsAttacking(self, y,self.boardPieces[6][0])):
-                                         self.isCastle = False
+                        
+                        if(NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.E1) or NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.F1) or NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.G1)):
+                             self.isCastle = False
                                          
             # White queenside castle                             
             if (i == 3 and j == 1):
@@ -400,11 +399,9 @@ def isLegalKingMove(self,curItem,i,j,colour):
                         self.isCastle = True
                         
                         # Check if any opposing piece is attacking the castling path
-                        for x in self.boardPieces:
-                            for y in x:
-                                if (y.colour == "Black"):
-                                    if(IsAttacking(self, y, self.boardPieces[4][0]) or IsAttacking(self ,y,self.boardPieces[1][0]) or IsAttacking(self, y,self.boardPieces[2][0]) or IsAttacking(self, y,self.boardPieces[3][0])):
-                                         self.isCastle = False
+                        
+                        if(NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.E1) or NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.D1) or NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.C1) or NNEngine.pgnBoard.is_attacked_by(chess.BLACK, chess.B1)):
+                             self.isCastle = False
                                          
         else:
             
@@ -419,11 +416,9 @@ def isLegalKingMove(self,curItem,i,j,colour):
                         self.isCastle = True
                         
                         # Check if any opposing piece is attacking the castling path
-                        for x in self.boardPieces:
-                            for y in x:
-                                if (y.colour == "White"):
-                                    if(IsAttacking(self, y,self.boardPieces[4][7]) or IsAttacking(self, y,self.boardPieces[5][7]) or IsAttacking(self, y,self.boardPieces[6][7])):
-                                         self.isCastle = False
+                        
+                        if(NNEngine.pgnBoard.is_attacked_by(chess.WHITE, chess.E8) or NNEngine.pgnBoard.is_attacked_by(chess.WHITE, chess.F8) or NNEngine.pgnBoard.is_attacked_by(chess.WHITE, chess.G8)):
+                             self.isCastle = False
             # Black queenside castle                             
             if (i == 3 and j == 8):
                 
@@ -435,11 +430,9 @@ def isLegalKingMove(self,curItem,i,j,colour):
                         self.isCastle = True
                         
                         # Check if any opposing piece is attacking the castling path
-                        for x in self.boardPieces:
-                            for y in x:
-                                if (y.colour == "White"):
-                                    if(IsAttacking(self, y,self.boardPieces[4][7]) or IsAttacking(self, y,self.boardPieces[1][7]) or IsAttacking(self, y,self.boardPieces[2][7]) or IsAttacking(self, y,self.boardPieces[3][7])):
-                                        self.isCastle = False
+                        
+                        if(NNEngine.pgnBoard.is_attacked_by(chess.WHITE, chess.E8) or NNEngine.pgnBoard.is_attacked_by(chess.WHITE, chess.D8) or NNEngine.pgnBoard.is_attacked_by(chess.WHITE, chess.C8) or NNEngine.pgnBoard.is_attacked_by(chess.WHITE, chess.B8)):
+                            self.isCastle = False
         
         if(self.isCastle):
             # Only if the move is actually to be made should the variables be set
@@ -491,25 +484,36 @@ def isLegalMove(self,curItem,i,j,colour):
             piece,isLegal,isCapture = isLegalKingMove(self, curItem,i,j,colour)
     
         if (isLegal):
-
-            # Make the location square hold the moving piece
-            self.boardPieces[i-1][j-1].piece = self.pieceToBeMoved.piece
-            self.boardPieces[i-1][j-1].colour = self.pieceToBeMoved.colour
             
-            # Empty the previous square
-            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
-            self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
+            
+            if (self.pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 7 and j == 8):
+                
+                a = chr(self.pieceToBeMoved.xLocation + 96)
+                b = str(self.pieceToBeMoved.yLocation)
+                c = chr(i + 96)
+                d = str(j)
+                
+                promotionPiece = 'q'
+                NNEngine.pgnBoard.push(chess.Move.from_uci(a+b+c+d+promotionPiece))
+            else:
+                
+                a = chr(self.pieceToBeMoved.xLocation + 96)
+                b = str(self.pieceToBeMoved.yLocation)
+                c = chr(i + 96)
+                d = str(j)
+                
+                NNEngine.pgnBoard.push(chess.Move.from_uci(a+b+c+d))
 
             # Check if making this move puts the current player under check
             # If so, the move is not legal
             if (self.numMove % 2 == 0):
-                if(isInCheck(self, "White")):
+                if(isInCheck(chess.WHITE)):
                     isLegal = False
             else:
-                if(isInCheck(self, "Black")):    
+                if(isInCheck(chess.BLACK)):    
                      isLegal = False
             
-            self.boardPieces = copy.deepcopy(boardCopy)     
+            NNEngine.pgnBoard.pop()
             
             if(self.move):
                 return piece,isLegal,isCapture
@@ -529,7 +533,7 @@ def isLegalMove(self,curItem,i,j,colour):
             return False,False
 
 # Function to find out if a player is in checkmate
-def isCheckMate(self,colour):
+#def isCheckMate(self,colour):
     isLegal = False
     isCapture = False
     moves = []
@@ -572,7 +576,7 @@ def isCheckMate(self,colour):
     return True        
     
 # Function to check if the given side is in check        
-def isInCheck(self,colour):
+#def isInCheck(self,colour):
    
     kingPiece = next(
         (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == colour), 
@@ -588,7 +592,38 @@ def isInCheck(self,colour):
                     return True
     return False
     
+
+
+
+def isInCheck(side):
+   
+    original_turn = NNEngine.pgnBoard.turn
+    NNEngine.pgnBoard.turn = side
+    in_check = NNEngine.pgnBoard.is_check()
+    NNEngine.pgnBoard.turn = original_turn
+    return in_check
+
+def isCheckMate(side):
     
+    original_turn = NNEngine.pgnBoard.turn
+    NNEngine.pgnBoard.turn = side
+    in_checkmate = NNEngine.pgnBoard.is_checkmate()
+    NNEngine.pgnBoard.turn = original_turn
+    return in_checkmate
+
+def isStaleMate(side):
+    
+    original_turn = NNEngine.pgnBoard.turn
+    NNEngine.pgnBoard.turn = side
+    in_stalemate = NNEngine.pgnBoard.is_stalemate()
+    NNEngine.pgnBoard.turn = original_turn
+    return in_stalemate
+
+
+
+
+
+
 # Function to check if a piece if attacking another piece
 def IsAttacking (self,attacker,defender):
     curColour = attacker.colour

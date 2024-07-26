@@ -47,19 +47,18 @@ def evaluateBoard(self):
         sum = 0
 
         #print ('\n')
+        '''
         if(self.blackHasCastled):
             sum += 1500
         if(self.whiteHasCastled):
             sum -= 1500
-
-        if(Rules.isInCheck(self, "White")):
-            if(Rules.isCheckMate(self, "White")):
-                print("AAAAA")
-                sum = 10000000
-        elif(Rules.isInCheck(self, "Black")):
-            if(Rules.isCheckMate(self, "Black")):
-                print("BBBB")
-                sum = -10000000
+        '''
+        if(Rules.isCheckMate(chess.WHITE)):
+            print("AAAAA")
+            sum = 10000000
+        elif(Rules.isCheckMate(chess.BLACK)):
+            print("BBBB")
+            sum = -10000000
              
         # Check for center square control
         for item in self.boardPieces:
@@ -124,23 +123,8 @@ def encode_board(board):
     
     return encoded_board
 
-def engineMove(self,x,y,i,j,promotionPiece):
-    
-    # Convert the coordinates to the move string
-    x = chr(x + 96)
-    y = str(y)
-    i = chr(i + 96)
-    j = str(j)
-    
-    # If promotion, make the move with the promotion piece, otherwise just push the move
-    if (not(promotionPiece == None)):
-        print(x,y,i,j,promotionPiece)
-        pgnBoard.push(move.from_uci(x+y+i+j+promotionPiece))
-        #print("WAAA")
-    else:
-        print(x,y,i,j)
-        pgnBoard.push(move.from_uci(x+y+i+j))
-    
+def engineMove(self):
+        
     t0= timer()
     
     # Set variable such that certain features know that an actual move is not being attempted
@@ -151,7 +135,7 @@ def engineMove(self,x,y,i,j,promotionPiece):
     self.computerThinking = False
     
     # If the algorithm does not select a move, that suggests they are all equally bad and therefore the machine resigns
-    if(not(pieceToBeMoved == None or pieceToBeMoved.piece == "Empty") ):
+    if(not(pieceToBeMoved == None or pieceToBeMoved.piece == "Empty" or reversePrediction(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,currentItem.xLocation,currentItem.yLocation) == 1)):
         
         print(pieceToBeMoved.colour + " " + pieceToBeMoved.piece + " at " + str(pieceToBeMoved.xLocation) + " " + str(pieceToBeMoved.yLocation))
         print ("Computer Evaluation: " + str(val))
@@ -181,16 +165,7 @@ def engineMove(self,x,y,i,j,promotionPiece):
         t1 = timer()
         print("Time elapsed: ", t1 - t0)
         print()
-        
-        # If promotion, make the move with the promotion piece, otherwise just push the move
-        if (pieceToBeMoved.piece == "Pawn" and self.pieceToBeMoved.yLocation == 7 and currentItem.yLocation == 8):
-            promotionPiece = 'q'
-            print(a,b,c,d,promotionPiece)
-            pgnBoard.push(move.from_uci(a+b+c+d+promotionPiece))
-        else:
-            print(a+b+c+d)
-            print("ASDFFGHJ")
-            pgnBoard.push(move.from_uci(a+b+c+d))
+ 
 
     else:
         

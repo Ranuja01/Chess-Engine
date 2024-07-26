@@ -3,6 +3,7 @@ import copy
 import easygui
 import random
 from timeit import default_timer as timer
+import chess
 #from numba import njit
 
 from PIL import ImageTk, Image
@@ -65,7 +66,7 @@ class Layout(tk.Tk):
         # Variables to help with engine calculation
         self.isComputerMove = False
         self.computerThinking = False
-        self.depth = 5
+        self.depth = 3
         self.pieceChosen = "None"
         
         # Variables to hold castling status
@@ -461,8 +462,8 @@ class Layout(tk.Tk):
                 if (self.numMove % 2 == 0):
                     
                     # Check if the promotion leaves the opponent in check or checkmate
-                    if(Rules.isInCheck(self, "White")):
-                        if(Rules.isCheckMate(self, "White")):
+                    if(Rules.isInCheck(chess.WHITE)):
+                        if(Rules.isCheckMate(chess.WHITE)):
                             easygui.msgbox("Black Wins!", title="Winner!")
                         kingPiece = next(
                             (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
@@ -470,14 +471,14 @@ class Layout(tk.Tk):
                         )      
                         newPiece = self.canvas.whiteKingInCheckImage
                         self.isCheck = True
-                    elif(Rules.isCheckMate(self, "White")):
+                    elif(Rules.isStaleMate(chess.WHITE)):
                         easygui.msgbox("Draw by stalement", title="Draw")
                         
                 else:
                     
                     # Check if the promotion leaves the opponent in check or checkmate
-                    if(Rules.isInCheck(self, "Black")): 
-                        if(Rules.isCheckMate(self, "Black")):
+                    if(Rules.isInCheck(chess.BLACK)): 
+                        if(Rules.isCheckMate(chess.BLACK)):
                             easygui.msgbox("White Wins!", title="Winner!")
                         kingPiece = next(
                             (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
@@ -485,7 +486,7 @@ class Layout(tk.Tk):
                         )      
                         newPiece = self.canvas.blackKingInCheckImage
                         self.isCheck = True
-                    elif(Rules.isCheckMate(self, "Black")):
+                    elif(Rules.isStaleMate(chess.BLACK)):
                         easygui.msgbox("Draw by stalement", title="Draw")
                 
                 # If in check, change the king piece to reflect that
@@ -495,6 +496,11 @@ class Layout(tk.Tk):
                 
                 # Update the board graphics
                 board.update()
+                x = chr(self.PromotionPieceXLocation + 96)
+                
+                i = chr(self.pawnToBePromoted.xLocation + 96)
+                
+                NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(7)+i+str(8)+self.pawnToBePromoted.piece[0:1].lower()))
                 
                 # Call the engine to make its move
                 if(not(self.isComputerMove)):
@@ -502,8 +508,8 @@ class Layout(tk.Tk):
                     print ("Move: " + str(self.numMove))
                     print("Position: " + str(NNEngine.evaluateBoard(self)))
                     self.computerThinking = False
-                    print(self.PromotionPieceXLocation,7,self.pawnToBePromoted.xLocation,8,self.pawnToBePromoted.piece[0:1].lower())
-                    NNEngine.engineMove(self.PromotionPieceXLocation,7,self.pawnToBePromoted.xLocation,8,self.pawnToBePromoted.piece[0:1].lower())
+                    print(self.PromotionPieceXLocation,str(7),self.pawnToBePromoted.xLocation,str(8),self.pawnToBePromoted.piece[0:1].lower())
+                    NNEngine.engineMove(self)
                     
         pass
 
@@ -599,6 +605,19 @@ class Layout(tk.Tk):
                     self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].piece = "Empty"
                     self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].colour = "None"
                     self.boardPieces[self.pieceToBeMoved.xLocation - 1][self.pieceToBeMoved.yLocation-1].value = 0
+                    
+                    
+                    # Convert the coordinates to the move string
+                    
+                    #print(x,y,i,j)
+                    x = chr(tempx + 96)
+                    y = str(tempy)
+                    i = chr(i + 96)
+                    j = str(j)
+                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+y+i+j))
+                    
+                    i = ord(i) - 96
+                    j = int(j)
 
                     # If en pasent, make the new square to replace the captured pawn
                     if (self.numMove % 2 == 0):
@@ -738,9 +757,9 @@ class Layout(tk.Tk):
                             self.whiteSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
                         
                         # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
-                        if(Rules.isInCheck(self, "Black")):
+                        if(Rules.isInCheck(chess.BLACK)):
                             
-                            if(Rules.isCheckMate(self, "Black")):
+                            if(Rules.isCheckMate(chess.BLACK)):
                                 easygui.msgbox("White Wins!", title="Winner!")
                             
                             kingPiece = next(
@@ -755,6 +774,7 @@ class Layout(tk.Tk):
                             self.isPromotion = True
                             self.pawnToBePromoted = curItem
                             self.PromotionPieceXLocation = tempx
+                            NNEngine.pgnBoard.pop()
                             if(self.isComputerMove):
                                 self.numMove += 1
                                 self.promotion(None,self.pieceChosen,"White")
@@ -762,7 +782,7 @@ class Layout(tk.Tk):
                                 self.isCheck = False
                                 
                         # Check if the player has no moves yet is not in check (Stalemate)
-                        elif(Rules.isCheckMate(self, "Black")):
+                        elif(Rules.isStaleMate(chess.BLACK)):
                             easygui.msgbox("Draw by stalemate", title="Draw")
                           
                     else:                            
@@ -776,8 +796,8 @@ class Layout(tk.Tk):
                             self.blackSideEnPasentPawnxLocation = self.pieceToBeMoved.xLocation
                         
                         # Check if the opposing player has been checkmated, if not, change the king square to red to indicate being in check
-                        if(Rules.isInCheck(self, "White")):   
-                            if(Rules.isCheckMate(self, "White")):
+                        if(Rules.isInCheck(chess.WHITE)):   
+                            if(Rules.isCheckMate(chess.WHITE)):
                                 easygui.msgbox("Black Wins!", title="Winner!")
                                 
                             kingPiece = next(
@@ -792,13 +812,14 @@ class Layout(tk.Tk):
                             self.isPromotion = True
                             self.pawnToBePromoted = curItem
                             self.PromotionPieceXLocation = tempx
+                            NNEngine.pgnBoard.pop()
                             if(self.isComputerMove):
                                 self.numMove += 1
                                 self.promotion(None,self.pieceChosen,"Black")
                                 self.numMove -= 1
                                 self.isCheck = False
                         # Check if the player has no moves yet is not in check (Stalemate)
-                        elif(Rules.isCheckMate(self, "White")):
+                        elif(Rules.isStaleMate(chess.WHITE)):
                             easygui.msgbox("Draw by stalemate", title="Draw")
                     
                     # Set the piece graphically and bind it to its coordinates
@@ -823,7 +844,7 @@ class Layout(tk.Tk):
 
                         self.computerThinking = False
                         if (not(self.isComputerMove)):
-                            NNEngine.engineMove(self, tempx,tempy,i,j,None)
+                            NNEngine.engineMove(self)
                         else:
                             self.isComputerMove = False
                     

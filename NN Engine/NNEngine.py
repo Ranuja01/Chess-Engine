@@ -26,16 +26,24 @@ from timeit import default_timer as timer
 import chess
 import chess.pgn
 import io
-
+import platform
 import os
+import chess_eval
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Set TensorFlow log level to suppress all but errors
 
 
 pgnBoard = chess.Board()
 pgnBoard.legal_moves
+if platform.system() == 'Windows':
+    data_path1 = '../Models/BlackModel4.keras'
+    data_path2 = '../Models/WhiteModel1.keras'
+elif platform.system() == 'Linux':
+    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel4.keras'
+    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel1.keras'
+    
 
-blackModel = tf.keras.models.load_model('../Models/BlackModel4.keras')
-whiteModel = tf.keras.models.load_model('../Models/WhiteModel1.keras')
+blackModel = tf.keras.models.load_model(data_path1)
+whiteModel = tf.keras.models.load_model(data_path2)
 
 newPgn = io.StringIO("1. e4*")
 newGame = chess.pgn.read_game(newPgn)
@@ -209,7 +217,7 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
     # Acquire the prediction using the current board state and prepare variable for legal move filtering
     filteredPrediction = [0]*4096
     inputBoard = [encode_board(pgnBoard)]
-    prediction = blackModel.predict(np.array(inputBoard))
+    prediction = blackModel.predict(np.array(inputBoard),verbose=0)
         
     self.isComputerMove = True
     self.computerThinking = True
@@ -482,7 +490,7 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
    
     inputBoard = [encode_board(pgnBoard)]
     #activeModel = keras.models.Sequential()
-    prediction = blackModel.predict(np.array(inputBoard))
+    prediction = blackModel.predict(np.array(inputBoard),verbose=0)
     
     # Create a pre-move copy of the board
     boardCopy = copy.deepcopy(self.boardPieces)
@@ -499,7 +507,7 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
     filteredPrediction = np.array(filteredPrediction)
     
     # Select the top moves to do a tree search
-    for i in range (5):
+    for i in range (10):
        
         '''
         print("AAA", self.boardPieces[4][7].piece, self.boardPieces[4][7].colour)
@@ -714,7 +722,7 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
    
     inputBoard = [encode_board(pgnBoard)]
     #activeModel = keras.models.Sequential()
-    prediction = whiteModel.predict(np.array(inputBoard))
+    prediction = whiteModel.predict(np.array(inputBoard),verbose=0)
     
     # Create a pre-move copy of the board
     boardCopy = copy.deepcopy(self.boardPieces)
@@ -731,7 +739,7 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
     filteredPrediction = np.array(filteredPrediction)
     
     # Select the top moves to do a tree search
-    for i in range (5):
+    for i in range (15):
        
         '''
         print("AAA", self.boardPieces[4][7].piece, self.boardPieces[4][7].colour)

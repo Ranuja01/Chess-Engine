@@ -16,18 +16,29 @@ from tensorflow.keras.losses import KLDivergence
 import io
 import platform
 import gc
-import math
+
 from numba import cuda
 from numba import njit
 import itertools
-
-import platform
-import logging
-
+import threading
+import time
+import copy
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Set TensorFlow log level to suppress all but errors
 
 trainingCount = 0
+loop = True
+lock = threading.Lock()
+event = threading.Event()
+
+dataLimit = 100000
+
+black_inputData = []
+black_output = []
+
+white_inputData = []
+white_output = []
 
 if platform.system() == 'Windows':
     data_path1 = r'../Models/BlackModel_21_36.keras'
@@ -35,11 +46,12 @@ if platform.system() == 'Windows':
 
 elif platform.system() == 'Linux':
     
-    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36.keras'
-    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36.keras'
+    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(6)_selfplay.keras'
+    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(6)_selfplay.keras'
     
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
+
 
 
 # Set the path to the Stockfish binary
@@ -188,7 +200,7 @@ def getNNMove(board):
     inputBoard = [encode_board(board)]
     if board.turn:
         
-        prediction = whiteModel.predict(np.array(inputBoard))
+        prediction = whiteModel.predict(np.array(inputBoard),verbose=0)
         
         # Filter the predictions to only contain legal moves
         for move in board.legal_moves:
@@ -205,7 +217,7 @@ def getNNMove(board):
         
     else:
     
-        prediction = blackModel.predict(np.array(inputBoard))
+        prediction = blackModel.predict(np.array(inputBoard), verbose=0)
         
         # Filter the predictions to only contain legal moves
         for move in board.legal_moves:
@@ -224,11 +236,13 @@ def getNNMove(board):
     b = str(b)
     c = chr(c + 96)
     d = str(d)
+    
+    if ((a,b,c,d) == ('a','1','a','1')):
+        return getRandomMove(board)
+    
     if (is_promotion_move_enhanced(move.from_uci(a+b+c+d),board)):
         return move.from_uci(a+b+c+d+'q')
     else:
-        if ((a,b,c,d) == ('a','1','a','1')):
-            return getRandomMove(board)
         return move.from_uci(a+b+c+d)
 
 def getRandomMove(board):
@@ -236,24 +250,34 @@ def getRandomMove(board):
     #print(legal_moves)
     return random.choice(legal_moves) if legal_moves else None
 
-def lr_schedule(epoch, lr):
+def lr_schedule2(epoch, lr):
     if epoch == 0:
         lr = 0.0005 - trainingCount * 0.000005
-    if epoch % 5 == 0 and epoch != 0:
+    if epoch % 3 == 0 and epoch != 0:
         lr = lr * 0.5
     if lr <= 0.00005:
         lr = 0.00005
     return lr
 
+def lr_schedule(epoch, lr):
+    if epoch == 0:
+        lr = 0.005 - trainingCount * 0.0007
+    if epoch % 3 == 0 and epoch != 0:
+        lr = lr * 0.5
+    if lr <= 0.00000005:
+        lr = 0.00000005
+    return lr
+
 def trainModel(model, inputData, output):
     
     initial_lr = 0.001  # Initial learning rate
-    optimizer = Adam(learning_rate=initial_lr)
+    #optimizer = Adam(learning_rate=initial_lr)
+    optimizer = tf.keras.optimizers.SGD(learning_rate=0.005, momentum=0.9)
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
     
     trainingCount = 0
-    for i in range (2):
+    for i in range (1):
         print ("Iteration:", i)
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
@@ -280,7 +304,7 @@ def trainModel(model, inputData, output):
             history = model.fit(
                 x, y,
                 epochs=50,  # Set a large number of epochs for the possibility of early stopping
-                batch_size=8,
+                batch_size=64,
                 validation_split=0.2,  # Split a portion of the data for validation
                 callbacks=[lr_scheduler, early_stopping],  # Pass the early stopping callback and learning rate scheduler
                 shuffle=True,
@@ -296,6 +320,129 @@ def trainModel(model, inputData, output):
 
     print(model.summary())
 
+def appendData(board, inputData, output, engine):
+    temp = [0]*4096
+    
+    move = board.pop()
+    inputData.append(encode_board(board))
+    inputData.append(encode_board(reflect_board(board)))
+    board.push(move)
+    # Convert the move into coordinates
+    moveMade = str(board.peek())
+    a = ord(moveMade[0:1]) - 96
+    b = int(moveMade[1:2])
+    c = ord(moveMade[2:3]) - 96
+    d = int(moveMade[3:4])
+    
+    # Set the index of the output corresponding to the 4 coordinates as 100%
+    temp [reversePrediction(a,b,c,d) - 1] = 1
+    
+    output.append(temp) 
+    temp = [0]*4096
+    
+    # Set the index of the output corresponding to the 4 coordinates as 100%
+    temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
+    
+    output.append(temp) 
+    temp = [0]*4096
+    
+    board.pop()
+    moves = suggest_moves(board, engine, time_limit=0.001, depth=15, multipv=5)
+    for stockfish_move in moves[1:]:
+        
+        inputData.append(encode_board(board))
+        inputData.append(encode_board(reflect_board(board)))
+        board.push(stockfish_move)
+        
+        # Convert the move into coordinates
+        moveMade = str(board.peek())
+        a = ord(moveMade[0:1]) - 96
+        b = int(moveMade[1:2])
+        c = ord(moveMade[2:3]) - 96
+        d = int(moveMade[3:4])
+        
+        # Set the index of the output corresponding to the 4 coordinates as 100%
+        temp [reversePrediction(a,b,c,d) - 1] = 1
+        
+        output.append(temp) 
+        temp = [0]*4096
+        
+        # Set the index of the output corresponding to the 4 coordinates as 100%
+        temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
+        
+        output.append(temp) 
+        temp = [0]*4096
+        board.pop()
+    board.push(move)
+    '''
+    board.pop()
+    for legalMove in board.legal_moves:
+        
+        if board.is_capture(legalMove):
+            
+            board.push(legalMove)
+                
+            # Convert the move into coordinates
+            moveMade = str(board.peek())
+            a = ord(moveMade[0:1]) - 96
+            b = int(moveMade[1:2])
+            c = ord(moveMade[2:3]) - 96
+            d = int(moveMade[3:4])
+            
+            # Set the index of the output corresponding to the 4 coordinates as 100%
+            temp [reversePrediction(a,b,c,d) - 1] = 1
+            #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+            output.append(temp) 
+            temp = [0]*4096
+            
+            # Set the index of the output corresponding to the 4 coordinates as 100%
+            temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
+            #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+            output.append(temp) 
+            temp = [0]*4096
+            
+            board.pop()
+            
+            inputData.append(encode_board(board))
+            inputData.append(encode_board(reflect_board(board)))
+        
+        from_square = legalMove.from_square
+        to_square = legalMove.to_square
+        piece_under_attack = board.is_attacked_by(not board.turn, from_square)
+
+        if piece_under_attack:
+            
+            board.push(legalMove)
+            # Check if the destination square is not attacked by the opponent
+            if not board.is_attacked_by(board.turn, to_square):
+                
+                # Convert the move into coordinates
+                moveMade = str(board.peek())
+                a = ord(moveMade[0:1]) - 96
+                b = int(moveMade[1:2])
+                c = ord(moveMade[2:3]) - 96
+                d = int(moveMade[3:4])
+                
+                # Set the index of the output corresponding to the 4 coordinates as 100%
+                temp [reversePrediction(a,b,c,d) - 1] = 1
+                #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                output.append(temp) 
+                temp = [0]*4096
+                
+                # Set the index of the output corresponding to the 4 coordinates as 100%
+                temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
+                #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                output.append(temp) 
+                temp = [0]*4096
+                
+                board.pop()
+                
+                inputData.append(encode_board(board))
+                inputData.append(encode_board(reflect_board(board)))
+                
+            board.pop()
+    board.push(move)
+    '''
 
 # Function to convert the neural network output to 4 coordinates
 def predictionInfo(prediction):
@@ -364,23 +511,21 @@ def reflect_board(board):
     return reflected_board
 
 
-if __name__ == "__main__":
+def selfPlay():
      
     stockfish_path=STOCKFISH_PATH
-    temp = [0]*4096
+    global loop
     
     gameStart = 21
     gameUntil = 36
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     #engine.configure({"Threads": 4, "Hash": 4096})
-    for i in range (5):
-        black_inputData = []
-        black_output = []
+    for i in range (1):
         
-        white_inputData = []
-        white_output = []
-        while(len(white_output) <= 12500 and len(black_output) <= 12500):
-        
+        while(loop):
+            current_thread = threading.current_thread()
+            # Print the thread ID
+            print(f"Thread Name: {current_thread.name}, Thread ID: {current_thread.ident}")
             print("Black Size: ",len(black_output))    
             print("White Size: ",len(white_output))    
         
@@ -395,131 +540,147 @@ if __name__ == "__main__":
             
             while(not(board.is_game_over())):
             
-                
                 # Generate a random number between 0 and 1
                 random_number = random.random()
                 
-                # Define the probability thresholds for each branch
-                if random_number < 0.5:  # 50% chance for the first branch
-                    
-                    t0 = timer()
+                stockfish_usage = 0.5
+                if (len(black_inputData) > dataLimit and board.turn) or (len(white_inputData) > dataLimit and not(board.turn)):
+                    stockfish_usage = 1.0
                 
+                
+                # Define the probability thresholds for each branch
+                if random_number < stockfish_usage:  # 50% chance for the first branch
                     
+                    #t0 = timer()
+                
                     move = suggest_moves(board, engine, time_limit=0.001, depth=15, multipv=1)
                     board.push(move[0])
                         #print(board)
-                    t1 = timer()
-                    print("STOCKFISH: Time elapsed: ", t1 - t0)
+                    #t1 = timer()
+                    #print("STOCKFISH: Time elapsed: ", t1 - t0)
                 
                 elif random_number < 0.95:  # 45% chance for the second branch (0.2 + 0.3)
                     #t0 = timer()
                     move = getNNMove(board)
                     board.push(move)
-                    t1 = timer()
+                    #t1 = timer()
                     #print("NN: Time elapsed: ", t1 - t0)
                 else:  # 5% chance for the third branch (0.5 + 0.5)
                     #print("Branch 3: Taking this path 50% of the time.")
                     #t0 = timer()
                     move = getRandomMove(board)
                     board.push(move)
-                    t1 = timer()
+                    #t1 = timer()
                     #print("RANDOM: Time elapsed: ", t1 - t0)
      
-                if (inGameCount > gameUntil):
+                if (inGameCount > gameUntil) or board.is_game_over():
                    
                     
                     evaluation = get_stockfish_evaluation(board, engine, 0.001)
-                    
-                    if (evaluation >= -0.5 and evaluation <= 0.5):
-                                            
-                        black_inputData.extend(black_inputData_temp)
-                        black_output.extend(black_output_temp)
+                    #print(evaluation)
+                    if (evaluation >= -0.90 and evaluation <= 0.85):
                         
-                        white_inputData.extend(white_inputData_temp)
-                        white_output.extend(white_output_temp)
-                                            
-                    elif (evaluation < -0.5):
-                        black_inputData.extend(black_inputData_temp)
-                        black_output.extend(black_output_temp)
+                        if len(black_inputData) <= dataLimit + 50000:
+                            black_inputData.extend(black_inputData_temp)
+                            black_output.extend(black_output_temp)
                         
-                    elif (evaluation > 0.5):
-                        white_inputData.extend(white_inputData_temp)
-                        white_output.extend(white_output_temp)
+                        if len(white_inputData) <= dataLimit + 50000:
+                            white_inputData.extend(white_inputData_temp)
+                            white_output.extend(white_output_temp)
+                                            
+                    elif (evaluation < -0.90):
+                        if len(black_inputData) <= dataLimit + 50000:
+                            black_inputData.extend(black_inputData_temp)
+                            black_output.extend(black_output_temp)
+                        
+                    elif (evaluation > 0.85):
+                        if len(white_inputData) <= dataLimit + 50000:
+                            white_inputData.extend(white_inputData_temp)
+                            white_output.extend(white_output_temp)
                                         
                     break
     
                 if (inGameCount >= gameStart):
                     
-                    if board.turn:
-                        #print("White's move:")
-                        # Add code to handle White's move
-                        move = board.pop()
-                        white_inputData_temp.append(encode_board(board))
-                        white_inputData_temp.append(encode_board(reflect_board(board)))
-                        board.push(move)
-                        # Convert the move into coordinates
-                        moveMade = str(board.peek())
-                        a = ord(moveMade[0:1]) - 96
-                        b = int(moveMade[1:2])
-                        c = ord(moveMade[2:3]) - 96
-                        d = int(moveMade[3:4])
-                        
-                        # Set the index of the output corresponding to the 4 coordinates as 100%
-                        temp [reversePrediction(a,b,c,d) - 1] = 1
-                        
-                        white_output_temp.append(temp) 
-                        temp = [0]*4096
-                        
-                        # Set the index of the output corresponding to the 4 coordinates as 100%
-                        temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
-                        
-                        white_output_temp.append(temp) 
-                        temp = [0]*4096
-                        
-                        
-                    else:
-                        #print("Black's move:")
-                        # Add code to handle Black's move
-                    
-                        move = board.pop()
-                        black_inputData_temp.append(encode_board(board))
-                        black_inputData_temp.append(encode_board(reflect_board(board)))
-                        board.push(move)
-                        # Convert the move into coordinates
-                        moveMade = str(board.peek())
-                        a = ord(moveMade[0:1]) - 96
-                        b = int(moveMade[1:2])
-                        c = ord(moveMade[2:3]) - 96
-                        d = int(moveMade[3:4])
-                        
-                        # Set the index of the output corresponding to the 4 coordinates as 100%
-                        temp [reversePrediction(a,b,c,d) - 1] = 1
-                        
-                        black_output_temp.append(temp) 
-                        temp = [0]*4096
-                        
-                        # Set the index of the output corresponding to the 4 coordinates as 100%
-                        temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
-                        
-                        black_output_temp.append(temp) 
-                        temp = [0]*4096
+                    if board.turn:            
+                        with lock:                            
+                            appendData(board, white_inputData_temp, white_output_temp, engine)                        
+                    else:                        
+                        with lock:
+                            appendData(board, black_inputData_temp, black_output_temp,engine)
                         
                 inGameCount += 1
                     
             del black_inputData_temp, black_output_temp, white_inputData_temp, white_output_temp
-            gc.collect()
+            #gc.collect()
             
-        trainModel(blackModel, black_inputData, black_output)
-        trainModel(whiteModel, white_inputData, white_output)
         
-        del black_inputData, black_output, white_inputData, white_output
+        event.wait() 
+        loop = True
+        event.clear() 
+    engine.close()   
+
+
+
+# List to hold the thread objects
+threads = []
+
+# Create and start threads
+for i in range(12):  # Example with 5 threads
+    t = threading.Thread(target=selfPlay, args=())
+    t.start()
+    threads.append(t)
+
+# Main function continues to execute
+print("Main function is doing other things...")
+
+# Wait for threads to complete
+count = 0
+
+t0_full = timer()
+t0 = timer()
+while any(t.is_alive() for t in threads):
+    #print("Waiting for threads to finish...")
+    time.sleep(5)
+    loop = True
+    if len(white_output) > dataLimit and len(black_output) > dataLimit:
+        t1 = timer()
+        print("Time elapsed: ", t1 - t0)
+        print("Copying...")
+        loop = False
+        blackIn = copy.deepcopy(black_inputData)
+        blackOut = copy.deepcopy(black_output)
+        
+        whiteIn = copy.deepcopy(white_inputData)
+        whiteOut = copy.deepcopy(white_output)
+                
+        #del black_inputData, black_output, white_inputData, white_output
+        #gc.collect()        
+        
+        black_inputData = []
+        black_output = []
+
+        white_inputData = []
+        white_output = []
+        
+        print("Done!")
+        
+        trainModel(blackModel, blackIn, blackOut)
+        trainModel(whiteModel, whiteIn, whiteOut)
+        event.set() 
+        del blackIn, blackOut, whiteIn, whiteOut
         gc.collect()
-        
-    if platform.system() == 'Windows':
-        data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
-    elif platform.system() == 'Linux':
-        data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36.keras'  # Example for WSL
-        data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36.keras'  # Example for WSL
-    whiteModel.save(data_path1)
-    blackModel.save(data_path2)
+        t0 = timer()
+    count+=1
+print("All threads have finished.")
+t1_full = timer()
+print("Time elapsed: ", t1_full - t0_full)
+    
+if platform.system() == 'Windows':
+    data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
+elif platform.system() == 'Linux':
+    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(6)_selfplay.keras'  # Example for WSL
+    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(6)_selfplay.keras'  # Example for WSL
+whiteModel.save(data_path1)
+blackModel.save(data_path2)
     

@@ -18,9 +18,9 @@ import easygui
 import copy
 import Rules
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer
+#import tensorflow as tf
+#from tensorflow.keras.models import Sequential
+#from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer
 #from pickle import dump
 from timeit import default_timer as timer
 import chess
@@ -28,11 +28,16 @@ import chess.pgn
 import io
 import platform
 import os
-import chess_eval
+#import chess_eval
+from ChessAI import ChessAI
+
+
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Set TensorFlow log level to suppress all but errors
 
-
 pgnBoard = chess.Board()
+
+'''
 pgnBoard.legal_moves
 if platform.system() == 'Windows':
     data_path1 = '../Models/BlackModel4.keras'
@@ -44,6 +49,9 @@ elif platform.system() == 'Linux':
 
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
+'''
+chess_ai = ChessAI(3, 3, pgnBoard)
+
 
 newPgn = io.StringIO("1. e4*")
 newGame = chess.pgn.read_game(newPgn)
@@ -61,13 +69,14 @@ def evaluateBoard(self):
         if(self.whiteHasCastled):
             sum -= 1500
         '''
+        '''
         if(Rules.isCheckMate(chess.WHITE)):
             print("AAAAA")
             sum = 10000000
         elif(Rules.isCheckMate(chess.BLACK)):
             print("BBBB")
             sum = -10000000
-             
+        '''
         # Check for center square control
         for item in self.boardPieces:
             for square in item:
@@ -100,7 +109,6 @@ def predictionInfo(prediction):
     squareToBeMovedToYLocation = squareToBeMovedTo % 8 + 1
     
     return pieceToBeMovedXLocation, pieceToBeMovedYLocation, squareToBeMovedToXLocation, squareToBeMovedToYLocation
-
 
 # Turns the coordinates back into the NN output
 def reversePrediction(x,y,i,j):
@@ -139,13 +147,16 @@ def engineMove(self):
     self.computerThinking = True
     
     # Call the alpha beta algorithm to make a move decision
-    currentItem,pieceToBeMoved,val,self.pieceChosen = alphaBeta(self, 0,self.depth,"Black")
+    result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=3)
+    a,b,c,d = result['a'],result['b'],result['c'],result['d']
+    val = result['score']
+    #a,b,c,d,val = alphaBeta(self, 0,self.depth)
     self.computerThinking = False
     
     # If the algorithm does not select a move, that suggests they are all equally bad and therefore the machine resigns
-    if(not(pieceToBeMoved == None or pieceToBeMoved.piece == "Empty" or reversePrediction(self.pieceToBeMoved.xLocation,self.pieceToBeMoved.yLocation,currentItem.xLocation,currentItem.yLocation) == 1)):
-        
-        print(pieceToBeMoved.colour + " " + pieceToBeMoved.piece + " at " + str(pieceToBeMoved.xLocation) + " " + str(pieceToBeMoved.yLocation))
+    if(not(self.boardPieces[a - 1][b - 1] == None or self.boardPieces[a - 1][b - 1].piece == "Empty" or reversePrediction(a,b,c,d) == 1 or (a,b,c,d) == (-1,-1,-1,-1))):
+        print(a,b,c,d)
+        print(self.boardPieces[a - 1][b - 1].colour + " " + self.boardPieces[a - 1][b - 1].piece + " at " + str(a) + " " + str(b))
         print ("Computer Evaluation: " + str(val))
         print ("Number of Iterations: " + str(self.count))
         t1 = timer()
@@ -155,20 +166,16 @@ def engineMove(self):
         self.isComputerMove = True
         
         # Set the piece to be moved and make it
-        self.pieceToBeMoved.piece = pieceToBeMoved.piece
-        self.pieceToBeMoved.colour = pieceToBeMoved.colour
-        self.pieceToBeMoved.xLocation = pieceToBeMoved.xLocation
-        self.pieceToBeMoved.yLocation = pieceToBeMoved.yLocation
-        self.pieceToBeMoved.value = pieceToBeMoved.value
+        self.pieceToBeMoved.piece = self.boardPieces[a - 1][b - 1].piece
+        self.pieceToBeMoved.colour = self.boardPieces[a - 1][b - 1].colour
+        self.pieceToBeMoved.xLocation = self.boardPieces[a - 1][b - 1].xLocation
+        self.pieceToBeMoved.yLocation = self.boardPieces[a - 1][b - 1].yLocation
+        self.pieceToBeMoved.value = self.boardPieces[a - 1][b - 1].value
         
-        # Convert the engine selected coordinates to the move string
-        a = chr(self.pieceToBeMoved.xLocation + 96)
-        b = str(self.pieceToBeMoved.yLocation)
-        c = chr(currentItem.xLocation + 96)
-        d = str(currentItem.yLocation)
+        self.pieceChosen = "Queen"
         
         self.move = True
-        self.get_location(None, currentItem.xLocation, currentItem.yLocation)
+        self.get_location(None, c, d)
         
         t1 = timer()
         print("Time elapsed: ", t1 - t0)
@@ -180,40 +187,19 @@ def engineMove(self):
         print ("Position: " + str(val))
         print ("Number of Iterations: " + str(self.count))
         easygui.msgbox("Black Resigns", title="Winner!")
-
-        
+      
 # Function to begin alpha beta decision making
-def alphaBeta(self,curDepth,depthLimit,evalColour):
+def alphaBeta(self,curDepth,depthLimit):
       
     # Define the alpha and beta values
     alpha = -999999998
     beta = 999999999
     
-    # Determine the colour of the active player and the opposing player
-    if(evalColour == "Black"):
-        oppositeColour = "White"
-    else:
-        oppositeColour = "Black"
-    
     # If the full depth is reached, return the evaluation immediately
     if (curDepth >= depthLimit):
-        return evaluateBoard(self)
-    
-    # Make copies of the en pasent status
-    EnPasentCopy = self.whiteSideEnPasent
-    EnPasentLocationCopy = self.whiteSideEnPasentPawnxLocation
-    
-    isLegal = False
-    isCapture = False
+        return chess_eval.evaluate_board(pgnBoard)
+
     highestScore = -99999999
-    pieceToBePromoted = "None"
-    promotion = False
-    curItem = Pieces ("Empty","None",0,0)
-    pieceToBeMoved = Pieces ("Empty","None",0,0)
-    
-    item = Pieces ("Empty","None",0,0)
-    castleFlag = False
-    
     # Acquire the prediction using the current board state and prepare variable for legal move filtering
     filteredPrediction = [0]*4096
     inputBoard = [encode_board(pgnBoard)]
@@ -221,6 +207,11 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
         
     self.isComputerMove = True
     self.computerThinking = True
+    
+    x = 0
+    y = 0
+    w = 0
+    z = 0
     
     # Create a pre-move copy of the board
     boardCopy = copy.deepcopy(self.boardPieces)
@@ -239,143 +230,12 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
     # Select the top moves to do a tree search
     for i in range (10):
        
-        '''
-        print("AAA", self.boardPieces[4][7].piece, self.boardPieces[4][7].colour)
-          
-        print("X1: ",a)
-        print("Y1: ",b)
-        print("X2: ",c)
-        print("Y2: ",d)
-        
-        print(prediction[0][np.argmax(filteredPrediction)] * 100,"%")
-        print()
-        '''
-        
         # Acquire current most likely move
         a,b,c,d = predictionInfo(np.argmax(filteredPrediction))
         # Zero out the current max so as to find the next max on the following turn
         filteredPrediction[np.argmax(filteredPrediction)] = 0
-        if(not(self.boardPieces[a-1][b-1] == None) and reversePrediction(a,b,c,d) > 1):
+        if(reversePrediction(a,b,c,d) > 1):
             
-            # Set the piece to be moved as the current piece                        
-            self.pieceToBeMoved.piece = self.boardPieces[a - 1][b - 1].piece
-            self.pieceToBeMoved.colour = self.boardPieces[a - 1][b - 1].colour
-            self.pieceToBeMoved.value = self.boardPieces[a - 1][b - 1].value
-            self.pieceToBeMoved.xLocation = a
-            self.pieceToBeMoved.yLocation = b
-            
-            item.piece = self.boardPieces[a - 1][b - 1].piece
-            item.colour = self.boardPieces[a - 1][b - 1].colour
-            item.value = self.boardPieces[a - 1][b - 1].value
-            item.xLocation = c
-            item.yLocation = d
-            
-            # Check if moving this piece is a castling move
-            # No need to check other legality since the moves are already filtered
-            _, isLegal,isCapture = Rules.isLegalKingMove(self, self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
-
-            # Set the destination as the moving piece and the original location as empty
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
-            
-            self.boardPieces[a - 1][b - 1].piece = "Empty"
-            self.boardPieces[a - 1][b - 1].colour = "None"
-            self.boardPieces[a - 1][b - 1].value = 0
-            
-            # Check if the move made is a castling move
-            if(self.isCastle):
-                
-                # Set the castle flag within the scope of the current move
-                castleFlag = True
-                if(evalColour == "Black"):
-                    
-                    self.blackHasCastled = True
-                    if(item.xLocation == 7):
-                        
-                        # Move the rook to complete kingside castling for black
-                        self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
-                        self.boardPieces[5][7].colour = evalColour
-                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
-                        
-                        self.boardPieces[7][7].piece = "Empty"
-                        self.boardPieces[7][7].colour = "None"
-                        self.boardPieces[7][7].value = 0
-                    
-                    elif(item.xLocation == 3):
-                        
-                        # Move the rook to complete queenside castling for black
-                        self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
-                        self.boardPieces[3][7].colour = evalColour
-                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
-                        
-                        self.boardPieces[0][7].piece = "Empty"
-                        self.boardPieces[0][7].colour = "None"
-                        self.boardPieces[0][7].value = 0
-                    
-                else:
-                    
-                    self.whiteHasCastled = True
-                    if(item.xLocation == 7):
-                        
-                        # Move the rook to complete kingside castling for white
-                        self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
-                        self.boardPieces[5][0].colour = evalColour
-                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
-                        
-                        self.boardPieces[7][0].piece = "Empty"
-                        self.boardPieces[7][0].colour = "None"
-                        self.boardPieces[7][0].value = 0
-                    
-                    elif(item.xLocation == 3):
-                        
-                        # Move the rook to complete queenside castling for white
-                        self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
-                        self.boardPieces[3][0].colour = evalColour
-                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
-                        
-                        self.boardPieces[0][0].piece = "Empty"
-                        self.boardPieces[0][0].colour = "None"
-                        self.boardPieces[0][0].value = 0
-               
-                # Set the universal castle flag as false to return to the previous state
-                self.isCastle = False       
-            
-            if (evalColour == "Black"):
-                
-                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
-                if(self.blackSideEnPasent):
-                    self.blackSideEnPasent = False
-                
-                # Set if the pawn is in en pasent position
-                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 5 and b == 7):
-                    self.blackSideEnPasent = True
-                    self.blackSideEnPasentPawnxLocation = a
-                    pass
-                
-                # Remove the pawn being captured if done through en pasent
-                if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.whiteSideEnPasentPawnxLocation and isCapture and b == 4):
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
-                                    
-            else:
-                
-                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
-                if(self.whiteSideEnPasent):
-                    self.whiteSideEnPasent = False
-                
-                # Set if the pawn is in en pasent position
-                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 4 and b == 2):
-                    self.whiteSideEnPasent = True
-                    self.whiteSideEnPasentPawnxLocation = a  
-                    pass 
-                
-                # Remove the pawn being captured if done through en pasent
-                if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.blackSideEnPasentPawnxLocation and isCapture and b == 5):
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
            
             # Check if the move is a promotion and push the move accordingly
             if (self.boardPieces[c - 1][d - 1].piece == "Pawn" and b == 7 and d == 8):
@@ -387,8 +247,7 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
                 
                 promotionPiece = 'q'
                 pgnBoard.push(move.from_uci(a+b+c+d+promotionPiece))
-                self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = "Queen"
-                self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = 9000
+                
             else:
                 
                 a = chr(a + 96)
@@ -401,53 +260,26 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
             # Increment the move number to simulate a move being made
             self.numMove += 1
             # Call the minimizer to make the next move
-            score = minimizer(self, curDepth + 1,depthLimit,oppositeColour,alpha, beta)
+            score = minimizer(self, curDepth + 1,depthLimit,alpha, beta)
             self.numMove -= 1
             
             pgnBoard.pop()
             
-            self.whiteSideEnPasent = EnPasentCopy
-            self.whiteSideEnPasentPawnxLocation = EnPasentLocationCopy
-
             # Convert the characters back into coordinates
             a = ord(a) - 96
             b = int(b)
             c = ord(c) - 96
             d = int(d)
 
-            # If the in-scope castling flag was set, then reset the universal castle flags
-            if (castleFlag):
-                
-                castleFlag = False
-                if (evalColour == "Black"):
-                    self.blackHasCastled = False
-                else:
-                    self.whiteHasCastled = False                                     
-                    
+           
             # Find the highest score        
             if(score > highestScore):
-                
-                # a pawn is to be promoted, set the promotion piece as the chosen one
-                if(promotion):
-                    pieceToBePromoted = item.piece
                 highestScore = score
-                
-                # Set the destination location
-                curItem.xLocation = item.xLocation 
-                curItem.yLocation = item.yLocation
-                
-                # Reset the board to the pre-moved state
-                self.boardPieces = copy.deepcopy(boardCopy)
-                
-                # Set the piece to be moved
-                pieceToBeMoved.piece = self.boardPieces[a - 1][b - 1].piece
-                pieceToBeMoved.colour = self.boardPieces[a - 1][b - 1].colour
-                pieceToBeMoved.xLocation = a
-                pieceToBeMoved.yLocation = b
-                pieceToBeMoved.value = self.boardPieces[a - 1][b - 1].value
+                x = a
+                y = b
+                w = c
+                z = d
             
-            # Reset the promotion variable
-            promotion = False
             # Reset the board to the pre-moved state
             self.boardPieces = copy.deepcopy(boardCopy)
             
@@ -455,41 +287,25 @@ def alphaBeta(self,curDepth,depthLimit,evalColour):
         
             # If the beta value becomes less than the alpha value, the branch is not viable to find the best move
             if beta <= alpha:
-                self.whiteSideEnPasent = EnPasentCopy
-                self.whiteSideEnPasentPawnxLocation = EnPasentLocationCopy
-                return curItem,pieceToBeMoved,highestScore,pieceToBePromoted     
+                
+                return x,y,w,z,highestScore     
                     
     if (curDepth == 0):
-        self.whiteSideEnPasent = EnPasentCopy
-        self.whiteSideEnPasentPawnxLocation = EnPasentLocationCopy
-        return curItem,pieceToBeMoved,highestScore,pieceToBePromoted
+        
+        return x,y,w,z,highestScore
     else:
         return highestScore        
 
-
 # Function to find the maximum scoring move for a specific iteration
-def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
-    
-    # Determine the colour of the active player and the opposing player
-    if(evalColour == "Black"):
-        oppositeColour = "White"
-    else:
-        oppositeColour = "Black"
+def maximizer(self,curDepth,depthLimit,alpha, beta):
     
     # If the full depth is reached, return the evaluation immediately
     if (curDepth >= depthLimit):
-        return evaluateBoard(self)
+        return chess_eval.evaluate_board(pgnBoard)
     
-    isLegal = False
-    isCapture = False
-    highestScore = -99999999
-    castleFlag = False
-    item = Pieces ("Empty","None",0,0)
-    
+    highestScore = -99999999   
     filteredPrediction = [0]*4096
-   
     inputBoard = [encode_board(pgnBoard)]
-    #activeModel = keras.models.Sequential()
     prediction = blackModel.predict(np.array(inputBoard),verbose=0)
     
     # Create a pre-move copy of the board
@@ -509,144 +325,13 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
     # Select the top moves to do a tree search
     for i in range (10):
        
-        '''
-        print("AAA", self.boardPieces[4][7].piece, self.boardPieces[4][7].colour)
-          
-        print("X1: ",a)
-        print("Y1: ",b)
-        print("X2: ",c)
-        print("Y2: ",d)
-        
-        print(prediction[0][np.argmax(filteredPrediction)] * 100,"%")
-        print()
-        '''
-        
         # Acquire current most likely move
         a,b,c,d = predictionInfo(np.argmax(filteredPrediction))
         # Zero out the current max so as to find the next max on the following turn
         filteredPrediction[np.argmax(filteredPrediction)] = 0
         if(not(self.boardPieces[a-1][b-1] == None) and reversePrediction(a,b,c,d) > 1):
             
-            # Set the piece to be moved as the current piece                        
-            self.pieceToBeMoved.piece = self.boardPieces[a - 1][b - 1].piece
-            self.pieceToBeMoved.colour = self.boardPieces[a - 1][b - 1].colour
-            self.pieceToBeMoved.value = self.boardPieces[a - 1][b - 1].value
-            self.pieceToBeMoved.xLocation = a
-            self.pieceToBeMoved.yLocation = b
-            
-            item.piece = self.boardPieces[a - 1][b - 1].piece
-            item.colour = self.boardPieces[a - 1][b - 1].colour
-            item.value = self.boardPieces[a - 1][b - 1].value
-            item.xLocation = c
-            item.yLocation = d
-            
-            # Check if moving this piece is a castling move
-            # No need to check other legality since the moves are already filtered
-            _, isLegal,isCapture = Rules.isLegalKingMove(self, self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
-
-            # Set the destination as the moving piece and the original location as empty
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
-            
-            self.boardPieces[a - 1][b - 1].piece = "Empty"
-            self.boardPieces[a - 1][b - 1].colour = "None"
-            self.boardPieces[a - 1][b - 1].value = 0
-            
-            # Check if the move made is a castling move
-            if(self.isCastle):
-                
-                # Set the castle flag within the scope of the current move
-                castleFlag = True
-                if(evalColour == "Black"):
-                    
-                    self.blackHasCastled = True
-                    if(item.xLocation == 7):
-                        
-                        # Move the rook to complete kingside castling for black
-                        self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
-                        self.boardPieces[5][7].colour = evalColour
-                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
-                        
-                        self.boardPieces[7][7].piece = "Empty"
-                        self.boardPieces[7][7].colour = "None"
-                        self.boardPieces[7][7].value = 0
-                    
-                    elif(item.xLocation == 3):
-                        
-                        # Move the rook to complete queenside castling for black
-                        self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
-                        self.boardPieces[3][7].colour = evalColour
-                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
-                        
-                        self.boardPieces[0][7].piece = "Empty"
-                        self.boardPieces[0][7].colour = "None"
-                        self.boardPieces[0][7].value = 0
-                    
-                else:
-                    
-                    self.whiteHasCastled = True
-                    if(item.xLocation == 7):
-                        
-                        # Move the rook to complete kingside castling for white
-                        self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
-                        self.boardPieces[5][0].colour = evalColour
-                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
-                        
-                        self.boardPieces[7][0].piece = "Empty"
-                        self.boardPieces[7][0].colour = "None"
-                        self.boardPieces[7][0].value = 0
-                    
-                    elif(item.xLocation == 3):
-                        
-                        # Move the rook to complete queenside castling for white
-                        self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
-                        self.boardPieces[3][0].colour = evalColour
-                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
-                        
-                        self.boardPieces[0][0].piece = "Empty"
-                        self.boardPieces[0][0].colour = "None"
-                        self.boardPieces[0][0].value = 0
-               
-                # Set the universal castle flag as false to return to the previous state
-                self.isCastle = False       
-            
-            if (evalColour == "Black"):
-                
-                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
-                if(self.blackSideEnPasent):
-                    self.blackSideEnPasent = False
-                
-                # Set if the pawn is in en pasent position
-                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 5 and b == 7):
-                    self.blackSideEnPasent = True
-                    self.blackSideEnPasentPawnxLocation = a
-                    pass
-                
-                # Remove the pawn being captured if done through en pasent
-                if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.whiteSideEnPasentPawnxLocation and isCapture and b == 4):
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
-                                    
-            else:
-                
-                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
-                if(self.whiteSideEnPasent):
-                    self.whiteSideEnPasent = False
-                
-                # Set if the pawn is in en pasent position
-                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 4 and b == 2):
-                    self.whiteSideEnPasent = True
-                    self.whiteSideEnPasentPawnxLocation = a  
-                    pass 
-                
-                # Remove the pawn being captured if done through en pasent
-                if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.blackSideEnPasentPawnxLocation and isCapture and b == 5):
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
-           
+                       
             # Check if the move is a promotion and push the move accordingly
             if (self.boardPieces[c - 1][d - 1].piece == "Pawn" and b == 7 and d == 8):
                 
@@ -657,8 +342,7 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
                 
                 promotionPiece = 'q'
                 pgnBoard.push(move.from_uci(a+b+c+d+promotionPiece))
-                self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = "Queen"
-                self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = 9000
+                
             else:
                 
                 a = chr(a + 96)
@@ -671,20 +355,12 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
             # Increment the move number to simulate a move being made
             self.numMove += 1
             # Call the minimizer to make the next move
-            score = minimizer(self, curDepth + 1,depthLimit,oppositeColour,alpha, beta)
+            score = minimizer(self, curDepth + 1,depthLimit,alpha, beta)
             self.numMove -= 1
 
             # Undo the move to reset the board to pre-move state
             pgnBoard.pop()
 
-            # If the in-scope castling flag was set, then reset the universal castle flags
-            if (castleFlag):
-                castleFlag = False
-                if (evalColour == "Black"):
-                    self.blackHasCastled = False
-                else:
-                    self.whiteHasCastled = False 
-            
             # Find the highest score
             if(score > highestScore):
                 highestScore = score
@@ -700,28 +376,15 @@ def maximizer(self,curDepth,depthLimit,evalColour,alpha, beta):
     return highestScore
 
 # Function to find the minimum scoring move for a specific iteration      
-def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
-    
-    # Determine the colour of the active player and the opposing player
-    if(evalColour == "Black"):
-        oppositeColour = "White"
-    else:
-        oppositeColour = "Black"
+def minimizer(self,curDepth,depthLimit,alpha, beta):
     
     # If the full depth is reached, return the evaluation immediately
     if (curDepth >= depthLimit):
-        return evaluateBoard(self)
+        return chess_eval.evaluate_board(pgnBoard)
     
-    isLegal = False
-    isCapture = False
     lowestScore = 99999999
-    castleFlag = False
-    item = Pieces ("Empty","None",0,0)
-    
     filteredPrediction = [0]*4096
-   
     inputBoard = [encode_board(pgnBoard)]
-    #activeModel = keras.models.Sequential()
     prediction = whiteModel.predict(np.array(inputBoard),verbose=0)
     
     # Create a pre-move copy of the board
@@ -740,145 +403,13 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
     
     # Select the top moves to do a tree search
     for i in range (15):
-       
-        '''
-        print("AAA", self.boardPieces[4][7].piece, self.boardPieces[4][7].colour)
-          
-        print("X1: ",a)
-        print("Y1: ",b)
-        print("X2: ",c)
-        print("Y2: ",d)
-        
-        print(prediction[0][np.argmax(filteredPrediction)] * 100,"%")
-        print()
-        '''
-        
+     
         # Acquire current most likely move
         a,b,c,d = predictionInfo(np.argmax(filteredPrediction))
         # Zero out the current max so as to find the next max on the following turn
         filteredPrediction[np.argmax(filteredPrediction)] = 0
         if(not(self.boardPieces[a-1][b-1] == None) and reversePrediction(a,b,c,d) > 1):
             
-            # Set the piece to be moved as the current piece                        
-            self.pieceToBeMoved.piece = self.boardPieces[a - 1][b - 1].piece
-            self.pieceToBeMoved.colour = self.boardPieces[a - 1][b - 1].colour
-            self.pieceToBeMoved.value = self.boardPieces[a - 1][b - 1].value
-            self.pieceToBeMoved.xLocation = a
-            self.pieceToBeMoved.yLocation = b
-            
-            item.piece = self.boardPieces[a - 1][b - 1].piece
-            item.colour = self.boardPieces[a - 1][b - 1].colour
-            item.value = self.boardPieces[a - 1][b - 1].value
-            item.xLocation = c
-            item.yLocation = d
-            
-            # Check if moving this piece is a castling move
-            # No need to check other legality since the moves are already filtered
-            _, isLegal,isCapture = Rules.isLegalKingMove(self, self.boardPieces[item.xLocation - 1][item.yLocation - 1],item.xLocation,item.yLocation,evalColour)
-
-            # Set the destination as the moving piece and the original location as empty
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = item.piece
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].colour = item.colour
-            self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = item.value
-            
-            self.boardPieces[a - 1][b - 1].piece = "Empty"
-            self.boardPieces[a - 1][b - 1].colour = "None"
-            self.boardPieces[a - 1][b - 1].value = 0
-            
-            # Check if the move made is a castling move
-            if(self.isCastle):
-                
-                # Set the castle flag within the scope of the current move
-                castleFlag = True
-                if(evalColour == "Black"):
-                    
-                    self.blackHasCastled = True
-                    if(item.xLocation == 7):
-                        
-                        # Move the rook to complete kingside castling for black
-                        self.boardPieces[5][7].piece = self.boardPieces[7][7].piece
-                        self.boardPieces[5][7].colour = evalColour
-                        self.boardPieces[5][7].value = self.boardPieces[7][7].value
-                        
-                        self.boardPieces[7][7].piece = "Empty"
-                        self.boardPieces[7][7].colour = "None"
-                        self.boardPieces[7][7].value = 0
-                    
-                    elif(item.xLocation == 3):
-                        
-                        # Move the rook to complete queenside castling for black
-                        self.boardPieces[3][7].piece = self.boardPieces[0][7].piece
-                        self.boardPieces[3][7].colour = evalColour
-                        self.boardPieces[3][7].value = self.boardPieces[0][7].value
-                        
-                        self.boardPieces[0][7].piece = "Empty"
-                        self.boardPieces[0][7].colour = "None"
-                        self.boardPieces[0][7].value = 0
-                    
-                else:
-                    
-                    self.whiteHasCastled = True
-                    if(item.xLocation == 7):
-                        
-                        # Move the rook to complete kingside castling for white
-                        self.boardPieces[5][0].piece = self.boardPieces[7][0].piece
-                        self.boardPieces[5][0].colour = evalColour
-                        self.boardPieces[5][0].value = self.boardPieces[7][0].value
-                        
-                        self.boardPieces[7][0].piece = "Empty"
-                        self.boardPieces[7][0].colour = "None"
-                        self.boardPieces[7][0].value = 0
-                    
-                    elif(item.xLocation == 3):
-                        
-                        # Move the rook to complete queenside castling for white
-                        self.boardPieces[3][0].piece = self.boardPieces[0][0].piece
-                        self.boardPieces[3][0].colour = evalColour
-                        self.boardPieces[3][0].value = self.boardPieces[0][0].value
-                        
-                        self.boardPieces[0][0].piece = "Empty"
-                        self.boardPieces[0][0].colour = "None"
-                        self.boardPieces[0][0].value = 0
-               
-                # Set the universal castle flag as false to return to the previous state
-                self.isCastle = False       
-            
-            if (evalColour == "Black"):
-                
-                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
-                if(self.blackSideEnPasent):
-                    self.blackSideEnPasent = False
-                
-                # Set if the pawn is in en pasent position
-                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 5 and b == 7):
-                    self.blackSideEnPasent = True
-                    self.blackSideEnPasentPawnxLocation = a
-                    pass
-                
-                # Remove the pawn being captured if done through en pasent
-                if(self.whiteSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.whiteSideEnPasentPawnxLocation and isCapture and b == 4):
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].piece = "Empty"
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].colour = "None"
-                    self.boardPieces[self.whiteSideEnPasentPawnxLocation - 1][3].value = 0
-                                    
-            else:
-                
-                # If the piece was set in a previous iteration as in en pasent position, it is no longer by the next move
-                if(self.whiteSideEnPasent):
-                    self.whiteSideEnPasent = False
-                
-                # Set if the pawn is in en pasent position
-                if(self.pieceToBeMoved.piece == "Pawn" and item.yLocation == 4 and b == 2):
-                    self.whiteSideEnPasent = True
-                    self.whiteSideEnPasentPawnxLocation = a  
-                    pass 
-                
-                # Remove the pawn being captured if done through en pasent
-                if(self.blackSideEnPasent and self.pieceToBeMoved.piece == "Pawn" and item.xLocation == self.blackSideEnPasentPawnxLocation and isCapture and b == 5):
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].piece = "Empty"
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].colour = "None"
-                    self.boardPieces[self.blackSideEnPasentPawnxLocation - 1][4].value = 0
-           
             # Check if the move is a promotion and push the move accordingly
             if (self.boardPieces[c - 1][d - 1].piece == "Pawn" and b == 7 and d == 8):
                 
@@ -889,8 +420,6 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
                 
                 promotionPiece = 'q'
                 pgnBoard.push(move.from_uci(a+b+c+d+promotionPiece))
-                self.boardPieces[item.xLocation - 1][item.yLocation - 1].piece = "Queen"
-                self.boardPieces[item.xLocation - 1][item.yLocation - 1].value = 9000
             else:
                 
                 a = chr(a + 96)
@@ -903,20 +432,12 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
             # Increment the move number to simulate a move being made
             self.numMove += 1
             # Call the maximizer to make the next move
-            score = maximizer(self, curDepth + 1,depthLimit,oppositeColour, alpha, beta)
+            score = maximizer(self, curDepth + 1,depthLimit, alpha, beta)
             self.numMove -= 1
     
             # Undo the move to reset the board to premoved state
             pgnBoard.pop()        
     
-            # If the in-scope castling flag was set, then reset the universal castle flags
-            if (castleFlag):
-                castleFlag = False
-                if (evalColour == "Black"):
-                    self.blackHasCastled = False
-                else:
-                    self.whiteHasCastled = False  
-            
             # Find the lowest score
             if(score < lowestScore):
                 lowestScore = score
@@ -934,8 +455,6 @@ def minimizer(self,curDepth,depthLimit,evalColour,alpha, beta):
 def moveAppender(self,moves,y,colour):
     
     # All moves assume that white is on the bottom (Location numbers start at 1 but indices start at 0)
-    #print("AAA", self.boardPieces[1][6].piece, self.boardPieces[1][6].colour)
-    #print("BBB", self.boardPieces[2][7].piece, self.boardPieces[2][7].colour)
     if(colour =="Black"):
         oppositeColour = "White"
     else:

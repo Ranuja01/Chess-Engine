@@ -607,8 +607,11 @@ class Layout(tk.Tk):
                 
                 i = chr(self.pawnToBePromoted.xLocation + 96)
                 
-                NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(7)+i+str(8)+self.pawnToBePromoted.piece[0:1].lower()))
-                
+                if (NNEngine.pgnBoard.turn):
+                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(7)+i+str(8)+self.pawnToBePromoted.piece[0:1].lower()))
+                else:
+                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(2)+i+str(1)+self.pawnToBePromoted.piece[0:1].lower()))
+                    
                 # Call the engine to make its move
                 if(not(self.isComputerMove)):
                     self.computerThinking = True

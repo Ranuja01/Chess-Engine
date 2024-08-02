@@ -52,6 +52,7 @@ elif platform.system() == 'Linux':
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
 
+tf.config.optimizer.set_jit(True)  # Enable XLA
 
 
 # Set the path to the Stockfish binary
@@ -520,7 +521,7 @@ def selfPlay():
     gameUntil = 36
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     #engine.configure({"Threads": 4, "Hash": 4096})
-    for i in range (1):
+    for i in range (20):
         
         while(loop):
             current_thread = threading.current_thread()
@@ -543,7 +544,7 @@ def selfPlay():
                 # Generate a random number between 0 and 1
                 random_number = random.random()
                 
-                stockfish_usage = 0.5
+                stockfish_usage = 0.7
                 if (len(black_inputData) > dataLimit and board.turn) or (len(white_inputData) > dataLimit and not(board.turn)):
                     stockfish_usage = 1.0
                 
@@ -559,7 +560,7 @@ def selfPlay():
                     #t1 = timer()
                     #print("STOCKFISH: Time elapsed: ", t1 - t0)
                 
-                elif random_number < 0.95:  # 45% chance for the second branch (0.2 + 0.3)
+                elif random_number < 1.0:  # 45% chance for the second branch (0.2 + 0.3)
                     #t0 = timer()
                     move = getNNMove(board)
                     board.push(move)

@@ -336,17 +336,17 @@ if __name__ == "__main__":
     for move in newGame.mainline_moves():
         pass
     
-   # Define the model
+    # Define the model
     inputs = tf.keras.Input(shape=(8, 8, 12))
     
     # Convolutional Layers
-    x = Conv2D(filters=12, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(inputs)
+    x = Conv2D(filters=12, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(inputs)
     x = BatchNormalization()(x)
-    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(x)
     x = BatchNormalization()(x)
-    x = Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(x)
     x = BatchNormalization()(x)
-    x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(x)
     x = BatchNormalization()(x)
     #x = MaxPooling2D(pool_size=(2, 2))(x)
     # x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
@@ -361,15 +361,15 @@ if __name__ == "__main__":
     # x = Conv2D(filters=1024, kernel_size=(4, 4), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(x)
     # x = BatchNormalization()(x)
     
-    x = transformer_block(x, num_heads=4, ff_dim=256)
+    x = transformer_block(x, num_heads=4, ff_dim=64)
     # Global Average Pooling
     #x = GlobalAveragePooling2D()(x)
     x = Flatten()(x)
     # Fully connected layers
-    x = Dense(256, activation='relu', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = Dense(256, activation='relu', kernel_regularizer=regularizers.l2(0.0001))(x)
     x = BatchNormalization()(x)
     x = Dropout(0.05)(x)
-    x = Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.0001))(x)
     x = BatchNormalization()(x)
     x = Dropout(0.05)(x)
     
@@ -384,5 +384,9 @@ if __name__ == "__main__":
     optimizer = Adam(learning_rate=initial_lr)
     #optimizer = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
     print(model.summary())
-
+    if platform.system() == 'Windows':
+        data_path = r'../Models/WhiteModel_21_36(5).keras'
+    elif platform.system() == 'Linux':
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel6_37_50(15)_WEvasion_Refined.keras'  # Example for WSL
+    model.save(data_path)
 #  python3 /mnt/c/Users/Kumodth/Desktop/Programming/Chess\ Engine/Chess-Engine/NN\ Engine/WhiteNNTrainer.py

@@ -4,6 +4,7 @@ import easygui
 import random
 from timeit import default_timer as timer
 import chess
+import platform
 #from numba import njit
 
 from PIL import ImageTk, Image
@@ -66,7 +67,7 @@ class Layout(tk.Tk):
         # Variables to help with engine calculation
         self.isComputerMove = False
         self.computerThinking = False
-        self.depth = 3
+        self.depth = 4
         self.pieceChosen = "None"
         
         # Variables to hold castling status
@@ -186,109 +187,215 @@ class Layout(tk.Tk):
 
         # Read all the required images from the file
         
-        blackPawnWhiteSquare = Image.open('../Images/BlackPawnWhiteSquare.png')
-        blackPawnWhiteSquare = blackPawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackPawnWhiteSquareImage = ImageTk.PhotoImage(blackPawnWhiteSquare,master = self)
-        
-        blackPawnBlackSquare = Image.open('../Images/BlackPawnBlackSquare.png')
-        blackPawnBlackSquare = blackPawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackPawnBlackSquareImage = ImageTk.PhotoImage(blackPawnBlackSquare,master = self)
-        
-        blackRookWhiteSquare = Image.open('../Images/BlackRookWhiteSquare.png')
-        blackRookWhiteSquare = blackRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackRookWhiteSquareImage = ImageTk.PhotoImage(blackRookWhiteSquare,master = self)
-        
-        blackKingWhiteSquare = Image.open('../Images/BlackKingWhiteSquare.png')
-        blackKingWhiteSquare = blackKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackKingWhiteSquareImage = ImageTk.PhotoImage(blackKingWhiteSquare,master = self)
-        
-        blackKingBlackSquare = Image.open('../Images/BlackKingBlackSquare.png')
-        blackKingBlackSquare = blackKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackKingBlackSquareImage = ImageTk.PhotoImage(blackKingBlackSquare,master = self)
-        
-        blackKnightWhiteSquare = Image.open('../Images/BlackKnightWhiteSquare.png')
-        blackKnightWhiteSquare = blackKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackKnightWhiteSquareImage = ImageTk.PhotoImage(blackKnightWhiteSquare,master = self)
-        
-        blackKnightBlackSquare = Image.open('../Images/BlackKnightBlackSquare.png')
-        blackKnightBlackSquare = blackKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackKnightBlackSquareImage = ImageTk.PhotoImage(blackKnightBlackSquare,master = self)
-        
-        blackRookBlackSquare = Image.open('../Images/BlackRookBlackSquare.png')
-        blackRookBlackSquare = blackRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackRookBlackSquareImage = ImageTk.PhotoImage(blackRookBlackSquare,master = self)
-        
-        blackQueenBlackSquare = Image.open('../Images/BlackQueenBlackSquare.png')
-        blackQueenBlackSquare = blackQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackQueenBlackSquareImage = ImageTk.PhotoImage(blackQueenBlackSquare,master = self)
-        
-        blackQueenWhiteSquare = Image.open('../Images/BlackQueenWhiteSquare.png')
-        blackQueenWhiteSquare = blackQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackQueenWhiteSquareImage = ImageTk.PhotoImage(blackQueenWhiteSquare,master = self)
-        
-        blackBishopWhiteSquare = Image.open('../Images/BlackBishopWhiteSquare.png')
-        blackBishopWhiteSquare = blackBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackBishopWhiteSquareImage = ImageTk.PhotoImage(blackBishopWhiteSquare,master = self)
-          
-        blackBishopBlackSquare = Image.open('../Images/BlackBishopBlackSquare.png')
-        blackBishopBlackSquare = blackBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackBishopBlackSquareImage = ImageTk.PhotoImage(blackBishopBlackSquare,master = self) 
-        
-        whitePawnWhiteSquare = Image.open('../Images/whitePawnWhiteSquare.png')
-        whitePawnWhiteSquare = whitePawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whitePawnWhiteSquareImage = ImageTk.PhotoImage(whitePawnWhiteSquare,master = self)
+        if platform.system() == 'Windows':
+            blackPawnWhiteSquare = Image.open('../Images/BlackPawnWhiteSquare.png')
+            blackPawnWhiteSquare = blackPawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackPawnWhiteSquareImage = ImageTk.PhotoImage(blackPawnWhiteSquare,master = self)
+            
+            blackPawnBlackSquare = Image.open('../Images/BlackPawnBlackSquare.png')
+            blackPawnBlackSquare = blackPawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackPawnBlackSquareImage = ImageTk.PhotoImage(blackPawnBlackSquare,master = self)
+            
+            blackRookWhiteSquare = Image.open('../Images/BlackRookWhiteSquare.png')
+            blackRookWhiteSquare = blackRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackRookWhiteSquareImage = ImageTk.PhotoImage(blackRookWhiteSquare,master = self)
+            
+            blackKingWhiteSquare = Image.open('../Images/BlackKingWhiteSquare.png')
+            blackKingWhiteSquare = blackKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKingWhiteSquareImage = ImageTk.PhotoImage(blackKingWhiteSquare,master = self)
+            
+            blackKingBlackSquare = Image.open('../Images/BlackKingBlackSquare.png')
+            blackKingBlackSquare = blackKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKingBlackSquareImage = ImageTk.PhotoImage(blackKingBlackSquare,master = self)
+            
+            blackKnightWhiteSquare = Image.open('../Images/BlackKnightWhiteSquare.png')
+            blackKnightWhiteSquare = blackKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKnightWhiteSquareImage = ImageTk.PhotoImage(blackKnightWhiteSquare,master = self)
+            
+            blackKnightBlackSquare = Image.open('../Images/BlackKnightBlackSquare.png')
+            blackKnightBlackSquare = blackKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKnightBlackSquareImage = ImageTk.PhotoImage(blackKnightBlackSquare,master = self)
+            
+            blackRookBlackSquare = Image.open('../Images/BlackRookBlackSquare.png')
+            blackRookBlackSquare = blackRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackRookBlackSquareImage = ImageTk.PhotoImage(blackRookBlackSquare,master = self)
+            
+            blackQueenBlackSquare = Image.open('../Images/BlackQueenBlackSquare.png')
+            blackQueenBlackSquare = blackQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackQueenBlackSquareImage = ImageTk.PhotoImage(blackQueenBlackSquare,master = self)
+            
+            blackQueenWhiteSquare = Image.open('../Images/BlackQueenWhiteSquare.png')
+            blackQueenWhiteSquare = blackQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackQueenWhiteSquareImage = ImageTk.PhotoImage(blackQueenWhiteSquare,master = self)
+            
+            blackBishopWhiteSquare = Image.open('../Images/BlackBishopWhiteSquare.png')
+            blackBishopWhiteSquare = blackBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackBishopWhiteSquareImage = ImageTk.PhotoImage(blackBishopWhiteSquare,master = self)
+              
+            blackBishopBlackSquare = Image.open('../Images/BlackBishopBlackSquare.png')
+            blackBishopBlackSquare = blackBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackBishopBlackSquareImage = ImageTk.PhotoImage(blackBishopBlackSquare,master = self) 
+            
+            whitePawnWhiteSquare = Image.open('../Images/whitePawnWhiteSquare.png')
+            whitePawnWhiteSquare = whitePawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whitePawnWhiteSquareImage = ImageTk.PhotoImage(whitePawnWhiteSquare,master = self)
 
-        whitePawnBlackSquare = Image.open('../Images/whitePawnBlackSquare.png')
-        whitePawnBlackSquare = whitePawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whitePawnBlackSquareImage = ImageTk.PhotoImage(whitePawnBlackSquare,master = self)
+            whitePawnBlackSquare = Image.open('../Images/whitePawnBlackSquare.png')
+            whitePawnBlackSquare = whitePawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whitePawnBlackSquareImage = ImageTk.PhotoImage(whitePawnBlackSquare,master = self)
+            
+            whiteRookWhiteSquare = Image.open('../Images/whiteRookWhiteSquare.png')
+            whiteRookWhiteSquare = whiteRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteRookWhiteSquareImage = ImageTk.PhotoImage(whiteRookWhiteSquare,master = self)
+            
+            whiteRookBlackSquare = Image.open('../Images/whiteRookBlackSquare.png')
+            whiteRookBlackSquare = whiteRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteRookBlackSquareImage = ImageTk.PhotoImage(whiteRookBlackSquare,master = self)
+            
+            whiteKnightWhiteSquare = Image.open('../Images/whiteKnightWhiteSquare.png')
+            whiteKnightWhiteSquare = whiteKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKnightWhiteSquareImage = ImageTk.PhotoImage(whiteKnightWhiteSquare,master = self)
+            
+            whiteKnightBlackSquare = Image.open('../Images/whiteKnightBlackSquare.png')
+            whiteKnightBlackSquare = whiteKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKnightBlackSquareImage = ImageTk.PhotoImage(whiteKnightBlackSquare,master = self)
+            
+            whiteKingBlackSquare = Image.open('../Images/whiteKingBlackSquare.png')
+            whiteKingBlackSquare = whiteKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKingBlackSquareImage = ImageTk.PhotoImage(whiteKingBlackSquare,master = self)
+            
+            whiteBishopWhiteSquare = Image.open('../Images/whiteBishopWhiteSquare.png')
+            whiteBishopWhiteSquare = whiteBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteBishopWhiteSquareImage = ImageTk.PhotoImage(whiteBishopWhiteSquare,master = self)
+            
+            whiteBishopBlackSquare = Image.open('../Images/whiteBishopBlackSquare.png')
+            whiteBishopBlackSquare = whiteBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteBishopBlackSquareImage = ImageTk.PhotoImage(whiteBishopBlackSquare,master = self)
+            
+            whiteQueenWhiteSquare = Image.open('../Images/whiteQueenWhiteSquare.png')
+            whiteQueenWhiteSquare = whiteQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteQueenWhiteSquareImage = ImageTk.PhotoImage(whiteQueenWhiteSquare,master = self)
+            
+            whiteQueenBlackSquare = Image.open('../Images/whiteQueenBlackSquare.png')
+            whiteQueenBlackSquare = whiteQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteQueenBlackSquareImage = ImageTk.PhotoImage(whiteQueenBlackSquare,master = self)
+            
+            whiteKingWhiteSquare = Image.open('../Images/whiteKingWhiteSquare.png')
+            whiteKingWhiteSquare = whiteKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKingWhiteSquareImage = ImageTk.PhotoImage(whiteKingWhiteSquare,master = self)
+            
+            whiteKingInCheck = Image.open('../Images/WhiteKingInCheck.png')
+            whiteKingInCheck = whiteKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKingInCheckImage = ImageTk.PhotoImage(whiteKingInCheck,master = self)
+            
+            blackKingInCheck = Image.open('../Images/BlackKingInCheck.png')
+            blackKingInCheck = blackKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKingInCheckImage = ImageTk.PhotoImage(blackKingInCheck,master = self)
+        elif platform.system() == 'Linux':
+            blackPawnWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackPawnWhiteSquare.png')
+            blackPawnWhiteSquare = blackPawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackPawnWhiteSquareImage = ImageTk.PhotoImage(blackPawnWhiteSquare,master = self)
+            
+            blackPawnBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackPawnBlackSquare.png')
+            blackPawnBlackSquare = blackPawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackPawnBlackSquareImage = ImageTk.PhotoImage(blackPawnBlackSquare,master = self)
+            
+            blackRookWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackRookWhiteSquare.png')
+            blackRookWhiteSquare = blackRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackRookWhiteSquareImage = ImageTk.PhotoImage(blackRookWhiteSquare,master = self)
+            
+            blackKingWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackKingWhiteSquare.png')
+            blackKingWhiteSquare = blackKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKingWhiteSquareImage = ImageTk.PhotoImage(blackKingWhiteSquare,master = self)
+            
+            blackKingBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackKingBlackSquare.png')
+            blackKingBlackSquare = blackKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKingBlackSquareImage = ImageTk.PhotoImage(blackKingBlackSquare,master = self)
+            
+            blackKnightWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackKnightWhiteSquare.png')
+            blackKnightWhiteSquare = blackKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKnightWhiteSquareImage = ImageTk.PhotoImage(blackKnightWhiteSquare,master = self)
+            
+            blackKnightBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackKnightBlackSquare.png')
+            blackKnightBlackSquare = blackKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKnightBlackSquareImage = ImageTk.PhotoImage(blackKnightBlackSquare,master = self)
+            
+            blackRookBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackRookBlackSquare.png')
+            blackRookBlackSquare = blackRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackRookBlackSquareImage = ImageTk.PhotoImage(blackRookBlackSquare,master = self)
+            
+            blackQueenBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackQueenBlackSquare.png')
+            blackQueenBlackSquare = blackQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackQueenBlackSquareImage = ImageTk.PhotoImage(blackQueenBlackSquare,master = self)
+            
+            blackQueenWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackQueenWhiteSquare.png')
+            blackQueenWhiteSquare = blackQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackQueenWhiteSquareImage = ImageTk.PhotoImage(blackQueenWhiteSquare,master = self)
+            
+            blackBishopWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackBishopWhiteSquare.png')
+            blackBishopWhiteSquare = blackBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackBishopWhiteSquareImage = ImageTk.PhotoImage(blackBishopWhiteSquare,master = self)
+              
+            blackBishopBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackBishopBlackSquare.png')
+            blackBishopBlackSquare = blackBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackBishopBlackSquareImage = ImageTk.PhotoImage(blackBishopBlackSquare,master = self) 
+            
+            whitePawnWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whitePawnWhiteSquare.png')
+            whitePawnWhiteSquare = whitePawnWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whitePawnWhiteSquareImage = ImageTk.PhotoImage(whitePawnWhiteSquare,master = self)
+
+            whitePawnBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whitePawnBlackSquare.png')
+            whitePawnBlackSquare = whitePawnBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whitePawnBlackSquareImage = ImageTk.PhotoImage(whitePawnBlackSquare,master = self)
+            
+            whiteRookWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteRookWhiteSquare.png')
+            whiteRookWhiteSquare = whiteRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteRookWhiteSquareImage = ImageTk.PhotoImage(whiteRookWhiteSquare,master = self)
+            
+            whiteRookBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteRookBlackSquare.png')
+            whiteRookBlackSquare = whiteRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteRookBlackSquareImage = ImageTk.PhotoImage(whiteRookBlackSquare,master = self)
+            
+            whiteKnightWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteKnightWhiteSquare.png')
+            whiteKnightWhiteSquare = whiteKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKnightWhiteSquareImage = ImageTk.PhotoImage(whiteKnightWhiteSquare,master = self)
+            
+            whiteKnightBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteKnightBlackSquare.png')
+            whiteKnightBlackSquare = whiteKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKnightBlackSquareImage = ImageTk.PhotoImage(whiteKnightBlackSquare,master = self)
+            
+            whiteKingBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteKingBlackSquare.png')
+            whiteKingBlackSquare = whiteKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKingBlackSquareImage = ImageTk.PhotoImage(whiteKingBlackSquare,master = self)
+            
+            whiteBishopWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteBishopWhiteSquare.png')
+            whiteBishopWhiteSquare = whiteBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteBishopWhiteSquareImage = ImageTk.PhotoImage(whiteBishopWhiteSquare,master = self)
+            
+            whiteBishopBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteBishopBlackSquare.png')
+            whiteBishopBlackSquare = whiteBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteBishopBlackSquareImage = ImageTk.PhotoImage(whiteBishopBlackSquare,master = self)
+            
+            whiteQueenWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteQueenWhiteSquare.png')
+            whiteQueenWhiteSquare = whiteQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteQueenWhiteSquareImage = ImageTk.PhotoImage(whiteQueenWhiteSquare,master = self)
+            
+            whiteQueenBlackSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteQueenBlackSquare.png')
+            whiteQueenBlackSquare = whiteQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteQueenBlackSquareImage = ImageTk.PhotoImage(whiteQueenBlackSquare,master = self)
+            
+            whiteKingWhiteSquare = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/whiteKingWhiteSquare.png')
+            whiteKingWhiteSquare = whiteKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKingWhiteSquareImage = ImageTk.PhotoImage(whiteKingWhiteSquare,master = self)
+            
+            whiteKingInCheck = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/WhiteKingInCheck.png')
+            whiteKingInCheck = whiteKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.whiteKingInCheckImage = ImageTk.PhotoImage(whiteKingInCheck,master = self)
+            
+            blackKingInCheck = Image.open('/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Images/BlackKingInCheck.png')
+            blackKingInCheck = blackKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
+            self.canvas.blackKingInCheckImage = ImageTk.PhotoImage(blackKingInCheck,master = self)
         
-        whiteRookWhiteSquare = Image.open('../Images/whiteRookWhiteSquare.png')
-        whiteRookWhiteSquare = whiteRookWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteRookWhiteSquareImage = ImageTk.PhotoImage(whiteRookWhiteSquare,master = self)
-        
-        whiteRookBlackSquare = Image.open('../Images/whiteRookBlackSquare.png')
-        whiteRookBlackSquare = whiteRookBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteRookBlackSquareImage = ImageTk.PhotoImage(whiteRookBlackSquare,master = self)
-        
-        whiteKnightWhiteSquare = Image.open('../Images/whiteKnightWhiteSquare.png')
-        whiteKnightWhiteSquare = whiteKnightWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteKnightWhiteSquareImage = ImageTk.PhotoImage(whiteKnightWhiteSquare,master = self)
-        
-        whiteKnightBlackSquare = Image.open('../Images/whiteKnightBlackSquare.png')
-        whiteKnightBlackSquare = whiteKnightBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteKnightBlackSquareImage = ImageTk.PhotoImage(whiteKnightBlackSquare,master = self)
-        
-        whiteKingBlackSquare = Image.open('../Images/whiteKingBlackSquare.png')
-        whiteKingBlackSquare = whiteKingBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteKingBlackSquareImage = ImageTk.PhotoImage(whiteKingBlackSquare,master = self)
-        
-        whiteBishopWhiteSquare = Image.open('../Images/whiteBishopWhiteSquare.png')
-        whiteBishopWhiteSquare = whiteBishopWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteBishopWhiteSquareImage = ImageTk.PhotoImage(whiteBishopWhiteSquare,master = self)
-        
-        whiteBishopBlackSquare = Image.open('../Images/whiteBishopBlackSquare.png')
-        whiteBishopBlackSquare = whiteBishopBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteBishopBlackSquareImage = ImageTk.PhotoImage(whiteBishopBlackSquare,master = self)
-        
-        whiteQueenWhiteSquare = Image.open('../Images/whiteQueenWhiteSquare.png')
-        whiteQueenWhiteSquare = whiteQueenWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteQueenWhiteSquareImage = ImageTk.PhotoImage(whiteQueenWhiteSquare,master = self)
-        
-        whiteQueenBlackSquare = Image.open('../Images/whiteQueenBlackSquare.png')
-        whiteQueenBlackSquare = whiteQueenBlackSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteQueenBlackSquareImage = ImageTk.PhotoImage(whiteQueenBlackSquare,master = self)
-        
-        whiteKingWhiteSquare = Image.open('../Images/whiteKingWhiteSquare.png')
-        whiteKingWhiteSquare = whiteKingWhiteSquare.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteKingWhiteSquareImage = ImageTk.PhotoImage(whiteKingWhiteSquare,master = self)
-        
-        whiteKingInCheck = Image.open('../Images/WhiteKingInCheck.png')
-        whiteKingInCheck = whiteKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.whiteKingInCheckImage = ImageTk.PhotoImage(whiteKingInCheck,master = self)
-        
-        blackKingInCheck = Image.open('../Images/BlackKingInCheck.png')
-        blackKingInCheck = blackKingInCheck.resize((90, 90), Image.Resampling.LANCZOS)
-        self.canvas.blackKingInCheckImage = ImageTk.PhotoImage(blackKingInCheck,master = self)
         
         # Create the main board pieces and bind them to their respective coordinates
 
@@ -500,8 +607,11 @@ class Layout(tk.Tk):
                 
                 i = chr(self.pawnToBePromoted.xLocation + 96)
                 
-                NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(7)+i+str(8)+self.pawnToBePromoted.piece[0:1].lower()))
-                
+                if (NNEngine.pgnBoard.turn):
+                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(7)+i+str(8)+self.pawnToBePromoted.piece[0:1].lower()))
+                else:
+                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(2)+i+str(1)+self.pawnToBePromoted.piece[0:1].lower()))
+                    
                 # Call the engine to make its move
                 if(not(self.isComputerMove)):
                     self.computerThinking = True

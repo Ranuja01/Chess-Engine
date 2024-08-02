@@ -405,41 +405,46 @@ if __name__ == "__main__":
     del a,b
     gc.collect()
     
-    # Create the model
-    model = Sequential()
+    # Define the model
+    inputs = tf.keras.Input(shape=(8, 8, 12))
     
-    # Define the input as 12 channel 8*8 boards
-    model.add(InputLayer(shape=(8, 8, 12)))
+    # Convolutional Layers
+    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(inputs)
+    x = BatchNormalization()(x)
+    x = Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = BatchNormalization()(x)
+    #x = MaxPooling2D(pool_size=(2, 2))(x)
+    # x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    # x = BatchNormalization()(x)
+    # x = MaxPooling2D(pool_size=(2, 2))(x)
+    # x = Conv2D(filters=512, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    # x = BatchNormalization()(x)
+    # x = MaxPooling2D(pool_size=(2, 2))(x)
+    # x = Conv2D(filters=512, kernel_size=(4, 4), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    # x = BatchNormalization()(x)
+    # x = MaxPooling2D(pool_size=(2, 2))(x)
+    # x = Conv2D(filters=1024, kernel_size=(4, 4), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(x)
+    # x = BatchNormalization()(x)
     
-    # Convolutional Layers to identify patterns
-    # Use kernel size of 3 as a sliding window
-    # Utilize ReLU as activation
+    #x = transformer_block(x, num_heads=4, ff_dim=64)
+    # Global Average Pooling
+    #x = GlobalAveragePooling2D()(x)
+    x = Flatten()(x)
+    # Fully connected layers
+    x = Dense(256, activation='relu', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.05)(x)
+    x = Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.05)(x)
     
-    model.add(Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same'))
-    model.add(BatchNormalization())
-    model.add(Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding='same'))
-    model.add(BatchNormalization())
-    model.add(Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same'))
-    model.add(BatchNormalization())
+    # Output layer
+    outputs = Dense(4096, activation='softmax')(x)
     
-    # Flatten the 3D output to 1D for the Dense layer
-    model.add(Flatten())  
-    
-    # Fully connected layers with 256 and 128 neurons
-    # Large capacity to capture complex patterns
-    model.add(Dense(256, activation='relu'))  
-    model.add(BatchNormalization())
-    # Add dropout to reduce overfitting
-    model.add(Dropout(0.05))  
-    
-    # Reduced capacity to condense features
-    model.add(Dense(128, activation='relu'))  
-    model.add(BatchNormalization())
-    # Add dropout to reduce overfitting
-    model.add(Dropout(0.05))  # Add dropout to reduce overfitting
-    
-    # The output uses softmax to define each output as a possible percentage
-    model.add(Dense(4096,activation = 'softmax'))
+    # Create and compile the model
+    model = tf.keras.Model(inputs, outputs)   
     
     
     # Define the learning rate scheduler
@@ -451,7 +456,7 @@ if __name__ == "__main__":
     print("Input Size: ", len(inputData))
     #count = 0
     trainingCount = 0
-    for i in range (5):
+    for i in range (3):
         print ("Iteration:", i)
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
@@ -511,7 +516,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel_21_36.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(6).keras'  # Example for WSL
 
     model.save(data_path)
     t1 = timer()

@@ -13,7 +13,7 @@ from tensorflow.keras.layers import (
 import numpy as np
 
 # Assuming you have saved and loaded your model
-data_path = r"../Models/BlackModel4.keras"
+data_path = r"../Models/WhiteModel_21_36(5)_selfplay.keras"
 
 model = tf.keras.models.load_model(data_path)
 

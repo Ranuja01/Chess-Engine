@@ -27,6 +27,8 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Set TensorFlow log level to suppress all but errors
 
+tf.config.optimizer.set_jit(True)  # Enable XLA
+
 trainingCount = 0
 loop = True
 lock = threading.Lock()
@@ -46,14 +48,11 @@ if platform.system() == 'Windows':
 
 elif platform.system() == 'Linux':
     
-    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(6)_selfplay.keras'
-    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(6)_selfplay.keras'
+    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_selfplay_SGD.keras'
+    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_selfplay_SGD.keras'
     
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
-
-tf.config.optimizer.set_jit(True)  # Enable XLA
-
 
 # Set the path to the Stockfish binary
 if platform.system() == 'Windows':
@@ -251,22 +250,22 @@ def getRandomMove(board):
     #print(legal_moves)
     return random.choice(legal_moves) if legal_moves else None
 
-def lr_schedule2(epoch, lr):
+def lr_schedule_adam(epoch, lr):
     if epoch == 0:
-        lr = 0.0005 - trainingCount * 0.000005
-    if epoch % 3 == 0 and epoch != 0:
-        lr = lr * 0.5
-    if lr <= 0.00005:
-        lr = 0.00005
-    return lr
-
-def lr_schedule(epoch, lr):
-    if epoch == 0:
-        lr = 0.005 - trainingCount * 0.0007
+        lr = 0.0005 - trainingCount * 0.00005
     if epoch % 3 == 0 and epoch != 0:
         lr = lr * 0.5
     if lr <= 0.00000005:
         lr = 0.00000005
+    return lr
+
+def lr_schedule(epoch, lr):
+    if epoch == 0:
+        lr = 0.05 - trainingCount * 0.007
+    if epoch % 2 == 0 and epoch != 0:
+        lr = lr * 0.5
+    if lr <= 0.000005:
+        lr = 0.000005
     return lr
 
 def trainModel(model, inputData, output):
@@ -277,7 +276,7 @@ def trainModel(model, inputData, output):
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
     
-    trainingCount = 0
+    
     for i in range (1):
         print ("Iteration:", i)
         for start_idx in range(0, num_samples, 100000):
@@ -311,7 +310,7 @@ def trainModel(model, inputData, output):
                 shuffle=True,
                 verbose=1
                 )
-            trainingCount+=1
+            #trainingCount+=1
             print("Done:",trainingCount)
             
 
@@ -436,8 +435,6 @@ def appendData(board, inputData, output, engine):
                 output.append(temp) 
                 temp = [0]*4096
                 
-                board.pop()
-                
                 inputData.append(encode_board(board))
                 inputData.append(encode_board(reflect_board(board)))
                 
@@ -521,14 +518,14 @@ def selfPlay():
     gameUntil = 36
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     #engine.configure({"Threads": 4, "Hash": 4096})
-    for i in range (20):
+    for i in range (15):
         
         while(loop):
             current_thread = threading.current_thread()
             # Print the thread ID
-            print(f"Thread Name: {current_thread.name}, Thread ID: {current_thread.ident}")
-            print("Black Size: ",len(black_output))    
-            print("White Size: ",len(white_output))    
+            #print(f"Thread Name: {current_thread.name}, Thread ID: {current_thread.ident}")
+            #print("Black Size: ",len(black_output))    
+            #print("White Size: ",len(white_output))    
         
             board = chess.Board()
             inGameCount = 1
@@ -544,7 +541,7 @@ def selfPlay():
                 # Generate a random number between 0 and 1
                 random_number = random.random()
                 
-                stockfish_usage = 0.7
+                stockfish_usage = 0.5
                 if (len(black_inputData) > dataLimit and board.turn) or (len(white_inputData) > dataLimit and not(board.turn)):
                     stockfish_usage = 1.0
                 
@@ -560,7 +557,7 @@ def selfPlay():
                     #t1 = timer()
                     #print("STOCKFISH: Time elapsed: ", t1 - t0)
                 
-                elif random_number < 1.0:  # 45% chance for the second branch (0.2 + 0.3)
+                elif random_number < 0.95:  # 45% chance for the second branch (0.2 + 0.3)
                     #t0 = timer()
                     move = getNNMove(board)
                     board.push(move)
@@ -666,12 +663,14 @@ while any(t.is_alive() for t in threads):
         
         print("Done!")
         
-        trainModel(blackModel, blackIn, blackOut)
         trainModel(whiteModel, whiteIn, whiteOut)
+        trainModel(blackModel, blackIn, blackOut)
+        
         event.set() 
         del blackIn, blackOut, whiteIn, whiteOut
         gc.collect()
         t0 = timer()
+        trainingCount += 1
     count+=1
 print("All threads have finished.")
 t1_full = timer()
@@ -680,8 +679,8 @@ print("Time elapsed: ", t1_full - t0_full)
 if platform.system() == 'Windows':
     data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
 elif platform.system() == 'Linux':
-    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(6)_selfplay.keras'  # Example for WSL
-    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(6)_selfplay.keras'  # Example for WSL
+    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_selfplay_SGD.keras'  # Example for WSL
+    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_selfplay_SGD.keras'  # Example for WSL
 whiteModel.save(data_path1)
 blackModel.save(data_path2)
     

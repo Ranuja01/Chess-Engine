@@ -1,44 +1,33 @@
-# chess_eval.pyx
+import chess
+cimport cython
 
-import chess  # Use regular import for Python libraries
-cimport cython  # Import Cython-specific utilities
-
-
-# Function to count the material on the board
-# Using static typing for internal computations
-def evaluate_board(board: object) -> int:
+@cython.boundscheck(False)  # Disable bounds checking for performance
+@cython.wraparound(False)   # Disable negative indexing
+def find_legal_attackers(object board, int target_square):
     """
-    Evaluate the board and return a material score.
-    
-    :param board: A python-chess Board object
-    :return: Material balance score
+    Find legal attackers on the target square, differentiated by color.
+
+    Args:
+        board (chess.Board): The chess board state.
+        target_square (int): The target square index.
+
+    Returns:
+        (list, list): Legal attackers for White and Black.
     """
-    cdef int total = 0
+
+    # Declare lists to store legal attackers for white and black
+    cdef list white_attackers = []
+    cdef list black_attackers = []
     
-    
-    if (board.turn):
-        if (board.is_checkmate()):
-            total = 10000000
-    else:
-        if (board.is_checkmate()):
-            total = 10000000  
-    
-    # Iterate over all pieces on the board
-    for piece in board.piece_map().values():
-        if piece.color == chess.WHITE:
-            total -= get_piece_value(piece.piece_type)
-        else:
-            total += get_piece_value(piece.piece_type)
+    # Get legal moves to the target square
+    if (board.is_attacked_by(chess.BLACK, target_square)):
+        for move in board.legal_moves:
+            if move.to_square == target_square:
+                if board.color_at(move.from_square):
+                    white_attackers.append(chess.square_name(move.from_square))
+                else:
+                    black_attackers.append(chess.square_name(move.from_square))
 
-    return total
+    #return white_attackers, legal_black_attacking_pieces
 
 
-# Static typing for the piece value lookup
-cdef int[7] piece_values = [0, 1000, 2700, 3000, 5000, 9000, 0]  # Piece values
-
-# Function to return the piece value
-@cython.boundscheck(False)
-@cython.wraparound(False)
-cdef int get_piece_value(int piece_type):
-    return piece_values[piece_type]
-#python setup.py build_ext --inplace

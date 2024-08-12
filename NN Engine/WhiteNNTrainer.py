@@ -8,7 +8,7 @@ Created on Wed Jul  3 22:33:45 2024
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer, Dropout, BatchNormalization, GlobalAveragePooling2D, MaxPooling2D, MultiHeadAttention, Add, LayerNormalization
+from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer, Dropout, BatchNormalization, ReLU, GlobalAveragePooling2D, MaxPooling2D, MultiHeadAttention, Add, LayerNormalization
 from tensorflow.keras import regularizers
 from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler
 from tensorflow.keras.metrics import TopKCategoricalAccuracy
@@ -101,7 +101,7 @@ def reflect_board(board):
 def lr_schedule(epoch, lr):
     if epoch == 0:
         lr = 0.0005 - trainingCount * 0.00005
-    if epoch % 5 == 0 and epoch != 0:
+    if epoch % 3 == 0 and epoch != 0:
         lr = lr * 0.5
     if lr <= 0.00000005:
         lr = 0.00000005
@@ -303,6 +303,29 @@ def captureTraining():
     return inputData, output 
   
 
+def residual_block(inputs, filters, kernel_size=3, strides=1, use_projection=False):
+    # Save the input value as shortcut
+    shortcut = inputs
+    
+    # First layer in the block
+    x = Conv2D(filters, kernel_size=kernel_size, strides=strides, padding='same', 
+               activation=None)(inputs)
+    x = BatchNormalization()(x)
+    x = ReLU()(x)
+
+    
+    
+    # If the input and output dimensions do not match, use a 1x1 convolution to align them
+    if use_projection or strides != 1 or inputs.shape[-1] != filters:
+        shortcut = Conv2D(filters, kernel_size=1, strides=strides, padding='same')(inputs)
+        shortcut = BatchNormalization()(shortcut)
+
+    # Add the shortcut to the block output
+    x = Add()([x, shortcut])
+    x = ReLU()(x)
+
+    return x
+
 if __name__ == "__main__":    
     
     # Define variables to create the training data
@@ -409,12 +432,38 @@ if __name__ == "__main__":
     inputs = tf.keras.Input(shape=(8, 8, 12))
     
     # Convolutional Layers
-    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(inputs)
+    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same')(inputs)
     x = BatchNormalization()(x)
-    x = Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+        
+    # Residual Block 1 (No projection needed)
+    x = residual_block(x, filters=64)
+        
+    # Residual Block 1 (No projection needed)
+    x = residual_block(x, filters=64, kernel_size=4)
+    
+    # Residual Block 1 (No projection needed)
+    x = residual_block(x, filters=64, kernel_size=4)
+    
+    x = Conv2D(filters=64, kernel_size=(4, 4), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+ 
+    # Residual Block 1 (No projection needed)
+    x = residual_block(x, filters=64, kernel_size=5)
+        
+    # Residual Block 1 (No projection needed)
+    x = residual_block(x, filters=64, kernel_size=(8,1))
+    
+    x = Conv2D(filters=64, kernel_size=(8, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
+    
+    # Residual Block 1 (No projection needed)
+    x = residual_block(x, filters=64, kernel_size=(1,8))
+    
+    x = Conv2D(filters=64, kernel_size=(1, 8), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    
+    
+            
     #x = MaxPooling2D(pool_size=(2, 2))(x)
     # x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
     # x = BatchNormalization()(x)
@@ -433,18 +482,16 @@ if __name__ == "__main__":
     #x = GlobalAveragePooling2D()(x)
     x = Flatten()(x)
     # Fully connected layers
-    x = Dense(256, activation='relu', kernel_regularizer=regularizers.l2(0.00001))(x)
+    x = Dense(512, activation='relu')(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.05)(x)
-    x = Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.00001))(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.05)(x)
+    #x = Dropout(0.05)(x)
+    
     
     # Output layer
     outputs = Dense(4096, activation='softmax')(x)
     
     # Create and compile the model
-    model = tf.keras.Model(inputs, outputs)   
+    model = tf.keras.Model(inputs, outputs)  
     
     
     # Define the learning rate scheduler
@@ -474,7 +521,7 @@ if __name__ == "__main__":
             
             # Implement Early Stopping
             early_stopping = EarlyStopping(
-                monitor='val_top_k_categorical_accuracy',  # Metric to monitor
+                monitor='val_accuracy',  # Metric to monitor
                 patience=6,          # Number of epochs with no improvement after which training will be stopped
                 restore_best_weights=True  # Restore the model weights from the epoch with the best value of the monitored quantity
             )
@@ -516,7 +563,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel_21_36.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(6).keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11).keras'  # Example for WSL
 
     model.save(data_path)
     t1 = timer()

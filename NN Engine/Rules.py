@@ -35,7 +35,7 @@ def isLegalPawnMove(self,curItem,i,j,colour):
                 isLegal = True
                 
             # Check if the attempted move is an en pasent move
-            elif(self.blackSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.blackSideEnPasentPawnxLocation) == 1 and i == self.blackSideEnPasentPawnxLocation.xLocation and j == 6 and self.pieceToBeMoved.yLocation == 5):
+            elif(self.blackSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.blackSideEnPasentPawnxLocation) == 1 and i == self.blackSideEnPasentPawnxLocation and j == 6 and self.pieceToBeMoved.yLocation == 5):
                 
                 isLegal = True
                 isCapture = True
@@ -63,7 +63,7 @@ def isLegalPawnMove(self,curItem,i,j,colour):
                 isLegal = True
                 
             # Check if the attempted move is an en pasent move
-            elif(self.whiteSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.whiteSideEnPasentPawnxLocation) == 1 and i == self.whiteSideEnPasentPawnxLocation.xLocation and j == 3 and self.pieceToBeMoved.yLocation == 4):
+            elif(self.whiteSideEnPasent and abs(self.pieceToBeMoved.xLocation - self.whiteSideEnPasentPawnxLocation) == 1 and i == self.whiteSideEnPasentPawnxLocation and j == 3 and self.pieceToBeMoved.yLocation == 4):
                 isLegal = True
                 isCapture = True 
             

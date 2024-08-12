@@ -453,7 +453,7 @@ def evasionTraining():
 
 def lr_schedule(epoch, lr):
     if epoch == 0:
-        lr = 0.005 - trainingCount * 0.0007
+        lr = 0.0005 - trainingCount * 0.00007
     if epoch % 3 == 0 and epoch != 0:
         lr = lr * 0.5
     if lr <= 0.00000005:
@@ -484,27 +484,27 @@ if __name__ == "__main__":
     inputData = []
     output = []
     
-    #inputData, output = generalTraining()
+    inputData, output = generalTraining()
     #inputData, output = evasionTraining()
-    inputData, output = captureTraining()
+    #inputData, output = captureTraining()
     #inputData, output = checkmateTraining()
     
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel6_21_36(20)_WEvasion_Refined.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(8).keras'  # Example for WSL
     model = tf.keras.models.load_model(data_path)
     
     # Compile the model using Adam and loss as categorical crossentropy for classification of the moves
     initial_lr = 0.001  # Initial learning rate
-    #optimizer = Adam(learning_rate=initial_lr)
-    optimizer = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
+    optimizer = Adam(learning_rate=initial_lr)
+    #optimizer = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
 
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
     #count = 0
     
-    for i in range (1):
+    for i in range (3):
         print ("Iteration:", i)
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
@@ -520,7 +520,7 @@ if __name__ == "__main__":
 
             # Define the learning rate scheduler
             lr_scheduler = LearningRateScheduler(lr_schedule)
-            model.compile(optimizer=optimizer, loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.2), metrics=['accuracy', TopKCategoricalAccuracy(k=10)])
+            model.compile(optimizer=optimizer, loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=['accuracy', TopKCategoricalAccuracy(k=10)])
             
             # Implement Early Stopping
             early_stopping = EarlyStopping(
@@ -564,7 +564,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel6_21_36(20)_WEvasion_Refined.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(8)_Refined.keras'  # Example for WSL
     model.save(data_path)
     t1 = timer()
     print("Time elapsed: ", t1 - t0)

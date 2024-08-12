@@ -41,6 +41,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Set TensorFlow log level to suppress
 
 pgnBoard = chess.Board()
 pgnBoard.legal_moves
+
 if platform.system() == 'Windows':
     data_path1 = '../Models/BlackModel4.keras'
     data_path2 = '../Models/WhiteModel1.keras'
@@ -65,7 +66,7 @@ import cProfile
 import pstats
 t0= timer()
 def profile_alpha_beta():
-    chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+    chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=3)
 
 profiler = cProfile.Profile()
 profiler.enable()
@@ -86,9 +87,23 @@ print(f"Best score: {result['score']},")
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
 
-# Evaluate the board using Cython
-score = chess_eval.evaluate_board(board)
-print(f"Board Score: {score}")
+t0= timer()
+result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+print(result['a'],result['b'],result['c'],result['d'])
+print(f"Best score: {result['score']},")
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
+
+t0= timer()
+result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
+print(result['a'],result['b'],result['c'],result['d'])
+print(f"Best score: {result['score']},")
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
+
+# # Evaluate the board using Cython
+# score = chess_eval.evaluate_board(board)
+# print(f"Board Score: {score}")
 
 # Make a move (e.g., e2e4)
 
@@ -118,6 +133,6 @@ board.push(chess.Move.from_uci("f3f7"))
 # Print the board after the move
 print(board)
 
-# Evaluate the new board state
-score = chess_eval.evaluate_board(board)
-print(f"New Board Score: {score}")
+# # Evaluate the new board state
+# score = chess_eval.evaluate_board(board)
+# print(f"New Board Score: {score}")

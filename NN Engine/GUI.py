@@ -566,6 +566,15 @@ class Layout(tk.Tk):
                 print(self.boardPieces[self.pawnToBePromoted.xLocation - 1][self.pawnToBePromoted.yLocation - 1].piece)
                 self.isPromotion = False
                 
+                x = chr(self.PromotionPieceXLocation + 96)
+                
+                i = chr(self.pawnToBePromoted.xLocation + 96)
+                
+                if (NNEngine.pgnBoard.turn):
+                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(7)+i+str(8)+self.pawnToBePromoted.piece[0:1].lower()))
+                else:
+                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(2)+i+str(1)+self.pawnToBePromoted.piece[0:1].lower()))
+                
                 if (self.numMove % 2 == 0):
                     
                     # Check if the promotion leaves the opponent in check or checkmate
@@ -603,14 +612,7 @@ class Layout(tk.Tk):
                 
                 # Update the board graphics
                 board.update()
-                x = chr(self.PromotionPieceXLocation + 96)
                 
-                i = chr(self.pawnToBePromoted.xLocation + 96)
-                
-                if (NNEngine.pgnBoard.turn):
-                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(7)+i+str(8)+self.pawnToBePromoted.piece[0:1].lower()))
-                else:
-                    NNEngine.pgnBoard.push(chess.Move.from_uci(x+str(2)+i+str(1)+self.pawnToBePromoted.piece[0:1].lower()))
                     
                 # Call the engine to make its move
                 if(not(self.isComputerMove)):

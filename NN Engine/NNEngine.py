@@ -18,9 +18,9 @@ import easygui
 import copy
 import Rules
 import numpy as np
-#import tensorflow as tf
-#from tensorflow.keras.models import Sequential
-#from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer
 #from pickle import dump
 from timeit import default_timer as timer
 import chess
@@ -28,7 +28,7 @@ import chess.pgn
 import io
 import platform
 import os
-#import chess_eval
+import chess_eval
 from ChessAI import ChessAI
 
 
@@ -36,8 +36,6 @@ from ChessAI import ChessAI
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Set TensorFlow log level to suppress all but errors
 
 pgnBoard = chess.Board()
-
-'''
 pgnBoard.legal_moves
 if platform.system() == 'Windows':
     data_path1 = '../Models/BlackModel4.keras'
@@ -49,8 +47,8 @@ elif platform.system() == 'Linux':
 
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
-'''
-chess_ai = ChessAI(3, 3, pgnBoard)
+
+chess_ai = ChessAI(blackModel, whiteModel, pgnBoard)
 
 
 newPgn = io.StringIO("1. e4*")
@@ -147,7 +145,21 @@ def engineMove(self):
     self.computerThinking = True
     
     # Call the alpha beta algorithm to make a move decision
-    result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=3)
+    result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+    t1 = timer()
+    dif = t1 - t0
+    new_depth = 6
+    while(dif <= 1.5 and new_depth <= 25):
+        a,b,c,d = result['a'],result['b'],result['c'],result['d']
+        print(a,b,c,d)
+        print("TRYING DEPTH: ", new_depth)
+        t0_new = timer()
+        result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=new_depth)
+        new_depth += 1
+        t1 = timer()
+        dif = t1 - t0_new
+        
+        
     a,b,c,d = result['a'],result['b'],result['c'],result['d']
     val = result['score']
     #a,b,c,d,val = alphaBeta(self, 0,self.depth)

@@ -56,7 +56,6 @@ def predictionInfo(prediction):
     
     return pieceToBeMovedXLocation, pieceToBeMovedYLocation, squareToBeMovedToXLocation, squareToBeMovedToYLocation
 
-
 # Turns the coordinates back into the NN output
 def reversePrediction(x,y,i,j):
     # First acquire the starting square number and multiply by 64 to get its base number
@@ -492,13 +491,13 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(8).keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL_selfplay_SGD.keras'  # Example for WSL
     model = tf.keras.models.load_model(data_path)
     
     # Compile the model using Adam and loss as categorical crossentropy for classification of the moves
     initial_lr = 0.001  # Initial learning rate
-    optimizer = Adam(learning_rate=initial_lr)
-    #optimizer = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
+    #optimizer = Adam(learning_rate=initial_lr)
+    optimizer = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
 
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
@@ -564,7 +563,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(8)_Refined.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL_selfplay_SGD_Refined.keras'  # Example for WSL
     model.save(data_path)
     t1 = timer()
     print("Time elapsed: ", t1 - t0)

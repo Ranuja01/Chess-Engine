@@ -12,7 +12,7 @@ import chess_eval  # Import the compiled Cython module
 import ChessAI
 
 # Create a new chess board
-board = chess.Board()
+board = chess.Board("r2q1rk1/pbpn1ppp/1p1bpn2/8/2PP4/2NBPN2/P1Q2PPP/R1B2RK1 b - - 0 10")
 
 # Print the board in a human-readable format
 print(board)
@@ -57,81 +57,87 @@ whiteModel = tf.keras.models.load_model(data_path2)
 chess_ai = ChessAI(blackModel, whiteModel, board)
 
 
-board.push(chess.Move.from_uci("e2e4"))
+# board.push(chess.Move.from_uci("a2a3"))
+# board.push(chess.Move.from_uci("e7e5"))
+# board.push(chess.Move.from_uci("a3a4"))
+
 # Call methods on the chess_ai instance
 
 
 
-import cProfile
-import pstats
+# import cProfile
+# import pstats
 t0= timer()
-def profile_alpha_beta():
-    chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=3)
+# def profile_alpha_beta():
+#     result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=3)
 
-profiler = cProfile.Profile()
-profiler.enable()
-profile_alpha_beta()
-profiler.disable()
+# profiler = cProfile.Profile()
+# profiler.enable()
+# profile_alpha_beta()
+# profiler.disable()
 
-stats = pstats.Stats(profiler)
-stats.sort_stats(pstats.SortKey.TIME)
-stats.print_stats()
-
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
-
-t0= timer()
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=4)
-print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
-
-t0= timer()
+# stats = pstats.Stats(profiler)
+# stats.sort_stats(pstats.SortKey.TIME)
+# stats.print_stats()
 result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
 print(result['a'],result['b'],result['c'],result['d'])
 print(f"Best score: {result['score']},")
+
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
 
-t0= timer()
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
-print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=4)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
-# # Evaluate the board using Cython
-# score = chess_eval.evaluate_board(board)
-# print(f"Board Score: {score}")
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
-# Make a move (e.g., e2e4)
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
-board.push(chess.Move.from_uci("e7e5"))
-board.push(chess.Move.from_uci("f1c4"))
+# # # Evaluate the board using Cython
+# # score = chess_eval.evaluate_board(board)
+# # print(f"Board Score: {score}")
 
-t0= timer()
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
-print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+# # Make a move (e.g., e2e4)
+
+# board.push(chess.Move.from_uci("e7e5"))
+# board.push(chess.Move.from_uci("f1c4"))
+
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
 
-board.push(chess.Move.from_uci("a7a6"))
-board.push(chess.Move.from_uci("d1f3"))
+# board.push(chess.Move.from_uci("a7a6"))
+# board.push(chess.Move.from_uci("d1f3"))
 
-t0= timer()
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
-print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
-board.push(chess.Move.from_uci("a6a5"))
-board.push(chess.Move.from_uci("f3f7"))
-# Print the board after the move
-print(board)
+# board.push(chess.Move.from_uci("a6a5"))
+# board.push(chess.Move.from_uci("f3f7"))
+# # Print the board after the move
+# print(board)
 
 # # Evaluate the new board state
 # score = chess_eval.evaluate_board(board)

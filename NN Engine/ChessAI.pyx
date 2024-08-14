@@ -18,6 +18,7 @@ from cython.parallel import prange
 from chess import Board
 from chess import Move
 import chess.polyglot
+from cython cimport nogil
 
 cimport chess as c_chess
 
@@ -434,7 +435,7 @@ cdef class ChessAI:
                 ''' 
                 return lowestScore
 
-        if (lowestScore == 9999999):
+        if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
             #print("AAAA")
             if self.pgnBoard.is_checkmate():                   
                 #print("BBBB")
@@ -501,41 +502,51 @@ def reorder_legal_moves(object board):
 
     return legal_moves
 
-# Function to evaluate the board
-cdef int evaluate_board2(object board):
+@boundscheck(False)
+@wraparound(False)
+@cython.exceptval(check=False)
+@cython.nonecheck(False)
+@cython.ccall
+@cython.inline
+cdef int placement_and_piece_eval(uint8_t square, bint colour, uint8_t piece_type, int moveNum, int values [7], int[:,:,:] activePlacementLayer) nogil:
+    
     cdef int total = 0
-    cdef int square
-    cdef object piece
-    cdef int values[7]
-
-    # Initialize the array in C-style
-    values[0] = 0      # No piece
-    values[1] = 1000   # Pawn
-    values[2] = 2700   # Knight
-    values[3] = 3000   # Bishop
-    values[4] = 5000   # Rook
-    values[5] = 9000   # Queen
-    values[6] = 0      # King
+    cdef uint8_t  x, y
     
+    y = square >> 3
+    x = square - (y << 3)
     
-    # Check for checkmate
-    if board.is_checkmate():
-        if board.turn:
-            total = 100000000
+    # Evaluate based on piece color
+    if colour:
+        total -= values[piece_type]
+        
+        if not (piece_type == 4) or moveNum >= 40:
+            total -= activePlacementLayer[0][x][y]
+            #print(activePlacementLayer[0][1][6])
             
-        else:
-            total = -100000000
+            if (piece_type == 1):
+                total -= (y + 1) * 25
+        
+        if (x == 3 and y == 3 or
+            x == 3 and y == 4 or
+            x == 4 and y == 3 or
+            x == 4 and y == 4):
+            total -= 150
     else:
-        # Iterate through all squares on the board and evaluate piece values
-        for square in chess.SQUARES:
-            piece = board.piece_at(square)
-            if piece:
-                # Evaluate based on piece color
-                if piece.color == board.turn:
-                    total -= values[piece.piece_type]
-                else:
-                    total += values[piece.piece_type]
-                     
+        total += values[piece_type]
+        #print(total)
+        if not (piece_type == 4) or moveNum >= 40:
+            total += activePlacementLayer[1][x][y]
+            
+            if (piece_type == 1):
+                total += (8 - y) * 25
+
+        if (x == 3 and y == 3 or
+            x == 3 and y == 4 or
+            x == 4 and y == 3 or
+            x == 4 and y == 4):
+            total += 150
+    
     return total
 
 @boundscheck(False)
@@ -543,20 +554,14 @@ cdef int evaluate_board2(object board):
 @cython.exceptval(check=False)
 @cython.nonecheck(False)
 @cython.ccall
-cdef evaluate_board(object board):
+cdef int evaluate_board(object board):
     cdef int total = 0
+    cdef int subTotal = 0
     cdef object piece
     cdef uint8_t  square
     cdef uint8_t  x, y
-    #cdef int activeLayer[2][8][8]
-    #cdef int activePlacementLayer[2][8][8]
-
     cdef int moveNum = len(board.move_stack)
     
-    # Define the layers as 2D arrays
-    #cdef int layer[2][8][8]
-    #cdef int placementLayer[2][8][8]
-    #cdef int layer2[2][8][8]
     
     # Determine active layers based on move count
     #cdef int[:,:,:] activeLayer = layer2 if moveNum >= 18 else layer
@@ -575,61 +580,37 @@ cdef evaluate_board(object board):
 
     
     # Iterate through all squares on the board and evaluate piece values
-    
-    for square in chess.SQUARES:
-        piece = board.piece_at(square)
-        if piece:
-            y = square >> 3
-            x = square - (y << 3)
+    if board.is_checkmate():
+        if board.turn:
+            total = -100000000
             
-            # Evaluate based on piece color
-            if piece.color:
-                total -= values[piece.piece_type]
+        else:
+            total = 100000000
+    else:
+        for square in chess.SQUARES:
+            piece = board.piece_at(square)
+            if piece:
+                total += placement_and_piece_eval(square, piece.color, piece.piece_type, moveNum, values, activePlacementLayer)
                 
-                if not (piece.piece_type == chess.ROOK) or moveNum >= 40:
-                    total -= activePlacementLayer[0][x][y]
-                    #print(activePlacementLayer[0][x][y])
-                    
-                    if (piece.piece_type == chess.PAWN):
-                        total -= (y + 1) * 25
-                
-                if (x == 3 and y == 3 or
-                    x == 3 and y == 4 or
-                    x == 4 and y == 3 or
-                    x == 4 and y == 4):
-                    total -= 150
-            else:
-                total += values[piece.piece_type]
-                
-                if not (piece.piece_type == chess.ROOK) or moveNum >= 40:
-                    total += activePlacementLayer[1][x][y]
-                    
-                    if (piece.piece_type == chess.PAWN):
-                        total += (8 - y) * 25
-    
-                if (x == 3 and y == 3 or
-                    x == 3 and y == 4 or
-                    x == 4 and y == 3 or
-                    x == 4 and y == 4):
-                    total += 150
-   
-    # current_castling_rights = board.castling_rights
-
-    # move2 = board.pop()
-    # move1 = board.pop()
-    
-    # initial_castling_rights = board.castling_rights
-    
-    # board.push(move1)
-    # board.push(move2)
-    
-    # # Compare the initial castling rights with the current ones
-    # # If there is a difference, castling has occurred
-    # if current_castling_rights != initial_castling_rights:
-    #     return True
-    # return False
-    
-
+        subTotal = total       
+        if (len(array('i', board.pieces(chess.BISHOP, chess.WHITE))) == 2):
+            total -= 3150
+        if (len(array('i', board.pieces(chess.KNIGHT, chess.WHITE))) == 2):
+            total -= 3000
+        if (len(array('i', board.pieces(chess.BISHOP, chess.BLACK))) == 2):
+            total += 3150
+        if (len(array('i', board.pieces(chess.KNIGHT, chess.BLACK))) == 2):
+            total += 3000
+        
+        target_square = board.peek().to_square
+        for move in board.legal_moves:
+                if move.to_square == target_square:
+                    if (board.turn):
+                        total -= values[board.piece_at(target_square).piece_type]
+                    else:                        
+                        total += values[board.piece_at(target_square).piece_type]
+                    break    
+    #print(total,subTotal)    
     return total
 
 cdef bint is_promotion_move_enhanced(object move, object board, int y):

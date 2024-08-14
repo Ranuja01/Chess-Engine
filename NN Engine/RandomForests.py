@@ -127,7 +127,7 @@ def generalTraining():
     if platform.system() == 'Windows':
         data_path = r'../PGNs/SuperSet.pgn'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/PGNs/testgames6.pgn'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/PGNs/SuperSet.pgn'  # Example for WSL
     pgn = open(data_path)
     
     # Holds the starting position for training
@@ -231,7 +231,7 @@ print(extracted_features, output)
 X_train_rf, X_test_rf, y_train_rf, y_test_rf = train_test_split(extracted_features[0], output, test_size=0.2, random_state=42)
 
 # Initialize and train the Random Forest model
-rf_model = RandomForestClassifier(n_estimators=500, random_state=42, verbose=2)
+rf_model = RandomForestClassifier(n_estimators=10, random_state=42, verbose=3)
 rf_model.fit(X_train_rf, y_train_rf)
 
 # Evaluate the Random Forest model

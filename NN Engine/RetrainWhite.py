@@ -491,7 +491,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL_selfplay_SGD.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(2)_selfplay_SGD.keras'  # Example for WSL
     model = tf.keras.models.load_model(data_path)
     
     # Compile the model using Adam and loss as categorical crossentropy for classification of the moves
@@ -503,7 +503,7 @@ if __name__ == "__main__":
     print("Input Size: ", len(inputData))
     #count = 0
     
-    for i in range (3):
+    for i in range (5):
         print ("Iteration:", i)
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)

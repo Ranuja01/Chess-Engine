@@ -166,7 +166,8 @@ def engineMove(self):
     self.computerThinking = False
     
     # If the algorithm does not select a move, that suggests they are all equally bad and therefore the machine resigns
-    if(not(self.boardPieces[a - 1][b - 1] == None or self.boardPieces[a - 1][b - 1].piece == "Empty" or reversePrediction(a,b,c,d) == 1 or (a,b,c,d) == (-1,-1,-1,-1))):
+    # if(not(self.boardPieces[a - 1][b - 1] == None or self.boardPieces[a - 1][b - 1].piece == "Empty" or reversePrediction(a,b,c,d) == 1 or (a,b,c,d) == (-1,-1,-1,-1))):
+    if not((a,b,c,d) == (-1,-1,-1,-1)):  
         print(a,b,c,d)
         print(self.boardPieces[a - 1][b - 1].colour + " " + self.boardPieces[a - 1][b - 1].piece + " at " + str(a) + " " + str(b))
         print ("Computer Evaluation: " + str(val))

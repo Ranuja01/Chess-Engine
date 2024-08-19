@@ -631,6 +631,7 @@ class Layout(tk.Tk):
         isLegal = False
         isCapture = False
         piece = None
+        gameOver = False
         
         if (not(self.isPromotion)):
             
@@ -873,7 +874,7 @@ class Layout(tk.Tk):
                             
                             if(Rules.isCheckMate(chess.BLACK)):
                                 easygui.msgbox("White Wins!", title="Winner!")
-                            
+                                gameOver = True
                             kingPiece = next(
                                 (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "Black"), 
                                 None
@@ -896,7 +897,7 @@ class Layout(tk.Tk):
                         # Check if the player has no moves yet is not in check (Stalemate)
                         elif(Rules.isStaleMate(chess.BLACK)):
                             easygui.msgbox("Draw by stalemate", title="Draw")
-                          
+                            gameOver = True
                     else:                            
                         
                         # Set the en pasent variables
@@ -911,7 +912,7 @@ class Layout(tk.Tk):
                         if(Rules.isInCheck(chess.WHITE)):   
                             if(Rules.isCheckMate(chess.WHITE)):
                                 easygui.msgbox("Black Wins!", title="Winner!")
-                                
+                                gameOver = True
                             kingPiece = next(
                                 (y for x in self.boardPieces for y in x if y.piece == "King" and y.colour == "White"), 
                                 None
@@ -933,7 +934,7 @@ class Layout(tk.Tk):
                         # Check if the player has no moves yet is not in check (Stalemate)
                         elif(Rules.isStaleMate(chess.WHITE)):
                             easygui.msgbox("Draw by stalemate", title="Draw")
-                    
+                            gameOver = True
                     # Set the piece graphically and bind it to its coordinates
                     if(self.isCheck): 
                         pieces = self.canvas.create_image(45 + (kingPiece.xLocation-1)*90,45 + (8-kingPiece.yLocation)*90,image = piece, anchor = 'center')
@@ -950,7 +951,7 @@ class Layout(tk.Tk):
                     board.update()
                     
                     # Call the engine to make a move
-                    if(not(self.isPromotion)):
+                    if(not(self.isPromotion and gameOver)):
                         self.computerThinking = True
                         self.move = False
 
@@ -987,8 +988,23 @@ class Layout(tk.Tk):
         else:
             return "White"
 
+def generate_pgn(board):
+    """Generates a PGN from the current move stack of the board."""
+    
+    # Create a new game for the PGN
+    game = chess.pgn.Game()
+
+    # Replay the moves in the move stack
+    node = game
+    for move in board.move_stack:
+        node = node.add_variation(move)
+    
+    # Return the PGN as a string
+    return str(game)
+
 if __name__ == "__main__":        
     board = Layout()
     board.drawboard()
     #board.test()
     board.mainloop()         
+    print(generate_pgn(NNEngine.pgnBoard))

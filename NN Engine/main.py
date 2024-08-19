@@ -12,7 +12,7 @@ import chess_eval  # Import the compiled Cython module
 import ChessAI
 
 # Create a new chess board
-board = chess.Board("r2q1rk1/pbpn1ppp/1p1bpn2/8/2PP4/2NBPN2/P1Q2PPP/R1B2RK1 b - - 0 10")
+board = chess.Board("1bk1r2r/p2q1ppp/2p2p2/4n3/4Q3/2PPBP2/PPB1K1PP/R6R b - - 2 19")
 
 # Print the board in a human-readable format
 print(board)
@@ -86,12 +86,12 @@ print(f"Best score: {result['score']},")
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
 
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=4)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t0= timer()
+result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
+print(result['a'],result['b'],result['c'],result['d'])
+print(f"Best score: {result['score']},")
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
 # t0= timer()
 # result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)

@@ -45,8 +45,8 @@ if platform.system() == 'Windows':
 
 elif platform.system() == 'Linux':
     
-    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_RL_selfplay_SGD.keras'
-    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL_selfplay_SGD.keras'
+    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_selfplay_SGD.keras'
+    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_selfplay_SGD.keras'
     
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
@@ -304,7 +304,7 @@ def selfPlay():
     
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     #engine.configure({"Threads": 4, "Hash": 4096})
-    for i in range (27):
+    for i in range (500):
         board = chess.Board()
         black_states, black_actions, black_rewards = [], [], []
         white_states, white_actions, white_rewards = [], [], []
@@ -329,31 +329,33 @@ def selfPlay():
             if (board.turn):
                 reward, prev_white_eval = take_action(board, engine, move, prev_white_eval)
                 
-                # Store the trajectory
-                white_states.append(encode_board(board))
-                
-                moveMade = str(board.peek())
-                a = ord(moveMade[0:1]) - 96
-                b = int(moveMade[1:2])
-                c = ord(moveMade[2:3]) - 96
-                d = int(moveMade[3:4])
-                
-                white_actions.append(reversePrediction(a,b,c,d) - 1)
-                white_rewards.append(reward)
+                if (inGameCount >= 20 and inGameCount <= 36):
+                    # Store the trajectory
+                    white_states.append(encode_board(board))
+                    
+                    moveMade = str(board.peek())
+                    a = ord(moveMade[0:1]) - 96
+                    b = int(moveMade[1:2])
+                    c = ord(moveMade[2:3]) - 96
+                    d = int(moveMade[3:4])
+                    
+                    white_actions.append(reversePrediction(a,b,c,d) - 1)
+                    white_rewards.append(reward)
             else:
                 reward, prev_black_eval = take_action(board, engine, move, prev_black_eval)
 
-                # Store the trajectory
-                black_states.append(encode_board(board))
-                
-                moveMade = str(board.peek())
-                a = ord(moveMade[0:1]) - 96
-                b = int(moveMade[1:2])
-                c = ord(moveMade[2:3]) - 96
-                d = int(moveMade[3:4])
-                
-                black_actions.append(reversePrediction(a,b,c,d) - 1)
-                black_rewards.append(reward)                
+                if (inGameCount >= 20 and inGameCount <= 36):
+                    # Store the trajectory
+                    black_states.append(encode_board(board))
+                    
+                    moveMade = str(board.peek())
+                    a = ord(moveMade[0:1]) - 96
+                    b = int(moveMade[1:2])
+                    c = ord(moveMade[2:3]) - 96
+                    d = int(moveMade[3:4])
+                    
+                    black_actions.append(reversePrediction(a,b,c,d) - 1)
+                    black_rewards.append(reward)                
             
             inGameCount += 1
         
@@ -371,10 +373,11 @@ def selfPlay():
         white_discounted_rewards = compute_discounted_rewards(white_rewards, gamma=0.99)
         
         # Update the policy using the observed trajectory
-        with lock:
-            update_policy(blackModel, black_states, black_actions, black_discounted_rewards)
-        with lock:
-            update_policy(whiteModel, white_states, white_actions, white_discounted_rewards)
+        if (len(black_rewards) > 0 and len(white_rewards) > 0):
+            with lock:
+                update_policy(blackModel, black_states, black_actions, black_discounted_rewards)
+            with lock:
+                update_policy(whiteModel, white_states, white_actions, white_discounted_rewards)
 
         if (i + 1 % 20) == 0:
             del black_states, black_actions, black_rewards, white_states, white_actions, white_rewards
@@ -411,7 +414,7 @@ print("Time elapsed: ", t1_full - t0_full)
 if platform.system() == 'Windows':
     data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
 elif platform.system() == 'Linux':
-    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL_selfplay_SGD.keras'  # Example for WSL
-    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_RL_selfplay_SGD.keras'  # Example for WSL
+    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(3)_selfplay_SGD.keras'  # Example for WSL
+    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_RL(3)_selfplay_SGD.keras'  # Example for WSL
 whiteModel.save(data_path1)
 blackModel.save(data_path2)

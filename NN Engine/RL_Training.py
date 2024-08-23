@@ -19,7 +19,7 @@ from tensorflow.keras.metrics import TopKCategoricalAccuracy
 from tensorflow.keras.optimizers import Adam, Nadam, RMSprop
 from timeit import default_timer as timer
 from tensorflow.keras.losses import KLDivergence
-
+from copy import deepcopy
 import io
 import platform
 import gc
@@ -38,15 +38,15 @@ trainingCount = 0
 loop = True
 lock = threading.Lock()
 event = threading.Event()
-
+boards = []
 if platform.system() == 'Windows':
-    data_path1 = r'../Models/BlackModel_21_36.keras'
-    data_path2 = r'../Models/WhiteModel_21_36.keras'
+    data_path1 = r'../Models/BlackModel_21_36(11)_RL(3)_selfplay_SGD.keras'
+    data_path2 = r'../Models/WhiteModel_21_36(11)_RL(3)_selfplay_SGD.keras'
 
 elif platform.system() == 'Linux':
     
-    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_selfplay_SGD.keras'
-    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_selfplay_SGD.keras'
+    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_RL(3)_selfplay_SGD.keras'
+    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(3)_selfplay_SGD.keras'
     
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
@@ -261,21 +261,28 @@ def reflect_board(board):
 
 # Function to compute the policy gradient and update the model
 def update_policy(policy_model, states, actions, rewards):
-    
+    #print(states)
+    print(actions)
     # Define the optimizer
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.5)
     
-    with tf.GradientTape() as tape:
+    with tf.GradientTape(watch_accessed_variables=True, persistent=True) as tape:
         # Compute the loss for the trajectory
+        
         action_probs = policy_model(states, training=True)
+        print(action_probs)
         action_probs = tf.clip_by_value(action_probs, 1e-7, 1.0)  # Avoid log(0)
         action_indices = tf.stack([tf.range(len(actions)), actions], axis=-1)
         log_probs = tf.math.log(tf.gather_nd(action_probs, action_indices))
         loss = -tf.reduce_mean(log_probs * rewards)  # Negative because we maximize reward
-
-    # Compute and apply gradients
+        tape.watch(loss)
+        #tape.watch(policy_model.trainable_variables)
+            
+        print(loss)
+        # Compute and apply gradients
     grads = tape.gradient(loss, policy_model.trainable_variables)
-      
+    for grad, var in zip(grads, policy_model.trainable_variables):
+        print(f'Gradient for {var.name}: {tf.reduce_mean(grad)}')
     optimizer.apply_gradients(zip(grads, policy_model.trainable_variables))
 
 def take_action(board, engine, move, prev_turn_eval):
@@ -283,7 +290,7 @@ def take_action(board, engine, move, prev_turn_eval):
     prev_eval = get_stockfish_evaluation(board, engine, 0.005)
     board.push(move)
     cur_eval = get_stockfish_evaluation(board, engine, 0.005) * -1
-    
+    #print(prev_eval,cur_eval)
     if (prev_eval - cur_eval > 0.1):
         return (cur_eval - prev_eval), cur_eval
     else:
@@ -301,10 +308,10 @@ def compute_discounted_rewards(rewards, gamma):
 def selfPlay():
      
     stockfish_path=STOCKFISH_PATH
-    
+    global boards
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     #engine.configure({"Threads": 4, "Hash": 4096})
-    for i in range (500):
+    for i in range (1):
         board = chess.Board()
         black_states, black_actions, black_rewards = [], [], []
         white_states, white_actions, white_rewards = [], [], []
@@ -331,8 +338,9 @@ def selfPlay():
                 
                 if (inGameCount >= 20 and inGameCount <= 36):
                     # Store the trajectory
+                    move = board.pop()
                     white_states.append(encode_board(board))
-                    
+                    board.push(move)
                     moveMade = str(board.peek())
                     a = ord(moveMade[0:1]) - 96
                     b = int(moveMade[1:2])
@@ -346,8 +354,9 @@ def selfPlay():
 
                 if (inGameCount >= 20 and inGameCount <= 36):
                     # Store the trajectory
+                    move = board.pop()
                     black_states.append(encode_board(board))
-                    
+                    board.push(move)
                     moveMade = str(board.peek())
                     a = ord(moveMade[0:1]) - 96
                     b = int(moveMade[1:2])
@@ -356,7 +365,7 @@ def selfPlay():
                     
                     black_actions.append(reversePrediction(a,b,c,d) - 1)
                     black_rewards.append(reward)                
-            
+                    boards.append(copy.deepcopy(board))
             inGameCount += 1
         
         # Convert lists to tensors
@@ -389,7 +398,7 @@ def selfPlay():
 threads = []
 
 # Create and start threads
-for i in range(45):  # Example with 5 threads
+for i in range(1):  # Example with 5 threads
     t = threading.Thread(target=selfPlay, args=())
     t.start()
     threads.append(t)

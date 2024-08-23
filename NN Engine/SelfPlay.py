@@ -48,8 +48,8 @@ if platform.system() == 'Windows':
 
 elif platform.system() == 'Linux':
     
-    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_RL(2)_selfplay_SGD.keras'
-    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(2)_selfplay_SGD.keras'
+    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_RL(3)_selfplay_SGD.keras'
+    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(3)_selfplay_SGD.keras'
     
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
@@ -679,8 +679,8 @@ print("Time elapsed: ", t1_full - t0_full)
 if platform.system() == 'Windows':
     data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
 elif platform.system() == 'Linux':
-    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_RL(2)_21_36(11)_selfplay_SGD.keras'  # Example for WSL
-    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_RL(2)_21_36(11)_selfplay_SGD.keras'  # Example for WSL
+    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_RL(3)_21_36(11)_selfplay_SGD.keras'  # Example for WSL
+    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_RL(3)_21_36(11)_selfplay_SGD.keras'  # Example for WSL
 whiteModel.save(data_path1)
 blackModel.save(data_path2)
     

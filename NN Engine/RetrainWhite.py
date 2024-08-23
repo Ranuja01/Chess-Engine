@@ -491,7 +491,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(2)_selfplay_SGD.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(3)_selfplay_SGD.keras'  # Example for WSL
     model = tf.keras.models.load_model(data_path)
     
     # Compile the model using Adam and loss as categorical crossentropy for classification of the moves
@@ -563,7 +563,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL_selfplay_SGD_Refined.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(3)_selfplay_SGD_Refined.keras'  # Example for WSL
     model.save(data_path)
     t1 = timer()
     print("Time elapsed: ", t1 - t0)

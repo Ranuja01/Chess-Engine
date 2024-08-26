@@ -100,23 +100,23 @@ cdef void initialize_layers(board):
                 if i == 0:
                     placementLayer[i][j][k] = [
                         [0,0,0,0,0,0,0,0],
-                        [-1000,0,2,5,5,2,0,0],
-                        [-1000,0,3,15,15,5,0,0],
-                        [0,-200,3,175,220,5,0,0],
-                        [0,-200,3,175,220,5,0,0],
-                        [-1000,0,3,15,15,5,0,0],
-                        [-1000,0,2,5,5,2,0,0],
+                        [0,0,3,10,10,2,0,0],
+                        [0,0,3,15,15,5,0,0],
+                        [0,0,3,20,25,5,0,0],
+                        [0,0,3,20,25,5,0,0],
+                        [0,0,3,15,15,5,0,0],
+                        [0,0,3,10,10,2,0,0],
                         [0,0,0,0,0,0,0,0]
                     ][j][k]
                 else:
                     placementLayer[i][j][k] = [
                         [0,0,0,0,0,0,0,0],
-                        [0,0,2,5,5,2,0,-1000],
-                        [0,0,5,15,15,3,0,-1000],
-                        [0,0,5,220,175,3,-200,0],
-                        [0,0,5,220,175,3,-200,0],
-                        [0,0,5,15,15,3,0,-1000],
-                        [0,0,2,5,5,2,0,-1000],
+                        [0,0,2,10,10,3,0,0],
+                        [0,0,5,15,15,3,0,0],
+                        [0,0,5,25,20,3,0,0],
+                        [0,0,5,25,20,3,0,0],
+                        [0,0,5,15,15,3,0,0],
+                        [0,0,2,10,10,3,0,0],
                         [0,0,0,0,0,0,0,0]
                     ][j][k]
    
@@ -216,7 +216,7 @@ cdef class ChessAI:
 
     def alphaBetaWrapper(self, int curDepth, int depthLimit):
         initialize_layers(self.pgnBoard)          
-        if (len(self.pgnBoard.move_stack) < 21):
+        if (len(self.pgnBoard.move_stack) < 30):
             return self.opening_book(curDepth, depthLimit)
         
         
@@ -299,7 +299,9 @@ cdef class ChessAI:
         self.numIterations = 0
         
         self.pgnBoard.push(moves_list[0])
-        score = self.minimizer(curDepth + 1, depthLimit, alpha, beta)
+        score = self.minimizer(curDepth + 1, depthLimit, alpha, alpha_list[0])
+        # if alpha < score and score < beta:
+        #     score = self.minimizer(curDepth + 1, depthLimit, alpha, beta)
         self.pgnBoard.pop()
         print(0,score,alpha_list[0],moves_list[0])
         if score > bestMove.score:
@@ -314,7 +316,10 @@ cdef class ChessAI:
             best_move_index = 0
             
         alpha = max(alpha, bestMove.score)
-        
+        print("BEfore")
+        print("2: ", self.pgnBoard.is_repetition(2))
+        print("3: ", self.pgnBoard.is_repetition(3))            
+        print("3fold: ", self.pgnBoard.can_claim_threefold_repetition())
         for move in moves_list[1:]:
             
             #index = reversePrediction(a, b, c, d) - 1
@@ -338,11 +343,21 @@ cdef class ChessAI:
                 depthUsage = depthLimit
                 
             self.pgnBoard.push(move)
-            score = self.minimizer(curDepth + 1, depthUsage, alpha, alpha + 1)
+            score = self.minimizer(curDepth + 1, depthUsage, alpha, alpha+1)
                         
-            # If the score is within the window, re-search with full window
+            #If the score is within the window, re-search with full window
             if alpha < score and score < beta:
-                score = self.minimizer(curDepth + 1, depthUsage, alpha, beta)
+                score = self.minimizer(curDepth + 1, depthUsage, alpha, alpha_list[count])
+                # if alpha < score and score < beta:
+                #     score = self.minimizer(curDepth + 1, depthUsage, alpha, beta)
+            
+            print()
+            print("2: ", self.pgnBoard.is_repetition(2))
+            print("3: ", self.pgnBoard.is_repetition(3))            
+            print("3fold: ", self.pgnBoard.can_claim_threefold_repetition())
+            if (self.pgnBoard.is_repetition(2) or self.pgnBoard.is_stalemate()):
+                print("adasdkjgasd")
+                score = -100000000
             
             self.pgnBoard.pop()
             '''
@@ -399,7 +414,7 @@ cdef class ChessAI:
         #cdef cnp.ndarray[DTYPE_INT, ndim=4] inputBoard = np.array([encode_board(self.pgnBoard)], dtype=np.int8)
         #cdef cnp.ndarray[DTYPE_FLOAT, ndim=2] prediction = self.blackModel.predict(inputBoard, verbose=0)
 
-        cdef list moves_list
+        #cdef list moves_list = self.reorder_capture_moves()
         #moves_list = self.get_legal_moves()
         #moves_list = list(self.reorder_capture_moves())
         #moves_list = self.reorder_legal_moves()
@@ -429,6 +444,12 @@ cdef class ChessAI:
                 with open('Unfiltered_Full.txt', 'a') as file:
                     file.write("5TH MOVE: {}, {}\n".format(score, move.uci()))
             '''
+            # if (self.pgnBoard == chess.Board("6k1/2n3pp/8/ppp1pK1P/3p4/4q3/1N6/3B4 b - - 5 40")):
+            #     # print("My Moves:", self.reorder_capture_moves())
+            #     # print()
+            #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
+            #     # print()
+            #     print ("MAX: ",score, move)
             if score > highestScore:
                 # if (self.pgnBoard.can_claim_threefold_repetition()):
                 #     score = -100000000
@@ -461,6 +482,7 @@ cdef class ChessAI:
         #cdef str cur
         #cdef int index
         cdef int target_square
+        cdef int preBeta = beta
         #cdef cnp.ndarray[DTYPE_FLOAT, ndim=1] filteredPrediction = np.zeros(4096, dtype=np.float32)
 
         if curDepth >= depthLimit:            
@@ -470,11 +492,15 @@ cdef class ChessAI:
         #cdef cnp.ndarray[DTYPE_INT, ndim=4] inputBoard = np.array([encode_board(self.pgnBoard)], dtype=np.int8)
         #cdef cnp.ndarray[DTYPE_FLOAT, ndim=2] prediction = self.whiteModel.predict(inputBoard, verbose=0)
 
-        cdef list moves_list
+        #cdef list moves_list = self.reorder_capture_moves()
         #moves_list = self.get_legal_moves()
         #moves_list = list(self.reorder_capture_moves())
         
         
+        # if (self.pgnBoard == chess.Board("rnbqkb1r/ppp3pp/5p2/3pp3/3PnB2/4PN2/PPP2PPP/RN1QKB1R w KQkq - 0 6")):
+        #     print("My Moves:", self.reorder_capture_moves())
+        #     print()
+        #     print("Th moves: ", list (self.pgnBoard.legal_moves))
         for move in self.reorder_capture_moves():
             
             #index = reversePrediction(a, b, c, d) - 1
@@ -486,6 +512,8 @@ cdef class ChessAI:
             # a, b, c, d = result.x, result.y, result.w, result.z
             
             # filteredPrediction[index] = 0
+            
+            
             
             self.pgnBoard.push(move)
             score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)
@@ -503,6 +531,12 @@ cdef class ChessAI:
                 with open('Unfiltered_Full.txt', 'a') as file:
                     file.write("6TH MOVE: {}, {}\n".format(score, move.uci()))
             '''
+            # if (self.pgnBoard == chess.Board("rnbqkb1r/ppp3pp/5p2/3pp3/3PnB2/4PN2/PPP2PPP/RN1QKB1R w KQkq - 0 6")):
+            #     # print("My Moves:", self.reorder_capture_moves())
+            #     # print()
+            #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
+            #     # print()
+            #     print ("MIN: ",score, move, alpha, beta)
             if score < lowestScore:
                 lowestScore = score
 
@@ -518,13 +552,16 @@ cdef class ChessAI:
                 return lowestScore
 
         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
+            #print("AAAAA")
             if self.pgnBoard.is_checkmate():
                 return 100000000
-            elif self.pgnBoard.is_stalemate():
-                return -100000000
-            elif self.pgnBoard.can_claim_draw():
-                return -100000000
+            
+            
         return lowestScore
+
+    def ev(self, object board):
+        initialize_layers(board)
+        return evaluate_board(board)
 
     @boundscheck(False)
     @wraparound(False)
@@ -581,7 +618,7 @@ cdef class ChessAI:
                 '''
             count += 1
             alpha = max(alpha, highestScore)
-
+        
             
         '''
         # Combine the lists into a list of tuples
@@ -616,6 +653,8 @@ cdef class ChessAI:
         for move in self.pgnBoard.generate_legal_moves():
             if move not in captures:
                 yield move
+    
+    
         
     @boundscheck(False)
     @wraparound(False)
@@ -710,13 +749,16 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
     
     cdef int total = 0
     cdef int rookIncrement = 300
+    cdef int ppIncrement = 300
     cdef unsigned long long rooks_mask = chess.BB_EMPTY
+    cdef unsigned long long pp_mask = chess.BB_EMPTY 
     cdef object piece
     cdef uint8_t att_square
     cdef uint8_t  x, y
+    
 
-    y = square >> 3
-    x = square - (y << 3)
+    y = square // 8
+    x = square % 8
     global attackingLayer
     # Evaluate based on piece color
     if colour:
@@ -726,9 +768,28 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
             
             total -= activePlacementLayer[0][x][y]
             
+            if (piece_type == 2 or piece_type == 3):
+                total -= 500
+            
             if (piece_type == 1):
                 total -= (y + 1) * 15
-                total += attackingLayer[1][x][y]
+                total -= attackingLayer[1][x][y] << 2                                
+                
+                if (len(chess.SquareSet(chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))) > 1):
+                    total += 200
+                
+                
+                pp_mask = create_ppMask(square, colour) & board.pieces_mask(chess.PAWN, chess.BLACK)
+                #print(pp_mask,square,x,y, create_ppMask(square, colour))
+                for pawn in chess.scan_reversed(pp_mask):
+                    if (pawn % 8 == x):
+                        ppIncrement = 0
+                        break
+                    else:
+                        ppIncrement -= 125
+                ppIncrement = max(0,ppIncrement)
+                
+                total -= ppIncrement
         
         elif piece_type == 4:  
             
@@ -741,14 +802,14 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                     piece = board.piece_at(att_square)
                     if piece.color:
                         if (piece.piece_type == 1):                            
-                            if (att_square >> 3 < 5):
-                                rookIncrement -= 50 + (3 - (att_square >> 3 )) * 125
+                            if (att_square // 8 < 5):
+                                rookIncrement -= 50 + (3 - (att_square // 8)) * 125
                                 break
                         elif(piece.piece_type == 2 or piece.piece_type == 3):
                             rookIncrement -= 15                        
                     else:
                         if (piece.piece_type == 1):
-                            if (att_square >> 3 > 4):
+                            if (att_square // 8 > 4):
                                 rookIncrement -= 50
                         elif(piece.piece_type == 2 or piece.piece_type == 3):
                             rookIncrement -= 35
@@ -757,8 +818,8 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
             total -= rookIncrement
             
         for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = attack >> 3
-            x = attack - (y << 3)
+            y = square // 8
+            x = square % 8
             if (piece_type == 1 or piece_type == 5):
                 total -= attackingLayer[0][x][y] >> 2
             else:    
@@ -769,9 +830,30 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
             
             total += activePlacementLayer[1][x][y]
             
+            if (piece_type == 2 or piece_type == 3):
+                total += 500
+            
             if (piece_type == 1):
                 total += (8 - y) * 15
-                total += attackingLayer[0][x][y]
+                total += attackingLayer[0][x][y] << 2
+                
+                if (len(chess.SquareSet(chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))) > 1):
+                    total -= 200
+                
+                
+                pp_mask = create_ppMask(square, colour) & board.pieces_mask(chess.PAWN, chess.WHITE)
+                #print(pp_mask,square,x,y, create_ppMask(square, colour))
+                for pawn in chess.scan_reversed(pp_mask):
+                    if (pawn % 8 == x):
+                        ppIncrement = 0
+                        break
+                    else:
+                        ppIncrement -= 125
+                ppIncrement = max(0,ppIncrement)
+                
+                total += ppIncrement
+                
+                
         elif piece_type == 4:
             if (y == 1):
                 rookIncrement += 50
@@ -782,7 +864,7 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                     piece = board.piece_at(att_square)
                     if piece.color:
                         if (piece.piece_type == 1):
-                            if (att_square >> 3 < 5):
+                            if (att_square // 8 < 5):
                                 rookIncrement -= 50
                         elif(piece.piece_type == 2 or piece.piece_type == 3):
                             rookIncrement -= 35
@@ -790,16 +872,16 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                             rookIncrement -= 75
                     else:
                         if (piece.piece_type == 1):
-                            if (att_square >> 3 > 4):
-                                rookIncrement -= 50 + ((att_square >> 3 ) - 4) * 125
+                            if (att_square // 8 > 4):
+                                rookIncrement -= 50 + ((att_square // 8) - 4) * 125
                                 break
                         elif(piece.piece_type == 2 or piece.piece_type == 3):
                             rookIncrement -= 15
             total += rookIncrement
                 
         for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = attack >> 3
-            x = attack - (y << 3)
+            y = square // 8
+            x = square % 8
             if (piece_type == 1 or piece_type == 5):
                 total += attackingLayer[1][x][y] >> 2
             else:    
@@ -817,11 +899,14 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
     cdef int total = 0
     cdef uint8_t  x, y
     cdef int rookIncrement = 100
+    cdef int ppIncrement = 800
+    cdef int attackMultiplier = 1
     cdef unsigned long long rooks_mask = chess.BB_EMPTY
+    cdef unsigned long long pp_mask = chess.BB_EMPTY 
     cdef object piece
     cdef uint8_t att_square
-    y = square >> 3
-    x = square - (y << 3)
+    y = square // 8
+    x = square % 8
     global attackingLayer
     # Evaluate based on piece color
     if colour:
@@ -836,23 +921,41 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
                 if (piece.piece_type == 1):    
                     if att_square > square: # Infront of White Rook
                         if piece.color:
-                            rookIncrement += (att_square >> 3 + 1) * 25
+                            rookIncrement += (att_square // 8 + 1) * 25
                         else:
                             rookIncrement += (y + 1) * 15
                     else: # Behind White Rook
                         if piece.color:
                             if (att_square >> 3 > 3):
-                                rookIncrement -= 50 + ((att_square >> 3 ) - 3) * 50
+                                rookIncrement -= 50 + ((att_square // 8) - 3) * 50
                         else:
                             rookIncrement += (y + 1) * 10                                        
             total -= rookIncrement
                 
         if (piece_type == 1):
-            total -= (y + 1) * 50
-        for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = attack >> 3
-            x = attack - (y << 3)            
-            total -= attackingLayer[0][x][y]              
+                        
+            if (len(chess.SquareSet(chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))) > 1):
+                total += 200
+            
+            if (y > 2):
+                pp_mask = create_ppMask(square, colour) & board.pieces_mask(chess.PAWN, chess.BLACK)
+                #print(pp_mask,square,x,y, create_ppMask(square, colour))
+                for pawn in chess.scan_reversed(pp_mask):
+                    if (pawn % 8 == x):
+                        ppIncrement = 0
+                        break
+                    else:
+                        ppIncrement -= 350
+                ppIncrement = max(0,ppIncrement)
+            else:
+                ppIncrement = 0
+            total -= ppIncrement
+            
+            if (ppIncrement == 800):
+                total -= (y + 1) * 50 + (y + 1) ** 2 
+            else:
+                total -= (y + 1) * 50
+                
     else:
         total += values[piece_type]
         
@@ -867,24 +970,98 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
                         if piece.color:
                             rookIncrement += (8 - y) * 15                            
                         else:
-                            rookIncrement += (8 - (att_square >> 3 )) * 25
+                            rookIncrement += (8 - (att_square // 8)) * 25
                     else: # Behind Black Rook
                         if piece.color:
                             rookIncrement += (8 - y) * 10                                                 
                         else:
-                            if (att_square >> 3 < 4):
-                                rookIncrement -= 50 + (4 - (att_square >> 3 )) * 50
+                            if (att_square // 8 < 4):
+                                rookIncrement -= 50 + (4 - (att_square // 8)) * 50
                             
-            total -= rookIncrement
+            total += rookIncrement
             
         if (piece_type == 1):
             total += (8 - y) * 50
+            
+            if (len(chess.SquareSet(chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))) > 1):
+                total -= 200
+            
+            if (y < 5):
+                pp_mask = create_ppMask(square, colour) & board.pieces_mask(chess.PAWN, chess.WHITE)
+                #print(pp_mask,square,x,y, create_ppMask(square, colour))
+                for pawn in chess.scan_reversed(pp_mask):
+                    if (pawn % 8 == x):
+                        ppIncrement = 0
+                        break
+                    else:
+                        ppIncrement -= 350
+                ppIncrement = max(0,ppIncrement)
+            else:
+                ppIncrement = 0
+            total += ppIncrement
+          
+            if (ppIncrement == 800):
+                total -= (8 - y) * 50 + (8 - y) ** 2 
+            else:
+                total -= (8 - y) * 50                       
+    
+    if colour:
+        
+        if (total < -7500):
+            attackMultiplier = 2
+        elif(total < -15000):
+            attackMultiplier = 3
+        
         for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = attack >> 3
-            x = attack - (y << 3)
+            y = square // 8
+            x = square % 8            
+            total -= attackingLayer[0][x][y] * attackMultiplier   
+    else:
+        
+        if (total < 7500):
+            attackMultiplier = 2
+        elif(total < 15000):
+            attackMultiplier = 3
+        
+        for attack in chess.scan_reversed(board.attacks_mask(square)): 
+            y = square // 8
+            x = square % 8
                
-            total += attackingLayer[1][x][y]           
+            total += attackingLayer[1][x][y] * attackMultiplier
+    
     return total
+
+@boundscheck(False)
+@wraparound(False)
+@cython.exceptval(check=False)
+@cython.nonecheck(False)
+@cython.ccall
+@cython.inline
+cdef create_ppMask(square, bint colour):
+    file = square % 8  # File of the given square
+    rank = square // 8  # Rank of the given square
+    cdef unsigned long long bitmask = 0
+
+    if (colour):
+        # Iterate over the three relevant files
+        for f in range(file - 1, file + 2):
+            if 0 <= f <= 7:  # Ensure the file is within bounds
+                # Iterate over the ranks above the given square's rank
+                for r in range(rank + 1, 8):
+                    pos = r * 8 + f  # Calculate the square's position
+                    bitmask |= (1 << pos)  # Set the bit at this position
+    else:
+        # Iterate over the three relevant files
+        for f in range(file - 1, file + 2):
+            if 0 <= f <= 7:  # Ensure the file is within bounds
+                # Iterate over the ranks below the given square's rank
+                for r in range(rank):
+                    pos = r * 8 + f  # Calculate the square's position
+                    # Check if the square has a pawn of the given color
+                    bitmask |= (1 << pos)  # Set the bit at this position
+    
+    return bitmask
+
 
 @boundscheck(False)
 @wraparound(False)
@@ -899,7 +1076,7 @@ cdef int evaluate_board(object board):
     cdef uint8_t  square
     cdef uint8_t  x, y
     cdef uint8_t i
-    cdef int moveNum = len(board.move_stack)
+    cdef int moveNum = board.ply()
     cdef object target_square
     cdef object target_move
     cdef uint8_t  kingSeparation
@@ -928,9 +1105,9 @@ cdef int evaluate_board(object board):
     # Iterate through all squares on the board and evaluate piece values
     if board.is_checkmate():
         if board.turn:
-            total = -100000000            
+            total = 100000000            
         else:
-            total = 100000000
+            total = -100000000
     else:
         
         if (moveNum <= 50):
@@ -973,9 +1150,20 @@ cdef int evaluate_board(object board):
                     if move.to_square == target_square:
                         if (board.turn):
                             total -= values[board.piece_type_at(target_square)]
-                        else:                        
+                            
+                        else:                            
                             total += values[board.piece_type_at(target_square)]
                         break      
+    
+    #print(board.fen)
+    # print(board.move_stack)
+    # print(total)
+    # print()
+    
+    # if (total == 960):
+    #     print(board.fen)
+    #     print(total)
+    #     print(board.move_stack)
     return total
 
 cdef int move_index(object board, object move1, object move2):

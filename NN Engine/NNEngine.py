@@ -144,12 +144,22 @@ def engineMove(self):
     # Set variable such that certain features know that an actual move is not being attempted
     self.computerThinking = True
     
+    move_times = {}
+    move_times[5] = 2.5
+    
+    
+    for i in range(6,26):
+        move_times[i] = 3.5
+        
+    
+    
+    
     # Call the alpha beta algorithm to make a move decision
     result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
     t1 = timer()
     dif = t1 - t0
     new_depth = 6
-    while(dif <= 1.5 and new_depth <= 25):
+    while(dif <= move_times[new_depth-1] and new_depth <= 25):
         a,b,c,d = result['a'],result['b'],result['c'],result['d']
         print(a,b,c,d)
         print("TRYING DEPTH: ", new_depth)

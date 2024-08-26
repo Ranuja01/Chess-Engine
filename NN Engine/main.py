@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("2kr3r/ppp2ppp/4qn2/4n3/1bPp4/5B2/PP1N1PPP/R1BQR2K b - - 2 13")
+board = chess.Board("6k1/2n3pp/8/ppp1p2P/3pK3/8/1N1q4/3B4 b - - 3 39")
 
 # Print the board in a human-readable format
 print(board)
@@ -136,30 +136,77 @@ print("Time elapsed: ", t1 - t0)
 # stats.print_stats()
 # t1 = timer()
 # print("Time elapsed: ", t1 - t0)
-t0= timer()
+
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=4)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+#a = chess.Board("r1q2rk1/pb1n1ppp/1ppbpn2/3P4/3P4/1PN1PN2/PB2BPPP/1R1Q1RK1 w - - 1 12")
+pgn_string = """
+1. e4 e5 2. Nc3 Nf6 3. Nf3 Nc6 4. g3 Bc5 5. Bg2 d6 6. O-O a5 7. Qe1 O-O 8. d3 Nb4 9. Qd1 Bg4 10. a3 Nc6 11. h3 Bxf3 12. Bxf3 Qc8 13. Bg2 Bd4 14. Nb5 a4 15. c3 Bc5 16. d4 exd4 17. cxd4 Bb6 18. Bg5 Ra5 19. Qd3 Bxd4 20. Nxd4 Rxg5 21. f4 Rc5 22. Rad1 Na5 23. Rfe1 Nc4 24. Qc2 Ne3 25. Qxa4 Nxd1 26. Qxd1 Qe8 27. b4 Rc3 28. e5 dxe5 29. fxe5 Nd7 30. e6 fxe6 31. Nxe6 Rf7 32. Ng5 Re3 33. Ne4 Rxe1+ 34. Qxe1 c5 35. bxc5 h5 36. Qd1 Qe5 37. Nd6 Qxc5+ 38. Kh1 Re7 39. Ne4 Qxa3 40. Kh2 Qa2 41. Nc3 Qf2 42. Qd6 Rf7 43. Nd5 Kh7 44. Ne7 Nf8 45. Qe5 g6 46. h4 b5 47. Nxg6 Kxg6 48. Qg5+ Kh7 49. Qxh5+ Kg8 50. Qxb5 Rg7 51. Qb8 Rg4 52. Qe5 Kf7 53. Kh3 Rd4 54. Bd5+ Kg6 55. Be4+ Kf7 56. Bd5+ Kg6 57. Be4+ Kf7 58. Bd5+
+"""
+
+# Create a PGN reader
+pgn = chess.pgn.read_game(io.StringIO(pgn_string))
+
+# Create a board from the game
+a = pgn.board()
+for move in pgn.mainline_moves():
+    a.push(move)
+    
+chess_ai = ChessAI(blackModel, whiteModel, a)
+
+print(chess_ai.ev(a))
+print(a)
 result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
 print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
 
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+print("2: ", a.is_repetition(2))
+print("3: ", a.is_repetition(3))
+print("3fold: ", a.can_claim_threefold_repetition())
 
-# cache = chess_ai.get_move_cache()
-# size_in_bytes = get_dict_size(cache)
-# print(f"Size of dictionary in bytes: {size_in_bytes}")
-# print(f"Length of dictionary: {len(cache)}")
+# # cache = chess_ai.get_move_cache()
+# # size_in_bytes = get_dict_size(cache)
+# # print(f"Size of dictionary in bytes: {size_in_bytes}")
+# # print(f"Length of dictionary: {len(cache)}")
 
 
-# print(chess_ai.reorder_capture_moves())
-# print(chess_ai.get_legal_moves())
-# print(cache[board.occupied])
+# # print(chess_ai.reorder_capture_moves())
+# # print(chess_ai.get_legal_moves())
+# # print(cache[board.occupied])
 
-t0= timer()
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
-print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=7)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=7)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
 # cache = chess_ai.get_move_cache()
 # size_in_bytes = get_dict_size(cache)

@@ -169,17 +169,17 @@ def evasionTraining():
                                 c = ord(moveMade[2:3]) - 96
                                 d = int(moveMade[3:4])
                                 
-                                # Set the index of the output corresponding to the 4 coordinates as 100%
-                                temp [reversePrediction(a,b,c,d) - 1] = 1
-                                #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
-                                output.append(temp) 
-                                temp = [0]*4096
+                                # # Set the index of the output corresponding to the 4 coordinates as 100%
+                                # temp [reversePrediction(a,b,c,d) - 1] = 1
+                                # #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                                output.append(reversePrediction(a,b,c,d) - 1) 
+                                # temp = [0]*4096
                                 
-                                # Set the index of the output corresponding to the 4 coordinates as 100%
-                                temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
-                                #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
-                                output.append(temp) 
-                                temp = [0]*4096
+                                # # Set the index of the output corresponding to the 4 coordinates as 100%
+                                # temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
+                                # #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                                output.append(reversePrediction(9 - a,b,9 - c,d) - 1) 
+                                # temp = [0]*4096
                                 
                                 board.pop()
                                 
@@ -264,17 +264,17 @@ def captureTraining():
                             c = ord(moveMade[2:3]) - 96
                             d = int(moveMade[3:4])
                             
-                            # Set the index of the output corresponding to the 4 coordinates as 100%
-                            temp [reversePrediction(a,b,c,d) - 1] = 1
-                            #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
-                            output.append(temp) 
-                            temp = [0]*4096
+                            # # Set the index of the output corresponding to the 4 coordinates as 100%
+                            # temp [reversePrediction(a,b,c,d) - 1] = 1
+                            # #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                            output.append(reversePrediction(a,b,c,d) - 1) 
+                            # temp = [0]*4096
                             
-                            # Set the index of the output corresponding to the 4 coordinates as 100%
-                            temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
-                            #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
-                            output.append(temp) 
-                            temp = [0]*4096
+                            # # Set the index of the output corresponding to the 4 coordinates as 100%
+                            # temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
+                            # #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                            output.append(reversePrediction(9 - a,b,9 - c,d) - 1) 
+                            # temp = [0]*4096
                             
                             board.pop()
                             
@@ -386,17 +386,17 @@ if __name__ == "__main__":
                     c = ord(moveMade[2:3]) - 96
                     d = int(moveMade[3:4])
                     
-                    # Set the index of the output corresponding to the 4 coordinates as 100%
-                    temp [reversePrediction(a,b,c,d) - 1] = 1
-                    #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
-                    output.append(temp) 
-                    temp = [0]*4096
+                    # # Set the index of the output corresponding to the 4 coordinates as 100%
+                    # temp [reversePrediction(a,b,c,d) - 1] = 1
+                    # #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                    output.append(reversePrediction(a,b,c,d) - 1) 
+                    # temp = [0]*4096
                     
-                    # Set the index of the output corresponding to the 4 coordinates as 100%
-                    temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
-                    #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
-                    output.append(temp) 
-                    temp = [0]*4096
+                    # # Set the index of the output corresponding to the 4 coordinates as 100%
+                    # temp [reversePrediction(9 - a,b,9 - c,d) - 1] = 1
+                    # #print(temp[1204], reversePrediction(a,b,c,d), a,b,c,d)
+                    output.append(reversePrediction(9 - a,b,9 - c,d) - 1) 
+                    # temp = [0]*4096
             
             # Increment the counts and make the move
             count += 1   
@@ -488,7 +488,7 @@ if __name__ == "__main__":
     
     
     # Output layer
-    outputs = Dense(4096, activation='softmax')(x)
+    outputs = Dense(4096)(x)
     
     # Create and compile the model
     model = tf.keras.Model(inputs, outputs)  
@@ -517,7 +517,7 @@ if __name__ == "__main__":
             print("Starting Batch:",trainingCount+1, "From index:",start_idx, "to:", end_idx,'\n')
             
             lr_scheduler = LearningRateScheduler(lr_schedule)
-            model.compile(optimizer=optimizer, loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.2), metrics=['accuracy', TopKCategoricalAccuracy(k=10)])
+            model.compile(optimizer=optimizer, loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True), metrics=['accuracy'])
             
             # Implement Early Stopping
             early_stopping = EarlyStopping(
@@ -546,24 +546,24 @@ if __name__ == "__main__":
 
     print(model.summary())
     
-    # Make a prediction using the test board
-    q = model.predict(np.array([encode_board(testBoard)]))
+    # # Make a prediction using the test board
+    # q = model.predict(np.array([encode_board(testBoard)]))
     
-    print(np.argmax(q))    
-    a,b,c,d = predictionInfo(np.argmax(q))
-    print(len(q))
-    print("X1: ",a)
-    print("Y1: ",b)
-    print("X2: ",c)
-    print("Y2: ",d)
+    # print(np.argmax(q))    
+    # a,b,c,d = predictionInfo(np.argmax(q))
+    # print(len(q))
+    # print("X1: ",a)
+    # print("Y1: ",b)
+    # print("X2: ",c)
+    # print("Y2: ",d)
     
-    print(reversePrediction(a,b,c,d))
+    # print(reversePrediction(a,b,c,d))
     
     # Save the model
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel_21_36.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11).keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(12).keras'  # Example for WSL
 
     model.save(data_path)
     t1 = timer()

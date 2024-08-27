@@ -951,7 +951,7 @@ class Layout(tk.Tk):
                     board.update()
                     
                     # Call the engine to make a move
-                    if(not(self.isPromotion and gameOver)):
+                    if(not(self.isPromotion or gameOver)):
                         self.computerThinking = True
                         self.move = False
 

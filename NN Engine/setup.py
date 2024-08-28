@@ -8,11 +8,11 @@ import numpy as np
 extensions = [
     Extension(
         "ChessAI",                     # Name of the compiled extension
-        sources=["ChessAI.pyx"],       # Source Cython file
+        sources=["cpp_bitboard.cpp", "ChessAI.pyx"],       # Source Cython file
         language="c++",                # Use C++ compiler
         extra_compile_args=[
             "-Ofast", "-march=native", "-ffast-math", 
-            "-funroll-loops", "-flto", "-fomit-frame-pointer"
+            "-funroll-loops", "-flto", "-fomit-frame-pointer", "-std=c++11"
         ],  # Optimization flags
         extra_link_args=["-flto=8"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")], 

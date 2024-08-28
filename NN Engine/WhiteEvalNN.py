@@ -107,11 +107,11 @@ def reflect_board(board):
 
 def lr_schedule(epoch, lr):
     if epoch == 0:
-        lr = 0.0005 - trainingCount * 0.00005
-    if epoch % 3 == 0 and epoch != 0:
+        lr = 0.005 - trainingCount * 0.000005
+    if epoch % 2 == 0 and epoch != 0:
         lr = lr * 0.5
-    if lr <= 0.00000005:
-        lr = 0.00000005
+    if lr <= 0.000000005:
+        lr = 0.000000005
     return lr
 
 
@@ -304,6 +304,11 @@ def get_stockfish_evaluation(board, engine, time_limit=0.01):
 def tolerance_accuracy(y_true, y_pred, tolerance=0.5):
     return tf.reduce_mean(tf.cast(tf.abs(y_true - y_pred) <= tolerance, tf.float32))
 
+@tf.keras.utils.register_keras_serializable()
+def tolerance_accuracy_05(y_true, y_pred):
+    return tolerance_accuracy(y_true, y_pred, tolerance=0.5)
+
+
 def transformer_block(inputs, num_heads, ff_dim):
     # Multi-Head Attention
     attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=inputs.shape[-1])(inputs, inputs)
@@ -410,56 +415,62 @@ if __name__ == "__main__":
     inputs = tf.keras.Input(shape=(8, 8, 12))
     
     # Convolutional Layers
-    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same')(inputs)
-    x = BatchNormalization()(x)
+    # x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same')(inputs)
+    # x = BatchNormalization()(x)
         
-    # Residual Block 1 (No projection needed)
-    x = residual_block(x, filters=64)
+    # # Residual Block 1 (No projection needed)
+    # x = residual_block(x, filters=64)
         
-    # Residual Block 1 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=4)
+    # # Residual Block 1 (No projection needed)
+    # x = residual_block(x, filters=64, kernel_size=4)
     
-    # Residual Block 1 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=4)
+    # # Residual Block 1 (No projection needed)
+    # x = residual_block(x, filters=64, kernel_size=4)
     
-    x = Conv2D(filters=64, kernel_size=(4, 4), activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
+    # x = Conv2D(filters=64, kernel_size=(4, 4), activation='relu', padding='same')(x)
+    # x = BatchNormalization()(x)
  
-    # Residual Block 1 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=5)
+    # # Residual Block 1 (No projection needed)
+    # x = residual_block(x, filters=64, kernel_size=5)
         
-    # Residual Block 1 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=(8,1))
+    # # Residual Block 1 (No projection needed)
+    # x = residual_block(x, filters=64, kernel_size=(8,1))
     
-    x = Conv2D(filters=64, kernel_size=(8, 1), activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
+    # x = Conv2D(filters=64, kernel_size=(8, 1), activation='relu', padding='same')(x)
+    # x = BatchNormalization()(x)
     
-    # Residual Block 1 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=(1,8))
+    # # Residual Block 1 (No projection needed)
+    # x = residual_block(x, filters=64, kernel_size=(1,8))
     
-    x = Conv2D(filters=64, kernel_size=(1, 8), activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
+    # x = Conv2D(filters=64, kernel_size=(1, 8), activation='relu', padding='same')(x)
+    # x = BatchNormalization()(x)
     
     
             
-    #x = MaxPooling2D(pool_size=(2, 2))(x)
-    # x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
-    # x = BatchNormalization()(x)
-    # x = MaxPooling2D(pool_size=(2, 2))(x)
-    # x = Conv2D(filters=512, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
-    # x = BatchNormalization()(x)
-    # x = MaxPooling2D(pool_size=(2, 2))(x)
-    # x = Conv2D(filters=512, kernel_size=(4, 4), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
-    # x = BatchNormalization()(x)
-    # x = MaxPooling2D(pool_size=(2, 2))(x)
-    # x = Conv2D(filters=1024, kernel_size=(4, 4), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(x)
-    # x = BatchNormalization()(x)
+    # #x = MaxPooling2D(pool_size=(2, 2))(x)
+    # # x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    # # x = BatchNormalization()(x)
+    # # x = MaxPooling2D(pool_size=(2, 2))(x)
+    # # x = Conv2D(filters=512, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    # # x = BatchNormalization()(x)
+    # # x = MaxPooling2D(pool_size=(2, 2))(x)
+    # # x = Conv2D(filters=512, kernel_size=(4, 4), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
+    # # x = BatchNormalization()(x)
+    # # x = MaxPooling2D(pool_size=(2, 2))(x)
+    # # x = Conv2D(filters=1024, kernel_size=(4, 4), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.0001))(x)
+    # # x = BatchNormalization()(x)
     
-    x = transformer_block(x, num_heads=4, ff_dim=64)
+    # x = transformer_block(x, num_heads=4, ff_dim=64)
     # Global Average Pooling
     #x = GlobalAveragePooling2D()(x)
-    x = Flatten()(x)
+    x = Flatten()(inputs)
     # Fully connected layers
+    x = Dense(512, activation='relu')(x)
+    x = BatchNormalization()(x)
+    x = Dense(256, activation='relu')(x)
+    x = BatchNormalization()(x)
+    x = Dense(128, activation='relu')(x)
+    x = BatchNormalization()(x)
     x = Dense(64, activation='relu')(x)
     x = BatchNormalization()(x)
     x = Dense(32, activation='relu')(x)
@@ -470,8 +481,7 @@ if __name__ == "__main__":
     x = BatchNormalization()(x)
     x = Dense(4, activation='relu')(x)
     x = BatchNormalization()(x)
-    x = Dense(2, activation='relu')(x)
-    x = BatchNormalization()(x)
+    
     #x = Dropout(0.05)(x)
     
     
@@ -484,18 +494,18 @@ if __name__ == "__main__":
     
     # Define the learning rate scheduler
     initial_lr = 0.001  # Initial learning rate
-    optimizer = Adam(learning_rate=initial_lr)
-    
+    #optimizer = Adam(learning_rate=initial_lr)
+    optimizer = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
     # Use a lambda function to pass the tolerance value and give it a name
-    tolerance_metric = lambda y_true, y_pred: tolerance_accuracy(y_true, y_pred, tolerance=0.5)
-    tolerance_metric.__name__ = 'tolerance_accuracy_0.5'
+    # tolerance_metric = lambda y_true, y_pred: tolerance_accuracy(y_true, y_pred, tolerance=0.5)
+    # tolerance_metric.__name__ = 'tolerance_accuracy_05'
     
     print(model.summary())
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
     #count = 0
     trainingCount = 0
-    for i in range (3):
+    for i in range (2):
         print ("Iteration:", i)
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
@@ -509,12 +519,12 @@ if __name__ == "__main__":
             print("Starting Batch:",trainingCount+1, "From index:",start_idx, "to:", end_idx,'\n')
             
             lr_scheduler = LearningRateScheduler(lr_schedule)
-            model.compile(optimizer=optimizer, loss='mse', metrics=[tolerance_metric])
+            model.compile(optimizer=optimizer, loss='mse', metrics=[])
             
             # Implement Early Stopping
             early_stopping = EarlyStopping(
-                monitor='val_tolerance_accuracy_0.5',  # Metric to monitor
-                mode='max',
+                monitor='val_loss',  # Metric to monitor
+                mode='min',
                 patience=6,          # Number of epochs with no improvement after which training will be stopped
                 restore_best_weights=True  # Restore the model weights from the epoch with the best value of the monitored quantity
             )
@@ -523,7 +533,7 @@ if __name__ == "__main__":
             history = model.fit(
                 x, y,
                 epochs=50,  # Set a large number of epochs for the possibility of early stopping
-                batch_size=64,
+                batch_size=16,
                 validation_split=0.2,  # Split a portion of the data for validation
                 callbacks=[lr_scheduler, early_stopping],  # Pass the early stopping callback and learning rate scheduler
                 shuffle=True,

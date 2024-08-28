@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("6k1/2n3pp/8/ppp1p2P/3pK3/8/1N1q4/3B4 b - - 3 39")
+board = chess.Board("r2q1rk1/1pp2ppp/2np1n2/p1b1p3/4P3/P1NP1BPP/1PP2P2/R1BQ1RK1 b - - 0 12")
 
 # Print the board in a human-readable format
 print(board)
@@ -63,6 +63,29 @@ def get_dict_size(d):
         total_size += sys.getsizeof(key)  # Size of each key
         total_size += sys.getsizeof(value)  # Size of each value
     return total_size
+
+# Convert the board into a 12 channel tensor           
+def encode_board(board):
+    
+    # Define piece mappings
+    piece_to_channel = {
+        'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5,
+        'p': 6, 'n': 7, 'b': 8, 'r': 9, 'q': 10, 'k': 11
+    }
+    
+    # Initialize a 12 channel tensor
+    encoded_board = np.zeros((8, 8, 12), dtype=np.float32)
+    
+    # Populate the tensor
+    for i in range(8):
+        for j in range(8):
+            # chess.square expects (file, rank) with 0-indexed file
+            piece = board.piece_at(chess.square(j, 7-i))  
+            if piece:
+                channel = piece_to_channel[piece.symbol()]
+                encoded_board[i, j, channel] = 1.0
+    
+    return encoded_board
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Set TensorFlow log level to suppress all but errors
 
 pgnBoard = chess.Board()
@@ -71,13 +94,16 @@ pgnBoard.legal_moves
 if platform.system() == 'Windows':
     data_path1 = '../Models/BlackModel4.keras'
     data_path2 = '../Models/WhiteModel1.keras'
+    data_path3 = '../Models/WhiteEval_21_36.keras'
 elif platform.system() == 'Linux':
     data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel4.keras'
     data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel1.keras'
-    
+    data_path3 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteEval_21_36.keras'
 
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
+
+model = tf.keras.models.load_model(data_path3)
 
 # Assuming you have models already defined as black_model and white_model
 chess_ai = ChessAI(blackModel, whiteModel, board)
@@ -103,21 +129,21 @@ t1 = timer()
 print("Time elapsed: ", t1 - t0)
 '''
 
-t0= timer()
-#for move in Cython_Chess.pseudo_legal_moves(board):
-for i in range(1000):
-    
-    for move in Cython_Chess.generate_legal_moves(board):
-        pass
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
 
-t0= timer()
-for i in range(1000):
-    for move in board.legal_moves:
-        pass
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+
+# import Cython_Chess
+
+# num_numbers = 1000000000
+# num_threads = 160
+
+# total_sum_single, single_thread_time, total_sum_multi, multi_thread_time = Cython_Chess.time_experiment(num_numbers, num_threads)
+
+# print(f"Single-threaded sum: {total_sum_single:.6f}")
+# print(f"Multi-threaded sum: {total_sum_multi:.6f}")
+# print(f"Single-threaded time: {single_thread_time:.16f} seconds")
+# print(f"Multi-threaded time: {multi_thread_time:.16f} seconds")
+
 
 
 # import cProfile
@@ -145,13 +171,13 @@ print("Time elapsed: ", t1 - t0)
 # t1 = timer()
 # print("Time elapsed: ", t1 - t0)
 
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
+t0= timer()
+result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+print(result['a'],result['b'],result['c'],result['d'])
+print(f"Best score: {result['score']},")
 
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
 #a = chess.Board("r1q2rk1/pb1n1ppp/1ppbpn2/3P4/3P4/1PN1PN2/PB2BPPP/1R1Q1RK1 w - - 1 12")
 pgn_string = """
@@ -168,14 +194,66 @@ for move in pgn.mainline_moves():
     
 chess_ai = ChessAI(blackModel, whiteModel, a)
 
-print(chess_ai.ev(a))
-print(a)
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
-print(result['a'],result['b'],result['c'],result['d'])
+# print(chess_ai.ev(a))
+# print(a)
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+# print(result['a'],result['b'],result['c'],result['d'])
 
-print("2: ", a.is_repetition(2))
-print("3: ", a.is_repetition(3))
-print("3fold: ", a.can_claim_threefold_repetition())
+# print("2: ", a.is_repetition(2))
+# print("3: ", a.is_repetition(3))
+# print("3fold: ", a.can_claim_threefold_repetition())
+occupied = board.occupied
+    
+# Get bitboards for specific pieces
+white_pawns = board.pieces(chess.PAWN, chess.WHITE)
+black_pawns = board.pieces(chess.PAWN, chess.BLACK)
+white_rooks = board.pieces(chess.ROOK, chess.WHITE)
+black_rooks = board.pieces(chess.ROOK, chess.BLACK)
+bitboards = [occupied,white_pawns,black_pawns,white_rooks,black_rooks]
+    
+# Call the Cython function
+#Cython_Chess.call_process_bitboards(bitboards)
+
+print(Cython_Chess.yield_msb(occupied))
+    
+
+t0= timer()
+for i in chess.scan_forward(occupied):
+    #print(i)
+    pass
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
+
+
+t0= timer()
+Cython_Chess.test1(board)
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
+
+
+t0= timer()
+Cython_Chess.test2(board)
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
+
+# t0= timer()
+# for i in range(1000):
+#     for move in board.generate_legal_moves():
+#         if (board.is_capture(move)):
+#             pass
+#             #print(board.is_capture(move))
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+
+# t0= timer()
+# for i in range(1000):
+#     for move in board.generate_legal_moves():
+#         if (Cython_Chess.is_capture(board, move)):
+#             pass
+#             #print(Cython_Chess.is_capture(board,move))
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
 # # cache = chess_ai.get_move_cache()
 # # size_in_bytes = get_dict_size(cache)

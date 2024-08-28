@@ -48,8 +48,8 @@ if platform.system() == 'Windows':
 
 elif platform.system() == 'Linux':
     
-    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(11)_RL(3)_selfplay_SGD.keras'
-    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(11)_RL(3)_selfplay_SGD.keras'
+    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(12)_RL(1).keras'
+    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(12)_RL(1).keras'
     
 blackModel = tf.keras.models.load_model(data_path1)
 whiteModel = tf.keras.models.load_model(data_path2)
@@ -518,7 +518,7 @@ def selfPlay():
     gameUntil = 36
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     #engine.configure({"Threads": 4, "Hash": 4096})
-    for i in range (15):
+    for i in range (2):
         
         while(loop):
             current_thread = threading.current_thread()
@@ -679,8 +679,8 @@ print("Time elapsed: ", t1_full - t0_full)
 if platform.system() == 'Windows':
     data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
 elif platform.system() == 'Linux':
-    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_RL(3)_21_36(11)_selfplay_SGD.keras'  # Example for WSL
-    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_RL(3)_21_36(11)_selfplay_SGD.keras'  # Example for WSL
+    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(12)_RL(1)_selfplay_SGD.keras'  # Example for WSL
+    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(12)_RL(1)_selfplay_SGD.keras'  # Example for WSL
 whiteModel.save(data_path1)
 blackModel.save(data_path2)
     

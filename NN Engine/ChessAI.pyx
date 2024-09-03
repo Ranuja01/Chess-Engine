@@ -47,8 +47,10 @@ cdef extern from "stdint.h":
 cdef extern from "cpp_bitboard.h":
     void process_bitboards_wrapper(uint64_t * bitboards, int size)
     vector[int] find_most_significant_bits(uint64_t bitmask)  
-    vector[uint8_t] scan_reversed(uint64_t bb)
-    vector[uint8_t] scan_forward(uint64_t bb)
+    uint8_t scan_reversed_size(uint64_t bb)
+    void scan_reversed(uint64_t bb, vector[uint8_t] &result)
+    void scan_forward(uint64_t bb, vector[uint8_t] &result)
+    vector[uint8_t] scan_reversedOld(uint64_t bb)
     int getPPIncrement(int square, bint colour, uint64_t opposingPawnMask, int ppIncrement, int x)
 
 
@@ -87,8 +89,8 @@ cdef void initialize_layers(board):
                         [0,0,0,0,0,0,0,0],
                         [0,0,3,3,4,5,5,0],
                         [0,0,3,6,7,6,4,0],
-                        [0,0,3,7,8,8,5,0],
-                        [0,0,3,7,8,8,5,0],
+                        [0,0,3,15,20,8,5,0],
+                        [0,0,3,15,20,8,5,0],
                         [0,0,3,6,7,6,4,0],
                         [0,0,3,3,4,5,5,0],
                         [0,0,0,0,0,0,0,0]
@@ -98,8 +100,8 @@ cdef void initialize_layers(board):
                         [0,0,0,0,0,0,0,0],
                         [0,5,5,4,3,3,0,0],
                         [0,4,6,7,6,3,0,0],
-                        [0,5,8,8,7,3,0,0],
-                        [0,5,8,8,7,3,0,0],
+                        [0,5,8,20,15,3,0,0],
+                        [0,5,8,20,15,3,0,0],
                         [0,4,6,7,6,3,0,0],
                         [0,5,5,4,3,3,0,0],
                         [0,0,0,0,0,0,0,0]
@@ -246,7 +248,7 @@ cdef class ChessAI:
         best_move.c = -1
         best_move.d = -1
         best_move.score = -99999999
-        
+        #with chess.polyglot.open_reader("../M11.2.bin") as reader:
         with chess.polyglot.open_reader("M11.2.bin") as reader:
             # Find all entries for the current board position
             entries = list(reader.find_all(self.pgnBoard))
@@ -762,17 +764,17 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
     cdef int rookIncrement = 300
     cdef int ppIncrement = 300
     cdef unsigned long long rooks_mask = chess.BB_EMPTY
-    #cdef unsigned long long pp_mask = chess.BB_EMPTY 
     cdef object piece
     cdef uint8_t att_square
     cdef uint8_t  x, y
     cdef uint8_t size
-    cdef vector[uint8_t] vec
+    cdef vector[uint8_t] pieceVec
+    cdef vector[uint8_t] attackVec
 
     y = square // 8
     x = square % 8
     global attackingLayer
-    # Evaluate based on piece color
+    
     if colour:
         total -= values[piece_type]
         
@@ -786,25 +788,9 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
             if (piece_type == 1):
                 total -= (y + 1) * 15
                 total -= attackingLayer[1][x][y] << 2                                
-                if scan_reversed((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))).size() > 1:
-                #if (len(chess.SquareSet(chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))) > 1):
+                if scan_reversed_size((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))) > 1:
+                
                     total += 200
-                
-                
-                # pp_mask = create_ppMask(square, colour) & board.pieces_mask(chess.PAWN, chess.BLACK)
-                # #print(pp_mask,square,x,y, create_ppMask(square, colour))
-                # vec = scan_reversed(pp_mask)
-                # size = vec.size()
-                
-                # for i in range(size):  
-                # #for pawn in chess.scan_reversed(pp_mask):
-                #     if (vec[i] % 8 == x):
-                #         ppIncrement = 0
-                #         break
-                #     else:
-                #         ppIncrement -= 125
-                # ppIncrement = max(0,ppIncrement)
-                #print(ppIncrement,getPPIncrement(square, colour, board.pieces_mask(chess.PAWN, chess.BLACK), 300, x))
                 total -= getPPIncrement(square, colour, board.pieces_mask(chess.PAWN, chess.BLACK), ppIncrement, x)
         
         elif piece_type == 4:  
@@ -813,12 +799,12 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                 rookIncrement += 50
             rooks_mask |= chess.BB_FILES[x] & board.occupied            
                         
-            vec = scan_forward(rooks_mask)
-            size = vec.size()
+            scan_forward(rooks_mask,pieceVec)
+            size = pieceVec.size()
             
             for i in range(size):  
-            #for att_square in chess.scan_reversed(rooks_mask):
-                att_square = vec[i]
+            
+                att_square = pieceVec[i]
                 if att_square > square:
                     piece = board.piece_at(att_square)
                     if piece.color:
@@ -837,14 +823,15 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                         elif (piece.piece_type == 4):
                             rookIncrement -= 75
             total -= rookIncrement
-            
-        vec = scan_reversed(board.attacks_mask(square))
-        size = vec.size()
+        
+        
+        scan_reversed(board.attacks_mask(square),attackVec)
+        size = attackVec.size()
         
         for i in range(size):        
         #for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = vec[i] // 8
-            x = vec[i] % 8
+            y = attackVec[i] // 8
+            x = attackVec[i] % 8
             if (piece_type == 1 or piece_type == 5):
                 total -= attackingLayer[0][x][y] >> 2
             else:    
@@ -861,24 +848,9 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
             if (piece_type == 1):
                 total += (8 - y) * 15
                 total += attackingLayer[0][x][y] << 2
-                if scan_reversed((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))).size() > 1:
-                #if (len(chess.SquareSet(chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))) > 1):
+                if scan_reversed_size((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))) > 1:
+                
                     total -= 200
-                
-                
-                # pp_mask = create_ppMask(square, colour) & board.pieces_mask(chess.PAWN, chess.WHITE)
-                # #print(pp_mask,square,x,y, create_ppMask(square, colour))
-                # vec = scan_reversed(pp_mask)
-                # size = vec.size()
-                
-                # for i in range(size):  
-                # #for pawn in chess.scan_reversed(pp_mask):
-                #     if (vec[i] % 8 == x):
-                #         ppIncrement = 0
-                #         break
-                #     else:
-                #         ppIncrement -= 125
-                # ppIncrement = max(0,ppIncrement)
                 
                 total += getPPIncrement(square, colour, board.pieces_mask(chess.PAWN, chess.WHITE), ppIncrement, x)
                 
@@ -888,12 +860,12 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                 rookIncrement += 50
             rooks_mask |= chess.BB_FILES[x] & board.occupied       
             
-            vec = scan_reversed(rooks_mask)
-            size = vec.size()
+            scan_reversed(rooks_mask,pieceVec)
+            size = pieceVec.size()
             
             for i in range(size):  
             #for att_square in chess.scan_reversed(rooks_mask):
-                att_square = vec[i]
+                att_square = pieceVec[i]
                 if att_square < square:
                     piece = board.piece_at(att_square)
                     if piece.color:
@@ -912,13 +884,14 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                         elif(piece.piece_type == 2 or piece.piece_type == 3):
                             rookIncrement -= 15
             total += rookIncrement
-        vec = scan_reversed(board.attacks_mask(square))
-        size = vec.size()
+        
+        scan_reversed(board.attacks_mask(square),attackVec)
+        size = attackVec.size()
         
         for i in range(size):        
         #for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = vec[i] // 8
-            x = vec[i] % 8
+            y = attackVec[i] // 8
+            x = attackVec[i] % 8
             if (piece_type == 1 or piece_type == 5):
                 total += attackingLayer[1][x][y] >> 2
             else:    
@@ -945,7 +918,8 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
     y = square // 8
     x = square % 8
     cdef uint8_t size
-    cdef vector[uint8_t] vec
+    cdef vector[uint8_t] pieceVec
+    cdef vector[uint8_t] attackVec
     global attackingLayer
     # Evaluate based on piece color
     if colour:
@@ -955,12 +929,12 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
             
             rooks_mask |= chess.BB_FILES[x] & board.occupied            
                         
-            vec = scan_forward(rooks_mask)
-            size = vec.size()
+            scan_forward(rooks_mask,pieceVec)
+            size = pieceVec.size()
             
             for i in range(size):  
             #for att_square in chess.scan_reversed(rooks_mask):
-                att_square = vec[i]
+                att_square = pieceVec[i]
                 piece = board.piece_at(att_square)
                 if (piece.piece_type == 1):    
                     if att_square > square: # Infront of White Rook
@@ -977,7 +951,7 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
             total -= rookIncrement
                 
         if (piece_type == 1):
-            if scan_reversed((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))).size() > 1:            
+            if scan_reversed_size((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))) > 1:            
             #if (len(chess.SquareSet(chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.WHITE))) > 1):
                 total += 200
             
@@ -999,12 +973,12 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
             
             rooks_mask |= chess.BB_FILES[x] & board.occupied            
                         
-            vec = scan_reversed(rooks_mask)
-            size = vec.size()
+            scan_reversed(rooks_mask,pieceVec)
+            size = pieceVec.size()
             
             for i in range(size):  
             #for att_square in chess.scan_reversed(rooks_mask):
-                att_square = vec[i]
+                att_square = pieceVec[i]
                 piece = board.piece_at(att_square)
                 if (piece.piece_type == 1):    
                     if att_square < square: # Infront of Black Rook
@@ -1024,7 +998,7 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
         if (piece_type == 1):
             total += (8 - y) * 50
             
-            if scan_reversed((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))).size() > 1:
+            if scan_reversed_size((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))) > 1:
                 total -= 200
             
             if (y < 5):
@@ -1045,13 +1019,13 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
         elif(total < -15000):
             attackMultiplier = 3
         
-        vec = scan_reversed(board.attacks_mask(square))
-        size = vec.size()
+        scan_reversed(board.attacks_mask(square),attackVec)
+        size = attackVec.size()
         
         for i in range(size):        
         #for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = vec[i] // 8
-            x = vec[i] % 8            
+            y = attackVec[i] // 8
+            x = attackVec[i] % 8            
             total -= attackingLayer[0][x][y] * attackMultiplier   
     else:
         
@@ -1060,49 +1034,17 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
         elif(total < 15000):
             attackMultiplier = 3
         
-        vec = scan_reversed(board.attacks_mask(square))
-        size = vec.size()
+        scan_reversed(board.attacks_mask(square),attackVec)
+        size = attackVec.size()
         
         for i in range(size):        
         #for attack in chess.scan_reversed(board.attacks_mask(square)): 
-            y = vec[i] // 8
-            x = vec[i] % 8
+            y = attackVec[i] // 8
+            x = attackVec[i] % 8
                
             total += attackingLayer[1][x][y] * attackMultiplier
     
     return total
-
-@boundscheck(False)
-@wraparound(False)
-@cython.exceptval(check=False)
-@cython.nonecheck(False)
-@cython.ccall
-@cython.inline
-cdef create_ppMask(square, bint colour):
-    file = square % 8  # File of the given square
-    rank = square // 8  # Rank of the given square
-    cdef unsigned long long bitmask = 0
-
-    if (colour):
-        # Iterate over the three relevant files
-        for f in range(file - 1, file + 2):
-            if 0 <= f <= 7:  # Ensure the file is within bounds
-                # Iterate over the ranks above the given square's rank
-                for r in range(rank + 1, 8):
-                    pos = r * 8 + f  # Calculate the square's position
-                    bitmask |= (1 << pos)  # Set the bit at this position
-    else:
-        # Iterate over the three relevant files
-        for f in range(file - 1, file + 2):
-            if 0 <= f <= 7:  # Ensure the file is within bounds
-                # Iterate over the ranks below the given square's rank
-                for r in range(rank):
-                    pos = r * 8 + f  # Calculate the square's position
-                    # Check if the square has a pawn of the given color
-                    bitmask |= (1 << pos)  # Set the bit at this position
-    
-    return bitmask
-
 
 @boundscheck(False)
 @wraparound(False)
@@ -1156,7 +1098,7 @@ cdef int evaluate_board(object board):
         if (moveNum <= 50):
             
             #result = []
-            vec = scan_reversed(board.occupied)
+            scan_reversed(board.occupied,vec)
             size = vec.size()
             
             for i in range(size):
@@ -1165,7 +1107,7 @@ cdef int evaluate_board(object board):
                 piece = board.piece_at(vec[i])
                 total += placement_and_piece_eval_midgame(board, vec[i], piece.color, piece.piece_type, moveNum, values, activePlacementLayer)
         else:
-            vec = scan_reversed(board.occupied)
+            scan_reversed(board.occupied,vec)
             size = vec.size()
             
             for i in range(size):
@@ -1179,13 +1121,13 @@ cdef int evaluate_board(object board):
                 if (total < -2500):
                     total -= (7-kingSeparation)*200
            
-        if scan_reversed(board.pieces_mask(chess.BISHOP, chess.WHITE)).size() == 2:
+        if scan_reversed_size(board.pieces_mask(chess.BISHOP, chess.WHITE)) == 2:
             total -= 315
-        if scan_reversed(board.pieces_mask(chess.KNIGHT, chess.WHITE)).size() == 2:
+        if scan_reversed_size(board.pieces_mask(chess.KNIGHT, chess.WHITE)) == 2:
             total -= 300
-        if scan_reversed(board.pieces_mask(chess.BISHOP, chess.BLACK)).size() == 2:
+        if scan_reversed_size(board.pieces_mask(chess.BISHOP, chess.BLACK)) == 2:
             total += 315
-        if scan_reversed(board.pieces_mask(chess.KNIGHT, chess.BLACK)).size() == 2:
+        if scan_reversed_size(board.pieces_mask(chess.KNIGHT, chess.BLACK)) == 2:
             total += 300
         
         castle_index = move_index (board, white_ksc, white_qsc)
@@ -1195,8 +1137,7 @@ cdef int evaluate_board(object board):
         castle_index = move_index (board, black_ksc, black_qsc)
         if (castle_index != -1):            
             total += max(3000 - ((castle_index-1) >> 1) * 100 - moveNum * 50, 0)
-            #print("AAAA", castle_index, moveNum, 3000 - ((castle_index-1) >> 1) * 100 - moveNum * 50)
-        
+                    
         target_move = board.peek()
         if (board.is_capture(target_move)):
             target_square = target_move.to_square
@@ -1221,46 +1162,11 @@ cdef int evaluate_board(object board):
     return total
 
 cdef int move_index(object board, object move1, object move2):
+    
+    cdef int index
+    cdef object move
+    
     for index, move in enumerate(board.move_stack):
         if move == move1 or move == move2:
             return index
     return -1
-
-cdef bint is_promotion_move_enhanced(object move, object board, int y):
-    
-    # Check if the move is a promotion
-    if move.promotion is not None:
-        return True
-    # Check if the move is to the promotion rank
-    if (board.turn and y - 1 == 7) or \
-       (not(board.turn) and y - 1 == 0):
-        # Check if a pawn is moving to the last rank
-        from_square = move.from_square
-        piece = board.piece_at(from_square)
-        if piece and piece.piece_type == 1:
-            return True
-    return False
-
-# Define the Cython function
-cdef PredictionInfo predictionInfo(int prediction):
-    
-    cdef PredictionInfo coords
-    # Get the starting square by integer dividing by 64
-    pieceToBeMoved = prediction // 64
-    
-    # Get location square via the remainder
-    squareToBeMovedTo = prediction % 64
-
-    # Coordinates of the piece to be moved
-    coords.x = pieceToBeMoved // 8 + 1
-    coords.y = pieceToBeMoved % 8 + 1
-    
-    # Coordinates of the square to be moved to
-    coords.w = squareToBeMovedTo // 8 + 1
-    coords.z = squareToBeMovedTo % 8 + 1
-
-    return coords
-
-# Define the Cython function
-cdef int reversePrediction(int x, int y, int i, int j):    
-    return (((x - 1) * 8 + y) - 1) * 64 + ((i - 1) * 8 + j)

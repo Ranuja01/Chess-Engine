@@ -45,8 +45,8 @@ if platform.system() == 'Windows':
 
 elif platform.system() == 'Linux':
     
-    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(12).keras'
-    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(12).keras'
+    data_path1 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel_21_36(12)_RL(1).keras'
+    data_path2 = r'/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(12)_RL(1).keras'
     
 blackModel = tf.keras.models.load_model(data_path2)
 whiteModel = tf.keras.models.load_model(data_path1)

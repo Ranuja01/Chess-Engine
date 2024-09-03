@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("r2q1rk1/1pp2ppp/2np1n2/p1b1p3/4P3/P1NP1BPP/1PP2P2/R1BQ1RK1 b - - 0 12")
+board = chess.Board("3b1kQ1/P7/8/3p1p2/b7/P2R2P1/6K1/5n2 b - - 1 75")
 
 # Print the board in a human-readable format
 print(board)
@@ -114,22 +114,26 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 # board.push(chess.Move.from_uci("a3a4"))
 
 # Call methods on the chess_ai instance
-'''
+Cython_Chess.inititalize()
 t0= timer()
 #for move in Cython_Chess.pseudo_legal_moves(board):
-for i in range(100000):
-    Cython_Chess.pseudo_legal_moves(board)
+for i in range (1):
+    for i in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+        print(i)
+        pass
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
 
 t0= timer()
-for i in range(100000):
-    board.pseudo_legal_moves
+for i in range (1):
+    for i in board.generate_legal_moves():
+        print(i)
+        pass
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
-'''
 
-print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
+
+# print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
 
 
 # import Cython_Chess
@@ -171,28 +175,28 @@ print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
 # t1 = timer()
 # print("Time elapsed: ", t1 - t0)
 
-t0= timer()
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
-print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
 
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
 #a = chess.Board("r1q2rk1/pb1n1ppp/1ppbpn2/3P4/3P4/1PN1PN2/PB2BPPP/1R1Q1RK1 w - - 1 12")
-pgn_string = """
-1. e4 e5 2. Nc3 Nf6 3. Nf3 Nc6 4. g3 Bc5 5. Bg2 d6 6. O-O a5 7. Qe1 O-O 8. d3 Nb4 9. Qd1 Bg4 10. a3 Nc6 11. h3 Bxf3 12. Bxf3 Qc8 13. Bg2 Bd4 14. Nb5 a4 15. c3 Bc5 16. d4 exd4 17. cxd4 Bb6 18. Bg5 Ra5 19. Qd3 Bxd4 20. Nxd4 Rxg5 21. f4 Rc5 22. Rad1 Na5 23. Rfe1 Nc4 24. Qc2 Ne3 25. Qxa4 Nxd1 26. Qxd1 Qe8 27. b4 Rc3 28. e5 dxe5 29. fxe5 Nd7 30. e6 fxe6 31. Nxe6 Rf7 32. Ng5 Re3 33. Ne4 Rxe1+ 34. Qxe1 c5 35. bxc5 h5 36. Qd1 Qe5 37. Nd6 Qxc5+ 38. Kh1 Re7 39. Ne4 Qxa3 40. Kh2 Qa2 41. Nc3 Qf2 42. Qd6 Rf7 43. Nd5 Kh7 44. Ne7 Nf8 45. Qe5 g6 46. h4 b5 47. Nxg6 Kxg6 48. Qg5+ Kh7 49. Qxh5+ Kg8 50. Qxb5 Rg7 51. Qb8 Rg4 52. Qe5 Kf7 53. Kh3 Rd4 54. Bd5+ Kg6 55. Be4+ Kf7 56. Bd5+ Kg6 57. Be4+ Kf7 58. Bd5+
-"""
+# pgn_string = """
+# 1. e4 e5 2. Nc3 Nf6 3. Nf3 Nc6 4. g3 Bc5 5. Bg2 d6 6. O-O a5 7. Qe1 O-O 8. d3 Nb4 9. Qd1 Bg4 10. a3 Nc6 11. h3 Bxf3 12. Bxf3 Qc8 13. Bg2 Bd4 14. Nb5 a4 15. c3 Bc5 16. d4 exd4 17. cxd4 Bb6 18. Bg5 Ra5 19. Qd3 Bxd4 20. Nxd4 Rxg5 21. f4 Rc5 22. Rad1 Na5 23. Rfe1 Nc4 24. Qc2 Ne3 25. Qxa4 Nxd1 26. Qxd1 Qe8 27. b4 Rc3 28. e5 dxe5 29. fxe5 Nd7 30. e6 fxe6 31. Nxe6 Rf7 32. Ng5 Re3 33. Ne4 Rxe1+ 34. Qxe1 c5 35. bxc5 h5 36. Qd1 Qe5 37. Nd6 Qxc5+ 38. Kh1 Re7 39. Ne4 Qxa3 40. Kh2 Qa2 41. Nc3 Qf2 42. Qd6 Rf7 43. Nd5 Kh7 44. Ne7 Nf8 45. Qe5 g6 46. h4 b5 47. Nxg6 Kxg6 48. Qg5+ Kh7 49. Qxh5+ Kg8 50. Qxb5 Rg7 51. Qb8 Rg4 52. Qe5 Kf7 53. Kh3 Rd4 54. Bd5+ Kg6 55. Be4+ Kf7 56. Bd5+ Kg6 57. Be4+ Kf7 58. Bd5+
+# """
 
-# Create a PGN reader
-pgn = chess.pgn.read_game(io.StringIO(pgn_string))
+# # Create a PGN reader
+# pgn = chess.pgn.read_game(io.StringIO(pgn_string))
 
-# Create a board from the game
-a = pgn.board()
-for move in pgn.mainline_moves():
-    a.push(move)
+# # Create a board from the game
+# a = pgn.board()
+# for move in pgn.mainline_moves():
+#     a.push(move)
     
-chess_ai = ChessAI(blackModel, whiteModel, a)
+# chess_ai = ChessAI(blackModel, whiteModel, a)
 
 # print(chess_ai.ev(a))
 # print(a)
@@ -202,40 +206,47 @@ chess_ai = ChessAI(blackModel, whiteModel, a)
 # print("2: ", a.is_repetition(2))
 # print("3: ", a.is_repetition(3))
 # print("3fold: ", a.can_claim_threefold_repetition())
-occupied = board.occupied
-    
-# Get bitboards for specific pieces
-white_pawns = board.pieces(chess.PAWN, chess.WHITE)
-black_pawns = board.pieces(chess.PAWN, chess.BLACK)
-white_rooks = board.pieces(chess.ROOK, chess.WHITE)
-black_rooks = board.pieces(chess.ROOK, chess.BLACK)
-bitboards = [occupied,white_pawns,black_pawns,white_rooks,black_rooks]
-    
-# Call the Cython function
-#Cython_Chess.call_process_bitboards(bitboards)
 
-print(Cython_Chess.yield_msb(occupied))
+# # Get bitboards for specific pieces
+# white_pawns = board.pieces(chess.PAWN, chess.WHITE)
+# black_pawns = board.pieces(chess.PAWN, chess.BLACK)
+# white_rooks = board.pieces(chess.ROOK, chess.WHITE)
+# black_rooks = board.pieces(chess.ROOK, chess.BLACK)
+# bitboards = [occupied,white_pawns,black_pawns,white_rooks,black_rooks]
     
+# # Call the Cython function
+# #Cython_Chess.call_process_bitboards(bitboards)
+
+# print(Cython_Chess.yield_msb(occupied))
+    
+
+# t0= timer()
+# for i in chess.scan_forward(occupied):
+#     #print(i)
+#     pass
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+
+# t0= timer()
+# for i in range (1):
+#     for i in chess.scan_reversed(board.occupied):
+#         Cython_Chess.test1(board,i)
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+
+# t0= timer()
+# for i in range (1):
+#     for i in chess.scan_reversed(board.occupied):
+#         Cython_Chess.test2(board,i)
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
 t0= timer()
-for i in chess.scan_forward(occupied):
-    #print(i)
-    pass
+print(Cython_Chess.test3(100000))
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
-
-
-t0= timer()
-Cython_Chess.test1(board)
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
-
-
-t0= timer()
-Cython_Chess.test2(board)
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
-
 # t0= timer()
 # for i in range(1000):
 #     for move in board.generate_legal_moves():

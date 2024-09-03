@@ -1,0 +1,3 @@
+[submodule "NN Engine/ChessUI"]
+	path = NN Engine/ChessUI
+	url = https://github.com/KingLai23/ChessUI.git

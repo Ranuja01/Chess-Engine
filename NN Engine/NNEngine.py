@@ -169,8 +169,9 @@ def engineMove(self):
         t1 = timer()
         dif = t1 - t0_new
         
-        
+      
     a,b,c,d = result['a'],result['b'],result['c'],result['d']
+    print(a,b,c,d)  
     val = result['score']
     #a,b,c,d,val = alphaBeta(self, 0,self.depth)
     self.computerThinking = False

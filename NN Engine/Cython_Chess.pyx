@@ -31,7 +31,10 @@ cdef extern from "cpp_bitboard.h":
     uint64_t ray(uint8_t a, uint8_t b)
     bint is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bint is_en_passant)
     void initialize_attack_tables()
-    
+    void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment);
+    void printLayers();
+    void generatePieceMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, uint64_t our_pieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t from_mask, uint64_t to_mask)
+    void generatePawnMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t opposingPieces, uint64_t occupied, bint colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask)
     
 cdef int layer[2][8][8]
 # Initialize layer
@@ -170,7 +173,7 @@ def _generate_evasions(object board, uint8_t king, uint64_t checkers, uint64_t f
             if last_double == checker:
                 yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
 
-def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
+def generate_pseudo_legal_moves2(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
     cdef uint64_t our_pieces = board.occupied_co[board.turn]
     cdef uint64_t all_pieces = board.occupied
     cdef uint8_t from_square
@@ -190,12 +193,14 @@ def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_ma
    
     # Generate piece moves.
     cdef uint64_t non_pawns = our_pieces & ~board.pawns & from_mask
+    
     scan_reversed(non_pawns,pieceVec)
     outterSize = pieceVec.size()
     
     for i in range(outterSize):
         
         moves = attacks_mask(bool((1<<pieceVec[i]) & board.occupied_co[True]),all_pieces,pieceVec[i],board.piece_type_at(pieceVec[i])) & ~our_pieces & to_mask
+        #print(moves, bool((1<<pieceVec[i]) & board.occupied_co[True]), all_pieces, pieceVec[i], board.piece_type_at(pieceVec[i]), our_pieces, to_mask)
         # if (board.piece_type_at(pieceVec[i]) == 6):
         #     print(attacks_mask(bool((1<<pieceVec[i]) & board.occupied_co[True]),all_pieces,pieceVec[i],board.piece_type_at(pieceVec[i])))
         #     print(board.attacks_mask(pieceVec[i]))
@@ -288,61 +293,52 @@ def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_ma
     if board.ep_square:
         yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
 
-# def call_process_bitboards(list bitboards):
-#     cdef int size = len(bitboards)
-#     cdef uint64_t* c_bitboards = <uint64_t*> malloc(size * sizeof(uint64_t))
-    
-    
-#     # Copy data from Python list to C array
-#     for i in range(size):
-#         c_bitboards[i] = bitboards[i]
-#     cdef vector[int] vec
-#     cdef list result = []
-#     # Call the C++ function via the wrapper
-#     process_bitboards_wrapper(c_bitboards, size)
-    
-#     for i in bitboards:
-#         print("Bitboard:\n ", i)
-#         print()
-#         vec = find_most_significant_bits(i)
-#         size = vec.size()
-#         result = []
-#         for i in range(size):
-#             result.append(vec[i])
-#         print(result)
+def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
+    cdef uint64_t our_pieces = board.occupied_co[board.turn]
+    cdef uint64_t all_pieces = board.occupied
+    cdef uint8_t from_square
+    cdef uint8_t to_square
+    cdef uint64_t moves
+    cdef uint64_t targets
+    cdef uint64_t single_moves
+    cdef uint64_t double_moves
+    cdef vector[uint8_t] pieceVec
+    cdef vector[uint8_t] pieceMoveVec
+    cdef vector[uint8_t] pawnVec
+    cdef vector[uint8_t] pawnMoveVec
+    cdef vector[uint8_t] promotionVec
 
-# def yield_msb(uint64_t bitboard):
-#     start_time = py_time()
-#     cdef uint8_t size
+    cdef uint8_t outterSize
+    cdef uint8_t innerSize
+   
+    # Generate piece moves.
+    generatePieceMoves(pieceVec, pieceMoveVec, our_pieces, board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False], board.occupied, from_mask, to_mask)
+    outterSize = pieceVec.size()  
+    #print(outterSize)
+    for i in range(outterSize):
+        yield chess.Move(pieceVec[i], pieceMoveVec[i])
     
-#     cdef vector[uint8_t] vec
-#     cdef vector[uint8_t] test
-        
-#     scan_reversed(bitboard,vec)
-#     size = vec.size()
-#     print(size)
-#     for i in range(size):
-#         print(vec[i])
-#         pass
-#     end_time = py_time()
-    
-#     print(end_time - start_time)
-    
-#     start_time = py_time()
-#     vec = scan_reversedOld(bitboard)
-#     size = vec.size()
-#     print(size)
-#     for i in range(size):
-#         print(vec[i])
-#         pass
-#     end_time = py_time()
-    
-#     print(end_time - start_time)
-    
-#     print(scan_reversed_size(bitboard))
-    
-#     return end_time - start_time
-                
+    # Generate castling moves.
+    if from_mask & board.kings:
+        yield from board.generate_castling_moves(from_mask, to_mask)
+
+    # The remaining moves are all pawn moves.
+    cdef uint64_t pawns = board.pawns & board.occupied_co[board.turn] & from_mask
+    if not pawns:
+        return
+
+    generatePawnMoves(pawnVec, pawnMoveVec, promotionVec, board.occupied_co[not board.turn], board.occupied, board.turn, pawns, from_mask, to_mask)
+    outterSize = pawnVec.size()  
+    for i in range(outterSize):
+        if (promotionVec[i] == 1):
+            yield chess.Move(pawnVec[i], pawnMoveVec[i])
+        else:
+            yield chess.Move(pawnVec[i], pawnMoveVec[i], promotionVec[i])
+
+    # Generate en passant captures.
+    if board.ep_square:
+        yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
+               
 def test1(board,square):
     #board.attacks_mask(square)
     #attackers_mask(board, not board.turn, square,board.occupied)
@@ -417,6 +413,10 @@ def test3(int count):
             board.push(getRandomMove(board))
         cur+=1
     return True
+
+def test4 (board,increment):
+    setAttackingLayer(board.occupied_co[True], board.occupied_co[False], board.kings, increment)
+    printLayers()
 
 def inititalize():
     initialize_attack_tables()

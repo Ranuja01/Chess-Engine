@@ -7,6 +7,9 @@
 #include <thread>
 #include <mutex>
 #include <unordered_map>
+#include <omp.h>
+#include <numeric>
+#include <execution>
 
 constexpr int NUM_SQUARES = 64;
 std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
@@ -20,6 +23,87 @@ std::vector<uint64_t> BB_RANK_MASKS;
 std::vector<std::unordered_map<uint64_t, uint64_t>> BB_RANK_ATTACKS;
 std::vector<std::vector<uint64_t>> BB_RAYS;
 
+// Define the file bitboards
+constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
+constexpr uint64_t BB_FILE_B = 0x0101010101010101ULL << 1;
+constexpr uint64_t BB_FILE_C = 0x0101010101010101ULL << 2;
+constexpr uint64_t BB_FILE_D = 0x0101010101010101ULL << 3;
+constexpr uint64_t BB_FILE_E = 0x0101010101010101ULL << 4;
+constexpr uint64_t BB_FILE_F = 0x0101010101010101ULL << 5;
+constexpr uint64_t BB_FILE_G = 0x0101010101010101ULL << 6;
+constexpr uint64_t BB_FILE_H = 0x0101010101010101ULL << 7;
+
+// Array of file uint64_ts
+constexpr std::array<uint64_t, 8> BB_FILES = {
+    BB_FILE_A, BB_FILE_B, BB_FILE_C, BB_FILE_D, BB_FILE_E, BB_FILE_F, BB_FILE_G, BB_FILE_H
+};
+
+// Define the rank uint64_ts
+constexpr uint64_t BB_RANK_1 = 0xffULL << (8 * 0);
+constexpr uint64_t BB_RANK_2 = 0xffULL << (8 * 1);
+constexpr uint64_t BB_RANK_3 = 0xffULL << (8 * 2);
+constexpr uint64_t BB_RANK_4 = 0xffULL << (8 * 3);
+constexpr uint64_t BB_RANK_5 = 0xffULL << (8 * 4);
+constexpr uint64_t BB_RANK_6 = 0xffULL << (8 * 5);
+constexpr uint64_t BB_RANK_7 = 0xffULL << (8 * 6);
+constexpr uint64_t BB_RANK_8 = 0xffULL << (8 * 7);
+
+// Array of rank bitboards
+constexpr std::array<uint64_t, 8> BB_RANKS = {
+    BB_RANK_1, BB_RANK_2, BB_RANK_3, BB_RANK_4, BB_RANK_5, BB_RANK_6, BB_RANK_7, BB_RANK_8
+};
+
+constexpr std::array<int, 7> values = {0, 1000, 3150, 3250, 5000, 9000, 0};
+
+std::array<std::array<std::array<int, 8>, 8>, 2> attackingLayer;
+
+std::array<std::array<std::array<int, 8>, 8>, 2> placementLayer = {{
+    {{
+        {{0,0,0,0,0,0,0,0}},
+        {{0,0,3,10,10,2,0,0}},
+        {{0,0,3,15,15,5,0,0}},
+        {{0,0,3,20,25,5,0,0}},
+        {{0,0,3,20,25,5,0,0}},
+        {{0,0,3,15,15,5,0,0}},
+        {{0,0,3,10,10,2,0,0}},
+        {{0,0,0,0,0,0,0,0}}
+    }},
+    {{
+        {{0,0,0,0,0,0,0,0}},
+        {{0,0,2,10,10,3,0,0}},
+        {{0,0,5,15,15,3,0,0}},
+        {{0,0,5,25,20,3,0,0}},
+        {{0,0,5,25,20,3,0,0}},
+        {{0,0,5,15,15,3,0,0}},
+        {{0,0,2,10,10,3,0,0}},
+        {{0,0,0,0,0,0,0,0}}
+    }}
+}};
+
+std::array<std::array<std::array<int, 8>, 8>, 2> placementLayer2 = {{
+    {{
+        {{0,0,1,2,25,35,40,0}},
+        {{0,0,2,5,25,35,40,0}},
+        {{0,0,3,5,25,35,40,0}},
+        {{0,0,3,5,25,35,40,0}},
+        {{0,0,3,5,25,35,40,0}},
+        {{0,0,3,5,25,35,40,0}},
+        {{0,0,2,5,25,35,40,0}},
+        {{0,0,1,5,25,35,40,0}}
+    }},
+    {{
+        {{0,40,35,25,2,1,0,0}},
+        {{0,40,35,25,5,2,0,0}},
+        {{0,40,35,25,5,3,0,0}},
+        {{0,40,35,25,5,3,0,0}},
+        {{0,40,35,25,5,3,0,0}},
+        {{0,40,35,25,5,3,0,0}},
+        {{0,40,35,25,5,2,0,0}},
+        {{0,40,35,25,2,1,0,0}}
+    }}
+}};
+
+uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 
 void initialize_attack_tables() {
     std::vector<int8_t> knight_deltas = {17, 15, 10, 6, -17, -15, -10, -6};
@@ -41,11 +125,635 @@ void initialize_attack_tables() {
 	rays(BB_RAYS);
 }
 
-// Function to calculate the distance between squares (example implementation)
+void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment){
+	
+	attackingLayer = {{
+		{{
+			{{0,0,0,0,0,0,0,0}},
+			{{0,0,3,3,4,5,5,0}},
+			{{0,0,3,6,7,6,4,0}},
+			{{0,0,3,15,20,8,5,0}},
+			{{0,0,3,15,20,8,5,0}},
+			{{0,0,3,6,7,6,4,0}},
+			{{0,0,3,3,4,5,5,0}},
+			{{0,0,0,0,0,0,0,0}}
+		}},
+		{{
+			{{0,0,0,0,0,0,0,0}},
+			{{0,5,5,4,3,3,0,0}},
+			{{0,4,6,7,6,3,0,0}},
+			{{0,5,8,20,15,3,0,0}},
+			{{0,5,8,20,15,3,0,0}},
+			{{0,4,6,7,6,3,0,0}},
+			{{0,5,5,4,3,3,0,0}},
+			{{0,0,0,0,0,0,0,0}}
+		}}
+	}};
+	
+	std::vector<uint8_t> outterScanSquares;
+	std::vector<uint8_t> innerScanSquares;
+	uint8_t x,y;
+	scan_reversed(attacks_mask(true,0ULL,63 - __builtin_clzll(occupied_white&kings),6),outterScanSquares);
+	uint8_t innerSize;
+	uint8_t outterSize = outterScanSquares.size();
+	
+	for (int i = 0; i < outterSize; i++){
+    
+        y = outterScanSquares[i] / 8;
+        x = outterScanSquares[i] % 8;
+        attackingLayer[1][x][y] += increment;
+        
+		innerScanSquares.clear();
+		scan_reversed(attacks_mask(true,0ULL,outterScanSquares[i],6),innerScanSquares);
+        innerSize = innerScanSquares.size();
+		
+        for (int j = 0; j < innerSize; j++){
+            
+            y = innerScanSquares[j] / 8;
+			x = innerScanSquares[j] % 8;
+			attackingLayer[1][x][y] += increment;
+		}
+    }
+	
+	outterScanSquares.clear();
+	scan_reversed(attacks_mask(false,0ULL,63 - __builtin_clzll(occupied_black&kings),6),outterScanSquares);
+	outterSize = outterScanSquares.size();
+	
+	for (int i = 0; i < outterSize; i++){
+    
+        y = outterScanSquares[i] / 8;
+        x = outterScanSquares[i] % 8;
+        attackingLayer[0][x][y] += increment;
+        
+		innerScanSquares.clear();
+		scan_reversed(attacks_mask(true,0ULL,outterScanSquares[i],6),innerScanSquares);
+        innerSize = innerScanSquares.size();
+		
+        for (int j = 0; j < innerSize; j++){
+            
+            y = innerScanSquares[j] / 8;
+			x = innerScanSquares[j] % 8;
+			attackingLayer[0][x][y] += increment;
+		}
+    }
+}
+
+void printLayers(){
+	
+	for (int i = 0; i < 2; i++){
+		std::cout << "Layer " << i << ": " << std::endl;
+		for (int j = 0; j < 8; j++){
+			for (int k = 0; k < 8; k++){
+				std::cout << attackingLayer[i][j][k] << " ";
+			}
+			std::cout << std::endl;
+		}
+		std::cout << std::endl;
+	}
+	
+}
+
+uint8_t piece_type_at(uint8_t square){
+        
+	uint64_t mask = (1ULL << square);
+
+	if (pawns & mask) {
+		return 1;
+	} else if (knights & mask){
+		return 2;
+	} else if (bishops & mask){
+		return 3;
+	} else if (rooks & mask){
+		return 4;
+	} else if (queens & mask){
+		return 5;
+	} else if (kings & mask){
+		return 6;
+	} else{
+		return 0;
+	}
+}
+
+int placement_and_piece_midgame(uint8_t square){
+    
+    int total = 0;
+    int rookIncrement = 300;
+    int ppIncrement = 300;
+    uint64_t rooks_mask = 0ULL;
+	uint8_t piece_type = piece_type_at (square);
+	bool colour = bool(occupied_white & (1ULL << square)); 
+    uint8_t size;
+    
+    std::vector<uint8_t> attackVec;
+
+    uint8_t y = square / 8;
+    uint8_t x = square % 8;
+        
+    if (colour) {
+        total -= values[piece_type];
+        
+        if (! (piece_type == 4 || piece_type == 6)){
+            
+            total -= placementLayer[0][x][y];
+            
+            if (piece_type == 2 || piece_type == 3){
+                total -= 500;
+            }
+			
+            if (piece_type == 1){
+                total -= (y + 1) * 15;
+                total -= attackingLayer[1][x][y] << 2;                                
+                if (scan_reversed_size((BB_FILES[x] & (occupied_white & pawns))) > 1) {                
+                    total += 200;
+				}
+                total -= getPPIncrement(square, colour, (occupied_black & pawns), ppIncrement, x);
+			}
+        }else if (piece_type == 4){  
+            
+            if (y == 6){
+                rookIncrement += 50;
+			}
+			
+            rooks_mask |= BB_FILES[x] & occupied;            
+            
+			std::vector<uint8_t> pieceVec;            
+            scan_forward(rooks_mask,pieceVec);
+            size = pieceVec.size();
+            
+            for (int i = 0; i < size; i++){             
+                uint8_t att_square = pieceVec[i];
+                if (att_square > square){
+                    uint8_t temp_piece_type = piece_type_at (att_square);
+					bool temp_colour = bool(occupied_white & (1ULL << att_square));
+                    if (temp_colour){
+                        if (temp_piece_type == 1){                            
+                            if (att_square / 8 < 5){
+                                rookIncrement -= (50 + ((3 - (att_square / 8)) * 125));
+                                break;
+							}
+                        } else if(temp_piece_type == 2 || temp_piece_type == 3){
+                            rookIncrement -= 15;
+						}
+                    }else{
+                        if (temp_piece_type == 1){
+                            if (att_square / 8 > 4){
+                                rookIncrement -= 50;
+							}
+                        }else if(temp_piece_type == 2 || temp_piece_type == 3){
+                            rookIncrement -= 35;
+                        }else if(temp_piece_type == 4){
+                            rookIncrement -= 75;
+						}
+					}
+				}
+            }
+			total -= rookIncrement;
+        }
+        
+        scan_reversed(attacks_mask(colour,occupied,square,piece_type),attackVec);
+        size = attackVec.size();
+        
+        for (int i = 0; i < size; i++){  
+            y = attackVec[i] / 8;
+            x = attackVec[i] % 8;
+            if (piece_type == 1 || piece_type == 5){
+                total -= attackingLayer[0][x][y] >> 2;
+            }else{    
+                total -= attackingLayer[0][x][y];   
+			}
+		}
+    }else{
+        total += values[piece_type];
+        if (! (piece_type == 4 || piece_type == 6)){
+            
+            total += placementLayer[1][x][y];
+            
+            if (piece_type == 2 || piece_type == 3){
+                total += 500;
+            }
+            if (piece_type == 1){
+                total += (8 - y) * 15;
+                total += attackingLayer[0][x][y] << 2;
+                if (scan_reversed_size((BB_FILES[x] & (occupied_black & pawns))) > 1){                
+                    total -= 200;
+                }
+                total += getPPIncrement(square, colour, (occupied_white & pawns), ppIncrement, x);
+			}
+                
+        }else if (piece_type == 4){
+            if (y == 1){
+                rookIncrement += 50;
+			}
+            rooks_mask |= BB_FILES[x] & occupied;            
+            
+			std::vector<uint8_t> pieceVec;            
+            scan_reversed(rooks_mask,pieceVec);
+            size = pieceVec.size();
+            
+            for (int i = 0; i < size; i++){              
+                uint8_t att_square = pieceVec[i];
+                if (att_square < square){
+                    uint8_t temp_piece_type = piece_type_at (att_square);
+					bool temp_colour = bool(occupied_white & (1ULL << att_square));
+                    if (temp_colour){
+                        if (temp_piece_type == 1){
+                            if (att_square / 8 < 5){
+                                rookIncrement -= 50;
+							}
+                        }else if(temp_piece_type == 2 || temp_piece_type == 3){
+                            rookIncrement -= 35;
+                        }else if (temp_piece_type == 4){
+                            rookIncrement -= 75;
+						}
+                    }else{
+                        if (temp_piece_type == 1){
+                            if ((att_square / 8) > 4){
+                                rookIncrement -= (50 + (((att_square / 8) - 4) * 125));
+								//std::cout << "AAA" << std::endl;
+                                break;
+							}
+                        }else if(temp_piece_type == 2 || temp_piece_type == 3){
+                            rookIncrement -= 15;
+						}
+					}
+				}
+			}
+            total += rookIncrement;
+        }
+        scan_reversed(attacks_mask(colour,occupied,square,piece_type),attackVec);
+        size = attackVec.size();
+        
+        for (int i = 0; i < size; i++){        
+            y = attackVec[i] / 8;
+            x = attackVec[i] % 8;
+            if (piece_type == 1 || piece_type == 5){
+                total += attackingLayer[1][x][y] >> 2;
+			}else{    
+                total += attackingLayer[1][x][y];       
+			}
+		}
+    }
+	//std::cout << total << " " << int(piece_type) << " " << bool(colour) << " " << rookIncrement  << std::endl;
+	return total;
+}
+
+int placement_and_piece_endgame(uint8_t square){
+    
+    int total = 0;
+    int rookIncrement = 100;
+    int ppIncrement = 800;
+	int attackMultiplier = 1;
+    uint64_t rooks_mask = 0ULL;
+	uint8_t piece_type = piece_type_at (square);
+	bool colour = bool(occupied_white & (1ULL << square)); 
+    uint8_t size;
+    
+    std::vector<uint8_t> attackVec;
+
+    uint8_t y = square / 8;
+    uint8_t x = square % 8;
+        
+    if (colour) {
+        total -= values[piece_type];
+        
+		if (piece_type == 1){
+						                            
+			if (scan_reversed_size((BB_FILES[x] & (occupied_white & pawns))) > 1) {                
+				total += 200;
+			}
+			
+			if (y > 2){
+				ppIncrement = getPPIncrement(square, colour, (occupied_black & pawns), ppIncrement, x);
+			} else{
+				ppIncrement = 0;
+			}
+			
+			total -= ppIncrement;
+			
+			if (ppIncrement == 800) {
+				total -= (y + 1) * 50 + (y + 1) * (y + 1);
+			} else {
+				total -= (y + 1) * 50;
+			}
+			
+			
+		}else if (piece_type == 4){  
+            
+            rooks_mask |= BB_FILES[x] & occupied;            
+            
+			std::vector<uint8_t> pieceVec;            
+            scan_forward(rooks_mask,pieceVec);
+            size = pieceVec.size();
+            
+            for (int i = 0; i < size; i++){             
+                uint8_t att_square = pieceVec[i];
+				uint8_t temp_piece_type = piece_type_at (att_square);
+				bool temp_colour = bool(occupied_white & (1ULL << att_square));
+                if (temp_piece_type == 1){
+                    if (att_square > square){
+                        if (temp_colour){
+                            rookIncrement += ((att_square / 8) + 1) * 25;
+                        }else{
+                            rookIncrement += (y + 1) * 15;
+						}
+                    }else {
+                        if (temp_colour){
+                            if (att_square / 8 > 3){
+                                rookIncrement -= 50 + ((att_square / 8) - 3) * 50;
+							}
+                        }else{
+                            rookIncrement += (y + 1) * 10;
+						}
+					}
+				}
+            }
+			total -= rookIncrement;
+        }
+        
+    }else{
+        total += values[piece_type];
+        if (piece_type == 1){
+			
+			if (scan_reversed_size((BB_FILES[x] & (occupied_black & pawns))) > 1){                
+				total -= 200;
+			}
+			
+			if (y < 5){
+                ppIncrement = getPPIncrement(square, colour, (occupied_white & pawns), ppIncrement, x);
+            }else{
+                ppIncrement = 0;
+			}
+            total += ppIncrement;
+          
+            if (ppIncrement == 800){
+                total += (8 - y) * 50 + (8 - y) * (8 - y);
+            }else{
+                total += (8 - y) * 50;     
+			}
+			
+		}else if (piece_type == 4){
+            
+            rooks_mask |= BB_FILES[x] & occupied;            
+            
+			std::vector<uint8_t> pieceVec;            
+            scan_reversed(rooks_mask,pieceVec);
+            size = pieceVec.size();
+            
+            for (int i = 0; i < size; i++){              
+                uint8_t att_square = pieceVec[i];
+				uint8_t temp_piece_type = piece_type_at (att_square);
+				bool temp_colour = bool(occupied_white & (1ULL << att_square));
+                if (temp_piece_type == 1){    
+                    if (att_square < square){
+                        if (temp_colour){
+                            rookIncrement += (8 - y) * 15;                            
+                        }else{
+                            rookIncrement += (8 - (att_square / 8)) * 25;
+						}
+                    }else{
+                        if (temp_colour){
+                            rookIncrement += (8 - y) * 10;
+						}else{
+                            if (att_square / 8 < 4){
+                                rookIncrement -= 50 + (4 - (att_square / 8)) * 50;
+							}
+						}
+					}
+				}
+			}
+            total += rookIncrement;
+        }
+    }
+	
+	if (colour){
+        
+        if (total < -7500){
+            attackMultiplier = 2;
+        }else if(total < -15000){
+            attackMultiplier = 3;
+        }
+		scan_reversed(attacks_mask(colour,occupied,square,piece_type),attackVec);       
+        size = attackVec.size();
+        
+        for (int i = 0; i < size; i++){         
+            y = attackVec[i] / 8;
+            x = attackVec[i] % 8 ;           
+            total -= attackingLayer[0][x][y] * attackMultiplier;   
+		}
+    }else{
+        
+        if (total < 7500){
+            attackMultiplier = 2;
+        }else if(total < 15000){
+            attackMultiplier = 3;
+		}
+        
+        scan_reversed(attacks_mask(colour,occupied,square,piece_type),attackVec);
+        size = attackVec.size();
+        
+        for (int i = 0; i < size; i++){                 
+            y = attackVec[i] / 8;
+            x = attackVec[i] % 8;
+            total += attackingLayer[1][x][y] * attackMultiplier;
+		}
+	}
+	return total;
+}
+
+int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
+	int total = 0;
+	
+	pawns = pawnsMask;
+	knights = knightsMask;
+	bishops = bishopsMask;
+	rooks = rooksMask;
+	queens = queensMask;
+	kings = kingsMask;
+	occupied_white = occupied_whiteMask;
+	occupied_black = occupied_blackMask;
+	occupied = occupiedMask;
+	
+	if (moveNum <= 50){
+        std::vector<uint8_t> pieceVec;            
+		scan_forward(occupied,pieceVec);
+		uint8_t size = pieceVec.size();
+		
+		for (int i = 0; i < size; i++){ 
+			total += placement_and_piece_midgame(pieceVec[i]);
+		}
+	}else{
+		std::vector<uint8_t> pieceVec;            
+		scan_forward(occupied,pieceVec);
+		uint8_t size = pieceVec.size();
+		//-flto=8
+		for (int i = 0; i < size; i++){ 
+			total += placement_and_piece_endgame(pieceVec[i]);
+		}
+		
+		if (moveNum >= 70){
+			uint8_t kingSeparation = square_distance(63 - __builtin_clzll(occupied_white&kings),63 - __builtin_clzll(occupied_black&kings&kings));
+			if (total > 2500){
+				total += (7-kingSeparation)*200;
+			}else if (total < -2500){
+				total -= (7-kingSeparation)*200;
+			}
+		}
+	}
+	
+	if (scan_reversed_size(occupied_white&bishops) == 2){
+		total -= 315;
+	}
+	if (scan_reversed_size(occupied_white&knights) == 2){
+		total -= 300;
+	}
+	if (scan_reversed_size(occupied_black&bishops) == 2){
+		total += 315;
+	}
+	if (scan_reversed_size(occupied_black&knights) == 2){
+		total += 300;
+	}
+	return total;
+}
+
 uint8_t square_distance(uint8_t sq1, uint8_t sq2) {
     int file_distance = abs((sq1 % 8) - (sq2 % 8));
     int rank_distance = abs((sq1 / 8) - (sq2 / 8));
     return std::max(file_distance, rank_distance);
+}
+
+void generatePieceMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, uint64_t our_pieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t from_mask, uint64_t to_mask){
+    
+	pawns = pawnsMask;
+	knights = knightsMask;
+	bishops = bishopsMask;
+	rooks = rooksMask;
+	queens = queensMask;
+	kings = kingsMask;
+	occupied_white = occupied_whiteMask;
+	occupied_black = occupied_blackMask;
+	occupied = occupiedMask;
+	
+	uint64_t non_pawns = (our_pieces & ~pawns) & from_mask;
+	std::vector<uint8_t> pieceVec;
+	std::vector<uint8_t> pieceMoveVec;
+	
+    scan_reversed(non_pawns,pieceVec);
+    uint8_t outterSize = pieceVec.size();
+    
+    for (int i = 0; i < outterSize; i++){ 
+        
+        uint64_t moves = (attacks_mask(bool((1ULL<<pieceVec[i]) & occupied_white),occupied,pieceVec[i],piece_type_at (pieceVec[i])) & ~our_pieces) & to_mask;
+        //std::cout << moves << " " << bool((1ULL<<pieceVec[i]) & occupied_white) << " " << occupied << " " << pieceVec[i] << " " <<   << std::endl;
+        pieceMoveVec.clear();
+        scan_reversed(moves,pieceMoveVec);
+        uint8_t innerSize = pieceMoveVec.size();
+        
+        for (int j = 0; j < innerSize; j++){ 
+			startPos.push_back(pieceVec[i]);
+			endPos.push_back(pieceMoveVec[j]);            
+		}
+	}
+}
+
+void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t opposingPieces, uint64_t occupied, bool colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask){
+    			
+	std::vector<uint8_t> pawnVec;
+	std::vector<uint8_t> pawnMoveVec;
+	
+    scan_reversed(pawnsMask,pawnVec);
+    uint8_t outterSize = pawnVec.size();
+    
+    for (int i = 0; i < outterSize; i++){ 
+        
+        uint64_t moves = BB_PAWN_ATTACKS[colour][pawnVec[i]] & opposingPieces & to_mask;
+        //std::cout << moves << " " << bool((1ULL<<pieceVec[i]) & occupied_white) << " " << occupied << " " << pieceVec[i] << " " <<   << std::endl;
+        pawnMoveVec.clear();
+        scan_reversed(moves,pawnMoveVec);
+        uint8_t innerSize = pawnMoveVec.size();
+        
+        for (int j = 0; j < innerSize; j++){ 
+			
+			uint8_t rank = pawnMoveVec[j] / 8;
+			
+			if (rank == 7 or rank == 0){
+				
+				for (int k = 5; k > 1; k--){
+					startPos.push_back(pawnVec[i]);
+					endPos.push_back(pawnMoveVec[j]);
+					promotions.push_back(k);
+				}
+				
+			} else{
+				startPos.push_back(pawnVec[i]);
+				endPos.push_back(pawnMoveVec[j]);
+				promotions.push_back(1);
+			}        
+		}
+	}
+	
+	pawnVec.clear();
+	pawnMoveVec.clear();
+	
+	uint64_t single_moves, double_moves;
+	if (colour){
+        single_moves = pawnsMask << 8 & ~occupied;
+        double_moves = single_moves << 8 & ~occupied & (BB_RANK_3 | BB_RANK_4);
+    }else{
+        single_moves = pawnsMask >> 8 & ~occupied;
+        double_moves = single_moves >> 8 & ~occupied & (BB_RANK_6 | BB_RANK_5);
+	}
+    
+	single_moves &= to_mask;
+    double_moves &= to_mask;
+	
+	scan_reversed(single_moves,pawnVec);
+    outterSize = pawnVec.size();
+	
+	for (int i = 0; i < outterSize; i++){ 
+		
+		uint8_t from_square = pawnVec[i];
+		if (colour){
+			from_square -= 8;
+		} else{
+			from_square += 8;
+		}
+		
+		uint8_t rank = pawnVec[i] / 8;
+		
+		if (rank == 7 or rank == 0){
+			
+			for (int j = 5; j > 1; j--){
+				startPos.push_back(from_square);
+				endPos.push_back(pawnVec[i]);
+				promotions.push_back(j);
+			}
+			
+		} else{
+			startPos.push_back(from_square);
+			endPos.push_back(pawnVec[i]);
+			promotions.push_back(1);
+		}        
+	}
+	
+	pawnVec.clear();
+
+	scan_reversed(double_moves,pawnVec);
+    outterSize = pawnVec.size();
+	
+	for (int i = 0; i < outterSize; i++){ 
+		
+		uint8_t from_square = pawnVec[i];
+		if (colour){
+			from_square -= 16;
+		} else{
+			from_square += 16;
+		}
+		startPos.push_back(from_square);
+		endPos.push_back(pawnVec[i]);
+		promotions.push_back(1);
+		        
+	}
+	
 }
 
 // Function to calculate sliding attacks
@@ -110,7 +818,7 @@ uint64_t attacks_mask(bool colour, uint64_t occupied, uint8_t square, uint8_t pi
 	}else if (pieceType == 2){
 		return BB_KNIGHT_ATTACKS[square];
 	}else if (pieceType == 6){
-		//std::cout << BB_KING_ATTACKS[square] << std::endl;
+		
 		return BB_KING_ATTACKS[square];
 	}else{
 		uint64_t attacks = 0;
@@ -206,8 +914,6 @@ uint8_t scan_reversed_size(uint64_t bb) {
 uint64_t ray(uint8_t a, uint8_t b){return BB_RAYS[a][b];}
 
 void scan_reversed(uint64_t bb, std::vector<uint8_t> &result){	
-	//std::cout << "AAAAA" << std::endl;
-	//std::cout << bb << std::endl;
 	uint8_t r = 0;
     while (bb) {
         r = 64 - __builtin_clzll(bb) - 1;
@@ -219,21 +925,8 @@ void scan_reversed(uint64_t bb, std::vector<uint8_t> &result){
 
 bool is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bool  is_en_passant){
         
-	uint64_t touched = (1 << from_square) ^ (1 << to_square);
+	uint64_t touched = (1ULL << from_square) ^ (1ULL << to_square);
 	return bool(touched & occupied_co) || is_en_passant;
-}
-std::vector<uint8_t> scan_reversedOld(uint64_t bb){	
-	//std::cout << "AAAAA" << std::endl;
-	//std::cout << bb << std::endl;
-	std::vector<uint8_t> result;
-	uint8_t r = 0;
-    while (bb) {
-        r = 64 - __builtin_clzll(bb) - 1;
-        result.push_back(r);		
-        bb ^= (1ULL << r);
-		//std::cout << result[0] << std::endl;
-    }
-	return result;
 }
 
 // Function to scan forward bitboard and return indices of set bits
@@ -317,12 +1010,6 @@ int getPPIncrement(uint8_t square, bool colour, uint64_t opposingPawnMask, int p
 	return ppIncrement;
 	
 }
-
-bool isCapture(uint64_t bb1, uint64_t bb2) {
-    return __builtin_popcountll(bb2) < __builtin_popcountll(bb1); // Returns true if bb1 has fewer set bits than bb2
-}
-
-
 
 std::vector<uint8_t> scan_forward_backward_multithreaded(uint64_t bb) {
     std::vector<uint8_t> result;

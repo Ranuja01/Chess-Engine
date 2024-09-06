@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("3b1kQ1/P7/8/3p1p2/b7/P2R2P1/6K1/5n2 b - - 1 75")
+board = chess.Board("6k1/1bqnbp2/2p3pQ/1pPp1B1p/r2p4/3N2P1/4PP2/5RK1 b - - 1 28")
 
 # Print the board in a human-readable format
 print(board)
@@ -56,14 +56,6 @@ import chess_eval
 import Cython_Chess
 
 import sys
-
-def get_dict_size(d):
-    total_size = sys.getsizeof(d)  # Size of the dictionary object itself
-    for key, value in d.items():
-        total_size += sys.getsizeof(key)  # Size of each key
-        total_size += sys.getsizeof(value)  # Size of each value
-    return total_size
-
 # Convert the board into a 12 channel tensor           
 def encode_board(board):
     
@@ -108,47 +100,50 @@ model = tf.keras.models.load_model(data_path3)
 # Assuming you have models already defined as black_model and white_model
 chess_ai = ChessAI(blackModel, whiteModel, board)
 
+#Cython_Chess.test4(board,5)
 
 # board.push(chess.Move.from_uci("a2a3"))
 # board.push(chess.Move.from_uci("e7e5"))
 # board.push(chess.Move.from_uci("a3a4"))
 
 # Call methods on the chess_ai instance
-Cython_Chess.inititalize()
-t0= timer()
-#for move in Cython_Chess.pseudo_legal_moves(board):
-for i in range (1):
-    for i in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
-        print(i)
-        pass
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
 
-t0= timer()
-for i in range (1):
-    for i in board.generate_legal_moves():
-        print(i)
-        pass
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
+Cython_Chess.inititalize()
+
+list1 = list(Cython_Chess.generate_pseudo_legal_moves2(board,chess.BB_ALL,chess.BB_ALL))
+list2 = list(Cython_Chess.generate_pseudo_legal_moves(board,chess.BB_ALL,chess.BB_ALL))
+list3 = list(board.generate_pseudo_legal_moves())
+print(len(list1), len(list2), len(list3))
+for i in range(len(list3)):
+    print (list1 [i], list2 [i], list3 [i])
+
+
+# t0= timer()
+# #for move in Cython_Chess.pseudo_legal_moves(board):
+# for i in range (1):
+#     for i in Cython_Chess.generate_pseudo_legal_moves2(board,chess.BB_ALL,chess.BB_ALL):
+#         print(i)
+#         # board.push(i)
+#         # board.pop()
+#         pass
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
+# t0= timer()
+# for i in range (1):
+#     for i in Cython_Chess.generate_pseudo_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+#         print(i)
+#         # board.push(i)
+#         # board.pop()
+#         pass
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
 
 # print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
 
 
 # import Cython_Chess
-
-# num_numbers = 1000000000
-# num_threads = 160
-
-# total_sum_single, single_thread_time, total_sum_multi, multi_thread_time = Cython_Chess.time_experiment(num_numbers, num_threads)
-
-# print(f"Single-threaded sum: {total_sum_single:.6f}")
-# print(f"Multi-threaded sum: {total_sum_multi:.6f}")
-# print(f"Single-threaded time: {single_thread_time:.16f} seconds")
-# print(f"Multi-threaded time: {multi_thread_time:.16f} seconds")
-
-
 
 # import cProfile
 # import pstats
@@ -167,25 +162,17 @@ print("Time elapsed: ", t1 - t0)
 # t1 = timer()
 # print("Time elapsed: ", t1 - t0)
 
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=4)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
+t0= timer()
+result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=7)
+print(result['a'],result['b'],result['c'],result['d'])
+print(f"Best score: {result['score']},")
 
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
 #a = chess.Board("r1q2rk1/pb1n1ppp/1ppbpn2/3P4/3P4/1PN1PN2/PB2BPPP/1R1Q1RK1 w - - 1 12")
 # pgn_string = """
-# 1. e4 e5 2. Nc3 Nf6 3. Nf3 Nc6 4. g3 Bc5 5. Bg2 d6 6. O-O a5 7. Qe1 O-O 8. d3 Nb4 9. Qd1 Bg4 10. a3 Nc6 11. h3 Bxf3 12. Bxf3 Qc8 13. Bg2 Bd4 14. Nb5 a4 15. c3 Bc5 16. d4 exd4 17. cxd4 Bb6 18. Bg5 Ra5 19. Qd3 Bxd4 20. Nxd4 Rxg5 21. f4 Rc5 22. Rad1 Na5 23. Rfe1 Nc4 24. Qc2 Ne3 25. Qxa4 Nxd1 26. Qxd1 Qe8 27. b4 Rc3 28. e5 dxe5 29. fxe5 Nd7 30. e6 fxe6 31. Nxe6 Rf7 32. Ng5 Re3 33. Ne4 Rxe1+ 34. Qxe1 c5 35. bxc5 h5 36. Qd1 Qe5 37. Nd6 Qxc5+ 38. Kh1 Re7 39. Ne4 Qxa3 40. Kh2 Qa2 41. Nc3 Qf2 42. Qd6 Rf7 43. Nd5 Kh7 44. Ne7 Nf8 45. Qe5 g6 46. h4 b5 47. Nxg6 Kxg6 48. Qg5+ Kh7 49. Qxh5+ Kg8 50. Qxb5 Rg7 51. Qb8 Rg4 52. Qe5 Kf7 53. Kh3 Rd4 54. Bd5+ Kg6 55. Be4+ Kf7 56. Bd5+ Kg6 57. Be4+ Kf7 58. Bd5+
+# 24. Ba5 Rxa5 25. Qb4 Ra4 26. Qd2 h5 27. Bf5 g6 28. Qh6 Bg5 29. Qxg5 Nf8 30. g4 Nh7 31. Qh6 h4 32. Qxh4 gxf5 33. Kg2 fxg4 34. Qxg4+ Kf8 35. Rh1 Bc8 36. Qf3 f5 37. Qh5 Qg7+ 38. Kf1 Ra1+ 39. Ne1 Nf6 40. Qh2 Ne4 41. Qh8+ Kf7 42. f4 Ng3+ 43. Kf2 Nxh1+ 44. Qxh1 Ke6 45. Qh5 Bd7 46. Nf3 Rd1 47. Qh2 Rc1 48. Ng5+ Kf6 49. Qh4 b4 50. Nh7+ Kg6 51. Ng5 Qe7 52. e4 dxe3+ 53. Ke2 Rc2+ 54. Kd1 Rd2+ 55. Ke1 Qg7 56. Qh7+ Qxh7 57. Nxh7 Kxh7 58. Kf1 Rd4 59. Ke2 Re4 60. Kf3 e2 61. Kg3 e1=Q+ 62. Kh3
 # """
 
 # # Create a PGN reader
@@ -197,157 +184,17 @@ print("Time elapsed: ", t1 - t0)
 #     a.push(move)
     
 # chess_ai = ChessAI(blackModel, whiteModel, a)
-
-# print(chess_ai.ev(a))
-# print(a)
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
 # print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
 
-# print("2: ", a.is_repetition(2))
-# print("3: ", a.is_repetition(3))
-# print("3fold: ", a.can_claim_threefold_repetition())
-
-# # Get bitboards for specific pieces
-# white_pawns = board.pieces(chess.PAWN, chess.WHITE)
-# black_pawns = board.pieces(chess.PAWN, chess.BLACK)
-# white_rooks = board.pieces(chess.ROOK, chess.WHITE)
-# black_rooks = board.pieces(chess.ROOK, chess.BLACK)
-# bitboards = [occupied,white_pawns,black_pawns,white_rooks,black_rooks]
-    
-# # Call the Cython function
-# #Cython_Chess.call_process_bitboards(bitboards)
-
-# print(Cython_Chess.yield_msb(occupied))
-    
-
-# t0= timer()
-# for i in chess.scan_forward(occupied):
-#     #print(i)
-#     pass
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-
-# t0= timer()
-# for i in range (1):
-#     for i in chess.scan_reversed(board.occupied):
-#         Cython_Chess.test1(board,i)
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-
-# t0= timer()
-# for i in range (1):
-#     for i in chess.scan_reversed(board.occupied):
-#         Cython_Chess.test2(board,i)
 # t1 = timer()
 # print("Time elapsed: ", t1 - t0)
 
 t0= timer()
-print(Cython_Chess.test3(100000))
+print(Cython_Chess.test3(100))
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
-# t0= timer()
-# for i in range(1000):
-#     for move in board.generate_legal_moves():
-#         if (board.is_capture(move)):
-#             pass
-#             #print(board.is_capture(move))
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
 
 
-# t0= timer()
-# for i in range(1000):
-#     for move in board.generate_legal_moves():
-#         if (Cython_Chess.is_capture(board, move)):
-#             pass
-#             #print(Cython_Chess.is_capture(board,move))
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# # cache = chess_ai.get_move_cache()
-# # size_in_bytes = get_dict_size(cache)
-# # print(f"Size of dictionary in bytes: {size_in_bytes}")
-# # print(f"Length of dictionary: {len(cache)}")
-
-
-# # print(chess_ai.reorder_capture_moves())
-# # print(chess_ai.get_legal_moves())
-# # print(cache[board.occupied])
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=7)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=7)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# cache = chess_ai.get_move_cache()
-# size_in_bytes = get_dict_size(cache)
-# print(f"Size of dictionary in bytes: {size_in_bytes}")
-# print(f"Length of dictionary: {len(cache)}")
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# # # Evaluate the board using Cython
-# # score = chess_eval.evaluate_board(board)
-# # print(f"Board Score: {score}")
-
-# # Make a move (e.g., e2e4)
-
-# board.push(chess.Move.from_uci("e7e5"))
-# board.push(chess.Move.from_uci("f1c4"))
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-
-# board.push(chess.Move.from_uci("a7a6"))
-# board.push(chess.Move.from_uci("d1f3"))
-
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
-
-# board.push(chess.Move.from_uci("a6a5"))
-# board.push(chess.Move.from_uci("f3f7"))
-# # Print the board after the move
-# print(board)
-
-# # Evaluate the new board state
-# score = chess_eval.evaluate_board(board)
-# print(f"New Board Score: {score}")

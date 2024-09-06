@@ -45,20 +45,27 @@ cdef extern from "stdint.h":
     
 
 cdef extern from "cpp_bitboard.h":
-    void process_bitboards_wrapper(uint64_t * bitboards, int size)
-    vector[int] find_most_significant_bits(uint64_t bitmask)  
     uint8_t scan_reversed_size(uint64_t bb)
     void scan_reversed(uint64_t bb, vector[uint8_t] &result)
     void scan_forward(uint64_t bb, vector[uint8_t] &result)
-    vector[uint8_t] scan_reversedOld(uint64_t bb)
     int getPPIncrement(int square, bint colour, uint64_t opposingPawnMask, int ppIncrement, int x)
-
-
+    uint64_t attacks_mask(bint colour, uint64_t occupied, uint8_t square, uint8_t pieceType)
+    uint64_t attackersMask(bint color, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co)
+    uint64_t slider_blockers(uint8_t king, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t occupied_co_opp, uint64_t occupied_co, uint64_t occupied)
+    uint64_t betweenPieces(uint8_t a, uint8_t b)
+    uint64_t ray(uint8_t a, uint8_t b)
+    bint is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bint is_en_passant)
+    void initialize_attack_tables()
+    void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment);
+    int placement_and_piece_midgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
+    int placement_and_piece_endgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
+    int placement_and_piece_eval(int moveNum, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
 cdef struct MoveData:
     int a
     int b
     int c
     int d
+    int promotion
     int score
     
 cdef struct PredictionInfo:
@@ -225,12 +232,18 @@ cdef class ChessAI:
         
         # Call the initialization function once at module load
         initialize_layers(self.pgnBoard)
-
+        initialize_attack_tables()
+        Cython_Chess.inititalize()
+        #setAttackingLayer(self.pgnBoard.occupied_co[True], self.pgnBoard.occupied_co[False], self.pgnBoard.kings,5)
+        
+        
     def get_move_cache(self):
         return self.move_cache
 
     def alphaBetaWrapper(self, int curDepth, int depthLimit):
-        initialize_layers(self.pgnBoard)          
+        #initialize_layers(self.pgnBoard)
+        setAttackingLayer(self.pgnBoard.occupied_co[True], self.pgnBoard.occupied_co[False], self.pgnBoard.kings,5)  
+        #Cython_Chess.test4 (self.pgnBoard,5)
         if (len(self.pgnBoard.move_stack) < 30):
             return self.opening_book(curDepth, depthLimit)
         
@@ -247,6 +260,7 @@ cdef class ChessAI:
         best_move.b = -1
         best_move.c = -1
         best_move.d = -1
+        best_move.promotion = -1
         best_move.score = -99999999
         #with chess.polyglot.open_reader("../M11.2.bin") as reader:
         with chess.polyglot.open_reader("M11.2.bin") as reader:
@@ -291,6 +305,7 @@ cdef class ChessAI:
         bestMove.b = -1
         bestMove.c = -1
         bestMove.d = -1
+        bestMove.promotion = -1
         bestMove.score = -99999999
                           
         #cdef int a, b, c, d
@@ -317,6 +332,9 @@ cdef class ChessAI:
         score = self.minimizer(curDepth + 1, depthLimit, alpha, alpha_list[0])
         # if alpha < score and score < beta:
         #     score = self.minimizer(curDepth + 1, depthLimit, alpha, beta)
+        if (self.pgnBoard.is_repetition(2) or self.pgnBoard.is_stalemate()):
+            print("adasdkjgasd")
+            score = -100000000
         self.pgnBoard.pop()
         print(0,score,alpha_list[0],moves_list[0])
         if score > bestMove.score:
@@ -327,10 +345,12 @@ cdef class ChessAI:
             bestMove.b = int(cur[1])
             bestMove.c = ord(cur[2]) - 96
             bestMove.d = int(cur[3])
-            
+            if (moves_list[0].promotion):
+                    bestMove.promotion = ord(cur[4]) - 96
             best_move_index = 0
             
         alpha = max(alpha, bestMove.score)
+        
         # print("BEfore")
         # print("2: ", self.pgnBoard.is_repetition(2))
         # print("3: ", self.pgnBoard.is_repetition(3))            
@@ -348,11 +368,11 @@ cdef class ChessAI:
             # filteredPrediction[index] = 0
             
             # Razoring
-            if (alpha - alpha_list[count] > 1500):
+            if (alpha - alpha_list[count] > 750):
                 break
             
             # Late move reduction
-            if (count >= 30):
+            if (count >= 35):
                 depthUsage = depthLimit - 1
             else:
                 depthUsage = depthLimit
@@ -370,6 +390,8 @@ cdef class ChessAI:
             # print("2: ", self.pgnBoard.is_repetition(2))
             # print("3: ", self.pgnBoard.is_repetition(3))            
             # print("3fold: ", self.pgnBoard.can_claim_threefold_repetition())
+            
+            
             if (self.pgnBoard.is_repetition(2) or self.pgnBoard.is_stalemate()):
                 print("adasdkjgasd")
                 score = -100000000
@@ -389,7 +411,8 @@ cdef class ChessAI:
                 bestMove.b = int(cur[1])
                 bestMove.c = ord(cur[2]) - 96
                 bestMove.d = int(cur[3])
-                
+                if (move.promotion):
+                        bestMove.promotion = ord(cur[4]) - 96
                 best_move_index = count
                 
             alpha = max(alpha, bestMove.score)
@@ -431,11 +454,14 @@ cdef class ChessAI:
 
         #cdef list moves_list = self.reorder_capture_moves()
         #moves_list = self.get_legal_moves()
-        #moves_list = list(self.reorder_capture_moves())
-        #moves_list = self.reorder_legal_moves()
-        
+        # moves_list = list(self.reorder_capture_moves(curDepth))
+        # #moves_list = self.reorder_legal_moves()
+        # if (curDepth == 2):
+        #     print(moves_list)
         for move in self.reorder_capture_moves():
-            
+            # if (curDepth == 2):
+            #     print(self.pgnBoard.fen(), move)
+            #     print(self.pgnBoard.move_stack)
             #index = reversePrediction(a, b, c, d) - 1
             #filteredPrediction[index] = prediction[0, index]
 
@@ -445,6 +471,7 @@ cdef class ChessAI:
             # a, b, c, d = result.x, result.y, result.w, result.z
             
             # filteredPrediction[index] = 0
+            
             
             self.pgnBoard.push(move)
             score = self.minimizer(curDepth + 1, depthLimit, alpha, beta)
@@ -459,12 +486,22 @@ cdef class ChessAI:
                 with open('Unfiltered_Full.txt', 'a') as file:
                     file.write("5TH MOVE: {}, {}\n".format(score, move.uci()))
             '''
-            # if (self.pgnBoard == chess.Board("6k1/2n3pp/8/ppp1pK1P/3p4/4q3/1N6/3B4 b - - 5 40")):
+            # if (self.pgnBoard == chess.Board("6k1/1bqn1p2/2p3p1/1pPp1BQp/r2p4/3N2P1/4PP2/5RK1 b - - 0 29")):
+            #     #print("My Moves:", list(self.reorder_capture_moves()))
+            #     # print()
+            #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
+            #     # print()
+            #     if score == 14960:
+            #         print ("MAX: ",score, move)
+                # print()
+                # print(list(self.reorder_capture_moves()))
+                # print()
+            # if (self.pgnBoard == chess.Board("r1b2br1/5k2/2p1p3/p1Ppq2R/N2P4/P3P3/6P1/1R2KB2 b - - 0 22")):
             #     # print("My Moves:", self.reorder_capture_moves())
             #     # print()
             #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
             #     # print()
-            #     print ("MAX: ",score, move)
+            #     print ("MAX2: ",score, move)
             if score > highestScore:
                 # if (self.pgnBoard.can_claim_threefold_repetition()):
                 #     score = -100000000
@@ -502,6 +539,7 @@ cdef class ChessAI:
 
         if curDepth >= depthLimit:            
             self.numIterations += 1
+            #print("AAA", self.numIterations)
             return evaluate_board(self.pgnBoard)
 
         #cdef cnp.ndarray[DTYPE_INT, ndim=4] inputBoard = np.array([encode_board(self.pgnBoard)], dtype=np.int8)
@@ -526,10 +564,10 @@ cdef class ChessAI:
             # result = predictionInfo(index)
             # a, b, c, d = result.x, result.y, result.w, result.z
             
+            # if (preBeta - beta > 1500):
+            #     break
+            
             # filteredPrediction[index] = 0
-            
-            
-            
             self.pgnBoard.push(move)
             score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)
             self.pgnBoard.pop()
@@ -546,12 +584,18 @@ cdef class ChessAI:
                 with open('Unfiltered_Full.txt', 'a') as file:
                     file.write("6TH MOVE: {}, {}\n".format(score, move.uci()))
             '''
-            # if (self.pgnBoard == chess.Board("rnbqkb1r/ppp3pp/5p2/3pp3/3PnB2/4PN2/PPP2PPP/RN1QKB1R w KQkq - 0 6")):
+            # if (self.pgnBoard == chess.Board("6k1/1bqn1p2/2p3pQ/1pPp1Bbp/r2p4/3N2P1/4PP2/5RK1 w - - 2 29")):
             #     # print("My Moves:", self.reorder_capture_moves())
             #     # print()
             #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
             #     # print()
             #     print ("MIN: ",score, move, alpha, beta)
+            # if (self.pgnBoard == chess.Board("r1b2br1/5k2/2p1p3/p1Ppq2p/N2P4/P3P3/6P1/1R2KB1R w K - 0 22")):
+            #     # print("My Moves:", self.reorder_capture_moves())
+            #     # print()
+            #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
+            #     # print()
+            #     print ("MIN2: ",score, move, alpha, beta)
             if score < lowestScore:
                 lowestScore = score
 
@@ -564,8 +608,8 @@ cdef class ChessAI:
                     print("BBB: ", beta)
                     print("CCC: ", move)                    
                 ''' 
-                return lowestScore
-
+                return beta
+                # return lowestScore
         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
             #print("AAAAA")
             if self.pgnBoard.is_checkmate():
@@ -595,10 +639,10 @@ cdef class ChessAI:
         cdef list moves_list
         cdef list alpha_list = []
         cdef int count = 1
-        cdef int depth = 3
+        cdef int depth = 4
           
         #moves_list = reorder_capture_moves(self.pgnBoard)
-        moves_list = list(self.pgnBoard.legal_moves)
+        moves_list = list(Cython_Chess.generate_legal_moves(self.pgnBoard,chess.BB_ALL,chess.BB_ALL))
         #moves_list = self.pgnBoard.generate_legal_moves()
         self.pgnBoard.push(moves_list[0])
         highestScore = self.minimizer(1, depth, alpha, beta)
@@ -658,15 +702,21 @@ cdef class ChessAI:
         
     def reorder_capture_moves(self) -> Iterator[chess.Move]:
         
-        cdef list captures = []
+        # cdef list captures = []
         cdef object move
         #cdef object moves = board.generate_legal_moves()
         # Iterate through all legal moves
-        for move in self.pgnBoard.generate_legal_captures():
+        # for move in self.pgnBoard.generate_legal_captures():
+        #     yield move
+        #     captures.append(move)
+        # for move in self.pgnBoard.generate_legal_moves():
+        #     if move not in captures:
+        #         yield move
+                
+        for move in Cython_Chess.generate_legal_captures(self.pgnBoard,chess.BB_ALL,chess.BB_ALL):
             yield move
-            captures.append(move)
-        for move in self.pgnBoard.generate_legal_moves():
-            if move not in captures:
+        for move in Cython_Chess.generate_legal_moves(self.pgnBoard,chess.BB_ALL,chess.BB_ALL):
+            if not is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move)):
                 yield move
     
     @boundscheck(False)
@@ -724,32 +774,6 @@ cdef void quicksort(list values, list objects, int left, int right):
     # Recursively sort the partitions
     quicksort(values, objects, left, j)
     quicksort(values, objects, i, right)
-
-
-# Define the Cython function
-cdef cnp.ndarray[DTYPE_FLOAT, ndim=3] encode_board(object board):
-
-    # Define piece mappings
-    cdef dict piece_to_channel = {
-        'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5,
-        'p': 6, 'n': 7, 'b': 8, 'r': 9, 'q': 10, 'k': 11
-    }
-    
-    # Initialize a 12-channel tensor
-    cdef cnp.ndarray[DTYPE_FLOAT, ndim=3] encoded_board = np.zeros((8, 8, 12), dtype=np.float32)
-
-    # Populate the tensor
-    cdef int i, j
-    for i in range(8):
-        for j in range(8):
-            # chess.square expects (file, rank) with 0-indexed file
-            piece = board.piece_at(chess.square(j, 7-i))
-            if piece:
-                channel = piece_to_channel[piece.symbol()]
-                encoded_board[i, j, channel] = 1.0
-    
-    return encoded_board
-
 
 
 @boundscheck(False)
@@ -825,7 +849,7 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
             total -= rookIncrement
         
         
-        scan_reversed(board.attacks_mask(square),attackVec)
+        scan_reversed(attacks_mask((board.occupied_co[True] & chess.BB_SQUARES[square]),board.occupied,square,board.piece_type_at(square)),attackVec)
         size = attackVec.size()
         
         for i in range(size):        
@@ -879,13 +903,13 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
                     else:
                         if (piece.piece_type == 1):
                             if (att_square // 8 > 4):
-                                rookIncrement -= 50 + ((att_square // 8) - 4) * 125
+                                rookIncrement -= (50 + (((att_square / 8) - 4) * 125))
                                 break
                         elif(piece.piece_type == 2 or piece.piece_type == 3):
                             rookIncrement -= 15
             total += rookIncrement
         
-        scan_reversed(board.attacks_mask(square),attackVec)
+        scan_reversed(attacks_mask((board.occupied_co[True] & chess.BB_SQUARES[square]),board.occupied,square,board.piece_type_at(square)),attackVec)
         size = attackVec.size()
         
         for i in range(size):        
@@ -895,7 +919,8 @@ cdef int placement_and_piece_eval_midgame(object board, uint8_t square, bint col
             if (piece_type == 1 or piece_type == 5):
                 total += attackingLayer[1][x][y] >> 2
             else:    
-                total += attackingLayer[1][x][y]                 
+                total += attackingLayer[1][x][y]       
+    #print(total,piece_type, colour, rookIncrement)
     return total
 
 @boundscheck(False)
@@ -996,8 +1021,7 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
             total += rookIncrement
             
         if (piece_type == 1):
-            total += (8 - y) * 50
-            
+                        
             if scan_reversed_size((chess.BB_FILES[x] & board.pieces_mask(chess.PAWN, chess.BLACK))) > 1:
                 total -= 200
             
@@ -1019,7 +1043,7 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
         elif(total < -15000):
             attackMultiplier = 3
         
-        scan_reversed(board.attacks_mask(square),attackVec)
+        scan_reversed(attacks_mask((board.occupied_co[True] & chess.BB_SQUARES[square]),board.occupied,square,board.piece_type_at(square)),attackVec)
         size = attackVec.size()
         
         for i in range(size):        
@@ -1034,7 +1058,7 @@ cdef int placement_and_piece_eval_endgame(object board, uint8_t square, bint col
         elif(total < 15000):
             attackMultiplier = 3
         
-        scan_reversed(board.attacks_mask(square),attackVec)
+        scan_reversed(attacks_mask((board.occupied_co[True] & chess.BB_SQUARES[square]),board.occupied,square,board.piece_type_at(square)),attackVec)
         size = attackVec.size()
         
         for i in range(size):        
@@ -1064,17 +1088,12 @@ cdef int evaluate_board(object board):
     cdef object target_move
     cdef uint8_t  kingSeparation
     cdef uint8_t size
-    cdef vector[uint8_t] vec
     
     cdef white_ksc = chess.Move.from_uci('e1g1')
     cdef white_qsc = chess.Move.from_uci('e1c1')
     cdef black_ksc = chess.Move.from_uci('e8g8')
     cdef black_qsc = chess.Move.from_uci('e8c8')
     
-    # Determine active layers based on move count
-    #cdef int[:,:,:] activeAttackingLayer = layer
-    cdef int[:,:,:] activePlacementLayer = layer2 if moveNum >= 40 else placementLayer
-
     cdef int values[7]
     cdef int castle_index = -1
 
@@ -1087,6 +1106,17 @@ cdef int evaluate_board(object board):
     values[5] = 9000   # Queen
     values[6] = 0      # King
     
+    cdef uint64_t pawns = board.pawns
+    cdef uint64_t knights = board.knights
+    cdef uint64_t bishops = board.bishops
+    cdef uint64_t rooks = board.rooks
+    cdef uint64_t queens = board.queens
+    cdef uint64_t kings = board.kings
+    
+    cdef uint64_t occupied_white = board.occupied_co[True]
+    cdef uint64_t occupied_black = board.occupied_co[False]
+    cdef uint64_t occupied = board.occupied
+    
     # Iterate through all squares on the board and evaluate piece values
     if board.is_checkmate():
         if board.turn:
@@ -1094,42 +1124,8 @@ cdef int evaluate_board(object board):
         else:
             total = -100000000
     else:
-        
-        if (moveNum <= 50):
-            
-            #result = []
-            scan_reversed(board.occupied,vec)
-            size = vec.size()
-            
-            for i in range(size):
-            #for square in Cython_Chess.yield_msb(board.occupied):
-            #for square in chess.scan_reversed(board.occupied):
-                piece = board.piece_at(vec[i])
-                total += placement_and_piece_eval_midgame(board, vec[i], piece.color, piece.piece_type, moveNum, values, activePlacementLayer)
-        else:
-            scan_reversed(board.occupied,vec)
-            size = vec.size()
-            
-            for i in range(size):
-            #for square in chess.scan_reversed(board.occupied):
-                piece = board.piece_at(vec[i])
-                total += placement_and_piece_eval_endgame(board, vec[i], piece.color, piece.piece_type, moveNum, values, activePlacementLayer)
-            if (moveNum >= 70):
-                kingSeparation = chess.square_distance(board.king(chess.WHITE),board.king(chess.BLACK))
-                if (total > 2500):
-                    total += (7-kingSeparation)*200
-                if (total < -2500):
-                    total -= (7-kingSeparation)*200
-           
-        if scan_reversed_size(board.pieces_mask(chess.BISHOP, chess.WHITE)) == 2:
-            total -= 315
-        if scan_reversed_size(board.pieces_mask(chess.KNIGHT, chess.WHITE)) == 2:
-            total -= 300
-        if scan_reversed_size(board.pieces_mask(chess.BISHOP, chess.BLACK)) == 2:
-            total += 315
-        if scan_reversed_size(board.pieces_mask(chess.KNIGHT, chess.BLACK)) == 2:
-            total += 300
-        
+        total += placement_and_piece_eval(moveNum, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied)
+                
         castle_index = move_index (board, white_ksc, white_qsc)
         if (castle_index != -1):
             total -= max(3000 - ((castle_index-1) >> 1) * 100 - moveNum * 50, 0)
@@ -1139,23 +1135,26 @@ cdef int evaluate_board(object board):
             total += max(3000 - ((castle_index-1) >> 1) * 100 - moveNum * 50, 0)
                     
         target_move = board.peek()
-        if (board.is_capture(target_move)):
+        
+        if (is_capture(target_move.from_square, target_move.to_square, board.occupied_co[not board.turn], board.is_en_passant(target_move))):
+            #if (board.is_capture(target_move)):    
             target_square = target_move.to_square
-            for move in board.generate_legal_captures():
-                    if move.to_square == target_square:
-                        if (board.turn):
-                            total -= values[board.piece_type_at(target_square)]
-                            
-                        else:                            
-                            total += values[board.piece_type_at(target_square)]
-                        break      
+            #for move in board.generate_legal_captures():
+            for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_ALL):
+                if move.to_square == target_square:
+                    if (board.turn):
+                        total -= values[board.piece_type_at(target_square)]
+                        
+                    else:                            
+                        total += values[board.piece_type_at(target_square)]
+                    break      
     
     #print(board.fen)
     # print(board.move_stack)
     # print(total)
     # print()
     
-    # if (total == 960):
+    # if (total == 441):
     #     print(board.fen)
     #     print(total)
     #     print(board.move_stack)

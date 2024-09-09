@@ -105,6 +105,8 @@ std::array<std::array<std::array<int, 8>, 8>, 2> placementLayer2 = {{
 
 uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 
+int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
+
 void initialize_attack_tables() {
     std::vector<int8_t> knight_deltas = {17, 15, 10, 6, -17, -15, -10, -6};
     std::vector<int8_t> king_deltas = {9, 8, 7, 1, -9, -8, -7, -1};
@@ -150,6 +152,11 @@ void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_
 		}}
 	}};
 	
+	bool isEndGame = (scan_reversed_size(occupied_white | occupied_black) - 2) < 16;
+	//isEndGame = true;
+	bool squareOpen = true;
+	int multiplier = 5;
+	
 	std::vector<uint8_t> outterScanSquares;
 	std::vector<uint8_t> innerScanSquares;
 	uint8_t x,y;
@@ -162,7 +169,15 @@ void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_
         y = outterScanSquares[i] / 8;
         x = outterScanSquares[i] % 8;
         attackingLayer[1][x][y] += increment;
-        
+		
+        squareOpen = false;
+		if (!isEndGame){
+			if ((occupied_white & (1ULL << outterScanSquares[i])) == 0){
+				attackingLayer[1][x][y] += increment * multiplier;
+				squareOpen = true;
+			}
+		}
+		
 		innerScanSquares.clear();
 		scan_reversed(attacks_mask(true,0ULL,outterScanSquares[i],6),innerScanSquares);
         innerSize = innerScanSquares.size();
@@ -172,6 +187,13 @@ void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_
             y = innerScanSquares[j] / 8;
 			x = innerScanSquares[j] % 8;
 			attackingLayer[1][x][y] += increment;
+			
+			if (!isEndGame && squareOpen){
+				if ((occupied_white & (1ULL << innerScanSquares[j])) == 0){
+					attackingLayer[1][x][y] += increment * multiplier;
+				}
+			}
+			
 		}
     }
 	
@@ -185,6 +207,12 @@ void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_
         x = outterScanSquares[i] % 8;
         attackingLayer[0][x][y] += increment;
         
+		if (!isEndGame){
+			if ((occupied_black & (1ULL << outterScanSquares[i])) == 0){
+				attackingLayer[0][x][y] += increment * multiplier;
+			}
+		}
+		
 		innerScanSquares.clear();
 		scan_reversed(attacks_mask(true,0ULL,outterScanSquares[i],6),innerScanSquares);
         innerSize = innerScanSquares.size();
@@ -194,6 +222,13 @@ void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_
             y = innerScanSquares[j] / 8;
 			x = innerScanSquares[j] % 8;
 			attackingLayer[0][x][y] += increment;
+			
+			if (!isEndGame){
+				if ((occupied_black & (1ULL << innerScanSquares[j])) == 0){
+					attackingLayer[0][x][y] += increment * multiplier;
+				}
+			}
+			
 		}
     }
 }
@@ -318,8 +353,14 @@ int placement_and_piece_midgame(uint8_t square){
             x = attackVec[i] % 8;
             if (piece_type == 1 || piece_type == 5){
                 total -= attackingLayer[0][x][y] >> 2;
+				total -= attackingLayer[1][x][y] >> 3;
+				whiteOffensiveScore += attackingLayer[0][x][y];
+				whiteDefensiveScore += attackingLayer[1][x][y] >> 1;
             }else{    
                 total -= attackingLayer[0][x][y];   
+				total -= attackingLayer[1][x][y] >> 1;  
+				whiteOffensiveScore += attackingLayer[0][x][y];
+				whiteDefensiveScore += attackingLayer[1][x][y] >> 1;
 			}
 		}
     }else{
@@ -388,8 +429,14 @@ int placement_and_piece_midgame(uint8_t square){
             x = attackVec[i] % 8;
             if (piece_type == 1 || piece_type == 5){
                 total += attackingLayer[1][x][y] >> 2;
+				total += attackingLayer[0][x][y] >> 3;
+				blackOffensiveScore += attackingLayer[1][x][y];
+				blackDefensiveScore += attackingLayer[0][x][y] >> 1;
 			}else{    
-                total += attackingLayer[1][x][y];       
+                total += attackingLayer[1][x][y];
+				total += attackingLayer[0][x][y] >> 1;
+				blackOffensiveScore += attackingLayer[1][x][y];
+				blackDefensiveScore += attackingLayer[0][x][y] >> 1;
 			}
 		}
     }
@@ -560,7 +607,7 @@ int placement_and_piece_endgame(uint8_t square){
 	return total;
 }
 
-int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
+int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t prevKingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
 	int total = 0;
 	
 	pawns = pawnsMask;
@@ -573,13 +620,30 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	occupied_black = occupied_blackMask;
 	occupied = occupiedMask;
 	
-	if (moveNum <= 50){
+	int temp = 0;
+	whiteOffensiveScore = 0;
+	blackOffensiveScore = 0;
+	whiteDefensiveScore = 0;
+	blackDefensiveScore = 0;
+	
+	
+	
+	int pieceNum = scan_reversed_size(occupied) - 2;
+	
+	if (pieceNum > 15){
+		
+		if (prevKingsMask != kingsMask){
+			setAttackingLayer(occupied_white, occupied_black, kings, 5);
+		}
+		
         std::vector<uint8_t> pieceVec;            
 		scan_forward(occupied,pieceVec);
 		uint8_t size = pieceVec.size();
 		
 		for (int i = 0; i < size; i++){ 
-			total += placement_and_piece_midgame(pieceVec[i]);
+			temp  = placement_and_piece_midgame(pieceVec[i]);
+			total += temp;
+			//std::cout << (int)pieceVec[i] << " " << temp << " " << total << std::endl;
 		}
 	}else{
 		std::vector<uint8_t> pieceVec;            
@@ -612,6 +676,16 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	if (scan_reversed_size(occupied_black&knights) == 2){
 		total += 300;
 	}
+	
+	if (whiteOffensiveScore > blackDefensiveScore){
+		total -= ((whiteOffensiveScore - blackDefensiveScore)/12) * 100;
+	}
+	
+	if (blackOffensiveScore > whiteDefensiveScore){
+		total += ((blackOffensiveScore - whiteDefensiveScore)/12) * 100;
+	}
+	
+	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;
 	return total;
 }
 

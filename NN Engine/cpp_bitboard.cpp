@@ -10,6 +10,9 @@
 #include <omp.h>
 #include <numeric>
 #include <execution>
+#include <random>
+#include <deque>
+
 
 constexpr int NUM_SQUARES = 64;
 std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
@@ -22,6 +25,9 @@ std::vector<std::unordered_map<uint64_t, uint64_t>> BB_FILE_ATTACKS;
 std::vector<uint64_t> BB_RANK_MASKS;
 std::vector<std::unordered_map<uint64_t, uint64_t>> BB_RANK_ATTACKS;
 std::vector<std::vector<uint64_t>> BB_RAYS;
+std::unordered_map<uint64_t, int> moveCache;
+uint64_t zobristTable[12][64];
+std::deque<uint64_t> insertionOrder;
 
 // Define the file bitboards
 constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
@@ -104,7 +110,6 @@ std::array<std::array<std::array<int, 8>, 8>, 2> placementLayer2 = {{
 }};
 
 uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
-
 int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
 
 void initialize_attack_tables() {
@@ -297,7 +302,7 @@ int placement_and_piece_midgame(uint8_t square){
 			
             if (piece_type == 1){
                 total -= (y + 1) * 15;
-                total -= attackingLayer[1][x][y] << 2;                                
+                //total -= attackingLayer[1][x][y] << 2;                                
                 if (scan_reversed_size((BB_FILES[x] & (occupied_white & pawns))) > 1) {                
                     total += 200;
 				}
@@ -342,6 +347,7 @@ int placement_and_piece_midgame(uint8_t square){
 					}
 				}
             }
+			
 			total -= rookIncrement;
         }
         
@@ -356,11 +362,25 @@ int placement_and_piece_midgame(uint8_t square){
 				total -= attackingLayer[1][x][y] >> 3;
 				whiteOffensiveScore += attackingLayer[0][x][y];
 				whiteDefensiveScore += attackingLayer[1][x][y] >> 1;
-            }else{    
+				
+            }else if (piece_type == 6){
+				total -= attackingLayer[0][x][y];   
+				whiteOffensiveScore += attackingLayer[0][x][y];
+								
+				if (piece_type_at(attackVec[i]) == 1 && attackVec[i] >= square){
+					whiteDefensiveScore += attackingLayer[1][x][y] << 1;
+					total -= attackingLayer[1][x][y] << 1;
+				}else{
+					whiteDefensiveScore += attackingLayer[1][x][y];
+					total -= attackingLayer[1][x][y] >> 2;  
+				}
+				
+			}else{    
                 total -= attackingLayer[0][x][y];   
 				total -= attackingLayer[1][x][y] >> 1;  
 				whiteOffensiveScore += attackingLayer[0][x][y];
 				whiteDefensiveScore += attackingLayer[1][x][y] >> 1;
+				
 			}
 		}
     }else{
@@ -374,7 +394,7 @@ int placement_and_piece_midgame(uint8_t square){
             }
             if (piece_type == 1){
                 total += (8 - y) * 15;
-                total += attackingLayer[0][x][y] << 2;
+                //total += attackingLayer[0][x][y] << 2;
                 if (scan_reversed_size((BB_FILES[x] & (occupied_black & pawns))) > 1){                
                     total -= 200;
                 }
@@ -419,6 +439,7 @@ int placement_and_piece_midgame(uint8_t square){
 					}
 				}
 			}
+			
             total += rookIncrement;
         }
         scan_reversed(attacks_mask(colour,occupied,square,piece_type),attackVec);
@@ -432,11 +453,24 @@ int placement_and_piece_midgame(uint8_t square){
 				total += attackingLayer[0][x][y] >> 3;
 				blackOffensiveScore += attackingLayer[1][x][y];
 				blackDefensiveScore += attackingLayer[0][x][y] >> 1;
+				
+			}else if (piece_type == 6){
+				total += attackingLayer[1][x][y];
+				blackOffensiveScore += attackingLayer[1][x][y];
+								
+				if (piece_type_at(attackVec[i]) == 1 && attackVec[i] <= square){
+					blackDefensiveScore += attackingLayer[0][x][y] << 1;
+					total += attackingLayer[0][x][y] << 1;
+				}else{
+					blackDefensiveScore += attackingLayer[0][x][y];
+					total += attackingLayer[0][x][y] >> 2;
+				}
+				
 			}else{    
                 total += attackingLayer[1][x][y];
 				total += attackingLayer[0][x][y] >> 1;
 				blackOffensiveScore += attackingLayer[1][x][y];
-				blackDefensiveScore += attackingLayer[0][x][y] >> 1;
+				blackDefensiveScore += attackingLayer[0][x][y] >> 1;				
 			}
 		}
     }
@@ -624,18 +658,14 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	whiteOffensiveScore = 0;
 	blackOffensiveScore = 0;
 	whiteDefensiveScore = 0;
-	blackDefensiveScore = 0;
-	
-	
+	blackDefensiveScore = 0;	
 	
 	int pieceNum = scan_reversed_size(occupied) - 2;
 	
 	if (pieceNum > 15){
-		
-		if (prevKingsMask != kingsMask){
-			setAttackingLayer(occupied_white, occupied_black, kings, 5);
-		}
-		
+
+		setAttackingLayer(occupied_white, occupied_black, kings, 5);
+				
         std::vector<uint8_t> pieceVec;            
 		scan_forward(occupied,pieceVec);
 		uint8_t size = pieceVec.size();
@@ -643,7 +673,11 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 		for (int i = 0; i < size; i++){ 
 			temp  = placement_and_piece_midgame(pieceVec[i]);
 			total += temp;
-			//std::cout << (int)pieceVec[i] << " " << temp << " " << total << std::endl;
+			/*if (occupied == 10746666234248479586){
+				
+				std::cout << (int)pieceVec[i]<< " " << (int)piece_type_at ((int)pieceVec[i]) << " " << temp << " " << total << std::endl;
+			}*/
+			
 		}
 	}else{
 		std::vector<uint8_t> pieceVec;            
@@ -655,7 +689,7 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 		}
 		
 		if (moveNum >= 70){
-			uint8_t kingSeparation = square_distance(63 - __builtin_clzll(occupied_white&kings),63 - __builtin_clzll(occupied_black&kings&kings));
+			uint8_t kingSeparation = square_distance(63 - __builtin_clzll(occupied_white&kings),63 - __builtin_clzll(occupied_black&kings));
 			if (total > 2500){
 				total += (7-kingSeparation)*200;
 			}else if (total < -2500){
@@ -687,6 +721,143 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	
 	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;
 	return total;
+}
+
+// Function to initialize the Zobrist table
+void initializeZobrist() {
+    std::mt19937_64 rng;  // Random number generator
+    for (int pieceType = 0; pieceType < 12; ++pieceType) {
+        for (int square = 0; square < 64; ++square) {
+            zobristTable[pieceType][square] = rng();
+        }
+    }
+}
+
+// Function to generate Zobrist hash for the current board state
+uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask) {
+    uint64_t hash = 0;
+	
+	pawns = pawnsMask;
+	knights = knightsMask;
+	bishops = bishopsMask;
+	rooks = rooksMask;
+	queens = queensMask;
+	kings = kingsMask;
+	occupied_white = occupied_whiteMask;
+	occupied_black = occupied_blackMask;
+	
+	std::vector<uint8_t> blackPieces;
+	std::vector<uint8_t> whitePieces;
+	
+	scan_reversed(occupied_black,blackPieces);
+    uint8_t size = blackPieces.size();
+    for (uint8_t square = 0; square < size; square++) {        
+		uint8_t pieceType = piece_type_at(blackPieces[square]) + 5;
+		hash ^= zobristTable[pieceType][blackPieces[square]];
+    }
+	
+	scan_reversed(occupied_white,whitePieces);
+    size = whitePieces.size();
+    for (uint8_t square = 0; square < size; square++) {        
+		uint8_t pieceType = piece_type_at(whitePieces[square]) - 1;
+		hash ^= zobristTable[pieceType][whitePieces[square]];
+    }
+	
+    return hash;
+}
+
+// Function to update the Zobrist hash when a piece moves, with support for captures
+void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bool isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask) {
+    
+	pawns = pawnsMask;
+	knights = knightsMask;
+	bishops = bishopsMask;
+	rooks = rooksMask;
+	queens = queensMask;
+	kings = kingsMask;
+	occupied_white = occupied_whiteMask;
+	occupied_black = occupied_blackMask;
+	
+	bool fromSquareColour = bool(occupied_white & (1ULL << fromSquare));	
+	uint8_t pieceType = piece_type_at(fromSquare) - 1;
+	
+	if (!fromSquareColour){
+		pieceType += 6;
+	}
+	//pieceType = ;
+	// XOR the moving piece out of its old position
+    hash ^= zobristTable[pieceType][fromSquare];
+    
+	if (pieceType == 5){
+		if (fromSquare == 4){
+			if (toSquare == 6){
+				hash ^= zobristTable[3][5];
+			}else if (toSquare == 2){
+				hash ^= zobristTable[3][3];
+			}
+		}
+	}else if (pieceType == 11){
+		if (fromSquare == 60){
+			if (toSquare == 62){
+				hash ^= zobristTable[9][61];
+			}else if (toSquare == 58){
+				hash ^= zobristTable[9][59];
+			}
+		}
+	}
+	
+	
+    // If a piece was captured, XOR the captured piece out of its position
+    if (isCapture) {
+		
+		bool toSquareColour = bool(occupied_white & (1ULL << toSquare));	
+		uint8_t capturedPieceType = piece_type_at(toSquare) - 1;
+		
+		if (!toSquareColour){
+			capturedPieceType += 6;
+		}
+		
+        hash ^= zobristTable[capturedPieceType][toSquare];
+    }
+    
+    // XOR the moving piece into its new position
+    hash ^= zobristTable[pieceType][toSquare];
+}
+
+int accessCache(uint64_t key) {
+    auto it = moveCache.find(key);
+    if (it != moveCache.end()) {
+        return it->second;  // Return the value if the key exists
+    }
+    return 0;   // Return the default value if the key doesn't exist
+}
+
+void addToCache(uint64_t key,int value) {
+    moveCache[key] = value;
+	insertionOrder.push_back(key);
+}
+
+int printCacheStats() {
+    // Get the number of entries in the map
+    int num_entries = moveCache.size();
+
+    // Estimate the memory usage in bytes: each entry is a pair of (key, value)
+    int size_in_bytes = num_entries * (sizeof(int64_t) + sizeof(int));
+
+    // Print the results
+    std::cout << "Number of entries: " << num_entries << std::endl;
+    std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
+	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
+	
+	return num_entries;
+}
+
+void evictOldEntries(int numToEvict) {
+    while (numToEvict-- > 0 && !insertionOrder.empty()) {
+        uint64_t oldestKey = insertionOrder.front();
+        insertionOrder.pop_front();  // Remove from deque
+        moveCache.erase(oldestKey);  // Erase from map
+    }
 }
 
 uint8_t square_distance(uint8_t sq1, uint8_t sq2) {
@@ -975,14 +1146,7 @@ uint64_t betweenPieces(uint8_t a, uint8_t b){
 }
 // Function to scan reversed bitboard and return indices of set bits
 uint8_t scan_reversed_size(uint64_t bb) {
-    uint8_t count = 0;
-	uint8_t r = 0;
-    while (bb) {
-        r = 64 - __builtin_clzll(bb) - 1;
-        bb ^= (1ULL << r);
-		count += 1;
-    }
-    return count;
+    return __builtin_popcountll(bb);
 }
 
 uint64_t ray(uint8_t a, uint8_t b){return BB_RAYS[a][b];}

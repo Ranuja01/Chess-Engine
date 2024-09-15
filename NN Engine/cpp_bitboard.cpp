@@ -111,6 +111,8 @@ std::array<std::array<std::array<int, 8>, 8>, 2> placementLayer2 = {{
 
 uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
+int blackPieceVal, whitePieceVal;
+
 
 void initialize_attack_tables() {
     std::vector<int8_t> knight_deltas = {17, 15, 10, 6, -17, -15, -10, -6};
@@ -157,7 +159,13 @@ void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_
 		}}
 	}};
 	
-	bool isEndGame = (scan_reversed_size(occupied_white | occupied_black) - 2) < 16;
+	//bool isEndGame = (scan_reversed_size(occupied_white | occupied_black) - 2) < 16;
+	int pieceNum = scan_reversed_size(occupied) - 2;
+	bool isEndGame = pieceNum < 17;
+	
+	if (queens == 0){
+		isEndGame = pieceNum < 20;
+	}
 	//isEndGame = true;
 	bool squareOpen = true;
 	int multiplier = 5;
@@ -367,7 +375,7 @@ int placement_and_piece_midgame(uint8_t square){
 				total -= attackingLayer[0][x][y];   
 				whiteOffensiveScore += attackingLayer[0][x][y];
 								
-				if (piece_type_at(attackVec[i]) == 1 && attackVec[i] >= square){
+				if (piece_type_at(attackVec[i]) == 1 && y > (square / 8)){
 					whiteDefensiveScore += attackingLayer[1][x][y] << 1;
 					total -= attackingLayer[1][x][y] << 1;
 				}else{
@@ -429,8 +437,7 @@ int placement_and_piece_midgame(uint8_t square){
                     }else{
                         if (temp_piece_type == 1){
                             if ((att_square / 8) > 4){
-                                rookIncrement -= (50 + (((att_square / 8) - 4) * 125));
-								//std::cout << "AAA" << std::endl;
+                                rookIncrement -= (50 + (((att_square / 8) - 4) * 125));								
                                 break;
 							}
                         }else if(temp_piece_type == 2 || temp_piece_type == 3){
@@ -458,7 +465,7 @@ int placement_and_piece_midgame(uint8_t square){
 				total += attackingLayer[1][x][y];
 				blackOffensiveScore += attackingLayer[1][x][y];
 								
-				if (piece_type_at(attackVec[i]) == 1 && attackVec[i] <= square){
+				if (piece_type_at(attackVec[i]) == 1 && y < (square / 8)){
 					blackDefensiveScore += attackingLayer[0][x][y] << 1;
 					total += attackingLayer[0][x][y] << 1;
 				}else{
@@ -496,7 +503,7 @@ int placement_and_piece_endgame(uint8_t square){
         
     if (colour) {
         total -= values[piece_type];
-        
+        whitePieceVal += values[piece_type];
 		if (piece_type == 1){
 						                            
 			if (scan_reversed_size((BB_FILES[x] & (occupied_white & pawns))) > 1) {                
@@ -531,28 +538,31 @@ int placement_and_piece_endgame(uint8_t square){
 				uint8_t temp_piece_type = piece_type_at (att_square);
 				bool temp_colour = bool(occupied_white & (1ULL << att_square));
                 if (temp_piece_type == 1){
-                    if (att_square > square){
-                        if (temp_colour){
-                            rookIncrement += ((att_square / 8) + 1) * 25;
-                        }else{
-                            rookIncrement += (y + 1) * 15;
+                    if (att_square > square){ // Up the board from the white rook
+                        if (temp_colour){ // If the pawn is white 
+                            rookIncrement += ((att_square / 8) + 1) * 100; // Increment rook for supporting the white pawn
+                        }else{ // If the pawn is black
+                            rookIncrement += (8 - (att_square / 8)) * 50; // Increment rook for blockading black pawn  
 						}
-                    }else {
-                        if (temp_colour){
+                    }else { // Down the board from the white rook
+                        if (temp_colour){ // If the pawn is white
                             if (att_square / 8 > 3){
-                                rookIncrement -= 50 + ((att_square / 8) - 3) * 50;
+                                rookIncrement -= 50 + ((att_square / 8) - 3) * 50; // Decrement rook for blocking own pawn
 							}
-                        }else{
-                            rookIncrement += (y + 1) * 10;
+                        }else{ // If the pawn is black
+                            rookIncrement += (8 - (att_square / 8)) * 50; // Increment rook for attacking black pawn from behind
 						}
 					}
 				}
             }
 			total -= rookIncrement;
-        }
+        }else if (piece_type == 3){  
+			total -= 150;
+		}
         
     }else{
         total += values[piece_type];
+		blackPieceVal += values[piece_type];
         if (piece_type == 1){
 			
 			if (scan_reversed_size((BB_FILES[x] & (occupied_black & pawns))) > 1){                
@@ -585,25 +595,27 @@ int placement_and_piece_endgame(uint8_t square){
 				uint8_t temp_piece_type = piece_type_at (att_square);
 				bool temp_colour = bool(occupied_white & (1ULL << att_square));
                 if (temp_piece_type == 1){    
-                    if (att_square < square){
-                        if (temp_colour){
-                            rookIncrement += (8 - y) * 15;                            
-                        }else{
-                            rookIncrement += (8 - (att_square / 8)) * 25;
+                    if (att_square < square){ // Down the board from the black rook
+                        if (temp_colour){ // If the pawn is white
+                            rookIncrement += ((att_square / 8) + 1) * 50; // Increment rook for blockading white pawn                       
+                        }else{ // If the pawn is black
+                            rookIncrement += (8 - (att_square / 8)) * 100; // Increment rook for supporting the black pawn
 						}
-                    }else{
-                        if (temp_colour){
-                            rookIncrement += (8 - y) * 10;
-						}else{
+                    }else{ // Up the board from the black rook
+                        if (temp_colour){ // If the pawn is white
+                            rookIncrement += ((att_square / 8) + 1) * 50; // Increment rook for attacking white pawn from behind
+						}else{ // If the pawn is black
                             if (att_square / 8 < 4){
-                                rookIncrement -= 50 + (4 - (att_square / 8)) * 50;
+                                rookIncrement -= 50 + (4 - (att_square / 8)) * 50; // Decrement rook for blocking own pawn
 							}
 						}
 					}
 				}
 			}
             total += rookIncrement;
-        }
+        }else if (piece_type == 3){  
+			total += 150;
+		}
     }
 	
 	if (colour){
@@ -643,6 +655,7 @@ int placement_and_piece_endgame(uint8_t square){
 
 int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t prevKingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
 	int total = 0;
+	uint8_t size;
 	
 	pawns = pawnsMask;
 	knights = knightsMask;
@@ -660,18 +673,28 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	whiteDefensiveScore = 0;
 	blackDefensiveScore = 0;	
 	
-	int pieceNum = scan_reversed_size(occupied) - 2;
+	blackPieceVal = 0;
+	whitePieceVal = 0;
 	
-	if (pieceNum > 15){
+	int pieceNum = scan_reversed_size(occupied) - 2;
+	bool isEndGame = pieceNum < 17;
+	bool isNearGameEnd = pieceNum < 10;
+		
+	if (queens == 0){
+		isEndGame = pieceNum < 20;
+		isNearGameEnd = pieceNum < 12;
+	}
+	
+	if (!isEndGame){
 
 		setAttackingLayer(occupied_white, occupied_black, kings, 5);
 				
         std::vector<uint8_t> pieceVec;            
 		scan_forward(occupied,pieceVec);
-		uint8_t size = pieceVec.size();
+		size = pieceVec.size();
 		
 		for (int i = 0; i < size; i++){ 
-			temp  = placement_and_piece_midgame(pieceVec[i]);
+			temp = placement_and_piece_midgame(pieceVec[i]);
 			total += temp;
 			/*if (occupied == 10746666234248479586){
 				
@@ -682,19 +705,69 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	}else{
 		std::vector<uint8_t> pieceVec;            
 		scan_forward(occupied,pieceVec);
-		uint8_t size = pieceVec.size();
+		size = pieceVec.size();
 		//-flto=8
 		for (int i = 0; i < size; i++){ 
 			total += placement_and_piece_endgame(pieceVec[i]);
 		}
 		
-		if (moveNum >= 70){
+		if (blackPieceVal > whitePieceVal){
+			total += (int)(((blackPieceVal - whitePieceVal)/ blackPieceVal) * 1000);		
+		}else if (whitePieceVal > blackPieceVal){			
+			total -= (int)(((whitePieceVal - blackPieceVal)/ whitePieceVal) * 1000);
+		}
+		
+		if (isNearGameEnd){
 			uint8_t kingSeparation = square_distance(63 - __builtin_clzll(occupied_white&kings),63 - __builtin_clzll(occupied_black&kings));
 			if (total > 2500){
 				total += (7-kingSeparation)*200;
+				
 			}else if (total < -2500){
 				total -= (7-kingSeparation)*200;
 			}
+			
+			uint64_t firstHalf = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
+			uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
+			
+			std::vector<uint8_t> advancedBlackPawns;
+			scan_forward(firstHalf & occupied_black & pawns,advancedBlackPawns);
+			
+			std::vector<uint8_t> advancedWhitePawns;
+			scan_forward(secondHalf & occupied_white & pawns,advancedWhitePawns);
+			
+			int averageBlackKing_blackPawnSeperation = 0;
+			int averageWhiteKing_whitePawnSeperation = 0;
+			int averageBlackKing_whitePawnSeperation = 0;
+			int averageWhiteKing_blackPawnSeperation = 0;
+			
+			size = advancedBlackPawns.size();			
+			for (int i = 0; i < size; i++){ 
+				averageBlackKing_blackPawnSeperation += square_distance(advancedBlackPawns[i],63 - __builtin_clzll(occupied_black&kings));
+				averageWhiteKing_blackPawnSeperation += square_distance(advancedBlackPawns[i],63 - __builtin_clzll(occupied_white&kings));
+			}
+			if (size > 0){
+				averageBlackKing_blackPawnSeperation /= size;
+				averageWhiteKing_blackPawnSeperation /= size;
+			}else{
+				averageBlackKing_blackPawnSeperation = 7;
+				averageWhiteKing_blackPawnSeperation = 7;
+			}
+			
+			size = advancedWhitePawns.size();			
+			for (int i = 0; i < size; i++){ 
+				averageWhiteKing_whitePawnSeperation += square_distance(advancedWhitePawns[i],63 - __builtin_clzll(occupied_white&kings));
+				averageBlackKing_whitePawnSeperation += square_distance(advancedWhitePawns[i],63 - __builtin_clzll(occupied_black&kings));
+			}
+			if (size > 0){
+				averageWhiteKing_whitePawnSeperation /= size;
+				averageBlackKing_whitePawnSeperation /= size;
+			}else{
+				averageWhiteKing_whitePawnSeperation = 7;
+				averageBlackKing_whitePawnSeperation = 7;
+			}
+			total += (7 - averageBlackKing_whitePawnSeperation) * 200 + (7 - averageBlackKing_blackPawnSeperation) * 225;
+			total -= (7 - averageWhiteKing_blackPawnSeperation) * 200 + (7 - averageWhiteKing_whitePawnSeperation) * 225;
+			//std::cout << averageBlackKing_blackPawnSeperation << " " << averageWhiteKing_whitePawnSeperation << " " <<  averageBlackKing_whitePawnSeperation << " " << averageWhiteKing_blackPawnSeperation << " " <<std::endl;
 		}
 	}
 	
@@ -767,7 +840,7 @@ uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t 
 }
 
 // Function to update the Zobrist hash when a piece moves, with support for captures
-void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bool isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask) {
+void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bool isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion) {
     
 	pawns = pawnsMask;
 	knights = knightsMask;
@@ -806,22 +879,45 @@ void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSqua
 		}
 	}
 	
-	
     // If a piece was captured, XOR the captured piece out of its position
     if (isCapture) {
 		
 		bool toSquareColour = bool(occupied_white & (1ULL << toSquare));	
-		uint8_t capturedPieceType = piece_type_at(toSquare) - 1;
+		int8_t capturedPieceType = piece_type_at(toSquare) - 1;
 		
-		if (!toSquareColour){
-			capturedPieceType += 6;
+		if (capturedPieceType == -1){
+			
+			if (fromSquareColour){
+				hash ^= zobristTable[6][toSquare - 8];
+			} else{
+				hash ^= zobristTable[0][toSquare + 8];
+			}
+			
+		} else{
+			
+			if (fromSquareColour){
+				capturedPieceType += 6;
+			}
+			
+			hash ^= zobristTable[capturedPieceType][toSquare];			
 		}
-		
-        hash ^= zobristTable[capturedPieceType][toSquare];
+		       
     }
     
+	if (promotion != 0){
+		
+		pieceType = promotion - 1;
+		
+		if (!fromSquareColour){
+			pieceType += 6;
+		}
+		
+		hash ^= zobristTable[pieceType][toSquare];
+	} else{
+		hash ^= zobristTable[pieceType][toSquare];
+	}
     // XOR the moving piece into its new position
-    hash ^= zobristTable[pieceType][toSquare];
+    
 }
 
 int accessCache(uint64_t key) {

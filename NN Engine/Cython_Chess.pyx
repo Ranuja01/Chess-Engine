@@ -35,6 +35,14 @@ cdef extern from "cpp_bitboard.h":
     void printLayers();
     void generatePieceMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, uint64_t our_pieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t from_mask, uint64_t to_mask)
     void generatePawnMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t opposingPieces, uint64_t occupied, bint colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask)
+    void initializeZobrist()
+    uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask)
+    void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
+    int accessCache(uint64_t key)
+    void addToCache(uint64_t key,int value)
+    int printCacheStats()
+    void evictOldEntries(int numToEvict)
+    
     
 cdef int layer[2][8][8]
 # Initialize layer
@@ -418,5 +426,20 @@ def test4 (board,increment):
     setAttackingLayer(board.occupied_co[True], board.occupied_co[False], board.kings, increment)
     printLayers()
 
+# def test5(board,move):
+#     isCapture = is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move))
+#     zobrist = generateZobristHash(board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+#     updateZobristHashForMove(zobrist, move.from_square, move.to_square, isCapture, board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+# def test6(board,move):
+#     zobrist = generateZobristHash(board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+#     board.push(move)
+#     zobrist = generateZobristHash(board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+#     print(board)
+    
 def inititalize():
+    initializeZobrist()
     initialize_attack_tables()

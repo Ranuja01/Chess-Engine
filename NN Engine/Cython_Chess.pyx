@@ -25,11 +25,12 @@ cdef extern from "cpp_bitboard.h":
     vector[uint8_t] scan_reversedOld(uint64_t bb)
     int getPPIncrement(int square, bint colour, uint64_t opposingPawnMask, int ppIncrement, int x)
     uint64_t attacks_mask(bint colour, uint64_t occupied, uint8_t square, uint8_t pieceType)
-    uint64_t attackersMask(bint color, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co)
+    uint64_t attackersMask(bint colour, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co)
     uint64_t slider_blockers(uint8_t king, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t occupied_co_opp, uint64_t occupied_co, uint64_t occupied)
     uint64_t betweenPieces(uint8_t a, uint8_t b)
     uint64_t ray(uint8_t a, uint8_t b)
     bint is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bint is_en_passant)
+    bint is_check(bint colour, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t opposingPieces)
     void initialize_attack_tables()
     void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment);
     void printLayers();
@@ -346,6 +347,13 @@ def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_ma
     # Generate en passant captures.
     if board.ep_square:
         yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
+
+def gives_check(object board,object move):
+    board.push(move)
+    try:
+        return is_check(board.turn,board.occupied, board.queens | board.rooks, board.queens | board.bishops, board.kings, board.knights, board.pawns, board.occupied_co[not board.turn])    
+    finally:
+        board.pop()
                
 def test1(board,square):
     #board.attacks_mask(square)

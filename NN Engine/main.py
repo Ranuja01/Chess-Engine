@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("8/8/2P3k1/4Kpp1/7p/3r4/8/4R3 b - - 0 49")
+board = chess.Board("5k2/8/8/1p2pb1p/6r1/P7/5K2/8 b - - 1 56")
 
 # Print the board in a human-readable format
 print(board)
@@ -118,26 +118,28 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 #     print (list1 [i], list2 [i], list3 [i])
 
 
-# t0= timer()
-# # #for move in Cython_Chess.pseudo_legal_moves(board):
-# for i in range (1):
-#     for i in board.generate_pseudo_legal_moves(board.pawns):
-#         print(i)
-#         # board.push(i)
-#         # board.pop()
-#         pass
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t0= timer()
+# #for move in Cython_Chess.pseudo_legal_moves(board):
+for i in range (100000):
+    for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+        # print(move)
+        # print(move, Cython_Chess.gives_check(board,move))
+        # board.push(i)
+        # board.pop()
+        pass
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
-# t0= timer()
-# for i in range (1):
-#     for i in Cython_Chess.generate_pseudo_legal_moves(board,board.pawns,chess.BB_ALL):
-#         print(i)
-#         # board.push(i)
-#         # board.pop()
-#         pass
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t0= timer()
+for i in range (100000):
+    for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+        # print(move)
+        # print(move, board.gives_check(move))
+        # board.push(i)
+        # board.pop()
+        pass
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
 
 # print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))

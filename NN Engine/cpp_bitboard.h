@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <unordered_map>
+#include <string>
+#include <cstring>
 
 uint8_t square_distance(uint8_t sq1, uint8_t sq2);
 void initialize_attack_tables();
@@ -26,10 +28,16 @@ uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t 
 void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bool isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion);
 int accessCache(uint64_t key);
 void addToCache(uint64_t key,int value);
-char* accessMoveGenCache(uint64_t key);
-void addToMoveGenCache(uint64_t key,char* value);
+std::string accessOpponentMoveGenCache(uint64_t key);
+void addToOpponentMoveGenCache(uint64_t key,char* data, int length);
+std::string accessCurPlayerMoveGenCache(uint64_t key);
+void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length);
 int printCacheStats();
+int printOpponentMoveGenCacheStats();
+int printCurPlayerMoveGenCacheStats();
 void evictOldEntries(int numToEvict);
+void evictOpponentMoveGenEntries(int numToEvict);
+void evictCurPlayerMoveGenEntries(int numToEvict);
 
 void generatePieceMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, uint64_t our_pieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t from_mask, uint64_t to_mask);
 void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t opposingPieces, uint64_t occupied, bool colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask);

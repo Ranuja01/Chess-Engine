@@ -7,7 +7,9 @@ Created on Tue Jul 30 16:32:26 2024
 import chess  # Use regular import for Python libraries
 cimport cython  # Import Cython-specific utilities
 from cython cimport boundscheck, wraparound
-# Import Cython, numpy, chess, and tensorflow for defining the functions
+import json
+import marshal
+import moveSchema_pb2  # Import the generated code
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset
 from cpython.array cimport array
@@ -26,9 +28,8 @@ from functools import lru_cache
 import Cython_Chess
 import multiprocessing
 import time
-
-cimport chess as c_chess
-
+import itertools
+from typing import Iterator
 import tensorflow as tf
 #cimport tensorflow as ctf
 from tensorflow.keras.models import Model
@@ -38,6 +39,7 @@ ctypedef cnp.float32_t DTYPE_FLOAT
 ctypedef cnp.int8_t DTYPE_INT
 
 from libcpp.vector cimport vector
+from libcpp.string cimport string
 cdef extern from "stdint.h":
     ctypedef signed char int8_t
     ctypedef unsigned char uint8_t
@@ -65,10 +67,16 @@ cdef extern from "cpp_bitboard.h":
     void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
     int accessCache(uint64_t key)
     void addToCache(uint64_t key,int value)
-    char* accessMoveGenCache(uint64_t key)
-    void addToMoveGenCache(uint64_t key,char* value)
+    string accessOpponentMoveGenCache(uint64_t key);
+    void addToOpponentMoveGenCache(uint64_t key,char* data, int length);
+    string accessCurPlayerMoveGenCache(uint64_t key);
+    void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length);
     int printCacheStats()
+    int printOpponentMoveGenCacheStats();
+    int printCurPlayerMoveGenCacheStats();
     void evictOldEntries(int numToEvict)
+    void evictOpponentMoveGenEntries(int numToEvict)
+    void evictCurPlayerMoveGenEntries(int numToEvict)
     
     
 cdef struct MoveData:
@@ -132,12 +140,12 @@ cdef class ChessAI:
         self.beta_list = []
         self.move_times[4] = 5.0
         self.move_times[5] = 5.5
-        self.time_limit = 60
-        self.quiescenceDepth = 3
+        self.time_limit = 600
+        self.quiescenceDepth = 6
         
         for i in range(6,26):
             self.move_times[i] = 2.5
-        
+        self.move_times[6] = 15.5
         # Call the initialization function once at module load
         #initialize_layers(self.pgnBoard)
         initialize_attack_tables()
@@ -171,6 +179,18 @@ cdef class ChessAI:
         
         print(whiteCastledIndex,blackCastledIndex)
         cdef int cacheSize = printCacheStats()
+        print()
+        cdef int OpponentMoveGenCacheSize = printOpponentMoveGenCacheStats()
+        print()
+        cdef int CurPlayerMoveGenCacheSize = printCurPlayerMoveGenCacheStats()
+        
+        if (OpponentMoveGenCacheSize > 450000):
+            evictOpponentMoveGenEntries(OpponentMoveGenCacheSize - 450000)
+        
+        if (CurPlayerMoveGenCacheSize > 450000):
+            evictCurPlayerMoveGenEntries(CurPlayerMoveGenCacheSize - 450000)
+        
+        
         if (self.pgnBoard.ply() < 30):
             if (cacheSize > 8000000):
                 evictOldEntries(cacheSize - 8000000)                
@@ -183,7 +203,7 @@ cdef class ChessAI:
         else:
             if (cacheSize > 64000000):
                 evictOldEntries(cacheSize - 64000000)
-        printCacheStats()
+        
         
         prevKings = self.pgnBoard.kings
         #setAttackingLayer(self.pgnBoard.occupied_co[True], self.pgnBoard.occupied_co[False], self.pgnBoard.kings,5)  
@@ -381,9 +401,10 @@ cdef class ChessAI:
                 
                 best_move.score = 0
                 best_move.a = ord(cur[0]) - 96
-                best_move.b = int(cur[1])
+                best_move.b = ord(cur[1]) - ord('0')
                 best_move.c = ord(cur[2]) - 96
-                best_move.d = int(cur[3])
+                best_move.d = ord(cur[3]) - ord('0')
+                
                 
             return best_move
             
@@ -445,7 +466,7 @@ cdef class ChessAI:
         cdef bint isCapture
         cdef int promotion = 0
         cdef bint repetitionFlag = False
-        cdef object repetitionMove
+        cdef object repetitionMove = None
         cdef int repetitionScore = 0
         
         if (depthLimit >= 5):
@@ -464,23 +485,10 @@ cdef class ChessAI:
         # if alpha < score and score < beta:
         #     score = self.minimizer(curDepth + 1, depthLimit, alpha, beta)
         if (self.pgnBoard.is_repetition(2)):
-            if self.pgnBoard.is_check():
-                if (self.pgnBoard.is_repetition(3)):
-                    repetitionFlag = True
-                    repetitionMove = moves_list[0]
-                    repetitionScore = score
-                    score = -100000000
-            else:
-                self.pgnBoard.pop()
-                if self.pgnBoard.is_check():
-                    if (self.pgnBoard.is_repetition(3)):
-                        repetitionFlag = True
-                        repetitionMove = moves_list[0]
-                        repetitionScore = score
-                        score = -100000000
-                else:
-                    score = -100000000
-                self.pgnBoard.push(moves_list[0])
+            repetitionFlag = True
+            repetitionMove = moves_list[0]
+            repetitionScore = score
+            score = -100000000
             
         if (self.pgnBoard.is_stalemate()):            
             score = -100000000
@@ -495,9 +503,9 @@ cdef class ChessAI:
             
             bestMove.score = score
             bestMove.a = ord(cur[0]) - 96
-            bestMove.b = int(cur[1])
+            bestMove.b = ord(cur[1]) - ord('0')
             bestMove.c = ord(cur[2]) - 96
-            bestMove.d = int(cur[3])
+            bestMove.d = ord(cur[3]) - ord('0')
             if (moves_list[0].promotion):
                 bestMove.promotion = ord(cur[4]) - 96
             else:
@@ -550,23 +558,10 @@ cdef class ChessAI:
                 #     score = self.minimizer(curDepth + 1, depthUsage, alpha, beta, beta_list[count])
             
             if (self.pgnBoard.is_repetition(2)):
-                if self.pgnBoard.is_check():
-                    if (self.pgnBoard.is_repetition(3)):
-                        repetitionFlag = True
-                        repetitionMove = move
-                        repetitionScore = score
-                        score = -100000000
-                else:
-                    self.pgnBoard.pop()
-                    if self.pgnBoard.is_check():
-                        if (self.pgnBoard.is_repetition(3)):
-                            repetitionFlag = True
-                            repetitionMove = move
-                            repetitionScore = score
-                            score = -100000000
-                    else:
-                        score = -100000000
-                    self.pgnBoard.push(move)
+                repetitionFlag = True
+                repetitionMove = move
+                repetitionScore = score
+                score = -100000000
                 
             if (self.pgnBoard.is_stalemate()):            
                 score = -100000000
@@ -584,9 +579,15 @@ cdef class ChessAI:
                 
                 bestMove.score = score
                 bestMove.a = ord(cur[0]) - 96
-                bestMove.b = int(cur[1])
+                bestMove.b = ord(cur[1]) - ord('0')
                 bestMove.c = ord(cur[2]) - 96
-                bestMove.d = int(cur[3])
+                bestMove.d = ord(cur[3]) - ord('0')
+                # print(f"cur: {cur}")
+                # print(f"int(cur[1]): {int(cur[1])}")
+                # print(f"bestMove.a: {bestMove.a}")
+                # print(f"bestMove.b: {bestMove.b} (should be {int(cur[1])})")
+                # print(f"bestMove.c: {bestMove.c}")
+                # print(f"bestMove.d: {bestMove.d}")
                 if (move.promotion):
                     bestMove.promotion = ord(cur[4]) - 96
                 else:
@@ -610,14 +611,14 @@ cdef class ChessAI:
                 
                 if (repetitionFlag):
                     if (alpha < repetitionScore):
-                        if (alpha <= -1500):
+                        if (alpha <= -500):
                             cur = repetitionMove.uci()
                             
                             bestMove.score = 0
                             bestMove.a = ord(cur[0]) - 96
-                            bestMove.b = int(cur[1])
+                            bestMove.b = ord(cur[1]) - ord('0')
                             bestMove.c = ord(cur[2]) - 96
-                            bestMove.d = int(cur[3])
+                            bestMove.d = ord(cur[3]) - ord('0')
                             
                             bestMove.promotion = -1
                             
@@ -627,14 +628,14 @@ cdef class ChessAI:
 
                     if (repetitionFlag):
                         if (alpha < repetitionScore):
-                            if (alpha <= -1500):
+                            if (alpha <= -500):
                                 cur = repetitionMove.uci()
                                 
                                 bestMove.score = 0
                                 bestMove.a = ord(cur[0]) - 96
-                                bestMove.b = int(cur[1])
+                                bestMove.b = ord(cur[1]) - ord('0')
                                 bestMove.c = ord(cur[2]) - 96
-                                bestMove.d = int(cur[3])
+                                bestMove.d = ord(cur[3]) - ord('0')
                                 
                                 bestMove.promotion = -1
                                 
@@ -645,9 +646,9 @@ cdef class ChessAI:
                     
                     bestMove.score = score
                     bestMove.a = ord(cur[0]) - 96
-                    bestMove.b = int(cur[1])
+                    bestMove.b = ord(cur[1]) - ord('0')
                     bestMove.c = ord(cur[2]) - 96
-                    bestMove.d = int(cur[3])
+                    bestMove.d = ord(cur[3]) - ord('0')
                     if (move.promotion):
                         bestMove.promotion = ord(cur[4]) - 96
                     else:
@@ -660,16 +661,19 @@ cdef class ChessAI:
         
         if curDepth == 0:
             self.numMove += 1
+            print(repetitionFlag, repetitionMove, repetitionScore, alpha)
             if (repetitionFlag):
                 if (alpha < repetitionScore):
-                    if (alpha <= -1500):
+                    print("AAA")
+                    if (alpha <= -500):
+                        print("BBB")
                         cur = repetitionMove.uci()
                         
                         bestMove.score = 0
                         bestMove.a = ord(cur[0]) - 96
-                        bestMove.b = int(cur[1])
+                        bestMove.b = ord(cur[1]) - ord('0')
                         bestMove.c = ord(cur[2]) - 96
-                        bestMove.d = int(cur[3])
+                        bestMove.d = ord(cur[3]) - ord('0')
                         
                         bestMove.promotion = -1
                         
@@ -690,10 +694,10 @@ cdef class ChessAI:
     cdef int maximizer(self, int curDepth, int depthLimit, int alpha, int beta):
         
         if curDepth >= depthLimit:
-            # self.numIterations += 1
-            # return evaluate_board(self.pgnBoard,self.zobrist)
+            self.numIterations += 1
+            return evaluate_board(self.pgnBoard,self.zobrist)
             
-            return self.quiescenceMax(alpha, beta, 0)
+            # return self.quiescenceMax(alpha, beta, 0)
         
         cdef int highestScore = -9999999
         cdef int score
@@ -714,13 +718,19 @@ cdef class ChessAI:
         cdef uint64_t occupied = self.pgnBoard.occupied   
         cdef int promotion = 0        
 
-        #cdef list moves_list = self.reorder_capture_moves()
-        #moves_list = self.get_legal_moves()
-        # moves_list = list(self.reorder_capture_moves(curDepth))
-        # #moves_list = self.reorder_legal_moves()
-        # if (curDepth == 2):
-        #     print(moves_list)
-        for move in self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard):
+        # cdef bytes result = accessCurPlayerMoveGenCache(curHash)
+        # cdef bytes data 
+        # # print(result)
+        # cdef list moves_list
+        # if result != b'0':
+        #     # print(result)
+        #     moves_list = pickle.loads(result)
+        # else:
+        #     moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        #     data = pickle.dumps(moves_list)            
+        #     addToCurPlayerMoveGenCache(curHash,data, len(data))
+        cdef list moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        for move in moves_list:
             # if (curDepth == 2):
             #     print(self.pgnBoard.fen(), move)
             #     print(self.pgnBoard.move_stack)
@@ -737,28 +747,25 @@ cdef class ChessAI:
             score = self.minimizer(curDepth + 1, depthLimit, alpha, beta, [])
             self.pgnBoard.pop()
             self.zobrist = curHash
-            # if (self.pgnBoard == chess.Board("rbbqkbb1/1ppp1p1r/4pNp1/p3P2p/3P4/P4Q2/1PP2PPP/R1B1KBNR b KQq - 5 10")):
+            # if (self.pgnBoard == chess.Board("5rk1/3qb1pp/Q1pBpp2/2Pp3n/1P1P2P1/4P3/5P1P/5RK1 b - - 1 21")):
             #     #print("My Moves:", list(self.reorder_capture_moves()))
             #     # print()
             #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
             #     # print()
             #     # if score == 14960:
-            #     print ("MAX: ",score, move)
-            # # # #     # print()
-            # # # #     # print(list(self.reorder_capture_moves()))
-            # # # #     # print()
-            # if (self.pgnBoard == chess.Board("rbb1kbb1/1ppp1p1r/4pQp1/p3P2p/3P4/P7/1PP2PPP/R1B1KBNR b KQq - 0 11")):
+            #     print ("MAX: ",score, move)            
+            # if (self.pgnBoard == chess.Board("5rk1/3q2pp/Q1pPpp2/3p3n/1P1P2P1/4P3/5P1P/5RK1 b - - 0 22")):
             #     # print("My Moves:", self.reorder_capture_moves())
             #     # print()
             #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
             #     # print()
             #     print ("MAX2: ",score, move)
-            # # if (self.pgnBoard == chess.Board("rn2r1k1/1p2bp1p/2p3p1/p6Q/4N3/P1B2P1P/1q3P2/R3KBR1 b Q - 1 17")):
-            # #     # print("My Moves:", self.reorder_capture_moves())
-            # #     # print()
-            # #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
-            # #     # print()
-            # #     print ("MAX3: ",score, move)
+            # if (self.pgnBoard == chess.Board("5rk1/6pp/Q1pqpp2/3p3P/1P1P4/4P3/5P1P/5RK1 b - - 0 23")):
+            #     # print("My Moves:", self.reorder_capture_moves())
+            #     # print()
+            #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
+            #     # print()
+            #     print ("MAX3: ",score, move)
                 
                 
             if score > highestScore:
@@ -786,9 +793,9 @@ cdef class ChessAI:
     cdef int minimizer(self, int curDepth, int depthLimit, int alpha, int beta, list beta_list):
         
         if curDepth >= depthLimit:            
-            # self.numIterations += 1            
-            # return evaluate_board(self.pgnBoard,self.zobrist)
-            return self.quiescenceMin(alpha, beta, 0)
+            self.numIterations += 1            
+            return evaluate_board(self.pgnBoard,self.zobrist)
+            # return self.quiescenceMin(alpha, beta, 0)
         
         cdef int lowestScore = 9999999 - len(self.pgnBoard.move_stack)
         cdef int score
@@ -819,8 +826,47 @@ cdef class ChessAI:
         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
         cdef uint64_t occupied = self.pgnBoard.occupied   
         cdef int promotion = 0 
-                
+        
+        # cdef bytes result = accessOpponentMoveGenCache(curHash)
+        # cdef bytes data 
+        # # print(result)
+        # cdef list moves_list
+        # if result != b'0':
+        #     # print(result)
+        #     moves_list = pickle.loads(result)
+        # else:
+        #     moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        #     data = pickle.dumps(moves_list)            
+        #     addToOpponentMoveGenCache(curHash,data, len(data))
+        # if not(moves_list == list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))):
+        #     print("AAA")
         cdef list moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        # cdef bytes result = accessOpponentMoveGenCache(curHash)
+        # cdef object data, deserialized_list
+        # cdef bytes serialized_data
+        # # print(result)
+        # cdef list moves_list
+        # cdef list moves_list_copy = []
+        # if result != b'0':
+        #     # print(result)
+        #     deserialized_list = moveSchema_pb2.MoveList()
+        #     deserialized_list.ParseFromString(result)
+            
+        #     # Assign the deserialized values to a Python list
+        #     moves_list = list(deserialized_list.values)
+        #     # for i in range(len(moves_list)):
+        #     #     moves_list[i] = chess.Move.from_uci(moves_list[i])
+        # else:
+        #     moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        #     for i in range(len(moves_list)):
+        #         # moves_list_copy.append(moves_list[i].uci())
+        #         moves_list[i] = moves_list[i].uci()
+        #     data = moveSchema_pb2.MoveList()
+        #     data.values.extend(moves_list)
+        #     serialized_data = data.SerializeToString()
+                 
+        #     addToOpponentMoveGenCache(curHash,serialized_data, len(serialized_data))
+        
         cdef int length = len(moves_list)
         # if curDepth == 1:
         #     moves_list = list(self.pgnBoard.generate_legal_moves())
@@ -835,7 +881,7 @@ cdef class ChessAI:
         # if curDepth == 1:
         #     print(beta_list)
         for move in moves_list:
-            
+            # move = chess.Move.from_uci(m)
             if curDepth == 1:
                 # print("AAAA", move,length , self.pgnBoard.fen())
                 if (not(beta_list[count] == None)):
@@ -858,19 +904,19 @@ cdef class ChessAI:
             score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)
             self.pgnBoard.pop()
             self.zobrist = curHash
-            # if (self.pgnBoard == chess.Board("rbbqkbb1/1ppp1p1r/4p1p1/p3P2p/3PN3/P4Q2/1PP2PPP/R1B1KBNR w KQq - 4 10")):
+            # if (self.pgnBoard == chess.Board("5rk1/3qb1pp/Q1p1pp2/2PpB2n/1P1P2P1/4P3/5P1P/5RK1 w - - 0 21")):
             #     # print("My Moves:", self.reorder_capture_moves())
             #     # print()
             #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
             #     # print()
             #     print ("MIN: ",score, move, alpha, beta, lowestScore)
-            # if (self.pgnBoard == chess.Board("rbb1kbb1/1ppp1p1r/4pqp1/p3P2p/3P4/P4Q2/1PP2PPP/R1B1KBNR w KQq - 0 11")):
-            #     # print("My Moves:", self.reorder_capture_moves())
+            # if (self.pgnBoard == chess.Board("5rk1/3q2pp/Q1pbpp2/2Pp3n/1P1P2P1/4P3/5P1P/5RK1 w - - 0 22")):
+            #     # print("My Moves:", moves_list)
             #     # print()
             #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
             #     # print()
             #     print ("MIN2: ",score, move, alpha, beta)
-            # if (self.pgnBoard == chess.Board("rbb1k1b1/1ppp1pbr/4pQp1/p3P2p/3P4/P7/1PP2PPP/R1B1KBNR w KQq - 1 12")):
+            # if (self.pgnBoard == chess.Board("5rk1/6pp/Q1pqpp2/3p3n/1P1P2P1/4P3/5P1P/5RK1 w - - 0 23")):
             #     # print("My Moves:", self.reorder_capture_moves())
             #     # print()
             #     # print("Th moves: ", list (self.pgnBoard.legal_moves))
@@ -921,7 +967,7 @@ cdef class ChessAI:
     cdef int quiescenceMax(self, int alpha, int beta, int quiescenceDepth):
         self.numIterations += 1
         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
-        if (quiescenceDepth >= self.quiescenceDepth) or evaluation - 100 >= beta or evaluation >= 9000000 or evaluation >= beta:
+        if (quiescenceDepth >= self.quiescenceDepth) or evaluation + 1500 <= alpha or evaluation - 1500 >= beta or evaluation >= 9000000:
             return evaluation
         
         cdef uint64_t curHash = self.zobrist
@@ -980,7 +1026,7 @@ cdef class ChessAI:
         self.numIterations += 1
         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
         
-        if (quiescenceDepth >= self.quiescenceDepth) or evaluation + 100 <= alpha or evaluation <= -9000000 or evaluation <= alpha:
+        if (quiescenceDepth >= self.quiescenceDepth) or evaluation - 1500 >= beta or evaluation + 1500 <= alpha or evaluation <= -9000000:
             return evaluation
         
         cdef uint64_t curHash = self.zobrist
@@ -1062,10 +1108,36 @@ cdef class ChessAI:
             return evaluate_board(self.pgnBoard,self.zobrist)
 
         cdef list moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        # cdef bytes result = accessOpponentMoveGenCache(curHash)
+        # cdef object data, deserialized_list
+        # cdef bytes serialized_data
+        # # print(result)
+        # cdef list moves_list
+        # cdef list moves_list_copy = []
+        # if result != b'0':
+        #     # print(result)
+        #     deserialized_list = moveSchema_pb2.MoveList()
+        #     deserialized_list.ParseFromString(result)
+            
+        #     # Assign the deserialized values to a Python list
+        #     moves_list = list(deserialized_list.values)
+        #     # for i in range(len(moves_list)):
+        #     #     moves_list[i] = chess.Move.from_uci(moves_list[i])
+        # else:
+        #     moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        #     for i in range(len(moves_list)):
+        #         # moves_list_copy.append(moves_list[i].uci())
+        #         moves_list[i] = moves_list[i].uci()
+        #     data = moveSchema_pb2.MoveList()
+        #     data.values.extend(moves_list)
+        #     serialized_data = data.SerializeToString()
+                 
+        #     addToOpponentMoveGenCache(curHash,serialized_data, len(serialized_data))
         cdef int length = len(moves_list)
         cdef int count = 0
+        
         for move in moves_list:
-            
+            # move = chess.Move.from_uci(m)
             if (move.promotion):
                 promotion = move.promotion
             else:
@@ -1218,210 +1290,6 @@ cdef class ChessAI:
             if (is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)) or board.gives_check(move)) or move.promotion:
                 yield move
 
-def reorder_thread_moves(uint64_t mask, object board):
-    
-    cdef object move
-    cdef list moves = []
-            
-    for move in Cython_Chess.generate_legal_captures(board,mask,chess.BB_ALL):
-        moves.append(move)
-    for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):
-        if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):
-            moves.append(move)
-    return moves
-
-# Define the alphaBeta function
-@boundscheck(False)
-@wraparound(False)
-@cython.exceptval(check=False)
-@cython.nonecheck(False)
-@cython.ccall
-@cython.inline
-def thread_AB(int curDepth, int depthLimit, object board, int option, object eval_queue):
-    cdef int alpha = -9999998
-    cdef int beta = 9999998
-    cdef int score
-    cdef object move
-    
-    cdef int bestScore = -99999999
-
-    cdef uint64_t pawns = board.pawns
-    cdef uint64_t knights = board.knights
-    cdef uint64_t bishops = board.bishops
-    cdef uint64_t rooks = board.rooks
-    cdef uint64_t queens = board.queens
-    cdef uint64_t kings = board.kings
-    
-    cdef uint64_t occupied_white = board.occupied_co[True]
-    cdef uint64_t occupied_black = board.occupied_co[False]
-    cdef uint64_t occupied = board.occupied    
-
-    cdef list moves_list
-    cdef uint64_t curHash = generateZobristHash(pawns,knights,bishops,rooks,queens,kings,occupied_white,occupied_black)
-    eval_queue.put((board.copy,curHash))
-    cdef uint64_t newHash = curHash
-    print(option)
-    if (option == 1):        
-        # moves_list = list(reorder_thread_moves(board,board.pawns))
-        moves_list = list(board.generate_legal_moves(board.pawns))        
-    elif(option == 2):
-        # moves_list = list(reorder_thread_moves(board,board.knights))
-        moves_list = list(board.generate_legal_moves(board.knights))      
-    elif(option == 3):
-        # moves_list = list(reorder_thread_moves(board,board.bishops))
-        moves_list = list(board.generate_legal_moves(board.bishops))      
-    elif(option == 4):
-        # moves_list = list(reorder_thread_moves(board,board.rooks))
-        moves_list = list(board.generate_legal_moves(board.rooks))      
-    elif(option == 5):
-        # moves_list = list(reorder_thread_moves(board,board.queens))
-        moves_list = list(board.generate_legal_moves(board.queens))      
-    elif(option == 6):
-        # moves_list = list(reorder_thread_moves(board,board.kings))
-        moves_list = list(board.generate_legal_moves(board.kings))      
-    else:
-        while(True):            
-            if(not eval_queue.empty()):
-                result = eval_queue.get()
-                evaluate_board(result[0],result[1])
-    print()   
-    print(option)  
-    cdef int razorThreshold = max (int(300 * .75** (depthLimit - 6)), 50)
-            
-    cdef int num_legal_moves = len(moves_list)
-    cdef int best_move_index = -1
-    cdef int count = 1
-    cdef int depthUsage = 0                
-    cdef bint isCapture
-    cdef int promotion = 0
-             
-    if (moves_list[0].promotion):
-        promotion = moves_list[0].promotion
-    else:
-        promotion = 0
-    
-    isCapture = is_capture(moves_list[0].from_square, moves_list[0].to_square, board.occupied_co[not board.turn], board.is_en_passant(moves_list[0]))
-    updateZobristHashForMove(newHash, moves_list[0].from_square, moves_list[0].to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
-    
-    board.push(moves_list[0])
-    print(option)
-    thread_minimizer(curDepth + 1, depthLimit, alpha, beta, newHash, board, eval_queue)
-    print()   
-    print(option)             
-    board.pop()
-    newHash = curHash
-    
-    alpha = max(alpha, bestScore)
-            
-    for move in moves_list[1:]:
-        
-        if (move.promotion):
-            promotion = move.promotion
-        else:
-            promotion = 0
-        
-        isCapture = is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move))
-        updateZobristHashForMove(newHash, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
-        
-        board.push(move)        
-        thread_minimizer(curDepth + 1, depthUsage, alpha, alpha+1, newHash, board, eval_queue)           
-                    
-        #If the score is within the window, re-search with full window
-        if alpha < score and score < beta:                                  
-            thread_minimizer(curDepth + 1, depthUsage, alpha, beta, newHash, board, eval_queue)
-          
-        board.pop()
-        newHash = curHash            
-        
-        alpha = max(alpha, bestScore)
-
-# Define the maximizer function
-
-def thread_maximizer(int curDepth, int depthLimit, int alpha, int beta, uint64_t curHash, object board, object eval_queue):
-    
-    eval_queue.put((board.copy,curHash))
-    
-    cdef int highestScore = -9999999
-    cdef int score
-    cdef object move   
-    cdef uint64_t newHash = curHash
-    cdef bint isCapture
-    cdef uint64_t pawns = board.pawns
-    cdef uint64_t knights = board.knights
-    cdef uint64_t bishops = board.bishops
-    cdef uint64_t rooks = board.rooks
-    cdef uint64_t queens = board.queens
-    cdef uint64_t kings = board.kings
-    
-    cdef uint64_t occupied_white = board.occupied_co[True]
-    cdef uint64_t occupied_black = board.occupied_co[False]
-    cdef uint64_t occupied = board.occupied   
-    cdef int promotion = 0
-    # print("ENTER MAX", curDepth)
-    if curDepth < depthLimit:  
-        for move in board.generate_legal_moves():
-                      
-            if (move.promotion):
-                promotion = move.promotion
-            else:
-                promotion = 0
-            # print("DDD")
-            isCapture = is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move))
-            updateZobristHashForMove(newHash, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
-            # print("EEE")
-            board.push(move)
-            thread_minimizer(curDepth + 1, depthLimit, alpha, beta, newHash, board, eval_queue)
-            # print("FFF")
-            board.pop()
-            newHash = curHash
-            alpha = max(alpha, highestScore)
-    
-            if beta <= alpha:
-                break           
-        
-# Define the minimizer function
-def thread_minimizer(int curDepth, int depthLimit, int alpha, int beta, uint64_t curHash, object board, object eval_queue):
-    
-    eval_queue.put((board.copy,curHash))
-    
-    cdef int lowestScore = 9999999 - len(board.move_stack)
-    cdef int score
-    cdef object move             
-    cdef uint64_t newHash = curHash
-    cdef bint isCapture        
-    
-    cdef uint64_t pawns = board.pawns
-    cdef uint64_t knights = board.knights
-    cdef uint64_t bishops = board.bishops
-    cdef uint64_t rooks = board.rooks
-    cdef uint64_t queens = board.queens
-    cdef uint64_t kings = board.kings
-    
-    cdef uint64_t occupied_white = board.occupied_co[True]
-    cdef uint64_t occupied_black = board.occupied_co[False]
-    cdef uint64_t occupied = board.occupied   
-    cdef int promotion = 0
-    # print("ENTER MIN", curDepth)
-    if curDepth < depthLimit:  
-        for move in board.generate_legal_moves():            
-            
-            if (move.promotion):
-                promotion = move.promotion
-            else:
-                promotion = 0
-            # print("AAAA")
-            isCapture = is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move))
-            updateZobristHashForMove(newHash, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
-            # print("BBB")
-            board.push(move)
-            thread_maximizer(curDepth + 1, depthLimit, alpha, beta, newHash, board, eval_queue)
-            # print("CCCC", score)
-            board.pop()
-            newHash = curHash
-                
-            beta = min(beta, lowestScore)            
-            if beta <= alpha:                
-                break
             
 cdef void quicksort(list values, list objects, list betas, int left, int right):
     if left >= right:
@@ -1481,32 +1349,35 @@ cdef void quicksort_ascending_wrapper(list values, list objects):
 
 cdef void quicksort_wrapper(list alphas, list objects, list betas, list preAlphas, list preBetas):
     cdef int count = 0
+    cdef int index = 0
+    cdef int maxVal = alphas[0]
     for i in range (len(alphas)):
+        
         if (alphas[i] == None):
             break
+        if (alphas[i] > maxVal):
+            maxVal = alphas[i]
+            index = i
         count += 1
-        
     
-    cdef list alphas_sub_list = alphas[:count]
-    cdef list objects_sub_list = objects[:count]
-    cdef list betas_sub_list = betas[:count]
-    # print(betas)
-    cdef list remaining_alphas = []
-    cdef list remaining_objects = []
-    cdef list remaining_betas = []
-
+    cdef int tempAlpha = alphas.pop(index)
+    cdef list tempBeta = betas.pop(index)
+    cdef object tempObject = objects.pop(index)    
+    
+    alphas.insert(0, tempAlpha)
+    betas.insert(0, tempBeta)
+    objects.insert(0, tempObject)
+    
+    cdef list alphas_sub_list = alphas[1:count] + preAlphas[count:]
+    cdef list objects_sub_list = objects[1:]
+    cdef list betas_sub_list = betas[1:count] + preBetas[count:]    
+    
     quicksort(alphas_sub_list, objects_sub_list, betas_sub_list, 0, len(alphas_sub_list) - 1)
     
-    if (count < len(alphas)):
-        remaining_alphas = preAlphas[count:]
-        remaining_objects = objects[count:]
-        remaining_betas = preBetas[count:]
-        
-        quicksort(remaining_alphas, remaining_objects, remaining_betas, 0, len(remaining_alphas) - 1)
-        
-    alphas[:] = alphas_sub_list + remaining_alphas
-    objects[:] = objects_sub_list + remaining_objects
-    betas[:] = betas_sub_list + remaining_betas
+    alphas[1:] = alphas_sub_list    
+    betas[1:] = betas_sub_list
+    objects[1:] = objects_sub_list
+    
         
 cdef void quicksort_ascending(list values, list objects, int left, int right):
     if left >= right:

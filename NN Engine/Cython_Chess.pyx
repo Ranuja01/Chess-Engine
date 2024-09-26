@@ -8,9 +8,11 @@ cimport cython
 import chess
 import itertools
 import random
+from typing import Iterator
 
 # Cython_Chess.pyx
 from libcpp.vector cimport vector
+from libcpp.string cimport string
 cdef extern from "stdint.h":
     ctypedef signed char int8_t
     ctypedef unsigned char uint8_t
@@ -37,12 +39,19 @@ cdef extern from "cpp_bitboard.h":
     void generatePieceMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, uint64_t our_pieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t from_mask, uint64_t to_mask)
     void generatePawnMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t opposingPieces, uint64_t occupied, bint colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask)
     void initializeZobrist()
-    uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask)
     void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
     int accessCache(uint64_t key)
     void addToCache(uint64_t key,int value)
+    string accessOpponentMoveGenCache(uint64_t key);
+    void addToOpponentMoveGenCache(uint64_t key,char* data, int length);
+    string accessCurPlayerMoveGenCache(uint64_t key);
+    void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length);
     int printCacheStats()
+    int printOpponentMoveGenCacheStats();
+    int printCurPlayerMoveGenCacheStats();
     void evictOldEntries(int numToEvict)
+    void evictOpponentMoveGenEntries(int numToEvict)
+    void evictCurPlayerMoveGenEntries(int numToEvict)
     
     
 cdef int layer[2][8][8]
@@ -74,7 +83,7 @@ for i in range(2):
                     [0,0,0,0,0,0,0,0]
                 ][j][k]
 
-def generate_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
+def generate_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
     
     cdef uint8_t king
     cdef uint64_t blockers
@@ -112,7 +121,7 @@ def generate_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> 
     else:
         yield from generate_pseudo_legal_moves(board, from_mask, to_mask)
 
-def generate_legal_ep(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
+def generate_legal_ep(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
     
     cdef object move
     if board.is_variant_end():
@@ -122,7 +131,7 @@ def generate_legal_ep(object board, uint64_t from_mask, uint64_t to_mask) -> Ite
         if not board.is_into_check(move):
             yield move
 
-def generate_legal_captures(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
+def generate_legal_captures(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
     if from_mask is None:
         from_mask = chess.BB_ALL
     if to_mask is None:
@@ -134,7 +143,7 @@ def generate_legal_captures(object board, uint64_t from_mask, uint64_t to_mask) 
         # board.generate_legal_moves(from_mask, to_mask & board.occupied_co[not board.turn]),
         # board.generate_legal_ep(from_mask, to_mask))
 
-def _generate_evasions(object board, uint8_t king, uint64_t checkers, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
+def _generate_evasions(object board, uint8_t king, uint64_t checkers, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
         
     cdef uint8_t to_square
     cdef uint64_t sliders = checkers & (board.bishops | board.rooks | board.queens)
@@ -150,7 +159,7 @@ def _generate_evasions(object board, uint8_t king, uint64_t checkers, uint64_t f
     
     #for checker in scan_reversed(sliders):
     for i in range(size):
-        attacked |= ray(king, attackedVec[i]) & ~chess.BB_SQUARES[attackedVec[i]]
+        attacked |= ray(king, attackedVec[i]) & ~chess.BB_SQUARES[int(attackedVec[i])]
 
     if (1<<king) & from_mask:
         #if chess.BB_SQUARES[king] & from_mask:
@@ -182,127 +191,7 @@ def _generate_evasions(object board, uint8_t king, uint64_t checkers, uint64_t f
             if last_double == checker:
                 yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
 
-def generate_pseudo_legal_moves2(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
-    cdef uint64_t our_pieces = board.occupied_co[board.turn]
-    cdef uint64_t all_pieces = board.occupied
-    cdef uint8_t from_square
-    cdef uint8_t to_square
-    cdef uint64_t moves
-    cdef uint64_t targets
-    cdef uint64_t single_moves
-    cdef uint64_t double_moves
-    cdef vector[uint8_t] pieceVec
-    cdef vector[uint8_t] pieceMoveVec
-    cdef vector[uint8_t] pawnCapturesVec
-    cdef vector[uint8_t] pawnCapturesMoveVec
-    cdef vector[uint8_t] pawnSingleMoveVec
-    cdef vector[uint8_t] pawnDoubleMoveVec
-    cdef uint8_t outterSize
-    cdef uint8_t innerSize
-   
-    # Generate piece moves.
-    cdef uint64_t non_pawns = our_pieces & ~board.pawns & from_mask
-    
-    scan_reversed(non_pawns,pieceVec)
-    outterSize = pieceVec.size()
-    
-    for i in range(outterSize):
-        
-        moves = attacks_mask(bool((1<<pieceVec[i]) & board.occupied_co[True]),all_pieces,pieceVec[i],board.piece_type_at(pieceVec[i])) & ~our_pieces & to_mask
-        #print(moves, bool((1<<pieceVec[i]) & board.occupied_co[True]), all_pieces, pieceVec[i], board.piece_type_at(pieceVec[i]), our_pieces, to_mask)
-        # if (board.piece_type_at(pieceVec[i]) == 6):
-        #     print(attacks_mask(bool((1<<pieceVec[i]) & board.occupied_co[True]),all_pieces,pieceVec[i],board.piece_type_at(pieceVec[i])))
-        #     print(board.attacks_mask(pieceVec[i]))
-        #     print()
-        pieceMoveVec.clear()
-        scan_reversed(moves,pieceMoveVec)
-        innerSize = pieceMoveVec.size()
-        #print(innerSize)
-        for j in range(innerSize):
-            #print(pieceMoveVec[j])
-            # if (board.piece_type_at(pieceVec[i]) == 6):
-            #     print(chess.Move(pieceVec[i], pieceMoveVec[j]))
-            yield chess.Move(pieceVec[i], pieceMoveVec[j])
-    
-    # for from_square in chess.scan_reversed(non_pawns):
-    #         moves = board.attacks_mask(from_square) & ~our_pieces & to_mask
-    #         print(moves)
-    #         for to_square in chess.scan_reversed(moves):
-    #             yield chess.Move(from_square, to_square)
-    
-    # Generate castling moves.
-    if from_mask & board.kings:
-        yield from board.generate_castling_moves(from_mask, to_mask)
-
-    # The remaining moves are all pawn moves.
-    cdef uint64_t pawns = board.pawns & board.occupied_co[board.turn] & from_mask
-    if not pawns:
-        return
-
-    # Generate pawn captures.
-    cdef uint64_t capturers = pawns
-    scan_reversed(capturers,pawnCapturesVec)
-    outterSize = pawnCapturesVec.size()
-    
-    for i in range(outterSize):
-        # for from_square in scan_reversed(capturers):
-        targets = (
-            chess.BB_PAWN_ATTACKS[board.turn][pawnCapturesVec[i]] &
-            board.occupied_co[not board.turn] & to_mask)
-        pawnCapturesMoveVec.clear()
-        scan_reversed(targets,pawnCapturesMoveVec)
-        innerSize = pawnCapturesMoveVec.size()
-        for j in range(innerSize):
-            #for to_square in scan_reversed(targets):
-            if pawnCapturesMoveVec[j] // 8 in [0, 7]:
-                yield chess.Move(pawnCapturesVec[i], pawnCapturesMoveVec[j], chess.QUEEN)
-                yield chess.Move(pawnCapturesVec[i], pawnCapturesMoveVec[j], chess.ROOK)
-                yield chess.Move(pawnCapturesVec[i], pawnCapturesMoveVec[j], chess.BISHOP)
-                yield chess.Move(pawnCapturesVec[i], pawnCapturesMoveVec[j], chess.KNIGHT)
-            else:
-                yield chess.Move(pawnCapturesVec[i], pawnCapturesMoveVec[j])
-
-    # Prepare pawn advance generation.
-    if board.turn == chess.WHITE:
-        single_moves = pawns << 8 & ~board.occupied
-        double_moves = single_moves << 8 & ~board.occupied & (chess.BB_RANK_3 | chess.BB_RANK_4)
-    else:
-        single_moves = pawns >> 8 & ~board.occupied
-        double_moves = single_moves >> 8 & ~board.occupied & (chess.BB_RANK_6 | chess.BB_RANK_5)
-
-    single_moves &= to_mask
-    double_moves &= to_mask
-
-    # Generate single pawn moves.
-    scan_reversed(single_moves,pawnSingleMoveVec)
-    outterSize = pawnSingleMoveVec.size()
-    
-    for i in range(outterSize):
-        #for to_square in scan_reversed(single_moves):
-        from_square = pawnSingleMoveVec[i] + (8 if board.turn == chess.BLACK else -8)
-
-        if pawnSingleMoveVec[i] // 8 in [0, 7]:
-            yield chess.Move(from_square, pawnSingleMoveVec[i], chess.QUEEN)
-            yield chess.Move(from_square, pawnSingleMoveVec[i], chess.ROOK)
-            yield chess.Move(from_square, pawnSingleMoveVec[i], chess.BISHOP)
-            yield chess.Move(from_square, pawnSingleMoveVec[i], chess.KNIGHT)
-        else:
-            yield chess.Move(from_square, pawnSingleMoveVec[i])
-
-    # Generate double pawn moves.
-    scan_reversed(double_moves,pawnDoubleMoveVec)
-    outterSize = pawnDoubleMoveVec.size()
-    
-    for i in range(outterSize):
-        #for to_square in scan_reversed(double_moves):
-        from_square = pawnDoubleMoveVec[i] + (16 if board.turn == chess.BLACK else -16)
-        yield chess.Move(from_square, pawnDoubleMoveVec[i])
-
-    # Generate en passant captures.
-    if board.ep_square:
-        yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
-
-def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[Move]:
+def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
     cdef uint64_t our_pieces = board.occupied_co[board.turn]
     cdef uint64_t all_pieces = board.occupied
     cdef uint8_t from_square
@@ -354,7 +243,8 @@ def gives_check(object board,object move):
         return is_check(board.turn,board.occupied, board.queens | board.rooks, board.queens | board.bishops, board.kings, board.knights, board.pawns, board.occupied_co[not board.turn])    
     finally:
         board.pop()
-               
+
+          
 def test1(board,square):
     #board.attacks_mask(square)
     #attackers_mask(board, not board.turn, square,board.occupied)

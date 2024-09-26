@@ -12,6 +12,8 @@
 #include <execution>
 #include <random>
 #include <deque>
+#include <string>
+#include <cstring>
 
 constexpr int NUM_SQUARES = 64;
 std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
@@ -29,8 +31,11 @@ uint64_t zobristTable[12][64];
 std::unordered_map<uint64_t, int> moveCache;
 std::deque<uint64_t> insertionOrder;
 
-std::unordered_map<uint64_t, char*> moveGenCache;
-std::deque<uint64_t> moveGenInsertionOrder;
+std::unordered_map<uint64_t, std::string> OpponentMoveGenCache;
+std::deque<uint64_t> OpponentMoveGenInsertionOrder;
+
+std::unordered_map<uint64_t, std::string> curPlayerMoveGenCache;
+std::deque<uint64_t> curPlayerMoveGenInsertionOrder;
 
 // Define the file bitboards
 constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
@@ -434,12 +439,19 @@ int placement_and_piece_midgame(uint8_t square){
             }
 			
             if (piece_type == 1){
-                total -= (y + 1) * 15;
-                                         
+                
                 if (scan_reversed_size((BB_FILES[x] & (occupied_white & pawns))) > 1) {                
                     total += 200;
 				}
-                total -= getPPIncrement(square, colour, (occupied_black & pawns), ppIncrement, x);
+				
+				ppIncrement = getPPIncrement(square, colour, (occupied_black & pawns), ppIncrement, x);
+				total -= ppIncrement;
+				if (ppIncrement == 300) {
+					total -= (y + 1) * 75 + ((y + 1) * (y + 1)) * 10;
+				} else {
+					total -= (y + 1) * 50;
+				}
+                
 			}
         }else if (piece_type == 4){  
             
@@ -580,11 +592,20 @@ int placement_and_piece_midgame(uint8_t square){
                 total += 500;
             }
             if (piece_type == 1){
-                total += (8 - y) * 15;                
+                               
                 if (scan_reversed_size((BB_FILES[x] & (occupied_black & pawns))) > 1){                
                     total -= 200;
                 }
-                total += getPPIncrement(square, colour, (occupied_white & pawns), ppIncrement, x);
+				ppIncrement = getPPIncrement(square, colour, (occupied_white & pawns), ppIncrement, x);
+				total += ppIncrement;
+          
+				if (ppIncrement == 300){
+					total += (8 - y) * 75 + ((8 - y) * (8 - y)) * 10;				
+				}else{
+					total += (8 - y) * 50;     
+				}
+				
+                
 			}
                 
         }else if (piece_type == 4){
@@ -751,14 +772,14 @@ int placement_and_piece_endgame(uint8_t square){
 			total -= ppIncrement;
 			
 			if (ppIncrement == 800) {
-				total -= (y + 1) * 50 + (y + 1) * (y + 1);
+				total -= (y + 1) * 150 + ((y + 1) * (y + 1)) * 15;
 			} else {
 				total -= (y + 1) * 50;
 			}
 			
 			
 		}else if (piece_type == 4){  
-            
+            total -= 500;
             rooks_mask |= BB_FILES[x] & occupied;            
             			
 			uint64_t r = 0;
@@ -791,6 +812,8 @@ int placement_and_piece_endgame(uint8_t square){
 			
 			total -= rookIncrement;
         }else if (piece_type == 3){  
+			total -= 350;
+		} else if (piece_type == 3){
 			total -= 150;
 		}
         
@@ -811,13 +834,13 @@ int placement_and_piece_endgame(uint8_t square){
             total += ppIncrement;
           
             if (ppIncrement == 800){
-                total += (8 - y) * 50 + (8 - y) * (8 - y);
+                total += (8 - y) * 150 + ((8 - y) * (8 - y)) * 15;				
             }else{
                 total += (8 - y) * 50;     
 			}
 			
 		}else if (piece_type == 4){
-            
+            total += 500;
             rooks_mask |= BB_FILES[x] & occupied;            
             			
 			uint8_t r = 0;
@@ -849,6 +872,8 @@ int placement_and_piece_endgame(uint8_t square){
 			
             total += rookIncrement;
         }else if (piece_type == 3){  
+			total += 350;
+		} else if (piece_type == 2){
 			total += 150;
 		}
     }
@@ -1289,17 +1314,45 @@ void addToCache(uint64_t key,int value) {
 	insertionOrder.push_back(key);
 }
 
-char* accessMoveGenCache(uint64_t key) {
-    auto it = moveGenCache.find(key);
-    if (it != moveGenCache.end()) {
+std::string accessOpponentMoveGenCache(uint64_t key) {
+	
+    auto it = OpponentMoveGenCache.find(key);
+    if (it != OpponentMoveGenCache.end()) {
         return it->second;  // Return the value if the key exists
     }
-    return 0;   // Return the default value if the key doesn't exist
+    // Return a binary representation of '0' if the key doesn't exist
+    char* defaultValue = new char[2]; // Allocate space for '0' and null terminator
+    defaultValue[0] = '0'; // Set the first byte to '0'
+    defaultValue[1] = '\0'; // Null terminator for string
+    return defaultValue;
+
 }
 
-void addToMoveGenCache(uint64_t key,char* value) {
-    moveGenCache[key] = value;
-	moveGenInsertionOrder.push_back(key);
+void addToOpponentMoveGenCache(uint64_t key,char* data, int length) {
+	std::string value(data, length);
+    OpponentMoveGenCache[key] = value;
+	OpponentMoveGenInsertionOrder.push_back(key);
+	
+}
+
+std::string accessCurPlayerMoveGenCache(uint64_t key) {
+	
+    auto it = curPlayerMoveGenCache.find(key);
+    if (it != curPlayerMoveGenCache.end()) {
+        return it->second;  // Return the value if the key exists
+    }
+    // Return a binary representation of '0' if the key doesn't exist
+    char* defaultValue = new char[2]; // Allocate space for '0' and null terminator
+    defaultValue[0] = '0'; // Set the first byte to '0'
+    defaultValue[1] = '\0'; // Null terminator for string
+    return defaultValue;
+
+}
+
+void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length) {
+	std::string value(data, length);
+    curPlayerMoveGenCache[key] = value;
+	curPlayerMoveGenInsertionOrder.push_back(key);
 }
 
 int printCacheStats() {
@@ -1317,11 +1370,77 @@ int printCacheStats() {
 	return num_entries;
 }
 
+int printOpponentMoveGenCacheStats() {
+    // Get the number of entries in the map
+    int num_entries = OpponentMoveGenCache.size();
+
+    // Estimate the memory usage in bytes
+    int size_in_bytes = 0;
+
+    // Size of the key (int64_t)
+    size_in_bytes += num_entries * sizeof(int64_t);
+
+    // Iterate through the map to calculate the size of each value
+    for (const auto& entry : OpponentMoveGenCache) {
+        // entry.first is the key
+        // entry.second is the char* value
+        size_in_bytes += entry.second.length() + 1; // +1 for the null terminator
+    }
+
+    // Print the results
+    std::cout << "Number of entries: " << num_entries << std::endl;
+    std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
+	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
+	
+	return num_entries;
+}
+
+int printCurPlayerMoveGenCacheStats() {
+    // Get the number of entries in the map
+    int num_entries = curPlayerMoveGenCache.size();
+
+    // Estimate the memory usage in bytes
+    int size_in_bytes = 0;
+
+    // Size of the key (int64_t)
+    size_in_bytes += num_entries * sizeof(int64_t);
+
+    // Iterate through the map to calculate the size of each value
+    for (const auto& entry : curPlayerMoveGenCache) {
+        // entry.first is the key
+        // entry.second is the char* value
+        size_in_bytes += entry.second.length() + 1; // +1 for the null terminator
+    }
+
+    // Print the results
+    std::cout << "Number of entries: " << num_entries << std::endl;
+    std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
+	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
+	
+	return num_entries;
+}
+
 void evictOldEntries(int numToEvict) {
     while (numToEvict-- > 0 && !insertionOrder.empty()) {
         uint64_t oldestKey = insertionOrder.front();
         insertionOrder.pop_front();  // Remove from deque
         moveCache.erase(oldestKey);  // Erase from map
+    }
+}
+
+void evictOpponentMoveGenEntries(int numToEvict) {
+    while (numToEvict-- > 0 && !OpponentMoveGenInsertionOrder.empty()) {
+        uint64_t oldestKey = OpponentMoveGenInsertionOrder.front();
+        OpponentMoveGenInsertionOrder.pop_front();  // Remove from deque
+        OpponentMoveGenCache.erase(oldestKey);  // Erase from map
+    }
+}
+
+void evictCurPlayerMoveGenEntries(int numToEvict) {
+    while (numToEvict-- > 0 && !curPlayerMoveGenInsertionOrder.empty()) {
+        uint64_t oldestKey = curPlayerMoveGenInsertionOrder.front();
+        curPlayerMoveGenInsertionOrder.pop_front();  // Remove from deque
+        curPlayerMoveGenCache.erase(oldestKey);  // Erase from map
     }
 }
 
@@ -1447,7 +1566,7 @@ void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &end
 	
 	
 	r = 0;
-	bb = single_moves;
+	bb = double_moves;
 	while (bb) {
 		r = 64 - __builtin_clzll(bb) - 1;
 		uint8_t from_square = r;

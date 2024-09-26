@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("r1b1k2r/pp2qp2/2p1p1pp/8/2B1NP2/4P3/Pb4PP/1R1Q1RK1 b kq - 1 15")
+board = chess.Board("5k2/8/8/1p2pb1p/6r1/P7/5K2/8 b - - 1 56")
 
 # Print the board in a human-readable format
 print(board)
@@ -118,26 +118,28 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 #     print (list1 [i], list2 [i], list3 [i])
 
 
-# t0= timer()
+t0= timer()
 # #for move in Cython_Chess.pseudo_legal_moves(board):
-# for i in range (1):
-#     for i in Cython_Chess.generate_pseudo_legal_moves2(board,chess.BB_ALL,chess.BB_ALL):
-#         print(i)
-#         # board.push(i)
-#         # board.pop()
-#         pass
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+for i in range (100000):
+    for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+        # print(move)
+        # print(move, Cython_Chess.gives_check(board,move))
+        # board.push(i)
+        # board.pop()
+        pass
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
-# t0= timer()
-# for i in range (1):
-#     for i in Cython_Chess.generate_pseudo_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
-#         print(i)
-#         # board.push(i)
-#         # board.pop()
-#         pass
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t0= timer()
+for i in range (100000):
+    for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+        # print(move)
+        # print(move, board.gives_check(move))
+        # board.push(i)
+        # board.pop()
+        pass
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
 
 # print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
@@ -167,18 +169,18 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 # b2 = chess.Board("r1b2q1r/pp2kp2/2p1pNpp/8/2BQ1P2/bR2P3/P5PP/5RK1 b - - 7 18")
 # print(chess_ai.ev(b2))
 
-print(board, board.ply())
+# print(board, board.ply())
 t0= timer()
 result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
-print(result['a'],result['b'],result['c'],result['d'])
-print(f"Best score: {result['score']},")
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
 
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
-
+# print(chess_ai.ev(board))
 #a = chess.Board("r1q2rk1/pb1n1ppp/1ppbpn2/3P4/3P4/1PN1PN2/PB2BPPP/1R1Q1RK1 w - - 1 12")
 pgn_string = """
-1. d4 { [%eval 0.17] } 1... d5 { [%eval 0.23] } 2. c4 { [%eval 0.19] } 2... e6 { [%eval 0.17] } 3. Nf3 { [%eval 0.16] } 3... Nf6 { [%eval 0.17] } 4. Nc3 { [%eval 0.1] } 4... c6 { [%eval 0.19] } 5. Bg5 { [%eval 0.14] } 5... h6 { [%eval 0.14] } 6. Bxf6 { [%eval 0.08] } 6... Qxf6 { [%eval 0.34] } 7. e3 { [%eval 0.11] } 7... Nd7 { [%eval 0.25] } 8. Bd3 { [%eval 0.13] } 8... dxc4 { [%eval 0.16] } 9. Bxc4 { [%eval 0.15] } 9... g6 { [%eval 0.15] } 10. O-O { [%eval 0.14] } 10... Bg7 { [%eval 0.23] } 11. Ne4 { [%eval 0.2] } 11... Qe7 { [%eval 0.15] } 12. Ne5 { [%eval -0.2] } 12... Nxe5 { [%eval -0.2] } 13. dxe5 { [%eval -0.23] } 13... Bxe5 { [%eval -0.21] } 14. f4 { [%eval -0.31] } 14... Bxb2 { [%eval -0.18] } 15. Rb1 { [%eval -0.18] } 15... Ba3?? { [%eval 2.3] } { Blunder. Bg7 was best. } (15... Bg7 16. Nd6+ Kf8 17. e4 b5 18. Bb3 c5 19. e5 a6 20. a4 Bd7 21. Qf3) 16. Qd4 { [%eval 2.04] } 16... Qf8?? { [%eval 4.76] } { Blunder. Rg8 was best. } (16... Rg8 17. Rb3) 17. Nf6+ { [%eval 4.19] } 17... Ke7 { [%eval 3.45] } 18. Rb3?! 
+1. d4 a5 2. d5 c5 3. dxc6 a4 4. b4
 """
 
 # Create a PGN reader
@@ -189,9 +191,13 @@ a = pgn.board()
 for move in pgn.mainline_moves():
     a.push(move)
 
-Cython_Chess.test4 (a,5)
-print(chess_ai.ev(a))
-print(a,a.ply())
+Cython_Chess.inititalize()
+Cython_Chess.test5(a,chess.Move.from_uci("a4b3"))
+print()
+Cython_Chess.test6(a,chess.Move.from_uci("a4b3"))
+# Cython_Chess.test4 (a,5)
+# print(chess_ai.ev(a))
+# print(a,a.ply())
 # chess_ai = ChessAI(blackModel, whiteModel, a)
 # t0= timer()
 # result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)

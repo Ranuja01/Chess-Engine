@@ -17,20 +17,29 @@ void rays(std::vector<std::vector<uint64_t>> &rays);
 void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment);
 void printLayers();
 
+uint8_t piece_type_at(uint8_t squareuint8_t);
 int placement_and_piece_midgame(uint8_t square);
 int placement_and_piece_endgame(uint8_t square);
-int parallelTask(const std::vector<uint8_t>& pieceVec, int start, int end);
 int placement_and_piece_eval(int moveNum, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
-uint8_t piece_type_at(uint8_t squareuint8_t);
+void initializeZobrist();
+uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask);
+void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bool isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion);
+int accessCache(uint64_t key);
+void addToCache(uint64_t key,int value);
+char* accessMoveGenCache(uint64_t key);
+void addToMoveGenCache(uint64_t key,char* value);
+int printCacheStats();
+void evictOldEntries(int numToEvict);
 
 void generatePieceMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, uint64_t our_pieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t from_mask, uint64_t to_mask);
 void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t opposingPieces, uint64_t occupied, bool colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask);
 uint64_t attacks_mask(bool colour, uint64_t occupied, uint8_t square, uint8_t pieceType);
-uint64_t attackersMask(bool color, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co);
+uint64_t attackersMask(bool colour, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co);
 uint64_t slider_blockers(uint8_t king, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t occupied_co_opp, uint64_t occupied_co, uint64_t occupied);
 uint64_t betweenPieces(uint8_t a, uint8_t b);
 uint64_t ray(uint8_t a, uint8_t b);
 bool is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bool  is_en_passant);
+bool is_check(bool colour, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t opposingPieces);
 
 uint8_t scan_reversed_size(uint64_t bb);
 void scan_reversed(uint64_t bb, std::vector<uint8_t> &result);

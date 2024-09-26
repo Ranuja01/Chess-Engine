@@ -25,16 +25,25 @@ cdef extern from "cpp_bitboard.h":
     vector[uint8_t] scan_reversedOld(uint64_t bb)
     int getPPIncrement(int square, bint colour, uint64_t opposingPawnMask, int ppIncrement, int x)
     uint64_t attacks_mask(bint colour, uint64_t occupied, uint8_t square, uint8_t pieceType)
-    uint64_t attackersMask(bint color, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co)
+    uint64_t attackersMask(bint colour, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co)
     uint64_t slider_blockers(uint8_t king, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t occupied_co_opp, uint64_t occupied_co, uint64_t occupied)
     uint64_t betweenPieces(uint8_t a, uint8_t b)
     uint64_t ray(uint8_t a, uint8_t b)
     bint is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bint is_en_passant)
+    bint is_check(bint colour, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t opposingPieces)
     void initialize_attack_tables()
     void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment);
     void printLayers();
     void generatePieceMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, uint64_t our_pieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t from_mask, uint64_t to_mask)
     void generatePawnMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t opposingPieces, uint64_t occupied, bint colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask)
+    void initializeZobrist()
+    uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask)
+    void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
+    int accessCache(uint64_t key)
+    void addToCache(uint64_t key,int value)
+    int printCacheStats()
+    void evictOldEntries(int numToEvict)
+    
     
 cdef int layer[2][8][8]
 # Initialize layer
@@ -338,6 +347,13 @@ def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_ma
     # Generate en passant captures.
     if board.ep_square:
         yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
+
+def gives_check(object board,object move):
+    board.push(move)
+    try:
+        return is_check(board.turn,board.occupied, board.queens | board.rooks, board.queens | board.bishops, board.kings, board.knights, board.pawns, board.occupied_co[not board.turn])    
+    finally:
+        board.pop()
                
 def test1(board,square):
     #board.attacks_mask(square)
@@ -418,5 +434,20 @@ def test4 (board,increment):
     setAttackingLayer(board.occupied_co[True], board.occupied_co[False], board.kings, increment)
     printLayers()
 
+# def test5(board,move):
+#     isCapture = is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move))
+#     zobrist = generateZobristHash(board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+#     updateZobristHashForMove(zobrist, move.from_square, move.to_square, isCapture, board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+# def test6(board,move):
+#     zobrist = generateZobristHash(board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+#     board.push(move)
+#     zobrist = generateZobristHash(board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied_co[True], board.occupied_co[False])
+#     print(zobrist)
+#     print(board)
+    
 def inititalize():
+    initializeZobrist()
     initialize_attack_tables()

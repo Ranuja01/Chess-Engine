@@ -119,34 +119,34 @@ std::array<std::array<std::array<int, 8>, 8>, 2> placementLayer2 = {{
 
 std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = {{
     {{ // Pawns
-        {{0,0,3,5,10,10,15,0}},
-        {{0,0,3,5,10,10,15,0}},
-        {{0,0,10,15,20,15,20,0}},
-        {{0,0,10,20,25,15,20,0}},
-        {{0,0,10,20,25,15,20,0}},
-        {{0,0,10,15,20,15,20,0}},
-        {{0,0,3,5,10,10,15,0}},
-        {{0,0,3,5,10,10,15,0}}
+        {{0,0,10,15,20,20,25,0}},
+        {{0,0,10,15,20,20,25,0}},
+        {{0,0,15,25,30,35,30,0}},
+        {{0,0,15,30,45,35,30,0}},
+        {{0,0,15,30,45,35,30,0}},
+        {{0,0,15,25,20,35,30,0}},
+        {{0,0,10,15,20,20,25,0}},
+        {{0,0,10,15,20,20,25,0}}
     }},
     {{ // Knights
-        {{0,0,10,15,20,25,15,10}},
-        {{0,0,10,15,20,25,15,10}},
-        {{0,0,15,20,25,30,20,10}},
-        {{0,0,15,20,25,30,20,10}},
-        {{0,0,15,20,25,30,20,10}},
-        {{0,0,15,20,25,30,20,10}},
-        {{0,0,10,15,20,25,15,10}},
-        {{0,0,10,15,20,25,15,10}}
+        {{0,0,10,15,20,20,15,10}},
+        {{0,0,10,15,20,20,15,10}},
+        {{0,0,15,20,25,25,20,10}},
+        {{0,0,15,20,25,25,20,10}},
+        {{0,0,15,20,25,25,20,10}},
+        {{0,0,15,20,25,25,20,10}},
+        {{0,0,10,15,20,20,15,10}},
+        {{0,0,10,15,20,20,15,10}}
     }},
     {{ // Bishops
-        {{10,10,20,20,20,25,15,20}},
-        {{10,20,20,25,20,25,20,20}},
-        {{10,20,25,25,25,20,20,20}},
-        {{10,25,25,25,25,25,20,20}},
-        {{10,25,25,25,25,25,20,20}},
-        {{10,20,25,25,20,20,20,20}},
-        {{10,20,20,25,20,20,20,20}},
-        {{10,10,20,20,25,20,20,20}}
+        {{10,10,20,20,25,25,15,20}},
+        {{10,20,20,35,20,25,20,20}},
+        {{10,20,25,35,35,25,20,20}},
+        {{10,25,25,35,35,25,20,20}},
+        {{10,25,25,35,35,25,20,20}},
+        {{10,20,25,35,35,25,20,20}},
+        {{10,20,20,35,20,25,20,20}},
+        {{10,10,20,20,25,25,15,20}}
     }},
     {{ // Rooks
         {{0,0,0,0,0,0,0,0}},
@@ -159,14 +159,14 @@ std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = {{
         {{0,0,0,0,0,0,0,0}}
     }},
     {{ // Queens
-        {{10,10,20,20,20,25,15,20}},
-        {{10,20,30,30,20,25,20,20}},
-        {{10,30,35,30,25,20,20,20}},
-        {{10,35,35,40,25,25,20,20}},
-        {{10,35,35,40,25,25,20,20}},
-        {{10,30,35,30,20,20,20,20}},
-        {{10,20,30,30,20,20,20,20}},
-        {{10,10,20,20,25,20,20,20}}
+        {{10,20,40,40,35,20,15,20}},
+		{{10,30,60,60,55,25,20,20}},
+		{{10,40,65,65,60,20,20,20}},
+		{{10,45,65,65,60,25,20,20}},
+		{{10,45,65,65,60,25,20,20}},
+		{{10,40,65,65,60,20,20,20}},
+		{{10,30,60,60,55,20,20,20}},
+		{{10,20,40,40,35,20,20,20}}
     }},
     {{ // Kings
         {{0,0,0,0,0,0,0,0}},
@@ -182,34 +182,34 @@ std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = {{
 
 std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
     {{ // Pawns
-        {{0,15,10,10,5,3,0,0}},
-		{{0,15,10,10,5,3,0,0}},
-		{{0,20,15,20,15,10,0,0}},
-		{{0,20,15,25,20,10,0,0}},
-		{{0,20,15,25,20,10,0,0}},
-		{{0,20,15,20,15,10,0,0}},
-		{{0,15,10,10,5,3,0,0}},
-		{{0,15,10,10,5,3,0,0}}
+        {{0,25,20,20,15,10,0,0}},
+		{{0,25,20,20,15,10,0,0}},
+		{{0,30,35,30,25,15,0,0}},
+		{{0,30,35,45,30,15,0,0}},
+		{{0,30,35,45,30,15,0,0}},
+		{{0,30,35,20,25,15,0,0}},
+		{{0,25,20,20,15,10,0,0}},
+		{{0,25,20,20,15,10,0,0}}
     }},
     {{ // Knights
-        {{10,15,25,20,15,10,0,0}},
-		{{10,15,25,20,15,10,0,0}},
-		{{10,20,30,25,20,15,0,0}},
-		{{10,20,30,25,20,15,0,0}},
-		{{10,20,30,25,20,15,0,0}},
-		{{10,20,30,25,20,15,0,0}},
-		{{10,15,25,20,15,10,0,0}},
-		{{10,15,25,20,15,10,0,0}}
+        {{10,15,20,20,15,10,0,0}},
+		{{10,15,20,20,15,10,0,0}},
+		{{10,20,25,25,20,15,0,0}},
+		{{10,20,25,25,20,15,0,0}},
+		{{10,20,25,25,20,15,0,0}},
+		{{10,20,25,25,20,15,0,0}},
+		{{10,15,20,20,15,10,0,0}},
+		{{10,15,20,20,15,10,0,0}}
     }},
     {{ // Bishops
-        {{20,15,25,20,20,20,10,10}},
-		{{20,20,25,20,25,20,20,10}},
-		{{20,20,20,25,25,25,20,10}},
-		{{20,20,25,25,25,25,25,10}},
-		{{20,20,25,25,25,25,25,10}},
-		{{20,20,20,20,25,25,20,10}},
-		{{20,20,20,20,25,20,20,10}},
-		{{20,20,25,20,20,20,10,10}}
+        {{20,15,25,25,20,20,10,10}},
+		{{20,20,25,20,35,20,20,10}},
+		{{20,20,25,35,35,25,20,10}},
+		{{20,20,25,35,35,25,25,10}},
+		{{20,20,25,35,35,25,25,10}},
+		{{20,20,25,35,35,25,20,10}},
+		{{20,20,25,20,35,20,20,10}},
+		{{20,15,25,25,20,20,10,10}}
     }},
     {{ // Rooks
         {{0,0,0,0,0,0,0,0}},
@@ -222,14 +222,14 @@ std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
         {{0,0,0,0,0,0,0,0}}
     }},
     {{ // Queens
-        {{20,15,25,20,20,20,10,10}},
-		{{20,20,25,20,30,30,20,10}},
-		{{20,20,20,25,30,35,30,10}},
-		{{20,20,25,25,40,35,35,10}},
-		{{20,20,25,25,40,35,35,10}},
-		{{20,20,20,20,30,35,30,10}},
-		{{20,20,20,20,30,30,20,10}},
-		{{20,20,25,20,20,20,10,10}}
+        {{20,15,20,35,40,40,20,10}},
+		{{20,20,25,55,60,60,30,10}},
+		{{20,20,20,60,65,65,40,10}},
+		{{20,20,25,60,65,65,45,10}},
+		{{20,20,25,60,65,65,45,10}},
+		{{20,20,20,60,65,65,40,10}},
+		{{20,20,20,55,60,60,30,10}},
+		{{20,20,20,35,40,40,20,10}}
     }},
     {{ // Kings
         {{0,0,0,0,0,0,0,0}},
@@ -243,6 +243,7 @@ std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
     }}
 }};
 
+std::array<uint8_t, 64> pieceTypeLookUp = {};
 uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
 int blackPieceVal, whitePieceVal;
@@ -271,24 +272,24 @@ void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_
 	
 	attackingLayer = {{
 		{{
-			{{0,0,0,0,0,0,0,0}},
-			{{0,0,3,3,4,5,5,0}},
-			{{0,0,3,6,7,6,4,0}},
-			{{0,0,3,15,20,8,5,0}},
-			{{0,0,3,15,20,8,5,0}},
-			{{0,0,3,6,7,6,4,0}},
-			{{0,0,3,3,4,5,5,0}},
-			{{0,0,0,0,0,0,0,0}}
+			{{0,3,3,3,3,3,3,10}},
+			{{0,0,5,5,5,7,10,15}},
+			{{0,0,5,15,20,30,10,15}},
+			{{0,0,5,30,35,35,10,15}},
+			{{0,0,5,30,35,35,10,15}},
+			{{0,0,5,15,20,30,10,15}},
+			{{0,0,5,5,5,7,10,15}},
+			{{0,3,3,3,3,3,3,10}}
 		}},
 		{{
-			{{0,0,0,0,0,0,0,0}},
-			{{0,5,5,4,3,3,0,0}},
-			{{0,4,6,7,6,3,0,0}},
-			{{0,5,8,20,15,3,0,0}},
-			{{0,5,8,20,15,3,0,0}},
-			{{0,4,6,7,6,3,0,0}},
-			{{0,5,5,4,3,3,0,0}},
-			{{0,0,0,0,0,0,0,0}}
+			{{10,3,3,3,3,3,3,0}},
+			{{15,10,7,5,5,5,0,0}},
+			{{15,10,30,20,15,5,0,0}},
+			{{15,10,35,35,30,5,0,0}},
+			{{15,10,35,35,30,5,0,0}},
+			{{15,10,30,20,15,5,0,0}},
+			{{15,10,7,5,5,5,0,0}},
+			{{10,3,3,3,3,3,3,0}}
 		}}
 	}};
 	
@@ -421,7 +422,7 @@ int placement_and_piece_midgame(uint8_t square){
     int rookIncrement = 300;
     int ppIncrement = 300;
     uint64_t rooks_mask = 0ULL;
-	uint8_t piece_type = piece_type_at (square);
+	uint8_t piece_type = pieceTypeLookUp [square];
 	bool colour = bool(occupied_white & (1ULL << square)); 
     
     uint8_t y = square / 8;
@@ -435,7 +436,7 @@ int placement_and_piece_midgame(uint8_t square){
             total -= whitePlacementLayer[piece_type - 1][x][y];
             
             if (piece_type == 2 || piece_type == 3){
-                total -= 500;
+                total -= 350;
             }
 			
             if (piece_type == 1){
@@ -451,7 +452,25 @@ int placement_and_piece_midgame(uint8_t square){
 				} else {
 					total -= (y + 1) * 50;
 				}
-                
+				
+				uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
+				uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+				
+				if (left != 0){
+					
+					uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(left)]; 
+					if (attackedPieceType == 1 && bool(occupied_white & (1ULL << left))){
+						total -= 50;
+					}
+				}
+				
+				if (right != 0){
+					uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(right)]; 
+					if (attackedPieceType == 1 && bool(occupied_white & (1ULL << right))){
+						total -= 50;
+					}
+				}
+				                
 			}
         }else if (piece_type == 4){  
             
@@ -469,7 +488,7 @@ int placement_and_piece_midgame(uint8_t square){
 				uint8_t att_square = 64 - __builtin_clzll(r) - 1;
 				bb ^= r;
                 if (att_square > square){
-                    uint8_t temp_piece_type = piece_type_at (att_square);
+                    uint8_t temp_piece_type = pieceTypeLookUp [att_square];
 					bool temp_colour = bool(occupied_white & (1ULL << att_square));
                     if (temp_colour){
                         if (temp_piece_type == 1){                            
@@ -506,28 +525,37 @@ int placement_and_piece_midgame(uint8_t square){
 			r = 64 - __builtin_clzll(bb) - 1;										
 			y = r / 8;
             x = r % 8;
-            if (piece_type == 1 || piece_type == 5){
+            if (piece_type == 5){
                 total -= attackingLayer[0][x][y] >> 2;
 				total -= attackingLayer[1][x][y] >> 3;
 				whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
 				whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
 				
-				if (piece_type == 5){
-					occupiedCopy &= ~(1ULL << r);
-					
-					if (bool(~occupied_white & (1ULL << square))){
-						total -= 5;
-					}
-					
-				}
+				occupiedCopy &= ~(1ULL << r);
 				
-            }else if (piece_type == 6){
+				if (bool(~occupied_white & (1ULL << r))){
+					total -= 5;
+				}					
+				
+            }else if (piece_type == 1){
+				total -= attackingLayer[0][x][y] >> 2;
+				total -= attackingLayer[1][x][y] >> 3;
+				whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
+				whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
+				
+				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
+				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << r))){
+					total -= 50;
+				}
+					
+				
+			}else if (piece_type == 6){
 				total -= attackingLayer[0][x][y];   
 				whiteOffensiveScore += attackingLayer[0][x][y];
 								
-				if (piece_type_at(r) == 1 && y > (square / 8)){
-					whiteDefensiveScore += attackingLayer[1][x][y] << 1;
-					total -= attackingLayer[1][x][y] << 1;
+				if (pieceTypeLookUp[r] == 1 && y > (square / 8)){
+					whiteDefensiveScore += (attackingLayer[1][x][y] << 1) + 50;
+					total -= (attackingLayer[1][x][y] << 1) + 100;
 				}else{
 					whiteDefensiveScore += attackingLayer[1][x][y];
 					total -= attackingLayer[1][x][y] >> 2;  
@@ -539,18 +567,16 @@ int placement_and_piece_midgame(uint8_t square){
 				whiteOffensiveScore += attackingLayer[0][x][y];
 				whiteDefensiveScore += attackingLayer[1][x][y] >> 1;
 				
-				
-
 				if (piece_type == 3 || piece_type == 4){
 					occupiedCopy &= ~(1ULL << r);
 					
-					if (bool(~occupied_white & (1ULL << square))){
+					if (bool(~occupied_white & (1ULL << r))){
 						total -= 10;
 					}
 					
 				} else{					
 					
-					if (bool(~occupied_white & (1ULL << square))){
+					if (bool(~occupied_white & (1ULL << r))){
 						total -= 15;
 					}
 				}
@@ -570,7 +596,7 @@ int placement_and_piece_midgame(uint8_t square){
 				x = r % 8;
 				
 				total -= attackingLayer[0][x][y] << 2;
-				uint8_t xRayPieceType = piece_type_at(r); 
+				uint8_t xRayPieceType = pieceTypeLookUp[r]; 
 				if (xRayPieceType != 0){
 					if (piece_type == 5){
 						total -= values[xRayPieceType] >> 7;
@@ -589,7 +615,7 @@ int placement_and_piece_midgame(uint8_t square){
             total += blackPlacementLayer[piece_type - 1][x][y];
             
             if (piece_type == 2 || piece_type == 3){
-                total += 500;
+                total += 350;
             }
             if (piece_type == 1){
                                
@@ -605,6 +631,23 @@ int placement_and_piece_midgame(uint8_t square){
 					total += (8 - y) * 50;     
 				}
 				
+				uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
+				uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+				
+				if (left != 0){
+					
+					uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(left)]; 
+					if (attackedPieceType == 1 && bool(occupied_white & (1ULL << left))){
+						total += 50;
+					}
+				}
+				
+				if (right != 0){
+					uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(right)]; 
+					if (attackedPieceType == 1 && bool(occupied_white & (1ULL << right))){
+						total += 50;
+					}
+				}
                 
 			}
                 
@@ -622,7 +665,7 @@ int placement_and_piece_midgame(uint8_t square){
 				bb ^= (1ULL << r);
 				
                 if (att_square < square){
-                    uint8_t temp_piece_type = piece_type_at (att_square);
+                    uint8_t temp_piece_type = pieceTypeLookUp [att_square];
 					bool temp_colour = bool(occupied_white & (1ULL << att_square));
                     if (temp_colour){
                         if (temp_piece_type == 1){
@@ -659,28 +702,40 @@ int placement_and_piece_midgame(uint8_t square){
 			r = 64 - __builtin_clzll(bb) - 1;
 			y = r / 8;
             x = r % 8;
-            if (piece_type == 1 || piece_type == 5){
+			
+			
+            if (piece_type == 5){
                 total += attackingLayer[1][x][y] >> 2;
+				total += attackingLayer[0][x][y] >> 3;
+				blackOffensiveScore += attackingLayer[1][x][y] >> 1;
+				blackDefensiveScore += attackingLayer[0][x][y] >> 2;				
+				
+				occupiedCopy &= ~(1ULL << r);
+				
+				if (bool(~occupied_black & (1ULL << r))){
+					total += 5;
+				}
+					
+				
+			}else if (piece_type == 1){
+				total += attackingLayer[1][x][y] >> 2;
 				total += attackingLayer[0][x][y] >> 3;
 				blackOffensiveScore += attackingLayer[1][x][y] >> 1;
 				blackDefensiveScore += attackingLayer[0][x][y] >> 2;
 				
-				if (piece_type == 5){
-					occupiedCopy &= ~(1ULL << r);
-					
-					if (bool(~occupied_black & (1ULL << square))){
-						total += 5;
-					}
-					
+				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
+				if (attackedPieceType == 1 && !bool(occupied_white & (1ULL << r))){
+					total += 50;
 				}
+					
 				
 			}else if (piece_type == 6){
 				total += attackingLayer[1][x][y];
 				blackOffensiveScore += attackingLayer[1][x][y];
 								
-				if (piece_type_at(r) == 1 && y < (square / 8)){
-					blackDefensiveScore += attackingLayer[0][x][y] << 1;
-					total += attackingLayer[0][x][y] << 1;
+				if (pieceTypeLookUp[r] == 1 && y < (square / 8)){
+					blackDefensiveScore += (attackingLayer[0][x][y] << 1) + 50;
+					total += (attackingLayer[0][x][y] << 1) + 100;
 				}else{
 					blackDefensiveScore += attackingLayer[0][x][y];
 					total += attackingLayer[0][x][y] >> 2;
@@ -695,13 +750,13 @@ int placement_and_piece_midgame(uint8_t square){
 				if (piece_type == 3 || piece_type == 4){
 					occupiedCopy &= ~(1ULL << r);
 					
-					if (bool(~occupied_black & (1ULL << square))){
+					if (bool(~occupied_black & (1ULL << r))){
 						total += 10;
 					}
 					
 				} else{
 					
-					if (bool(~occupied_black & (1ULL << square))){
+					if (bool(~occupied_black & (1ULL << r))){
 						total += 15;
 					}
 					
@@ -722,7 +777,7 @@ int placement_and_piece_midgame(uint8_t square){
 				x = r % 8;
 				
 				total += attackingLayer[1][x][y] << 2;
-				uint8_t xRayPieceType = piece_type_at(r); 
+				uint8_t xRayPieceType = pieceTypeLookUp[r]; 
 				if (xRayPieceType != 0){
 					if (piece_type == 5){
 						total += values[xRayPieceType] >> 7;
@@ -747,7 +802,7 @@ int placement_and_piece_endgame(uint8_t square){
     int ppIncrement = 800;
 	int attackMultiplier = 1;
     uint64_t rooks_mask = 0ULL;
-	uint8_t piece_type = piece_type_at (square);
+	uint8_t piece_type = pieceTypeLookUp [square];
 	bool colour = bool(occupied_white & (1ULL << square));     
 
     uint8_t y = square / 8;
@@ -777,6 +832,23 @@ int placement_and_piece_endgame(uint8_t square){
 				total -= (y + 1) * 50;
 			}
 			
+			uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
+			uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+			
+			if (left != 0){
+					
+				uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(left)]; 
+				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << left))){
+					total -= 400;
+				}
+			}
+			
+			if (right != 0){
+				uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(right)]; 
+				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << right))){
+					total -= 400;
+				}
+			}
 			
 		}else if (piece_type == 4){  
             total -= 500;
@@ -788,7 +860,7 @@ int placement_and_piece_endgame(uint8_t square){
 			while (bb) {
 				r = bb &-bb;							
 				uint8_t att_square = 64 - __builtin_clzll(r) - 1;
-				uint8_t temp_piece_type = piece_type_at (att_square);
+				uint8_t temp_piece_type = pieceTypeLookUp [att_square];
 				bool temp_colour = bool(occupied_white & (1ULL << att_square));
                 if (temp_piece_type == 1){
                     if (att_square > square){ // Up the board from the white rook
@@ -814,7 +886,7 @@ int placement_and_piece_endgame(uint8_t square){
         }else if (piece_type == 3){  
 			total -= 350;
 		} else if (piece_type == 3){
-			total -= 150;
+			total -= 250;
 		}
         
     }else{
@@ -839,6 +911,24 @@ int placement_and_piece_endgame(uint8_t square){
                 total += (8 - y) * 50;     
 			}
 			
+			uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
+			uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+			
+			if (left != 0){
+				
+				uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(left)]; 
+				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << left))){
+					total += 400;
+				}
+			}
+			
+			if (right != 0){
+				uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(right)]; 
+				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << right))){
+					total += 400;
+				}
+			}
+			
 		}else if (piece_type == 4){
             total += 500;
             rooks_mask |= BB_FILES[x] & occupied;            
@@ -848,7 +938,7 @@ int placement_and_piece_endgame(uint8_t square){
 			while (bb) {
 				r = 64 - __builtin_clzll(bb) - 1;			
 				uint8_t att_square = r;
-				uint8_t temp_piece_type = piece_type_at (att_square);
+				uint8_t temp_piece_type = pieceTypeLookUp [att_square];
 				bool temp_colour = bool(occupied_white & (1ULL << att_square));
                 if (temp_piece_type == 1){    
                     if (att_square < square){ // Down the board from the black rook
@@ -874,7 +964,7 @@ int placement_and_piece_endgame(uint8_t square){
         }else if (piece_type == 3){  
 			total += 350;
 		} else if (piece_type == 2){
-			total += 150;
+			total += 250;
 		}
     }
 	
@@ -900,14 +990,17 @@ int placement_and_piece_endgame(uint8_t square){
 			if (piece_type == 3 || piece_type == 4 || piece_type == 5){
 				occupiedCopy &= ~(1ULL << r);
 					
-				if (bool(~occupied_white & (1ULL << square))){
+				if (bool(~occupied_white & (1ULL << r))){
 					total -= 10;
 				}
-			}
-			
-			if (piece_type == 2){
-				if (bool(~occupied_white & (1ULL << square))){
+			}else if (piece_type == 2){
+				if (bool(~occupied_white & (1ULL << r))){
 					total -= 10;
+				}
+			} else if (piece_type == 1){
+				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
+				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << r))){
+					total -= 400;
 				}
 			}
 			
@@ -926,7 +1019,7 @@ int placement_and_piece_endgame(uint8_t square){
 				x = r % 8;
 				
 				total -= attackingLayer[0][x][y] << 2;
-				uint8_t xRayPieceType = piece_type_at(r); 
+				uint8_t xRayPieceType = pieceTypeLookUp[r]; 
 				if (xRayPieceType != 0){
 					total -= values[xRayPieceType] >> 6;
 				}
@@ -958,14 +1051,17 @@ int placement_and_piece_endgame(uint8_t square){
 			if (piece_type == 3 || piece_type == 4 || piece_type == 5){
 				occupiedCopy &= ~(1ULL << r);
 					
-				if (bool(~occupied_black & (1ULL << square))){
+				if (bool(~occupied_black & (1ULL << r))){
 					total += 10;
 				}
-			}
-			
-			if (piece_type == 2){
-				if (bool(~occupied_black & (1ULL << square))){
+			} else if (piece_type == 2){
+				if (bool(~occupied_black & (1ULL << r))){
 					total += 10;
+				}
+			} else if (piece_type == 1){
+				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
+				if (attackedPieceType == 1 && !bool(occupied_white & (1ULL << r))){
+					total += 400;
 				}
 			}
 			
@@ -983,7 +1079,7 @@ int placement_and_piece_endgame(uint8_t square){
 				x = r % 8;
 				
 				total += attackingLayer[1][x][y] << 2;
-				uint8_t xRayPieceType = piece_type_at(r); 
+				uint8_t xRayPieceType = pieceTypeLookUp[r]; 
 				if (xRayPieceType != 0){
 					total += values[xRayPieceType] >> 6;
 				}
@@ -1019,11 +1115,13 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	whitePieceVal = 0;
 	
 	int pieceNum = scan_reversed_size(occupied) - 2;
-	bool isEndGame = pieceNum < 17;
+	bool isEndGame = pieceNum < 16;
 	bool isNearGameEnd = pieceNum < 10;
+	
+	initializePieceValues(occupied);
 		
 	if (queens == 0){
-		isEndGame = pieceNum < 20;
+		isEndGame = pieceNum < 18;
 		isNearGameEnd = pieceNum < 12;
 	}
 	
@@ -1068,15 +1166,15 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 				
 				if (x >= 4){
 					if (y >= 4){
-						total -= (x + y) * 20;
+						total -= (x + y) * 75;
 					}else{
-						total -= (x + (7 - y)) * 20;
+						total -= (x + (7 - y)) * 75;
 					}					
 				} else{
 					if (y >= 4){
-						total -= ((7 - x) + y) * 20;
+						total -= ((7 - x) + y) * 75;
 					}else{
-						total -= ((7 - x) + (7 - y)) * 20;
+						total -= ((7 - x) + (7 - y)) * 75;
 					}					
 				}
 				
@@ -1089,15 +1187,15 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 				
 				if (x >= 4){
 					if (y >= 4){
-						total += (x + y) * 20;
+						total += (x + y) * 75;
 					}else{
-						total += (x + (7 - y)) * 20;
+						total += (x + (7 - y)) * 75;
 					}					
 				} else{
 					if (y >= 4){
-						total += ((7 - x) + y) * 20;
+						total += ((7 - x) + y) * 75;
 					}else{
-						total += ((7 - x) + (7 - y)) * 20;
+						total += ((7 - x) + (7 - y)) * 75;
 					}					
 				}
 			}
@@ -1147,8 +1245,8 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 				averageWhiteKing_whitePawnSeperation = 7;
 				averageBlackKing_whitePawnSeperation = 7;
 			}
-			total += (7 - averageBlackKing_whitePawnSeperation) * 200 + (7 - averageBlackKing_blackPawnSeperation) * 225;
-			total -= (7 - averageWhiteKing_blackPawnSeperation) * 200 + (7 - averageWhiteKing_whitePawnSeperation) * 225;
+			total += (7 - averageBlackKing_whitePawnSeperation) * 200 + (7 - averageBlackKing_blackPawnSeperation) * 250;
+			total -= (7 - averageWhiteKing_blackPawnSeperation) * 200 + (7 - averageWhiteKing_whitePawnSeperation) * 250;
 			//std::cout << averageBlackKing_blackPawnSeperation << " " << averageWhiteKing_whitePawnSeperation << " " <<  averageBlackKing_whitePawnSeperation << " " << averageWhiteKing_blackPawnSeperation << " " <<std::endl;
 		}
 	}
@@ -1176,6 +1274,18 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 	
 	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;
 	return total;
+}
+
+void initializePieceValues(uint64_t bb){
+	pieceTypeLookUp = {};
+	
+	uint8_t r = 0;
+	
+	while (bb) {
+		r = 64 - __builtin_clzll(bb) - 1;			
+		pieceTypeLookUp [r] = piece_type_at (r);
+		bb ^= (1ULL << r);			
+	} 
 }
 
 // Function to initialize the Zobrist table

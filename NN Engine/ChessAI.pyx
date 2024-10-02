@@ -140,12 +140,12 @@ cdef class ChessAI:
         self.beta_list = []
         self.move_times[4] = 5.0
         self.move_times[5] = 5.5
-        self.time_limit = 600
+        self.time_limit = 60
         self.quiescenceDepth = 6
         
         for i in range(6,26):
             self.move_times[i] = 2.5
-        self.move_times[6] = 15.5
+        
         # Call the initialization function once at module load
         #initialize_layers(self.pgnBoard)
         initialize_attack_tables()
@@ -179,16 +179,16 @@ cdef class ChessAI:
         
         print(whiteCastledIndex,blackCastledIndex)
         cdef int cacheSize = printCacheStats()
-        print()
-        cdef int OpponentMoveGenCacheSize = printOpponentMoveGenCacheStats()
-        print()
-        cdef int CurPlayerMoveGenCacheSize = printCurPlayerMoveGenCacheStats()
+        # print()
+        # cdef int OpponentMoveGenCacheSize = printOpponentMoveGenCacheStats()
+        # print()
+        # cdef int CurPlayerMoveGenCacheSize = printCurPlayerMoveGenCacheStats()
         
-        if (OpponentMoveGenCacheSize > 450000):
-            evictOpponentMoveGenEntries(OpponentMoveGenCacheSize - 450000)
+        # if (OpponentMoveGenCacheSize > 450000):
+        #     evictOpponentMoveGenEntries(OpponentMoveGenCacheSize - 450000)
         
-        if (CurPlayerMoveGenCacheSize > 450000):
-            evictCurPlayerMoveGenEntries(CurPlayerMoveGenCacheSize - 450000)
+        # if (CurPlayerMoveGenCacheSize > 450000):
+        #     evictCurPlayerMoveGenEntries(CurPlayerMoveGenCacheSize - 450000)
         
         
         if (self.pgnBoard.ply() < 30):
@@ -517,14 +517,14 @@ cdef class ChessAI:
         self.moves_list = moves_list
         self.alpha_list.append(score)
         
-        if (timer() - t0 >= self.time_limit or score > 9000000):
+        if (timer() - t0 >= self.time_limit):
             return bestMove
         
         for move in moves_list[1:]:
             
             # Razoring
             if (not(alpha_list[count] == None)):
-                if (alpha - alpha_list[count] > razorThreshold):                    
+                if (alpha - alpha_list[count] > razorThreshold) and alpha < 9000000:                    
                     break
             
             # Late move reduction
@@ -607,7 +607,7 @@ cdef class ChessAI:
                 # print(self.alpha_list)
                 return bestMove
             
-            if (timer() - t0 >= self.time_limit or score > 9000000):
+            if (timer() - t0 >= self.time_limit):
                 
                 if (repetitionFlag):
                     if (alpha < repetitionScore):
@@ -624,36 +624,22 @@ cdef class ChessAI:
                             
                             return bestMove
                 
-                if (alpha >= alpha_list[0]):
-
-                    if (repetitionFlag):
-                        if (alpha < repetitionScore):
-                            if (alpha <= -500):
-                                cur = repetitionMove.uci()
-                                
-                                bestMove.score = 0
-                                bestMove.a = ord(cur[0]) - 96
-                                bestMove.b = ord(cur[1]) - ord('0')
-                                bestMove.c = ord(cur[2]) - 96
-                                bestMove.d = ord(cur[3]) - ord('0')
-                                
-                                bestMove.promotion = -1
-                                
-                                return bestMove                    
-                    return bestMove
-                else:
-                    cur = moves_list[0].uci()
-                    
-                    bestMove.score = score
-                    bestMove.a = ord(cur[0]) - 96
-                    bestMove.b = ord(cur[1]) - ord('0')
-                    bestMove.c = ord(cur[2]) - 96
-                    bestMove.d = ord(cur[3]) - ord('0')
-                    if (move.promotion):
-                        bestMove.promotion = ord(cur[4]) - 96
-                    else:
-                        bestMove.promotion = -1
-                    return bestMove
+                if (repetitionFlag):
+                    if (alpha < repetitionScore):
+                        if (alpha <= -500):
+                            cur = repetitionMove.uci()
+                            
+                            bestMove.score = 0
+                            bestMove.a = ord(cur[0]) - 96
+                            bestMove.b = ord(cur[1]) - ord('0')
+                            bestMove.c = ord(cur[2]) - 96
+                            bestMove.d = ord(cur[3]) - ord('0')
+                            
+                            bestMove.promotion = -1
+                            
+                            return bestMove                    
+                return bestMove
+                
                     
             
         for i in range(num_legal_moves - count):
@@ -808,7 +794,7 @@ cdef class ChessAI:
         cdef int count = 0
         cdef int razorThreshold
         if (depthLimit == 4):
-            razorThreshold = max (int(1250 * .75** (depthLimit - 5)), 200) 
+            razorThreshold = max (int(1000 * .75** (depthLimit - 5)), 200) 
         else:
             razorThreshold = max (int(750 * .75** (depthLimit - 5)), 50)
         cdef uint64_t curHash = self.zobrist
@@ -841,6 +827,8 @@ cdef class ChessAI:
         # if not(moves_list == list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))):
         #     print("AAA")
         cdef list moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        if (curDepth == 1):
+            quicksort_ascending_wrapper(beta_list, moves_list)
         # cdef bytes result = accessOpponentMoveGenCache(curHash)
         # cdef object data, deserialized_list
         # cdef bytes serialized_data
@@ -924,7 +912,7 @@ cdef class ChessAI:
             #     print ("MIN3: ",score, move, alpha, beta)    
                 
             if curDepth == 1:
-                # print(count)
+                # print(score,alpha,beta)
                 cur_beta_list.append(score)
             if score < lowestScore:
                 lowestScore = score
@@ -939,7 +927,7 @@ cdef class ChessAI:
                     self.beta_list.append(cur_beta_list)
                 return score
                 # return lowestScore
-        if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
+        if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):            
             self.numIterations += 1
             if curDepth == 1:
                 for i in range(length - count):
@@ -948,7 +936,7 @@ cdef class ChessAI:
             if self.pgnBoard.is_checkmate():
                 return 100000000
             else:
-                return beta
+                return min(beta,lowestScore)
         
         if curDepth == 1:
             for i in range(length - count):
@@ -1468,28 +1456,28 @@ cdef int evaluate_board(object board,uint64_t zobrist):
     # Iterate through all squares on the board and evaluate piece values
     if board.is_checkmate():
         if board.turn:
-            total = 100000000            
+            total = 9999999 - moveNum      
         else:
-            total = -100000000
+            total = -9999999 + moveNum
     # elif board.is_stalemate():
     #     total = -100000000
     else:
         total += placement_and_piece_eval(moveNum, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
         
 
-        if (whiteCastledIndex == -1):        
-            castle_index = move_index (board, white_ksc, white_qsc)
-            if (castle_index != -1):
-                total -= max(2000 - ((castle_index-1) >> 1) * 25 - moveNum * 25, 1000)
-        else:
-            total -= max(2000 - ((whiteCastledIndex-1) >> 1) * 25 - moveNum * 25, 1000)
+        # if (whiteCastledIndex == -1):        
+        #     castle_index = move_index (board, white_ksc, white_qsc)
+        #     if (castle_index != -1):
+        #         total -= max(1500 - ((castle_index-1) >> 1) * 25 - moveNum * 25, 500)
+        # else:
+        #     total -= max(1500 - ((whiteCastledIndex-1) >> 1) * 25 - moveNum * 25, 500)
         
-        if (blackCastledIndex == -1):       
-            castle_index = move_index (board, black_ksc, black_qsc)
-            if (castle_index != -1):            
-                total += max(2000 - ((castle_index-1) >> 1) * 25 - moveNum * 25, 1000)
-        else:
-            total += max(2000 - ((blackCastledIndex-1) >> 1) * 25 - moveNum * 25, 1000)
+        # if (blackCastledIndex == -1):       
+        #     castle_index = move_index (board, black_ksc, black_qsc)
+        #     if (castle_index != -1):            
+        #         total += max(1500 - ((castle_index-1) >> 1) * 25 - moveNum * 25, 500)
+        # else:
+        #     total += max(1500 - ((blackCastledIndex-1) >> 1) * 25 - moveNum * 25, 500)
         
         
         target_move = board.peek()

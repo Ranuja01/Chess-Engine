@@ -1,3 +1,10 @@
+"""
+@author: Ranuja Pinnaduwage
+
+This file allows the engine to play itself and generate data for back propagation training
+
+"""
+
 import chess
 import chess.engine
 import chess.pgn
@@ -31,11 +38,15 @@ tf.config.optimizer.set_jit(True)  # Enable XLA
 
 trainingCount = 0
 loop = True
+
+# Create a mutex lock and define an event (semaphore)
 lock = threading.Lock()
 event = threading.Event()
 
+# Define the limit to how many entries can be used per training iteration
 dataLimit = 100000
 
+# Define the training data lists globally
 black_inputData = []
 black_output = []
 
@@ -60,10 +71,10 @@ if platform.system() == 'Windows':
 elif platform.system() == 'Linux':
     STOCKFISH_PATH = "/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/stockfish/stockfish-windows-x86-64-avx2.exe"  # Make sure this points to your Stockfish binary
 
-
 def is_promotion_move_enhanced(move, board):
+    
     """
-    Checks if a move is a promotion move.
+    Function that checks if a move is a promotion move.
 
     Parameters:
     - move: chess.Move object to be checked
@@ -72,6 +83,7 @@ def is_promotion_move_enhanced(move, board):
     Returns:
     - True if the move is a promotion, False otherwise
     """
+    
     if move.promotion is not None:
         return True
     
@@ -89,8 +101,9 @@ def is_promotion_move_enhanced(move, board):
     return False
 
 def suggest_moves(board, engine, time_limit=0.0001, depth=None, multipv=1):
+   
     """
-    Suggests the best move(s) for the given position.
+    Function that Suggests the best move(s) for the given position.
 
     Parameters:
     - board: chess.Board object representing the current position.
@@ -102,6 +115,7 @@ def suggest_moves(board, engine, time_limit=0.0001, depth=None, multipv=1):
     Returns:
     - suggestions: list of tuples (move, score), sorted by best move.
     """
+    
     # Set analysis parameters
     limit = chess.engine.Limit(time=time_limit, depth=depth)
     result = engine.analyse(board, limit, multipv=multipv)
@@ -119,8 +133,9 @@ def suggest_moves(board, engine, time_limit=0.0001, depth=None, multipv=1):
     return suggestions
 
 def get_stockfish_evaluation(board, engine, time_limit=0.01):
+    
     """
-    Get Stockfish evaluation of the given board position.
+    Function to get Stockfish evaluation of the given board position.
 
     Parameters:
     - board: chess.Board object
@@ -130,6 +145,7 @@ def get_stockfish_evaluation(board, engine, time_limit=0.01):
     Returns:
     - evaluation: float, centipawn evaluation or large numerical value for mate
     """
+    
     result = engine.analyse(board, chess.engine.Limit(time=time_limit))
     score = result["score"].white()
 
@@ -143,14 +159,16 @@ def get_stockfish_evaluation(board, engine, time_limit=0.01):
     return evaluation
 
 def evaluate_pgn(file_path, stockfish_path=STOCKFISH_PATH, time_limit=0.01):
+    
     """
-    Analyze a PGN file and print Stockfish evaluations for each move.
+    Function to analyze a PGN file and print Stockfish evaluations for each move.
     
     Parameters:
     - file_path: str, path to the PGN file
     - stockfish_path: str, path to the Stockfish engine
     - time_limit: float, time to analyze each position in seconds
     """
+    
     # Open the PGN file
     with open(file_path) as pgn_file:
         # Read the first game from the PGN file
@@ -173,9 +191,7 @@ def evaluate_pgn(file_path, stockfish_path=STOCKFISH_PATH, time_limit=0.01):
                 print("Current position:\n", board)
                 print()
                 # Print the move and its evaluation
-                print(f"Move {move_number}: {move}, Evaluation: {evaluation}")
-                
-                #print("AAAAA", evaluation + 9999)
+                print(f"Move {move_number}: {move}, Evaluation: {evaluation}")                
                 
                 moveMade = str(move)
                 a = ord(moveMade[0:1]) - 96
@@ -191,15 +207,29 @@ def evaluate_pgn(file_path, stockfish_path=STOCKFISH_PATH, time_limit=0.01):
                 print("\nTop suggested moves:")
                 for i, move in enumerate(suggestions):
                     print(f"{i+1}. Move: {board.san(move)}")
-                
-                
+                                
                 move_number += 1
 
 def getNNMove(board):
+    
+    """
+    Function to get move from the neural network
+
+    Parameters:
+    - board: chess.Board object
+
+    Returns:
+    - chess.Move from the neural network
+    """
+    
+    # Define a list for filtering the neural network output to legal moves 
     filteredPrediction = [0]*4096
+    
+    # Call the function to convert the current board to a 12 channel tensor
     inputBoard = [encode_board(board)]
     if board.turn:
         
+        # Acquire the probability distribution from the neural network
         prediction = whiteModel.predict(np.array(inputBoard),verbose=0)
         
         # Filter the predictions to only contain legal moves
@@ -213,10 +243,12 @@ def getNNMove(board):
                          
         filteredPrediction = np.array(filteredPrediction)
         
+        # Call the function to convert the prediction to coordinates
         a,b,c,d = predictionInfo(np.argmax(filteredPrediction))
         
     else:
     
+        # Acquire the probability distribution from the neural network
         prediction = blackModel.predict(np.array(inputBoard), verbose=0)
         
         # Filter the predictions to only contain legal moves
@@ -230,27 +262,53 @@ def getNNMove(board):
                          
         filteredPrediction = np.array(filteredPrediction)
         
+        # Call the function to convert the prediction to coordinates
         a,b,c,d = predictionInfo(np.argmax(filteredPrediction))
 
+    # Convert the coordinates to algebraic notation
     a = chr(a + 96)
     b = str(b)
     c = chr(c + 96)
     d = str(d)
     
+    # If no move is chosen because all are equally considered bad, then return a random move
     if ((a,b,c,d) == ('a','1','a','1')):
         return getRandomMove(board)
     
+    # If a move is a promotion, default to a queen
     if (is_promotion_move_enhanced(move.from_uci(a+b+c+d),board)):
         return move.from_uci(a+b+c+d+'q')
     else:
         return move.from_uci(a+b+c+d)
 
 def getRandomMove(board):
-    legal_moves = list(board.legal_moves)
-    #print(legal_moves)
+    
+    """
+    Function to get a random move
+
+    Parameters:
+    - board: chess.Board object
+
+    Returns:
+    - A random chess.Move
+    """
+    
+    legal_moves = list(board.legal_moves)    
     return random.choice(legal_moves) if legal_moves else None
 
 def lr_schedule_adam(epoch, lr):
+    
+    """
+    Function to get the learning rate schedule specifically for the adam optimizer
+
+    Parameters:
+    - epoch: int, represents the current training iteration
+    - lr: float, represents the current learning rate 
+
+    Returns:
+    - floating point learning rate
+    """
+    
     if epoch == 0:
         lr = 0.0005 - trainingCount * 0.00005
     if epoch % 3 == 0 and epoch != 0:
@@ -260,6 +318,18 @@ def lr_schedule_adam(epoch, lr):
     return lr
 
 def lr_schedule(epoch, lr):
+    
+    """
+    Function to get the learning rate schedule
+
+    Parameters:
+    - epoch: int, represents the current training iteration
+    - lr: float, represents the current learning rate 
+
+    Returns:
+    - floating point learning rate
+    """
+    
     if epoch == 0:
         lr = 0.05 - trainingCount * 0.007
     if epoch % 2 == 0 and epoch != 0:
@@ -270,26 +340,42 @@ def lr_schedule(epoch, lr):
 
 def trainModel(model, inputData, output):
     
-    initial_lr = 0.001  # Initial learning rate
+    """
+    Function to train the given model
+
+    Parameters:
+    - model: Tensorflow model, to be trained
+    - inputData: A list of 12 channel tensors
+    - output: A list of probability distributions
+
+    """
+    
+    # Define the model optimizer
     #optimizer = Adam(learning_rate=initial_lr)
     optimizer = tf.keras.optimizers.SGD(learning_rate=0.005, momentum=0.9)
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
     
-    
+    # Loop through the training data multiple times    
     for i in range (1):
         print ("Iteration:", i)
+        
+        # Partition the training data so as to not overfill the GPU
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
             
             # Convert the input and output into numpy arrays
             x = np.array(inputData[start_idx:end_idx])
             y = np.array(output[start_idx:end_idx])
+            
+            # Reset the memory of the GPU
             cuda.select_device(0)
             cuda.current_context().reset()
-            #K.set_value(model.optimizer.learning_rate, new_lr)
+            
             print("Starting Batch:",trainingCount+1, "From index:",start_idx, "to:", end_idx,'\n')
             
+            # Define the learning rate scheduler and compile the model
+            # Use Categorical cross entropy for the probability distribution with label smoothing.
             lr_scheduler = LearningRateScheduler(lr_schedule)
             model.compile(optimizer=optimizer, loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.2), metrics=['accuracy', TopKCategoricalAccuracy(k=10)])
             
@@ -313,14 +399,25 @@ def trainModel(model, inputData, output):
             #trainingCount+=1
             print("Done:",trainingCount)
             
-
+            # Delete the input and output data and call the garbage collector
             del x, y
             gc.collect()
             
-
     print(model.summary())
 
 def appendData(board, inputData, output, engine):
+    
+    """
+    Function to append the current input and output data to the total
+
+    Parameters:
+    - board: chess.Board object, that holds the current board state
+    - inputData: A list of 12 channel tensors
+    - output: A list of probability distributions
+    - engine: an instance of the stockfish engine
+
+    """
+    
     temp = [0]*4096
     
     move = board.pop()
@@ -374,6 +471,9 @@ def appendData(board, inputData, output, engine):
         temp = [0]*4096
         board.pop()
     board.push(move)
+    
+    # ** Extra code to include capture moves and evasive moves
+    
     '''
     board.pop()
     for legalMove in board.legal_moves:
@@ -442,8 +542,17 @@ def appendData(board, inputData, output, engine):
     board.push(move)
     '''
 
-# Function to convert the neural network output to 4 coordinates
 def predictionInfo(prediction):
+    
+    """
+    Function to convert the neural network output to 4 coordinates
+
+    Parameters:
+    - prediction: An integer index
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
     
     # Get the starting square by integer dividing by 64
     # This is because the encoding uses multiples of 64 to represent each starting square going to each other
@@ -462,14 +571,36 @@ def predictionInfo(prediction):
     
     return pieceToBeMovedXLocation, pieceToBeMovedYLocation, squareToBeMovedToXLocation, squareToBeMovedToYLocation
 
-# Turns the coordinates back into the NN output
 def reversePrediction(x,y,i,j):
+    
+    """
+    A function that converts the coordinates back into the NN output (probability distribution)
+
+    Parameters:
+    - x: int, the starting x coordinate
+    - y: int, the starting y coordinate
+    - i: int, the destination x coordinate
+    - j: int, the destination y coordinate
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
+    
     # First acquire the starting square number and multiply by 64 to get its base number
     # Then add the remaining starting point of the location to be moved to
     return (((x - 1) * 8 + y) - 1)  *64 + ((i - 1) * 8 + j)
-           
-# Convert the board into a 12 channel tensor           
+                  
 def encode_board(board):
+    
+    """
+    A function that converts the board into a 12 channel tensor    
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - A 12 channel tensor where only one type of piece exists per channel
+    """
     
     # Define piece mappings
     piece_to_channel = {
@@ -492,6 +623,17 @@ def encode_board(board):
     return encoded_board
 
 def reflect_board(board):
+    
+    """
+    A function that reflects the board across the verticl axis
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - The reflected chess.Board object
+    """
+    
     # Create a new board which is a reflection of the input board
     reflected_board = chess.Board()
     reflected_board.clear()  # Clear the board first
@@ -508,20 +650,27 @@ def reflect_board(board):
     
     return reflected_board
 
-
 def selfPlay():
-     
+    
+    """
+    A function where a game is played using with the NN to generate training data
+    """
+    
     stockfish_path=STOCKFISH_PATH
+    
+    # Acquire the global loop variable for when the training data has reached capacity for training
     global loop
     
+    # Define the part of the game from which the training data should be acquired
     gameStart = 21
     gameUntil = 36
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
-    #engine.configure({"Threads": 4, "Hash": 4096})
+    
     for i in range (2):
         
+        # Keep looping until the global variable suggests training data has reached capacity
         while(loop):
-            current_thread = threading.current_thread()
+            # current_thread = threading.current_thread()
             # Print the thread ID
             #print(f"Thread Name: {current_thread.name}, Thread ID: {current_thread.ident}")
             #print("Black Size: ",len(black_output))    
@@ -530,52 +679,49 @@ def selfPlay():
             board = chess.Board()
             inGameCount = 1
                         
+            # Reset arrays
             black_inputData_temp = []
             black_output_temp = []
             
             white_inputData_temp = []
             white_output_temp = []  
             
+            # Loop through a game
             while(not(board.is_game_over())):
             
                 # Generate a random number between 0 and 1
                 random_number = random.random()
                 
                 stockfish_usage = 0.5
+                
+                # If one side is very slow in acquiring training data, increase the usage of stockfish to speed up
                 if (len(black_inputData) > dataLimit and board.turn) or (len(white_inputData) > dataLimit and not(board.turn)):
                     stockfish_usage = 1.0
-                
-                
+                                
                 # Define the probability thresholds for each branch
                 if random_number < stockfish_usage:  # 50% chance for the first branch
                     
-                    #t0 = timer()
-                
+                    # Call stockfish to get a move
                     move = suggest_moves(board, engine, time_limit=0.001, depth=15, multipv=1)
-                    board.push(move[0])
-                        #print(board)
-                    #t1 = timer()
-                    #print("STOCKFISH: Time elapsed: ", t1 - t0)
+                    board.push(move[0])                   
                 
-                elif random_number < 0.95:  # 45% chance for the second branch (0.2 + 0.3)
-                    #t0 = timer()
+                elif random_number < 0.95:  # 45% chance for the second branch
+                    
+                    # Call the neural network to get a move
                     move = getNNMove(board)
                     board.push(move)
-                    #t1 = timer()
-                    #print("NN: Time elapsed: ", t1 - t0)
-                else:  # 5% chance for the third branch (0.5 + 0.5)
-                    #print("Branch 3: Taking this path 50% of the time.")
-                    #t0 = timer()
+                    
+                else:  # 5% chance for the third branch
+                    
+                    # Call the randomizer function to get a random move
                     move = getRandomMove(board)
                     board.push(move)
-                    #t1 = timer()
-                    #print("RANDOM: Time elapsed: ", t1 - t0)
      
                 if (inGameCount > gameUntil) or board.is_game_over():
                    
-                    
+                    # Use the stockfish evaluation of the given board state to determine if this game should be appended to white, black or both
                     evaluation = get_stockfish_evaluation(board, engine, 0.001)
-                    #print(evaluation)
+                    
                     if (evaluation >= -0.90 and evaluation <= 0.85):
                         
                         if len(black_inputData) <= dataLimit + 50000:
@@ -594,10 +740,11 @@ def selfPlay():
                     elif (evaluation > 0.85):
                         if len(white_inputData) <= dataLimit + 50000:
                             white_inputData.extend(white_inputData_temp)
-                            white_output.extend(white_output_temp)
-                                        
+                            white_output.extend(white_output_temp)                                        
                     break
     
+                # Within the appropriate range, begin appending the appropriate data
+                # Use mutex lock to keep the data aligned properly when using multiple threads
                 if (inGameCount >= gameStart):
                     
                     if board.turn:            
@@ -612,13 +759,11 @@ def selfPlay():
             del black_inputData_temp, black_output_temp, white_inputData_temp, white_output_temp
             #gc.collect()
             
-        
+        # Each thread should wait until signalled when the training is over
         event.wait() 
         loop = True
         event.clear() 
     engine.close()   
-
-
 
 # List to hold the thread objects
 threads = []
@@ -637,15 +782,23 @@ count = 0
 
 t0_full = timer()
 t0 = timer()
+
+# Loop while any thread is still alive
 while any(t.is_alive() for t in threads):
     #print("Waiting for threads to finish...")
     time.sleep(5)
     loop = True
+    
+    # Check if the training data has reached capacity
     if len(white_output) > dataLimit and len(black_output) > dataLimit:
         t1 = timer()
         print("Time elapsed: ", t1 - t0)
         print("Copying...")
+        
+        # Stop all threads from adding new data
         loop = False
+        
+        # Copy the data so that the original lists can be emptied
         blackIn = copy.deepcopy(black_inputData)
         blackOut = copy.deepcopy(black_output)
         
@@ -655,6 +808,8 @@ while any(t.is_alive() for t in threads):
         #del black_inputData, black_output, white_inputData, white_output
         #gc.collect()        
         
+        
+        # Empty global lists
         black_inputData = []
         black_output = []
 
@@ -663,19 +818,26 @@ while any(t.is_alive() for t in threads):
         
         print("Done!")
         
+        
+        # Call the training function to train each model
         trainModel(whiteModel, whiteIn, whiteOut)
         trainModel(blackModel, blackIn, blackOut)
         
-        event.set() 
+        # Signal the continuation of collecting training data
+        event.set()
+        
+        # Delete the data copies and call the garbage collector
         del blackIn, blackOut, whiteIn, whiteOut
         gc.collect()
+        
         t0 = timer()
         trainingCount += 1
     count+=1
 print("All threads have finished.")
 t1_full = timer()
 print("Time elapsed: ", t1_full - t0_full)
-    
+
+# Save the models
 if platform.system() == 'Windows':
     data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
 elif platform.system() == 'Linux':

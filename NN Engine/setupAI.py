@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Oct  6 20:29:47 2024
+
+@author: Kumodth
+"""
+
 # setup.py
 
 from setuptools import setup, Extension

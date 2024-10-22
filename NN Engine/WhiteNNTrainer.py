@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jul  3 22:33:45 2024
+@author: Ranuja Pinnaduwage
 
-@author: Ranuja
+This file creates and trains a tensorflow model to predict moves for white
+
 """
 
 import numpy as np
@@ -31,8 +32,17 @@ trainingCount = 0
 gameStart = 21
 gameUntil = 36
 
-# Function to convert the neural network output to 4 coordinates
 def predictionInfo(prediction):
+    
+    """
+    Function to convert the neural network output to 4 coordinates
+
+    Parameters:
+    - prediction: An integer index
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
     
     # Get the starting square by integer dividing by 64
     # This is because the encoding uses multiples of 64 to represent each starting square going to each other
@@ -51,15 +61,36 @@ def predictionInfo(prediction):
     
     return pieceToBeMovedXLocation, pieceToBeMovedYLocation, squareToBeMovedToXLocation, squareToBeMovedToYLocation
 
-
-# Turns the coordinates back into the NN output
 def reversePrediction(x,y,i,j):
+    
+    """
+    A function that converts the coordinates back into the NN output (probability distribution)
+
+    Parameters:
+    - x: int, the starting x coordinate
+    - y: int, the starting y coordinate
+    - i: int, the destination x coordinate
+    - j: int, the destination y coordinate
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
+    
     # First acquire the starting square number and multiply by 64 to get its base number
     # Then add the remaining starting point of the location to be moved to
     return (((x - 1) * 8 + y) - 1)  *64 + ((i - 1) * 8 + j)
-           
-# Convert the board into a 12 channel tensor           
+             
 def encode_board(board):
+    
+    """
+    A function that converts the board into a 12 channel tensor    
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - A 12 channel tensor where only one type of piece exists per channel
+    """
     
     # Define piece mappings
     piece_to_channel = {
@@ -82,6 +113,17 @@ def encode_board(board):
     return encoded_board
 
 def reflect_board(board):
+    
+    """
+    A function that reflects the board across the verticl axis
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - The reflected chess.Board object
+    """
+    
     # Create a new board which is a reflection of the input board
     reflected_board = chess.Board()
     reflected_board.clear()  # Clear the board first
@@ -99,6 +141,18 @@ def reflect_board(board):
     return reflected_board
 
 def lr_schedule(epoch, lr):
+    
+    """
+    Function to get the learning rate schedule
+
+    Parameters:
+    - epoch: int, represents the current training iteration
+    - lr: float, represents the current learning rate 
+
+    Returns:
+    - floating point learning rate
+    """
+    
     if epoch == 0:
         lr = 0.0005 - trainingCount * 0.00005
     if epoch % 3 == 0 and epoch != 0:
@@ -107,11 +161,11 @@ def lr_schedule(epoch, lr):
         lr = 0.00000005
     return lr
 
-
 def evasionTraining():
 
-    
-    # EVASION TRAINING
+    """
+    Function to acquire evasive moves
+    """    
     
     print ("Loading evasion training data...")
     
@@ -209,9 +263,9 @@ def evasionTraining():
 
 def captureTraining():
     
-    # CAPTURE TRAINING
-    
-    # EVASION TRAINING
+    """
+    Function to acquire capture moves
+    """
     
     print ("Loading capture training data...")
     
@@ -302,8 +356,22 @@ def captureTraining():
     print(count)        
     return inputData, output 
   
-
 def residual_block(inputs, filters, kernel_size=3, strides=1, use_projection=False):
+    
+    """
+    Function to define a residual block for resnets
+
+    Parameters:
+    - inputs: tf.Tensor, the results from the previous layer    
+    - filters: int, represents the number of learnable parameters
+    - kernel_size: int, represents the sliding window size for the 2d convolution
+    - strides: int, the spacing in the sliding window
+    - use_projection: boolean, whether or not the input data needs to be reshaped for alignment
+    
+    Returns:
+    - tf.Tensor, the output tensor which includes the shortcut
+    """
+    
     # Save the input value as shortcut
     shortcut = inputs
     
@@ -311,9 +379,7 @@ def residual_block(inputs, filters, kernel_size=3, strides=1, use_projection=Fal
     x = Conv2D(filters, kernel_size=kernel_size, strides=strides, padding='same', 
                activation=None)(inputs)
     x = BatchNormalization()(x)
-    x = ReLU()(x)
-
-    
+    x = ReLU()(x)    
     
     # If the input and output dimensions do not match, use a 1x1 convolution to align them
     if use_projection or strides != 1 or inputs.shape[-1] != filters:
@@ -341,17 +407,21 @@ if __name__ == "__main__":
         pass
     testBoard.push(move.from_uci('e2e4'))
     
-    
+    # Start the timer
     t0 = timer()
-    # Open game data file
+    
+    # Open game data file for the given OS
     if platform.system() == 'Windows':
         data_path = r'../PGNs/SuperSet.pgn'
     elif platform.system() == 'Linux':
         data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/PGNs/SuperSet.pgn'  # Example for WSL
+    
     pgn = open(data_path)
         
     # Holds the starting position for training
     gamePosition = gameStart
+    
+    # ** Data collection loop **
     
     # Iterate through all moves and play them on a board.
     count = 1
@@ -403,7 +473,6 @@ if __name__ == "__main__":
             inGameCount += 1
             board.push(move)
             
-
         else:
             # If the count is even, then there is an extra input without a corresponding output which should be removed  
             if (count % 2 == 0):
@@ -412,58 +481,67 @@ if __name__ == "__main__":
                     inputData.pop()
                     inputData.pop()
     
+    # Reset the GPU
     cuda.select_device(0)
     cuda.current_context().reset()
+    
+    # Acquire evasion data and interleave the data
     a,b = evasionTraining()    
     inputData = [item for pair in zip_longest(inputData, a) for item in pair if item is not None]
     output = [item for pair in zip_longest(output, b) for item in pair if item is not None]
     
+    # Remove the unused list data to save space
     del a,b
     gc.collect()
     
+    # Acquire capture data and interleave the data
     a,b = captureTraining()    
     inputData = [item for pair in zip_longest(inputData, a) for item in pair if item is not None]
     output = [item for pair in zip_longest(output, b) for item in pair if item is not None]
     
+    # Remove the unused list data to save space
     del a,b
     gc.collect()
     
-    # Define the model
+    # Begin defining the model
     inputs = tf.keras.Input(shape=(8, 8, 12))
     
-    # Convolutional Layers
+    # Convolutional Layers 1
     x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same')(inputs)
     x = BatchNormalization()(x)
         
     # Residual Block 1 (No projection needed)
     x = residual_block(x, filters=64)
         
-    # Residual Block 1 (No projection needed)
+    # Residual Block 2 (No projection needed)
     x = residual_block(x, filters=64, kernel_size=4)
     
-    # Residual Block 1 (No projection needed)
+    # Residual Block 3 (No projection needed)
     x = residual_block(x, filters=64, kernel_size=4)
     
+    # Convolutional Layer 2
     x = Conv2D(filters=64, kernel_size=(4, 4), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
  
-    # Residual Block 1 (No projection needed)
+    # Residual Block 4 (No projection needed)
     x = residual_block(x, filters=64, kernel_size=5)
         
-    # Residual Block 1 (No projection needed)
+    # Residual Block 5 (No projection needed)
     x = residual_block(x, filters=64, kernel_size=(8,1))
     
+    # Convolutional Layer 3
     x = Conv2D(filters=64, kernel_size=(8, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
     
-    # Residual Block 1 (No projection needed)
+    # Residual Block 6 (No projection needed)
     x = residual_block(x, filters=64, kernel_size=(1,8))
     
+    # Convolutional Layer 4
     x = Conv2D(filters=64, kernel_size=(1, 8), activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
-    
-    
+    x = BatchNormalization()(x)    
             
+    # ** Code block which uses max pooling **
+    
     #x = MaxPooling2D(pool_size=(2, 2))(x)
     # x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
     # x = BatchNormalization()(x)
@@ -480,12 +558,15 @@ if __name__ == "__main__":
     #x = transformer_block(x, num_heads=4, ff_dim=64)
     # Global Average Pooling
     #x = GlobalAveragePooling2D()(x)
+    
+    # Flatten the Conv2D output to be used for dense layers
     x = Flatten()(x)
+    
     # Fully connected layers
     x = Dense(512, activation='relu')(x)
     x = BatchNormalization()(x)
-    #x = Dropout(0.05)(x)
     
+    #x = Dropout(0.05)(x)    
     
     # Output layer
     outputs = Dense(4096)(x)
@@ -501,21 +582,30 @@ if __name__ == "__main__":
     print(model.summary())
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
-    #count = 0
+    
+    # ** Training loop **
+    
     trainingCount = 0
+    
+    # Iterate through entire training data multiple times
     for i in range (3):
         print ("Iteration:", i)
+        
+        # Loop through multiple partitions to not fill the GPU
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
             
             # Convert the input and output into numpy arrays
             x = np.array(inputData[start_idx:end_idx])
             y = np.array(output[start_idx:end_idx])
+            
+            # Reset the GPU
             cuda.select_device(0)
             cuda.current_context().reset()
-            #K.set_value(model.optimizer.learning_rate, new_lr)
+            
             print("Starting Batch:",trainingCount+1, "From index:",start_idx, "to:", end_idx,'\n')
             
+            # Compile the model and train on the given data
             lr_scheduler = LearningRateScheduler(lr_schedule)
             model.compile(optimizer=optimizer, loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True), metrics=['accuracy'])
             
@@ -539,7 +629,7 @@ if __name__ == "__main__":
             trainingCount+=1
             print("Done:",trainingCount)
             
-
+            # Delete the partition and call the garbage collector
             del x, y
             gc.collect()
             

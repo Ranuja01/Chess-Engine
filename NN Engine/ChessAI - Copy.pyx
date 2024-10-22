@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-@author: Ranuja Pinnaduwage
+Created on Tue Jul 30 16:32:26 2024
 
-This file holds the main chess engine and its components
-
+@author: Kumodth
 """
 import chess  # Use regular import for Python libraries
 cimport cython  # Import Cython-specific utilities
@@ -177,7 +176,7 @@ cdef class ChessAI:
         blackCastledIndex = index            
 
     # Function to wrap the 
-    def alphaBetaWrapper(self):
+    def alphaBetaWrapper(self, int curDepth, int depthLimit):
         
         # Start timer
         t0= timer()
@@ -272,7 +271,7 @@ cdef class ChessAI:
         
         # If less than 30 plies have been played, check the opening book
         if (len(self.pgnBoard.move_stack) < 30):
-            result = self.opening_book()
+            result = self.opening_book(curDepth, depthLimit)
                                       
             a = result.a
             b = result.b
@@ -392,8 +391,7 @@ cdef class ChessAI:
     # Function for opening book moves
     @cython.ccall
     @cython.exceptval(check=False)
-    cdef MoveData opening_book(self):
-        
+    cdef MoveData opening_book(self, curDepth, depthLimit):
         cdef MoveData best_move
         cdef str cur
         
@@ -426,7 +424,7 @@ cdef class ChessAI:
             return best_move
             
                 
-    
+    # Define the alphaBeta function
     @boundscheck(False)
     @wraparound(False)
     @cython.exceptval(check=False)
@@ -434,18 +432,6 @@ cdef class ChessAI:
     @cython.ccall
     @cython.inline
     cdef MoveData alphaBeta(self, int curDepth, int depthLimit, double t0):
-        
-        """
-        Define the alphaBeta function
-
-        Parameters:
-        - curDepth: The starting depth
-        - depthLimit: The maximum depth limit
-        - t0: The starting time to keep track of the cutoff time
-
-        Returns:
-        - A MoveData struct instance with the bestmove's coordinates, scores and potential promotions
-        """
         
         # Initialize alpha and beta values
         cdef int alpha = -9999998
@@ -533,7 +519,7 @@ cdef class ChessAI:
         
         # Make the move and call the minimizer
         self.pgnBoard.push(moves_list[0])
-        score = self.minimizer(curDepth + 1, depthLimit, alpha, beta, beta_list[0], beta_move_list[0], isCapture)
+        score = self.minimizer(curDepth + 1, depthLimit, alpha, beta, beta_list[0], beta_move_list[0])
         
         # Check if the position is repeating after the move
         if (self.pgnBoard.is_repetition(2)):
@@ -603,7 +589,7 @@ cdef class ChessAI:
             
             # Make the move and call the minimizer
             self.pgnBoard.push(move)            
-            score = self.minimizer(curDepth + 1, depthUsage, alpha, alpha+1, beta_list[count], beta_move_list[count], isCapture)           
+            score = self.minimizer(curDepth + 1, depthUsage, alpha, alpha+1, beta_list[count], beta_move_list[count])           
                         
             # If the score is within the window, re-search with full window
             if alpha < score and score < beta:
@@ -614,13 +600,13 @@ cdef class ChessAI:
                     # Pop the lists for the re-search
                     self.beta_list.pop()
                     self.beta_move_list.pop()
-                    score = self.minimizer(curDepth + 1, depthUsage, alpha, beta, beta_list[count],beta_move_list[count], isCapture)
+                    score = self.minimizer(curDepth + 1, depthUsage, alpha, beta, beta_list[count],beta_move_list[count])
                 else:
                     
                     # Pop the lists for the re-search
                     self.beta_list.pop()
                     self.beta_move_list.pop()
-                    score = self.minimizer(curDepth + 1, depthUsage, alpha, beta, beta_list[count],beta_move_list[count], isCapture)                
+                    score = self.minimizer(curDepth + 1, depthUsage, alpha, beta, beta_list[count],beta_move_list[count])                
             
             # Check if the position is repeating after the move
             if (self.pgnBoard.is_repetition(2)):
@@ -738,6 +724,8 @@ cdef class ChessAI:
             
             return bestMove
         
+
+    # Define the maximizer function
     @boundscheck(False)
     @wraparound(False)
     @cython.exceptval(check=False)
@@ -745,19 +733,6 @@ cdef class ChessAI:
     @cython.ccall    
     @cython.inline
     cdef int maximizer(self, int curDepth, int depthLimit, int alpha, int beta):
-        
-        """
-        Define the maximizer function
-
-        Parameters:
-        - curDepth: The current depth
-        - depthLimit: The maximum depth limit
-        - alpha: The alpha value representing the score of the best maximizer move
-        - beta: The beta value representing the score of the best minimizer move
-
-        Returns:
-        - The best score found by the maximizer
-        """
         
         # If the depth limit is reached, evaluate the current position
         if curDepth >= depthLimit:
@@ -806,7 +781,7 @@ cdef class ChessAI:
             
             # Push the given move and call the minimizer
             self.pgnBoard.push(move)
-            score = self.minimizer(curDepth + 1, depthLimit, alpha, beta, [],[], False)
+            score = self.minimizer(curDepth + 1, depthLimit, alpha, beta, [],[])
             
             # Undo the move and restore the zobrist hash
             self.pgnBoard.pop()
@@ -814,10 +789,10 @@ cdef class ChessAI:
             
             # ** Code for testing purposes **
             
-            # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p1P3/2PP1P2/2NB4/P1Q2P1P/R1B2RK1 b - - 0 14")):                
+            # if (self.pgnBoard == chess.Board("1r3rk1/p1p2p1p/2p5/3p2p1/8/1P5P/P1PBBK2/RN6 b - - 0 18")):                
             #     print ("MAX: ",score, move)          
                 
-            # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1Ppn2/8/2Pp1P2/2NB4/P1Q2P1P/R1B2RK1 b - - 0 15")):            
+            # if (self.pgnBoard == chess.Board("1r3rk1/p1p4p/2p5/3p1pB1/8/1P5P/P1P1BK2/RN6 b - - 0 19")):            
             #     print ("MAX2: ",score, move)
             
             # if (self.pgnBoard == chess.Board("5rk1/6pp/Q1pqpp2/3p3P/1P1P4/4P3/5P1P/5RK1 b - - 0 23")):
@@ -841,30 +816,14 @@ cdef class ChessAI:
                 
         return highestScore
 
-    
+    # Define the minimizer function
     @boundscheck(False)
     @wraparound(False)
     @cython.exceptval(check=False)
     @cython.nonecheck(False)
     @cython.ccall
     @cython.inline
-    cdef int minimizer(self, int curDepth, int depthLimit, int alpha, int beta, list beta_list_og, list beta_moves_list, bint prevCapture):
-        
-        """
-        Define the minimizer function
-
-        Parameters:
-        - curDepth: The current depth
-        - depthLimit: The maximum depth limit
-        - alpha: The alpha value representing the score of the best maximizer move
-        - beta: The beta value representing the score of the best minimizer move
-        - beta_list_og: A list of preliminary scores
-        - beta_moves_list: A list of pre ordered moves corresponding to the above list
-        - prevCapture: A boolean storing whether the last move was a capture
-
-        Returns:
-        - The best score found by the minimizer
-        """
+    cdef int minimizer(self, int curDepth, int depthLimit, int alpha, int beta, list beta_list_og, list beta_moves_list):
         
         # If the depth limit is reached, evaluate the current position
         if curDepth >= depthLimit:            
@@ -930,13 +889,6 @@ cdef class ChessAI:
                     if (beta_list[count] - beta > razorThreshold):
                         count+=1
                         cur_beta_list.append(None)
-                        # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p5/2PPPP2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 14")):         
-                        #     # print(moves_list)
-                        #     print("REMOVED: ", move, beta_list[count], alpha, beta, count)
-                        # if (prevCapture):
-                        #     continue
-                        # else:
-                        #     break
                         continue
                 
                 # Check if the move is a promoting move
@@ -959,9 +911,9 @@ cdef class ChessAI:
                 
                 # ** Code for testing purposes **
                 
-                # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p5/2PPPP2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 14")):         
-                #     # print(moves_list)
-                #     print ("MIN: ",score, move, alpha, beta, lowestScore)
+                if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p5/2PPPP2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 14")):         
+                    # print(moves_list)
+                    print ("MIN: ",score, move, alpha, beta, lowestScore)
                 
                 # if (self.pgnBoard == chess.Board("1r3rk1/p1p4p/2p5/3p1pp1/8/1P5P/P1PBBK2/RN6 w - - 0 19")):
                 #     print ("MIN2: ",score, move, alpha, beta)
@@ -997,7 +949,7 @@ cdef class ChessAI:
                 self.beta_list.append(cur_beta_list)
                 
                 if self.pgnBoard.is_checkmate():
-                    return lowestScore
+                    return 100000000
                 else:
                     return min(beta,lowestScore)
            
@@ -1032,7 +984,7 @@ cdef class ChessAI:
                 #     # print(moves_list)
                 #     print ("MIN: ",score, move, alpha, beta, lowestScore)
                 
-                # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/4P3/2Pp1P2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 15")):
+                # if (self.pgnBoard == chess.Board("1r3rk1/p1p4p/2p5/3p1pp1/8/1P5P/P1PBBK2/RN6 w - - 0 19")):
                 #     print ("MIN2: ",score, move, alpha, beta)
                 
                 # if (self.pgnBoard == chess.Board("5rk1/p1p4p/2p5/3p1pB1/8/1r5P/P1P1BK2/RN6 w - - 0 20")):
@@ -1054,12 +1006,13 @@ cdef class ChessAI:
                 self.numIterations += 1
                 
                 if self.pgnBoard.is_checkmate():
-                    return lowestScore
+                    return 100000000
                 else:
                     return min(beta,lowestScore)
                
         return lowestScore
         
+    # Define the quiescence maximizer function
     @boundscheck(False)
     @wraparound(False)
     @cython.exceptval(check=False)
@@ -1067,19 +1020,6 @@ cdef class ChessAI:
     @cython.ccall
     @cython.inline
     cdef int quiescenceMax(self, int alpha, int beta, int quiescenceDepth):
-        
-        """
-        Define the quiescence maximizer function
-
-        Parameters:        
-        - alpha: The alpha value representing the score of the best maximizer move
-        - beta: The beta value representing the score of the best minimizer move
-        - quiescenceDepth: The max quiescence depth
-
-        Returns:
-        - The best score found by the quiescence maximizer
-        """
-        
         self.numIterations += 1
         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
@@ -1148,7 +1088,8 @@ cdef class ChessAI:
             return alpha
         # If the alpha value has not changed, the return should be the evaluation acquired in this recursive iteration
         return evaluation          
-
+    
+    # Define the quiescence minimizer function
     @boundscheck(False)
     @wraparound(False)
     @cython.exceptval(check=False)
@@ -1156,18 +1097,6 @@ cdef class ChessAI:
     @cython.ccall
     @cython.inline
     cdef int quiescenceMin(self, int alpha, int beta, int quiescenceDepth):
-        
-        """
-        Define the quiescence minimizer function
-
-        Parameters:        
-        - alpha: The alpha value representing the score of the best maximizer move
-        - beta: The beta value representing the score of the best minimizer move
-        - quiescenceDepth: The max quiescence depth
-
-        Returns:
-        - The best score found by the quiescence minimizer
-        """
         
         self.numIterations += 1
         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
@@ -1239,6 +1168,7 @@ cdef class ChessAI:
         # If the alpha value has not changed, the return should be the evaluation acquired in this recursive iteration
         return evaluation 
     
+    # Define the pre-minimizer function to be used when trtying to reorder moves for full search
     @boundscheck(False)
     @wraparound(False)
     @cython.exceptval(check=False)
@@ -1246,19 +1176,6 @@ cdef class ChessAI:
     @cython.ccall
     @cython.inline
     cdef tuple preMinimizer(self, int curDepth, int depthLimit, int alpha, int beta):
-        
-        """
-        Define the pre-minimizer function to be used when reordering moves for full search
-
-        Parameters:
-        - curDepth: The current depth
-        - depthLimit: The maximum depth limit
-        - alpha: The alpha value representing the score of the best maximizer move
-        - beta: The beta value representing the score of the best minimizer move
-
-        Returns:
-        - A tuple which contains the best score, the list of scores for each move as well as the order of the moves
-        """
         
         # Define the lowest score with respect to the number of moves played
         cdef int lowestScore = 9999999 - len(self.pgnBoard.move_stack)
@@ -1351,7 +1268,7 @@ cdef class ChessAI:
         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
             self.numIterations += 1            
             if self.pgnBoard.is_checkmate():
-                return lowestScore, beta_list, moves_list
+                return 100000000, beta_list, moves_list
             
         return lowestScore, beta_list, moves_list
     
@@ -1359,7 +1276,8 @@ cdef class ChessAI:
     def ev(self, object board):
         self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False])
         return evaluate_board(board,self.zobrist)
-
+    
+    # Function to order pre order moves for full search
     @boundscheck(False)
     @wraparound(False)
     @cython.exceptval(check=False)
@@ -1367,18 +1285,6 @@ cdef class ChessAI:
     @cython.ccall
     @cython.inline
     cdef tuple reorder_legal_moves(self,int alpha,int beta, depthLimit):
-        
-        """
-        Function to order pre order moves for full search
-
-        Parameters:
-        - alpha: The alpha value representing the score of the best maximizer move
-        - beta: The beta value representing the score of the best minimizer move
-        - depthLimit: The maximum depth limit
-
-        Returns:
-        - A tuple which contains the list of scores for each move, as well as the moves list for both the first and second recursive iteration
-        """
         
         # Define variables to hold current scores, moves. index and highest score
         cdef int score = -99999999
@@ -1416,7 +1322,7 @@ cdef class ChessAI:
         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
         cdef uint64_t occupied = self.pgnBoard.occupied   
         
-        # Check if this is the first iteration of iterative deepening and if a moves list has already been defined
+        # Check if this is the first iteration of iterative deepening and if a moves list has already been define
         if (self.alpha_list == []):
             moves_list = list(Cython_Chess.generate_legal_moves(self.pgnBoard,chess.BB_ALL,chess.BB_ALL))
         else:
@@ -1432,97 +1338,68 @@ cdef class ChessAI:
         isCapture = is_capture(moves_list[0].from_square, moves_list[0].to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(moves_list[0]))
         updateZobristHashForMove(self.zobrist, moves_list[0].from_square, moves_list[0].to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black,promotion)
         
-        # Push the move and call the preliminary minimizer, then undo the move and reset the zobrist hash
         self.pgnBoard.push(moves_list[0])        
         highestScore, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, beta)
-        self.pgnBoard.pop()        
+        self.pgnBoard.pop()
+        
         self.zobrist = curHash
         
-        # Update alpha
         alpha = max(alpha, highestScore)
-        
-        # Increment the appropriate moves and scores list
         alpha_list.append(highestScore)
         beta_list.append(cur_beta_list)
         beta_move_list.append(cur_beta_move_list)
-        
         # print(0,highestScore,alpha, moves_list[0])  
         for move in moves_list[1:]:
             
-            # Check if the move is a promoting move
             if (move.promotion):
                 promotion = move.promotion
             else:
                 promotion = 0
             
-            # Acquire the zobrist hash for the new position if the given move was made
             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))
             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
             
-            # Push the move and call the preliminary minimizer using pvs
-            self.pgnBoard.push(move)            
+            self.pgnBoard.push(move)
+            
             score, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, alpha + 1)
             
             # If the score is within the window, re-search with full window
             if alpha < score and score < beta:
                 score, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, beta)
-            
-            # Undo the move and reset the zobrist hash
+                        
             self.pgnBoard.pop()
             self.zobrist = curHash
-            
-            # Increment the appropriate moves and scores list
             alpha_list.append(score)
             beta_list.append(cur_beta_list)
             beta_move_list.append(cur_beta_move_list)
-            
-            # print(count,score,alpha, move)
-            
-            # Update the highest score
+            # print(count,score,alpha, move)  
             if score > highestScore:
                 highestScore = score
             count += 1
-            
-            # Update alpha
             alpha = max(alpha, highestScore)
-        
-        # Check if this is the first iteration of iterative deepening
+              
         if (self.alpha_list == []):
-            # Call quicksort to sort the moves and their associative scores
             quicksort(alpha_list, moves_list, beta_list, beta_move_list, 0, len(alpha_list) - 1)
             return moves_list,alpha_list,beta_list,beta_move_list
         else:
-            # Call the quicksort wrapper to first reorder previous iteration moves before the preliminary search moves
+            # print(self.beta_list, len(self.beta_list))
             quicksort_wrapper(self.alpha_list, moves_list, self.beta_list, self.beta_move_list, alpha_list,beta_list, beta_move_list)    
             # print()
             # print(self.beta_list, len(self.beta_list), len(moves_list), len(self.alpha_list), len(beta_list), len(alpha_list))
             return moves_list,self.alpha_list,self.beta_list,self.beta_move_list
-     
+            
+        # quicksort(alpha_list, moves_list, beta_list, 0, len(alpha_list) - 1)
+        # return moves_list,alpha_list,beta_list    
     def reorder_capture_moves(self, uint64_t mask, object board) -> Iterator[chess.Move]:
         
-        """
-        Function to order capture moves before other moves
-
-        Parameters:
-        - mask: The starting location
-        - board: The current board state
-
-        Yields:
-        - Legal chess moves
-        """
-        
         cdef object move
-        
-        # Generate and yield capture moves first 
+                
         for move in Cython_Chess.generate_legal_captures(board,mask,chess.BB_ALL):
             yield move
-            
-        # Generate all legal moves and yield moves that aren't captures
         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):
             if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):
                 yield move
-    
-    # Function to return moves that are either captures, checks or promotions
+                
     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:
         
         cdef object move
@@ -1530,66 +1407,42 @@ cdef class ChessAI:
         for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
             if (is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)) or board.gives_check(move)) or move.promotion:
                 yield move
-        
+
+            
 cdef void quicksort(list values, list objects, list betas, list betaMoves, int left, int right):
-    
-    """
-    Function to sort moves lists and scores list by the alpha list 
-
-    Parameters:
-    - values: The list of alpha values
-    - objects: The list of moves
-    - betas: The list of lists containing scores for the second recursive iteration
-    - betaMoves: The list of lists containing moves for the second recursive iteration
-    - left: The left index
-    - right: The right index
-
-    """
-    
-    # Check if the list bounds have overlaped
     if left >= right:
         return
 
-    # Define the pivot as the middle value
     pivot = values[left + (right - left) // 2]
-    
-    # Define starting point 
     cdef int i = left
     cdef int j = right
-    
-    # Define variables to temporarily hold swap indices
     cdef int temp_value
     cdef object temp_object
     cdef list temp_list
     cdef list temp_moves_list
 
-    # Loop while the sublist bounds don't cross each other
     while i <= j:
-        
-        # Keep shortening the list until two values are found above and below the pivot
-        # This is checking for when something left of the pivot is less than the pivot and vice versa
         while values[i] > pivot:
             i += 1
         while values[j] < pivot:
             j -= 1
 
         if i <= j:
-            # Swap alpha values
+            # Swap values
             temp_value = values[i]
             values[i] = values[j]
             values[j] = temp_value
 
-            # Swap first iteration moves
+            # Swap objects
             temp_object = objects[i]
             objects[i] = objects[j]
             objects[j] = temp_object
             
-            # Swap second iteration scores lists
+            # Swap lists
             temp_list = betas[i]
             betas[i] = betas[j]
             betas[j] = temp_list
             
-            # Swap second iteration moves lists
             temp_moves_list = betaMoves[i]
             betaMoves[i] = betaMoves[j]
             betaMoves[j] = temp_moves_list 
@@ -1600,51 +1453,24 @@ cdef void quicksort(list values, list objects, list betas, list betaMoves, int l
     # Recursively sort the partitions
     quicksort(values, objects, betas, betaMoves, left, j)
     quicksort(values, objects, betas, betaMoves, i, right)
-
+    
 cdef void quicksort_ascending_wrapper(list values, list objects):
-    
-    """
-    Function to wrap the ascending quicksort function
-
-    Parameters:
-    - values: The list of alpha values
-    - objects: The list of moves
-
-    """
-    
-    # Section of code to find the index where the given lists start becoming NULL
     cdef int count = 0
     for i in values:
         if (i == None):
             break
         count += 1
-    
-    # Sort the non NULL items
     cdef list values_sub_list = values[:count]
     cdef list objects_sub_list = objects[:count]
     quicksort_ascending(values_sub_list, objects_sub_list, 0, len(values_sub_list) - 1)
 
     # Update the original lists
+    # values[:count] = values_sub_list
+    # objects[:count] = objects_sub_list
     values[:] = values_sub_list + values[count:]
     objects[:] = objects_sub_list + objects[count:]
 
 cdef void quicksort_wrapper(list alphas, list objects, list betas, list betaMoves, list preAlphas, list preBetas, list preBetaMoves):
-    
-    """
-    Function to wrap the descending quicksort function
-
-    Parameters:
-    - alphas: The list of alpha values from the previous full search
-    - objects: The list of moves from the previous full search
-    - betas: The list of lists containing scores for the second recursive iteration from the previous full search
-    - betaMoves: The list of lists containing moves for the second recursive iteration from the previous full search
-    - preAlphas: The list of alpha values from the preliminary search
-    - preBetas: The list of lists containing scores for the second recursive iteration from the preliminary search
-    - preBetas: The list of lists containing moves for the second recursive iteration from the preliminary search
-
-    """
-    
-    # Define variables to hold index when the lists become null, the max index, and the max value
     cdef int count = 0
     cdef int index = 0
     cdef int maxVal = alphas[0]
@@ -1657,78 +1483,53 @@ cdef void quicksort_wrapper(list alphas, list objects, list betas, list betaMove
             index = i
         count += 1
     
-    # Create temporary variables to hold the index of the max value
     cdef int tempAlpha = alphas.pop(index)
     cdef list tempBeta = betas.pop(index)
     cdef object tempObject = objects.pop(index)    
     cdef list tempBetaMoves = betaMoves.pop(index)
     
-    # Insert the max values at the beginning of the lists
     alphas.insert(0, tempAlpha)
     betas.insert(0, tempBeta)
     objects.insert(0, tempObject)
     betaMoves.insert(0,tempBetaMoves)
-    
-    # Create a list that consists of the non null values excluding the first one
-    # Complete the lists with the preliminary search values
+    # print(betas)
     cdef list alphas_sub_list = alphas[1:count] + preAlphas[count:]
     cdef list objects_sub_list = objects[1:]
     cdef list betas_sub_list = betas[1:count] + preBetas[count:]
     cdef list beta_moves_sub_list = betaMoves[1:count] + preBetaMoves[count:]
     
-    # Call quicksort to sort the sub lists
     quicksort(alphas_sub_list, objects_sub_list, betas_sub_list,beta_moves_sub_list, 0, len(alphas_sub_list) - 1)
     
-    # Add the sublists to the first indices
     alphas[1:] = alphas_sub_list    
     betas[1:] = betas_sub_list
     objects[1:] = objects_sub_list
     betaMoves[1:] = beta_moves_sub_list
-    
+    # print(betas[0])
+        
 cdef void quicksort_ascending(list values, list objects, int left, int right):
-    
-    """
-    Function to sort moves lists and scores list by the alpha list in ascending order    
-
-    Parameters:
-    - values: The list of alpha values
-    - objects: The list of moves
-    - left: The left index
-    - right: The right index
-
-    """
-    
-    # Check if the list bounds have overlaped
     if left >= right:
         return
 
-    # Define the pivot as the middle value
     pivot = values[left + (right - left) // 2]
-    
-    # Define variables to temporarily hold swap indices
     cdef int i = left
     cdef int j = right
     cdef int temp_value
     cdef object temp_object
     cdef list temp_list
 
-    # Loop while the sublist bounds don't cross each other
     while i <= j:
-        
-        # Keep shortening the list until two values are found below and above the pivot
-        # This is checking for when something left of the pivot is greater than the pivot and vice versa
         while values[i] < pivot:
             i += 1
         while values[j] > pivot:
             j -= 1
 
         if i <= j:
-            # Swap alpha values
+            # Swap values
             temp_value = values[i]
             values[i] = values[j]
             values[j] = temp_value
 
-            # Swap moves
+            # Swap objects
             temp_object = objects[i]
             objects[i] = objects[j]
             objects[j] = temp_object
@@ -1740,7 +1541,6 @@ cdef void quicksort_ascending(list values, list objects, int left, int right):
     quicksort_ascending(values, objects, left, j)
     quicksort_ascending(values, objects, i, right)    
 
-
 @boundscheck(False)
 @wraparound(False)
 @cython.exceptval(check=False)
@@ -1748,18 +1548,6 @@ cdef void quicksort_ascending(list values, list objects, int left, int right):
 @cython.ccall
 cdef int evaluate_board(object board,uint64_t zobrist):
     
-    """
-    Evaluation function
-
-    Parameters:
-    - board: The current board state
-    - zobrist: The zobrist hash for the current position
-  
-    Returns:
-    - The evaluation for the given position
-    """
-    
-    # Initialize bitmasks for the current board state
     cdef uint64_t pawns = board.pawns
     cdef uint64_t knights = board.knights
     cdef uint64_t bishops = board.bishops
@@ -1770,50 +1558,51 @@ cdef int evaluate_board(object board,uint64_t zobrist):
     cdef uint64_t occupied_white = board.occupied_co[True]
     cdef uint64_t occupied_black = board.occupied_co[False]
     cdef uint64_t occupied = board.occupied
-    
-    # Access the cache
+    # cdef uint64_t curZobrist = generateZobristHash(pawns,knights,bishops,rooks,queens,kings,occupied_white,occupied_black)
+    #zobrist = curZobrist
+    # if (curZobrist != zobrist):
+    #     print(curZobrist, zobrist, board.fen(), board.move_stack)
     cdef int cache_result = accessCache(zobrist)
     
-    # Check if the cache has the given position
-    if (cache_result != 0):        
+    if (cache_result != 0):
+        # print(cache_result,board.fen())
         return cache_result
-    
-    # Acquire global variables
+        
     global prevKings
-    # global whiteCastledIndex
-    # global blackCastledIndex
+    global whiteCastledIndex
+    global blackCastledIndex
     
-    # global white_ksc
-    # global white_qsc
-    # global black_ksc
-    # global black_qsc
+    global white_ksc
+    global white_qsc
+    global black_ksc
+    global black_qsc
     
     global values
     
-    # Define variable to hold total evaluation and move number
     cdef int total = 0    
     cdef int moveNum = board.ply()
-    
-    # Define variables for the target move and square for the previously made move
     cdef object target_square
     cdef object target_move
-        
-    # cdef int castle_index = -1
+    
+    
+    cdef int castle_index = -1
     cdef bint horizonMitigation = False
 
-    # Check if the board state is checkmate
+    # Initialize the array in C-style
+    
+    # if (board.occupied == 10746666234248479586):
+    #     print(board)
+    # Iterate through all squares on the board and evaluate piece values
     if board.is_checkmate():
         if board.turn:
             total = 9999999 - moveNum      
         else:
             total = -9999999 + moveNum
-    
+    # elif board.is_stalemate():
+    #     total = -100000000
     else:
-        # Call the c++ function 
         total += placement_and_piece_eval(moveNum, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
         
-
-        # Additional castling logic        
 
         # if (whiteCastledIndex == -1):        
         #     castle_index = move_index (board, white_ksc, white_qsc)
@@ -1830,49 +1619,42 @@ cdef int evaluate_board(object board,uint64_t zobrist):
         #     total += max(1500 - ((blackCastledIndex-1) >> 1) * 25 - moveNum * 25, 500)
         
         
-        # ** Code segment to see if a bad capture was made ** 
-        
-        # Get the previous move made
         target_move = board.peek()
         
-        # Check if the move was a capture
         if (is_capture(target_move.from_square, target_move.to_square, board.occupied_co[not board.turn], board.is_en_passant(target_move))):
-            
-            # Acquire the square that the move was made to
+            #if (board.is_capture(target_move)):    
             target_square = target_move.to_square
-            
-            # # Check if there is a legal capture to the same square
-            # for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_ALL):
-                
-            #     # If such a capture exists, assume that the last capture was a bad one and assume you will lose that piece
-            #     if move.to_square == target_square:
-            #         if (board.turn):
-            #             total -= values[board.piece_type_at(target_square)]
+            #for move in board.generate_legal_captures():
+            for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_ALL):
+                if move.to_square == target_square:
+                    if (board.turn):
+                        total -= values[board.piece_type_at(target_square)]
                         
-            #         else:                            
-            #             total += values[board.piece_type_at(target_square)]
-            #         horizonMitigation = True
-            #         break
-                
-            # Check if there is a legal capture to the same square
-            for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_SQUARES[target_square]):
-                
-                # If such a capture exists, assume that the last capture was a bad one and assume you will lose that piece
-                
-                if (board.turn):
-                    total -= values[board.piece_type_at(target_square)]
-                    
-                else:                            
-                    total += values[board.piece_type_at(target_square)]
-                    
-                # Set the flag for a position where move order matters  
-                horizonMitigation = True
-                break
-            
-    # Avoid the adding this evaluation to the cache if the move order matters
+                    else:                            
+                        total += values[board.piece_type_at(target_square)]
+                    horizonMitigation = True
+                    break      
+    
+    #print(board.fen)
+    # print(board.move_stack)
+    # print(total)
+    # print()
+    
+    
+    # if (board == chess.Board("r1b2q1r/pp2kp2/2p1pNpp/8/2BQ1P2/bR2P3/P5PP/5RK1 b - - 7 18")):
+    #     print(total)
+    #     print(board.move_stack)
+    # if (total == 2780):
+    #     print(board.fen)
+    #     print(total)
+    #     print(board.move_stack)
+    
+    # if (total == 3825):
+    #     print(board.fen(),total)
     if not(horizonMitigation):
         addToCache(zobrist, total)
-           
+    # if (board == chess.Board("5rk1/p1p4p/2p5/3p1pB1/8/1r5P/P1P1BK2/RN6 w - - 0 20")):                
+    #     print (total, board.move_stack)          
     return total
 
 cdef int move_index(object board, object move1, object move2):

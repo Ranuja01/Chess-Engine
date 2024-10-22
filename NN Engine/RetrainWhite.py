@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Jul  5 17:51:11 2024
+@author: Ranuja Pinnaduwage
 
-@author: Kumodth
-"""
+This file allows the re-training of the white tensorflow model
 
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jul  3 22:33:45 2024
-
-@author: Ranuja
 """
 
 #Black File Creation
@@ -36,8 +30,17 @@ trainingCount = 0
 gameStart = 21
 gameUntil = 36
 
-# Function to convert the neural network output to 4 coordinates
 def predictionInfo(prediction):
+    
+    """
+    Function to convert the neural network output to 4 coordinates
+
+    Parameters:
+    - prediction: An integer index
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
     
     # Get the starting square by integer dividing by 64
     # This is because the encoding uses multiples of 64 to represent each starting square going to each other
@@ -56,14 +59,36 @@ def predictionInfo(prediction):
     
     return pieceToBeMovedXLocation, pieceToBeMovedYLocation, squareToBeMovedToXLocation, squareToBeMovedToYLocation
 
-# Turns the coordinates back into the NN output
 def reversePrediction(x,y,i,j):
+    
+    """
+    A function that converts the coordinates back into the NN output (probability distribution)
+
+    Parameters:
+    - x: int, the starting x coordinate
+    - y: int, the starting y coordinate
+    - i: int, the destination x coordinate
+    - j: int, the destination y coordinate
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
+    
     # First acquire the starting square number and multiply by 64 to get its base number
     # Then add the remaining starting point of the location to be moved to
     return (((x - 1) * 8 + y) - 1)  *64 + ((i - 1) * 8 + j)
-           
-# Convert the board into a 12 channel tensor           
+             
 def encode_board(board):
+    
+    """
+    A function that converts the board into a 12 channel tensor    
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - A 12 channel tensor where only one type of piece exists per channel
+    """
     
     # Define piece mappings
     piece_to_channel = {
@@ -86,6 +111,17 @@ def encode_board(board):
     return encoded_board
 
 def reflect_board(board):
+    
+    """
+    A function that reflects the board across the verticl axis
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - The reflected chess.Board object
+    """
+    
     # Create a new board which is a reflection of the input board
     reflected_board = chess.Board()
     reflected_board.clear()  # Clear the board first
@@ -104,7 +140,9 @@ def reflect_board(board):
 
 def generalTraining():
     
-    # GENERAL TRAINING
+    """
+    Function to acquire moves from past games
+    """ 
     
     print ("Loading general training data...")
     
@@ -187,7 +225,9 @@ def generalTraining():
 
 def captureTraining():
     
-    # CAPTURE TRAINING
+    """
+    Function to acquire capture moves
+    """ 
     
     print ("Loading capture training data...")
     
@@ -276,7 +316,9 @@ def captureTraining():
   
 def checkmateTraining():
     
-    # CHECKMATE TRAINING
+    """
+    Function to acquire checkmate moves
+    """ 
     
     print ("Loading checkmate training data...")
     
@@ -354,7 +396,9 @@ def checkmateTraining():
 
 def evasionTraining():
     
-    # EVASION TRAINING
+    """
+    Function to acquire evasion moves
+    """ 
     
     print ("Loading evasion training data...")
     
@@ -451,8 +495,20 @@ def evasionTraining():
     return inputData, output 
 
 def lr_schedule(epoch, lr):
+    
+    """
+    Function to get the learning rate schedule
+
+    Parameters:
+    - epoch: int, represents the current training iteration
+    - lr: float, represents the current learning rate 
+
+    Returns:
+    - floating point learning rate
+    """
+    
     if epoch == 0:
-        lr = 0.0005 - trainingCount * 0.00007
+        lr = 0.005 - trainingCount * 0.0007
     if epoch % 3 == 0 and epoch != 0:
         lr = lr * 0.5
     if lr <= 0.00000005:
@@ -460,16 +516,24 @@ def lr_schedule(epoch, lr):
     return lr
 
 def lr_schedule2(epoch, lr):
+    
+    """
+    Function to get the learning rate schedule
+
+    Parameters:
+    - epoch: int, represents the current training iteration
+    - lr: float, represents the current learning rate 
+
+    Returns:
+    - floating point learning rate
+    """
+    
     if epoch < 5:
         return lr
     else:
         return lr * math.exp(-0.1)
 
-
-if __name__ == "__main__":    
-    
-    # Define variables to create the training data
-
+if __name__ == "__main__":        
     
     # Create the test board
     newPgn = io.StringIO("1. e4*")
@@ -477,17 +541,21 @@ if __name__ == "__main__":
     testBoard = newGame.board()
     for move in newGame.mainline_moves():
         pass
-    t0= timer()
     
+    # Start the timer
+    t0 = timer()
     
     inputData = []
     output = []
+    
+    # ** Train each type of data individually **
     
     inputData, output = generalTraining()
     #inputData, output = evasionTraining()
     #inputData, output = captureTraining()
     #inputData, output = checkmateTraining()
     
+    # Open game data file for the given OS
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':
@@ -501,21 +569,26 @@ if __name__ == "__main__":
 
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
-    #count = 0
     
+    # ** Training loop **
+    
+    # Iterate through entire training data multiple times
     for i in range (5):
         print ("Iteration:", i)
+        
+        # Loop through multiple partitions to not fill the GPU
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
             
             # Convert the input and output into numpy arrays
             x = np.array(inputData[start_idx:end_idx])
             y = np.array(output[start_idx:end_idx])
+            
+            # Reset the GPU
             cuda.select_device(0)
             cuda.current_context().reset()
-            #K.set_value(model.optimizer.learning_rate, new_lr)
-            print("Starting Batch:",trainingCount+1, "From index:",start_idx, "to:", end_idx,'\n')
             
+            print("Starting Batch:",trainingCount+1, "From index:",start_idx, "to:", end_idx,'\n')            
 
             # Define the learning rate scheduler
             lr_scheduler = LearningRateScheduler(lr_schedule)
@@ -541,7 +614,7 @@ if __name__ == "__main__":
             trainingCount+=1
             print("Done:",trainingCount)
             
-
+            # Delete the partition and call the garbage collector
             del x, y
             gc.collect()
     
@@ -559,7 +632,6 @@ if __name__ == "__main__":
     print(reversePrediction(a,b,c,d))
     
     # Save the model
-    # Open game data file
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel6_MidEndGame(8)_Refined.keras'
     elif platform.system() == 'Linux':

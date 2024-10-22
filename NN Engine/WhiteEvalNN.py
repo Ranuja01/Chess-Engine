@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Aug 15 13:28:23 2024
+@author: Ranuja Pinnaduwage
 
-@author: Kumodth
-"""
+This file creates and trains a tensorflow model to evaluate positions for white
 
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jul  3 22:33:45 2024
-
-@author: Ranuja
 """
 
 import numpy as np
@@ -38,8 +32,17 @@ trainingCount = 0
 gameStart = 21
 gameUntil = 36
 
-# Function to convert the neural network output to 4 coordinates
 def predictionInfo(prediction):
+    
+    """
+    Function to convert the neural network output to 4 coordinates
+
+    Parameters:
+    - prediction: An integer index
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
     
     # Get the starting square by integer dividing by 64
     # This is because the encoding uses multiples of 64 to represent each starting square going to each other
@@ -58,15 +61,36 @@ def predictionInfo(prediction):
     
     return pieceToBeMovedXLocation, pieceToBeMovedYLocation, squareToBeMovedToXLocation, squareToBeMovedToYLocation
 
-
-# Turns the coordinates back into the NN output
 def reversePrediction(x,y,i,j):
+    
+    """
+    A function that converts the coordinates back into the NN output (probability distribution)
+
+    Parameters:
+    - x: int, the starting x coordinate
+    - y: int, the starting y coordinate
+    - i: int, the destination x coordinate
+    - j: int, the destination y coordinate
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
+    
     # First acquire the starting square number and multiply by 64 to get its base number
     # Then add the remaining starting point of the location to be moved to
     return (((x - 1) * 8 + y) - 1)  *64 + ((i - 1) * 8 + j)
-           
-# Convert the board into a 12 channel tensor           
+             
 def encode_board(board):
+    
+    """
+    A function that converts the board into a 12 channel tensor    
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - A 12 channel tensor where only one type of piece exists per channel
+    """
     
     # Define piece mappings
     piece_to_channel = {
@@ -89,6 +113,17 @@ def encode_board(board):
     return encoded_board
 
 def reflect_board(board):
+    
+    """
+    A function that reflects the board across the verticl axis
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - The reflected chess.Board object
+    """
+    
     # Create a new board which is a reflection of the input board
     reflected_board = chess.Board()
     reflected_board.clear()  # Clear the board first
@@ -106,6 +141,18 @@ def reflect_board(board):
     return reflected_board
 
 def lr_schedule(epoch, lr):
+    
+    """
+    Function to get the learning rate schedule
+
+    Parameters:
+    - epoch: int, represents the current training iteration
+    - lr: float, represents the current learning rate 
+
+    Returns:
+    - floating point learning rate
+    """
+    
     if epoch == 0:
         lr = 0.005 - trainingCount * 0.000005
     if epoch % 2 == 0 and epoch != 0:
@@ -114,11 +161,11 @@ def lr_schedule(epoch, lr):
         lr = 0.000000005
     return lr
 
-
 def evasionTraining(engine):
-
     
-    # EVASION TRAINING
+    """
+    Function to acquire evasion moves
+    """ 
     
     print ("Loading evasion training data...")
     
@@ -188,9 +235,9 @@ def evasionTraining(engine):
 
 def captureTraining(engine):
     
-    # CAPTURE TRAINING
-    
-    # EVASION TRAINING
+    """
+    Function to acquire capture moves
+    """ 
     
     print ("Loading capture training data...")
     
@@ -255,6 +302,21 @@ def captureTraining(engine):
     return inputData, output 
   
 def residual_block(inputs, filters, kernel_size=3, strides=1, use_projection=False):
+    
+    """
+    Function to define a residual block for resnets
+
+    Parameters:
+    - inputs: tf.Tensor, the results from the previous layer    
+    - filters: int, represents the number of learnable parameters
+    - kernel_size: int, represents the sliding window size for the 2d convolution
+    - strides: int, the spacing in the sliding window
+    - use_projection: boolean, whether or not the input data needs to be reshaped for alignment
+    
+    Returns:
+    - tf.Tensor, the output tensor which includes the shortcut
+    """
+    
     # Save the input value as shortcut
     shortcut = inputs
     
@@ -278,8 +340,9 @@ def residual_block(inputs, filters, kernel_size=3, strides=1, use_projection=Fal
     return x
 
 def get_stockfish_evaluation(board, engine, time_limit=0.01):
+    
     """
-    Get Stockfish evaluation of the given board position.
+    Function to get Stockfish evaluation of the given board position.
 
     Parameters:
     - board: chess.Board object
@@ -289,6 +352,7 @@ def get_stockfish_evaluation(board, engine, time_limit=0.01):
     Returns:
     - evaluation: float, centipawn evaluation or large numerical value for mate
     """
+    
     result = engine.analyse(board, chess.engine.Limit(time=time_limit, depth = 20))
     score = result["score"].relative
 
@@ -302,14 +366,52 @@ def get_stockfish_evaluation(board, engine, time_limit=0.01):
     return evaluation
 
 def tolerance_accuracy(y_true, y_pred, tolerance=0.5):
+    
+    """
+    Function to get an accuracy metric for a given tolerance
+
+    Parameters:
+    - y_true: list of true evaluations
+    - y_pred: list of predicted evaluations
+    - tolerance: float, the range within which the prediction can be considered accurate
+
+    Returns:
+    - accuracy: float, the average accuracy for the given predictions
+    """
+    
     return tf.reduce_mean(tf.cast(tf.abs(y_true - y_pred) <= tolerance, tf.float32))
 
 @tf.keras.utils.register_keras_serializable()
 def tolerance_accuracy_05(y_true, y_pred):
+    
+    """
+    Function to get an accuracy metric for a tolerance of 0.5
+
+    Parameters:
+    - y_true: list of true evaluations
+    - y_pred: list of predicted evaluations    
+
+    Returns:
+    - accuracy: float, the average accuracy for the given predictions
+    """
+    
     return tolerance_accuracy(y_true, y_pred, tolerance=0.5)
 
-
 def transformer_block(inputs, num_heads, ff_dim):
+    
+    """
+    Function that implements a transformer block with Multi-Head Attention and a Feed-Forward Network.
+
+    Parameters:
+    - inputs: tf.Tensor, the results from the previous layer   
+    - num_heads: int, the number of attention heads in the Multi-Head Attention mechanism
+    - ff_dim: int, the number of units in the hidden layer of the Feed-Forward Network
+
+    Returns:
+    - tf.Tensor, the output tensor after applying Multi-Head Attention, residual connections, 
+      and a Feed-Forward Network with Layer Normalization.
+    """
+    
     # Multi-Head Attention
     attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=inputs.shape[-1])(inputs, inputs)
     attention_output = Add()([inputs, attention_output])
@@ -348,12 +450,15 @@ if __name__ == "__main__":
     
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     
+    # Start the timer
     t0 = timer()
+    
     # Open game data file
     if platform.system() == 'Windows':
         data_path = r'../PGNs/SuperSet.pgn'
     elif platform.system() == 'Linux':
         data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/PGNs/SuperSet.pgn'  # Example for WSL
+    
     pgn = open(data_path)
         
     # Holds the starting position for training
@@ -395,19 +500,25 @@ if __name__ == "__main__":
                 inGameCount += 1
                 board.push(move)
           
+    # Reset the GPU
     cuda.select_device(0)
     cuda.current_context().reset()
-    a,b = evasionTraining(engine)    
+    
+    # Acquire evasion data and interleave the data
+    a,b = evasionTraining()    
     inputData = [item for pair in zip_longest(inputData, a) for item in pair if item is not None]
     output = [item for pair in zip_longest(output, b) for item in pair if item is not None]
     
+    # Remove the unused list data to save space
     del a,b
     gc.collect()
     
-    a,b = captureTraining(engine)    
+    # Acquire capture data and interleave the data
+    a,b = captureTraining()    
     inputData = [item for pair in zip_longest(inputData, a) for item in pair if item is not None]
     output = [item for pair in zip_longest(output, b) for item in pair if item is not None]
     
+    # Remove the unused list data to save space
     del a,b
     gc.collect()
     
@@ -445,8 +556,8 @@ if __name__ == "__main__":
     # x = Conv2D(filters=64, kernel_size=(1, 8), activation='relu', padding='same')(x)
     # x = BatchNormalization()(x)
     
+    # ** Code block which uses max pooling **        
     
-            
     # #x = MaxPooling2D(pool_size=(2, 2))(x)
     # # x = Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same', kernel_regularizer=regularizers.l2(0.00001))(x)
     # # x = BatchNormalization()(x)
@@ -463,7 +574,10 @@ if __name__ == "__main__":
     # x = transformer_block(x, num_heads=4, ff_dim=64)
     # Global Average Pooling
     #x = GlobalAveragePooling2D()(x)
+    
+    # Flatten the Conv2D output to be used for dense layers
     x = Flatten()(inputs)
+    
     # Fully connected layers
     x = Dense(512, activation='relu')(x)
     x = BatchNormalization()(x)
@@ -483,19 +597,19 @@ if __name__ == "__main__":
     x = BatchNormalization()(x)
     
     #x = Dropout(0.05)(x)
-    
-    
+        
     # Output layer
     #outputs = Dense(4096, activation='softmax')(x)
     outputs = Dense(1, activation='linear')(x)
+    
     # Create and compile the model
     model = tf.keras.Model(inputs, outputs)  
-    
-    
+        
     # Define the learning rate scheduler
     initial_lr = 0.001  # Initial learning rate
     #optimizer = Adam(learning_rate=initial_lr)
     optimizer = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
+    
     # Use a lambda function to pass the tolerance value and give it a name
     # tolerance_metric = lambda y_true, y_pred: tolerance_accuracy(y_true, y_pred, tolerance=0.5)
     # tolerance_metric.__name__ = 'tolerance_accuracy_05'
@@ -503,19 +617,26 @@ if __name__ == "__main__":
     print(model.summary())
     num_samples = len(inputData)
     print("Input Size: ", len(inputData))
-    #count = 0
+
+    # ** Training loop **
     trainingCount = 0
+    
+    # Iterate through entire training data multiple times
     for i in range (2):
+        
         print ("Iteration:", i)
+        # Loop through multiple partitions to not fill the GPU
         for start_idx in range(0, num_samples, 100000):
             end_idx = min(start_idx + 100000, num_samples)
             
             # Convert the input and output into numpy arrays
             x = np.array(inputData[start_idx:end_idx])
             y = np.array(output[start_idx:end_idx])
+            
+            # Reset the GPU
             cuda.select_device(0)
             cuda.current_context().reset()
-            #K.set_value(model.optimizer.learning_rate, new_lr)
+                        
             print("Starting Batch:",trainingCount+1, "From index:",start_idx, "to:", end_idx,'\n')
             
             lr_scheduler = LearningRateScheduler(lr_schedule)
@@ -542,7 +663,7 @@ if __name__ == "__main__":
             trainingCount+=1
             print("Done:",trainingCount)
             
-
+            # Delete the partition and call the garbage collector
             del x, y
             gc.collect()
             
@@ -562,6 +683,7 @@ if __name__ == "__main__":
     
     print(reversePrediction(a,b,c,d))
     '''
+    
     # Save the model
     if platform.system() == 'Windows':
         data_path = r'../Models/WhiteModel_21_36.keras'

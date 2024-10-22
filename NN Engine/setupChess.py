@@ -18,7 +18,7 @@ extensions = [
         sources=["cpp_bitboard.cpp", "Cython_Chess.pyx"],       # Source Cython file
         language="c++",                   # Use C++ compiler
         extra_compile_args=["-Ofast", "-march=native", "-ffast-math", 
-        "-funroll-loops", "-flto", "-fomit-frame-pointer", "-std=c++11"], # Optimization flags
+        "-funroll-loops", "-flto", "-fomit-frame-pointer", "-std=c++20"], # Optimization flags
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")], 
         include_dirs=[np.get_include()],
         

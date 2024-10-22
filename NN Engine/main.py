@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("4r1k1/2R2pp1/br1pq2p/3Qp3/8/6P1/3N1PBP/R5K1 b - - 2 31")
+board = chess.Board("r1bk3r/pp1nq1p1/2p2pBp/3pp3/P2P2P1/2P1PPP1/2P1NK2/R2Q3R b - - 0 15")
 
 # Print the board in a human-readable format
 print(board)
@@ -175,16 +175,20 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 
 # print(board, board.ply())
 t0= timer()
-result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=6)
+result = chess_ai.alphaBetaWrapper()
 # print(result['a'],result['b'],result['c'],result['d'])
 # print(f"Best score: {result['score']},")
 
 t1 = timer()
 print("Time elapsed: ", t1 - t0)
 # print(chess_ai.ev(board))
-#a = chess.Board("r1q2rk1/pb1n1ppp/1ppbpn2/3P4/3P4/1PN1PN2/PB2BPPP/1R1Q1RK1 w - - 1 12")
+a = chess.Board("5rk1/p1p4p/2p5/3p1pB1/8/1r5P/P1P1BK2/RN6 w - - 0 20")
+# print(chess_ai.ev(a))
 pgn_string = """
-1. d4 a5 2. d5 c5 3. dxc6 a4 4. b4
+[Variant "From Position"]
+[FEN "1rb2rk1/p1p2p1p/2p5/3p2p1/8/1P5P/P1PBBKP1/RN6 b - - 0 17"]
+
+17... Bxh3 18. gxh3 Rxb3 19. Bxg5 f5
 """
 
 # Create a PGN reader
@@ -194,13 +198,13 @@ pgn = chess.pgn.read_game(io.StringIO(pgn_string))
 a = pgn.board()
 for move in pgn.mainline_moves():
     a.push(move)
-
+print(chess_ai.ev(a))
 Cython_Chess.inititalize()
 Cython_Chess.test5(a,chess.Move.from_uci("a4b3"))
 print()
 Cython_Chess.test6(a,chess.Move.from_uci("a4b3"))
 # Cython_Chess.test4 (a,5)
-# print(chess_ai.ev(a))
+
 # print(a,a.ply())
 # chess_ai = ChessAI(blackModel, whiteModel, a)
 # t0= timer()

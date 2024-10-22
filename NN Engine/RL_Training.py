@@ -59,7 +59,7 @@ elif platform.system() == 'Linux':
 
 def is_promotion_move_enhanced(move, board):
     """
-    Checks if a move is a promotion move.
+    Function that checks if a move is a promotion move.
 
     Parameters:
     - move: chess.Move object to be checked
@@ -68,6 +68,7 @@ def is_promotion_move_enhanced(move, board):
     Returns:
     - True if the move is a promotion, False otherwise
     """
+    
     if move.promotion is not None:
         return True
     
@@ -85,6 +86,7 @@ def is_promotion_move_enhanced(move, board):
     return False
 
 def suggest_moves(board, engine, time_limit=0.0001, depth=None, multipv=1):
+    
     """
     Suggests the best move(s) for the given position.
 
@@ -98,6 +100,7 @@ def suggest_moves(board, engine, time_limit=0.0001, depth=None, multipv=1):
     Returns:
     - suggestions: list of tuples (move, score), sorted by best move.
     """
+    
     # Set analysis parameters
     limit = chess.engine.Limit(time=time_limit, depth=depth)
     result = engine.analyse(board, limit, multipv=multipv)
@@ -139,6 +142,17 @@ def get_stockfish_evaluation(board, engine, time_limit=0.01):
     return evaluation
 
 def getNNMove(board):
+    
+    """
+    Function to get move from the neural network
+
+    Parameters:
+    - board: chess.Board object
+
+    Returns:
+    - chess.Move from the neural network
+    """
+    
     filteredPrediction = [0]*4096
     inputBoard = [encode_board(board)]
     if board.turn:
@@ -189,12 +203,32 @@ def getNNMove(board):
         return move.from_uci(a+b+c+d)
 
 def getRandomMove(board):
+    
+    """
+    Function to get a random move
+
+    Parameters:
+    - board: chess.Board object
+
+    Returns:
+    - A random chess.Move
+    """
+    
     legal_moves = list(board.legal_moves)
     #print(legal_moves)
     return random.choice(legal_moves) if legal_moves else None
 
-# Function to convert the neural network output to 4 coordinates
 def predictionInfo(prediction):
+    
+    """
+    Function to convert the neural network output to 4 coordinates
+
+    Parameters:
+    - prediction: An integer index
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
     
     # Get the starting square by integer dividing by 64
     # This is because the encoding uses multiples of 64 to represent each starting square going to each other
@@ -213,14 +247,36 @@ def predictionInfo(prediction):
     
     return pieceToBeMovedXLocation, pieceToBeMovedYLocation, squareToBeMovedToXLocation, squareToBeMovedToYLocation
 
-# Turns the coordinates back into the NN output
 def reversePrediction(x,y,i,j):
+    
+    """
+    A function that converts the coordinates back into the NN output (probability distribution)
+
+    Parameters:
+    - x: int, the starting x coordinate
+    - y: int, the starting y coordinate
+    - i: int, the destination x coordinate
+    - j: int, the destination y coordinate
+
+    Returns:
+    - A tuple consisting of the 4 coordinates
+    """
+    
     # First acquire the starting square number and multiply by 64 to get its base number
     # Then add the remaining starting point of the location to be moved to
     return (((x - 1) * 8 + y) - 1)  *64 + ((i - 1) * 8 + j)
-           
-# Convert the board into a 12 channel tensor           
+          
 def encode_board(board):
+    
+    """
+    A function that converts the board into a 12 channel tensor    
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - A 12 channel tensor where only one type of piece exists per channel
+    """
     
     # Define piece mappings
     piece_to_channel = {
@@ -243,6 +299,17 @@ def encode_board(board):
     return encoded_board
 
 def reflect_board(board):
+    
+    """
+    A function that reflects the board across the verticl axis
+
+    Parameters:
+    - board: chess.Board, the current board state
+
+    Returns:
+    - The reflected chess.Board object
+    """
+    
     # Create a new board which is a reflection of the input board
     reflected_board = chess.Board()
     reflected_board.clear()  # Clear the board first
@@ -259,9 +326,18 @@ def reflect_board(board):
     
     return reflected_board
 
-# Function to compute the policy gradient and update the model
 def update_policy(policy_model, states, actions, rewards):
-    #print(states)
+    
+    """
+    Function to compute the policy gradient and update the model
+
+    Parameters:
+    - policy_model: Tensorflow model, the model to be trained
+    - states: list of the encoded input board states
+    - actions, list of taken actions for the given state
+    - rewards, list of rewards given for the given action
+
+    """
     
     # Define the optimizer
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.5)
@@ -307,9 +383,12 @@ def compute_discounted_rewards(rewards, gamma):
         discounted_rewards[t] = cumulative_reward
     return discounted_rewards
         
-
 def selfPlay():
-     
+    
+    """
+    A function where a game is played using with the NN to generate training data
+    """
+    
     stockfish_path=STOCKFISH_PATH
     #global boards
     engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)

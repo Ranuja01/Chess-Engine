@@ -1,6 +1,0 @@
-// strings.proto
-syntax = "proto3";
-
-message MoveList {
-    repeated string values = 1;
-}

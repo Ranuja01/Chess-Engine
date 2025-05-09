@@ -436,7 +436,6 @@ def evasionTraining():
                 # If the board state is that white just moved, add the board as the input
                 if (inGameCount % 2 == 0):
                     
-                    safety_moves = []
                     for legalMove in board.legal_moves:
                         from_square = legalMove.from_square
                         to_square = legalMove.to_square
@@ -552,16 +551,16 @@ if __name__ == "__main__":
         
     # ** Train each type of data individually **
     
-    #inputData, output = generalTraining()
+    inputData, output = generalTraining()
     #inputData, output = evasionTraining()
     #inputData, output = captureTraining()
-    inputData, output = checkmateTraining()
+    #inputData, output = checkmateTraining()
         
     # Open game data file for the given OS
     if platform.system() == 'Windows':
         data_path = r'../Models/BlackModel6_MidEndGame(9)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel6_37_50(15)_WEvasion_Refined.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_TEST1.keras'  # Example for WSL
     model = tf.keras.models.load_model(data_path)
     
     # Compile the model using Adam and loss as categorical crossentropy for classification of the moves
@@ -607,7 +606,7 @@ if __name__ == "__main__":
             history = model.fit(
                 x, y,
                 epochs=50,  # Set a large number of epochs for the possibility of early stopping
-                batch_size=6,
+                batch_size=64,
                 validation_split=0.2,  # Split a portion of the data for validation
                 callbacks=[lr_scheduler, early_stopping],  # Pass the early stopping callback and learning rate scheduler
                 shuffle=True,
@@ -639,7 +638,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/BlackModel6_MidEndGame(9)_Refined.keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel6_37_50(15)_WEvasion_Refined.keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_TEST1_Refined.keras'  # Example for WSL
     model.save(data_path)
     t1 = timer()
     print("Time elapsed: ", t1 - t0)

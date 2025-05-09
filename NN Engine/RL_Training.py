@@ -480,7 +480,7 @@ def selfPlay():
 threads = []
 
 # Create and start threads
-for i in range(80):  # Example with 5 threads
+for i in range(80):  
     t = threading.Thread(target=selfPlay, args=())
     t.start()
     threads.append(t)

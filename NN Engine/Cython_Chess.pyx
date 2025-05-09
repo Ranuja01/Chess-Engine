@@ -16,7 +16,8 @@ cimport cython
 import chess
 import itertools
 import random
-from typing import Iterator
+from collections.abc import Iterator
+
 
 # From the c++ standard library import vectors and strings
 from libcpp.vector cimport vector

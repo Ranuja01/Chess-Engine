@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("r1bk3r/pp1nq1p1/2p2pBp/3pp3/P2P2P1/2P1PPP1/2P1NK2/R2Q3R b - - 0 15")
+board = chess.Board("2q1k2r/Q3b1np/R1p1p1p1/2Ppn3/1P1N4/4P3/5PPP/6K1 b k - 0 22")
 
 # Print the board in a human-readable format
 print(board)
@@ -118,34 +118,34 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 #     print (list1 [i], list2 [i], list3 [i])
 
 
-# t0= timer()
-# # #for move in Cython_Chess.pseudo_legal_moves(board):
-# for i in range (10000):
-#     for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
-#         # print(move)
-#         if (Cython_Chess.is_checkmate(board)):
-#             pass
-#         # board.push(move)
-#         # print(move, Cython_Chess.is_checkmate(board))
-#         # print(board)
-#         # board.pop()
-#         pass
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t0= timer()
+# #for move in Cython_Chess.pseudo_legal_moves(board):
+for i in range (100000):
+    for move in board.generate_legal_moves():
+        # print(move)
+        # if (Cython_Chess.is_checkmate(board)):
+        #     pass
+        # board.push(move)
+        # print(move, Cython_Chess.is_checkmate(board))
+        # print(board)
+        # board.pop()
+        pass
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
-# t0= timer()
-# for i in range (10000):
-#     for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
-#         # print(move)
-#         if (board.is_checkmate()):
-#             pass
-#         # board.push(move)
-#         # print(move, board.is_checkmate())     
-#         # print(board)
-#         # board.pop()
-#         pass
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t0= timer()
+for i in range (100000):
+    for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+        # print(move)
+        # if (board.is_checkmate()):
+        #     pass
+        # board.push(move)
+        # print(move, board.is_checkmate())     
+        # print(board)
+        # board.pop()
+        pass
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
 
 # print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))

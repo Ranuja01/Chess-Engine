@@ -10,8 +10,10 @@ Code augmented from python-chess: https://github.com/niklasf/python-chess/tree/5
 
 #include "cpp_bitboard.h"
 #include <vector>
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cassert>
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -212,6 +214,17 @@ std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
         {{0,0,0,0,0,0,0,0}}
     }}
 }};
+
+
+std::unordered_map<uint64_t, uint8_t> initialize_bit_to_square() {
+    std::unordered_map<uint64_t, uint8_t> bit_to_square;
+    for (uint8_t i = 0; i < 64; ++i) {
+        bit_to_square[1ULL << i] = i;
+    }
+    return bit_to_square;
+}
+
+std::unordered_map<uint64_t, uint8_t> bit_to_square = initialize_bit_to_square();
 
 // Define array to hold the piece type 
 std::array<uint8_t, 64> pieceTypeLookUp = {};
@@ -444,7 +457,7 @@ int placement_and_piece_midgame(uint8_t square){
             
 			// Subtract extra value for the existence of a bishop or knight in the midgame
             if (piece_type == 2 || piece_type == 3){
-                total -= 350;
+                total -= 375;
             }
 			
 			// Check if the piece is a pawn
@@ -463,7 +476,7 @@ int placement_and_piece_midgame(uint8_t square){
 				if (ppIncrement >= 200) {
 					total -= (y + 1) * 50 + ((y + 1) * (y + 1)) * 10;
 				} else {
-					total -= (y + 1) * 50;
+					total -= (y + 1) * 75;
 				}
 				
 				/*
@@ -599,7 +612,7 @@ int placement_and_piece_midgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r = 64 - __builtin_clzll(bb) - 1;									
 
 			// Get the x and y coordinates for the given square
@@ -735,7 +748,7 @@ int placement_and_piece_midgame(uint8_t square){
 			uint8_t r = 0;
 			uint64_t bb = xRayMask;
 			while (bb) {
-				// Get the current square in the mask as the bit length of the mask
+				// Get the position of the most significant set bit of the mask
 				r = 64 - __builtin_clzll(bb) - 1;									
 
 				// Get the x and y coordinates for the given square
@@ -773,7 +786,7 @@ int placement_and_piece_midgame(uint8_t square){
             
 			// Add extra value for the existence of a bishop or knight in the midgame
             if (piece_type == 2 || piece_type == 3){
-                total += 350;
+                total += 375;
             }
 			
 			// Check if the piece is a pawn
@@ -792,7 +805,7 @@ int placement_and_piece_midgame(uint8_t square){
 				if (ppIncrement >= 200){
 					total += (8 - y) * 50 + ((8 - y) * (8 - y)) * 10;				
 				}else{
-					total += (8 - y) * 50;     
+					total += (8 - y) * 75;     
 				}
 				
 				/*
@@ -925,7 +938,7 @@ int placement_and_piece_midgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r = 64 - __builtin_clzll(bb) - 1;
 			
 			// Get the x and y coordinates for the given square
@@ -1058,7 +1071,7 @@ int placement_and_piece_midgame(uint8_t square){
 			uint8_t r = 0;
 			uint64_t bb = xRayMask;
 			while (bb) {
-				// Get the current square in the mask as the bit length of the mask
+				// Get the position of the most significant set bit of the mask
 				r = 64 - __builtin_clzll(bb) - 1;									
 
 				// Get the x and y coordinates for the given square
@@ -1260,7 +1273,7 @@ int placement_and_piece_endgame(uint8_t square){
 		uint8_t r = 0;
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r = 64 - __builtin_clzll(bb) - 1;									
 
 			// Get the x and y coordinates for the given square
@@ -1316,7 +1329,7 @@ int placement_and_piece_endgame(uint8_t square){
 			uint8_t r = 0;
 			uint64_t bb = xRayMask;
 			while (bb) {
-				// Get the current square in the mask as the bit length of the mask
+				// Get the position of the most significant set bit of the mask
 				r = 64 - __builtin_clzll(bb) - 1;									
 
 				// Get the x and y coordinates for the given square
@@ -1474,7 +1487,7 @@ int placement_and_piece_endgame(uint8_t square){
 		uint8_t r = 0;
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r = 64 - __builtin_clzll(bb) - 1;									
 
 			// Get the x and y coordinates for the given square
@@ -1530,7 +1543,7 @@ int placement_and_piece_endgame(uint8_t square){
 			uint8_t r = 0;
 			uint64_t bb = xRayMask;
 			while (bb) {
-				// Get the current square in the mask as the bit length of the mask
+				// Get the position of the most significant set bit of the mask
 				r = 64 - __builtin_clzll(bb) - 1;									
 
 				// Get the x and y coordinates for the given square
@@ -1626,9 +1639,9 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 		uint64_t bb = occupied;
 		while (bb) {
 			
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r = 64 - __builtin_clzll(bb) - 1;		
-
+						
 			// Call the midgame evaluation function 
 			total += placement_and_piece_midgame(r);
 			bb ^= (1ULL << r);			
@@ -1652,7 +1665,7 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 		uint64_t bb = occupied;
 		while (bb) {
 			
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r = 64 - __builtin_clzll(bb) - 1;	
 
 			// Call the endgame evaluation function 
@@ -1748,7 +1761,7 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 			uint8_t size = 0;
 			while (bb) {
 				
-				// Get the current square in the mask as the bit length of the mask
+				// Get the position of the most significant set bit of the mask
 				r = 64 - __builtin_clzll(bb) - 1;		
 
 				// Add all the distances between each king and the black pawns
@@ -1775,7 +1788,7 @@ int placement_and_piece_eval(int moveNum, uint64_t pawnsMask, uint64_t knightsMa
 			size = 0;
 			while (bb) {
 				
-				// Get the current square in the mask as the bit length of the mask
+				// Get the position of the most significant set bit of the mask
 				r = 64 - __builtin_clzll(bb) - 1;			
 				
 				// Add all the distances between each king and the white pawns
@@ -1851,7 +1864,7 @@ void initializePieceValues(uint64_t bb){
 	uint8_t r = 0;
 	while (bb) {
 		
-		// Get the current square in the mask as the bit length of the mask
+		// Get the position of the most significant set bit of the mask
 		r = 64 - __builtin_clzll(bb) - 1;			
 		
 		// Call the piece type function to populate the array
@@ -1954,7 +1967,7 @@ void setAttackingLayer(int increment){
 	uint64_t bb = attacks_mask(true,0ULL,63 - __builtin_clzll(occupied_white&kings),6);
 	while (bb) {
 		
-		// Get the current square in the mask as the bit length of the mask
+		// Get the position of the most significant set bit of the mask
 		r = 64 - __builtin_clzll(bb) - 1;									
 
 		// Get the x and y coordinates for the given square
@@ -1978,7 +1991,7 @@ void setAttackingLayer(int increment){
 		uint64_t bb_inner = attacks_mask(true,0ULL,r,6);
 		while (bb_inner) {
 			
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r_inner = 64 - __builtin_clzll(bb_inner) - 1;
 			
 			// Get the x and y coordinates for the given square
@@ -2005,7 +2018,7 @@ void setAttackingLayer(int increment){
 	bb = attacks_mask(false,0ULL,63 - __builtin_clzll(occupied_black&kings),6);
 	while (bb) {
 		
-		// Get the current square in the mask as the bit length of the mask
+		// Get the position of the most significant set bit of the mask
 		r = 64 - __builtin_clzll(bb) - 1;									
 
 		// Get the x and y coordinates for the given square
@@ -2029,7 +2042,7 @@ void setAttackingLayer(int increment){
 		uint64_t bb_inner = attacks_mask(true,0ULL,r,6);
 		while (bb_inner) {
 			
-			// Get the current square in the mask as the bit length of the mask
+			// Get the position of the most significant set bit of the mask
 			r_inner = 64 - __builtin_clzll(bb_inner) - 1;
 			
 			// Get the x and y coordinates for the given square
@@ -2101,6 +2114,9 @@ int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint
 	// Define a copy of the initial increment
 	int incrementCopy = ppIncrement;
 	
+	// Define a mask that will represent the squares in the file directly in front of the pawn
+	uint64_t infrontMask = 0;
+
 	/*
 		In this section, acquire all the squares in front of pawn including those on either side of it
 	*/
@@ -2113,14 +2129,25 @@ int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint
             
 			// Check if the file is within bounds
 			if (f >= 0 && f <= 7) {
-				
+				bitmask |= BB_FILES [f] & ~((1 << ((rank + 1) * 8)) - 1);
+				if (f == file){
+					infrontMask |= BB_FILES [f] & ~((1 << ((rank + 1) * 8)) - 1);
+				}				
+				/*
                 // Iterate over the ranks above the given square's rank
                 for (int r = rank + 1; r < 8; ++r) {
 					
 					// Calculate the square's position and set the bit at this position
                     pos = r * 8 + f;  
                     bitmask |= (1ULL << pos);
+
+					if (f == file){
+						infrontMask |= (1ULL << pos);
+					}
+
                 }
+
+				*/
             }
         }
 	// Else the current side is black	
@@ -2130,14 +2157,23 @@ int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint
 			
 			// Check if the file is within bounds
             if (f >= 0 && f <= 7) {  
-			
+				bitmask |= BB_FILES [f] & ((1 << (rank * 8)) - 1);
+				if (f == file){
+					infrontMask |= BB_FILES [f] & ((1 << (rank * 8)) - 1);
+				}
+				/*
                 // Iterate over the ranks below the given square's rank
                 for (int r = 0; r < rank; ++r) {
 					
 					// Calculate the square's position and set the bit at this position
                     pos = r * 8 + f;
                     bitmask |= (1ULL << pos);
+
+					if (f == file){
+						infrontMask |= (1ULL << pos);
+					}
                 }
+				*/
             }
         }
     }
@@ -2165,14 +2201,14 @@ int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint
 	if (ppIncrement < 0) {
 		return 0;
 	
-	// Otherwise check if the increment does not suffer a decrements, this suggests the pawn is a passed pawn
+	// Otherwise check if the increment does not suffer a decrement, this suggests the pawn is a passed pawn
 	} else if (ppIncrement == incrementCopy){
 		
 		// Check if there exists a non-pawn blocker infront of the passed pawn
-		if ((BB_FILES[x] & opposingPieces & curSidePieces) != 0){
+		if ((infrontMask & (opposingPieces | curSidePieces)) != 0){
 			
 			// If the piece is of the opponent, return the increment as it is
-			if ((BB_FILES[x] & opposingPieces) != 0){
+			if ((infrontMask & opposingPieces) != 0){
 				return ppIncrement;
 				
 			// Else boost the passed pawn as our own piece can easily be moved to make way
@@ -2360,7 +2396,7 @@ void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSqua
 				capturedPieceType += 6;
 			}
 			
-			// XOR the piece into its new position
+			// XOR the captured piece out
 			hash ^= zobristTable[capturedPieceType][toSquare];			
 		}
     }
@@ -2768,7 +2804,7 @@ void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &end
 			
 			// Check if the rank suggests the move is a promotion
 			uint8_t rank = r_inner / 8;			
-			if (rank == 7 or rank == 0){
+			if (rank == 7 || rank == 0){
 				
 				// Loop through all possible promotions
 				for (int k = 5; k > 1; k--){
@@ -2823,7 +2859,7 @@ void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &end
 		
 		// Check if the rank suggests the move is a promotion
 		uint8_t rank = r / 8;
-		if (rank == 7 or rank == 0){	
+		if (rank == 7 || rank == 0){	
 
 			// Loop through all possible promotions		
 			for (int j = 5; j > 1; j--){
@@ -2938,7 +2974,7 @@ uint64_t slider_blockers(uint8_t king, uint64_t queens_and_rooks, uint64_t queen
 		
 		// Update the blockers where there is exactly one blocker per attack 
 		uint64_t b = betweenPieces(king, r) & occupied;        
-        if (b and (1ULL << (63 - __builtin_clzll(b)) == b)){
+        if (b && (1ULL << (63 - __builtin_clzll(b)) == b)){
             blockers |= b;
 		}
 		bb ^= (1ULL << r);
@@ -3106,10 +3142,10 @@ uint64_t attacks_mask(bool colour, uint64_t occupied, uint8_t square, uint8_t pi
 		return BB_KING_ATTACKS[square];
 	}else{
 		uint64_t attacks = 0;
-		if (pieceType == 3 or pieceType == 5){
+		if (pieceType == 3 || pieceType == 5){
 			attacks = BB_DIAG_ATTACKS[square][BB_DIAG_MASKS[square] & occupied];
 		}
-		if (pieceType == 4 or pieceType == 5){			
+		if (pieceType == 4 || pieceType == 5){			
 			attacks |= (BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied] |
 						BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied]);
 		}

@@ -23,7 +23,6 @@ from chess import Move
 import chess.polyglot
 from cython cimport nogil
 from joblib import Parallel, delayed
-from numba import njit
 from timeit import default_timer as timer
 from functools import lru_cache
 import Cython_Chess
@@ -33,6 +32,7 @@ import itertools
 from typing import Iterator
 import tensorflow as tf
 from tensorflow.keras.models import Model
+from operator import itemgetter
 
 # Import data structures from the c++ standard library
 from libcpp.vector cimport vector
@@ -1521,7 +1521,33 @@ cdef class ChessAI:
         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):
             if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):
                 yield move
+   
+    def reorder_capture_moves2(self, uint64_t mask, object board) -> Iterator[chess.Move]:
+        """
+        Function to order capture moves before other moves
     
+        Parameters:
+        - mask: The starting location
+        - board: The current board state
+    
+        Yields:
+        - Legal chess moves
+        """
+        cdef object move
+        cdef set capture_moves = set(Cython_Chess.generate_legal_captures(board, mask, chess.BB_ALL))
+    
+        # Yield all captures first
+        yield from capture_moves
+    
+        # Cache occupied squares for efficiency
+        cdef uint64_t enemy_pieces = board.occupied_co[not board.turn]
+    
+        # Yield non-capture moves
+        for move in Cython_Chess.generate_legal_moves(board, mask, chess.BB_ALL):
+            if move not in capture_moves:
+                yield move
+ 
+   
     # Function to return moves that are either captures, checks or promotions
     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:
         
@@ -1623,6 +1649,7 @@ cdef void quicksort_ascending_wrapper(list values, list objects):
     cdef list values_sub_list = values[:count]
     cdef list objects_sub_list = objects[:count]
     quicksort_ascending(values_sub_list, objects_sub_list, 0, len(values_sub_list) - 1)
+    # sort_by_alpha(values_sub_list, objects_sub_list)
 
     # Update the original lists
     values[:] = values_sub_list + values[count:]
@@ -1739,6 +1766,30 @@ cdef void quicksort_ascending(list values, list objects, int left, int right):
     # Recursively sort the partitions
     quicksort_ascending(values, objects, left, j)
     quicksort_ascending(values, objects, i, right)    
+
+
+
+def sort_by_alpha(list values, list objects):
+    """
+    Sorts the two lists 'values' and 'objects' in ascending order based on 'values'.
+
+    Parameters:
+      values  - List of numeric alpha values.
+      objects - List of corresponding objects/moves.
+    """
+    # Combine the two lists into a list of tuples (value, object)
+    combined = zip(values, objects)
+    
+    # Use sorted with itemgetter(0) to sort the tuples by the first element (the alpha value)
+    sorted_combined = sorted(combined, key=itemgetter(0))
+    
+    # Unzip the sorted tuples back into separate lists
+    # Note: zip(*...) returns tuples, so we wrap them with list() to ensure we have lists
+    sorted_values, sorted_objects = list(zip(*sorted_combined))
+    
+    # Update the original lists in-place
+    values[:] = sorted_values
+    objects[:] = sorted_objects
 
 
 @boundscheck(False)
@@ -1884,5 +1935,3 @@ cdef int move_index(object board, object move1, object move2):
         if move == move1 or move == move2:
             return index
     return -1
-
-

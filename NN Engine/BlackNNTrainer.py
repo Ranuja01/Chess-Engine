@@ -10,7 +10,7 @@ This file creates and trains a tensorflow model to predict moves for black
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer, Dropout, BatchNormalization, ReLU, GlobalAveragePooling2D, MaxPooling2D, MultiHeadAttention, Add, LayerNormalization
+from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer, Dropout, BatchNormalization, ReLU, GlobalAveragePooling2D, MaxPooling2D, MultiHeadAttention, Add, LayerNormalization, Reshape, SpatialDropout2D
 from tensorflow.keras import regularizers
 from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler
 from tensorflow.keras.metrics import TopKCategoricalAccuracy
@@ -74,12 +74,12 @@ def reversePrediction(x,y,i,j):
     - j: int, the destination y coordinate
 
     Returns:
-    - A tuple consisting of the 4 coordinates
+    - A single integer encoding for the given coordinates
     """
     
     # First acquire the starting square number and multiply by 64 to get its base number
     # Then add the remaining starting point of the location to be moved to
-    return (((x - 1) * 8 + y) - 1)  *64 + ((i - 1) * 8 + j)
+    return (((x - 1) * 8 + y) - 1)  * 64 + ((i - 1) * 8 + j)
              
 def encode_board(board):
     
@@ -333,7 +333,7 @@ def captureTraining():
     print(count)        
     return inputData, output 
   
-def transformer_block(inputs, num_heads, ff_dim):
+def transformer_block(inputs, num_heads, ff_dim, key_dim):
     
     """
     Function that implements a transformer block with Multi-Head Attention and a Feed-Forward Network.
@@ -349,9 +349,11 @@ def transformer_block(inputs, num_heads, ff_dim):
     """
     
     # Multi-Head Attention
-    attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=inputs.shape[-1])(inputs, inputs)
+    inputs = Reshape((key_dim, -1))(inputs)
+    attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs, inputs)
     attention_output = Add()([inputs, attention_output])
     attention_output = LayerNormalization()(attention_output)
+    
     
     # Feed-Forward Network
     ff_output = Dense(ff_dim, activation='relu')(attention_output)
@@ -359,7 +361,7 @@ def transformer_block(inputs, num_heads, ff_dim):
     ff_output = Add()([attention_output, ff_output])
     ff_output = LayerNormalization()(ff_output)
     
-    return ff_output
+    return Flatten()(ff_output)
 
 def lr_schedule(epoch, lr):
     
@@ -404,10 +406,10 @@ def residual_block(inputs, filters, kernel_size=3, strides=1, use_projection=Fal
     # First layer in the block
     x = Conv2D(filters, kernel_size=kernel_size, strides=strides, padding='same', 
                activation=None, kernel_regularizer=regularizers.l2(0.00001))(inputs)
+    # x = SpatialDropout2D(0.1)(x)
     x = BatchNormalization()(x)
     x = ReLU()(x)
 
-    
     
     # If the input and output dimensions do not match, use a 1x1 convolution to align them
     if use_projection or strides != 1 or inputs.shape[-1] != filters:
@@ -534,37 +536,38 @@ if __name__ == "__main__":
     inputs = tf.keras.Input(shape=(8, 8, 12))
     
     # Convolutional Layer 1
-    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same')(inputs)
+    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', kernel_initializer='he_uniform', padding='same')(inputs)    
     x = BatchNormalization()(x)
-        
+    
     # Residual Block 1 (No projection needed)
     x = residual_block(x, filters=64)
         
     # Residual Block 2 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=4)
-    
-    # Residual Block 3 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=4)
+    x = residual_block(x, filters=64)    
     
     # Convolutional Layer 2
-    x = Conv2D(filters=64, kernel_size=(4, 4), activation='relu', padding='same')(x)
+    x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', kernel_initializer='he_uniform', padding='same')(x)
+    # x = SpatialDropout2D(0.1)(x)
     x = BatchNormalization()(x)
  
     # Residual Block 4 (No projection needed)
-    x = residual_block(x, filters=64, kernel_size=5)
+    x = residual_block(x, filters=64, kernel_size=4)
         
     # Residual Block 5 (No projection needed)
     x = residual_block(x, filters=64, kernel_size=(8,1))
     
     # Convolutional Layer 3
-    x = Conv2D(filters=64, kernel_size=(8, 1), activation='relu', padding='same')(x)
+    x = Conv2D(filters=64, kernel_size=(8, 1), activation='relu', kernel_initializer='he_uniform', padding='same')(x)
+    # x = SpatialDropout2D(0.1)(x)
     x = BatchNormalization()(x)
     
     # Residual Block 6 (No projection needed)
     x = residual_block(x, filters=64, kernel_size=(1,8))
+    # x = SpatialDropout2D(0.1)(x)
     
     # Convolutional Layer 4
-    x = Conv2D(filters=64, kernel_size=(1, 8), activation='relu', padding='same')(x)
+    x = Conv2D(filters=64, kernel_size=(1, 8), activation='relu', kernel_initializer='he_uniform', padding='same')(x)
+    x = SpatialDropout2D(0.1)(x)
     x = BatchNormalization()(x)
     
     # ** Code block which uses max pooling **
@@ -589,9 +592,23 @@ if __name__ == "__main__":
     # Flatten the Conv2D output to be used for dense layers
     x = Flatten()(x)
     
+    x = transformer_block(x, 8, 256, 64)    
+    # # Reshape for Multi-Head Attention
+    # x = Reshape((64, -1))(x)  # Reshape to (batch_size, num_tokens=64, embedding_dim=64)
+    
+    # # Multi-Head Attention
+    # attention = MultiHeadAttention(num_heads=8, key_dim=64)(x, x)
+    # attention = Add()([attention, x])  # Residual connection
+    # attention = LayerNormalization()(attention)
+    
+    # # Step 4: Fully connected layers for prediction
+    # x = Flatten()(attention)
+    
     # Fully connected layers
-    x = Dense(512, activation='relu')(x)
+    x = Dense(512, activation='relu', kernel_initializer='he_uniform')(x)
     x = BatchNormalization()(x)
+    
+    
     #x = Dropout(0.05)(x)
     
     # Output layer
@@ -634,15 +651,15 @@ if __name__ == "__main__":
             
             # Implement Early Stopping
             early_stopping = EarlyStopping(
-                monitor='val_accuracy',  # Metric to monitor
-                patience=6,          # Number of epochs with no improvement after which training will be stopped
+                monitor='val_sparse_top_k_categorical_accuracy',  # Metric to monitor
+                patience=5,          # Number of epochs with no improvement after which training will be stopped
                 restore_best_weights=True  # Restore the model weights from the epoch with the best value of the monitored quantity
             )
             
             # Train the model with early stopping
             history = model.fit(
                 x, y,
-                epochs=50,  # Set a large number of epochs for the possibility of early stopping
+                epochs=500,  # Set a large number of epochs for the possibility of early stopping
                 batch_size=64,
                 validation_split=0.2,  # Split a portion of the data for validation
                 callbacks=[lr_scheduler, early_stopping],  # Pass the early stopping callback and learning rate scheduler
@@ -675,7 +692,7 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         data_path = r'../Models/BlackModel6_MidEndGame(9).keras'
     elif platform.system() == 'Linux':
-        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_21_36(12).keras'  # Example for WSL
+        data_path = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel_TEST1.keras'  # Example for WSL
     model.save(data_path)
 
     t1 = timer()

@@ -10,7 +10,6 @@ cimport cython  # Import Cython-specific utilities
 from cython cimport boundscheck, wraparound
 import json
 import marshal
-import moveSchema_pb2  # Import the generated code
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset
 from cpython.array cimport array
@@ -23,7 +22,6 @@ from chess import Move
 import chess.polyglot
 from cython cimport nogil
 from joblib import Parallel, delayed
-from numba import njit
 from timeit import default_timer as timer
 from functools import lru_cache
 import Cython_Chess
@@ -33,6 +31,7 @@ import itertools
 from typing import Iterator
 import tensorflow as tf
 from tensorflow.keras.models import Model
+from operator import itemgetter
 
 # Import data structures from the c++ standard library
 from libcpp.vector cimport vector
@@ -42,6 +41,14 @@ cdef extern from "stdint.h":
     ctypedef signed char int8_t
     ctypedef unsigned char uint8_t
     ctypedef unsigned long long uint64_t
+    
+cdef extern from "nnue.h":
+    int evaluate_position(const uint64_t* bitboards)
+    void init_session(const char* model_path)
+    void load_all_weights()
+    int run_inference(const uint64_t* bitboards)
+    void load_model()
+    int run_inference_quantized(const uint64_t* bitboards)
 
 # Import functions from c++ file
 cdef extern from "cpp_bitboard.h":
@@ -93,6 +100,8 @@ cdef object white_ksc = chess.Move.from_uci('e1g1')
 cdef object white_qsc = chess.Move.from_uci('e1c1')
 cdef object black_ksc = chess.Move.from_uci('e8g8')
 cdef object black_qsc = chess.Move.from_uci('e8c8')
+
+cdef const char* nnue_model_path = b"/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/NNUE_flat_with_phase_21_to_61.onnx"
 
 cdef int values[7]
 values[0] = 0      # No piece
@@ -150,6 +159,7 @@ cdef class ChessAI:
         self.alpha_list = []
         self.beta_list = []
         self.beta_move_list = []
+        self.move_times[3] = 5.0
         self.move_times[4] = 5.0
         self.move_times[5] = 5.5
         self.time_limit = 60
@@ -161,6 +171,9 @@ cdef class ChessAI:
         # Initialize attack tables for move generation
         initialize_attack_tables()
         Cython_Chess.inititalize()
+        init_session(nnue_model_path)
+        load_all_weights()
+        load_model()
         
         # Initialize zobrist tables for hashing
         initializeZobrist()
@@ -316,12 +329,12 @@ cdef class ChessAI:
                     return chess.Move.from_uci(x+y+i+j+chr(promo + 96))
         
         # Call the alpha beta algorithm to make a move decision
-        result = self.alphaBeta(curDepth=0, depthLimit=4, t0 = timer())
+        result = self.alphaBeta(curDepth=0, depthLimit=3, t0 = timer())
         val = result.score
         t1 = timer()
         dif = t1 - t0
-        new_depth = 5
-        
+        new_depth = 4
+        print(dif)
         # Check if the move generation time and value is low enough to warrant a deeper search
         while(dif <= self.move_times[new_depth-1] and new_depth <= 25 and val < 9000000):
             
@@ -882,7 +895,7 @@ cdef class ChessAI:
         
         # Define and initialize the razoring threshold
         cdef int razorThreshold
-        if (depthLimit == 4):
+        if (depthLimit == 3):
             razorThreshold = max (int(1000 * .75** (depthLimit - 5)), 200) 
         else:
             razorThreshold = max (int(750 * .75** (depthLimit - 5)), 50)
@@ -1395,7 +1408,7 @@ cdef class ChessAI:
         cdef list cur_beta_move_list = []
         
         # Define depth for preliminary search             
-        cdef int depth = depthLimit - 2
+        cdef int depth = depthLimit - 1
         
         # Define variable to hold zobrist hash of current position
         cdef uint64_t curHash = self.zobrist
@@ -1521,7 +1534,33 @@ cdef class ChessAI:
         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):
             if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):
                 yield move
+   
+    def reorder_capture_moves2(self, uint64_t mask, object board) -> Iterator[chess.Move]:
+        """
+        Function to order capture moves before other moves
     
+        Parameters:
+        - mask: The starting location
+        - board: The current board state
+    
+        Yields:
+        - Legal chess moves
+        """
+        cdef object move
+        cdef set capture_moves = set(Cython_Chess.generate_legal_captures(board, mask, chess.BB_ALL))
+    
+        # Yield all captures first
+        yield from capture_moves
+    
+        # Cache occupied squares for efficiency
+        cdef uint64_t enemy_pieces = board.occupied_co[not board.turn]
+    
+        # Yield non-capture moves
+        for move in Cython_Chess.generate_legal_moves(board, mask, chess.BB_ALL):
+            if move not in capture_moves:
+                yield move
+ 
+   
     # Function to return moves that are either captures, checks or promotions
     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:
         
@@ -1623,6 +1662,7 @@ cdef void quicksort_ascending_wrapper(list values, list objects):
     cdef list values_sub_list = values[:count]
     cdef list objects_sub_list = objects[:count]
     quicksort_ascending(values_sub_list, objects_sub_list, 0, len(values_sub_list) - 1)
+    # sort_by_alpha(values_sub_list, objects_sub_list)
 
     # Update the original lists
     values[:] = values_sub_list + values[count:]
@@ -1741,6 +1781,88 @@ cdef void quicksort_ascending(list values, list objects, int left, int right):
     quicksort_ascending(values, objects, i, right)    
 
 
+
+def sort_by_alpha(list values, list objects):
+    """
+    Sorts the two lists 'values' and 'objects' in ascending order based on 'values'.
+
+    Parameters:
+      values  - List of numeric alpha values.
+      objects - List of corresponding objects/moves.
+    """
+    # Combine the two lists into a list of tuples (value, object)
+    combined = zip(values, objects)
+    
+    # Use sorted with itemgetter(0) to sort the tuples by the first element (the alpha value)
+    sorted_combined = sorted(combined, key=itemgetter(0))
+    
+    # Unzip the sorted tuples back into separate lists
+    # Note: zip(*...) returns tuples, so we wrap them with list() to ensure we have lists
+    sorted_values, sorted_objects = list(zip(*sorted_combined))
+    
+    # Update the original lists in-place
+    values[:] = sorted_values
+    objects[:] = sorted_objects
+
+@boundscheck(False)
+@wraparound(False)
+@cython.exceptval(check=False)
+@cython.nonecheck(False)
+@cython.ccall
+cdef evaluate_board1(object board,uint64_t zobrist):
+        
+    cdef uint64_t pawns = board.pawns
+    cdef uint64_t knights = board.knights
+    cdef uint64_t bishops = board.bishops
+    cdef uint64_t rooks = board.rooks
+    cdef uint64_t queens = board.queens
+    cdef uint64_t kings = board.kings
+    
+    cdef uint64_t occupied_white = board.occupied_co[True]
+    cdef uint64_t occupied_black = board.occupied_co[False]
+    
+    cdef uint64_t[12] bitboards
+    cdef int total = 0    
+    cdef int moveNum = board.ply()
+
+    # Access the cache
+    cdef int cache_result = accessCache(zobrist)
+    
+    # Check if the cache has the given position
+    if (cache_result != 0):        
+        return cache_result
+
+    if board.is_checkmate():
+        if board.turn:
+            total = 9999999 - moveNum      
+        else:
+            total = -9999999 + moveNum
+    
+    else:
+         bitboards = [
+            pawns & occupied_white,    # White pawns
+            knights & occupied_white,  # White knights
+            bishops & occupied_white,  # White bishops
+            rooks & occupied_white,    # White rooks
+            queens & occupied_white,   # White queens
+            kings & occupied_white,    # White kings
+            pawns & occupied_black,    # Black pawns
+            knights & occupied_black,  # Black knights
+            bishops & occupied_black,  # Black bishops
+            rooks & occupied_black,    # Black rooks
+            queens & occupied_black,   # Black queens
+            kings & occupied_black     # Black kings
+        ]
+          
+    
+    # total = evaluate_position(bitboards)
+    # total = run_inference(bitboards)
+    total = run_inference_quantized(bitboards)
+    
+    addToCache(zobrist, total)
+           
+    return total
+
 @boundscheck(False)
 @wraparound(False)
 @cython.exceptval(check=False)
@@ -1833,41 +1955,41 @@ cdef int evaluate_board(object board,uint64_t zobrist):
         # ** Code segment to see if a bad capture was made ** 
         
         # Get the previous move made
-        target_move = board.peek()
+        # target_move = board.peek()
         
-        # Check if the move was a capture
-        if (is_capture(target_move.from_square, target_move.to_square, board.occupied_co[not board.turn], board.is_en_passant(target_move))):
+        # # Check if the move was a capture
+        # if (is_capture(target_move.from_square, target_move.to_square, board.occupied_co[not board.turn], board.is_en_passant(target_move))):
             
-            # Acquire the square that the move was made to
-            target_square = target_move.to_square
+        #     # Acquire the square that the move was made to
+        #     target_square = target_move.to_square
             
-            # # Check if there is a legal capture to the same square
-            # for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_ALL):
+        #     # # Check if there is a legal capture to the same square
+        #     # for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_ALL):
                 
-            #     # If such a capture exists, assume that the last capture was a bad one and assume you will lose that piece
-            #     if move.to_square == target_square:
-            #         if (board.turn):
-            #             total -= values[board.piece_type_at(target_square)]
+        #     #     # If such a capture exists, assume that the last capture was a bad one and assume you will lose that piece
+        #     #     if move.to_square == target_square:
+        #     #         if (board.turn):
+        #     #             total -= values[board.piece_type_at(target_square)]
                         
-            #         else:                            
-            #             total += values[board.piece_type_at(target_square)]
-            #         horizonMitigation = True
-            #         break
+        #     #         else:                            
+        #     #             total += values[board.piece_type_at(target_square)]
+        #     #         horizonMitigation = True
+        #     #         break
                 
-            # Check if there is a legal capture to the same square
-            for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_SQUARES[target_square]):
+        #     # Check if there is a legal capture to the same square
+        #     for move in Cython_Chess.generate_legal_captures(board,chess.BB_ALL,chess.BB_SQUARES[target_square]):
                 
-                # If such a capture exists, assume that the last capture was a bad one and assume you will lose that piece
+        #         # If such a capture exists, assume that the last capture was a bad one and assume you will lose that piece
                 
-                if (board.turn):
-                    total -= values[board.piece_type_at(target_square)]
+        #         if (board.turn):
+        #             total -= values[board.piece_type_at(target_square)]
                     
-                else:                            
-                    total += values[board.piece_type_at(target_square)]
+        #         else:                            
+        #             total += values[board.piece_type_at(target_square)]
                     
-                # Set the flag for a position where move order matters  
-                horizonMitigation = True
-                break
+        #         # Set the flag for a position where move order matters  
+        #         horizonMitigation = True
+        #         break
             
     # Avoid the adding this evaluation to the cache if the move order matters
     if not(horizonMitigation):
@@ -1884,5 +2006,3 @@ cdef int move_index(object board, object move1, object move2):
         if move == move1 or move == move2:
             return index
     return -1
-
-

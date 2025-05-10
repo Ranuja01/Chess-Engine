@@ -9,7 +9,6 @@ Created on Mon Jul 29 12:50:22 2024
 
 import chess
 import chess.pgn
-import chess_eval  # Import the compiled Cython module
 import ChessAI
 import io
 # Create a new chess board
@@ -40,7 +39,6 @@ from timeit import default_timer as timer
 #from numba import njit
 import easygui
 import copy
-import Rules
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -52,7 +50,6 @@ import chess.pgn
 import io
 import platform
 import os
-import chess_eval
 import Cython_Chess
 
 import sys

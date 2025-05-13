@@ -8,6 +8,8 @@
 #include <string>
 #include <cstring>
 
+
+bool get_horizon_mitigation_flag();
 /*
 	Set of functions to initialize masks for move generation
 */
@@ -23,7 +25,11 @@ uint64_t edges(uint8_t square);
 */
 int placement_and_piece_midgame(uint8_t square);
 int placement_and_piece_endgame(uint8_t square);
-int placement_and_piece_eval(int moveNum, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+void update_pressure_and_support_tables(uint8_t current_square, uint8_t attacking_piece_type, uint8_t decrement, bool attacking_piece_colour, bool current_piece_colour);
+void handle_batteries_for_pressure_and_support_tables(uint8_t attacking_piece_square, uint8_t attacking_piece_type, bool attacking_piece_colour);
+void loop_and_update(uint64_t bb, uint8_t attacking_piece_type, bool attacking_piece_colour, int decrement);
+int placement_and_piece_eval(int moveNum, bool turn, uint8_t lastMovedToSquare, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, bool turn);
 void initializePieceValues(uint64_t bb);
 uint8_t piece_type_at(uint8_t squareuint8_t);
 void setAttackingLayer(int increment);
@@ -43,6 +49,7 @@ void addToOpponentMoveGenCache(uint64_t key,char* data, int length);
 std::string accessCurPlayerMoveGenCache(uint64_t key);
 void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length);
 int printCacheStats();
+int getCacheStats();
 int printOpponentMoveGenCacheStats();
 int printCurPlayerMoveGenCacheStats();
 void evictOldEntries(int numToEvict);

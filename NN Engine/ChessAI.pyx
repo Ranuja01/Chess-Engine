@@ -52,6 +52,7 @@ cdef extern from "nnue.h":
 
 # Import functions from c++ file
 cdef extern from "cpp_bitboard.h":
+    bool get_horizon_mitigation_flag()
     uint8_t scan_reversed_size(uint64_t bb)
     void scan_reversed(uint64_t bb, vector[uint8_t] &result)
     void scan_forward(uint64_t bb, vector[uint8_t] &result)
@@ -66,7 +67,7 @@ cdef extern from "cpp_bitboard.h":
     void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment);
     int placement_and_piece_midgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_endgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
-    int placement_and_piece_eval(int moveNum, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
+    int placement_and_piece_eval(int moveNum, bint turn, uint8_t lastMovedToSquare, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     void initializeZobrist()
     uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask);
     void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
@@ -77,6 +78,7 @@ cdef extern from "cpp_bitboard.h":
     string accessCurPlayerMoveGenCache(uint64_t key);
     void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length);
     int printCacheStats()
+    int getCacheStats()
     int printOpponentMoveGenCacheStats();
     int printCurPlayerMoveGenCacheStats();
     void evictOldEntries(int numToEvict)
@@ -101,7 +103,7 @@ cdef object white_qsc = chess.Move.from_uci('e1c1')
 cdef object black_ksc = chess.Move.from_uci('e8g8')
 cdef object black_qsc = chess.Move.from_uci('e8c8')
 
-cdef const char* nnue_model_path = b"/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/NNUE_flat_with_phase_21_to_61.onnx"
+cdef const char* nnue_model_path = b"/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/NNUE_treesearch_21_to_41.onnx"
 
 cdef int values[7]
 values[0] = 0      # No piece
@@ -145,6 +147,8 @@ cdef class ChessAI:
     # Max depth for quiescence search
     cdef int quiescenceDepth
     
+    cdef bint is_training
+    
     # Constructor for chess engine
     def __cinit__(self, object black_model, object white_model, object board):
         
@@ -164,6 +168,8 @@ cdef class ChessAI:
         self.move_times[5] = 5.5
         self.time_limit = 60
         self.quiescenceDepth = 6
+        
+        self.is_training = False
         
         for i in range(6,26):
             self.move_times[i] = 2.5
@@ -189,6 +195,46 @@ cdef class ChessAI:
         global blackCastledIndex
         blackCastledIndex = index            
 
+    
+    def create_test_data(self, object board):
+        self.is_training = True
+        self.pgnBoard = board
+        
+        # Initialize the lists required for iterative deepening
+        self.moves_list = []
+        self.alpha_list = []
+        self.beta_list = []
+        self.beta_move_list = []
+        self.numIterations = 0
+        
+        cdef int cacheSize = getCacheStats()
+        
+        if (self.pgnBoard.ply() < 30):
+            if (cacheSize > 8000000):
+                evictOldEntries(cacheSize - 8000000)                
+        elif(self.pgnBoard.ply() < 50):
+            if (cacheSize > 16000000):
+                evictOldEntries(cacheSize - 16000000)
+        elif(self.pgnBoard.ply() < 75):
+            if (cacheSize > 32000000):
+                evictOldEntries(cacheSize - 32000000)
+        else:
+            if (cacheSize > 64000000):
+                evictOldEntries(cacheSize - 64000000)
+        
+        cdef int a, b, c, d,promo,val
+        cdef object move
+        
+        self.zobrist = generateZobristHash(self.pgnBoard.pawns,self.pgnBoard.knights,self.pgnBoard.bishops,self.pgnBoard.rooks,self.pgnBoard.queens,self.pgnBoard.kings,self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False])
+        
+        result = self.alphaBeta(curDepth=0, depthLimit=3, t0 = timer())
+        moves_list ,_,_,_= self.reorder_legal_moves(-9999998,9999999, 3)
+        length = len(self.alpha_list)
+        
+        
+        self.is_training = False
+        return (moves_list [:length], self.alpha_list)
+        
     # Function to wrap the 
     def alphaBetaWrapper(self):
         
@@ -437,8 +483,7 @@ cdef class ChessAI:
                 
                 
             return best_move
-            
-                
+                            
     
     @boundscheck(False)
     @wraparound(False)
@@ -505,9 +550,9 @@ cdef class ChessAI:
         # Define the razor threshold, if not the first move search iteration, razor more aggressively
         cdef int razorThreshold
         if (self.alpha_list == []):
-            razorThreshold = max (int(750 * .75** (depthLimit - 5)), 200)
+            razorThreshold = max (int(750 * .75** (depthLimit - 4)), 200)
         else:
-            razorThreshold = max (int(300 * .75** (depthLimit - 5)), 50)
+            razorThreshold = max (int(300 * .75** (depthLimit - 4)), 50)
         
         # After the in scope lists have been initialized, the global ones can be reset
         self.alpha_list = []    
@@ -582,6 +627,9 @@ cdef class ChessAI:
             best_move_index = 0
             
         alpha = max(alpha, bestMove.score)
+        
+        if (alpha - alpha_list[0] > razorThreshold):
+            razorThreshold += alpha - alpha_list[0]
         
         # Append the global moves list and alpha list to store the current score
         self.moves_list = moves_list
@@ -727,7 +775,7 @@ cdef class ChessAI:
         
         if curDepth == 0:
             self.numMove += 1
-            print(repetitionFlag, repetitionMove, repetitionScore, alpha)
+            # print(repetitionFlag, repetitionMove, repetitionScore, alpha)
             # Check if a repeating move is detected
             if (repetitionFlag):
                 
@@ -896,9 +944,9 @@ cdef class ChessAI:
         # Define and initialize the razoring threshold
         cdef int razorThreshold
         if (depthLimit == 3):
-            razorThreshold = max (int(1000 * .75** (depthLimit - 5)), 200) 
+            razorThreshold = max (int(1000 * .75** (depthLimit - 4)), 200) 
         else:
-            razorThreshold = max (int(750 * .75** (depthLimit - 5)), 50)
+            razorThreshold = max (int(750 * .75** (depthLimit - 4)), 50)
             
         # Define variable to hold the zobrist hash for the current board state
         cdef uint64_t curHash = self.zobrist
@@ -1697,17 +1745,12 @@ cdef void quicksort_wrapper(list alphas, list objects, list betas, list betaMove
             index = i
         count += 1
     
-    # Create temporary variables to hold the index of the max value
-    cdef int tempAlpha = alphas.pop(index)
-    cdef list tempBeta = betas.pop(index)
-    cdef object tempObject = objects.pop(index)    
-    cdef list tempBetaMoves = betaMoves.pop(index)
-    
-    # Insert the max values at the beginning of the lists
-    alphas.insert(0, tempAlpha)
-    betas.insert(0, tempBeta)
-    objects.insert(0, tempObject)
-    betaMoves.insert(0,tempBetaMoves)
+    # Move the max entry to the front without pop/insert overhead
+    alphas[:] = [alphas[index]] + alphas[:index] + alphas[index+1:]
+    objects[:] = [objects[index]] + objects[:index] + objects[index+1:]
+    betas[:] = [betas[index]] + betas[:index] + betas[index+1:]
+    betaMoves[:] = [betaMoves[index]] + betaMoves[:index] + betaMoves[index+1:]
+
     
     # Create a list that consists of the non null values excluding the first one
     # Complete the lists with the preliminary search values
@@ -1855,9 +1898,9 @@ cdef evaluate_board1(object board,uint64_t zobrist):
         ]
           
     
-    # total = evaluate_position(bitboards)
+    total = evaluate_position(bitboards)
     # total = run_inference(bitboards)
-    total = run_inference_quantized(bitboards)
+    # total = run_inference_quantized(bitboards)
     
     addToCache(zobrist, total)
            
@@ -1932,8 +1975,8 @@ cdef int evaluate_board(object board,uint64_t zobrist):
     
     else:
         # Call the c++ function 
-        total += placement_and_piece_eval(moveNum, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
-        
+        total += placement_and_piece_eval(moveNum, board.turn, board.peek().to_square, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
+        horizonMitigation = get_horizon_mitigation_flag()        
 
         # Additional castling logic        
 
@@ -1954,7 +1997,7 @@ cdef int evaluate_board(object board,uint64_t zobrist):
         
         # ** Code segment to see if a bad capture was made ** 
         
-        # Get the previous move made
+        # # Get the previous move made
         # target_move = board.peek()
         
         # # Check if the move was a capture

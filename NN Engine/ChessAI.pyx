@@ -84,6 +84,7 @@ cdef extern from "cpp_bitboard.h":
     void evictOldEntries(int numToEvict)
     void evictOpponentMoveGenEntries(int numToEvict)
     void evictCurPlayerMoveGenEntries(int numToEvict)
+    void printLayers()
     
 # Create struct to hold information regarding the chosen move by the engine
 cdef struct MoveData:
@@ -210,17 +211,17 @@ cdef class ChessAI:
         cdef int cacheSize = getCacheStats()
         
         if (self.pgnBoard.ply() < 30):
-            if (cacheSize > 8000000):
-                evictOldEntries(cacheSize - 8000000)                
-        elif(self.pgnBoard.ply() < 50):
             if (cacheSize > 16000000):
-                evictOldEntries(cacheSize - 16000000)
-        elif(self.pgnBoard.ply() < 75):
+                evictOldEntries(cacheSize - 16000000)                
+        elif(self.pgnBoard.ply() < 50):
             if (cacheSize > 32000000):
                 evictOldEntries(cacheSize - 32000000)
-        else:
+        elif(self.pgnBoard.ply() < 75):
             if (cacheSize > 64000000):
                 evictOldEntries(cacheSize - 64000000)
+        else:
+            if (cacheSize > 128000000):
+                evictOldEntries(cacheSize - 128000000)
         
         cdef int a, b, c, d,promo,val
         cdef object move
@@ -648,7 +649,7 @@ cdef class ChessAI:
             
             # Late move reduction
             if (count >= 35):
-                depthUsage = depthLimit - 1
+                depthUsage = depthLimit
             else:
                 depthUsage = depthLimit
             
@@ -823,6 +824,7 @@ cdef class ChessAI:
         # If the depth limit is reached, evaluate the current position
         if curDepth >= depthLimit:
             self.numIterations += 1
+            
             return evaluate_board(self.pgnBoard,self.zobrist)            
             # return self.quiescenceMax(alpha, beta, 0)
         
@@ -929,7 +931,8 @@ cdef class ChessAI:
         
         # If the depth limit is reached, evaluate the current position
         if curDepth >= depthLimit:            
-            self.numIterations += 1            
+            self.numIterations += 1          
+            
             return evaluate_board(self.pgnBoard,self.zobrist)
             # return self.quiescenceMin(alpha, beta, 0)
         
@@ -1977,7 +1980,15 @@ cdef int evaluate_board(object board,uint64_t zobrist):
         # Call the c++ function 
         total += placement_and_piece_eval(moveNum, board.turn, board.peek().to_square, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
         horizonMitigation = get_horizon_mitigation_flag()        
-
+        # if (board.fen() == '8/7k/2b1B2p/3p3P/1Bp2pP1/8/6K1/8 w - - 0 57'):
+        #     print(board)
+        #     print(total)
+        #     print (board.move_stack[-8:])
+        # print (board)
+        # print()
+        # printLayers()
+        # print()
+        
         # Additional castling logic        
 
         # if (whiteCastledIndex == -1):        

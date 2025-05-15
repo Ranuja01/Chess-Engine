@@ -75,24 +75,24 @@ def encode_board(board: chess.Board) -> np.ndarray:
 
 
 
-board = chess.Board("rnbqkb1r/5ppp/1pp1pn2/p1Pp4/NP1P4/5N2/P3PPPP/R1BQKB1R b KQkq - 1 7")
+board = chess.Board("8/7k/2b1B2p/3p3P/1Bp2pP1/5K2/8/8 b - - 1 57")
 input_data = np.array([encode_board(board)], dtype=np.float32)
 
 
-# Run ONNX prediction
-sess = ort.InferenceSession("NNUE_flat_with_phase_21_to_61.onnx")
+# # Run ONNX prediction
+# sess = ort.InferenceSession("NNUE_flat_with_phase_21_to_61.onnx")
 
 
-t0 = timer()
-onnx_output = sess.run(None, {"input": input_data})
-result = reverse_scaling_and_unclip(onnx_output[0][0][0])
-t1 = timer()
-print('ONNX output:', result, t1 - t0)
+# t0 = timer()
+# onnx_output = sess.run(None, {"input": input_data})
+# result = reverse_scaling_and_unclip(onnx_output[0][0][0])
+# t1 = timer()
+# print('ONNX output:', result, t1 - t0)
 
 t0 = timer()
 result = evaluate_board(board)
 t1 = timer()
 print('Actual Eval:', result, t1 - t0)
 
-model = onnx.load("NNUE.onnx")
-print(model.graph.input[0].type.tensor_type.shape)
+# model = onnx.load("NNUE.onnx")
+# print(model.graph.input[0].type.tensor_type.shape)

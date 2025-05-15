@@ -25,8 +25,10 @@ extensions = [
             "-Ofast", "-march=native", "-ffast-math", "-fopenmp",
             "-funroll-loops", "-flto", "-fomit-frame-pointer", "-std=c++20",
             "-fno-math-errno", "-fno-trapping-math", "-fassociative-math",
-            "-fno-signed-zeros", "-fno-rounding-math", "-ffp-contract=fast"
+            "-fno-signed-zeros", "-fno-rounding-math", "-ffp-contract=fast", "-fipa-pta", 
         ], # Optimization flags
+        
+        
         extra_link_args=["-flto=16", "-fopenmp"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
         library_dirs=[os.path.join(onnx_path, "lib")],

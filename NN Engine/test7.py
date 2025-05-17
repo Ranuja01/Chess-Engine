@@ -75,7 +75,7 @@ def encode_board(board: chess.Board) -> np.ndarray:
 
 
 
-board = chess.Board("8/7k/2b1B2p/3p3P/1Bp2pP1/5K2/8/8 b - - 1 57")
+board = chess.Board("1r3rk1/5ppp/4p3/3pN1q1/3P4/P3P1P1/Q2K1P1P/R6R b - - 2 25")
 input_data = np.array([encode_board(board)], dtype=np.float32)
 
 

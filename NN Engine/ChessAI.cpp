@@ -1893,7 +1893,7 @@ struct __pyx_obj_7ChessAI_ChessAI {
 };
 
 
-/* "ChessAI.pyx":1565
+/* "ChessAI.pyx":1570
  *             return moves_list,self.alpha_list,self.beta_list,self.beta_move_list
  * 
  *     def reorder_capture_moves(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -1912,7 +1912,7 @@ struct __pyx_obj_7ChessAI___pyx_scope_struct__reorder_capture_moves {
 };
 
 
-/* "ChessAI.pyx":1589
+/* "ChessAI.pyx":1594
  *                 yield move
  * 
  *     def reorder_capture_moves2(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -1933,7 +1933,7 @@ struct __pyx_obj_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2 {
 };
 
 
-/* "ChessAI.pyx":1616
+/* "ChessAI.pyx":1621
  * 
  *     # Function to return moves that are either captures, checks or promotions
  *     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -15774,7 +15774,6 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
   int __pyx_v_score;
   PyObject *__pyx_v_move = 0;
   int __pyx_v_count;
-  int __pyx_v_razorThreshold;
   uint64_t __pyx_v_curHash;
   PyObject *__pyx_v_cur_beta_list = 0;
   PyObject *__pyx_v_beta_list = 0;
@@ -15798,19 +15797,18 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
   PyObject *__pyx_t_2 = NULL;
   int __pyx_t_3;
   Py_ssize_t __pyx_t_4;
-  long __pyx_t_5;
+  uint64_t __pyx_t_5;
   PyObject *__pyx_t_6 = NULL;
-  PyObject *__pyx_t_7 = NULL;
-  PyObject *__pyx_t_8 = NULL;
-  uint64_t __pyx_t_9;
-  int __pyx_t_10;
+  int __pyx_t_7;
+  uint8_t __pyx_t_8;
+  uint8_t __pyx_t_9;
+  PyObject *__pyx_t_10 = NULL;
   int __pyx_t_11;
-  uint8_t __pyx_t_12;
-  uint8_t __pyx_t_13;
-  unsigned int __pyx_t_14;
+  PyObject *__pyx_t_12 = NULL;
+  unsigned int __pyx_t_13;
+  int __pyx_t_14;
   int __pyx_t_15;
-  int __pyx_t_16;
-  PyObject *(*__pyx_t_17)(PyObject *);
+  PyObject *(*__pyx_t_16)(PyObject *);
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -15880,89 +15878,6 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_v_count = 0;
 
-  /* "ChessAI.pyx":949
- *         # Define and initialize the razoring threshold
- *         cdef int razorThreshold
- *         if (depthLimit == 3):             # <<<<<<<<<<<<<<
- *             razorThreshold = max (int(1000 * .75** (depthLimit - 4)), 200)
- *         else:
- */
-  __pyx_t_1 = (__pyx_v_depthLimit == 3);
-  if (__pyx_t_1) {
-
-    /* "ChessAI.pyx":950
- *         cdef int razorThreshold
- *         if (depthLimit == 3):
- *             razorThreshold = max (int(1000 * .75** (depthLimit - 4)), 200)             # <<<<<<<<<<<<<<
- *         else:
- *             razorThreshold = max (int(750 * .75** (depthLimit - 4)), 50)
- */
-    __pyx_t_5 = 0xC8;
-    __pyx_t_2 = __Pyx_PyInt_FromDouble((1000.0 * pow(.75, ((double)(__pyx_v_depthLimit - 4))))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 950, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_7 = __Pyx_PyInt_From_long(__pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 950, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_7);
-    __pyx_t_8 = PyObject_RichCompare(__pyx_t_7, __pyx_t_2, Py_GT); __Pyx_XGOTREF(__pyx_t_8); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 950, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 950, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    if (__pyx_t_1) {
-      __pyx_t_8 = __Pyx_PyInt_From_long(__pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 950, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_6 = __pyx_t_8;
-      __pyx_t_8 = 0;
-    } else {
-      __Pyx_INCREF(__pyx_t_2);
-      __pyx_t_6 = __pyx_t_2;
-    }
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __pyx_t_3 = __Pyx_PyInt_As_int(__pyx_t_6); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 950, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_v_razorThreshold = __pyx_t_3;
-
-    /* "ChessAI.pyx":949
- *         # Define and initialize the razoring threshold
- *         cdef int razorThreshold
- *         if (depthLimit == 3):             # <<<<<<<<<<<<<<
- *             razorThreshold = max (int(1000 * .75** (depthLimit - 4)), 200)
- *         else:
- */
-    goto __pyx_L4;
-  }
-
-  /* "ChessAI.pyx":952
- *             razorThreshold = max (int(1000 * .75** (depthLimit - 4)), 200)
- *         else:
- *             razorThreshold = max (int(750 * .75** (depthLimit - 4)), 50)             # <<<<<<<<<<<<<<
- * 
- *         # Define variable to hold the zobrist hash for the current board state
- */
-  /*else*/ {
-    __pyx_t_5 = 50;
-    __pyx_t_6 = __Pyx_PyInt_FromDouble((750.0 * pow(.75, ((double)(__pyx_v_depthLimit - 4))))); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 952, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_8 = __Pyx_PyInt_From_long(__pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 952, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_7 = PyObject_RichCompare(__pyx_t_8, __pyx_t_6, Py_GT); __Pyx_XGOTREF(__pyx_t_7); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 952, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_7); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 952, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-    if (__pyx_t_1) {
-      __pyx_t_7 = __Pyx_PyInt_From_long(__pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 952, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
-      __pyx_t_2 = __pyx_t_7;
-      __pyx_t_7 = 0;
-    } else {
-      __Pyx_INCREF(__pyx_t_6);
-      __pyx_t_2 = __pyx_t_6;
-    }
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_3 = __Pyx_PyInt_As_int(__pyx_t_2); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 952, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __pyx_v_razorThreshold = __pyx_t_3;
-  }
-  __pyx_L4:;
-
   /* "ChessAI.pyx":955
  * 
  *         # Define variable to hold the zobrist hash for the current board state
@@ -15970,8 +15885,8 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  * 
  *         # Define lists to hold the current scores and copy of the expected scores
  */
-  __pyx_t_9 = __pyx_v_self->zobrist;
-  __pyx_v_curHash = __pyx_t_9;
+  __pyx_t_5 = __pyx_v_self->zobrist;
+  __pyx_v_curHash = __pyx_t_5;
 
   /* "ChessAI.pyx":958
  * 
@@ -16007,9 +15922,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 962, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 962, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 962, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_pawns = __pyx_t_9;
+  __pyx_v_pawns = __pyx_t_5;
 
   /* "ChessAI.pyx":963
  *         # Initialize bitmasks for the current board state
@@ -16020,9 +15935,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 963, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 963, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 963, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_knights = __pyx_t_9;
+  __pyx_v_knights = __pyx_t_5;
 
   /* "ChessAI.pyx":964
  *         cdef uint64_t pawns = self.pgnBoard.pawns
@@ -16033,9 +15948,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 964, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 964, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 964, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_bishops = __pyx_t_9;
+  __pyx_v_bishops = __pyx_t_5;
 
   /* "ChessAI.pyx":965
  *         cdef uint64_t knights = self.pgnBoard.knights
@@ -16046,9 +15961,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 965, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 965, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 965, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_rooks = __pyx_t_9;
+  __pyx_v_rooks = __pyx_t_5;
 
   /* "ChessAI.pyx":966
  *         cdef uint64_t bishops = self.pgnBoard.bishops
@@ -16059,9 +15974,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 966, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 966, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 966, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_queens = __pyx_t_9;
+  __pyx_v_queens = __pyx_t_5;
 
   /* "ChessAI.pyx":967
  *         cdef uint64_t rooks = self.pgnBoard.rooks
@@ -16072,9 +15987,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 967, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 967, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 967, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_kings = __pyx_t_9;
+  __pyx_v_kings = __pyx_t_5;
 
   /* "ChessAI.pyx":969
  *         cdef uint64_t kings = self.pgnBoard.kings
@@ -16088,9 +16003,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
   __pyx_t_6 = __Pyx_GetItemInt(__pyx_t_2, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 969, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_6); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 969, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_6); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 969, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_v_occupied_white = __pyx_t_9;
+  __pyx_v_occupied_white = __pyx_t_5;
 
   /* "ChessAI.pyx":970
  * 
@@ -16104,9 +16019,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
   __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_6, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 970, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 970, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 970, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_occupied_black = __pyx_t_9;
+  __pyx_v_occupied_black = __pyx_t_5;
 
   /* "ChessAI.pyx":971
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
@@ -16117,9 +16032,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 971, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 971, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_2); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 971, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_occupied = __pyx_t_9;
+  __pyx_v_occupied = __pyx_t_5;
 
   /* "ChessAI.pyx":974
  * 
@@ -16182,7 +16097,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
       PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
       __PYX_ERR(0, 985, __pyx_L1_error)
     }
-    __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_self->beta_move_list, __pyx_v_moves_list); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 985, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_self->beta_move_list, __pyx_v_moves_list); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 985, __pyx_L1_error)
 
     /* "ChessAI.pyx":986
  *             quicksort_ascending_wrapper(beta_list, moves_list)
@@ -16248,93 +16163,6 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
       __Pyx_XDECREF_SET(__pyx_v_move, __pyx_t_6);
       __pyx_t_6 = 0;
 
-      /* "ChessAI.pyx":993
- * 
- *                 # Razoring
- *                 if (not(beta_list[count] == None)):             # <<<<<<<<<<<<<<
- *                     if (beta_list[count] - beta > razorThreshold):
- *                         count+=1
- */
-      if (unlikely(__pyx_v_beta_list == Py_None)) {
-        PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 993, __pyx_L1_error)
-      }
-      __pyx_t_6 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_beta_list, __pyx_v_count), Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_6); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 993, __pyx_L1_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 993, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_11 = (!__pyx_t_1);
-      if (__pyx_t_11) {
-
-        /* "ChessAI.pyx":994
- *                 # Razoring
- *                 if (not(beta_list[count] == None)):
- *                     if (beta_list[count] - beta > razorThreshold):             # <<<<<<<<<<<<<<
- *                         count+=1
- *                         cur_beta_list.append(None)
- */
-        if (unlikely(__pyx_v_beta_list == Py_None)) {
-          PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-          __PYX_ERR(0, 994, __pyx_L1_error)
-        }
-        __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_beta); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 994, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        __pyx_t_7 = PyNumber_Subtract(PyList_GET_ITEM(__pyx_v_beta_list, __pyx_v_count), __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 994, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_7);
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-        __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_razorThreshold); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 994, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        __pyx_t_8 = PyObject_RichCompare(__pyx_t_7, __pyx_t_6, Py_GT); __Pyx_XGOTREF(__pyx_t_8); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 994, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-        __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 994, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-        if (__pyx_t_11) {
-
-          /* "ChessAI.pyx":995
- *                 if (not(beta_list[count] == None)):
- *                     if (beta_list[count] - beta > razorThreshold):
- *                         count+=1             # <<<<<<<<<<<<<<
- *                         cur_beta_list.append(None)
- *                         # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p5/2PPPP2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 14")):
- */
-          __pyx_v_count = (__pyx_v_count + 1);
-
-          /* "ChessAI.pyx":996
- *                     if (beta_list[count] - beta > razorThreshold):
- *                         count+=1
- *                         cur_beta_list.append(None)             # <<<<<<<<<<<<<<
- *                         # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p5/2PPPP2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 14")):
- *                         #     # print(moves_list)
- */
-          __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, Py_None); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 996, __pyx_L1_error)
-
-          /* "ChessAI.pyx":1004
- *                         # else:
- *                         #     break
- *                         continue             # <<<<<<<<<<<<<<
- * 
- *                 # Check if the move is a promoting move
- */
-          goto __pyx_L7_continue;
-
-          /* "ChessAI.pyx":994
- *                 # Razoring
- *                 if (not(beta_list[count] == None)):
- *                     if (beta_list[count] - beta > razorThreshold):             # <<<<<<<<<<<<<<
- *                         count+=1
- *                         cur_beta_list.append(None)
- */
-        }
-
-        /* "ChessAI.pyx":993
- * 
- *                 # Razoring
- *                 if (not(beta_list[count] == None)):             # <<<<<<<<<<<<<<
- *                     if (beta_list[count] - beta > razorThreshold):
- *                         count+=1
- */
-      }
-
       /* "ChessAI.pyx":1007
  * 
  *                 # Check if the move is a promoting move
@@ -16342,11 +16170,11 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                     promotion = move.promotion
  *                 else:
  */
-      __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1007, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1007, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-      if (__pyx_t_11) {
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1007, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1007, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      if (__pyx_t_1) {
 
         /* "ChessAI.pyx":1008
  *                 # Check if the move is a promoting move
@@ -16355,10 +16183,10 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                 else:
  *                     promotion = 0
  */
-        __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1008, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_8);
-        __pyx_t_3 = __Pyx_PyInt_As_int(__pyx_t_8); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1008, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+        __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1008, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_6);
+        __pyx_t_3 = __Pyx_PyInt_As_int(__pyx_t_6); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1008, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
         __pyx_v_promotion = __pyx_t_3;
 
         /* "ChessAI.pyx":1007
@@ -16368,7 +16196,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                     promotion = move.promotion
  *                 else:
  */
-        goto __pyx_L11;
+        goto __pyx_L8;
       }
 
       /* "ChessAI.pyx":1010
@@ -16381,7 +16209,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
       /*else*/ {
         __pyx_v_promotion = 0;
       }
-      __pyx_L11:;
+      __pyx_L8:;
 
       /* "ChessAI.pyx":1013
  * 
@@ -16390,53 +16218,53 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                 updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
  * 
  */
-      __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1013, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_12 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_12 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-      __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1013, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_13 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_13 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-      __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1013, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1013, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __pyx_t_8 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_8 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_1 = (!__pyx_t_11);
-      __pyx_t_6 = __Pyx_GetItemInt(__pyx_t_8, __pyx_t_1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1013, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
-      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-      __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_6); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __pyx_t_9 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_9 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1013, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_7 = NULL;
-      __pyx_t_14 = 0;
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_10); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_11 = (!__pyx_t_1);
+      __pyx_t_10 = __Pyx_GetItemInt(__pyx_t_6, __pyx_t_11, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_10); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_12 = NULL;
+      __pyx_t_13 = 0;
       #if CYTHON_UNPACK_METHODS
-      if (likely(PyMethod_Check(__pyx_t_8))) {
-        __pyx_t_7 = PyMethod_GET_SELF(__pyx_t_8);
-        if (likely(__pyx_t_7)) {
-          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_8);
-          __Pyx_INCREF(__pyx_t_7);
+      if (likely(PyMethod_Check(__pyx_t_6))) {
+        __pyx_t_12 = PyMethod_GET_SELF(__pyx_t_6);
+        if (likely(__pyx_t_12)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_6);
+          __Pyx_INCREF(__pyx_t_12);
           __Pyx_INCREF(function);
-          __Pyx_DECREF_SET(__pyx_t_8, function);
-          __pyx_t_14 = 1;
+          __Pyx_DECREF_SET(__pyx_t_6, function);
+          __pyx_t_13 = 1;
         }
       }
       #endif
       {
-        PyObject *__pyx_callargs[2] = {__pyx_t_7, __pyx_v_move};
-        __pyx_t_6 = __Pyx_PyObject_FastCall(__pyx_t_8, __pyx_callargs+1-__pyx_t_14, 1+__pyx_t_14);
-        __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1013, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+        PyObject *__pyx_callargs[2] = {__pyx_t_12, __pyx_v_move};
+        __pyx_t_10 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+1-__pyx_t_13, 1+__pyx_t_13);
+        __Pyx_XDECREF(__pyx_t_12); __pyx_t_12 = 0;
+        if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1013, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_10);
+        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       }
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_v_isCapture = is_capture(__pyx_t_12, __pyx_t_13, __pyx_t_9, __pyx_t_1);
+      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_10); if (unlikely((__pyx_t_11 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1013, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_v_isCapture = is_capture(__pyx_t_8, __pyx_t_9, __pyx_t_5, __pyx_t_11);
 
       /* "ChessAI.pyx":1014
  *                 # Acquire the zobrist hash for the new position if the given move was made
@@ -16445,15 +16273,15 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  * 
  *                 # Push the given move and call the maximizer
  */
-      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1014, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_13 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_13 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1014, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1014, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_12 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_12 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1014, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_13, __pyx_t_12, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
+      __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1014, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __pyx_t_9 = __Pyx_PyInt_As_uint8_t(__pyx_t_10); if (unlikely((__pyx_t_9 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1014, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1014, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __pyx_t_8 = __Pyx_PyInt_As_uint8_t(__pyx_t_10); if (unlikely((__pyx_t_8 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1014, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_9, __pyx_t_8, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
 
       /* "ChessAI.pyx":1017
  * 
@@ -16462,31 +16290,31 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                 score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)
  * 
  */
-      __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1017, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_7 = NULL;
-      __pyx_t_14 = 0;
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1017, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_12 = NULL;
+      __pyx_t_13 = 0;
       #if CYTHON_UNPACK_METHODS
-      if (likely(PyMethod_Check(__pyx_t_8))) {
-        __pyx_t_7 = PyMethod_GET_SELF(__pyx_t_8);
-        if (likely(__pyx_t_7)) {
-          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_8);
-          __Pyx_INCREF(__pyx_t_7);
+      if (likely(PyMethod_Check(__pyx_t_6))) {
+        __pyx_t_12 = PyMethod_GET_SELF(__pyx_t_6);
+        if (likely(__pyx_t_12)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_6);
+          __Pyx_INCREF(__pyx_t_12);
           __Pyx_INCREF(function);
-          __Pyx_DECREF_SET(__pyx_t_8, function);
-          __pyx_t_14 = 1;
+          __Pyx_DECREF_SET(__pyx_t_6, function);
+          __pyx_t_13 = 1;
         }
       }
       #endif
       {
-        PyObject *__pyx_callargs[2] = {__pyx_t_7, __pyx_v_move};
-        __pyx_t_6 = __Pyx_PyObject_FastCall(__pyx_t_8, __pyx_callargs+1-__pyx_t_14, 1+__pyx_t_14);
-        __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1017, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+        PyObject *__pyx_callargs[2] = {__pyx_t_12, __pyx_v_move};
+        __pyx_t_10 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+1-__pyx_t_13, 1+__pyx_t_13);
+        __Pyx_XDECREF(__pyx_t_12); __pyx_t_12 = 0;
+        if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1017, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_10);
+        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       }
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
 
       /* "ChessAI.pyx":1018
  *                 # Push the given move and call the maximizer
@@ -16505,9 +16333,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                 self.zobrist = curHash
  * 
  */
-      __pyx_t_6 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1021, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_10 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1021, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
 
       /* "ChessAI.pyx":1022
  *                 # Undo the move and reset the zobrist hash
@@ -16525,10 +16353,10 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  * 
  *                 # Find the lowest score and beta
  */
-      __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_score); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1037, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, __pyx_t_6); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 1037, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_10 = __Pyx_PyInt_From_int(__pyx_v_score); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1037, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, __pyx_t_10); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 1037, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
 
       /* "ChessAI.pyx":1040
  * 
@@ -16537,8 +16365,8 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                     lowestScore = score
  * 
  */
-      __pyx_t_1 = (__pyx_v_score < __pyx_v_lowestScore);
-      if (__pyx_t_1) {
+      __pyx_t_11 = (__pyx_v_score < __pyx_v_lowestScore);
+      if (__pyx_t_11) {
 
         /* "ChessAI.pyx":1041
  *                 # Find the lowest score and beta
@@ -16562,61 +16390,61 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                     lowestScore = score
  * 
  *                 beta = min(beta, lowestScore)             # <<<<<<<<<<<<<<
- *                 count+=1
  * 
+ *                 # if (not(beta_list[count] == None)):
  */
       __pyx_t_3 = __pyx_v_lowestScore;
-      __pyx_t_15 = __pyx_v_beta;
-      __pyx_t_1 = (__pyx_t_3 < __pyx_t_15);
-      if (__pyx_t_1) {
-        __pyx_t_16 = __pyx_t_3;
+      __pyx_t_14 = __pyx_v_beta;
+      __pyx_t_11 = (__pyx_t_3 < __pyx_t_14);
+      if (__pyx_t_11) {
+        __pyx_t_15 = __pyx_t_3;
       } else {
-        __pyx_t_16 = __pyx_t_15;
+        __pyx_t_15 = __pyx_t_14;
       }
-      __pyx_v_beta = __pyx_t_16;
+      __pyx_v_beta = __pyx_t_15;
 
-      /* "ChessAI.pyx":1044
+      /* "ChessAI.pyx":1049
+ *                 #         razorThreshold += beta_list[count] - beta
  * 
- *                 beta = min(beta, lowestScore)
  *                 count+=1             # <<<<<<<<<<<<<<
  * 
  *                 if beta <= alpha:
  */
       __pyx_v_count = (__pyx_v_count + 1);
 
-      /* "ChessAI.pyx":1046
+      /* "ChessAI.pyx":1051
  *                 count+=1
  * 
  *                 if beta <= alpha:             # <<<<<<<<<<<<<<
  * 
  *                     # Fill up the remaining list to capacity
  */
-      __pyx_t_1 = (__pyx_v_beta <= __pyx_v_alpha);
-      if (__pyx_t_1) {
+      __pyx_t_11 = (__pyx_v_beta <= __pyx_v_alpha);
+      if (__pyx_t_11) {
 
-        /* "ChessAI.pyx":1049
+        /* "ChessAI.pyx":1054
  * 
  *                     # Fill up the remaining list to capacity
  *                     for i in range(length - count):             # <<<<<<<<<<<<<<
  *                         cur_beta_list.append(None)
  *                     self.beta_list.append(cur_beta_list)
  */
-        __pyx_t_16 = (__pyx_v_length - __pyx_v_count);
-        __pyx_t_3 = __pyx_t_16;
-        for (__pyx_t_15 = 0; __pyx_t_15 < __pyx_t_3; __pyx_t_15+=1) {
-          __pyx_v_i = __pyx_t_15;
+        __pyx_t_15 = (__pyx_v_length - __pyx_v_count);
+        __pyx_t_3 = __pyx_t_15;
+        for (__pyx_t_14 = 0; __pyx_t_14 < __pyx_t_3; __pyx_t_14+=1) {
+          __pyx_v_i = __pyx_t_14;
 
-          /* "ChessAI.pyx":1050
+          /* "ChessAI.pyx":1055
  *                     # Fill up the remaining list to capacity
  *                     for i in range(length - count):
  *                         cur_beta_list.append(None)             # <<<<<<<<<<<<<<
  *                     self.beta_list.append(cur_beta_list)
  *                     return score
  */
-          __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, Py_None); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 1050, __pyx_L1_error)
+          __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, Py_None); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 1055, __pyx_L1_error)
         }
 
-        /* "ChessAI.pyx":1051
+        /* "ChessAI.pyx":1056
  *                     for i in range(length - count):
  *                         cur_beta_list.append(None)
  *                     self.beta_list.append(cur_beta_list)             # <<<<<<<<<<<<<<
@@ -16625,11 +16453,11 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
         if (unlikely(__pyx_v_self->beta_list == Py_None)) {
           PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
-          __PYX_ERR(0, 1051, __pyx_L1_error)
+          __PYX_ERR(0, 1056, __pyx_L1_error)
         }
-        __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_self->beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 1051, __pyx_L1_error)
+        __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_self->beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 1056, __pyx_L1_error)
 
-        /* "ChessAI.pyx":1052
+        /* "ChessAI.pyx":1057
  *                         cur_beta_list.append(None)
  *                     self.beta_list.append(cur_beta_list)
  *                     return score             # <<<<<<<<<<<<<<
@@ -16640,7 +16468,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
         __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
         goto __pyx_L0;
 
-        /* "ChessAI.pyx":1046
+        /* "ChessAI.pyx":1051
  *                 count+=1
  * 
  *                 if beta <= alpha:             # <<<<<<<<<<<<<<
@@ -16656,25 +16484,24 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  * 
  *                 # Razoring
  */
-      __pyx_L7_continue:;
     }
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "ChessAI.pyx":1055
+    /* "ChessAI.pyx":1060
  * 
  *             # Check if no moves are available, inidicating a game ending move was made previously
  *             if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):             # <<<<<<<<<<<<<<
  *                 self.numIterations += 1
  * 
  */
-    __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1055, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1060, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_4 = PyObject_Length(__pyx_t_2); if (unlikely(__pyx_t_4 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1055, __pyx_L1_error)
+    __pyx_t_4 = PyObject_Length(__pyx_t_2); if (unlikely(__pyx_t_4 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1060, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __pyx_t_1 = (__pyx_v_lowestScore == (0x98967F - __pyx_t_4));
-    if (__pyx_t_1) {
+    __pyx_t_11 = (__pyx_v_lowestScore == (0x98967F - __pyx_t_4));
+    if (__pyx_t_11) {
 
-      /* "ChessAI.pyx":1056
+      /* "ChessAI.pyx":1061
  *             # Check if no moves are available, inidicating a game ending move was made previously
  *             if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
  *                 self.numIterations += 1             # <<<<<<<<<<<<<<
@@ -16683,29 +16510,29 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       __pyx_v_self->numIterations = (__pyx_v_self->numIterations + 1);
 
-      /* "ChessAI.pyx":1059
+      /* "ChessAI.pyx":1064
  * 
  *                 # Fill up the remaining list to capacity
  *                 for i in range(length - count):             # <<<<<<<<<<<<<<
  *                     cur_beta_list.append(None)
  *                 self.beta_list.append(cur_beta_list)
  */
-      __pyx_t_16 = (__pyx_v_length - __pyx_v_count);
-      __pyx_t_3 = __pyx_t_16;
-      for (__pyx_t_15 = 0; __pyx_t_15 < __pyx_t_3; __pyx_t_15+=1) {
-        __pyx_v_i = __pyx_t_15;
+      __pyx_t_15 = (__pyx_v_length - __pyx_v_count);
+      __pyx_t_3 = __pyx_t_15;
+      for (__pyx_t_14 = 0; __pyx_t_14 < __pyx_t_3; __pyx_t_14+=1) {
+        __pyx_v_i = __pyx_t_14;
 
-        /* "ChessAI.pyx":1060
+        /* "ChessAI.pyx":1065
  *                 # Fill up the remaining list to capacity
  *                 for i in range(length - count):
  *                     cur_beta_list.append(None)             # <<<<<<<<<<<<<<
  *                 self.beta_list.append(cur_beta_list)
  * 
  */
-        __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, Py_None); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 1060, __pyx_L1_error)
+        __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, Py_None); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 1065, __pyx_L1_error)
       }
 
-      /* "ChessAI.pyx":1061
+      /* "ChessAI.pyx":1066
  *                 for i in range(length - count):
  *                     cur_beta_list.append(None)
  *                 self.beta_list.append(cur_beta_list)             # <<<<<<<<<<<<<<
@@ -16714,46 +16541,46 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       if (unlikely(__pyx_v_self->beta_list == Py_None)) {
         PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
-        __PYX_ERR(0, 1061, __pyx_L1_error)
+        __PYX_ERR(0, 1066, __pyx_L1_error)
       }
-      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_self->beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 1061, __pyx_L1_error)
+      __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_self->beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 1066, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1063
+      /* "ChessAI.pyx":1068
  *                 self.beta_list.append(cur_beta_list)
  * 
  *                 if self.pgnBoard.is_checkmate():             # <<<<<<<<<<<<<<
  *                     return lowestScore
  *                 else:
  */
-      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1063, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_8 = NULL;
-      __pyx_t_14 = 0;
+      __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1068, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __pyx_t_6 = NULL;
+      __pyx_t_13 = 0;
       #if CYTHON_UNPACK_METHODS
-      if (likely(PyMethod_Check(__pyx_t_6))) {
-        __pyx_t_8 = PyMethod_GET_SELF(__pyx_t_6);
-        if (likely(__pyx_t_8)) {
-          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_6);
-          __Pyx_INCREF(__pyx_t_8);
+      if (likely(PyMethod_Check(__pyx_t_10))) {
+        __pyx_t_6 = PyMethod_GET_SELF(__pyx_t_10);
+        if (likely(__pyx_t_6)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_10);
+          __Pyx_INCREF(__pyx_t_6);
           __Pyx_INCREF(function);
-          __Pyx_DECREF_SET(__pyx_t_6, function);
-          __pyx_t_14 = 1;
+          __Pyx_DECREF_SET(__pyx_t_10, function);
+          __pyx_t_13 = 1;
         }
       }
       #endif
       {
-        PyObject *__pyx_callargs[2] = {__pyx_t_8, NULL};
-        __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+1-__pyx_t_14, 0+__pyx_t_14);
-        __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1063, __pyx_L1_error)
+        PyObject *__pyx_callargs[2] = {__pyx_t_6, NULL};
+        __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_10, __pyx_callargs+1-__pyx_t_13, 0+__pyx_t_13);
+        __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1068, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+        __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
       }
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1063, __pyx_L1_error)
+      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1068, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      if (__pyx_t_1) {
+      if (__pyx_t_11) {
 
-        /* "ChessAI.pyx":1064
+        /* "ChessAI.pyx":1069
  * 
  *                 if self.pgnBoard.is_checkmate():
  *                     return lowestScore             # <<<<<<<<<<<<<<
@@ -16763,7 +16590,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
         __pyx_r = __pyx_v_lowestScore;
         goto __pyx_L0;
 
-        /* "ChessAI.pyx":1063
+        /* "ChessAI.pyx":1068
  *                 self.beta_list.append(cur_beta_list)
  * 
  *                 if self.pgnBoard.is_checkmate():             # <<<<<<<<<<<<<<
@@ -16772,7 +16599,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       }
 
-      /* "ChessAI.pyx":1066
+      /* "ChessAI.pyx":1071
  *                     return lowestScore
  *                 else:
  *                     return min(beta,lowestScore)             # <<<<<<<<<<<<<<
@@ -16780,19 +16607,19 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *             # Fill up the remaining list to capacity
  */
       /*else*/ {
-        __pyx_t_16 = __pyx_v_lowestScore;
+        __pyx_t_15 = __pyx_v_lowestScore;
         __pyx_t_3 = __pyx_v_beta;
-        __pyx_t_1 = (__pyx_t_16 < __pyx_t_3);
-        if (__pyx_t_1) {
-          __pyx_t_15 = __pyx_t_16;
+        __pyx_t_11 = (__pyx_t_15 < __pyx_t_3);
+        if (__pyx_t_11) {
+          __pyx_t_14 = __pyx_t_15;
         } else {
-          __pyx_t_15 = __pyx_t_3;
+          __pyx_t_14 = __pyx_t_3;
         }
-        __pyx_r = __pyx_t_15;
+        __pyx_r = __pyx_t_14;
         goto __pyx_L0;
       }
 
-      /* "ChessAI.pyx":1055
+      /* "ChessAI.pyx":1060
  * 
  *             # Check if no moves are available, inidicating a game ending move was made previously
  *             if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):             # <<<<<<<<<<<<<<
@@ -16801,29 +16628,29 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
     }
 
-    /* "ChessAI.pyx":1069
+    /* "ChessAI.pyx":1074
  * 
  *             # Fill up the remaining list to capacity
  *             for i in range(length - count):             # <<<<<<<<<<<<<<
  *                 cur_beta_list.append(None)
  *             self.beta_list.append(cur_beta_list)
  */
-    __pyx_t_15 = (__pyx_v_length - __pyx_v_count);
-    __pyx_t_16 = __pyx_t_15;
-    for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_16; __pyx_t_3+=1) {
+    __pyx_t_14 = (__pyx_v_length - __pyx_v_count);
+    __pyx_t_15 = __pyx_t_14;
+    for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_15; __pyx_t_3+=1) {
       __pyx_v_i = __pyx_t_3;
 
-      /* "ChessAI.pyx":1070
+      /* "ChessAI.pyx":1075
  *             # Fill up the remaining list to capacity
  *             for i in range(length - count):
  *                 cur_beta_list.append(None)             # <<<<<<<<<<<<<<
  *             self.beta_list.append(cur_beta_list)
  *         else: # If not the second recursive depth, take advantage of the yielding feature to increase speed
  */
-      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, Py_None); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 1070, __pyx_L1_error)
+      __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_cur_beta_list, Py_None); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 1075, __pyx_L1_error)
     }
 
-    /* "ChessAI.pyx":1071
+    /* "ChessAI.pyx":1076
  *             for i in range(length - count):
  *                 cur_beta_list.append(None)
  *             self.beta_list.append(cur_beta_list)             # <<<<<<<<<<<<<<
@@ -16832,9 +16659,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
     if (unlikely(__pyx_v_self->beta_list == Py_None)) {
       PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
-      __PYX_ERR(0, 1071, __pyx_L1_error)
+      __PYX_ERR(0, 1076, __pyx_L1_error)
     }
-    __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_self->beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 1071, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyList_Append(__pyx_v_self->beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_7 == ((int)-1))) __PYX_ERR(0, 1076, __pyx_L1_error)
 
     /* "ChessAI.pyx":989
  * 
@@ -16843,10 +16670,10 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *             for move in moves_list:
  * 
  */
-    goto __pyx_L6;
+    goto __pyx_L5;
   }
 
-  /* "ChessAI.pyx":1073
+  /* "ChessAI.pyx":1078
  *             self.beta_list.append(cur_beta_list)
  *         else: # If not the second recursive depth, take advantage of the yielding feature to increase speed
  *             for move in self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard):             # <<<<<<<<<<<<<<
@@ -16854,84 +16681,84 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                 # Check if the move is a promoting move
  */
   /*else*/ {
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_n_s_reorder_capture_moves); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1073, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_n_s_reorder_capture_moves); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1078, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1078, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __Pyx_GetModuleGlobalName(__pyx_t_8, __pyx_n_s_chess); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1073, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_8, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1073, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_7);
-    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    __pyx_t_8 = NULL;
-    __pyx_t_14 = 0;
+    __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1078, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_12);
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_6 = NULL;
+    __pyx_t_13 = 0;
     #if CYTHON_UNPACK_METHODS
-    if (likely(PyMethod_Check(__pyx_t_6))) {
-      __pyx_t_8 = PyMethod_GET_SELF(__pyx_t_6);
-      if (likely(__pyx_t_8)) {
-        PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_6);
-        __Pyx_INCREF(__pyx_t_8);
+    if (likely(PyMethod_Check(__pyx_t_10))) {
+      __pyx_t_6 = PyMethod_GET_SELF(__pyx_t_10);
+      if (likely(__pyx_t_6)) {
+        PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_10);
+        __Pyx_INCREF(__pyx_t_6);
         __Pyx_INCREF(function);
-        __Pyx_DECREF_SET(__pyx_t_6, function);
-        __pyx_t_14 = 1;
+        __Pyx_DECREF_SET(__pyx_t_10, function);
+        __pyx_t_13 = 1;
       }
     }
     #endif
     {
-      PyObject *__pyx_callargs[3] = {__pyx_t_8, __pyx_t_7, __pyx_v_self->pgnBoard};
-      __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+1-__pyx_t_14, 2+__pyx_t_14);
-      __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1073, __pyx_L1_error)
+      PyObject *__pyx_callargs[3] = {__pyx_t_6, __pyx_t_12, __pyx_v_self->pgnBoard};
+      __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_10, __pyx_callargs+1-__pyx_t_13, 2+__pyx_t_13);
+      __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1078, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     }
     if (likely(PyList_CheckExact(__pyx_t_2)) || PyTuple_CheckExact(__pyx_t_2)) {
-      __pyx_t_6 = __pyx_t_2; __Pyx_INCREF(__pyx_t_6);
+      __pyx_t_10 = __pyx_t_2; __Pyx_INCREF(__pyx_t_10);
       __pyx_t_4 = 0;
-      __pyx_t_17 = NULL;
+      __pyx_t_16 = NULL;
     } else {
-      __pyx_t_4 = -1; __pyx_t_6 = PyObject_GetIter(__pyx_t_2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1073, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_17 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_6); if (unlikely(!__pyx_t_17)) __PYX_ERR(0, 1073, __pyx_L1_error)
+      __pyx_t_4 = -1; __pyx_t_10 = PyObject_GetIter(__pyx_t_2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1078, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __pyx_t_16 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_10); if (unlikely(!__pyx_t_16)) __PYX_ERR(0, 1078, __pyx_L1_error)
     }
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     for (;;) {
-      if (likely(!__pyx_t_17)) {
-        if (likely(PyList_CheckExact(__pyx_t_6))) {
+      if (likely(!__pyx_t_16)) {
+        if (likely(PyList_CheckExact(__pyx_t_10))) {
           {
-            Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_6);
+            Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_10);
             #if !CYTHON_ASSUME_SAFE_MACROS
-            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1073, __pyx_L1_error)
+            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1078, __pyx_L1_error)
             #endif
             if (__pyx_t_4 >= __pyx_temp) break;
           }
           #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-          __pyx_t_2 = PyList_GET_ITEM(__pyx_t_6, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 1073, __pyx_L1_error)
+          __pyx_t_2 = PyList_GET_ITEM(__pyx_t_10, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 1078, __pyx_L1_error)
           #else
-          __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_6, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1073, __pyx_L1_error)
+          __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_10, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1078, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
           #endif
         } else {
           {
-            Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_6);
+            Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_10);
             #if !CYTHON_ASSUME_SAFE_MACROS
-            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1073, __pyx_L1_error)
+            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1078, __pyx_L1_error)
             #endif
             if (__pyx_t_4 >= __pyx_temp) break;
           }
           #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-          __pyx_t_2 = PyTuple_GET_ITEM(__pyx_t_6, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 1073, __pyx_L1_error)
+          __pyx_t_2 = PyTuple_GET_ITEM(__pyx_t_10, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 1078, __pyx_L1_error)
           #else
-          __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_6, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1073, __pyx_L1_error)
+          __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_10, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1078, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
           #endif
         }
       } else {
-        __pyx_t_2 = __pyx_t_17(__pyx_t_6);
+        __pyx_t_2 = __pyx_t_16(__pyx_t_10);
         if (unlikely(!__pyx_t_2)) {
           PyObject* exc_type = PyErr_Occurred();
           if (exc_type) {
             if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-            else __PYX_ERR(0, 1073, __pyx_L1_error)
+            else __PYX_ERR(0, 1078, __pyx_L1_error)
           }
           break;
         }
@@ -16940,43 +16767,43 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
       __Pyx_XDECREF_SET(__pyx_v_move, __pyx_t_2);
       __pyx_t_2 = 0;
 
-      /* "ChessAI.pyx":1076
+      /* "ChessAI.pyx":1081
  * 
  *                 # Check if the move is a promoting move
  *                 if (move.promotion):             # <<<<<<<<<<<<<<
  *                     promotion = move.promotion
  *                 else:
  */
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1076, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1081, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1076, __pyx_L1_error)
+      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1081, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      if (__pyx_t_1) {
+      if (__pyx_t_11) {
 
-        /* "ChessAI.pyx":1077
+        /* "ChessAI.pyx":1082
  *                 # Check if the move is a promoting move
  *                 if (move.promotion):
  *                     promotion = move.promotion             # <<<<<<<<<<<<<<
  *                 else:
  *                     promotion = 0
  */
-        __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1077, __pyx_L1_error)
+        __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1082, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
-        __pyx_t_15 = __Pyx_PyInt_As_int(__pyx_t_2); if (unlikely((__pyx_t_15 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1077, __pyx_L1_error)
+        __pyx_t_14 = __Pyx_PyInt_As_int(__pyx_t_2); if (unlikely((__pyx_t_14 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1082, __pyx_L1_error)
         __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-        __pyx_v_promotion = __pyx_t_15;
+        __pyx_v_promotion = __pyx_t_14;
 
-        /* "ChessAI.pyx":1076
+        /* "ChessAI.pyx":1081
  * 
  *                 # Check if the move is a promoting move
  *                 if (move.promotion):             # <<<<<<<<<<<<<<
  *                     promotion = move.promotion
  *                 else:
  */
-        goto __pyx_L25;
+        goto __pyx_L22;
       }
 
-      /* "ChessAI.pyx":1079
+      /* "ChessAI.pyx":1084
  *                     promotion = move.promotion
  *                 else:
  *                     promotion = 0             # <<<<<<<<<<<<<<
@@ -16986,135 +16813,135 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
       /*else*/ {
         __pyx_v_promotion = 0;
       }
-      __pyx_L25:;
+      __pyx_L22:;
 
-      /* "ChessAI.pyx":1082
+      /* "ChessAI.pyx":1087
  * 
  *                 # Acquire the zobrist hash for the new position if the given move was made
  *                 isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))             # <<<<<<<<<<<<<<
  *                 updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
  * 
  */
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1082, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1087, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_12 = __Pyx_PyInt_As_uint8_t(__pyx_t_2); if (unlikely((__pyx_t_12 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1082, __pyx_L1_error)
+      __pyx_t_8 = __Pyx_PyInt_As_uint8_t(__pyx_t_2); if (unlikely((__pyx_t_8 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1087, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1082, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1087, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_13 = __Pyx_PyInt_As_uint8_t(__pyx_t_2); if (unlikely((__pyx_t_13 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1082, __pyx_L1_error)
+      __pyx_t_9 = __Pyx_PyInt_As_uint8_t(__pyx_t_2); if (unlikely((__pyx_t_9 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1087, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1082, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1087, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1082, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_7); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1082, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      __pyx_t_11 = (!__pyx_t_1);
-      __pyx_t_7 = __Pyx_GetItemInt(__pyx_t_2, __pyx_t_11, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1082, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1087, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_12); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1087, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      __pyx_t_1 = (!__pyx_t_11);
+      __pyx_t_12 = __Pyx_GetItemInt(__pyx_t_2, __pyx_t_1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1087, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_7); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1082, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1082, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_12); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1087, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1087, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_8 = NULL;
-      __pyx_t_14 = 0;
+      __pyx_t_6 = NULL;
+      __pyx_t_13 = 0;
       #if CYTHON_UNPACK_METHODS
       if (likely(PyMethod_Check(__pyx_t_2))) {
-        __pyx_t_8 = PyMethod_GET_SELF(__pyx_t_2);
-        if (likely(__pyx_t_8)) {
+        __pyx_t_6 = PyMethod_GET_SELF(__pyx_t_2);
+        if (likely(__pyx_t_6)) {
           PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_2);
-          __Pyx_INCREF(__pyx_t_8);
+          __Pyx_INCREF(__pyx_t_6);
           __Pyx_INCREF(function);
           __Pyx_DECREF_SET(__pyx_t_2, function);
-          __pyx_t_14 = 1;
+          __pyx_t_13 = 1;
         }
       }
       #endif
       {
-        PyObject *__pyx_callargs[2] = {__pyx_t_8, __pyx_v_move};
-        __pyx_t_7 = __Pyx_PyObject_FastCall(__pyx_t_2, __pyx_callargs+1-__pyx_t_14, 1+__pyx_t_14);
-        __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-        if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1082, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_7);
+        PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_v_move};
+        __pyx_t_12 = __Pyx_PyObject_FastCall(__pyx_t_2, __pyx_callargs+1-__pyx_t_13, 1+__pyx_t_13);
+        __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+        if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1087, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_12);
         __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
       }
-      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_7); if (unlikely((__pyx_t_11 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1082, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      __pyx_v_isCapture = is_capture(__pyx_t_12, __pyx_t_13, __pyx_t_9, __pyx_t_11);
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_12); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1087, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      __pyx_v_isCapture = is_capture(__pyx_t_8, __pyx_t_9, __pyx_t_5, __pyx_t_1);
 
-      /* "ChessAI.pyx":1083
+      /* "ChessAI.pyx":1088
  *                 # Acquire the zobrist hash for the new position if the given move was made
  *                 isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))
  *                 updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)             # <<<<<<<<<<<<<<
  * 
  *                 # Push the given move and call the maximizer
  */
-      __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1083, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
-      __pyx_t_13 = __Pyx_PyInt_As_uint8_t(__pyx_t_7); if (unlikely((__pyx_t_13 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1083, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1083, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
-      __pyx_t_12 = __Pyx_PyInt_As_uint8_t(__pyx_t_7); if (unlikely((__pyx_t_12 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1083, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_13, __pyx_t_12, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
+      __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1088, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __pyx_t_9 = __Pyx_PyInt_As_uint8_t(__pyx_t_12); if (unlikely((__pyx_t_9 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1088, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1088, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __pyx_t_8 = __Pyx_PyInt_As_uint8_t(__pyx_t_12); if (unlikely((__pyx_t_8 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1088, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_9, __pyx_t_8, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
 
-      /* "ChessAI.pyx":1086
+      /* "ChessAI.pyx":1091
  * 
  *                 # Push the given move and call the maximizer
  *                 self.pgnBoard.push(move)             # <<<<<<<<<<<<<<
  *                 score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)
  * 
  */
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1086, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1091, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_8 = NULL;
-      __pyx_t_14 = 0;
+      __pyx_t_6 = NULL;
+      __pyx_t_13 = 0;
       #if CYTHON_UNPACK_METHODS
       if (likely(PyMethod_Check(__pyx_t_2))) {
-        __pyx_t_8 = PyMethod_GET_SELF(__pyx_t_2);
-        if (likely(__pyx_t_8)) {
+        __pyx_t_6 = PyMethod_GET_SELF(__pyx_t_2);
+        if (likely(__pyx_t_6)) {
           PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_2);
-          __Pyx_INCREF(__pyx_t_8);
+          __Pyx_INCREF(__pyx_t_6);
           __Pyx_INCREF(function);
           __Pyx_DECREF_SET(__pyx_t_2, function);
-          __pyx_t_14 = 1;
+          __pyx_t_13 = 1;
         }
       }
       #endif
       {
-        PyObject *__pyx_callargs[2] = {__pyx_t_8, __pyx_v_move};
-        __pyx_t_7 = __Pyx_PyObject_FastCall(__pyx_t_2, __pyx_callargs+1-__pyx_t_14, 1+__pyx_t_14);
-        __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-        if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1086, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_7);
+        PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_v_move};
+        __pyx_t_12 = __Pyx_PyObject_FastCall(__pyx_t_2, __pyx_callargs+1-__pyx_t_13, 1+__pyx_t_13);
+        __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+        if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1091, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_12);
         __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
       }
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
 
-      /* "ChessAI.pyx":1087
+      /* "ChessAI.pyx":1092
  *                 # Push the given move and call the maximizer
  *                 self.pgnBoard.push(move)
  *                 score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)             # <<<<<<<<<<<<<<
  * 
  *                 # Undo the move and reset the zobrist hash
  */
-      __pyx_t_15 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->maximizer(__pyx_v_self, (__pyx_v_curDepth + 1), __pyx_v_depthLimit, __pyx_v_alpha, __pyx_v_beta); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1087, __pyx_L1_error)
-      __pyx_v_score = __pyx_t_15;
+      __pyx_t_14 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->maximizer(__pyx_v_self, (__pyx_v_curDepth + 1), __pyx_v_depthLimit, __pyx_v_alpha, __pyx_v_beta); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1092, __pyx_L1_error)
+      __pyx_v_score = __pyx_t_14;
 
-      /* "ChessAI.pyx":1090
+      /* "ChessAI.pyx":1095
  * 
  *                 # Undo the move and reset the zobrist hash
  *                 self.pgnBoard.pop()             # <<<<<<<<<<<<<<
  *                 self.zobrist = curHash
  * 
  */
-      __pyx_t_7 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1090, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_12 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1095, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
 
-      /* "ChessAI.pyx":1091
+      /* "ChessAI.pyx":1096
  *                 # Undo the move and reset the zobrist hash
  *                 self.pgnBoard.pop()
  *                 self.zobrist = curHash             # <<<<<<<<<<<<<<
@@ -17123,17 +16950,17 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       __pyx_v_self->zobrist = __pyx_v_curHash;
 
-      /* "ChessAI.pyx":1107
+      /* "ChessAI.pyx":1112
  * 
  *                 # Find the lowest score and beta
  *                 if score < lowestScore:             # <<<<<<<<<<<<<<
  *                     lowestScore = score
  * 
  */
-      __pyx_t_11 = (__pyx_v_score < __pyx_v_lowestScore);
-      if (__pyx_t_11) {
+      __pyx_t_1 = (__pyx_v_score < __pyx_v_lowestScore);
+      if (__pyx_t_1) {
 
-        /* "ChessAI.pyx":1108
+        /* "ChessAI.pyx":1113
  *                 # Find the lowest score and beta
  *                 if score < lowestScore:
  *                     lowestScore = score             # <<<<<<<<<<<<<<
@@ -17142,7 +16969,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
         __pyx_v_lowestScore = __pyx_v_score;
 
-        /* "ChessAI.pyx":1107
+        /* "ChessAI.pyx":1112
  * 
  *                 # Find the lowest score and beta
  *                 if score < lowestScore:             # <<<<<<<<<<<<<<
@@ -17151,24 +16978,24 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       }
 
-      /* "ChessAI.pyx":1110
+      /* "ChessAI.pyx":1115
  *                     lowestScore = score
  * 
  *                 beta = min(beta, lowestScore)             # <<<<<<<<<<<<<<
  *                 count+=1
  * 
  */
-      __pyx_t_15 = __pyx_v_lowestScore;
-      __pyx_t_16 = __pyx_v_beta;
-      __pyx_t_11 = (__pyx_t_15 < __pyx_t_16);
-      if (__pyx_t_11) {
-        __pyx_t_3 = __pyx_t_15;
+      __pyx_t_14 = __pyx_v_lowestScore;
+      __pyx_t_15 = __pyx_v_beta;
+      __pyx_t_1 = (__pyx_t_14 < __pyx_t_15);
+      if (__pyx_t_1) {
+        __pyx_t_3 = __pyx_t_14;
       } else {
-        __pyx_t_3 = __pyx_t_16;
+        __pyx_t_3 = __pyx_t_15;
       }
       __pyx_v_beta = __pyx_t_3;
 
-      /* "ChessAI.pyx":1111
+      /* "ChessAI.pyx":1116
  * 
  *                 beta = min(beta, lowestScore)
  *                 count+=1             # <<<<<<<<<<<<<<
@@ -17177,17 +17004,17 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       __pyx_v_count = (__pyx_v_count + 1);
 
-      /* "ChessAI.pyx":1113
+      /* "ChessAI.pyx":1118
  *                 count+=1
  * 
  *                 if beta <= alpha:             # <<<<<<<<<<<<<<
  *                     return score
  * 
  */
-      __pyx_t_11 = (__pyx_v_beta <= __pyx_v_alpha);
-      if (__pyx_t_11) {
+      __pyx_t_1 = (__pyx_v_beta <= __pyx_v_alpha);
+      if (__pyx_t_1) {
 
-        /* "ChessAI.pyx":1114
+        /* "ChessAI.pyx":1119
  * 
  *                 if beta <= alpha:
  *                     return score             # <<<<<<<<<<<<<<
@@ -17195,10 +17022,10 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *             # Check if no moves are available, inidicating a game ending move was made previously
  */
         __pyx_r = __pyx_v_score;
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+        __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
         goto __pyx_L0;
 
-        /* "ChessAI.pyx":1113
+        /* "ChessAI.pyx":1118
  *                 count+=1
  * 
  *                 if beta <= alpha:             # <<<<<<<<<<<<<<
@@ -17207,7 +17034,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       }
 
-      /* "ChessAI.pyx":1073
+      /* "ChessAI.pyx":1078
  *             self.beta_list.append(cur_beta_list)
  *         else: # If not the second recursive depth, take advantage of the yielding feature to increase speed
  *             for move in self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard):             # <<<<<<<<<<<<<<
@@ -17215,23 +17042,23 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  *                 # Check if the move is a promoting move
  */
     }
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
 
-    /* "ChessAI.pyx":1117
+    /* "ChessAI.pyx":1122
  * 
  *             # Check if no moves are available, inidicating a game ending move was made previously
  *             if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):             # <<<<<<<<<<<<<<
  *                 self.numIterations += 1
  * 
  */
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1117, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_4 = PyObject_Length(__pyx_t_6); if (unlikely(__pyx_t_4 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1117, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_11 = (__pyx_v_lowestScore == (0x98967F - __pyx_t_4));
-    if (__pyx_t_11) {
+    __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1122, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __pyx_t_4 = PyObject_Length(__pyx_t_10); if (unlikely(__pyx_t_4 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1122, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+    __pyx_t_1 = (__pyx_v_lowestScore == (0x98967F - __pyx_t_4));
+    if (__pyx_t_1) {
 
-      /* "ChessAI.pyx":1118
+      /* "ChessAI.pyx":1123
  *             # Check if no moves are available, inidicating a game ending move was made previously
  *             if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
  *                 self.numIterations += 1             # <<<<<<<<<<<<<<
@@ -17240,42 +17067,42 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       __pyx_v_self->numIterations = (__pyx_v_self->numIterations + 1);
 
-      /* "ChessAI.pyx":1120
+      /* "ChessAI.pyx":1125
  *                 self.numIterations += 1
  * 
  *                 if self.pgnBoard.is_checkmate():             # <<<<<<<<<<<<<<
  *                     return lowestScore
  *                 else:
  */
-      __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 1125, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
       __pyx_t_2 = NULL;
-      __pyx_t_14 = 0;
+      __pyx_t_13 = 0;
       #if CYTHON_UNPACK_METHODS
-      if (likely(PyMethod_Check(__pyx_t_7))) {
-        __pyx_t_2 = PyMethod_GET_SELF(__pyx_t_7);
+      if (likely(PyMethod_Check(__pyx_t_12))) {
+        __pyx_t_2 = PyMethod_GET_SELF(__pyx_t_12);
         if (likely(__pyx_t_2)) {
-          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_7);
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_12);
           __Pyx_INCREF(__pyx_t_2);
           __Pyx_INCREF(function);
-          __Pyx_DECREF_SET(__pyx_t_7, function);
-          __pyx_t_14 = 1;
+          __Pyx_DECREF_SET(__pyx_t_12, function);
+          __pyx_t_13 = 1;
         }
       }
       #endif
       {
         PyObject *__pyx_callargs[2] = {__pyx_t_2, NULL};
-        __pyx_t_6 = __Pyx_PyObject_FastCall(__pyx_t_7, __pyx_callargs+1-__pyx_t_14, 0+__pyx_t_14);
+        __pyx_t_10 = __Pyx_PyObject_FastCall(__pyx_t_12, __pyx_callargs+1-__pyx_t_13, 0+__pyx_t_13);
         __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1120, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+        if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1125, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_10);
+        __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
       }
-      __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1120, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (__pyx_t_11) {
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_10); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1125, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      if (__pyx_t_1) {
 
-        /* "ChessAI.pyx":1121
+        /* "ChessAI.pyx":1126
  * 
  *                 if self.pgnBoard.is_checkmate():
  *                     return lowestScore             # <<<<<<<<<<<<<<
@@ -17285,7 +17112,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
         __pyx_r = __pyx_v_lowestScore;
         goto __pyx_L0;
 
-        /* "ChessAI.pyx":1120
+        /* "ChessAI.pyx":1125
  *                 self.numIterations += 1
  * 
  *                 if self.pgnBoard.is_checkmate():             # <<<<<<<<<<<<<<
@@ -17294,7 +17121,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       }
 
-      /* "ChessAI.pyx":1123
+      /* "ChessAI.pyx":1128
  *                     return lowestScore
  *                 else:
  *                     return min(beta,lowestScore)             # <<<<<<<<<<<<<<
@@ -17303,18 +17130,18 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
       /*else*/ {
         __pyx_t_3 = __pyx_v_lowestScore;
-        __pyx_t_15 = __pyx_v_beta;
-        __pyx_t_11 = (__pyx_t_3 < __pyx_t_15);
-        if (__pyx_t_11) {
-          __pyx_t_16 = __pyx_t_3;
+        __pyx_t_14 = __pyx_v_beta;
+        __pyx_t_1 = (__pyx_t_3 < __pyx_t_14);
+        if (__pyx_t_1) {
+          __pyx_t_15 = __pyx_t_3;
         } else {
-          __pyx_t_16 = __pyx_t_15;
+          __pyx_t_15 = __pyx_t_14;
         }
-        __pyx_r = __pyx_t_16;
+        __pyx_r = __pyx_t_15;
         goto __pyx_L0;
       }
 
-      /* "ChessAI.pyx":1117
+      /* "ChessAI.pyx":1122
  * 
  *             # Check if no moves are available, inidicating a game ending move was made previously
  *             if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):             # <<<<<<<<<<<<<<
@@ -17323,9 +17150,9 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
  */
     }
   }
-  __pyx_L6:;
+  __pyx_L5:;
 
-  /* "ChessAI.pyx":1125
+  /* "ChessAI.pyx":1130
  *                     return min(beta,lowestScore)
  * 
  *         return lowestScore             # <<<<<<<<<<<<<<
@@ -17347,8 +17174,8 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_6);
-  __Pyx_XDECREF(__pyx_t_7);
-  __Pyx_XDECREF(__pyx_t_8);
+  __Pyx_XDECREF(__pyx_t_10);
+  __Pyx_XDECREF(__pyx_t_12);
   __Pyx_AddTraceback("ChessAI.ChessAI.minimizer", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = 0;
   __pyx_L0:;
@@ -17360,7 +17187,7 @@ static int __pyx_f_7ChessAI_7ChessAI_minimizer(struct __pyx_obj_7ChessAI_ChessAI
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1133
+/* "ChessAI.pyx":1138
  *     @cython.ccall
  *     @cython.inline
  *     cdef int quiescenceMax(self, int alpha, int beta, int quiescenceDepth):             # <<<<<<<<<<<<<<
@@ -17408,7 +17235,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("quiescenceMax", 1);
 
-  /* "ChessAI.pyx":1147
+  /* "ChessAI.pyx":1152
  *         """
  * 
  *         self.numIterations += 1             # <<<<<<<<<<<<<<
@@ -17417,7 +17244,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_v_self->numIterations = (__pyx_v_self->numIterations + 1);
 
-  /* "ChessAI.pyx":1149
+  /* "ChessAI.pyx":1154
  *         self.numIterations += 1
  *         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)             # <<<<<<<<<<<<<<
@@ -17426,11 +17253,11 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_t_1 = __pyx_v_self->pgnBoard;
   __Pyx_INCREF(__pyx_t_1);
-  __pyx_t_2 = __pyx_f_7ChessAI_evaluate_board(__pyx_t_1, __pyx_v_self->zobrist); if (unlikely(__pyx_t_2 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1149, __pyx_L1_error)
+  __pyx_t_2 = __pyx_f_7ChessAI_evaluate_board(__pyx_t_1, __pyx_v_self->zobrist); if (unlikely(__pyx_t_2 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1154, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_evaluation = __pyx_t_2;
 
-  /* "ChessAI.pyx":1150
+  /* "ChessAI.pyx":1155
  *         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
  *         if (quiescenceDepth >= self.quiescenceDepth) or evaluation - 1500 >= beta or evaluation + 1500 <= alpha or evaluation >= 9000000:             # <<<<<<<<<<<<<<
@@ -17460,7 +17287,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   __pyx_L4_bool_binop_done:;
   if (__pyx_t_3) {
 
-    /* "ChessAI.pyx":1151
+    /* "ChessAI.pyx":1156
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
  *         if (quiescenceDepth >= self.quiescenceDepth) or evaluation - 1500 >= beta or evaluation + 1500 <= alpha or evaluation >= 9000000:
  *             return evaluation             # <<<<<<<<<<<<<<
@@ -17470,7 +17297,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     __pyx_r = __pyx_v_evaluation;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1150
+    /* "ChessAI.pyx":1155
  *         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
  *         if (quiescenceDepth >= self.quiescenceDepth) or evaluation - 1500 >= beta or evaluation + 1500 <= alpha or evaluation >= 9000000:             # <<<<<<<<<<<<<<
@@ -17479,7 +17306,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
   }
 
-  /* "ChessAI.pyx":1154
+  /* "ChessAI.pyx":1159
  * 
  *         # Define variable to hold the zobrist hash for the current board state
  *         cdef uint64_t curHash = self.zobrist             # <<<<<<<<<<<<<<
@@ -17489,130 +17316,130 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   __pyx_t_5 = __pyx_v_self->zobrist;
   __pyx_v_curHash = __pyx_t_5;
 
-  /* "ChessAI.pyx":1157
+  /* "ChessAI.pyx":1162
  * 
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns             # <<<<<<<<<<<<<<
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1157, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1162, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1157, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1162, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_pawns = __pyx_t_5;
 
-  /* "ChessAI.pyx":1158
+  /* "ChessAI.pyx":1163
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights             # <<<<<<<<<<<<<<
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1158, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1163, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1158, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1163, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_knights = __pyx_t_5;
 
-  /* "ChessAI.pyx":1159
+  /* "ChessAI.pyx":1164
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops             # <<<<<<<<<<<<<<
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1159, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1164, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1159, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1164, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_bishops = __pyx_t_5;
 
-  /* "ChessAI.pyx":1160
+  /* "ChessAI.pyx":1165
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks             # <<<<<<<<<<<<<<
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1160, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1165, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1160, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1165, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_rooks = __pyx_t_5;
 
-  /* "ChessAI.pyx":1161
+  /* "ChessAI.pyx":1166
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens             # <<<<<<<<<<<<<<
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1161, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1166, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1161, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1166, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_queens = __pyx_t_5;
 
-  /* "ChessAI.pyx":1162
+  /* "ChessAI.pyx":1167
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings             # <<<<<<<<<<<<<<
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1162, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1167, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1162, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1167, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_kings = __pyx_t_5;
 
-  /* "ChessAI.pyx":1164
+  /* "ChessAI.pyx":1169
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1164, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1169, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_6 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1164, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1169, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_6); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1164, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_6); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1169, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   __pyx_v_occupied_white = __pyx_t_5;
 
-  /* "ChessAI.pyx":1165
+  /* "ChessAI.pyx":1170
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  * 
  */
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1165, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1170, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_6, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1165, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_6, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1170, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1165, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1170, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied_black = __pyx_t_5;
 
-  /* "ChessAI.pyx":1166
+  /* "ChessAI.pyx":1171
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied             # <<<<<<<<<<<<<<
  * 
  *         # Define variables to hold information for zobrist hashing
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1166, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1166, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1171, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied = __pyx_t_5;
 
-  /* "ChessAI.pyx":1170
+  /* "ChessAI.pyx":1175
  *         # Define variables to hold information for zobrist hashing
  *         cdef bint isCapture
  *         cdef int promotion = 0             # <<<<<<<<<<<<<<
@@ -17621,7 +17448,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_v_promotion = 0;
 
-  /* "ChessAI.pyx":1173
+  /* "ChessAI.pyx":1178
  * 
  *         # Make a copy of alpha before it may change
  *         cdef int alphaCopy = alpha             # <<<<<<<<<<<<<<
@@ -17630,7 +17457,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_v_alphaCopy = __pyx_v_alpha;
 
-  /* "ChessAI.pyx":1176
+  /* "ChessAI.pyx":1181
  * 
  *         # Update alpha
  *         alpha = max(alpha, evaluation)             # <<<<<<<<<<<<<<
@@ -17647,26 +17474,26 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   }
   __pyx_v_alpha = __pyx_t_8;
 
-  /* "ChessAI.pyx":1179
+  /* "ChessAI.pyx":1184
  * 
  *         # Search through all capture moves (and other tactical moves if applicable)
  *         for move in Cython_Chess.generate_legal_captures(self.pgnBoard,chess.BB_ALL,chess.BB_ALL):             # <<<<<<<<<<<<<<
  * 
  *             # Check if the move is a promoting move
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1179, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1184, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1179, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1184, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1179, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1184, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1179, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1184, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1179, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1184, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1179, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1184, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_11);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   __pyx_t_6 = NULL;
@@ -17689,7 +17516,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1179, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1184, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
   }
@@ -17698,9 +17525,9 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     __pyx_t_13 = 0;
     __pyx_t_14 = NULL;
   } else {
-    __pyx_t_13 = -1; __pyx_t_9 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1179, __pyx_L1_error)
+    __pyx_t_13 = -1; __pyx_t_9 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1184, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
-    __pyx_t_14 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_9); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 1179, __pyx_L1_error)
+    __pyx_t_14 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_9); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 1184, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   for (;;) {
@@ -17709,28 +17536,28 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_9);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1179, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1184, __pyx_L1_error)
           #endif
           if (__pyx_t_13 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1179, __pyx_L1_error)
+        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1184, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1179, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1184, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       } else {
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_9);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1179, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1184, __pyx_L1_error)
           #endif
           if (__pyx_t_13 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1179, __pyx_L1_error)
+        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1184, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1179, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1184, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       }
@@ -17740,7 +17567,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else __PYX_ERR(0, 1179, __pyx_L1_error)
+          else __PYX_ERR(0, 1184, __pyx_L1_error)
         }
         break;
       }
@@ -17749,33 +17576,33 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     __Pyx_XDECREF_SET(__pyx_v_move, __pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "ChessAI.pyx":1182
+    /* "ChessAI.pyx":1187
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
  *                 promotion = move.promotion
  *             else:
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1182, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1187, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1182, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1187, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     if (__pyx_t_3) {
 
-      /* "ChessAI.pyx":1183
+      /* "ChessAI.pyx":1188
  *             # Check if the move is a promoting move
  *             if (move.promotion):
  *                 promotion = move.promotion             # <<<<<<<<<<<<<<
  *             else:
  *                 promotion = 0
  */
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1183, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1188, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_8 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1183, __pyx_L1_error)
+      __pyx_t_8 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1188, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
       __pyx_v_promotion = __pyx_t_8;
 
-      /* "ChessAI.pyx":1182
+      /* "ChessAI.pyx":1187
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
@@ -17785,7 +17612,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
       goto __pyx_L10;
     }
 
-    /* "ChessAI.pyx":1185
+    /* "ChessAI.pyx":1190
  *                 promotion = move.promotion
  *             else:
  *                 promotion = 0             # <<<<<<<<<<<<<<
@@ -17797,34 +17624,34 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     }
     __pyx_L10:;
 
-    /* "ChessAI.pyx":1188
+    /* "ChessAI.pyx":1193
  * 
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))             # <<<<<<<<<<<<<<
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
  * 
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
-    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
     __pyx_t_4 = (!__pyx_t_3);
-    __pyx_t_11 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_4, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_4, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_11); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_11); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_10 = NULL;
     __pyx_t_12 = 0;
@@ -17844,39 +17671,39 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
       PyObject *__pyx_callargs[2] = {__pyx_t_10, __pyx_v_move};
       __pyx_t_11 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_12, 1+__pyx_t_12);
       __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
-      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1188, __pyx_L1_error)
+      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1193, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_11);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
-    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1188, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1193, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
     __pyx_v_isCapture = is_capture(__pyx_t_15, __pyx_t_16, __pyx_t_5, __pyx_t_4);
 
-    /* "ChessAI.pyx":1189
+    /* "ChessAI.pyx":1194
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)             # <<<<<<<<<<<<<<
  * 
  *             # Push the given move and call the quiescence minimizer using aspiration windows
  */
-    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1189, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1194, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
-    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1189, __pyx_L1_error)
+    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1194, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1189, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1194, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
-    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1189, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1194, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
     updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_16, __pyx_t_15, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
 
-    /* "ChessAI.pyx":1192
+    /* "ChessAI.pyx":1197
  * 
  *             # Push the given move and call the quiescence minimizer using aspiration windows
  *             self.pgnBoard.push(move)             # <<<<<<<<<<<<<<
  *             # score = self.quiescenceMin(alpha, beta ,quiescenceDepth+1)
  *             score = self.quiescenceMin(alpha - 750, beta + 750 ,quiescenceDepth+1)
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1192, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1197, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_10 = NULL;
     __pyx_t_12 = 0;
@@ -17896,23 +17723,23 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
       PyObject *__pyx_callargs[2] = {__pyx_t_10, __pyx_v_move};
       __pyx_t_11 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_12, 1+__pyx_t_12);
       __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
-      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1192, __pyx_L1_error)
+      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1197, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_11);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
 
-    /* "ChessAI.pyx":1194
+    /* "ChessAI.pyx":1199
  *             self.pgnBoard.push(move)
  *             # score = self.quiescenceMin(alpha, beta ,quiescenceDepth+1)
  *             score = self.quiescenceMin(alpha - 750, beta + 750 ,quiescenceDepth+1)             # <<<<<<<<<<<<<<
  * 
  *             if alpha < score and score < beta:
  */
-    __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMin(__pyx_v_self, (__pyx_v_alpha - 0x2EE), (__pyx_v_beta + 0x2EE), (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1194, __pyx_L1_error)
+    __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMin(__pyx_v_self, (__pyx_v_alpha - 0x2EE), (__pyx_v_beta + 0x2EE), (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1199, __pyx_L1_error)
     __pyx_v_score = __pyx_t_8;
 
-    /* "ChessAI.pyx":1196
+    /* "ChessAI.pyx":1201
  *             score = self.quiescenceMin(alpha - 750, beta + 750 ,quiescenceDepth+1)
  * 
  *             if alpha < score and score < beta:             # <<<<<<<<<<<<<<
@@ -17930,17 +17757,17 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     __pyx_L12_bool_binop_done:;
     if (__pyx_t_4) {
 
-      /* "ChessAI.pyx":1197
+      /* "ChessAI.pyx":1202
  * 
  *             if alpha < score and score < beta:
  *                 score = self.quiescenceMin(alpha, beta ,quiescenceDepth+1)             # <<<<<<<<<<<<<<
  * 
  *             # Undo the move and reset the zobrist hash
  */
-      __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMin(__pyx_v_self, __pyx_v_alpha, __pyx_v_beta, (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1197, __pyx_L1_error)
+      __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMin(__pyx_v_self, __pyx_v_alpha, __pyx_v_beta, (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1202, __pyx_L1_error)
       __pyx_v_score = __pyx_t_8;
 
-      /* "ChessAI.pyx":1196
+      /* "ChessAI.pyx":1201
  *             score = self.quiescenceMin(alpha - 750, beta + 750 ,quiescenceDepth+1)
  * 
  *             if alpha < score and score < beta:             # <<<<<<<<<<<<<<
@@ -17949,18 +17776,18 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
     }
 
-    /* "ChessAI.pyx":1200
+    /* "ChessAI.pyx":1205
  * 
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()             # <<<<<<<<<<<<<<
  *             self.zobrist = curHash
  * 
  */
-    __pyx_t_11 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1200, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1205, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
 
-    /* "ChessAI.pyx":1201
+    /* "ChessAI.pyx":1206
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()
  *             self.zobrist = curHash             # <<<<<<<<<<<<<<
@@ -17969,7 +17796,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
     __pyx_v_self->zobrist = __pyx_v_curHash;
 
-    /* "ChessAI.pyx":1204
+    /* "ChessAI.pyx":1209
  * 
  *             # Update alpha
  *             alpha = max(alpha, score)             # <<<<<<<<<<<<<<
@@ -17986,7 +17813,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     }
     __pyx_v_alpha = __pyx_t_7;
 
-    /* "ChessAI.pyx":1207
+    /* "ChessAI.pyx":1212
  * 
  *             # Beta cutoff
  *             if alpha >= beta:             # <<<<<<<<<<<<<<
@@ -17996,7 +17823,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     __pyx_t_4 = (__pyx_v_alpha >= __pyx_v_beta);
     if (__pyx_t_4) {
 
-      /* "ChessAI.pyx":1208
+      /* "ChessAI.pyx":1213
  *             # Beta cutoff
  *             if alpha >= beta:
  *                 return score             # <<<<<<<<<<<<<<
@@ -18007,7 +17834,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
       __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
       goto __pyx_L0;
 
-      /* "ChessAI.pyx":1207
+      /* "ChessAI.pyx":1212
  * 
  *             # Beta cutoff
  *             if alpha >= beta:             # <<<<<<<<<<<<<<
@@ -18016,7 +17843,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
     }
 
-    /* "ChessAI.pyx":1179
+    /* "ChessAI.pyx":1184
  * 
  *         # Search through all capture moves (and other tactical moves if applicable)
  *         for move in Cython_Chess.generate_legal_captures(self.pgnBoard,chess.BB_ALL,chess.BB_ALL):             # <<<<<<<<<<<<<<
@@ -18026,7 +17853,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   }
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
 
-  /* "ChessAI.pyx":1211
+  /* "ChessAI.pyx":1216
  * 
  *         # In the case where the alpha value changes, without a beta cutoff having occurred, this move is likely to be a good one
  *         if (alpha != alphaCopy):             # <<<<<<<<<<<<<<
@@ -18036,7 +17863,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   __pyx_t_4 = (__pyx_v_alpha != __pyx_v_alphaCopy);
   if (__pyx_t_4) {
 
-    /* "ChessAI.pyx":1212
+    /* "ChessAI.pyx":1217
  *         # In the case where the alpha value changes, without a beta cutoff having occurred, this move is likely to be a good one
  *         if (alpha != alphaCopy):
  *             return alpha             # <<<<<<<<<<<<<<
@@ -18046,7 +17873,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
     __pyx_r = __pyx_v_alpha;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1211
+    /* "ChessAI.pyx":1216
  * 
  *         # In the case where the alpha value changes, without a beta cutoff having occurred, this move is likely to be a good one
  *         if (alpha != alphaCopy):             # <<<<<<<<<<<<<<
@@ -18055,7 +17882,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
  */
   }
 
-  /* "ChessAI.pyx":1214
+  /* "ChessAI.pyx":1219
  *             return alpha
  *         # If the alpha value has not changed, the return should be the evaluation acquired in this recursive iteration
  *         return evaluation             # <<<<<<<<<<<<<<
@@ -18065,7 +17892,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   __pyx_r = __pyx_v_evaluation;
   goto __pyx_L0;
 
-  /* "ChessAI.pyx":1133
+  /* "ChessAI.pyx":1138
  *     @cython.ccall
  *     @cython.inline
  *     cdef int quiescenceMax(self, int alpha, int beta, int quiescenceDepth):             # <<<<<<<<<<<<<<
@@ -18088,7 +17915,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMax(struct __pyx_obj_7ChessAI_Che
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1222
+/* "ChessAI.pyx":1227
  *     @cython.ccall
  *     @cython.inline
  *     cdef int quiescenceMin(self, int alpha, int beta, int quiescenceDepth):             # <<<<<<<<<<<<<<
@@ -18136,7 +17963,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("quiescenceMin", 1);
 
-  /* "ChessAI.pyx":1236
+  /* "ChessAI.pyx":1241
  *         """
  * 
  *         self.numIterations += 1             # <<<<<<<<<<<<<<
@@ -18145,7 +17972,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_v_self->numIterations = (__pyx_v_self->numIterations + 1);
 
-  /* "ChessAI.pyx":1238
+  /* "ChessAI.pyx":1243
  *         self.numIterations += 1
  *         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)             # <<<<<<<<<<<<<<
@@ -18154,11 +17981,11 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_t_1 = __pyx_v_self->pgnBoard;
   __Pyx_INCREF(__pyx_t_1);
-  __pyx_t_2 = __pyx_f_7ChessAI_evaluate_board(__pyx_t_1, __pyx_v_self->zobrist); if (unlikely(__pyx_t_2 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1238, __pyx_L1_error)
+  __pyx_t_2 = __pyx_f_7ChessAI_evaluate_board(__pyx_t_1, __pyx_v_self->zobrist); if (unlikely(__pyx_t_2 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1243, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_evaluation = __pyx_t_2;
 
-  /* "ChessAI.pyx":1239
+  /* "ChessAI.pyx":1244
  *         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
  *         if (quiescenceDepth >= self.quiescenceDepth) or evaluation + 1500 <= alpha or evaluation - 1500 >= beta or evaluation <= -9000000:             # <<<<<<<<<<<<<<
@@ -18188,7 +18015,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   __pyx_L4_bool_binop_done:;
   if (__pyx_t_3) {
 
-    /* "ChessAI.pyx":1240
+    /* "ChessAI.pyx":1245
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
  *         if (quiescenceDepth >= self.quiescenceDepth) or evaluation + 1500 <= alpha or evaluation - 1500 >= beta or evaluation <= -9000000:
  *             return evaluation             # <<<<<<<<<<<<<<
@@ -18198,7 +18025,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     __pyx_r = __pyx_v_evaluation;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1239
+    /* "ChessAI.pyx":1244
  *         # Get an evaluation and see if the evaluation is close to the alpha and beta or exceeds the quiescence depth
  *         cdef int evaluation = evaluate_board(self.pgnBoard, self.zobrist)
  *         if (quiescenceDepth >= self.quiescenceDepth) or evaluation + 1500 <= alpha or evaluation - 1500 >= beta or evaluation <= -9000000:             # <<<<<<<<<<<<<<
@@ -18207,7 +18034,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
   }
 
-  /* "ChessAI.pyx":1243
+  /* "ChessAI.pyx":1248
  * 
  *         # Define variable to hold the zobrist hash for the current board state
  *         cdef uint64_t curHash = self.zobrist             # <<<<<<<<<<<<<<
@@ -18217,130 +18044,130 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   __pyx_t_5 = __pyx_v_self->zobrist;
   __pyx_v_curHash = __pyx_t_5;
 
-  /* "ChessAI.pyx":1246
+  /* "ChessAI.pyx":1251
  * 
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns             # <<<<<<<<<<<<<<
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1246, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1251, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1246, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1251, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_pawns = __pyx_t_5;
 
-  /* "ChessAI.pyx":1247
+  /* "ChessAI.pyx":1252
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights             # <<<<<<<<<<<<<<
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1247, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1252, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1247, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1252, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_knights = __pyx_t_5;
 
-  /* "ChessAI.pyx":1248
+  /* "ChessAI.pyx":1253
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops             # <<<<<<<<<<<<<<
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1248, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1253, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1248, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1253, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_bishops = __pyx_t_5;
 
-  /* "ChessAI.pyx":1249
+  /* "ChessAI.pyx":1254
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks             # <<<<<<<<<<<<<<
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1249, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1254, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1249, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1254, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_rooks = __pyx_t_5;
 
-  /* "ChessAI.pyx":1250
+  /* "ChessAI.pyx":1255
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens             # <<<<<<<<<<<<<<
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1250, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1255, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1250, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1255, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_queens = __pyx_t_5;
 
-  /* "ChessAI.pyx":1251
+  /* "ChessAI.pyx":1256
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings             # <<<<<<<<<<<<<<
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1251, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1256, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1251, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1256, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_kings = __pyx_t_5;
 
-  /* "ChessAI.pyx":1253
+  /* "ChessAI.pyx":1258
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1253, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_6 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1253, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_6); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1253, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_6); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1258, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   __pyx_v_occupied_white = __pyx_t_5;
 
-  /* "ChessAI.pyx":1254
+  /* "ChessAI.pyx":1259
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  * 
  */
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1254, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1259, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_6, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1254, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_6, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1259, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1254, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1259, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied_black = __pyx_t_5;
 
-  /* "ChessAI.pyx":1255
+  /* "ChessAI.pyx":1260
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied             # <<<<<<<<<<<<<<
  * 
  *         # Define variables to hold information for zobrist hashing
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1255, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1260, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1255, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1260, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied = __pyx_t_5;
 
-  /* "ChessAI.pyx":1258
+  /* "ChessAI.pyx":1263
  * 
  *         # Define variables to hold information for zobrist hashing
  *         cdef int promotion = 0             # <<<<<<<<<<<<<<
@@ -18349,7 +18176,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_v_promotion = 0;
 
-  /* "ChessAI.pyx":1262
+  /* "ChessAI.pyx":1267
  * 
  *         # Make a copy of alpha before it may change
  *         cdef int betaCopy = beta             # <<<<<<<<<<<<<<
@@ -18358,7 +18185,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
   __pyx_v_betaCopy = __pyx_v_beta;
 
-  /* "ChessAI.pyx":1265
+  /* "ChessAI.pyx":1270
  * 
  *         # Update beta
  *         beta = min(beta, evaluation)             # <<<<<<<<<<<<<<
@@ -18375,26 +18202,26 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   }
   __pyx_v_beta = __pyx_t_8;
 
-  /* "ChessAI.pyx":1268
+  /* "ChessAI.pyx":1273
  * 
  *         # Search through all capture moves (and other tactical moves if applicable)
  *         for move in Cython_Chess.generate_legal_captures(self.pgnBoard,chess.BB_ALL,chess.BB_ALL):             # <<<<<<<<<<<<<<
  *         # for move in self.non_quiescence_moves(self.pgnBoard):
  * 
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1268, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1273, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1268, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1273, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1268, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1273, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1268, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 1273, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1268, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_chess); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1273, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1268, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1273, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_11);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   __pyx_t_6 = NULL;
@@ -18417,7 +18244,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1268, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1273, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
   }
@@ -18426,9 +18253,9 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     __pyx_t_13 = 0;
     __pyx_t_14 = NULL;
   } else {
-    __pyx_t_13 = -1; __pyx_t_9 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1268, __pyx_L1_error)
+    __pyx_t_13 = -1; __pyx_t_9 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 1273, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
-    __pyx_t_14 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_9); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 1268, __pyx_L1_error)
+    __pyx_t_14 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_9); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 1273, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   for (;;) {
@@ -18437,28 +18264,28 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_9);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1268, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1273, __pyx_L1_error)
           #endif
           if (__pyx_t_13 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1268, __pyx_L1_error)
+        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1273, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1268, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1273, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       } else {
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_9);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1268, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1273, __pyx_L1_error)
           #endif
           if (__pyx_t_13 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1268, __pyx_L1_error)
+        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_9, __pyx_t_13); __Pyx_INCREF(__pyx_t_1); __pyx_t_13++; if (unlikely((0 < 0))) __PYX_ERR(0, 1273, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1268, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_9, __pyx_t_13); __pyx_t_13++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1273, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       }
@@ -18468,7 +18295,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else __PYX_ERR(0, 1268, __pyx_L1_error)
+          else __PYX_ERR(0, 1273, __pyx_L1_error)
         }
         break;
       }
@@ -18477,33 +18304,33 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     __Pyx_XDECREF_SET(__pyx_v_move, __pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "ChessAI.pyx":1272
+    /* "ChessAI.pyx":1277
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
  *                 promotion = move.promotion
  *             else:
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1272, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1277, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1272, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1277, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     if (__pyx_t_3) {
 
-      /* "ChessAI.pyx":1273
+      /* "ChessAI.pyx":1278
  *             # Check if the move is a promoting move
  *             if (move.promotion):
  *                 promotion = move.promotion             # <<<<<<<<<<<<<<
  *             else:
  *                 promotion = 0
  */
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1273, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1278, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_8 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1273, __pyx_L1_error)
+      __pyx_t_8 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1278, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
       __pyx_v_promotion = __pyx_t_8;
 
-      /* "ChessAI.pyx":1272
+      /* "ChessAI.pyx":1277
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
@@ -18513,7 +18340,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
       goto __pyx_L10;
     }
 
-    /* "ChessAI.pyx":1275
+    /* "ChessAI.pyx":1280
  *                 promotion = move.promotion
  *             else:
  *                 promotion = 0             # <<<<<<<<<<<<<<
@@ -18525,34 +18352,34 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     }
     __pyx_L10:;
 
-    /* "ChessAI.pyx":1278
+    /* "ChessAI.pyx":1283
  * 
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))             # <<<<<<<<<<<<<<
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
  * 
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
-    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_3 < 0))) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
     __pyx_t_4 = (!__pyx_t_3);
-    __pyx_t_11 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_4, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_4, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_11); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_11); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_10 = NULL;
     __pyx_t_12 = 0;
@@ -18572,39 +18399,39 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
       PyObject *__pyx_callargs[2] = {__pyx_t_10, __pyx_v_move};
       __pyx_t_11 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_12, 1+__pyx_t_12);
       __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
-      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1278, __pyx_L1_error)
+      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1283, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_11);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
-    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1278, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1283, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
     __pyx_v_isCapture = is_capture(__pyx_t_15, __pyx_t_16, __pyx_t_5, __pyx_t_4);
 
-    /* "ChessAI.pyx":1279
+    /* "ChessAI.pyx":1284
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)             # <<<<<<<<<<<<<<
  * 
  *             # Push the given move and call the quiescence maximizer using aspiration windows
  */
-    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1279, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1284, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
-    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1279, __pyx_L1_error)
+    __pyx_t_16 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_16 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1284, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1279, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1284, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
-    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1279, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyInt_As_uint8_t(__pyx_t_11); if (unlikely((__pyx_t_15 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1284, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
     updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_16, __pyx_t_15, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
 
-    /* "ChessAI.pyx":1282
+    /* "ChessAI.pyx":1287
  * 
  *             # Push the given move and call the quiescence maximizer using aspiration windows
  *             self.pgnBoard.push(move)             # <<<<<<<<<<<<<<
  *             # score = self.quiescenceMax(alpha, beta ,quiescenceDepth+1)
  *             score = self.quiescenceMax(alpha - 750, beta + 750 ,quiescenceDepth+1)
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1282, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1287, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_10 = NULL;
     __pyx_t_12 = 0;
@@ -18624,23 +18451,23 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
       PyObject *__pyx_callargs[2] = {__pyx_t_10, __pyx_v_move};
       __pyx_t_11 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_12, 1+__pyx_t_12);
       __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
-      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1282, __pyx_L1_error)
+      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1287, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_11);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
 
-    /* "ChessAI.pyx":1284
+    /* "ChessAI.pyx":1289
  *             self.pgnBoard.push(move)
  *             # score = self.quiescenceMax(alpha, beta ,quiescenceDepth+1)
  *             score = self.quiescenceMax(alpha - 750, beta + 750 ,quiescenceDepth+1)             # <<<<<<<<<<<<<<
  * 
  *             if alpha < score and score < beta:
  */
-    __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMax(__pyx_v_self, (__pyx_v_alpha - 0x2EE), (__pyx_v_beta + 0x2EE), (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1284, __pyx_L1_error)
+    __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMax(__pyx_v_self, (__pyx_v_alpha - 0x2EE), (__pyx_v_beta + 0x2EE), (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1289, __pyx_L1_error)
     __pyx_v_score = __pyx_t_8;
 
-    /* "ChessAI.pyx":1286
+    /* "ChessAI.pyx":1291
  *             score = self.quiescenceMax(alpha - 750, beta + 750 ,quiescenceDepth+1)
  * 
  *             if alpha < score and score < beta:             # <<<<<<<<<<<<<<
@@ -18658,17 +18485,17 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     __pyx_L12_bool_binop_done:;
     if (__pyx_t_4) {
 
-      /* "ChessAI.pyx":1287
+      /* "ChessAI.pyx":1292
  * 
  *             if alpha < score and score < beta:
  *                 score = self.quiescenceMax(alpha, beta ,quiescenceDepth+1)             # <<<<<<<<<<<<<<
  * 
  *             # Undo the move and reset the zobrist hash
  */
-      __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMax(__pyx_v_self, __pyx_v_alpha, __pyx_v_beta, (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1287, __pyx_L1_error)
+      __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->quiescenceMax(__pyx_v_self, __pyx_v_alpha, __pyx_v_beta, (__pyx_v_quiescenceDepth + 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1292, __pyx_L1_error)
       __pyx_v_score = __pyx_t_8;
 
-      /* "ChessAI.pyx":1286
+      /* "ChessAI.pyx":1291
  *             score = self.quiescenceMax(alpha - 750, beta + 750 ,quiescenceDepth+1)
  * 
  *             if alpha < score and score < beta:             # <<<<<<<<<<<<<<
@@ -18677,18 +18504,18 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
     }
 
-    /* "ChessAI.pyx":1290
+    /* "ChessAI.pyx":1295
  * 
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()             # <<<<<<<<<<<<<<
  *             self.zobrist = curHash
  * 
  */
-    __pyx_t_11 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1290, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1295, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
 
-    /* "ChessAI.pyx":1291
+    /* "ChessAI.pyx":1296
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()
  *             self.zobrist = curHash             # <<<<<<<<<<<<<<
@@ -18697,7 +18524,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
     __pyx_v_self->zobrist = __pyx_v_curHash;
 
-    /* "ChessAI.pyx":1294
+    /* "ChessAI.pyx":1299
  * 
  *             # Update beta
  *             beta = min(beta, score)             # <<<<<<<<<<<<<<
@@ -18714,7 +18541,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     }
     __pyx_v_beta = __pyx_t_7;
 
-    /* "ChessAI.pyx":1297
+    /* "ChessAI.pyx":1302
  * 
  *             # Beta cutoff
  *             if beta <= alpha:             # <<<<<<<<<<<<<<
@@ -18724,7 +18551,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     __pyx_t_4 = (__pyx_v_beta <= __pyx_v_alpha);
     if (__pyx_t_4) {
 
-      /* "ChessAI.pyx":1298
+      /* "ChessAI.pyx":1303
  *             # Beta cutoff
  *             if beta <= alpha:
  *                 return score  # Alpha cutoff             # <<<<<<<<<<<<<<
@@ -18735,7 +18562,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
       __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
       goto __pyx_L0;
 
-      /* "ChessAI.pyx":1297
+      /* "ChessAI.pyx":1302
  * 
  *             # Beta cutoff
  *             if beta <= alpha:             # <<<<<<<<<<<<<<
@@ -18744,7 +18571,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
     }
 
-    /* "ChessAI.pyx":1268
+    /* "ChessAI.pyx":1273
  * 
  *         # Search through all capture moves (and other tactical moves if applicable)
  *         for move in Cython_Chess.generate_legal_captures(self.pgnBoard,chess.BB_ALL,chess.BB_ALL):             # <<<<<<<<<<<<<<
@@ -18754,7 +18581,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   }
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
 
-  /* "ChessAI.pyx":1301
+  /* "ChessAI.pyx":1306
  * 
  *         # In the case where the beta value changes, without a beta cutoff having occurred, this move is likely to be a good one
  *         if (beta != betaCopy):             # <<<<<<<<<<<<<<
@@ -18764,7 +18591,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   __pyx_t_4 = (__pyx_v_beta != __pyx_v_betaCopy);
   if (__pyx_t_4) {
 
-    /* "ChessAI.pyx":1302
+    /* "ChessAI.pyx":1307
  *         # In the case where the beta value changes, without a beta cutoff having occurred, this move is likely to be a good one
  *         if (beta != betaCopy):
  *             return beta             # <<<<<<<<<<<<<<
@@ -18774,7 +18601,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
     __pyx_r = __pyx_v_beta;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1301
+    /* "ChessAI.pyx":1306
  * 
  *         # In the case where the beta value changes, without a beta cutoff having occurred, this move is likely to be a good one
  *         if (beta != betaCopy):             # <<<<<<<<<<<<<<
@@ -18783,7 +18610,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
  */
   }
 
-  /* "ChessAI.pyx":1304
+  /* "ChessAI.pyx":1309
  *             return beta
  *         # If the alpha value has not changed, the return should be the evaluation acquired in this recursive iteration
  *         return evaluation             # <<<<<<<<<<<<<<
@@ -18793,7 +18620,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   __pyx_r = __pyx_v_evaluation;
   goto __pyx_L0;
 
-  /* "ChessAI.pyx":1222
+  /* "ChessAI.pyx":1227
  *     @cython.ccall
  *     @cython.inline
  *     cdef int quiescenceMin(self, int alpha, int beta, int quiescenceDepth):             # <<<<<<<<<<<<<<
@@ -18816,7 +18643,7 @@ static int __pyx_f_7ChessAI_7ChessAI_quiescenceMin(struct __pyx_obj_7ChessAI_Che
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1312
+/* "ChessAI.pyx":1317
  *     @cython.ccall
  *     @cython.inline
  *     cdef tuple preMinimizer(self, int curDepth, int depthLimit, int alpha, int beta):             # <<<<<<<<<<<<<<
@@ -18867,20 +18694,20 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("preMinimizer", 1);
 
-  /* "ChessAI.pyx":1328
+  /* "ChessAI.pyx":1333
  * 
  *         # Define the lowest score with respect to the number of moves played
  *         cdef int lowestScore = 9999999 - len(self.pgnBoard.move_stack)             # <<<<<<<<<<<<<<
  * 
  *         # Define variables to hold the current move, score and index
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1328, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1333, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = PyObject_Length(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1328, __pyx_L1_error)
+  __pyx_t_2 = PyObject_Length(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1333, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_lowestScore = (0x98967F - __pyx_t_2);
 
-  /* "ChessAI.pyx":1333
+  /* "ChessAI.pyx":1338
  *         cdef int score
  *         cdef object move
  *         cdef int count = 0             # <<<<<<<<<<<<<<
@@ -18889,19 +18716,19 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
   __pyx_v_count = 0;
 
-  /* "ChessAI.pyx":1336
+  /* "ChessAI.pyx":1341
  * 
  *         # Define lists to hold the current scores
  *         cdef list beta_list = []             # <<<<<<<<<<<<<<
  * 
  *         # Define variable to hold the zobrist hash for the current board state
  */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1336, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1341, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_beta_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1339
+  /* "ChessAI.pyx":1344
  * 
  *         # Define variable to hold the zobrist hash for the current board state
  *         cdef uint64_t curHash = self.zobrist             # <<<<<<<<<<<<<<
@@ -18911,130 +18738,130 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
   __pyx_t_3 = __pyx_v_self->zobrist;
   __pyx_v_curHash = __pyx_t_3;
 
-  /* "ChessAI.pyx":1342
+  /* "ChessAI.pyx":1347
  * 
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns             # <<<<<<<<<<<<<<
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1342, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1347, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1342, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1347, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_pawns = __pyx_t_3;
 
-  /* "ChessAI.pyx":1343
+  /* "ChessAI.pyx":1348
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights             # <<<<<<<<<<<<<<
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1343, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1348, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1343, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1348, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_knights = __pyx_t_3;
 
-  /* "ChessAI.pyx":1344
+  /* "ChessAI.pyx":1349
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops             # <<<<<<<<<<<<<<
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1344, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1349, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1344, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1349, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_bishops = __pyx_t_3;
 
-  /* "ChessAI.pyx":1345
+  /* "ChessAI.pyx":1350
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks             # <<<<<<<<<<<<<<
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1345, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1350, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1345, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1350, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_rooks = __pyx_t_3;
 
-  /* "ChessAI.pyx":1346
+  /* "ChessAI.pyx":1351
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens             # <<<<<<<<<<<<<<
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1346, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1351, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1346, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1351, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_queens = __pyx_t_3;
 
-  /* "ChessAI.pyx":1347
+  /* "ChessAI.pyx":1352
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings             # <<<<<<<<<<<<<<
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1347, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1352, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1347, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1352, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_kings = __pyx_t_3;
 
-  /* "ChessAI.pyx":1349
+  /* "ChessAI.pyx":1354
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1349, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1354, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1349, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1354, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1349, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1354, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_v_occupied_white = __pyx_t_3;
 
-  /* "ChessAI.pyx":1350
+  /* "ChessAI.pyx":1355
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  * 
  */
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1350, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1355, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_4, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1350, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_4, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1355, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1350, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1355, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied_black = __pyx_t_3;
 
-  /* "ChessAI.pyx":1351
+  /* "ChessAI.pyx":1356
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied             # <<<<<<<<<<<<<<
  * 
  *         # Define variables to hold information for zobrist hashing
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1351, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1356, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1351, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1356, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied = __pyx_t_3;
 
-  /* "ChessAI.pyx":1354
+  /* "ChessAI.pyx":1359
  * 
  *         # Define variables to hold information for zobrist hashing
  *         cdef int promotion = 0             # <<<<<<<<<<<<<<
@@ -19043,7 +18870,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
   __pyx_v_promotion = 0;
 
-  /* "ChessAI.pyx":1358
+  /* "ChessAI.pyx":1363
  * 
  *         # If the depth limit is reached, evaluate the current position
  *         if curDepth >= depthLimit:             # <<<<<<<<<<<<<<
@@ -19053,7 +18880,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
   __pyx_t_5 = (__pyx_v_curDepth >= __pyx_v_depthLimit);
   if (__pyx_t_5) {
 
-    /* "ChessAI.pyx":1359
+    /* "ChessAI.pyx":1364
  *         # If the depth limit is reached, evaluate the current position
  *         if curDepth >= depthLimit:
  *             self.numIterations += 1             # <<<<<<<<<<<<<<
@@ -19062,7 +18889,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
     __pyx_v_self->numIterations = (__pyx_v_self->numIterations + 1);
 
-    /* "ChessAI.pyx":1360
+    /* "ChessAI.pyx":1365
  *         if curDepth >= depthLimit:
  *             self.numIterations += 1
  *             return evaluate_board(self.pgnBoard,self.zobrist)             # <<<<<<<<<<<<<<
@@ -19072,16 +18899,16 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
     __Pyx_XDECREF(__pyx_r);
     __pyx_t_1 = __pyx_v_self->pgnBoard;
     __Pyx_INCREF(__pyx_t_1);
-    __pyx_t_6 = __pyx_f_7ChessAI_evaluate_board(__pyx_t_1, __pyx_v_self->zobrist); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1360, __pyx_L1_error)
+    __pyx_t_6 = __pyx_f_7ChessAI_evaluate_board(__pyx_t_1, __pyx_v_self->zobrist); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1365, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_t_6); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1360, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_t_6); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1365, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    if (!(likely(PyTuple_CheckExact(__pyx_t_1)) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_1))) __PYX_ERR(0, 1360, __pyx_L1_error)
+    if (!(likely(PyTuple_CheckExact(__pyx_t_1)) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_1))) __PYX_ERR(0, 1365, __pyx_L1_error)
     __pyx_r = ((PyObject*)__pyx_t_1);
     __pyx_t_1 = 0;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1358
+    /* "ChessAI.pyx":1363
  * 
  *         # If the depth limit is reached, evaluate the current position
  *         if curDepth >= depthLimit:             # <<<<<<<<<<<<<<
@@ -19090,18 +18917,18 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
   }
 
-  /* "ChessAI.pyx":1363
+  /* "ChessAI.pyx":1368
  * 
  *         # Acquire list of moves where captures appear first
  *         cdef list moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))             # <<<<<<<<<<<<<<
  * 
  *         # Variable to hold full length of the list
  */
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_n_s_reorder_capture_moves); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1363, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_n_s_reorder_capture_moves); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1368, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_chess); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1363, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_chess); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1368, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1363, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1368, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __pyx_t_7 = NULL;
@@ -19123,27 +18950,27 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
     __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+1-__pyx_t_9, 2+__pyx_t_9);
     __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1363, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1368, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   }
-  __pyx_t_4 = __Pyx_PySequence_ListKeepNew(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1363, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PySequence_ListKeepNew(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1368, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_moves_list = ((PyObject*)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "ChessAI.pyx":1366
+  /* "ChessAI.pyx":1371
  * 
  *         # Variable to hold full length of the list
  *         cdef int length = len(moves_list)             # <<<<<<<<<<<<<<
  * 
  *         for move in moves_list:
  */
-  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_moves_list); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1366, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_moves_list); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1371, __pyx_L1_error)
   __pyx_v_length = __pyx_t_2;
 
-  /* "ChessAI.pyx":1368
+  /* "ChessAI.pyx":1373
  *         cdef int length = len(moves_list)
  * 
  *         for move in moves_list:             # <<<<<<<<<<<<<<
@@ -19156,46 +18983,46 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
     {
       Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
       #if !CYTHON_ASSUME_SAFE_MACROS
-      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1368, __pyx_L1_error)
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1373, __pyx_L1_error)
       #endif
       if (__pyx_t_2 >= __pyx_temp) break;
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-    __pyx_t_1 = PyList_GET_ITEM(__pyx_t_4, __pyx_t_2); __Pyx_INCREF(__pyx_t_1); __pyx_t_2++; if (unlikely((0 < 0))) __PYX_ERR(0, 1368, __pyx_L1_error)
+    __pyx_t_1 = PyList_GET_ITEM(__pyx_t_4, __pyx_t_2); __Pyx_INCREF(__pyx_t_1); __pyx_t_2++; if (unlikely((0 < 0))) __PYX_ERR(0, 1373, __pyx_L1_error)
     #else
-    __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_4, __pyx_t_2); __pyx_t_2++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1368, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_4, __pyx_t_2); __pyx_t_2++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1373, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     #endif
     __Pyx_XDECREF_SET(__pyx_v_move, __pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "ChessAI.pyx":1371
+    /* "ChessAI.pyx":1376
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
  *                 promotion = move.promotion
  *             else:
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1371, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1376, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1371, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1376, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     if (__pyx_t_5) {
 
-      /* "ChessAI.pyx":1372
+      /* "ChessAI.pyx":1377
  *             # Check if the move is a promoting move
  *             if (move.promotion):
  *                 promotion = move.promotion             # <<<<<<<<<<<<<<
  *             else:
  *                 promotion = 0
  */
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1372, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1377, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_6 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1372, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1377, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
       __pyx_v_promotion = __pyx_t_6;
 
-      /* "ChessAI.pyx":1371
+      /* "ChessAI.pyx":1376
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
@@ -19205,7 +19032,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
       goto __pyx_L6;
     }
 
-    /* "ChessAI.pyx":1374
+    /* "ChessAI.pyx":1379
  *                 promotion = move.promotion
  *             else:
  *                 promotion = 0             # <<<<<<<<<<<<<<
@@ -19217,34 +19044,34 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
     }
     __pyx_L6:;
 
-    /* "ChessAI.pyx":1377
+    /* "ChessAI.pyx":1382
  * 
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))             # <<<<<<<<<<<<<<
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
  * 
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     __pyx_t_12 = (!__pyx_t_5);
-    __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_12, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_12, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_8); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_8); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_7 = NULL;
     __pyx_t_9 = 0;
@@ -19264,39 +19091,39 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
       PyObject *__pyx_callargs[2] = {__pyx_t_7, __pyx_v_move};
       __pyx_t_8 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_9, 1+__pyx_t_9);
       __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1377, __pyx_L1_error)
+      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1382, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1377, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1382, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     __pyx_v_isCapture = is_capture(__pyx_t_10, __pyx_t_11, __pyx_t_3, __pyx_t_12);
 
-    /* "ChessAI.pyx":1378
+    /* "ChessAI.pyx":1383
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)             # <<<<<<<<<<<<<<
  * 
  *             # Push the given move and call the maximizer
  */
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1378, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1383, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1378, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1383, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1378, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1383, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1378, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1383, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_11, __pyx_t_10, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
 
-    /* "ChessAI.pyx":1381
+    /* "ChessAI.pyx":1386
  * 
  *             # Push the given move and call the maximizer
  *             self.pgnBoard.push(move)             # <<<<<<<<<<<<<<
  *             score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)
  * 
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1381, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1386, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_7 = NULL;
     __pyx_t_9 = 0;
@@ -19316,34 +19143,34 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
       PyObject *__pyx_callargs[2] = {__pyx_t_7, __pyx_v_move};
       __pyx_t_8 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_9, 1+__pyx_t_9);
       __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1381, __pyx_L1_error)
+      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1386, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
 
-    /* "ChessAI.pyx":1382
+    /* "ChessAI.pyx":1387
  *             # Push the given move and call the maximizer
  *             self.pgnBoard.push(move)
  *             score = self.maximizer(curDepth + 1, depthLimit, alpha, beta)             # <<<<<<<<<<<<<<
  * 
  *             # Undo the move and reset the zobrist hash
  */
-    __pyx_t_6 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->maximizer(__pyx_v_self, (__pyx_v_curDepth + 1), __pyx_v_depthLimit, __pyx_v_alpha, __pyx_v_beta); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1382, __pyx_L1_error)
+    __pyx_t_6 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->maximizer(__pyx_v_self, (__pyx_v_curDepth + 1), __pyx_v_depthLimit, __pyx_v_alpha, __pyx_v_beta); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1387, __pyx_L1_error)
     __pyx_v_score = __pyx_t_6;
 
-    /* "ChessAI.pyx":1385
+    /* "ChessAI.pyx":1390
  * 
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()             # <<<<<<<<<<<<<<
  *             self.zobrist = curHash
  * 
  */
-    __pyx_t_8 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1385, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1390, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
 
-    /* "ChessAI.pyx":1386
+    /* "ChessAI.pyx":1391
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()
  *             self.zobrist = curHash             # <<<<<<<<<<<<<<
@@ -19352,19 +19179,19 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
     __pyx_v_self->zobrist = __pyx_v_curHash;
 
-    /* "ChessAI.pyx":1395
+    /* "ChessAI.pyx":1400
  * 
  *             # Append list to keep score of the move
  *             beta_list.append(score)             # <<<<<<<<<<<<<<
  *             count += 1
  * 
  */
-    __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_score); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1395, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_score); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1400, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_beta_list, __pyx_t_8); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 1395, __pyx_L1_error)
+    __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_beta_list, __pyx_t_8); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 1400, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
 
-    /* "ChessAI.pyx":1396
+    /* "ChessAI.pyx":1401
  *             # Append list to keep score of the move
  *             beta_list.append(score)
  *             count += 1             # <<<<<<<<<<<<<<
@@ -19373,7 +19200,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
     __pyx_v_count = (__pyx_v_count + 1);
 
-    /* "ChessAI.pyx":1399
+    /* "ChessAI.pyx":1404
  * 
  *             # Update lowest score
  *             if score < lowestScore:             # <<<<<<<<<<<<<<
@@ -19383,7 +19210,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
     __pyx_t_12 = (__pyx_v_score < __pyx_v_lowestScore);
     if (__pyx_t_12) {
 
-      /* "ChessAI.pyx":1400
+      /* "ChessAI.pyx":1405
  *             # Update lowest score
  *             if score < lowestScore:
  *                 lowestScore = score             # <<<<<<<<<<<<<<
@@ -19392,7 +19219,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
       __pyx_v_lowestScore = __pyx_v_score;
 
-      /* "ChessAI.pyx":1399
+      /* "ChessAI.pyx":1404
  * 
  *             # Update lowest score
  *             if score < lowestScore:             # <<<<<<<<<<<<<<
@@ -19401,7 +19228,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
     }
 
-    /* "ChessAI.pyx":1403
+    /* "ChessAI.pyx":1408
  * 
  *             # Update beta
  *             beta = min(beta, lowestScore)             # <<<<<<<<<<<<<<
@@ -19418,7 +19245,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
     }
     __pyx_v_beta = __pyx_t_15;
 
-    /* "ChessAI.pyx":1406
+    /* "ChessAI.pyx":1411
  * 
  *             # Beta cutoff
  *             if beta <= alpha:             # <<<<<<<<<<<<<<
@@ -19428,7 +19255,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
     __pyx_t_12 = (__pyx_v_beta <= __pyx_v_alpha);
     if (__pyx_t_12) {
 
-      /* "ChessAI.pyx":1409
+      /* "ChessAI.pyx":1414
  * 
  *                 # Fill up the scores list to capacity
  *                 for i in range(length - count):             # <<<<<<<<<<<<<<
@@ -19440,17 +19267,17 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
       for (__pyx_t_14 = 0; __pyx_t_14 < __pyx_t_6; __pyx_t_14+=1) {
         __pyx_v_i = __pyx_t_14;
 
-        /* "ChessAI.pyx":1410
+        /* "ChessAI.pyx":1415
  *                 # Fill up the scores list to capacity
  *                 for i in range(length - count):
  *                     beta_list.append(None)             # <<<<<<<<<<<<<<
  * 
  *                 return beta, beta_list, moves_list
  */
-        __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_beta_list, Py_None); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 1410, __pyx_L1_error)
+        __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_beta_list, Py_None); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 1415, __pyx_L1_error)
       }
 
-      /* "ChessAI.pyx":1412
+      /* "ChessAI.pyx":1417
  *                     beta_list.append(None)
  * 
  *                 return beta, beta_list, moves_list             # <<<<<<<<<<<<<<
@@ -19458,25 +19285,25 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  *         # If no moves were available, check if a the opponent is in checkmate
  */
       __Pyx_XDECREF(__pyx_r);
-      __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_beta); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1412, __pyx_L1_error)
+      __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_beta); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1417, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
-      __pyx_t_1 = PyTuple_New(3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1412, __pyx_L1_error)
+      __pyx_t_1 = PyTuple_New(3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1417, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       __Pyx_GIVEREF(__pyx_t_8);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_t_8)) __PYX_ERR(0, 1412, __pyx_L1_error);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_t_8)) __PYX_ERR(0, 1417, __pyx_L1_error);
       __Pyx_INCREF(__pyx_v_beta_list);
       __Pyx_GIVEREF(__pyx_v_beta_list);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_beta_list)) __PYX_ERR(0, 1412, __pyx_L1_error);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_beta_list)) __PYX_ERR(0, 1417, __pyx_L1_error);
       __Pyx_INCREF(__pyx_v_moves_list);
       __Pyx_GIVEREF(__pyx_v_moves_list);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 2, __pyx_v_moves_list)) __PYX_ERR(0, 1412, __pyx_L1_error);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 2, __pyx_v_moves_list)) __PYX_ERR(0, 1417, __pyx_L1_error);
       __pyx_t_8 = 0;
       __pyx_r = ((PyObject*)__pyx_t_1);
       __pyx_t_1 = 0;
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       goto __pyx_L0;
 
-      /* "ChessAI.pyx":1406
+      /* "ChessAI.pyx":1411
  * 
  *             # Beta cutoff
  *             if beta <= alpha:             # <<<<<<<<<<<<<<
@@ -19485,7 +19312,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
     }
 
-    /* "ChessAI.pyx":1368
+    /* "ChessAI.pyx":1373
  *         cdef int length = len(moves_list)
  * 
  *         for move in moves_list:             # <<<<<<<<<<<<<<
@@ -19495,21 +19322,21 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
   }
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "ChessAI.pyx":1415
+  /* "ChessAI.pyx":1420
  * 
  *         # If no moves were available, check if a the opponent is in checkmate
  *         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):             # <<<<<<<<<<<<<<
  *             self.numIterations += 1
  *             if self.pgnBoard.is_checkmate():
  */
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1415, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1420, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_2 = PyObject_Length(__pyx_t_4); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1415, __pyx_L1_error)
+  __pyx_t_2 = PyObject_Length(__pyx_t_4); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1420, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_12 = (__pyx_v_lowestScore == (0x98967F - __pyx_t_2));
   if (__pyx_t_12) {
 
-    /* "ChessAI.pyx":1416
+    /* "ChessAI.pyx":1421
  *         # If no moves were available, check if a the opponent is in checkmate
  *         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
  *             self.numIterations += 1             # <<<<<<<<<<<<<<
@@ -19518,14 +19345,14 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
     __pyx_v_self->numIterations = (__pyx_v_self->numIterations + 1);
 
-    /* "ChessAI.pyx":1417
+    /* "ChessAI.pyx":1422
  *         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
  *             self.numIterations += 1
  *             if self.pgnBoard.is_checkmate():             # <<<<<<<<<<<<<<
  *                 return lowestScore, beta_list, moves_list
  * 
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1417, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1422, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_8 = NULL;
     __pyx_t_9 = 0;
@@ -19545,15 +19372,15 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
       PyObject *__pyx_callargs[2] = {__pyx_t_8, NULL};
       __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_9, 0+__pyx_t_9);
       __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1417, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1422, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1417, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1422, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     if (__pyx_t_12) {
 
-      /* "ChessAI.pyx":1418
+      /* "ChessAI.pyx":1423
  *             self.numIterations += 1
  *             if self.pgnBoard.is_checkmate():
  *                 return lowestScore, beta_list, moves_list             # <<<<<<<<<<<<<<
@@ -19561,24 +19388,24 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  *         return lowestScore, beta_list, moves_list
  */
       __Pyx_XDECREF(__pyx_r);
-      __pyx_t_4 = __Pyx_PyInt_From_int(__pyx_v_lowestScore); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1418, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_PyInt_From_int(__pyx_v_lowestScore); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1423, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_1 = PyTuple_New(3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1418, __pyx_L1_error)
+      __pyx_t_1 = PyTuple_New(3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1423, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       __Pyx_GIVEREF(__pyx_t_4);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_t_4)) __PYX_ERR(0, 1418, __pyx_L1_error);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_t_4)) __PYX_ERR(0, 1423, __pyx_L1_error);
       __Pyx_INCREF(__pyx_v_beta_list);
       __Pyx_GIVEREF(__pyx_v_beta_list);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_beta_list)) __PYX_ERR(0, 1418, __pyx_L1_error);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_beta_list)) __PYX_ERR(0, 1423, __pyx_L1_error);
       __Pyx_INCREF(__pyx_v_moves_list);
       __Pyx_GIVEREF(__pyx_v_moves_list);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 2, __pyx_v_moves_list)) __PYX_ERR(0, 1418, __pyx_L1_error);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 2, __pyx_v_moves_list)) __PYX_ERR(0, 1423, __pyx_L1_error);
       __pyx_t_4 = 0;
       __pyx_r = ((PyObject*)__pyx_t_1);
       __pyx_t_1 = 0;
       goto __pyx_L0;
 
-      /* "ChessAI.pyx":1417
+      /* "ChessAI.pyx":1422
  *         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):
  *             self.numIterations += 1
  *             if self.pgnBoard.is_checkmate():             # <<<<<<<<<<<<<<
@@ -19587,7 +19414,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
     }
 
-    /* "ChessAI.pyx":1415
+    /* "ChessAI.pyx":1420
  * 
  *         # If no moves were available, check if a the opponent is in checkmate
  *         if (lowestScore == 9999999 - len(self.pgnBoard.move_stack)):             # <<<<<<<<<<<<<<
@@ -19596,7 +19423,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  */
   }
 
-  /* "ChessAI.pyx":1420
+  /* "ChessAI.pyx":1425
  *                 return lowestScore, beta_list, moves_list
  * 
  *         return lowestScore, beta_list, moves_list             # <<<<<<<<<<<<<<
@@ -19604,24 +19431,24 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
  *     # Standing position evaluation function
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_lowestScore); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1420, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_lowestScore); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1425, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1420, __pyx_L1_error)
+  __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1425, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_GIVEREF(__pyx_t_1);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_1)) __PYX_ERR(0, 1420, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_1)) __PYX_ERR(0, 1425, __pyx_L1_error);
   __Pyx_INCREF(__pyx_v_beta_list);
   __Pyx_GIVEREF(__pyx_v_beta_list);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_beta_list)) __PYX_ERR(0, 1420, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_beta_list)) __PYX_ERR(0, 1425, __pyx_L1_error);
   __Pyx_INCREF(__pyx_v_moves_list);
   __Pyx_GIVEREF(__pyx_v_moves_list);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_moves_list)) __PYX_ERR(0, 1420, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_moves_list)) __PYX_ERR(0, 1425, __pyx_L1_error);
   __pyx_t_1 = 0;
   __pyx_r = ((PyObject*)__pyx_t_4);
   __pyx_t_4 = 0;
   goto __pyx_L0;
 
-  /* "ChessAI.pyx":1312
+  /* "ChessAI.pyx":1317
  *     @cython.ccall
  *     @cython.inline
  *     cdef tuple preMinimizer(self, int curDepth, int depthLimit, int alpha, int beta):             # <<<<<<<<<<<<<<
@@ -19646,7 +19473,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_preMinimizer(struct __pyx_obj_7ChessA
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1423
+/* "ChessAI.pyx":1428
  * 
  *     # Standing position evaluation function
  *     def ev(self, object board):             # <<<<<<<<<<<<<<
@@ -19707,12 +19534,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[0]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1423, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1428, __pyx_L3_error)
         else goto __pyx_L5_argtuple_error;
       }
       if (unlikely(kw_args > 0)) {
         const Py_ssize_t kwd_pos_args = __pyx_nargs;
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "ev") < 0)) __PYX_ERR(0, 1423, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "ev") < 0)) __PYX_ERR(0, 1428, __pyx_L3_error)
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
@@ -19723,7 +19550,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("ev", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 1423, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("ev", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 1428, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -19769,54 +19596,54 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_10ev(struct __pyx_obj_7ChessAI_Chess
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("ev", 1);
 
-  /* "ChessAI.pyx":1424
+  /* "ChessAI.pyx":1429
  *     # Standing position evaluation function
  *     def ev(self, object board):
  *         self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False])             # <<<<<<<<<<<<<<
  *         return evaluate_board(board,self.zobrist)
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_4 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_4 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_5 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_6 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_6 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_6 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_7 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_7 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_7 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_8); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_8); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_8, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_8, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-  __pyx_t_10 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_10 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1424, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_10 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1429, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_self->zobrist = generateZobristHash(__pyx_t_2, __pyx_t_3, __pyx_t_4, __pyx_t_5, __pyx_t_6, __pyx_t_7, __pyx_t_9, __pyx_t_10);
 
-  /* "ChessAI.pyx":1425
+  /* "ChessAI.pyx":1430
  *     def ev(self, object board):
  *         self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False])
  *         return evaluate_board(board,self.zobrist)             # <<<<<<<<<<<<<<
@@ -19824,14 +19651,14 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_10ev(struct __pyx_obj_7ChessAI_Chess
  *     @boundscheck(False)
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_11 = __pyx_f_7ChessAI_evaluate_board(__pyx_v_board, __pyx_v_self->zobrist); if (unlikely(__pyx_t_11 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1425, __pyx_L1_error)
-  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_t_11); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1425, __pyx_L1_error)
+  __pyx_t_11 = __pyx_f_7ChessAI_evaluate_board(__pyx_v_board, __pyx_v_self->zobrist); if (unlikely(__pyx_t_11 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1430, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_t_11); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1430, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "ChessAI.pyx":1423
+  /* "ChessAI.pyx":1428
  * 
  *     # Standing position evaluation function
  *     def ev(self, object board):             # <<<<<<<<<<<<<<
@@ -19851,7 +19678,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_10ev(struct __pyx_obj_7ChessAI_Chess
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1433
+/* "ChessAI.pyx":1438
  *     @cython.ccall
  *     @cython.inline
  *     cdef tuple reorder_legal_moves(self,int alpha,int beta, depthLimit):             # <<<<<<<<<<<<<<
@@ -19906,7 +19733,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("reorder_legal_moves", 1);
 
-  /* "ChessAI.pyx":1448
+  /* "ChessAI.pyx":1453
  * 
  *         # Define variables to hold current scores, moves. index and highest score
  *         cdef int score = -99999999             # <<<<<<<<<<<<<<
@@ -19915,7 +19742,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   __pyx_v_score = -99999999;
 
-  /* "ChessAI.pyx":1449
+  /* "ChessAI.pyx":1454
  *         # Define variables to hold current scores, moves. index and highest score
  *         cdef int score = -99999999
  *         cdef int highestScore = -99999999             # <<<<<<<<<<<<<<
@@ -19924,7 +19751,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   __pyx_v_highestScore = -99999999;
 
-  /* "ChessAI.pyx":1451
+  /* "ChessAI.pyx":1456
  *         cdef int highestScore = -99999999
  *         cdef object move
  *         cdef int count = 1             # <<<<<<<<<<<<<<
@@ -19933,80 +19760,80 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   __pyx_v_count = 1;
 
-  /* "ChessAI.pyx":1455
+  /* "ChessAI.pyx":1460
  *         # Define lists to hold scores and moves for reordering purposes
  *         cdef list moves_list
  *         cdef list alpha_list = []             # <<<<<<<<<<<<<<
  *         cdef list beta_list = []
  *         cdef list cur_beta_list = []
  */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1455, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1460, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_alpha_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1456
+  /* "ChessAI.pyx":1461
  *         cdef list moves_list
  *         cdef list alpha_list = []
  *         cdef list beta_list = []             # <<<<<<<<<<<<<<
  *         cdef list cur_beta_list = []
  *         cdef list beta_move_list = []
  */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1456, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1461, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_beta_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1457
+  /* "ChessAI.pyx":1462
  *         cdef list alpha_list = []
  *         cdef list beta_list = []
  *         cdef list cur_beta_list = []             # <<<<<<<<<<<<<<
  *         cdef list beta_move_list = []
  *         cdef list cur_beta_move_list = []
  */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1457, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1462, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_cur_beta_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1458
+  /* "ChessAI.pyx":1463
  *         cdef list beta_list = []
  *         cdef list cur_beta_list = []
  *         cdef list beta_move_list = []             # <<<<<<<<<<<<<<
  *         cdef list cur_beta_move_list = []
  * 
  */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1458, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1463, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_beta_move_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1459
+  /* "ChessAI.pyx":1464
  *         cdef list cur_beta_list = []
  *         cdef list beta_move_list = []
  *         cdef list cur_beta_move_list = []             # <<<<<<<<<<<<<<
  * 
  *         # Define depth for preliminary search
  */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1459, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1464, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_cur_beta_move_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1462
+  /* "ChessAI.pyx":1467
  * 
  *         # Define depth for preliminary search
  *         cdef int depth = depthLimit - 1             # <<<<<<<<<<<<<<
  * 
  *         # Define variable to hold zobrist hash of current position
  */
-  __pyx_t_1 = __Pyx_PyInt_SubtractObjC(__pyx_v_depthLimit, __pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1462, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_SubtractObjC(__pyx_v_depthLimit, __pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1467, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1462, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1467, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_depth = __pyx_t_2;
 
-  /* "ChessAI.pyx":1465
+  /* "ChessAI.pyx":1470
  * 
  *         # Define variable to hold zobrist hash of current position
  *         cdef uint64_t curHash = self.zobrist             # <<<<<<<<<<<<<<
@@ -20016,7 +19843,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
   __pyx_t_3 = __pyx_v_self->zobrist;
   __pyx_v_curHash = __pyx_t_3;
 
-  /* "ChessAI.pyx":1469
+  /* "ChessAI.pyx":1474
  *         # Define variables to hold information for zobrist hashing
  *         cdef bint isCapture
  *         cdef int promotion = 0             # <<<<<<<<<<<<<<
@@ -20025,164 +19852,164 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   __pyx_v_promotion = 0;
 
-  /* "ChessAI.pyx":1472
+  /* "ChessAI.pyx":1477
  * 
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns             # <<<<<<<<<<<<<<
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1472, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1477, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1472, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1477, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_pawns = __pyx_t_3;
 
-  /* "ChessAI.pyx":1473
+  /* "ChessAI.pyx":1478
  *         # Initialize bitmasks for the current board state
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights             # <<<<<<<<<<<<<<
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1473, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1478, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1473, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1478, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_knights = __pyx_t_3;
 
-  /* "ChessAI.pyx":1474
+  /* "ChessAI.pyx":1479
  *         cdef uint64_t pawns = self.pgnBoard.pawns
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops             # <<<<<<<<<<<<<<
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1474, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1479, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1474, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1479, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_bishops = __pyx_t_3;
 
-  /* "ChessAI.pyx":1475
+  /* "ChessAI.pyx":1480
  *         cdef uint64_t knights = self.pgnBoard.knights
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks             # <<<<<<<<<<<<<<
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1475, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1480, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1475, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1480, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_rooks = __pyx_t_3;
 
-  /* "ChessAI.pyx":1476
+  /* "ChessAI.pyx":1481
  *         cdef uint64_t bishops = self.pgnBoard.bishops
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens             # <<<<<<<<<<<<<<
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1476, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1481, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1476, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1481, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_queens = __pyx_t_3;
 
-  /* "ChessAI.pyx":1477
+  /* "ChessAI.pyx":1482
  *         cdef uint64_t rooks = self.pgnBoard.rooks
  *         cdef uint64_t queens = self.pgnBoard.queens
  *         cdef uint64_t kings = self.pgnBoard.kings             # <<<<<<<<<<<<<<
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1477, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1482, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1477, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1482, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_kings = __pyx_t_3;
 
-  /* "ChessAI.pyx":1479
+  /* "ChessAI.pyx":1484
  *         cdef uint64_t kings = self.pgnBoard.kings
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1479, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1484, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1479, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1484, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1479, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1484, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_v_occupied_white = __pyx_t_3;
 
-  /* "ChessAI.pyx":1480
+  /* "ChessAI.pyx":1485
  * 
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]             # <<<<<<<<<<<<<<
  *         cdef uint64_t occupied = self.pgnBoard.occupied
  * 
  */
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1480, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1485, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_4, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1480, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_4, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1485, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1480, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1485, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied_black = __pyx_t_3;
 
-  /* "ChessAI.pyx":1481
+  /* "ChessAI.pyx":1486
  *         cdef uint64_t occupied_white = self.pgnBoard.occupied_co[True]
  *         cdef uint64_t occupied_black = self.pgnBoard.occupied_co[False]
  *         cdef uint64_t occupied = self.pgnBoard.occupied             # <<<<<<<<<<<<<<
  * 
  *         # Check if this is the first iteration of iterative deepening and if a moves list has already been defined
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1481, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1486, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1481, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1486, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied = __pyx_t_3;
 
-  /* "ChessAI.pyx":1484
+  /* "ChessAI.pyx":1489
  * 
  *         # Check if this is the first iteration of iterative deepening and if a moves list has already been defined
  *         if (self.alpha_list == []):             # <<<<<<<<<<<<<<
  *             moves_list = list(Cython_Chess.generate_legal_moves(self.pgnBoard,chess.BB_ALL,chess.BB_ALL))
  *         else:
  */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1484, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1489, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = PyObject_RichCompare(__pyx_v_self->alpha_list, __pyx_t_1, Py_EQ); __Pyx_XGOTREF(__pyx_t_4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1484, __pyx_L1_error)
+  __pyx_t_4 = PyObject_RichCompare(__pyx_v_self->alpha_list, __pyx_t_1, Py_EQ); __Pyx_XGOTREF(__pyx_t_4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1489, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1484, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1489, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   if (__pyx_t_5) {
 
-    /* "ChessAI.pyx":1485
+    /* "ChessAI.pyx":1490
  *         # Check if this is the first iteration of iterative deepening and if a moves list has already been defined
  *         if (self.alpha_list == []):
  *             moves_list = list(Cython_Chess.generate_legal_moves(self.pgnBoard,chess.BB_ALL,chess.BB_ALL))             # <<<<<<<<<<<<<<
  *         else:
  *             moves_list = self.moves_list
  */
-    __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1485, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1490, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1485, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1490, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1485, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1490, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1485, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1490, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1485, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1490, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1485, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1490, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __pyx_t_1 = NULL;
@@ -20205,17 +20032,17 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
       __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1485, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1490, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     }
-    __pyx_t_6 = __Pyx_PySequence_ListKeepNew(__pyx_t_4); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1485, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PySequence_ListKeepNew(__pyx_t_4); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1490, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_v_moves_list = ((PyObject*)__pyx_t_6);
     __pyx_t_6 = 0;
 
-    /* "ChessAI.pyx":1484
+    /* "ChessAI.pyx":1489
  * 
  *         # Check if this is the first iteration of iterative deepening and if a moves list has already been defined
  *         if (self.alpha_list == []):             # <<<<<<<<<<<<<<
@@ -20225,7 +20052,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     goto __pyx_L3;
   }
 
-  /* "ChessAI.pyx":1487
+  /* "ChessAI.pyx":1492
  *             moves_list = list(Cython_Chess.generate_legal_moves(self.pgnBoard,chess.BB_ALL,chess.BB_ALL))
  *         else:
  *             moves_list = self.moves_list             # <<<<<<<<<<<<<<
@@ -20240,7 +20067,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
   }
   __pyx_L3:;
 
-  /* "ChessAI.pyx":1490
+  /* "ChessAI.pyx":1495
  * 
  *         # Check if the move is a promoting move
  *         if (moves_list[0].promotion):             # <<<<<<<<<<<<<<
@@ -20249,15 +20076,15 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1490, __pyx_L1_error)
+    __PYX_ERR(0, 1495, __pyx_L1_error)
   }
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_promotion); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1490, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_promotion); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1495, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1490, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1495, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   if (__pyx_t_5) {
 
-    /* "ChessAI.pyx":1491
+    /* "ChessAI.pyx":1496
  *         # Check if the move is a promoting move
  *         if (moves_list[0].promotion):
  *             promotion = moves_list[0].promotion             # <<<<<<<<<<<<<<
@@ -20266,15 +20093,15 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
     if (unlikely(__pyx_v_moves_list == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 1491, __pyx_L1_error)
+      __PYX_ERR(0, 1496, __pyx_L1_error)
     }
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_promotion); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1491, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_promotion); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1496, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_2 = __Pyx_PyInt_As_int(__pyx_t_6); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1491, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyInt_As_int(__pyx_t_6); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1496, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __pyx_v_promotion = __pyx_t_2;
 
-    /* "ChessAI.pyx":1490
+    /* "ChessAI.pyx":1495
  * 
  *         # Check if the move is a promoting move
  *         if (moves_list[0].promotion):             # <<<<<<<<<<<<<<
@@ -20284,7 +20111,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     goto __pyx_L4;
   }
 
-  /* "ChessAI.pyx":1493
+  /* "ChessAI.pyx":1498
  *             promotion = moves_list[0].promotion
  *         else:
  *             promotion = 0             # <<<<<<<<<<<<<<
@@ -20296,7 +20123,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
   }
   __pyx_L4:;
 
-  /* "ChessAI.pyx":1496
+  /* "ChessAI.pyx":1501
  * 
  *         # Acquire the zobrist hash for the new position if the given move was made
  *         isCapture = is_capture(moves_list[0].from_square, moves_list[0].to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(moves_list[0]))             # <<<<<<<<<<<<<<
@@ -20305,37 +20132,37 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1496, __pyx_L1_error)
+    __PYX_ERR(0, 1501, __pyx_L1_error)
   }
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_from_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_from_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1496, __pyx_L1_error)
+    __PYX_ERR(0, 1501, __pyx_L1_error)
   }
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_to_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_to_square); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_6); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_12 = (!__pyx_t_5);
-  __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_6, __pyx_t_12, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_6, __pyx_t_12, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1496, __pyx_L1_error)
+    __PYX_ERR(0, 1501, __pyx_L1_error)
   }
   __pyx_t_8 = NULL;
   __pyx_t_9 = 0;
@@ -20355,15 +20182,15 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     PyObject *__pyx_callargs[2] = {__pyx_t_8, PyList_GET_ITEM(__pyx_v_moves_list, 0)};
     __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+1-__pyx_t_9, 1+__pyx_t_9);
     __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-    if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1496, __pyx_L1_error)
+    if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1501, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   }
-  __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1496, __pyx_L1_error)
+  __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1501, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_v_isCapture = is_capture(__pyx_t_10, __pyx_t_11, __pyx_t_3, __pyx_t_12);
 
-  /* "ChessAI.pyx":1497
+  /* "ChessAI.pyx":1502
  *         # Acquire the zobrist hash for the new position if the given move was made
  *         isCapture = is_capture(moves_list[0].from_square, moves_list[0].to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(moves_list[0]))
  *         updateZobristHashForMove(self.zobrist, moves_list[0].from_square, moves_list[0].to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black,promotion)             # <<<<<<<<<<<<<<
@@ -20372,34 +20199,34 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1497, __pyx_L1_error)
+    __PYX_ERR(0, 1502, __pyx_L1_error)
   }
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_from_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1497, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_from_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1502, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1497, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1502, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1497, __pyx_L1_error)
+    __PYX_ERR(0, 1502, __pyx_L1_error)
   }
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_to_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1497, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(PyList_GET_ITEM(__pyx_v_moves_list, 0), __pyx_n_s_to_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1502, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1497, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1502, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_11, __pyx_t_10, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
 
-  /* "ChessAI.pyx":1500
+  /* "ChessAI.pyx":1505
  * 
  *         # Push the move and call the preliminary minimizer, then undo the move and reset the zobrist hash
  *         self.pgnBoard.push(moves_list[0])             # <<<<<<<<<<<<<<
  *         highestScore, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, beta)
  *         self.pgnBoard.pop()
  */
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1500, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1505, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1500, __pyx_L1_error)
+    __PYX_ERR(0, 1505, __pyx_L1_error)
   }
   __pyx_t_8 = NULL;
   __pyx_t_9 = 0;
@@ -20419,20 +20246,20 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     PyObject *__pyx_callargs[2] = {__pyx_t_8, PyList_GET_ITEM(__pyx_v_moves_list, 0)};
     __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+1-__pyx_t_9, 1+__pyx_t_9);
     __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-    if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1500, __pyx_L1_error)
+    if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1505, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   }
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "ChessAI.pyx":1501
+  /* "ChessAI.pyx":1506
  *         # Push the move and call the preliminary minimizer, then undo the move and reset the zobrist hash
  *         self.pgnBoard.push(moves_list[0])
  *         highestScore, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, beta)             # <<<<<<<<<<<<<<
  *         self.pgnBoard.pop()
  *         self.zobrist = curHash
  */
-  __pyx_t_4 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->preMinimizer(__pyx_v_self, 1, __pyx_v_depth, __pyx_v_alpha, __pyx_v_beta); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1501, __pyx_L1_error)
+  __pyx_t_4 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->preMinimizer(__pyx_v_self, 1, __pyx_v_depth, __pyx_v_alpha, __pyx_v_beta); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1506, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   if (likely(__pyx_t_4 != Py_None)) {
     PyObject* sequence = __pyx_t_4;
@@ -20440,7 +20267,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     if (unlikely(size != 3)) {
       if (size > 3) __Pyx_RaiseTooManyValuesError(3);
       else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-      __PYX_ERR(0, 1501, __pyx_L1_error)
+      __PYX_ERR(0, 1506, __pyx_L1_error)
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
     __pyx_t_6 = PyTuple_GET_ITEM(sequence, 0); 
@@ -20450,39 +20277,39 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     __Pyx_INCREF(__pyx_t_8);
     __Pyx_INCREF(__pyx_t_7);
     #else
-    __pyx_t_6 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1501, __pyx_L1_error)
+    __pyx_t_6 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1506, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_8 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1501, __pyx_L1_error)
+    __pyx_t_8 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1506, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_7 = PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1501, __pyx_L1_error)
+    __pyx_t_7 = PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1506, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     #endif
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   } else {
-    __Pyx_RaiseNoneNotIterableError(); __PYX_ERR(0, 1501, __pyx_L1_error)
+    __Pyx_RaiseNoneNotIterableError(); __PYX_ERR(0, 1506, __pyx_L1_error)
   }
-  __pyx_t_2 = __Pyx_PyInt_As_int(__pyx_t_6); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1501, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_int(__pyx_t_6); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1506, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  if (!(likely(PyList_CheckExact(__pyx_t_8))||((__pyx_t_8) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_8))) __PYX_ERR(0, 1501, __pyx_L1_error)
-  if (!(likely(PyList_CheckExact(__pyx_t_7))||((__pyx_t_7) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_7))) __PYX_ERR(0, 1501, __pyx_L1_error)
+  if (!(likely(PyList_CheckExact(__pyx_t_8))||((__pyx_t_8) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_8))) __PYX_ERR(0, 1506, __pyx_L1_error)
+  if (!(likely(PyList_CheckExact(__pyx_t_7))||((__pyx_t_7) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_7))) __PYX_ERR(0, 1506, __pyx_L1_error)
   __pyx_v_highestScore = __pyx_t_2;
   __Pyx_DECREF_SET(__pyx_v_cur_beta_list, ((PyObject*)__pyx_t_8));
   __pyx_t_8 = 0;
   __Pyx_DECREF_SET(__pyx_v_cur_beta_move_list, ((PyObject*)__pyx_t_7));
   __pyx_t_7 = 0;
 
-  /* "ChessAI.pyx":1502
+  /* "ChessAI.pyx":1507
  *         self.pgnBoard.push(moves_list[0])
  *         highestScore, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, beta)
  *         self.pgnBoard.pop()             # <<<<<<<<<<<<<<
  *         self.zobrist = curHash
  * 
  */
-  __pyx_t_4 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1502, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1507, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "ChessAI.pyx":1503
+  /* "ChessAI.pyx":1508
  *         highestScore, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, beta)
  *         self.pgnBoard.pop()
  *         self.zobrist = curHash             # <<<<<<<<<<<<<<
@@ -20491,7 +20318,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   __pyx_v_self->zobrist = __pyx_v_curHash;
 
-  /* "ChessAI.pyx":1506
+  /* "ChessAI.pyx":1511
  * 
  *         # Update alpha
  *         alpha = max(alpha, highestScore)             # <<<<<<<<<<<<<<
@@ -20508,37 +20335,37 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
   }
   __pyx_v_alpha = __pyx_t_14;
 
-  /* "ChessAI.pyx":1509
+  /* "ChessAI.pyx":1514
  * 
  *         # Increment the appropriate moves and scores list
  *         alpha_list.append(highestScore)             # <<<<<<<<<<<<<<
  *         beta_list.append(cur_beta_list)
  *         beta_move_list.append(cur_beta_move_list)
  */
-  __pyx_t_4 = __Pyx_PyInt_From_int(__pyx_v_highestScore); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1509, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyInt_From_int(__pyx_v_highestScore); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1514, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_alpha_list, __pyx_t_4); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1509, __pyx_L1_error)
+  __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_alpha_list, __pyx_t_4); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1514, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "ChessAI.pyx":1510
+  /* "ChessAI.pyx":1515
  *         # Increment the appropriate moves and scores list
  *         alpha_list.append(highestScore)
  *         beta_list.append(cur_beta_list)             # <<<<<<<<<<<<<<
  *         beta_move_list.append(cur_beta_move_list)
  * 
  */
-  __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1510, __pyx_L1_error)
+  __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1515, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1511
+  /* "ChessAI.pyx":1516
  *         alpha_list.append(highestScore)
  *         beta_list.append(cur_beta_list)
  *         beta_move_list.append(cur_beta_move_list)             # <<<<<<<<<<<<<<
  * 
  *         # print(0,highestScore,alpha, moves_list[0])
  */
-  __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_move_list, __pyx_v_cur_beta_move_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1511, __pyx_L1_error)
+  __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_move_list, __pyx_v_cur_beta_move_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1516, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1514
+  /* "ChessAI.pyx":1519
  * 
  *         # print(0,highestScore,alpha, moves_list[0])
  *         for move in moves_list[1:]:             # <<<<<<<<<<<<<<
@@ -20547,9 +20374,9 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   if (unlikely(__pyx_v_moves_list == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1514, __pyx_L1_error)
+    __PYX_ERR(0, 1519, __pyx_L1_error)
   }
-  __pyx_t_4 = __Pyx_PyList_GetSlice(__pyx_v_moves_list, 1, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1514, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyList_GetSlice(__pyx_v_moves_list, 1, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1519, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_7 = __pyx_t_4; __Pyx_INCREF(__pyx_t_7);
   __pyx_t_16 = 0;
@@ -20558,46 +20385,46 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     {
       Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_7);
       #if !CYTHON_ASSUME_SAFE_MACROS
-      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1514, __pyx_L1_error)
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1519, __pyx_L1_error)
       #endif
       if (__pyx_t_16 >= __pyx_temp) break;
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-    __pyx_t_4 = PyList_GET_ITEM(__pyx_t_7, __pyx_t_16); __Pyx_INCREF(__pyx_t_4); __pyx_t_16++; if (unlikely((0 < 0))) __PYX_ERR(0, 1514, __pyx_L1_error)
+    __pyx_t_4 = PyList_GET_ITEM(__pyx_t_7, __pyx_t_16); __Pyx_INCREF(__pyx_t_4); __pyx_t_16++; if (unlikely((0 < 0))) __PYX_ERR(0, 1519, __pyx_L1_error)
     #else
-    __pyx_t_4 = __Pyx_PySequence_ITEM(__pyx_t_7, __pyx_t_16); __pyx_t_16++; if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1514, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PySequence_ITEM(__pyx_t_7, __pyx_t_16); __pyx_t_16++; if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1519, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     #endif
     __Pyx_XDECREF_SET(__pyx_v_move, __pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "ChessAI.pyx":1517
+    /* "ChessAI.pyx":1522
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
  *                 promotion = move.promotion
  *             else:
  */
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1517, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1522, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1517, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1522, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     if (__pyx_t_12) {
 
-      /* "ChessAI.pyx":1518
+      /* "ChessAI.pyx":1523
  *             # Check if the move is a promoting move
  *             if (move.promotion):
  *                 promotion = move.promotion             # <<<<<<<<<<<<<<
  *             else:
  *                 promotion = 0
  */
-      __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1518, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1523, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_14 = __Pyx_PyInt_As_int(__pyx_t_4); if (unlikely((__pyx_t_14 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1518, __pyx_L1_error)
+      __pyx_t_14 = __Pyx_PyInt_As_int(__pyx_t_4); if (unlikely((__pyx_t_14 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1523, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       __pyx_v_promotion = __pyx_t_14;
 
-      /* "ChessAI.pyx":1517
+      /* "ChessAI.pyx":1522
  * 
  *             # Check if the move is a promoting move
  *             if (move.promotion):             # <<<<<<<<<<<<<<
@@ -20607,7 +20434,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
       goto __pyx_L7;
     }
 
-    /* "ChessAI.pyx":1520
+    /* "ChessAI.pyx":1525
  *                 promotion = move.promotion
  *             else:
  *                 promotion = 0             # <<<<<<<<<<<<<<
@@ -20619,34 +20446,34 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     }
     __pyx_L7:;
 
-    /* "ChessAI.pyx":1523
+    /* "ChessAI.pyx":1528
  * 
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))             # <<<<<<<<<<<<<<
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
  * 
  */
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_4); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_turn); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     __pyx_t_5 = (!__pyx_t_12);
-    __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_4, __pyx_t_5, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_4, __pyx_t_5, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_8); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyInt_As_uint64_t(__pyx_t_8); if (unlikely((__pyx_t_3 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_6 = NULL;
     __pyx_t_9 = 0;
@@ -20666,39 +20493,39 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
       PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_v_move};
       __pyx_t_8 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+1-__pyx_t_9, 1+__pyx_t_9);
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1523, __pyx_L1_error)
+      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1528, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     }
-    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1523, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1528, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     __pyx_v_isCapture = is_capture(__pyx_t_10, __pyx_t_11, __pyx_t_3, __pyx_t_5);
 
-    /* "ChessAI.pyx":1524
+    /* "ChessAI.pyx":1529
  *             # Acquire the zobrist hash for the new position if the given move was made
  *             isCapture = is_capture(move.from_square, move.to_square, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.is_en_passant(move))
  *             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)             # <<<<<<<<<<<<<<
  * 
  *             # Push the move and call the preliminary minimizer using pvs
  */
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1524, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1529, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1524, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1529, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1524, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1529, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1524, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_8); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1529, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     updateZobristHashForMove(__pyx_v_self->zobrist, __pyx_t_11, __pyx_t_10, __pyx_v_isCapture, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_promotion);
 
-    /* "ChessAI.pyx":1527
+    /* "ChessAI.pyx":1532
  * 
  *             # Push the move and call the preliminary minimizer using pvs
  *             self.pgnBoard.push(move)             # <<<<<<<<<<<<<<
  *             score, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, alpha + 1)
  * 
  */
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1527, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->pgnBoard, __pyx_n_s_push); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1532, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_6 = NULL;
     __pyx_t_9 = 0;
@@ -20718,20 +20545,20 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
       PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_v_move};
       __pyx_t_8 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+1-__pyx_t_9, 1+__pyx_t_9);
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1527, __pyx_L1_error)
+      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1532, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     }
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
 
-    /* "ChessAI.pyx":1528
+    /* "ChessAI.pyx":1533
  *             # Push the move and call the preliminary minimizer using pvs
  *             self.pgnBoard.push(move)
  *             score, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, alpha + 1)             # <<<<<<<<<<<<<<
  * 
  *             # If the score is within the window, re-search with full window
  */
-    __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->preMinimizer(__pyx_v_self, 1, __pyx_v_depth, __pyx_v_alpha, (__pyx_v_alpha + 1)); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1528, __pyx_L1_error)
+    __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->preMinimizer(__pyx_v_self, 1, __pyx_v_depth, __pyx_v_alpha, (__pyx_v_alpha + 1)); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1533, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     if (likely(__pyx_t_8 != Py_None)) {
       PyObject* sequence = __pyx_t_8;
@@ -20739,7 +20566,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
       if (unlikely(size != 3)) {
         if (size > 3) __Pyx_RaiseTooManyValuesError(3);
         else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-        __PYX_ERR(0, 1528, __pyx_L1_error)
+        __PYX_ERR(0, 1533, __pyx_L1_error)
       }
       #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
       __pyx_t_4 = PyTuple_GET_ITEM(sequence, 0); 
@@ -20749,28 +20576,28 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
       __Pyx_INCREF(__pyx_t_6);
       __Pyx_INCREF(__pyx_t_1);
       #else
-      __pyx_t_4 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1528, __pyx_L1_error)
+      __pyx_t_4 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1533, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_6 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1528, __pyx_L1_error)
+      __pyx_t_6 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1533, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_1 = PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1528, __pyx_L1_error)
+      __pyx_t_1 = PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1533, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       #endif
       __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     } else {
-      __Pyx_RaiseNoneNotIterableError(); __PYX_ERR(0, 1528, __pyx_L1_error)
+      __Pyx_RaiseNoneNotIterableError(); __PYX_ERR(0, 1533, __pyx_L1_error)
     }
-    __pyx_t_14 = __Pyx_PyInt_As_int(__pyx_t_4); if (unlikely((__pyx_t_14 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1528, __pyx_L1_error)
+    __pyx_t_14 = __Pyx_PyInt_As_int(__pyx_t_4); if (unlikely((__pyx_t_14 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1533, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (!(likely(PyList_CheckExact(__pyx_t_6))||((__pyx_t_6) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_6))) __PYX_ERR(0, 1528, __pyx_L1_error)
-    if (!(likely(PyList_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_1))) __PYX_ERR(0, 1528, __pyx_L1_error)
+    if (!(likely(PyList_CheckExact(__pyx_t_6))||((__pyx_t_6) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_6))) __PYX_ERR(0, 1533, __pyx_L1_error)
+    if (!(likely(PyList_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_1))) __PYX_ERR(0, 1533, __pyx_L1_error)
     __pyx_v_score = __pyx_t_14;
     __Pyx_DECREF_SET(__pyx_v_cur_beta_list, ((PyObject*)__pyx_t_6));
     __pyx_t_6 = 0;
     __Pyx_DECREF_SET(__pyx_v_cur_beta_move_list, ((PyObject*)__pyx_t_1));
     __pyx_t_1 = 0;
 
-    /* "ChessAI.pyx":1531
+    /* "ChessAI.pyx":1536
  * 
  *             # If the score is within the window, re-search with full window
  *             if alpha < score and score < beta:             # <<<<<<<<<<<<<<
@@ -20788,14 +20615,14 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     __pyx_L9_bool_binop_done:;
     if (__pyx_t_5) {
 
-      /* "ChessAI.pyx":1532
+      /* "ChessAI.pyx":1537
  *             # If the score is within the window, re-search with full window
  *             if alpha < score and score < beta:
  *                 score, cur_beta_list, cur_beta_move_list = self.preMinimizer(1, depth, alpha, beta)             # <<<<<<<<<<<<<<
  * 
  *             # Undo the move and reset the zobrist hash
  */
-      __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->preMinimizer(__pyx_v_self, 1, __pyx_v_depth, __pyx_v_alpha, __pyx_v_beta); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1532, __pyx_L1_error)
+      __pyx_t_8 = ((struct __pyx_vtabstruct_7ChessAI_ChessAI *)__pyx_v_self->__pyx_vtab)->preMinimizer(__pyx_v_self, 1, __pyx_v_depth, __pyx_v_alpha, __pyx_v_beta); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1537, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       if (likely(__pyx_t_8 != Py_None)) {
         PyObject* sequence = __pyx_t_8;
@@ -20803,7 +20630,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
         if (unlikely(size != 3)) {
           if (size > 3) __Pyx_RaiseTooManyValuesError(3);
           else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-          __PYX_ERR(0, 1532, __pyx_L1_error)
+          __PYX_ERR(0, 1537, __pyx_L1_error)
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
         __pyx_t_1 = PyTuple_GET_ITEM(sequence, 0); 
@@ -20813,28 +20640,28 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
         __Pyx_INCREF(__pyx_t_6);
         __Pyx_INCREF(__pyx_t_4);
         #else
-        __pyx_t_1 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1532, __pyx_L1_error)
+        __pyx_t_1 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1537, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
-        __pyx_t_6 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1532, __pyx_L1_error)
+        __pyx_t_6 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 1537, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_6);
-        __pyx_t_4 = PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1532, __pyx_L1_error)
+        __pyx_t_4 = PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1537, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_4);
         #endif
         __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
       } else {
-        __Pyx_RaiseNoneNotIterableError(); __PYX_ERR(0, 1532, __pyx_L1_error)
+        __Pyx_RaiseNoneNotIterableError(); __PYX_ERR(0, 1537, __pyx_L1_error)
       }
-      __pyx_t_14 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_14 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1532, __pyx_L1_error)
+      __pyx_t_14 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_14 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1537, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      if (!(likely(PyList_CheckExact(__pyx_t_6))||((__pyx_t_6) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_6))) __PYX_ERR(0, 1532, __pyx_L1_error)
-      if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 1532, __pyx_L1_error)
+      if (!(likely(PyList_CheckExact(__pyx_t_6))||((__pyx_t_6) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_6))) __PYX_ERR(0, 1537, __pyx_L1_error)
+      if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 1537, __pyx_L1_error)
       __pyx_v_score = __pyx_t_14;
       __Pyx_DECREF_SET(__pyx_v_cur_beta_list, ((PyObject*)__pyx_t_6));
       __pyx_t_6 = 0;
       __Pyx_DECREF_SET(__pyx_v_cur_beta_move_list, ((PyObject*)__pyx_t_4));
       __pyx_t_4 = 0;
 
-      /* "ChessAI.pyx":1531
+      /* "ChessAI.pyx":1536
  * 
  *             # If the score is within the window, re-search with full window
  *             if alpha < score and score < beta:             # <<<<<<<<<<<<<<
@@ -20843,18 +20670,18 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
     }
 
-    /* "ChessAI.pyx":1535
+    /* "ChessAI.pyx":1540
  * 
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()             # <<<<<<<<<<<<<<
  *             self.zobrist = curHash
  * 
  */
-    __pyx_t_8 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1535, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_Pop(__pyx_v_self->pgnBoard); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1540, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
 
-    /* "ChessAI.pyx":1536
+    /* "ChessAI.pyx":1541
  *             # Undo the move and reset the zobrist hash
  *             self.pgnBoard.pop()
  *             self.zobrist = curHash             # <<<<<<<<<<<<<<
@@ -20863,37 +20690,37 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
     __pyx_v_self->zobrist = __pyx_v_curHash;
 
-    /* "ChessAI.pyx":1539
+    /* "ChessAI.pyx":1544
  * 
  *             # Increment the appropriate moves and scores list
  *             alpha_list.append(score)             # <<<<<<<<<<<<<<
  *             beta_list.append(cur_beta_list)
  *             beta_move_list.append(cur_beta_move_list)
  */
-    __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_score); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1539, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_score); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1544, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_alpha_list, __pyx_t_8); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1539, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_alpha_list, __pyx_t_8); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1544, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
 
-    /* "ChessAI.pyx":1540
+    /* "ChessAI.pyx":1545
  *             # Increment the appropriate moves and scores list
  *             alpha_list.append(score)
  *             beta_list.append(cur_beta_list)             # <<<<<<<<<<<<<<
  *             beta_move_list.append(cur_beta_move_list)
  * 
  */
-    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1540, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_list, __pyx_v_cur_beta_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1545, __pyx_L1_error)
 
-    /* "ChessAI.pyx":1541
+    /* "ChessAI.pyx":1546
  *             alpha_list.append(score)
  *             beta_list.append(cur_beta_list)
  *             beta_move_list.append(cur_beta_move_list)             # <<<<<<<<<<<<<<
  * 
  *             # print(count,score,alpha, move)
  */
-    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_move_list, __pyx_v_cur_beta_move_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1541, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_beta_move_list, __pyx_v_cur_beta_move_list); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 1546, __pyx_L1_error)
 
-    /* "ChessAI.pyx":1546
+    /* "ChessAI.pyx":1551
  * 
  *             # Update the highest score
  *             if score > highestScore:             # <<<<<<<<<<<<<<
@@ -20903,7 +20730,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     __pyx_t_5 = (__pyx_v_score > __pyx_v_highestScore);
     if (__pyx_t_5) {
 
-      /* "ChessAI.pyx":1547
+      /* "ChessAI.pyx":1552
  *             # Update the highest score
  *             if score > highestScore:
  *                 highestScore = score             # <<<<<<<<<<<<<<
@@ -20912,7 +20739,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
       __pyx_v_highestScore = __pyx_v_score;
 
-      /* "ChessAI.pyx":1546
+      /* "ChessAI.pyx":1551
  * 
  *             # Update the highest score
  *             if score > highestScore:             # <<<<<<<<<<<<<<
@@ -20921,7 +20748,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
     }
 
-    /* "ChessAI.pyx":1548
+    /* "ChessAI.pyx":1553
  *             if score > highestScore:
  *                 highestScore = score
  *             count += 1             # <<<<<<<<<<<<<<
@@ -20930,7 +20757,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
     __pyx_v_count = (__pyx_v_count + 1);
 
-    /* "ChessAI.pyx":1551
+    /* "ChessAI.pyx":1556
  * 
  *             # Update alpha
  *             alpha = max(alpha, highestScore)             # <<<<<<<<<<<<<<
@@ -20947,7 +20774,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     }
     __pyx_v_alpha = __pyx_t_13;
 
-    /* "ChessAI.pyx":1514
+    /* "ChessAI.pyx":1519
  * 
  *         # print(0,highestScore,alpha, moves_list[0])
  *         for move in moves_list[1:]:             # <<<<<<<<<<<<<<
@@ -20957,32 +20784,32 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
   }
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-  /* "ChessAI.pyx":1554
+  /* "ChessAI.pyx":1559
  * 
  *         # Check if this is the first iteration of iterative deepening
  *         if (self.alpha_list == []):             # <<<<<<<<<<<<<<
  *             # Call quicksort to sort the moves and their associative scores
  *             quicksort(alpha_list, moves_list, beta_list, beta_move_list, 0, len(alpha_list) - 1)
  */
-  __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1554, __pyx_L1_error)
+  __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1559, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
-  __pyx_t_8 = PyObject_RichCompare(__pyx_v_self->alpha_list, __pyx_t_7, Py_EQ); __Pyx_XGOTREF(__pyx_t_8); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1554, __pyx_L1_error)
+  __pyx_t_8 = PyObject_RichCompare(__pyx_v_self->alpha_list, __pyx_t_7, Py_EQ); __Pyx_XGOTREF(__pyx_t_8); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1559, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1554, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 1559, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   if (__pyx_t_5) {
 
-    /* "ChessAI.pyx":1556
+    /* "ChessAI.pyx":1561
  *         if (self.alpha_list == []):
  *             # Call quicksort to sort the moves and their associative scores
  *             quicksort(alpha_list, moves_list, beta_list, beta_move_list, 0, len(alpha_list) - 1)             # <<<<<<<<<<<<<<
  *             return moves_list,alpha_list,beta_list,beta_move_list
  *         else:
  */
-    __pyx_t_16 = __Pyx_PyList_GET_SIZE(__pyx_v_alpha_list); if (unlikely(__pyx_t_16 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1556, __pyx_L1_error)
-    __pyx_f_7ChessAI_quicksort(__pyx_v_alpha_list, __pyx_v_moves_list, __pyx_v_beta_list, __pyx_v_beta_move_list, 0, (__pyx_t_16 - 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1556, __pyx_L1_error)
+    __pyx_t_16 = __Pyx_PyList_GET_SIZE(__pyx_v_alpha_list); if (unlikely(__pyx_t_16 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1561, __pyx_L1_error)
+    __pyx_f_7ChessAI_quicksort(__pyx_v_alpha_list, __pyx_v_moves_list, __pyx_v_beta_list, __pyx_v_beta_move_list, 0, (__pyx_t_16 - 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1561, __pyx_L1_error)
 
-    /* "ChessAI.pyx":1557
+    /* "ChessAI.pyx":1562
  *             # Call quicksort to sort the moves and their associative scores
  *             quicksort(alpha_list, moves_list, beta_list, beta_move_list, 0, len(alpha_list) - 1)
  *             return moves_list,alpha_list,beta_list,beta_move_list             # <<<<<<<<<<<<<<
@@ -20990,25 +20817,25 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  *             # Call the quicksort wrapper to first reorder previous iteration moves before the preliminary search moves
  */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_8 = PyTuple_New(4); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1557, __pyx_L1_error)
+    __pyx_t_8 = PyTuple_New(4); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1562, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     __Pyx_INCREF(__pyx_v_moves_list);
     __Pyx_GIVEREF(__pyx_v_moves_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 0, __pyx_v_moves_list)) __PYX_ERR(0, 1557, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 0, __pyx_v_moves_list)) __PYX_ERR(0, 1562, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_alpha_list);
     __Pyx_GIVEREF(__pyx_v_alpha_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_v_alpha_list)) __PYX_ERR(0, 1557, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_v_alpha_list)) __PYX_ERR(0, 1562, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_beta_list);
     __Pyx_GIVEREF(__pyx_v_beta_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 2, __pyx_v_beta_list)) __PYX_ERR(0, 1557, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 2, __pyx_v_beta_list)) __PYX_ERR(0, 1562, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_beta_move_list);
     __Pyx_GIVEREF(__pyx_v_beta_move_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 3, __pyx_v_beta_move_list)) __PYX_ERR(0, 1557, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 3, __pyx_v_beta_move_list)) __PYX_ERR(0, 1562, __pyx_L1_error);
     __pyx_r = ((PyObject*)__pyx_t_8);
     __pyx_t_8 = 0;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1554
+    /* "ChessAI.pyx":1559
  * 
  *         # Check if this is the first iteration of iterative deepening
  *         if (self.alpha_list == []):             # <<<<<<<<<<<<<<
@@ -21017,7 +20844,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  */
   }
 
-  /* "ChessAI.pyx":1560
+  /* "ChessAI.pyx":1565
  *         else:
  *             # Call the quicksort wrapper to first reorder previous iteration moves before the preliminary search moves
  *             quicksort_wrapper(self.alpha_list, moves_list, self.beta_list, self.beta_move_list, alpha_list,beta_list, beta_move_list)             # <<<<<<<<<<<<<<
@@ -21031,12 +20858,12 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
     __Pyx_INCREF(__pyx_t_7);
     __pyx_t_4 = __pyx_v_self->beta_move_list;
     __Pyx_INCREF(__pyx_t_4);
-    __pyx_f_7ChessAI_quicksort_wrapper(((PyObject*)__pyx_t_8), __pyx_v_moves_list, ((PyObject*)__pyx_t_7), ((PyObject*)__pyx_t_4), __pyx_v_alpha_list, __pyx_v_beta_list, __pyx_v_beta_move_list); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1560, __pyx_L1_error)
+    __pyx_f_7ChessAI_quicksort_wrapper(((PyObject*)__pyx_t_8), __pyx_v_moves_list, ((PyObject*)__pyx_t_7), ((PyObject*)__pyx_t_4), __pyx_v_alpha_list, __pyx_v_beta_list, __pyx_v_beta_move_list); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1565, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-    /* "ChessAI.pyx":1563
+    /* "ChessAI.pyx":1568
  *             # print()
  *             # print(self.beta_list, len(self.beta_list), len(moves_list), len(self.alpha_list), len(beta_list), len(alpha_list))
  *             return moves_list,self.alpha_list,self.beta_list,self.beta_move_list             # <<<<<<<<<<<<<<
@@ -21044,26 +20871,26 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
  *     def reorder_capture_moves(self, uint64_t mask, object board) -> Iterator[chess.Move]:
  */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_4 = PyTuple_New(4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1563, __pyx_L1_error)
+    __pyx_t_4 = PyTuple_New(4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1568, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_INCREF(__pyx_v_moves_list);
     __Pyx_GIVEREF(__pyx_v_moves_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_moves_list)) __PYX_ERR(0, 1563, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_moves_list)) __PYX_ERR(0, 1568, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_self->alpha_list);
     __Pyx_GIVEREF(__pyx_v_self->alpha_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_self->alpha_list)) __PYX_ERR(0, 1563, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_self->alpha_list)) __PYX_ERR(0, 1568, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_self->beta_list);
     __Pyx_GIVEREF(__pyx_v_self->beta_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_self->beta_list)) __PYX_ERR(0, 1563, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_self->beta_list)) __PYX_ERR(0, 1568, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_self->beta_move_list);
     __Pyx_GIVEREF(__pyx_v_self->beta_move_list);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 3, __pyx_v_self->beta_move_list)) __PYX_ERR(0, 1563, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 3, __pyx_v_self->beta_move_list)) __PYX_ERR(0, 1568, __pyx_L1_error);
     __pyx_r = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
     goto __pyx_L0;
   }
 
-  /* "ChessAI.pyx":1433
+  /* "ChessAI.pyx":1438
  *     @cython.ccall
  *     @cython.inline
  *     cdef tuple reorder_legal_moves(self,int alpha,int beta, depthLimit):             # <<<<<<<<<<<<<<
@@ -21094,7 +20921,7 @@ static PyObject *__pyx_f_7ChessAI_7ChessAI_reorder_legal_moves(struct __pyx_obj_
 }
 static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
 
-/* "ChessAI.pyx":1565
+/* "ChessAI.pyx":1570
  *             return moves_list,self.alpha_list,self.beta_list,self.beta_move_list
  * 
  *     def reorder_capture_moves(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -21159,7 +20986,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[0]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1565, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1570, __pyx_L3_error)
         else goto __pyx_L5_argtuple_error;
         CYTHON_FALLTHROUGH;
         case  1:
@@ -21167,14 +20994,14 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[1]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1565, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1570, __pyx_L3_error)
         else {
-          __Pyx_RaiseArgtupleInvalid("reorder_capture_moves", 1, 2, 2, 1); __PYX_ERR(0, 1565, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("reorder_capture_moves", 1, 2, 2, 1); __PYX_ERR(0, 1570, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
         const Py_ssize_t kwd_pos_args = __pyx_nargs;
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "reorder_capture_moves") < 0)) __PYX_ERR(0, 1565, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "reorder_capture_moves") < 0)) __PYX_ERR(0, 1570, __pyx_L3_error)
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
@@ -21182,12 +21009,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
       values[0] = __Pyx_Arg_FASTCALL(__pyx_args, 0);
       values[1] = __Pyx_Arg_FASTCALL(__pyx_args, 1);
     }
-    __pyx_v_mask = __Pyx_PyInt_As_uint64_t(values[0]); if (unlikely((__pyx_v_mask == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1565, __pyx_L3_error)
+    __pyx_v_mask = __Pyx_PyInt_As_uint64_t(values[0]); if (unlikely((__pyx_v_mask == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1570, __pyx_L3_error)
     __pyx_v_board = values[1];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("reorder_capture_moves", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 1565, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("reorder_capture_moves", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 1570, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -21226,7 +21053,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_12reorder_capture_moves(CYTHON_UNUSE
   if (unlikely(!__pyx_cur_scope)) {
     __pyx_cur_scope = ((struct __pyx_obj_7ChessAI___pyx_scope_struct__reorder_capture_moves *)Py_None);
     __Pyx_INCREF(Py_None);
-    __PYX_ERR(0, 1565, __pyx_L1_error)
+    __PYX_ERR(0, 1570, __pyx_L1_error)
   } else {
     __Pyx_GOTREF((PyObject *)__pyx_cur_scope);
   }
@@ -21238,7 +21065,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_12reorder_capture_moves(CYTHON_UNUSE
   __Pyx_INCREF(__pyx_cur_scope->__pyx_v_board);
   __Pyx_GIVEREF(__pyx_cur_scope->__pyx_v_board);
   {
-    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_7ChessAI_7ChessAI_14generator, __pyx_codeobj__10, (PyObject *) __pyx_cur_scope, __pyx_n_s_reorder_capture_moves, __pyx_n_s_ChessAI_reorder_capture_moves, __pyx_n_s_ChessAI); if (unlikely(!gen)) __PYX_ERR(0, 1565, __pyx_L1_error)
+    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_7ChessAI_7ChessAI_14generator, __pyx_codeobj__10, (PyObject *) __pyx_cur_scope, __pyx_n_s_reorder_capture_moves, __pyx_n_s_ChessAI_reorder_capture_moves, __pyx_n_s_ChessAI); if (unlikely(!gen)) __PYX_ERR(0, 1570, __pyx_L1_error)
     __Pyx_DECREF(__pyx_cur_scope);
     __Pyx_RefNannyFinishContext();
     return (PyObject *) gen;
@@ -21285,25 +21112,25 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     return NULL;
   }
   __pyx_L3_first_run:;
-  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1565, __pyx_L1_error)
+  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1570, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1581
+  /* "ChessAI.pyx":1586
  * 
  *         # Generate and yield capture moves first
  *         for move in Cython_Chess.generate_legal_captures(board,mask,chess.BB_ALL):             # <<<<<<<<<<<<<<
  *             yield move
  * 
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1581, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1586, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1581, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1586, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1581, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1586, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_n_s_chess); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1581, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_n_s_chess); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1586, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1581, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1586, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_4 = NULL;
@@ -21326,7 +21153,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1581, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1586, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
@@ -21335,9 +21162,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     __pyx_t_7 = 0;
     __pyx_t_8 = NULL;
   } else {
-    __pyx_t_7 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1581, __pyx_L1_error)
+    __pyx_t_7 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1586, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_8 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1581, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1586, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   for (;;) {
@@ -21346,28 +21173,28 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1581, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1586, __pyx_L1_error)
           #endif
           if (__pyx_t_7 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1581, __pyx_L1_error)
+        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1586, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1581, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1586, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       } else {
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1581, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1586, __pyx_L1_error)
           #endif
           if (__pyx_t_7 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1581, __pyx_L1_error)
+        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1586, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1581, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1586, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       }
@@ -21377,7 +21204,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else __PYX_ERR(0, 1581, __pyx_L1_error)
+          else __PYX_ERR(0, 1586, __pyx_L1_error)
         }
         break;
       }
@@ -21388,7 +21215,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     __Pyx_GIVEREF(__pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "ChessAI.pyx":1582
+    /* "ChessAI.pyx":1587
  *         # Generate and yield capture moves first
  *         for move in Cython_Chess.generate_legal_captures(board,mask,chess.BB_ALL):
  *             yield move             # <<<<<<<<<<<<<<
@@ -21413,9 +21240,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     __Pyx_XGOTREF(__pyx_t_3);
     __pyx_t_7 = __pyx_cur_scope->__pyx_t_1;
     __pyx_t_8 = __pyx_cur_scope->__pyx_t_2;
-    if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1582, __pyx_L1_error)
+    if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1587, __pyx_L1_error)
 
-    /* "ChessAI.pyx":1581
+    /* "ChessAI.pyx":1586
  * 
  *         # Generate and yield capture moves first
  *         for move in Cython_Chess.generate_legal_captures(board,mask,chess.BB_ALL):             # <<<<<<<<<<<<<<
@@ -21425,23 +21252,23 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
   }
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":1585
+  /* "ChessAI.pyx":1590
  * 
  *         # Generate all legal moves and yield moves that aren't captures
  *         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):             # <<<<<<<<<<<<<<
  *             if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):
  *                 yield move
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1585, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1590, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1585, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1590, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1585, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1590, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1585, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1590, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1585, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1590, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_2 = NULL;
@@ -21464,7 +21291,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1585, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1590, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   }
@@ -21473,9 +21300,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     __pyx_t_7 = 0;
     __pyx_t_8 = NULL;
   } else {
-    __pyx_t_7 = -1; __pyx_t_5 = PyObject_GetIter(__pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1585, __pyx_L1_error)
+    __pyx_t_7 = -1; __pyx_t_5 = PyObject_GetIter(__pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1590, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_8 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1585, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1590, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   for (;;) {
@@ -21484,28 +21311,28 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_5);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1585, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1590, __pyx_L1_error)
           #endif
           if (__pyx_t_7 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_3 = PyList_GET_ITEM(__pyx_t_5, __pyx_t_7); __Pyx_INCREF(__pyx_t_3); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1585, __pyx_L1_error)
+        __pyx_t_3 = PyList_GET_ITEM(__pyx_t_5, __pyx_t_7); __Pyx_INCREF(__pyx_t_3); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1590, __pyx_L1_error)
         #else
-        __pyx_t_3 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1585, __pyx_L1_error)
+        __pyx_t_3 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1590, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
         #endif
       } else {
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_5);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1585, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1590, __pyx_L1_error)
           #endif
           if (__pyx_t_7 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_3 = PyTuple_GET_ITEM(__pyx_t_5, __pyx_t_7); __Pyx_INCREF(__pyx_t_3); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1585, __pyx_L1_error)
+        __pyx_t_3 = PyTuple_GET_ITEM(__pyx_t_5, __pyx_t_7); __Pyx_INCREF(__pyx_t_3); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1590, __pyx_L1_error)
         #else
-        __pyx_t_3 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1585, __pyx_L1_error)
+        __pyx_t_3 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1590, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
         #endif
       }
@@ -21515,7 +21342,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else __PYX_ERR(0, 1585, __pyx_L1_error)
+          else __PYX_ERR(0, 1590, __pyx_L1_error)
         }
         break;
       }
@@ -21526,34 +21353,34 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
     __Pyx_GIVEREF(__pyx_t_3);
     __pyx_t_3 = 0;
 
-    /* "ChessAI.pyx":1586
+    /* "ChessAI.pyx":1591
  *         # Generate all legal moves and yield moves that aren't captures
  *         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):
  *             if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):             # <<<<<<<<<<<<<<
  *                 yield move
  * 
  */
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_9 = __Pyx_PyInt_As_uint8_t(__pyx_t_3); if (unlikely((__pyx_t_9 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyInt_As_uint8_t(__pyx_t_3); if (unlikely((__pyx_t_9 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_3); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_3); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_12 = (!__pyx_t_11);
-    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_t_12, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_3, __pyx_t_12, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_13 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_13 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_13 = __Pyx_PyInt_As_uint64_t(__pyx_t_4); if (unlikely((__pyx_t_13 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __pyx_t_1 = NULL;
     __pyx_t_6 = 0;
@@ -21573,16 +21400,16 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
       PyObject *__pyx_callargs[2] = {__pyx_t_1, __pyx_cur_scope->__pyx_v_move};
       __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+1-__pyx_t_6, 1+__pyx_t_6);
       __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1586, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1591, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     }
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1586, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1591, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_11 = (!is_capture(__pyx_t_9, __pyx_t_10, __pyx_t_13, __pyx_t_12));
     if (__pyx_t_11) {
 
-      /* "ChessAI.pyx":1587
+      /* "ChessAI.pyx":1592
  *         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):
  *             if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):
  *                 yield move             # <<<<<<<<<<<<<<
@@ -21607,9 +21434,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
       __Pyx_XGOTREF(__pyx_t_5);
       __pyx_t_7 = __pyx_cur_scope->__pyx_t_1;
       __pyx_t_8 = __pyx_cur_scope->__pyx_t_2;
-      if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1587, __pyx_L1_error)
+      if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1592, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1586
+      /* "ChessAI.pyx":1591
  *         # Generate all legal moves and yield moves that aren't captures
  *         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):
  *             if not is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)):             # <<<<<<<<<<<<<<
@@ -21618,7 +21445,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
  */
     }
 
-    /* "ChessAI.pyx":1585
+    /* "ChessAI.pyx":1590
  * 
  *         # Generate all legal moves and yield moves that aren't captures
  *         for move in Cython_Chess.generate_legal_moves(board,mask,chess.BB_ALL):             # <<<<<<<<<<<<<<
@@ -21629,7 +21456,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   CYTHON_MAYBE_UNUSED_VAR(__pyx_cur_scope);
 
-  /* "ChessAI.pyx":1565
+  /* "ChessAI.pyx":1570
  *             return moves_list,self.alpha_list,self.beta_list,self.beta_move_list
  * 
  *     def reorder_capture_moves(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -21660,7 +21487,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
 }
 static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
 
-/* "ChessAI.pyx":1589
+/* "ChessAI.pyx":1594
  *                 yield move
  * 
  *     def reorder_capture_moves2(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -21725,7 +21552,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[0]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1589, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1594, __pyx_L3_error)
         else goto __pyx_L5_argtuple_error;
         CYTHON_FALLTHROUGH;
         case  1:
@@ -21733,14 +21560,14 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[1]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1589, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1594, __pyx_L3_error)
         else {
-          __Pyx_RaiseArgtupleInvalid("reorder_capture_moves2", 1, 2, 2, 1); __PYX_ERR(0, 1589, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("reorder_capture_moves2", 1, 2, 2, 1); __PYX_ERR(0, 1594, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
         const Py_ssize_t kwd_pos_args = __pyx_nargs;
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "reorder_capture_moves2") < 0)) __PYX_ERR(0, 1589, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "reorder_capture_moves2") < 0)) __PYX_ERR(0, 1594, __pyx_L3_error)
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
@@ -21748,12 +21575,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
       values[0] = __Pyx_Arg_FASTCALL(__pyx_args, 0);
       values[1] = __Pyx_Arg_FASTCALL(__pyx_args, 1);
     }
-    __pyx_v_mask = __Pyx_PyInt_As_uint64_t(values[0]); if (unlikely((__pyx_v_mask == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1589, __pyx_L3_error)
+    __pyx_v_mask = __Pyx_PyInt_As_uint64_t(values[0]); if (unlikely((__pyx_v_mask == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1594, __pyx_L3_error)
     __pyx_v_board = values[1];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("reorder_capture_moves2", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 1589, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("reorder_capture_moves2", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 1594, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -21792,7 +21619,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_15reorder_capture_moves2(CYTHON_UNUS
   if (unlikely(!__pyx_cur_scope)) {
     __pyx_cur_scope = ((struct __pyx_obj_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2 *)Py_None);
     __Pyx_INCREF(Py_None);
-    __PYX_ERR(0, 1589, __pyx_L1_error)
+    __PYX_ERR(0, 1594, __pyx_L1_error)
   } else {
     __Pyx_GOTREF((PyObject *)__pyx_cur_scope);
   }
@@ -21804,7 +21631,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_15reorder_capture_moves2(CYTHON_UNUS
   __Pyx_INCREF(__pyx_cur_scope->__pyx_v_board);
   __Pyx_GIVEREF(__pyx_cur_scope->__pyx_v_board);
   {
-    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_7ChessAI_7ChessAI_17generator1, __pyx_codeobj__11, (PyObject *) __pyx_cur_scope, __pyx_n_s_reorder_capture_moves2, __pyx_n_s_ChessAI_reorder_capture_moves2, __pyx_n_s_ChessAI); if (unlikely(!gen)) __PYX_ERR(0, 1589, __pyx_L1_error)
+    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_7ChessAI_7ChessAI_17generator1, __pyx_codeobj__11, (PyObject *) __pyx_cur_scope, __pyx_n_s_reorder_capture_moves2, __pyx_n_s_ChessAI_reorder_capture_moves2, __pyx_n_s_ChessAI); if (unlikely(!gen)) __PYX_ERR(0, 1594, __pyx_L1_error)
     __Pyx_DECREF(__pyx_cur_scope);
     __Pyx_RefNannyFinishContext();
     return (PyObject *) gen;
@@ -21849,25 +21676,25 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
     return NULL;
   }
   __pyx_L3_first_run:;
-  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1589, __pyx_L1_error)
+  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1594, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1601
+  /* "ChessAI.pyx":1606
  *         """
  *         cdef object move
  *         cdef set capture_moves = set(Cython_Chess.generate_legal_captures(board, mask, chess.BB_ALL))             # <<<<<<<<<<<<<<
  * 
  *         # Yield all captures first
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1601, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1606, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1601, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_generate_legal_captures); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1606, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1601, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1606, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_n_s_chess); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1601, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_n_s_chess); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1606, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1601, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1606, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_4 = NULL;
@@ -21890,18 +21717,18 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1601, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1606, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
-  __pyx_t_3 = PySet_New(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1601, __pyx_L1_error)
+  __pyx_t_3 = PySet_New(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1606, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __Pyx_GIVEREF(__pyx_t_3);
   __pyx_cur_scope->__pyx_v_capture_moves = ((PyObject*)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":1604
+  /* "ChessAI.pyx":1609
  * 
  *         # Yield all captures first
  *         yield from capture_moves             # <<<<<<<<<<<<<<
@@ -21918,53 +21745,53 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
     __pyx_generator->resume_label = 1;
     return __pyx_r;
     __pyx_L4_resume_from_yield_from:;
-    if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1604, __pyx_L1_error)
+    if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1609, __pyx_L1_error)
   } else {
     PyObject* exc_type = __Pyx_PyErr_CurrentExceptionType();
     if (exc_type) {
       if (likely(exc_type == PyExc_StopIteration || (exc_type != PyExc_GeneratorExit && __Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration)))) PyErr_Clear();
-      else __PYX_ERR(0, 1604, __pyx_L1_error)
+      else __PYX_ERR(0, 1609, __pyx_L1_error)
     }
   }
 
-  /* "ChessAI.pyx":1607
+  /* "ChessAI.pyx":1612
  * 
  *         # Cache occupied squares for efficiency
  *         cdef uint64_t enemy_pieces = board.occupied_co[not board.turn]             # <<<<<<<<<<<<<<
  * 
  *         # Yield non-capture moves
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1607, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1612, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1607, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1612, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 1607, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 1612, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_t_8 = (!__pyx_t_7);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_3, __pyx_t_8, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1607, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_3, __pyx_t_8, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1612, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1607, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_9 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1612, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_cur_scope->__pyx_v_enemy_pieces = __pyx_t_9;
 
-  /* "ChessAI.pyx":1610
+  /* "ChessAI.pyx":1615
  * 
  *         # Yield non-capture moves
  *         for move in Cython_Chess.generate_legal_moves(board, mask, chess.BB_ALL):             # <<<<<<<<<<<<<<
  *             if move not in capture_moves:
  *                 yield move
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1610, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1615, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1610, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1615, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1610, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_From_uint64_t(__pyx_cur_scope->__pyx_v_mask); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1615, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1610, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1615, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1610, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1615, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_2 = NULL;
@@ -21987,7 +21814,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1610, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1615, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   }
@@ -21996,9 +21823,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
     __pyx_t_10 = 0;
     __pyx_t_11 = NULL;
   } else {
-    __pyx_t_10 = -1; __pyx_t_5 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1610, __pyx_L1_error)
+    __pyx_t_10 = -1; __pyx_t_5 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1615, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_11 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_5); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1610, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_5); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 1615, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   for (;;) {
@@ -22007,28 +21834,28 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_5);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1610, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1615, __pyx_L1_error)
           #endif
           if (__pyx_t_10 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_5, __pyx_t_10); __Pyx_INCREF(__pyx_t_1); __pyx_t_10++; if (unlikely((0 < 0))) __PYX_ERR(0, 1610, __pyx_L1_error)
+        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_5, __pyx_t_10); __Pyx_INCREF(__pyx_t_1); __pyx_t_10++; if (unlikely((0 < 0))) __PYX_ERR(0, 1615, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_10); __pyx_t_10++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1610, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_10); __pyx_t_10++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1615, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       } else {
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_5);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1610, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1615, __pyx_L1_error)
           #endif
           if (__pyx_t_10 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_5, __pyx_t_10); __Pyx_INCREF(__pyx_t_1); __pyx_t_10++; if (unlikely((0 < 0))) __PYX_ERR(0, 1610, __pyx_L1_error)
+        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_5, __pyx_t_10); __Pyx_INCREF(__pyx_t_1); __pyx_t_10++; if (unlikely((0 < 0))) __PYX_ERR(0, 1615, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_10); __pyx_t_10++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1610, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_5, __pyx_t_10); __pyx_t_10++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1615, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       }
@@ -22038,7 +21865,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else __PYX_ERR(0, 1610, __pyx_L1_error)
+          else __PYX_ERR(0, 1615, __pyx_L1_error)
         }
         break;
       }
@@ -22049,17 +21876,17 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
     __Pyx_GIVEREF(__pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "ChessAI.pyx":1611
+    /* "ChessAI.pyx":1616
  *         # Yield non-capture moves
  *         for move in Cython_Chess.generate_legal_moves(board, mask, chess.BB_ALL):
  *             if move not in capture_moves:             # <<<<<<<<<<<<<<
  *                 yield move
  * 
  */
-    __pyx_t_8 = (__Pyx_PySet_ContainsTF(__pyx_cur_scope->__pyx_v_move, __pyx_cur_scope->__pyx_v_capture_moves, Py_NE)); if (unlikely((__pyx_t_8 < 0))) __PYX_ERR(0, 1611, __pyx_L1_error)
+    __pyx_t_8 = (__Pyx_PySet_ContainsTF(__pyx_cur_scope->__pyx_v_move, __pyx_cur_scope->__pyx_v_capture_moves, Py_NE)); if (unlikely((__pyx_t_8 < 0))) __PYX_ERR(0, 1616, __pyx_L1_error)
     if (__pyx_t_8) {
 
-      /* "ChessAI.pyx":1612
+      /* "ChessAI.pyx":1617
  *         for move in Cython_Chess.generate_legal_moves(board, mask, chess.BB_ALL):
  *             if move not in capture_moves:
  *                 yield move             # <<<<<<<<<<<<<<
@@ -22084,9 +21911,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
       __Pyx_XGOTREF(__pyx_t_5);
       __pyx_t_10 = __pyx_cur_scope->__pyx_t_1;
       __pyx_t_11 = __pyx_cur_scope->__pyx_t_2;
-      if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1612, __pyx_L1_error)
+      if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1617, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1611
+      /* "ChessAI.pyx":1616
  *         # Yield non-capture moves
  *         for move in Cython_Chess.generate_legal_moves(board, mask, chess.BB_ALL):
  *             if move not in capture_moves:             # <<<<<<<<<<<<<<
@@ -22095,7 +21922,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
  */
     }
 
-    /* "ChessAI.pyx":1610
+    /* "ChessAI.pyx":1615
  * 
  *         # Yield non-capture moves
  *         for move in Cython_Chess.generate_legal_moves(board, mask, chess.BB_ALL):             # <<<<<<<<<<<<<<
@@ -22106,7 +21933,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   CYTHON_MAYBE_UNUSED_VAR(__pyx_cur_scope);
 
-  /* "ChessAI.pyx":1589
+  /* "ChessAI.pyx":1594
  *                 yield move
  * 
  *     def reorder_capture_moves2(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -22137,7 +21964,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
 }
 static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
 
-/* "ChessAI.pyx":1616
+/* "ChessAI.pyx":1621
  * 
  *     # Function to return moves that are either captures, checks or promotions
  *     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -22198,12 +22025,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[0]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1616, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1621, __pyx_L3_error)
         else goto __pyx_L5_argtuple_error;
       }
       if (unlikely(kw_args > 0)) {
         const Py_ssize_t kwd_pos_args = __pyx_nargs;
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "non_quiescence_moves") < 0)) __PYX_ERR(0, 1616, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "non_quiescence_moves") < 0)) __PYX_ERR(0, 1621, __pyx_L3_error)
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
@@ -22214,7 +22041,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("non_quiescence_moves", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 1616, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("non_quiescence_moves", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 1621, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -22253,7 +22080,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_18non_quiescence_moves(CYTHON_UNUSED
   if (unlikely(!__pyx_cur_scope)) {
     __pyx_cur_scope = ((struct __pyx_obj_7ChessAI___pyx_scope_struct_2_non_quiescence_moves *)Py_None);
     __Pyx_INCREF(Py_None);
-    __PYX_ERR(0, 1616, __pyx_L1_error)
+    __PYX_ERR(0, 1621, __pyx_L1_error)
   } else {
     __Pyx_GOTREF((PyObject *)__pyx_cur_scope);
   }
@@ -22264,7 +22091,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_18non_quiescence_moves(CYTHON_UNUSED
   __Pyx_INCREF(__pyx_cur_scope->__pyx_v_board);
   __Pyx_GIVEREF(__pyx_cur_scope->__pyx_v_board);
   {
-    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_7ChessAI_7ChessAI_20generator2, __pyx_codeobj__12, (PyObject *) __pyx_cur_scope, __pyx_n_s_non_quiescence_moves, __pyx_n_s_ChessAI_non_quiescence_moves, __pyx_n_s_ChessAI); if (unlikely(!gen)) __PYX_ERR(0, 1616, __pyx_L1_error)
+    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_7ChessAI_7ChessAI_20generator2, __pyx_codeobj__12, (PyObject *) __pyx_cur_scope, __pyx_n_s_non_quiescence_moves, __pyx_n_s_ChessAI_non_quiescence_moves, __pyx_n_s_ChessAI); if (unlikely(!gen)) __PYX_ERR(0, 1621, __pyx_L1_error)
     __Pyx_DECREF(__pyx_cur_scope);
     __Pyx_RefNannyFinishContext();
     return (PyObject *) gen;
@@ -22311,28 +22138,28 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
     return NULL;
   }
   __pyx_L3_first_run:;
-  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1616, __pyx_L1_error)
+  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1621, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1620
+  /* "ChessAI.pyx":1625
  *         cdef object move
  * 
  *         for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):             # <<<<<<<<<<<<<<
  *             if (is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)) or board.gives_check(move)) or move.promotion:
  *                 yield move
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1620, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_Cython_Chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1625, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1620, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_generate_legal_moves); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1625, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1620, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1625, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1620, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1625, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1620, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_chess); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1625, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1620, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_BB_ALL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1625, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_2 = NULL;
@@ -22355,7 +22182,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1620, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1625, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
@@ -22364,9 +22191,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
     __pyx_t_7 = 0;
     __pyx_t_8 = NULL;
   } else {
-    __pyx_t_7 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1620, __pyx_L1_error)
+    __pyx_t_7 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1625, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_8 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1620, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1625, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   for (;;) {
@@ -22375,28 +22202,28 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1620, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1625, __pyx_L1_error)
           #endif
           if (__pyx_t_7 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1620, __pyx_L1_error)
+        __pyx_t_1 = PyList_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1625, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1620, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1625, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       } else {
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1620, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1625, __pyx_L1_error)
           #endif
           if (__pyx_t_7 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1620, __pyx_L1_error)
+        __pyx_t_1 = PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_7); __Pyx_INCREF(__pyx_t_1); __pyx_t_7++; if (unlikely((0 < 0))) __PYX_ERR(0, 1625, __pyx_L1_error)
         #else
-        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1620, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_7); __pyx_t_7++; if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1625, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         #endif
       }
@@ -22406,7 +22233,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else __PYX_ERR(0, 1620, __pyx_L1_error)
+          else __PYX_ERR(0, 1625, __pyx_L1_error)
         }
         break;
       }
@@ -22417,34 +22244,34 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
     __Pyx_GIVEREF(__pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "ChessAI.pyx":1621
+    /* "ChessAI.pyx":1626
  * 
  *         for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
  *             if (is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)) or board.gives_check(move)) or move.promotion:             # <<<<<<<<<<<<<<
  *                 yield move
  * 
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_from_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_10 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_to_square); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyInt_As_uint8_t(__pyx_t_1); if (unlikely((__pyx_t_11 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_13 = (!__pyx_t_12);
-    __pyx_t_5 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_13, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_GetItemInt(__pyx_t_1, __pyx_t_13, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_14 = __Pyx_PyInt_As_uint64_t(__pyx_t_5); if (unlikely((__pyx_t_14 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_14 = __Pyx_PyInt_As_uint64_t(__pyx_t_5); if (unlikely((__pyx_t_14 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_is_en_passant); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_4 = NULL;
     __pyx_t_6 = 0;
@@ -22464,11 +22291,11 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
       PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_cur_scope->__pyx_v_move};
       __pyx_t_5 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_6, 1+__pyx_t_6);
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1621, __pyx_L1_error)
+      if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1626, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
-    __pyx_t_13 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_13 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_13 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_13 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_12 = is_capture(__pyx_t_10, __pyx_t_11, __pyx_t_14, __pyx_t_13);
     if (!__pyx_t_12) {
@@ -22476,7 +22303,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
       __pyx_t_9 = __pyx_t_12;
       goto __pyx_L7_bool_binop_done;
     }
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_gives_check); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_board, __pyx_n_s_gives_check); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_t_4 = NULL;
     __pyx_t_6 = 0;
@@ -22496,26 +22323,26 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
       PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_cur_scope->__pyx_v_move};
       __pyx_t_5 = __Pyx_PyObject_FastCall(__pyx_t_1, __pyx_callargs+1-__pyx_t_6, 1+__pyx_t_6);
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1621, __pyx_L1_error)
+      if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1626, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     if (!__pyx_t_12) {
     } else {
       __pyx_t_9 = __pyx_t_12;
       goto __pyx_L7_bool_binop_done;
     }
-    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_cur_scope->__pyx_v_move, __pyx_n_s_promotion); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1621, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(0, 1626, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_9 = __pyx_t_12;
     __pyx_L7_bool_binop_done:;
     if (__pyx_t_9) {
 
-      /* "ChessAI.pyx":1622
+      /* "ChessAI.pyx":1627
  *         for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
  *             if (is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)) or board.gives_check(move)) or move.promotion:
  *                 yield move             # <<<<<<<<<<<<<<
@@ -22540,9 +22367,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
       __Pyx_XGOTREF(__pyx_t_3);
       __pyx_t_7 = __pyx_cur_scope->__pyx_t_1;
       __pyx_t_8 = __pyx_cur_scope->__pyx_t_2;
-      if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1622, __pyx_L1_error)
+      if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 1627, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1621
+      /* "ChessAI.pyx":1626
  * 
  *         for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
  *             if (is_capture(move.from_square, move.to_square, board.occupied_co[not board.turn], board.is_en_passant(move)) or board.gives_check(move)) or move.promotion:             # <<<<<<<<<<<<<<
@@ -22551,7 +22378,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
  */
     }
 
-    /* "ChessAI.pyx":1620
+    /* "ChessAI.pyx":1625
  *         cdef object move
  * 
  *         for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):             # <<<<<<<<<<<<<<
@@ -22562,7 +22389,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   CYTHON_MAYBE_UNUSED_VAR(__pyx_cur_scope);
 
-  /* "ChessAI.pyx":1616
+  /* "ChessAI.pyx":1621
  * 
  *     # Function to return moves that are either captures, checks or promotions
  *     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
@@ -22806,7 +22633,7 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_23__setstate_cython__(CYTHON_UNUSED 
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1624
+/* "ChessAI.pyx":1629
  *                 yield move
  * 
  * cdef void quicksort(list values, list objects, list betas, list betaMoves, int left, int right):             # <<<<<<<<<<<<<<
@@ -22832,7 +22659,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("quicksort", 1);
 
-  /* "ChessAI.pyx":1640
+  /* "ChessAI.pyx":1645
  * 
  *     # Check if the list bounds have overlaped
  *     if left >= right:             # <<<<<<<<<<<<<<
@@ -22842,7 +22669,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
   __pyx_t_1 = (__pyx_v_left >= __pyx_v_right);
   if (__pyx_t_1) {
 
-    /* "ChessAI.pyx":1641
+    /* "ChessAI.pyx":1646
  *     # Check if the list bounds have overlaped
  *     if left >= right:
  *         return             # <<<<<<<<<<<<<<
@@ -22851,7 +22678,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1640
+    /* "ChessAI.pyx":1645
  * 
  *     # Check if the list bounds have overlaped
  *     if left >= right:             # <<<<<<<<<<<<<<
@@ -22860,7 +22687,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
   }
 
-  /* "ChessAI.pyx":1644
+  /* "ChessAI.pyx":1649
  * 
  *     # Define the pivot as the middle value
  *     pivot = values[left + (right - left) // 2]             # <<<<<<<<<<<<<<
@@ -22869,7 +22696,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
   if (unlikely(__pyx_v_values == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1644, __pyx_L1_error)
+    __PYX_ERR(0, 1649, __pyx_L1_error)
   }
   __pyx_t_2 = (__pyx_v_left + ((__pyx_v_right - __pyx_v_left) / 2));
   __pyx_t_3 = PyList_GET_ITEM(__pyx_v_values, __pyx_t_2);
@@ -22877,7 +22704,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
   __pyx_v_pivot = __pyx_t_3;
   __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":1647
+  /* "ChessAI.pyx":1652
  * 
  *     # Define starting point
  *     cdef int i = left             # <<<<<<<<<<<<<<
@@ -22886,7 +22713,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
   __pyx_v_i = __pyx_v_left;
 
-  /* "ChessAI.pyx":1648
+  /* "ChessAI.pyx":1653
  *     # Define starting point
  *     cdef int i = left
  *     cdef int j = right             # <<<<<<<<<<<<<<
@@ -22895,7 +22722,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
   __pyx_v_j = __pyx_v_right;
 
-  /* "ChessAI.pyx":1657
+  /* "ChessAI.pyx":1662
  * 
  *     # Loop while the sublist bounds don't cross each other
  *     while i <= j:             # <<<<<<<<<<<<<<
@@ -22906,7 +22733,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
     __pyx_t_1 = (__pyx_v_i <= __pyx_v_j);
     if (!__pyx_t_1) break;
 
-    /* "ChessAI.pyx":1661
+    /* "ChessAI.pyx":1666
  *         # Keep shortening the list until two values are found above and below the pivot
  *         # This is checking for when something left of the pivot is less than the pivot and vice versa
  *         while values[i] > pivot:             # <<<<<<<<<<<<<<
@@ -22916,14 +22743,14 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
     while (1) {
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1661, __pyx_L1_error)
+        __PYX_ERR(0, 1666, __pyx_L1_error)
       }
-      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i), __pyx_v_pivot, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1661, __pyx_L1_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1661, __pyx_L1_error)
+      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i), __pyx_v_pivot, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1666, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1666, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (!__pyx_t_1) break;
 
-      /* "ChessAI.pyx":1662
+      /* "ChessAI.pyx":1667
  *         # This is checking for when something left of the pivot is less than the pivot and vice versa
  *         while values[i] > pivot:
  *             i += 1             # <<<<<<<<<<<<<<
@@ -22933,7 +22760,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
       __pyx_v_i = (__pyx_v_i + 1);
     }
 
-    /* "ChessAI.pyx":1663
+    /* "ChessAI.pyx":1668
  *         while values[i] > pivot:
  *             i += 1
  *         while values[j] < pivot:             # <<<<<<<<<<<<<<
@@ -22943,14 +22770,14 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
     while (1) {
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1663, __pyx_L1_error)
+        __PYX_ERR(0, 1668, __pyx_L1_error)
       }
-      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_j), __pyx_v_pivot, Py_LT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1663, __pyx_L1_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1663, __pyx_L1_error)
+      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_j), __pyx_v_pivot, Py_LT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1668, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1668, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (!__pyx_t_1) break;
 
-      /* "ChessAI.pyx":1664
+      /* "ChessAI.pyx":1669
  *             i += 1
  *         while values[j] < pivot:
  *             j -= 1             # <<<<<<<<<<<<<<
@@ -22960,7 +22787,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
       __pyx_v_j = (__pyx_v_j - 1);
     }
 
-    /* "ChessAI.pyx":1666
+    /* "ChessAI.pyx":1671
  *             j -= 1
  * 
  *         if i <= j:             # <<<<<<<<<<<<<<
@@ -22970,7 +22797,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
     __pyx_t_1 = (__pyx_v_i <= __pyx_v_j);
     if (__pyx_t_1) {
 
-      /* "ChessAI.pyx":1668
+      /* "ChessAI.pyx":1673
  *         if i <= j:
  *             # Swap alpha values
  *             temp_value = values[i]             # <<<<<<<<<<<<<<
@@ -22979,12 +22806,12 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1668, __pyx_L1_error)
+        __PYX_ERR(0, 1673, __pyx_L1_error)
       }
-      __pyx_t_4 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i)); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1668, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i)); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1673, __pyx_L1_error)
       __pyx_v_temp_value = __pyx_t_4;
 
-      /* "ChessAI.pyx":1669
+      /* "ChessAI.pyx":1674
  *             # Swap alpha values
  *             temp_value = values[i]
  *             values[i] = values[j]             # <<<<<<<<<<<<<<
@@ -22993,34 +22820,34 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1669, __pyx_L1_error)
+        __PYX_ERR(0, 1674, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_values, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_3);
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1669, __pyx_L1_error)
+        __PYX_ERR(0, 1674, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1669, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1674, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1670
+      /* "ChessAI.pyx":1675
  *             temp_value = values[i]
  *             values[i] = values[j]
  *             values[j] = temp_value             # <<<<<<<<<<<<<<
  * 
  *             # Swap first iteration moves
  */
-      __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_temp_value); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1670, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_temp_value); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1675, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1670, __pyx_L1_error)
+        __PYX_ERR(0, 1675, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_j, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1670, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_j, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1675, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1673
+      /* "ChessAI.pyx":1678
  * 
  *             # Swap first iteration moves
  *             temp_object = objects[i]             # <<<<<<<<<<<<<<
@@ -23029,14 +22856,14 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1673, __pyx_L1_error)
+        __PYX_ERR(0, 1678, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_objects, __pyx_v_i);
       __Pyx_INCREF(__pyx_t_3);
       __Pyx_XDECREF_SET(__pyx_v_temp_object, __pyx_t_3);
       __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1674
+      /* "ChessAI.pyx":1679
  *             # Swap first iteration moves
  *             temp_object = objects[i]
  *             objects[i] = objects[j]             # <<<<<<<<<<<<<<
@@ -23045,18 +22872,18 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1674, __pyx_L1_error)
+        __PYX_ERR(0, 1679, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_objects, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_3);
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1674, __pyx_L1_error)
+        __PYX_ERR(0, 1679, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1674, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1679, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1675
+      /* "ChessAI.pyx":1680
  *             temp_object = objects[i]
  *             objects[i] = objects[j]
  *             objects[j] = temp_object             # <<<<<<<<<<<<<<
@@ -23065,11 +22892,11 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1675, __pyx_L1_error)
+        __PYX_ERR(0, 1680, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_j, __pyx_v_temp_object, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1675, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_j, __pyx_v_temp_object, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1680, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1678
+      /* "ChessAI.pyx":1683
  * 
  *             # Swap second iteration scores lists
  *             temp_list = betas[i]             # <<<<<<<<<<<<<<
@@ -23078,15 +22905,15 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_betas == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1678, __pyx_L1_error)
+        __PYX_ERR(0, 1683, __pyx_L1_error)
       }
-      if (!(likely(PyList_CheckExact(PyList_GET_ITEM(__pyx_v_betas, __pyx_v_i)))||((PyList_GET_ITEM(__pyx_v_betas, __pyx_v_i)) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", PyList_GET_ITEM(__pyx_v_betas, __pyx_v_i)))) __PYX_ERR(0, 1678, __pyx_L1_error)
+      if (!(likely(PyList_CheckExact(PyList_GET_ITEM(__pyx_v_betas, __pyx_v_i)))||((PyList_GET_ITEM(__pyx_v_betas, __pyx_v_i)) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", PyList_GET_ITEM(__pyx_v_betas, __pyx_v_i)))) __PYX_ERR(0, 1683, __pyx_L1_error)
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_betas, __pyx_v_i);
       __Pyx_INCREF(__pyx_t_3);
       __Pyx_XDECREF_SET(__pyx_v_temp_list, ((PyObject*)__pyx_t_3));
       __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1679
+      /* "ChessAI.pyx":1684
  *             # Swap second iteration scores lists
  *             temp_list = betas[i]
  *             betas[i] = betas[j]             # <<<<<<<<<<<<<<
@@ -23095,18 +22922,18 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_betas == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1679, __pyx_L1_error)
+        __PYX_ERR(0, 1684, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_betas, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_3);
       if (unlikely(__pyx_v_betas == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1679, __pyx_L1_error)
+        __PYX_ERR(0, 1684, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_betas, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1679, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_betas, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1684, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1680
+      /* "ChessAI.pyx":1685
  *             temp_list = betas[i]
  *             betas[i] = betas[j]
  *             betas[j] = temp_list             # <<<<<<<<<<<<<<
@@ -23115,11 +22942,11 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_betas == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1680, __pyx_L1_error)
+        __PYX_ERR(0, 1685, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_betas, __pyx_v_j, __pyx_v_temp_list, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1680, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_betas, __pyx_v_j, __pyx_v_temp_list, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1685, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1683
+      /* "ChessAI.pyx":1688
  * 
  *             # Swap second iteration moves lists
  *             temp_moves_list = betaMoves[i]             # <<<<<<<<<<<<<<
@@ -23128,15 +22955,15 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_betaMoves == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1683, __pyx_L1_error)
+        __PYX_ERR(0, 1688, __pyx_L1_error)
       }
-      if (!(likely(PyList_CheckExact(PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_i)))||((PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_i)) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_i)))) __PYX_ERR(0, 1683, __pyx_L1_error)
+      if (!(likely(PyList_CheckExact(PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_i)))||((PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_i)) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_i)))) __PYX_ERR(0, 1688, __pyx_L1_error)
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_i);
       __Pyx_INCREF(__pyx_t_3);
       __Pyx_XDECREF_SET(__pyx_v_temp_moves_list, ((PyObject*)__pyx_t_3));
       __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1684
+      /* "ChessAI.pyx":1689
  *             # Swap second iteration moves lists
  *             temp_moves_list = betaMoves[i]
  *             betaMoves[i] = betaMoves[j]             # <<<<<<<<<<<<<<
@@ -23145,18 +22972,18 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_betaMoves == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1684, __pyx_L1_error)
+        __PYX_ERR(0, 1689, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_3);
       if (unlikely(__pyx_v_betaMoves == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1684, __pyx_L1_error)
+        __PYX_ERR(0, 1689, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_betaMoves, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1684, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_betaMoves, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1689, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1685
+      /* "ChessAI.pyx":1690
  *             temp_moves_list = betaMoves[i]
  *             betaMoves[i] = betaMoves[j]
  *             betaMoves[j] = temp_moves_list             # <<<<<<<<<<<<<<
@@ -23165,11 +22992,11 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       if (unlikely(__pyx_v_betaMoves == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1685, __pyx_L1_error)
+        __PYX_ERR(0, 1690, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_betaMoves, __pyx_v_j, __pyx_v_temp_moves_list, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1685, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_betaMoves, __pyx_v_j, __pyx_v_temp_moves_list, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1690, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1687
+      /* "ChessAI.pyx":1692
  *             betaMoves[j] = temp_moves_list
  * 
  *             i += 1             # <<<<<<<<<<<<<<
@@ -23178,7 +23005,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       __pyx_v_i = (__pyx_v_i + 1);
 
-      /* "ChessAI.pyx":1688
+      /* "ChessAI.pyx":1693
  * 
  *             i += 1
  *             j -= 1             # <<<<<<<<<<<<<<
@@ -23187,7 +23014,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
  */
       __pyx_v_j = (__pyx_v_j - 1);
 
-      /* "ChessAI.pyx":1666
+      /* "ChessAI.pyx":1671
  *             j -= 1
  * 
  *         if i <= j:             # <<<<<<<<<<<<<<
@@ -23197,25 +23024,25 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
     }
   }
 
-  /* "ChessAI.pyx":1691
+  /* "ChessAI.pyx":1696
  * 
  *     # Recursively sort the partitions
  *     quicksort(values, objects, betas, betaMoves, left, j)             # <<<<<<<<<<<<<<
  *     quicksort(values, objects, betas, betaMoves, i, right)
  * 
  */
-  __pyx_f_7ChessAI_quicksort(__pyx_v_values, __pyx_v_objects, __pyx_v_betas, __pyx_v_betaMoves, __pyx_v_left, __pyx_v_j); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1691, __pyx_L1_error)
+  __pyx_f_7ChessAI_quicksort(__pyx_v_values, __pyx_v_objects, __pyx_v_betas, __pyx_v_betaMoves, __pyx_v_left, __pyx_v_j); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1696, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1692
+  /* "ChessAI.pyx":1697
  *     # Recursively sort the partitions
  *     quicksort(values, objects, betas, betaMoves, left, j)
  *     quicksort(values, objects, betas, betaMoves, i, right)             # <<<<<<<<<<<<<<
  * 
  * cdef void quicksort_ascending_wrapper(list values, list objects):
  */
-  __pyx_f_7ChessAI_quicksort(__pyx_v_values, __pyx_v_objects, __pyx_v_betas, __pyx_v_betaMoves, __pyx_v_i, __pyx_v_right); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1692, __pyx_L1_error)
+  __pyx_f_7ChessAI_quicksort(__pyx_v_values, __pyx_v_objects, __pyx_v_betas, __pyx_v_betaMoves, __pyx_v_i, __pyx_v_right); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1697, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1624
+  /* "ChessAI.pyx":1629
  *                 yield move
  * 
  * cdef void quicksort(list values, list objects, list betas, list betaMoves, int left, int right):             # <<<<<<<<<<<<<<
@@ -23236,7 +23063,7 @@ static void __pyx_f_7ChessAI_quicksort(PyObject *__pyx_v_values, PyObject *__pyx
   __Pyx_RefNannyFinishContext();
 }
 
-/* "ChessAI.pyx":1694
+/* "ChessAI.pyx":1699
  *     quicksort(values, objects, betas, betaMoves, i, right)
  * 
  * cdef void quicksort_ascending_wrapper(list values, list objects):             # <<<<<<<<<<<<<<
@@ -23259,7 +23086,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("quicksort_ascending_wrapper", 1);
 
-  /* "ChessAI.pyx":1706
+  /* "ChessAI.pyx":1711
  * 
  *     # Section of code to find the index where the given lists start becoming NULL
  *     cdef int count = 0             # <<<<<<<<<<<<<<
@@ -23268,7 +23095,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
   __pyx_v_count = 0;
 
-  /* "ChessAI.pyx":1707
+  /* "ChessAI.pyx":1712
  *     # Section of code to find the index where the given lists start becoming NULL
  *     cdef int count = 0
  *     for i in values:             # <<<<<<<<<<<<<<
@@ -23277,7 +23104,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
   if (unlikely(__pyx_v_values == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
-    __PYX_ERR(0, 1707, __pyx_L1_error)
+    __PYX_ERR(0, 1712, __pyx_L1_error)
   }
   __pyx_t_1 = __pyx_v_values; __Pyx_INCREF(__pyx_t_1);
   __pyx_t_2 = 0;
@@ -23285,32 +23112,32 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
     {
       Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_1);
       #if !CYTHON_ASSUME_SAFE_MACROS
-      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1707, __pyx_L1_error)
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 1712, __pyx_L1_error)
       #endif
       if (__pyx_t_2 >= __pyx_temp) break;
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-    __pyx_t_3 = PyList_GET_ITEM(__pyx_t_1, __pyx_t_2); __Pyx_INCREF(__pyx_t_3); __pyx_t_2++; if (unlikely((0 < 0))) __PYX_ERR(0, 1707, __pyx_L1_error)
+    __pyx_t_3 = PyList_GET_ITEM(__pyx_t_1, __pyx_t_2); __Pyx_INCREF(__pyx_t_3); __pyx_t_2++; if (unlikely((0 < 0))) __PYX_ERR(0, 1712, __pyx_L1_error)
     #else
-    __pyx_t_3 = __Pyx_PySequence_ITEM(__pyx_t_1, __pyx_t_2); __pyx_t_2++; if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1707, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PySequence_ITEM(__pyx_t_1, __pyx_t_2); __pyx_t_2++; if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1712, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     #endif
     __Pyx_XDECREF_SET(__pyx_v_i, __pyx_t_3);
     __pyx_t_3 = 0;
 
-    /* "ChessAI.pyx":1708
+    /* "ChessAI.pyx":1713
  *     cdef int count = 0
  *     for i in values:
  *         if (i == None):             # <<<<<<<<<<<<<<
  *             break
  *         count += 1
  */
-    __pyx_t_3 = PyObject_RichCompare(__pyx_v_i, Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1708, __pyx_L1_error)
-    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 1708, __pyx_L1_error)
+    __pyx_t_3 = PyObject_RichCompare(__pyx_v_i, Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1713, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 1713, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     if (__pyx_t_4) {
 
-      /* "ChessAI.pyx":1709
+      /* "ChessAI.pyx":1714
  *     for i in values:
  *         if (i == None):
  *             break             # <<<<<<<<<<<<<<
@@ -23319,7 +23146,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
       goto __pyx_L4_break;
 
-      /* "ChessAI.pyx":1708
+      /* "ChessAI.pyx":1713
  *     cdef int count = 0
  *     for i in values:
  *         if (i == None):             # <<<<<<<<<<<<<<
@@ -23328,7 +23155,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
     }
 
-    /* "ChessAI.pyx":1710
+    /* "ChessAI.pyx":1715
  *         if (i == None):
  *             break
  *         count += 1             # <<<<<<<<<<<<<<
@@ -23337,7 +23164,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
     __pyx_v_count = (__pyx_v_count + 1);
 
-    /* "ChessAI.pyx":1707
+    /* "ChessAI.pyx":1712
  *     # Section of code to find the index where the given lists start becoming NULL
  *     cdef int count = 0
  *     for i in values:             # <<<<<<<<<<<<<<
@@ -23352,7 +23179,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
   goto __pyx_L6_for_end;
   __pyx_L6_for_end:;
 
-  /* "ChessAI.pyx":1713
+  /* "ChessAI.pyx":1718
  * 
  *     # Sort the non NULL items
  *     cdef list values_sub_list = values[:count]             # <<<<<<<<<<<<<<
@@ -23361,14 +23188,14 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
   if (unlikely(__pyx_v_values == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1713, __pyx_L1_error)
+    __PYX_ERR(0, 1718, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_values, 0, __pyx_v_count); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1713, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_values, 0, __pyx_v_count); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1718, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_values_sub_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1714
+  /* "ChessAI.pyx":1719
  *     # Sort the non NULL items
  *     cdef list values_sub_list = values[:count]
  *     cdef list objects_sub_list = objects[:count]             # <<<<<<<<<<<<<<
@@ -23377,24 +23204,24 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1714, __pyx_L1_error)
+    __PYX_ERR(0, 1719, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_objects, 0, __pyx_v_count); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1714, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_objects, 0, __pyx_v_count); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1719, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_objects_sub_list = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1715
+  /* "ChessAI.pyx":1720
  *     cdef list values_sub_list = values[:count]
  *     cdef list objects_sub_list = objects[:count]
  *     quicksort_ascending(values_sub_list, objects_sub_list, 0, len(values_sub_list) - 1)             # <<<<<<<<<<<<<<
  *     # sort_by_alpha(values_sub_list, objects_sub_list)
  * 
  */
-  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_values_sub_list); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1715, __pyx_L1_error)
-  __pyx_f_7ChessAI_quicksort_ascending(__pyx_v_values_sub_list, __pyx_v_objects_sub_list, 0, (__pyx_t_2 - 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1715, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_values_sub_list); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1720, __pyx_L1_error)
+  __pyx_f_7ChessAI_quicksort_ascending(__pyx_v_values_sub_list, __pyx_v_objects_sub_list, 0, (__pyx_t_2 - 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1720, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1719
+  /* "ChessAI.pyx":1724
  * 
  *     # Update the original lists
  *     values[:] = values_sub_list + values[count:]             # <<<<<<<<<<<<<<
@@ -23403,21 +23230,21 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
   if (unlikely(__pyx_v_values == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1719, __pyx_L1_error)
+    __PYX_ERR(0, 1724, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_values, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1719, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_values, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = PyNumber_Add(__pyx_v_values_sub_list, __pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1719, __pyx_L1_error)
+  __pyx_t_3 = PyNumber_Add(__pyx_v_values_sub_list, __pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   if (unlikely(__pyx_v_values == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1719, __pyx_L1_error)
+    __PYX_ERR(0, 1724, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_values, __pyx_t_3, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1719, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_values, __pyx_t_3, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1724, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":1720
+  /* "ChessAI.pyx":1725
  *     # Update the original lists
  *     values[:] = values_sub_list + values[count:]
  *     objects[:] = objects_sub_list + objects[count:]             # <<<<<<<<<<<<<<
@@ -23426,21 +23253,21 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
  */
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1720, __pyx_L1_error)
+    __PYX_ERR(0, 1725, __pyx_L1_error)
   }
-  __pyx_t_3 = __Pyx_PyList_GetSlice(__pyx_v_objects, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1720, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyList_GetSlice(__pyx_v_objects, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1725, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_1 = PyNumber_Add(__pyx_v_objects_sub_list, __pyx_t_3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1720, __pyx_L1_error)
+  __pyx_t_1 = PyNumber_Add(__pyx_v_objects_sub_list, __pyx_t_3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1725, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1720, __pyx_L1_error)
+    __PYX_ERR(0, 1725, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_t_1, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1720, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_t_1, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1725, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "ChessAI.pyx":1694
+  /* "ChessAI.pyx":1699
  *     quicksort(values, objects, betas, betaMoves, i, right)
  * 
  * cdef void quicksort_ascending_wrapper(list values, list objects):             # <<<<<<<<<<<<<<
@@ -23461,7 +23288,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending_wrapper(PyObject *__pyx_v_value
   __Pyx_RefNannyFinishContext();
 }
 
-/* "ChessAI.pyx":1722
+/* "ChessAI.pyx":1727
  *     objects[:] = objects_sub_list + objects[count:]
  * 
  * cdef void quicksort_wrapper(list alphas, list objects, list betas, list betaMoves, list preAlphas, list preBetas, list preBetaMoves):             # <<<<<<<<<<<<<<
@@ -23492,7 +23319,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("quicksort_wrapper", 1);
 
-  /* "ChessAI.pyx":1739
+  /* "ChessAI.pyx":1744
  * 
  *     # Define variables to hold index when the lists become null, the max index, and the max value
  *     cdef int count = 0             # <<<<<<<<<<<<<<
@@ -23501,7 +23328,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   __pyx_v_count = 0;
 
-  /* "ChessAI.pyx":1740
+  /* "ChessAI.pyx":1745
  *     # Define variables to hold index when the lists become null, the max index, and the max value
  *     cdef int count = 0
  *     cdef int index = 0             # <<<<<<<<<<<<<<
@@ -23510,7 +23337,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   __pyx_v_index = 0;
 
-  /* "ChessAI.pyx":1741
+  /* "ChessAI.pyx":1746
  *     cdef int count = 0
  *     cdef int index = 0
  *     cdef int maxVal = alphas[0]             # <<<<<<<<<<<<<<
@@ -23519,12 +23346,12 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1741, __pyx_L1_error)
+    __PYX_ERR(0, 1746, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_alphas, 0)); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1741, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_alphas, 0)); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1746, __pyx_L1_error)
   __pyx_v_maxVal = __pyx_t_1;
 
-  /* "ChessAI.pyx":1742
+  /* "ChessAI.pyx":1747
  *     cdef int index = 0
  *     cdef int maxVal = alphas[0]
  *     for i in range (len(alphas)):             # <<<<<<<<<<<<<<
@@ -23533,14 +23360,14 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 1742, __pyx_L1_error)
+    __PYX_ERR(0, 1747, __pyx_L1_error)
   }
-  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_alphas); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1742, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_alphas); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1747, __pyx_L1_error)
   __pyx_t_3 = __pyx_t_2;
   for (__pyx_t_4 = 0; __pyx_t_4 < __pyx_t_3; __pyx_t_4+=1) {
     __pyx_v_i = __pyx_t_4;
 
-    /* "ChessAI.pyx":1744
+    /* "ChessAI.pyx":1749
  *     for i in range (len(alphas)):
  * 
  *         if (alphas[i] == None):             # <<<<<<<<<<<<<<
@@ -23549,14 +23376,14 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
     if (unlikely(__pyx_v_alphas == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 1744, __pyx_L1_error)
+      __PYX_ERR(0, 1749, __pyx_L1_error)
     }
-    __pyx_t_5 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_i), Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_5); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1744, __pyx_L1_error)
-    __pyx_t_6 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 1744, __pyx_L1_error)
+    __pyx_t_5 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_i), Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_5); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1749, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 1749, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     if (__pyx_t_6) {
 
-      /* "ChessAI.pyx":1745
+      /* "ChessAI.pyx":1750
  * 
  *         if (alphas[i] == None):
  *             break             # <<<<<<<<<<<<<<
@@ -23565,7 +23392,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
       goto __pyx_L4_break;
 
-      /* "ChessAI.pyx":1744
+      /* "ChessAI.pyx":1749
  *     for i in range (len(alphas)):
  * 
  *         if (alphas[i] == None):             # <<<<<<<<<<<<<<
@@ -23574,7 +23401,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
     }
 
-    /* "ChessAI.pyx":1746
+    /* "ChessAI.pyx":1751
  *         if (alphas[i] == None):
  *             break
  *         if (alphas[i] > maxVal):             # <<<<<<<<<<<<<<
@@ -23583,17 +23410,17 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
     if (unlikely(__pyx_v_alphas == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 1746, __pyx_L1_error)
+      __PYX_ERR(0, 1751, __pyx_L1_error)
     }
-    __pyx_t_5 = __Pyx_PyInt_From_int(__pyx_v_maxVal); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1746, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyInt_From_int(__pyx_v_maxVal); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1751, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_7 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_i), __pyx_t_5, Py_GT); __Pyx_XGOTREF(__pyx_t_7); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1746, __pyx_L1_error)
+    __pyx_t_7 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_i), __pyx_t_5, Py_GT); __Pyx_XGOTREF(__pyx_t_7); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1751, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    __pyx_t_6 = __Pyx_PyObject_IsTrue(__pyx_t_7); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 1746, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_IsTrue(__pyx_t_7); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(0, 1751, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     if (__pyx_t_6) {
 
-      /* "ChessAI.pyx":1747
+      /* "ChessAI.pyx":1752
  *             break
  *         if (alphas[i] > maxVal):
  *             maxVal = alphas[i]             # <<<<<<<<<<<<<<
@@ -23602,12 +23429,12 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
       if (unlikely(__pyx_v_alphas == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1747, __pyx_L1_error)
+        __PYX_ERR(0, 1752, __pyx_L1_error)
       }
-      __pyx_t_1 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_i)); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1747, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_i)); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1752, __pyx_L1_error)
       __pyx_v_maxVal = __pyx_t_1;
 
-      /* "ChessAI.pyx":1748
+      /* "ChessAI.pyx":1753
  *         if (alphas[i] > maxVal):
  *             maxVal = alphas[i]
  *             index = i             # <<<<<<<<<<<<<<
@@ -23616,7 +23443,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
       __pyx_v_index = __pyx_v_i;
 
-      /* "ChessAI.pyx":1746
+      /* "ChessAI.pyx":1751
  *         if (alphas[i] == None):
  *             break
  *         if (alphas[i] > maxVal):             # <<<<<<<<<<<<<<
@@ -23625,7 +23452,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
     }
 
-    /* "ChessAI.pyx":1749
+    /* "ChessAI.pyx":1754
  *             maxVal = alphas[i]
  *             index = i
  *         count += 1             # <<<<<<<<<<<<<<
@@ -23636,7 +23463,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
   }
   __pyx_L4_break:;
 
-  /* "ChessAI.pyx":1752
+  /* "ChessAI.pyx":1757
  * 
  *     # Move the max entry to the front without pop/insert overhead
  *     alphas[:] = [alphas[index]] + alphas[:index] + alphas[index+1:]             # <<<<<<<<<<<<<<
@@ -23645,41 +23472,41 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1752, __pyx_L1_error)
+    __PYX_ERR(0, 1757, __pyx_L1_error)
   }
-  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1752, __pyx_L1_error)
+  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1757, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_index));
   __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_index));
-  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_index))) __PYX_ERR(0, 1752, __pyx_L1_error);
+  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_alphas, __pyx_v_index))) __PYX_ERR(0, 1757, __pyx_L1_error);
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1752, __pyx_L1_error)
+    __PYX_ERR(0, 1757, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_alphas, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1752, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_alphas, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1757, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1752, __pyx_L1_error)
+  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1757, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1752, __pyx_L1_error)
+    __PYX_ERR(0, 1757, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_alphas, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1752, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_alphas, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1757, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1752, __pyx_L1_error)
+  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1757, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1752, __pyx_L1_error)
+    __PYX_ERR(0, 1757, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_alphas, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1752, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_alphas, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1757, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-  /* "ChessAI.pyx":1753
+  /* "ChessAI.pyx":1758
  *     # Move the max entry to the front without pop/insert overhead
  *     alphas[:] = [alphas[index]] + alphas[:index] + alphas[index+1:]
  *     objects[:] = [objects[index]] + objects[:index] + objects[index+1:]             # <<<<<<<<<<<<<<
@@ -23688,41 +23515,41 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1753, __pyx_L1_error)
+    __PYX_ERR(0, 1758, __pyx_L1_error)
   }
-  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1753, __pyx_L1_error)
+  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1758, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_objects, __pyx_v_index));
   __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_objects, __pyx_v_index));
-  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_objects, __pyx_v_index))) __PYX_ERR(0, 1753, __pyx_L1_error);
+  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_objects, __pyx_v_index))) __PYX_ERR(0, 1758, __pyx_L1_error);
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1753, __pyx_L1_error)
+    __PYX_ERR(0, 1758, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_objects, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1753, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_objects, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1758, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1753, __pyx_L1_error)
+  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1758, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1753, __pyx_L1_error)
+    __PYX_ERR(0, 1758, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_objects, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1753, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_objects, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1758, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1753, __pyx_L1_error)
+  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1758, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1753, __pyx_L1_error)
+    __PYX_ERR(0, 1758, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1753, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1758, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-  /* "ChessAI.pyx":1754
+  /* "ChessAI.pyx":1759
  *     alphas[:] = [alphas[index]] + alphas[:index] + alphas[index+1:]
  *     objects[:] = [objects[index]] + objects[:index] + objects[index+1:]
  *     betas[:] = [betas[index]] + betas[:index] + betas[index+1:]             # <<<<<<<<<<<<<<
@@ -23731,41 +23558,41 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_betas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1754, __pyx_L1_error)
+    __PYX_ERR(0, 1759, __pyx_L1_error)
   }
-  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1754, __pyx_L1_error)
+  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1759, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_betas, __pyx_v_index));
   __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_betas, __pyx_v_index));
-  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_betas, __pyx_v_index))) __PYX_ERR(0, 1754, __pyx_L1_error);
+  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_betas, __pyx_v_index))) __PYX_ERR(0, 1759, __pyx_L1_error);
   if (unlikely(__pyx_v_betas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1754, __pyx_L1_error)
+    __PYX_ERR(0, 1759, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betas, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1754, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betas, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1759, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1754, __pyx_L1_error)
+  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1759, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_betas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1754, __pyx_L1_error)
+    __PYX_ERR(0, 1759, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betas, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1754, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betas, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1759, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1754, __pyx_L1_error)
+  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1759, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_betas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1754, __pyx_L1_error)
+    __PYX_ERR(0, 1759, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_betas, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1754, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_betas, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1759, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-  /* "ChessAI.pyx":1755
+  /* "ChessAI.pyx":1760
  *     objects[:] = [objects[index]] + objects[:index] + objects[index+1:]
  *     betas[:] = [betas[index]] + betas[:index] + betas[index+1:]
  *     betaMoves[:] = [betaMoves[index]] + betaMoves[:index] + betaMoves[index+1:]             # <<<<<<<<<<<<<<
@@ -23774,41 +23601,41 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_betaMoves == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1755, __pyx_L1_error)
+    __PYX_ERR(0, 1760, __pyx_L1_error)
   }
-  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1755, __pyx_L1_error)
+  __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1760, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_index));
   __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_index));
-  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_index))) __PYX_ERR(0, 1755, __pyx_L1_error);
+  if (__Pyx_PyList_SET_ITEM(__pyx_t_7, 0, PyList_GET_ITEM(__pyx_v_betaMoves, __pyx_v_index))) __PYX_ERR(0, 1760, __pyx_L1_error);
   if (unlikely(__pyx_v_betaMoves == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1755, __pyx_L1_error)
+    __PYX_ERR(0, 1760, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betaMoves, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1755, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betaMoves, 0, __pyx_v_index); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1760, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1755, __pyx_L1_error)
+  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1760, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_betaMoves == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1755, __pyx_L1_error)
+    __PYX_ERR(0, 1760, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betaMoves, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1755, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_betaMoves, (__pyx_v_index + 1), PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1760, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1755, __pyx_L1_error)
+  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1760, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (unlikely(__pyx_v_betaMoves == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1755, __pyx_L1_error)
+    __PYX_ERR(0, 1760, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_betaMoves, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1755, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_betaMoves, __pyx_t_7, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1760, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-  /* "ChessAI.pyx":1760
+  /* "ChessAI.pyx":1765
  *     # Create a list that consists of the non null values excluding the first one
  *     # Complete the lists with the preliminary search values
  *     cdef list alphas_sub_list = alphas[1:count] + preAlphas[count:]             # <<<<<<<<<<<<<<
@@ -23817,24 +23644,24 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1760, __pyx_L1_error)
+    __PYX_ERR(0, 1765, __pyx_L1_error)
   }
-  __pyx_t_7 = __Pyx_PyList_GetSlice(__pyx_v_alphas, 1, __pyx_v_count); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1760, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyList_GetSlice(__pyx_v_alphas, 1, __pyx_v_count); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1765, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   if (unlikely(__pyx_v_preAlphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1760, __pyx_L1_error)
+    __PYX_ERR(0, 1765, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_preAlphas, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1760, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_preAlphas, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1765, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1760, __pyx_L1_error)
+  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1765, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   __pyx_v_alphas_sub_list = ((PyObject*)__pyx_t_8);
   __pyx_t_8 = 0;
 
-  /* "ChessAI.pyx":1761
+  /* "ChessAI.pyx":1766
  *     # Complete the lists with the preliminary search values
  *     cdef list alphas_sub_list = alphas[1:count] + preAlphas[count:]
  *     cdef list objects_sub_list = objects[1:]             # <<<<<<<<<<<<<<
@@ -23843,14 +23670,14 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1761, __pyx_L1_error)
+    __PYX_ERR(0, 1766, __pyx_L1_error)
   }
-  __pyx_t_8 = __Pyx_PyList_GetSlice(__pyx_v_objects, 1, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1761, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyList_GetSlice(__pyx_v_objects, 1, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1766, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __pyx_v_objects_sub_list = ((PyObject*)__pyx_t_8);
   __pyx_t_8 = 0;
 
-  /* "ChessAI.pyx":1762
+  /* "ChessAI.pyx":1767
  *     cdef list alphas_sub_list = alphas[1:count] + preAlphas[count:]
  *     cdef list objects_sub_list = objects[1:]
  *     cdef list betas_sub_list = betas[1:count] + preBetas[count:]             # <<<<<<<<<<<<<<
@@ -23859,24 +23686,24 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_betas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1762, __pyx_L1_error)
+    __PYX_ERR(0, 1767, __pyx_L1_error)
   }
-  __pyx_t_8 = __Pyx_PyList_GetSlice(__pyx_v_betas, 1, __pyx_v_count); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1762, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyList_GetSlice(__pyx_v_betas, 1, __pyx_v_count); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1767, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   if (unlikely(__pyx_v_preBetas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1762, __pyx_L1_error)
+    __PYX_ERR(0, 1767, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_preBetas, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1762, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_preBetas, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1767, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1762, __pyx_L1_error)
+  __pyx_t_7 = PyNumber_Add(__pyx_t_8, __pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1767, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   __pyx_v_betas_sub_list = ((PyObject*)__pyx_t_7);
   __pyx_t_7 = 0;
 
-  /* "ChessAI.pyx":1763
+  /* "ChessAI.pyx":1768
  *     cdef list objects_sub_list = objects[1:]
  *     cdef list betas_sub_list = betas[1:count] + preBetas[count:]
  *     cdef list beta_moves_sub_list = betaMoves[1:count] + preBetaMoves[count:]             # <<<<<<<<<<<<<<
@@ -23885,34 +23712,34 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_betaMoves == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1763, __pyx_L1_error)
+    __PYX_ERR(0, 1768, __pyx_L1_error)
   }
-  __pyx_t_7 = __Pyx_PyList_GetSlice(__pyx_v_betaMoves, 1, __pyx_v_count); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1763, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyList_GetSlice(__pyx_v_betaMoves, 1, __pyx_v_count); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1768, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   if (unlikely(__pyx_v_preBetaMoves == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1763, __pyx_L1_error)
+    __PYX_ERR(0, 1768, __pyx_L1_error)
   }
-  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_preBetaMoves, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1763, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyList_GetSlice(__pyx_v_preBetaMoves, __pyx_v_count, PY_SSIZE_T_MAX); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 1768, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1763, __pyx_L1_error)
+  __pyx_t_8 = PyNumber_Add(__pyx_t_7, __pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 1768, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   __pyx_v_beta_moves_sub_list = ((PyObject*)__pyx_t_8);
   __pyx_t_8 = 0;
 
-  /* "ChessAI.pyx":1766
+  /* "ChessAI.pyx":1771
  * 
  *     # Call quicksort to sort the sub lists
  *     quicksort(alphas_sub_list, objects_sub_list, betas_sub_list,beta_moves_sub_list, 0, len(alphas_sub_list) - 1)             # <<<<<<<<<<<<<<
  * 
  *     # Add the sublists to the first indices
  */
-  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_alphas_sub_list); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1766, __pyx_L1_error)
-  __pyx_f_7ChessAI_quicksort(__pyx_v_alphas_sub_list, __pyx_v_objects_sub_list, __pyx_v_betas_sub_list, __pyx_v_beta_moves_sub_list, 0, (__pyx_t_2 - 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1766, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_alphas_sub_list); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 1771, __pyx_L1_error)
+  __pyx_f_7ChessAI_quicksort(__pyx_v_alphas_sub_list, __pyx_v_objects_sub_list, __pyx_v_betas_sub_list, __pyx_v_beta_moves_sub_list, 0, (__pyx_t_2 - 1)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1771, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1769
+  /* "ChessAI.pyx":1774
  * 
  *     # Add the sublists to the first indices
  *     alphas[1:] = alphas_sub_list             # <<<<<<<<<<<<<<
@@ -23921,11 +23748,11 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_alphas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1769, __pyx_L1_error)
+    __PYX_ERR(0, 1774, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_alphas, __pyx_v_alphas_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1769, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_alphas, __pyx_v_alphas_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1774, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1770
+  /* "ChessAI.pyx":1775
  *     # Add the sublists to the first indices
  *     alphas[1:] = alphas_sub_list
  *     betas[1:] = betas_sub_list             # <<<<<<<<<<<<<<
@@ -23934,11 +23761,11 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_betas == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1770, __pyx_L1_error)
+    __PYX_ERR(0, 1775, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_betas, __pyx_v_betas_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1770, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_betas, __pyx_v_betas_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1775, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1771
+  /* "ChessAI.pyx":1776
  *     alphas[1:] = alphas_sub_list
  *     betas[1:] = betas_sub_list
  *     objects[1:] = objects_sub_list             # <<<<<<<<<<<<<<
@@ -23947,11 +23774,11 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1771, __pyx_L1_error)
+    __PYX_ERR(0, 1776, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_v_objects_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1771, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_v_objects_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1776, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1772
+  /* "ChessAI.pyx":1777
  *     betas[1:] = betas_sub_list
  *     objects[1:] = objects_sub_list
  *     betaMoves[1:] = beta_moves_sub_list             # <<<<<<<<<<<<<<
@@ -23960,11 +23787,11 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
  */
   if (unlikely(__pyx_v_betaMoves == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1772, __pyx_L1_error)
+    __PYX_ERR(0, 1777, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_betaMoves, __pyx_v_beta_moves_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1772, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_betaMoves, __pyx_v_beta_moves_sub_list, 1, 0, NULL, NULL, NULL, 1, 0, 0) < 0) __PYX_ERR(0, 1777, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1722
+  /* "ChessAI.pyx":1727
  *     objects[:] = objects_sub_list + objects[count:]
  * 
  * cdef void quicksort_wrapper(list alphas, list objects, list betas, list betaMoves, list preAlphas, list preBetas, list preBetaMoves):             # <<<<<<<<<<<<<<
@@ -23987,7 +23814,7 @@ static void __pyx_f_7ChessAI_quicksort_wrapper(PyObject *__pyx_v_alphas, PyObjec
   __Pyx_RefNannyFinishContext();
 }
 
-/* "ChessAI.pyx":1774
+/* "ChessAI.pyx":1779
  *     betaMoves[1:] = beta_moves_sub_list
  * 
  * cdef void quicksort_ascending(list values, list objects, int left, int right):             # <<<<<<<<<<<<<<
@@ -24011,7 +23838,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("quicksort_ascending", 1);
 
-  /* "ChessAI.pyx":1788
+  /* "ChessAI.pyx":1793
  * 
  *     # Check if the list bounds have overlaped
  *     if left >= right:             # <<<<<<<<<<<<<<
@@ -24021,7 +23848,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
   __pyx_t_1 = (__pyx_v_left >= __pyx_v_right);
   if (__pyx_t_1) {
 
-    /* "ChessAI.pyx":1789
+    /* "ChessAI.pyx":1794
  *     # Check if the list bounds have overlaped
  *     if left >= right:
  *         return             # <<<<<<<<<<<<<<
@@ -24030,7 +23857,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1788
+    /* "ChessAI.pyx":1793
  * 
  *     # Check if the list bounds have overlaped
  *     if left >= right:             # <<<<<<<<<<<<<<
@@ -24039,7 +23866,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
   }
 
-  /* "ChessAI.pyx":1792
+  /* "ChessAI.pyx":1797
  * 
  *     # Define the pivot as the middle value
  *     pivot = values[left + (right - left) // 2]             # <<<<<<<<<<<<<<
@@ -24048,7 +23875,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
   if (unlikely(__pyx_v_values == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1792, __pyx_L1_error)
+    __PYX_ERR(0, 1797, __pyx_L1_error)
   }
   __pyx_t_2 = (__pyx_v_left + ((__pyx_v_right - __pyx_v_left) / 2));
   __pyx_t_3 = PyList_GET_ITEM(__pyx_v_values, __pyx_t_2);
@@ -24056,7 +23883,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
   __pyx_v_pivot = __pyx_t_3;
   __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":1795
+  /* "ChessAI.pyx":1800
  * 
  *     # Define variables to temporarily hold swap indices
  *     cdef int i = left             # <<<<<<<<<<<<<<
@@ -24065,7 +23892,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
   __pyx_v_i = __pyx_v_left;
 
-  /* "ChessAI.pyx":1796
+  /* "ChessAI.pyx":1801
  *     # Define variables to temporarily hold swap indices
  *     cdef int i = left
  *     cdef int j = right             # <<<<<<<<<<<<<<
@@ -24074,7 +23901,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
   __pyx_v_j = __pyx_v_right;
 
-  /* "ChessAI.pyx":1802
+  /* "ChessAI.pyx":1807
  * 
  *     # Loop while the sublist bounds don't cross each other
  *     while i <= j:             # <<<<<<<<<<<<<<
@@ -24085,7 +23912,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
     __pyx_t_1 = (__pyx_v_i <= __pyx_v_j);
     if (!__pyx_t_1) break;
 
-    /* "ChessAI.pyx":1806
+    /* "ChessAI.pyx":1811
  *         # Keep shortening the list until two values are found below and above the pivot
  *         # This is checking for when something left of the pivot is greater than the pivot and vice versa
  *         while values[i] < pivot:             # <<<<<<<<<<<<<<
@@ -24095,14 +23922,14 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
     while (1) {
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1806, __pyx_L1_error)
+        __PYX_ERR(0, 1811, __pyx_L1_error)
       }
-      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i), __pyx_v_pivot, Py_LT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1806, __pyx_L1_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1806, __pyx_L1_error)
+      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i), __pyx_v_pivot, Py_LT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1811, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1811, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (!__pyx_t_1) break;
 
-      /* "ChessAI.pyx":1807
+      /* "ChessAI.pyx":1812
  *         # This is checking for when something left of the pivot is greater than the pivot and vice versa
  *         while values[i] < pivot:
  *             i += 1             # <<<<<<<<<<<<<<
@@ -24112,7 +23939,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
       __pyx_v_i = (__pyx_v_i + 1);
     }
 
-    /* "ChessAI.pyx":1808
+    /* "ChessAI.pyx":1813
  *         while values[i] < pivot:
  *             i += 1
  *         while values[j] > pivot:             # <<<<<<<<<<<<<<
@@ -24122,14 +23949,14 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
     while (1) {
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1808, __pyx_L1_error)
+        __PYX_ERR(0, 1813, __pyx_L1_error)
       }
-      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_j), __pyx_v_pivot, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1808, __pyx_L1_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1808, __pyx_L1_error)
+      __pyx_t_3 = PyObject_RichCompare(PyList_GET_ITEM(__pyx_v_values, __pyx_v_j), __pyx_v_pivot, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1813, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 1813, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (!__pyx_t_1) break;
 
-      /* "ChessAI.pyx":1809
+      /* "ChessAI.pyx":1814
  *             i += 1
  *         while values[j] > pivot:
  *             j -= 1             # <<<<<<<<<<<<<<
@@ -24139,7 +23966,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
       __pyx_v_j = (__pyx_v_j - 1);
     }
 
-    /* "ChessAI.pyx":1811
+    /* "ChessAI.pyx":1816
  *             j -= 1
  * 
  *         if i <= j:             # <<<<<<<<<<<<<<
@@ -24149,7 +23976,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
     __pyx_t_1 = (__pyx_v_i <= __pyx_v_j);
     if (__pyx_t_1) {
 
-      /* "ChessAI.pyx":1813
+      /* "ChessAI.pyx":1818
  *         if i <= j:
  *             # Swap alpha values
  *             temp_value = values[i]             # <<<<<<<<<<<<<<
@@ -24158,12 +23985,12 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1813, __pyx_L1_error)
+        __PYX_ERR(0, 1818, __pyx_L1_error)
       }
-      __pyx_t_4 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i)); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1813, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_PyInt_As_int(PyList_GET_ITEM(__pyx_v_values, __pyx_v_i)); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1818, __pyx_L1_error)
       __pyx_v_temp_value = __pyx_t_4;
 
-      /* "ChessAI.pyx":1814
+      /* "ChessAI.pyx":1819
  *             # Swap alpha values
  *             temp_value = values[i]
  *             values[i] = values[j]             # <<<<<<<<<<<<<<
@@ -24172,34 +23999,34 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1814, __pyx_L1_error)
+        __PYX_ERR(0, 1819, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_values, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_3);
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1814, __pyx_L1_error)
+        __PYX_ERR(0, 1819, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1814, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1819, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1815
+      /* "ChessAI.pyx":1820
  *             temp_value = values[i]
  *             values[i] = values[j]
  *             values[j] = temp_value             # <<<<<<<<<<<<<<
  * 
  *             # Swap moves
  */
-      __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_temp_value); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1815, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_temp_value); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1820, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       if (unlikely(__pyx_v_values == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1815, __pyx_L1_error)
+        __PYX_ERR(0, 1820, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_j, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1815, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_values, __pyx_v_j, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1820, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1818
+      /* "ChessAI.pyx":1823
  * 
  *             # Swap moves
  *             temp_object = objects[i]             # <<<<<<<<<<<<<<
@@ -24208,14 +24035,14 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1818, __pyx_L1_error)
+        __PYX_ERR(0, 1823, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_objects, __pyx_v_i);
       __Pyx_INCREF(__pyx_t_3);
       __Pyx_XDECREF_SET(__pyx_v_temp_object, __pyx_t_3);
       __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1819
+      /* "ChessAI.pyx":1824
  *             # Swap moves
  *             temp_object = objects[i]
  *             objects[i] = objects[j]             # <<<<<<<<<<<<<<
@@ -24224,18 +24051,18 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1819, __pyx_L1_error)
+        __PYX_ERR(0, 1824, __pyx_L1_error)
       }
       __pyx_t_3 = PyList_GET_ITEM(__pyx_v_objects, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_3);
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1819, __pyx_L1_error)
+        __PYX_ERR(0, 1824, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1819, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1824, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "ChessAI.pyx":1820
+      /* "ChessAI.pyx":1825
  *             temp_object = objects[i]
  *             objects[i] = objects[j]
  *             objects[j] = temp_object             # <<<<<<<<<<<<<<
@@ -24244,11 +24071,11 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
       if (unlikely(__pyx_v_objects == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 1820, __pyx_L1_error)
+        __PYX_ERR(0, 1825, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_j, __pyx_v_temp_object, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1820, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_objects, __pyx_v_j, __pyx_v_temp_object, int, 1, __Pyx_PyInt_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 1825, __pyx_L1_error)
 
-      /* "ChessAI.pyx":1822
+      /* "ChessAI.pyx":1827
  *             objects[j] = temp_object
  * 
  *             i += 1             # <<<<<<<<<<<<<<
@@ -24257,7 +24084,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
       __pyx_v_i = (__pyx_v_i + 1);
 
-      /* "ChessAI.pyx":1823
+      /* "ChessAI.pyx":1828
  * 
  *             i += 1
  *             j -= 1             # <<<<<<<<<<<<<<
@@ -24266,7 +24093,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
  */
       __pyx_v_j = (__pyx_v_j - 1);
 
-      /* "ChessAI.pyx":1811
+      /* "ChessAI.pyx":1816
  *             j -= 1
  * 
  *         if i <= j:             # <<<<<<<<<<<<<<
@@ -24276,25 +24103,25 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
     }
   }
 
-  /* "ChessAI.pyx":1826
+  /* "ChessAI.pyx":1831
  * 
  *     # Recursively sort the partitions
  *     quicksort_ascending(values, objects, left, j)             # <<<<<<<<<<<<<<
  *     quicksort_ascending(values, objects, i, right)
  * 
  */
-  __pyx_f_7ChessAI_quicksort_ascending(__pyx_v_values, __pyx_v_objects, __pyx_v_left, __pyx_v_j); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1826, __pyx_L1_error)
+  __pyx_f_7ChessAI_quicksort_ascending(__pyx_v_values, __pyx_v_objects, __pyx_v_left, __pyx_v_j); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1831, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1827
+  /* "ChessAI.pyx":1832
  *     # Recursively sort the partitions
  *     quicksort_ascending(values, objects, left, j)
  *     quicksort_ascending(values, objects, i, right)             # <<<<<<<<<<<<<<
  * 
  * 
  */
-  __pyx_f_7ChessAI_quicksort_ascending(__pyx_v_values, __pyx_v_objects, __pyx_v_i, __pyx_v_right); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1827, __pyx_L1_error)
+  __pyx_f_7ChessAI_quicksort_ascending(__pyx_v_values, __pyx_v_objects, __pyx_v_i, __pyx_v_right); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1832, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1774
+  /* "ChessAI.pyx":1779
  *     betaMoves[1:] = beta_moves_sub_list
  * 
  * cdef void quicksort_ascending(list values, list objects, int left, int right):             # <<<<<<<<<<<<<<
@@ -24313,7 +24140,7 @@ static void __pyx_f_7ChessAI_quicksort_ascending(PyObject *__pyx_v_values, PyObj
   __Pyx_RefNannyFinishContext();
 }
 
-/* "ChessAI.pyx":1831
+/* "ChessAI.pyx":1836
  * 
  * 
  * def sort_by_alpha(list values, list objects):             # <<<<<<<<<<<<<<
@@ -24378,7 +24205,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[0]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1831, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1836, __pyx_L3_error)
         else goto __pyx_L5_argtuple_error;
         CYTHON_FALLTHROUGH;
         case  1:
@@ -24386,14 +24213,14 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
           (void)__Pyx_Arg_NewRef_FASTCALL(values[1]);
           kw_args--;
         }
-        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1831, __pyx_L3_error)
+        else if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 1836, __pyx_L3_error)
         else {
-          __Pyx_RaiseArgtupleInvalid("sort_by_alpha", 1, 2, 2, 1); __PYX_ERR(0, 1831, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("sort_by_alpha", 1, 2, 2, 1); __PYX_ERR(0, 1836, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
         const Py_ssize_t kwd_pos_args = __pyx_nargs;
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "sort_by_alpha") < 0)) __PYX_ERR(0, 1831, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values + 0, kwd_pos_args, "sort_by_alpha") < 0)) __PYX_ERR(0, 1836, __pyx_L3_error)
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
@@ -24406,7 +24233,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("sort_by_alpha", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 1831, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("sort_by_alpha", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 1836, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -24420,8 +24247,8 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_values), (&PyList_Type), 1, "values", 1))) __PYX_ERR(0, 1831, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_objects), (&PyList_Type), 1, "objects", 1))) __PYX_ERR(0, 1831, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_values), (&PyList_Type), 1, "values", 1))) __PYX_ERR(0, 1836, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_objects), (&PyList_Type), 1, "objects", 1))) __PYX_ERR(0, 1836, __pyx_L1_error)
   __pyx_r = __pyx_pf_7ChessAI_sort_by_alpha(__pyx_self, __pyx_v_values, __pyx_v_objects);
 
   /* function exit code */
@@ -24457,42 +24284,42 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("sort_by_alpha", 1);
 
-  /* "ChessAI.pyx":1840
+  /* "ChessAI.pyx":1845
  *     """
  *     # Combine the two lists into a list of tuples (value, object)
  *     combined = zip(values, objects)             # <<<<<<<<<<<<<<
  * 
  *     # Use sorted with itemgetter(0) to sort the tuples by the first element (the alpha value)
  */
-  __pyx_t_1 = PyTuple_New(2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1840, __pyx_L1_error)
+  __pyx_t_1 = PyTuple_New(2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1845, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_INCREF(__pyx_v_values);
   __Pyx_GIVEREF(__pyx_v_values);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_v_values)) __PYX_ERR(0, 1840, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_v_values)) __PYX_ERR(0, 1845, __pyx_L1_error);
   __Pyx_INCREF(__pyx_v_objects);
   __Pyx_GIVEREF(__pyx_v_objects);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_objects)) __PYX_ERR(0, 1840, __pyx_L1_error);
-  __pyx_t_2 = __Pyx_PyObject_Call(__pyx_builtin_zip, __pyx_t_1, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1840, __pyx_L1_error)
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_objects)) __PYX_ERR(0, 1845, __pyx_L1_error);
+  __pyx_t_2 = __Pyx_PyObject_Call(__pyx_builtin_zip, __pyx_t_1, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1845, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_combined = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "ChessAI.pyx":1843
+  /* "ChessAI.pyx":1848
  * 
  *     # Use sorted with itemgetter(0) to sort the tuples by the first element (the alpha value)
  *     sorted_combined = sorted(combined, key=itemgetter(0))             # <<<<<<<<<<<<<<
  * 
  *     # Unzip the sorted tuples back into separate lists
  */
-  __pyx_t_2 = PyTuple_New(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1843, __pyx_L1_error)
+  __pyx_t_2 = PyTuple_New(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1848, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_INCREF(__pyx_v_combined);
   __Pyx_GIVEREF(__pyx_v_combined);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_v_combined)) __PYX_ERR(0, 1843, __pyx_L1_error);
-  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1843, __pyx_L1_error)
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_v_combined)) __PYX_ERR(0, 1848, __pyx_L1_error);
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1848, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_n_s_itemgetter); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1843, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_n_s_itemgetter); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1848, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_5 = NULL;
   __pyx_t_6 = 0;
@@ -24512,32 +24339,32 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
     PyObject *__pyx_callargs[2] = {__pyx_t_5, __pyx_int_0};
     __pyx_t_3 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+1-__pyx_t_6, 1+__pyx_t_6);
     __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1843, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1848, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   }
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_key, __pyx_t_3) < 0) __PYX_ERR(0, 1843, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_key, __pyx_t_3) < 0) __PYX_ERR(0, 1848, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_sorted, __pyx_t_2, __pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1843, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_sorted, __pyx_t_2, __pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1848, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_sorted_combined = __pyx_t_3;
   __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":1847
+  /* "ChessAI.pyx":1852
  *     # Unzip the sorted tuples back into separate lists
  *     # Note: zip(*...) returns tuples, so we wrap them with list() to ensure we have lists
  *     sorted_values, sorted_objects = list(zip(*sorted_combined))             # <<<<<<<<<<<<<<
  * 
  *     # Update the original lists in-place
  */
-  __pyx_t_3 = __Pyx_PySequence_Tuple(__pyx_v_sorted_combined); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1847, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PySequence_Tuple(__pyx_v_sorted_combined); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1852, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_1 = __Pyx_PyObject_Call(__pyx_builtin_zip, __pyx_t_3, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1847, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_Call(__pyx_builtin_zip, __pyx_t_3, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1852, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = __Pyx_PySequence_ListKeepNew(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1847, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PySequence_ListKeepNew(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1852, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   if (1) {
@@ -24546,7 +24373,7 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
     if (unlikely(size != 2)) {
       if (size > 2) __Pyx_RaiseTooManyValuesError(2);
       else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-      __PYX_ERR(0, 1847, __pyx_L1_error)
+      __PYX_ERR(0, 1852, __pyx_L1_error)
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
     __pyx_t_1 = PyList_GET_ITEM(sequence, 0); 
@@ -24554,9 +24381,9 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
     __Pyx_INCREF(__pyx_t_1);
     __Pyx_INCREF(__pyx_t_2);
     #else
-    __pyx_t_1 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1847, __pyx_L1_error)
+    __pyx_t_1 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1852, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_2 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1847, __pyx_L1_error)
+    __pyx_t_2 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1852, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     #endif
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -24566,7 +24393,7 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
   __pyx_v_sorted_objects = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "ChessAI.pyx":1850
+  /* "ChessAI.pyx":1855
  * 
  *     # Update the original lists in-place
  *     values[:] = sorted_values             # <<<<<<<<<<<<<<
@@ -24575,11 +24402,11 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
  */
   if (unlikely(__pyx_v_values == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1850, __pyx_L1_error)
+    __PYX_ERR(0, 1855, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_values, __pyx_v_sorted_values, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1850, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_values, __pyx_v_sorted_values, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1855, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1851
+  /* "ChessAI.pyx":1856
  *     # Update the original lists in-place
  *     values[:] = sorted_values
  *     objects[:] = sorted_objects             # <<<<<<<<<<<<<<
@@ -24588,11 +24415,11 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
  */
   if (unlikely(__pyx_v_objects == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 1851, __pyx_L1_error)
+    __PYX_ERR(0, 1856, __pyx_L1_error)
   }
-  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_v_sorted_objects, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1851, __pyx_L1_error)
+  if (__Pyx_PyObject_SetSlice(__pyx_v_objects, __pyx_v_sorted_objects, 0, 0, NULL, NULL, NULL, 0, 0, 0) < 0) __PYX_ERR(0, 1856, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1831
+  /* "ChessAI.pyx":1836
  * 
  * 
  * def sort_by_alpha(list values, list objects):             # <<<<<<<<<<<<<<
@@ -24621,7 +24448,7 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1858
+/* "ChessAI.pyx":1863
  * @cython.nonecheck(False)
  * @cython.ccall
  * cdef evaluate_board1(object board,uint64_t zobrist):             # <<<<<<<<<<<<<<
@@ -24657,117 +24484,117 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("evaluate_board1", 1);
 
-  /* "ChessAI.pyx":1860
+  /* "ChessAI.pyx":1865
  * cdef evaluate_board1(object board,uint64_t zobrist):
  * 
  *     cdef uint64_t pawns = board.pawns             # <<<<<<<<<<<<<<
  *     cdef uint64_t knights = board.knights
  *     cdef uint64_t bishops = board.bishops
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1860, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1865, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1860, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1865, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_pawns = __pyx_t_2;
 
-  /* "ChessAI.pyx":1861
+  /* "ChessAI.pyx":1866
  * 
  *     cdef uint64_t pawns = board.pawns
  *     cdef uint64_t knights = board.knights             # <<<<<<<<<<<<<<
  *     cdef uint64_t bishops = board.bishops
  *     cdef uint64_t rooks = board.rooks
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1861, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1866, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1861, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1866, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_knights = __pyx_t_2;
 
-  /* "ChessAI.pyx":1862
+  /* "ChessAI.pyx":1867
  *     cdef uint64_t pawns = board.pawns
  *     cdef uint64_t knights = board.knights
  *     cdef uint64_t bishops = board.bishops             # <<<<<<<<<<<<<<
  *     cdef uint64_t rooks = board.rooks
  *     cdef uint64_t queens = board.queens
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1862, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1867, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1862, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1867, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_bishops = __pyx_t_2;
 
-  /* "ChessAI.pyx":1863
+  /* "ChessAI.pyx":1868
  *     cdef uint64_t knights = board.knights
  *     cdef uint64_t bishops = board.bishops
  *     cdef uint64_t rooks = board.rooks             # <<<<<<<<<<<<<<
  *     cdef uint64_t queens = board.queens
  *     cdef uint64_t kings = board.kings
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1863, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1868, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1863, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1868, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_rooks = __pyx_t_2;
 
-  /* "ChessAI.pyx":1864
+  /* "ChessAI.pyx":1869
  *     cdef uint64_t bishops = board.bishops
  *     cdef uint64_t rooks = board.rooks
  *     cdef uint64_t queens = board.queens             # <<<<<<<<<<<<<<
  *     cdef uint64_t kings = board.kings
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1864, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1869, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1864, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1869, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_queens = __pyx_t_2;
 
-  /* "ChessAI.pyx":1865
+  /* "ChessAI.pyx":1870
  *     cdef uint64_t rooks = board.rooks
  *     cdef uint64_t queens = board.queens
  *     cdef uint64_t kings = board.kings             # <<<<<<<<<<<<<<
  * 
  *     cdef uint64_t occupied_white = board.occupied_co[True]
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1865, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1870, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1865, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1870, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_kings = __pyx_t_2;
 
-  /* "ChessAI.pyx":1867
+  /* "ChessAI.pyx":1872
  *     cdef uint64_t kings = board.kings
  * 
  *     cdef uint64_t occupied_white = board.occupied_co[True]             # <<<<<<<<<<<<<<
  *     cdef uint64_t occupied_black = board.occupied_co[False]
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1867, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1872, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1867, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1872, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_3); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1867, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_3); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1872, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_v_occupied_white = __pyx_t_2;
 
-  /* "ChessAI.pyx":1868
+  /* "ChessAI.pyx":1873
  * 
  *     cdef uint64_t occupied_white = board.occupied_co[True]
  *     cdef uint64_t occupied_black = board.occupied_co[False]             # <<<<<<<<<<<<<<
  * 
  *     cdef uint64_t[12] bitboards
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1868, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1873, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_3, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1868, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_3, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1873, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1868, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1873, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied_black = __pyx_t_2;
 
-  /* "ChessAI.pyx":1871
+  /* "ChessAI.pyx":1876
  * 
  *     cdef uint64_t[12] bitboards
  *     cdef int total = 0             # <<<<<<<<<<<<<<
@@ -24776,14 +24603,14 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  */
   __pyx_v_total = 0;
 
-  /* "ChessAI.pyx":1872
+  /* "ChessAI.pyx":1877
  *     cdef uint64_t[12] bitboards
  *     cdef int total = 0
  *     cdef int moveNum = board.ply()             # <<<<<<<<<<<<<<
  * 
  *     # Access the cache
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_ply); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1872, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_ply); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1877, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_t_4 = NULL;
   __pyx_t_5 = 0;
@@ -24803,15 +24630,15 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
     PyObject *__pyx_callargs[2] = {__pyx_t_4, NULL};
     __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+1-__pyx_t_5, 0+__pyx_t_5);
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1872, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1877, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
-  __pyx_t_6 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1872, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1877, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_moveNum = __pyx_t_6;
 
-  /* "ChessAI.pyx":1875
+  /* "ChessAI.pyx":1880
  * 
  *     # Access the cache
  *     cdef int cache_result = accessCache(zobrist)             # <<<<<<<<<<<<<<
@@ -24820,7 +24647,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  */
   __pyx_v_cache_result = accessCache(__pyx_v_zobrist);
 
-  /* "ChessAI.pyx":1878
+  /* "ChessAI.pyx":1883
  * 
  *     # Check if the cache has the given position
  *     if (cache_result != 0):             # <<<<<<<<<<<<<<
@@ -24830,7 +24657,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
   __pyx_t_7 = (__pyx_v_cache_result != 0);
   if (__pyx_t_7) {
 
-    /* "ChessAI.pyx":1879
+    /* "ChessAI.pyx":1884
  *     # Check if the cache has the given position
  *     if (cache_result != 0):
  *         return cache_result             # <<<<<<<<<<<<<<
@@ -24838,13 +24665,13 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  *     if board.is_checkmate():
  */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_cache_result); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1879, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_cache_result); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1884, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_r = __pyx_t_1;
     __pyx_t_1 = 0;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1878
+    /* "ChessAI.pyx":1883
  * 
  *     # Check if the cache has the given position
  *     if (cache_result != 0):             # <<<<<<<<<<<<<<
@@ -24853,14 +24680,14 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  */
   }
 
-  /* "ChessAI.pyx":1881
+  /* "ChessAI.pyx":1886
  *         return cache_result
  * 
  *     if board.is_checkmate():             # <<<<<<<<<<<<<<
  *         if board.turn:
  *             total = 9999999 - moveNum
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1881, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1886, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_t_4 = NULL;
   __pyx_t_5 = 0;
@@ -24880,28 +24707,28 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
     PyObject *__pyx_callargs[2] = {__pyx_t_4, NULL};
     __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+1-__pyx_t_5, 0+__pyx_t_5);
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1881, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1886, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
-  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 1881, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 1886, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   if (__pyx_t_7) {
 
-    /* "ChessAI.pyx":1882
+    /* "ChessAI.pyx":1887
  * 
  *     if board.is_checkmate():
  *         if board.turn:             # <<<<<<<<<<<<<<
  *             total = 9999999 - moveNum
  *         else:
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1882, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1887, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 1882, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 1887, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     if (__pyx_t_7) {
 
-      /* "ChessAI.pyx":1883
+      /* "ChessAI.pyx":1888
  *     if board.is_checkmate():
  *         if board.turn:
  *             total = 9999999 - moveNum             # <<<<<<<<<<<<<<
@@ -24910,7 +24737,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  */
       __pyx_v_total = (0x98967F - __pyx_v_moveNum);
 
-      /* "ChessAI.pyx":1882
+      /* "ChessAI.pyx":1887
  * 
  *     if board.is_checkmate():
  *         if board.turn:             # <<<<<<<<<<<<<<
@@ -24920,7 +24747,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
       goto __pyx_L5;
     }
 
-    /* "ChessAI.pyx":1885
+    /* "ChessAI.pyx":1890
  *             total = 9999999 - moveNum
  *         else:
  *             total = -9999999 + moveNum             # <<<<<<<<<<<<<<
@@ -24932,7 +24759,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
     }
     __pyx_L5:;
 
-    /* "ChessAI.pyx":1881
+    /* "ChessAI.pyx":1886
  *         return cache_result
  * 
  *     if board.is_checkmate():             # <<<<<<<<<<<<<<
@@ -24942,7 +24769,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
     goto __pyx_L4;
   }
 
-  /* "ChessAI.pyx":1888
+  /* "ChessAI.pyx":1893
  * 
  *     else:
  *          bitboards = [             # <<<<<<<<<<<<<<
@@ -24951,7 +24778,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  */
   /*else*/ {
 
-    /* "ChessAI.pyx":1900
+    /* "ChessAI.pyx":1905
  *             rooks & occupied_black,    # Black rooks
  *             queens & occupied_black,   # Black queens
  *             kings & occupied_black     # Black kings             # <<<<<<<<<<<<<<
@@ -24971,7 +24798,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
     __pyx_t_8[10] = (__pyx_v_queens & __pyx_v_occupied_black);
     __pyx_t_8[11] = (__pyx_v_kings & __pyx_v_occupied_black);
 
-    /* "ChessAI.pyx":1888
+    /* "ChessAI.pyx":1893
  * 
  *     else:
  *          bitboards = [             # <<<<<<<<<<<<<<
@@ -24982,7 +24809,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
   }
   __pyx_L4:;
 
-  /* "ChessAI.pyx":1904
+  /* "ChessAI.pyx":1909
  * 
  * 
  *     total = evaluate_position(bitboards)             # <<<<<<<<<<<<<<
@@ -24991,7 +24818,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  */
   __pyx_v_total = evaluate_position(__pyx_v_bitboards);
 
-  /* "ChessAI.pyx":1908
+  /* "ChessAI.pyx":1913
  *     # total = run_inference_quantized(bitboards)
  * 
  *     addToCache(zobrist, total)             # <<<<<<<<<<<<<<
@@ -25000,7 +24827,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  */
   addToCache(__pyx_v_zobrist, __pyx_v_total);
 
-  /* "ChessAI.pyx":1910
+  /* "ChessAI.pyx":1915
  *     addToCache(zobrist, total)
  * 
  *     return total             # <<<<<<<<<<<<<<
@@ -25008,13 +24835,13 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
  * @boundscheck(False)
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_total); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1910, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_total); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1915, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "ChessAI.pyx":1858
+  /* "ChessAI.pyx":1863
  * @cython.nonecheck(False)
  * @cython.ccall
  * cdef evaluate_board1(object board,uint64_t zobrist):             # <<<<<<<<<<<<<<
@@ -25035,7 +24862,7 @@ static PyObject *__pyx_f_7ChessAI_evaluate_board1(PyObject *__pyx_v_board, uint6
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":1917
+/* "ChessAI.pyx":1922
  * @cython.nonecheck(False)
  * @cython.ccall
  * cdef int evaluate_board(object board,uint64_t zobrist):             # <<<<<<<<<<<<<<
@@ -25072,130 +24899,130 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("evaluate_board", 1);
 
-  /* "ChessAI.pyx":1931
+  /* "ChessAI.pyx":1936
  * 
  *     # Initialize bitmasks for the current board state
  *     cdef uint64_t pawns = board.pawns             # <<<<<<<<<<<<<<
  *     cdef uint64_t knights = board.knights
  *     cdef uint64_t bishops = board.bishops
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1931, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_pawns); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1936, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1931, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1936, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_pawns = __pyx_t_2;
 
-  /* "ChessAI.pyx":1932
+  /* "ChessAI.pyx":1937
  *     # Initialize bitmasks for the current board state
  *     cdef uint64_t pawns = board.pawns
  *     cdef uint64_t knights = board.knights             # <<<<<<<<<<<<<<
  *     cdef uint64_t bishops = board.bishops
  *     cdef uint64_t rooks = board.rooks
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1932, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_knights); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1937, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1932, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1937, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_knights = __pyx_t_2;
 
-  /* "ChessAI.pyx":1933
+  /* "ChessAI.pyx":1938
  *     cdef uint64_t pawns = board.pawns
  *     cdef uint64_t knights = board.knights
  *     cdef uint64_t bishops = board.bishops             # <<<<<<<<<<<<<<
  *     cdef uint64_t rooks = board.rooks
  *     cdef uint64_t queens = board.queens
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1933, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_bishops); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1938, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1933, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1938, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_bishops = __pyx_t_2;
 
-  /* "ChessAI.pyx":1934
+  /* "ChessAI.pyx":1939
  *     cdef uint64_t knights = board.knights
  *     cdef uint64_t bishops = board.bishops
  *     cdef uint64_t rooks = board.rooks             # <<<<<<<<<<<<<<
  *     cdef uint64_t queens = board.queens
  *     cdef uint64_t kings = board.kings
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1934, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_rooks); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1939, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1934, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1939, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_rooks = __pyx_t_2;
 
-  /* "ChessAI.pyx":1935
+  /* "ChessAI.pyx":1940
  *     cdef uint64_t bishops = board.bishops
  *     cdef uint64_t rooks = board.rooks
  *     cdef uint64_t queens = board.queens             # <<<<<<<<<<<<<<
  *     cdef uint64_t kings = board.kings
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1935, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_queens); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1940, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1935, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1940, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_queens = __pyx_t_2;
 
-  /* "ChessAI.pyx":1936
+  /* "ChessAI.pyx":1941
  *     cdef uint64_t rooks = board.rooks
  *     cdef uint64_t queens = board.queens
  *     cdef uint64_t kings = board.kings             # <<<<<<<<<<<<<<
  * 
  *     cdef uint64_t occupied_white = board.occupied_co[True]
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1936, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_kings); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1941, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1936, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1941, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_kings = __pyx_t_2;
 
-  /* "ChessAI.pyx":1938
+  /* "ChessAI.pyx":1943
  *     cdef uint64_t kings = board.kings
  * 
  *     cdef uint64_t occupied_white = board.occupied_co[True]             # <<<<<<<<<<<<<<
  *     cdef uint64_t occupied_black = board.occupied_co[False]
  *     cdef uint64_t occupied = board.occupied
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1938, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1943, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1938, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_1, 1, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1943, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_3); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1938, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_3); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1943, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_v_occupied_white = __pyx_t_2;
 
-  /* "ChessAI.pyx":1939
+  /* "ChessAI.pyx":1944
  * 
  *     cdef uint64_t occupied_white = board.occupied_co[True]
  *     cdef uint64_t occupied_black = board.occupied_co[False]             # <<<<<<<<<<<<<<
  *     cdef uint64_t occupied = board.occupied
  * 
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1939, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied_co); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1944, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_3, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1939, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_3, 0, int, 1, __Pyx_PyBool_FromLong, 0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1944, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1939, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1944, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied_black = __pyx_t_2;
 
-  /* "ChessAI.pyx":1940
+  /* "ChessAI.pyx":1945
  *     cdef uint64_t occupied_white = board.occupied_co[True]
  *     cdef uint64_t occupied_black = board.occupied_co[False]
  *     cdef uint64_t occupied = board.occupied             # <<<<<<<<<<<<<<
  * 
  *     # Access the cache
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1940, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_occupied); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1945, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1940, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_As_uint64_t(__pyx_t_1); if (unlikely((__pyx_t_2 == ((uint64_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1945, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_occupied = __pyx_t_2;
 
-  /* "ChessAI.pyx":1943
+  /* "ChessAI.pyx":1948
  * 
  *     # Access the cache
  *     cdef int cache_result = accessCache(zobrist)             # <<<<<<<<<<<<<<
@@ -25204,7 +25031,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
  */
   __pyx_v_cache_result = accessCache(__pyx_v_zobrist);
 
-  /* "ChessAI.pyx":1946
+  /* "ChessAI.pyx":1951
  * 
  *     # Check if the cache has the given position
  *     if (cache_result != 0):             # <<<<<<<<<<<<<<
@@ -25214,7 +25041,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
   __pyx_t_4 = (__pyx_v_cache_result != 0);
   if (__pyx_t_4) {
 
-    /* "ChessAI.pyx":1947
+    /* "ChessAI.pyx":1952
  *     # Check if the cache has the given position
  *     if (cache_result != 0):
  *         return cache_result             # <<<<<<<<<<<<<<
@@ -25224,7 +25051,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
     __pyx_r = __pyx_v_cache_result;
     goto __pyx_L0;
 
-    /* "ChessAI.pyx":1946
+    /* "ChessAI.pyx":1951
  * 
  *     # Check if the cache has the given position
  *     if (cache_result != 0):             # <<<<<<<<<<<<<<
@@ -25233,7 +25060,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
  */
   }
 
-  /* "ChessAI.pyx":1962
+  /* "ChessAI.pyx":1967
  * 
  *     # Define variable to hold total evaluation and move number
  *     cdef int total = 0             # <<<<<<<<<<<<<<
@@ -25242,14 +25069,14 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
  */
   __pyx_v_total = 0;
 
-  /* "ChessAI.pyx":1963
+  /* "ChessAI.pyx":1968
  *     # Define variable to hold total evaluation and move number
  *     cdef int total = 0
  *     cdef int moveNum = board.ply()             # <<<<<<<<<<<<<<
  * 
  *     # Define variables for the target move and square for the previously made move
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_ply); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1963, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_ply); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1968, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_t_5 = NULL;
   __pyx_t_6 = 0;
@@ -25269,15 +25096,15 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
     PyObject *__pyx_callargs[2] = {__pyx_t_5, NULL};
     __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+1-__pyx_t_6, 0+__pyx_t_6);
     __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1963, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1968, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
-  __pyx_t_7 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1963, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1968, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_moveNum = __pyx_t_7;
 
-  /* "ChessAI.pyx":1970
+  /* "ChessAI.pyx":1975
  * 
  *     # cdef int castle_index = -1
  *     cdef bint horizonMitigation = False             # <<<<<<<<<<<<<<
@@ -25286,14 +25113,14 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
  */
   __pyx_v_horizonMitigation = 0;
 
-  /* "ChessAI.pyx":1973
+  /* "ChessAI.pyx":1978
  * 
  *     # Check if the board state is checkmate
  *     if board.is_checkmate():             # <<<<<<<<<<<<<<
  *         if board.turn:
  *             total = 9999999 - moveNum
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1973, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_is_checkmate); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1978, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_t_5 = NULL;
   __pyx_t_6 = 0;
@@ -25313,28 +25140,28 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
     PyObject *__pyx_callargs[2] = {__pyx_t_5, NULL};
     __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+1-__pyx_t_6, 0+__pyx_t_6);
     __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1973, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1978, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
-  __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 1973, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 1978, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   if (__pyx_t_4) {
 
-    /* "ChessAI.pyx":1974
+    /* "ChessAI.pyx":1979
  *     # Check if the board state is checkmate
  *     if board.is_checkmate():
  *         if board.turn:             # <<<<<<<<<<<<<<
  *             total = 9999999 - moveNum
  *         else:
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1974, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1979, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 1974, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 1979, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     if (__pyx_t_4) {
 
-      /* "ChessAI.pyx":1975
+      /* "ChessAI.pyx":1980
  *     if board.is_checkmate():
  *         if board.turn:
  *             total = 9999999 - moveNum             # <<<<<<<<<<<<<<
@@ -25343,7 +25170,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
  */
       __pyx_v_total = (0x98967F - __pyx_v_moveNum);
 
-      /* "ChessAI.pyx":1974
+      /* "ChessAI.pyx":1979
  *     # Check if the board state is checkmate
  *     if board.is_checkmate():
  *         if board.turn:             # <<<<<<<<<<<<<<
@@ -25353,7 +25180,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
       goto __pyx_L5;
     }
 
-    /* "ChessAI.pyx":1977
+    /* "ChessAI.pyx":1982
  *             total = 9999999 - moveNum
  *         else:
  *             total = -9999999 + moveNum             # <<<<<<<<<<<<<<
@@ -25365,7 +25192,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
     }
     __pyx_L5:;
 
-    /* "ChessAI.pyx":1973
+    /* "ChessAI.pyx":1978
  * 
  *     # Check if the board state is checkmate
  *     if board.is_checkmate():             # <<<<<<<<<<<<<<
@@ -25375,19 +25202,19 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
     goto __pyx_L4;
   }
 
-  /* "ChessAI.pyx":1981
+  /* "ChessAI.pyx":1986
  *     else:
  *         # Call the c++ function
  *         total += placement_and_piece_eval(moveNum, board.turn, board.peek().to_square, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)             # <<<<<<<<<<<<<<
  *         horizonMitigation = get_horizon_mitigation_flag()
- *         # if (board.fen() == '8/7k/2b1B2p/3p3P/1Bp2pP1/8/6K1/8 w - - 0 57'):
+ *         # if (board.fen() == '1r3rk1/5ppp/4p3/3pN1q1/3P4/P3P1P1/Q2K1P1P/R6R b - - 2 25'):
  */
   /*else*/ {
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1981, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1986, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1981, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1986, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_peek); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1981, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_peek); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1986, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __pyx_t_5 = NULL;
     __pyx_t_6 = 0;
@@ -25407,29 +25234,29 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
       PyObject *__pyx_callargs[2] = {__pyx_t_5, NULL};
       __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+1-__pyx_t_6, 0+__pyx_t_6);
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1981, __pyx_L1_error)
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1986, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     }
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_to_square); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1981, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_to_square); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1986, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_8 = __Pyx_PyInt_As_uint8_t(__pyx_t_3); if (unlikely((__pyx_t_8 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1981, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyInt_As_uint8_t(__pyx_t_3); if (unlikely((__pyx_t_8 == ((uint8_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 1986, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_v_total = (__pyx_v_total + placement_and_piece_eval(__pyx_v_moveNum, __pyx_t_4, __pyx_t_8, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_7ChessAI_prevKings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_occupied));
 
-    /* "ChessAI.pyx":1982
+    /* "ChessAI.pyx":1987
  *         # Call the c++ function
  *         total += placement_and_piece_eval(moveNum, board.turn, board.peek().to_square, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
  *         horizonMitigation = get_horizon_mitigation_flag()             # <<<<<<<<<<<<<<
- *         # if (board.fen() == '8/7k/2b1B2p/3p3P/1Bp2pP1/8/6K1/8 w - - 0 57'):
+ *         # if (board.fen() == '1r3rk1/5ppp/4p3/3pN1q1/3P4/P3P1P1/Q2K1P1P/R6R b - - 2 25'):
  *         #     print(board)
  */
     __pyx_v_horizonMitigation = get_horizon_mitigation_flag();
   }
   __pyx_L4:;
 
-  /* "ChessAI.pyx":2049
+  /* "ChessAI.pyx":2054
  * 
  *     # Avoid the adding this evaluation to the cache if the move order matters
  *     if not(horizonMitigation):             # <<<<<<<<<<<<<<
@@ -25439,7 +25266,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
   __pyx_t_4 = (!__pyx_v_horizonMitigation);
   if (__pyx_t_4) {
 
-    /* "ChessAI.pyx":2050
+    /* "ChessAI.pyx":2055
  *     # Avoid the adding this evaluation to the cache if the move order matters
  *     if not(horizonMitigation):
  *         addToCache(zobrist, total)             # <<<<<<<<<<<<<<
@@ -25448,7 +25275,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
  */
     addToCache(__pyx_v_zobrist, __pyx_v_total);
 
-    /* "ChessAI.pyx":2049
+    /* "ChessAI.pyx":2054
  * 
  *     # Avoid the adding this evaluation to the cache if the move order matters
  *     if not(horizonMitigation):             # <<<<<<<<<<<<<<
@@ -25457,7 +25284,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
  */
   }
 
-  /* "ChessAI.pyx":2052
+  /* "ChessAI.pyx":2057
  *         addToCache(zobrist, total)
  * 
  *     return total             # <<<<<<<<<<<<<<
@@ -25467,7 +25294,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
   __pyx_r = __pyx_v_total;
   goto __pyx_L0;
 
-  /* "ChessAI.pyx":1917
+  /* "ChessAI.pyx":1922
  * @cython.nonecheck(False)
  * @cython.ccall
  * cdef int evaluate_board(object board,uint64_t zobrist):             # <<<<<<<<<<<<<<
@@ -25487,7 +25314,7 @@ static int __pyx_f_7ChessAI_evaluate_board(PyObject *__pyx_v_board, uint64_t __p
   return __pyx_r;
 }
 
-/* "ChessAI.pyx":2054
+/* "ChessAI.pyx":2059
  *     return total
  * 
  * cdef int move_index(object board, object move1, object move2):             # <<<<<<<<<<<<<<
@@ -25512,7 +25339,7 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("move_index", 1);
 
-  /* "ChessAI.pyx":2059
+  /* "ChessAI.pyx":2064
  *     cdef object move
  * 
  *     for index, move in enumerate(board.move_stack):             # <<<<<<<<<<<<<<
@@ -25520,16 +25347,16 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
  *             return index
  */
   __pyx_t_1 = 0;
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2059, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2064, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   if (likely(PyList_CheckExact(__pyx_t_2)) || PyTuple_CheckExact(__pyx_t_2)) {
     __pyx_t_3 = __pyx_t_2; __Pyx_INCREF(__pyx_t_3);
     __pyx_t_4 = 0;
     __pyx_t_5 = NULL;
   } else {
-    __pyx_t_4 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_t_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 2059, __pyx_L1_error)
+    __pyx_t_4 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_t_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 2064, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_5 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 2059, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 2064, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   for (;;) {
@@ -25538,28 +25365,28 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 2059, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 2064, __pyx_L1_error)
           #endif
           if (__pyx_t_4 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_2 = PyList_GET_ITEM(__pyx_t_3, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 2059, __pyx_L1_error)
+        __pyx_t_2 = PyList_GET_ITEM(__pyx_t_3, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 2064, __pyx_L1_error)
         #else
-        __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2059, __pyx_L1_error)
+        __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2064, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
         #endif
       } else {
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
           #if !CYTHON_ASSUME_SAFE_MACROS
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 2059, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 2064, __pyx_L1_error)
           #endif
           if (__pyx_t_4 >= __pyx_temp) break;
         }
         #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        __pyx_t_2 = PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 2059, __pyx_L1_error)
+        __pyx_t_2 = PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_4); __Pyx_INCREF(__pyx_t_2); __pyx_t_4++; if (unlikely((0 < 0))) __PYX_ERR(0, 2064, __pyx_L1_error)
         #else
-        __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2059, __pyx_L1_error)
+        __pyx_t_2 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2064, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
         #endif
       }
@@ -25569,7 +25396,7 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else __PYX_ERR(0, 2059, __pyx_L1_error)
+          else __PYX_ERR(0, 2064, __pyx_L1_error)
         }
         break;
       }
@@ -25580,29 +25407,29 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
     __pyx_v_index = __pyx_t_1;
     __pyx_t_1 = (__pyx_t_1 + 1);
 
-    /* "ChessAI.pyx":2060
+    /* "ChessAI.pyx":2065
  * 
  *     for index, move in enumerate(board.move_stack):
  *         if move == move1 or move == move2:             # <<<<<<<<<<<<<<
  *             return index
  *     return -1
  */
-    __pyx_t_2 = PyObject_RichCompare(__pyx_v_move, __pyx_v_move1, Py_EQ); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2060, __pyx_L1_error)
-    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 2060, __pyx_L1_error)
+    __pyx_t_2 = PyObject_RichCompare(__pyx_v_move, __pyx_v_move1, Py_EQ); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2065, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 2065, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     if (!__pyx_t_7) {
     } else {
       __pyx_t_6 = __pyx_t_7;
       goto __pyx_L6_bool_binop_done;
     }
-    __pyx_t_2 = PyObject_RichCompare(__pyx_v_move, __pyx_v_move2, Py_EQ); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2060, __pyx_L1_error)
-    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 2060, __pyx_L1_error)
+    __pyx_t_2 = PyObject_RichCompare(__pyx_v_move, __pyx_v_move2, Py_EQ); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 2065, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 2065, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __pyx_t_6 = __pyx_t_7;
     __pyx_L6_bool_binop_done:;
     if (__pyx_t_6) {
 
-      /* "ChessAI.pyx":2061
+      /* "ChessAI.pyx":2066
  *     for index, move in enumerate(board.move_stack):
  *         if move == move1 or move == move2:
  *             return index             # <<<<<<<<<<<<<<
@@ -25612,7 +25439,7 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       goto __pyx_L0;
 
-      /* "ChessAI.pyx":2060
+      /* "ChessAI.pyx":2065
  * 
  *     for index, move in enumerate(board.move_stack):
  *         if move == move1 or move == move2:             # <<<<<<<<<<<<<<
@@ -25621,7 +25448,7 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
  */
     }
 
-    /* "ChessAI.pyx":2059
+    /* "ChessAI.pyx":2064
  *     cdef object move
  * 
  *     for index, move in enumerate(board.move_stack):             # <<<<<<<<<<<<<<
@@ -25631,7 +25458,7 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
   }
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":2062
+  /* "ChessAI.pyx":2067
  *         if move == move1 or move == move2:
  *             return index
  *     return -1             # <<<<<<<<<<<<<<
@@ -25639,7 +25466,7 @@ static int __pyx_f_7ChessAI_move_index(PyObject *__pyx_v_board, PyObject *__pyx_
   __pyx_r = -1;
   goto __pyx_L0;
 
-  /* "ChessAI.pyx":2054
+  /* "ChessAI.pyx":2059
  *     return total
  * 
  * cdef int move_index(object board, object move1, object move2):             # <<<<<<<<<<<<<<
@@ -26644,9 +26471,9 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedBuiltins(void) {
   __pyx_builtin_chr = __Pyx_GetBuiltinName(__pyx_n_s_chr); if (!__pyx_builtin_chr) __PYX_ERR(0, 355, __pyx_L1_error)
   __pyx_builtin_max = __Pyx_GetBuiltinName(__pyx_n_s_max); if (!__pyx_builtin_max) __PYX_ERR(0, 474, __pyx_L1_error)
   __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_n_s_TypeError); if (!__pyx_builtin_TypeError) __PYX_ERR(1, 2, __pyx_L1_error)
-  __pyx_builtin_zip = __Pyx_GetBuiltinName(__pyx_n_s_zip); if (!__pyx_builtin_zip) __PYX_ERR(0, 1840, __pyx_L1_error)
-  __pyx_builtin_sorted = __Pyx_GetBuiltinName(__pyx_n_s_sorted); if (!__pyx_builtin_sorted) __PYX_ERR(0, 1843, __pyx_L1_error)
-  __pyx_builtin_enumerate = __Pyx_GetBuiltinName(__pyx_n_s_enumerate); if (!__pyx_builtin_enumerate) __PYX_ERR(0, 2059, __pyx_L1_error)
+  __pyx_builtin_zip = __Pyx_GetBuiltinName(__pyx_n_s_zip); if (!__pyx_builtin_zip) __PYX_ERR(0, 1845, __pyx_L1_error)
+  __pyx_builtin_sorted = __Pyx_GetBuiltinName(__pyx_n_s_sorted); if (!__pyx_builtin_sorted) __PYX_ERR(0, 1848, __pyx_L1_error)
+  __pyx_builtin_enumerate = __Pyx_GetBuiltinName(__pyx_n_s_enumerate); if (!__pyx_builtin_enumerate) __PYX_ERR(0, 2064, __pyx_L1_error)
   __pyx_builtin_MemoryError = __Pyx_GetBuiltinName(__pyx_n_s_MemoryError); if (!__pyx_builtin_MemoryError) __PYX_ERR(2, 120, __pyx_L1_error)
   __pyx_builtin_ImportError = __Pyx_GetBuiltinName(__pyx_n_s_ImportError); if (!__pyx_builtin_ImportError) __PYX_ERR(3, 984, __pyx_L1_error)
   return 0;
@@ -26858,53 +26685,53 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GIVEREF(__pyx_tuple__26);
   __pyx_codeobj__27 = (PyObject*)__Pyx_PyCode_New(1, 0, 0, 19, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__26, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_alphaBetaWrapper, 240, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__27)) __PYX_ERR(0, 240, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1423
+  /* "ChessAI.pyx":1428
  * 
  *     # Standing position evaluation function
  *     def ev(self, object board):             # <<<<<<<<<<<<<<
  *         self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False])
  *         return evaluate_board(board,self.zobrist)
  */
-  __pyx_tuple__28 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_board); if (unlikely(!__pyx_tuple__28)) __PYX_ERR(0, 1423, __pyx_L1_error)
+  __pyx_tuple__28 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_board); if (unlikely(!__pyx_tuple__28)) __PYX_ERR(0, 1428, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__28);
   __Pyx_GIVEREF(__pyx_tuple__28);
-  __pyx_codeobj__29 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__28, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_ev, 1423, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__29)) __PYX_ERR(0, 1423, __pyx_L1_error)
+  __pyx_codeobj__29 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__28, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_ev, 1428, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__29)) __PYX_ERR(0, 1428, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1565
+  /* "ChessAI.pyx":1570
  *             return moves_list,self.alpha_list,self.beta_list,self.beta_move_list
  * 
  *     def reorder_capture_moves(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
  * 
  *         """
  */
-  __pyx_tuple__30 = PyTuple_Pack(4, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move); if (unlikely(!__pyx_tuple__30)) __PYX_ERR(0, 1565, __pyx_L1_error)
+  __pyx_tuple__30 = PyTuple_Pack(4, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move); if (unlikely(!__pyx_tuple__30)) __PYX_ERR(0, 1570, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__30);
   __Pyx_GIVEREF(__pyx_tuple__30);
-  __pyx_codeobj__10 = (PyObject*)__Pyx_PyCode_New(3, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__30, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves, 1565, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 1565, __pyx_L1_error)
+  __pyx_codeobj__10 = (PyObject*)__Pyx_PyCode_New(3, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__30, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves, 1570, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 1570, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1589
+  /* "ChessAI.pyx":1594
  *                 yield move
  * 
  *     def reorder_capture_moves2(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
  *         """
  *         Function to order capture moves before other moves
  */
-  __pyx_tuple__31 = PyTuple_Pack(6, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move, __pyx_n_s_capture_moves, __pyx_n_s_enemy_pieces); if (unlikely(!__pyx_tuple__31)) __PYX_ERR(0, 1589, __pyx_L1_error)
+  __pyx_tuple__31 = PyTuple_Pack(6, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move, __pyx_n_s_capture_moves, __pyx_n_s_enemy_pieces); if (unlikely(!__pyx_tuple__31)) __PYX_ERR(0, 1594, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__31);
   __Pyx_GIVEREF(__pyx_tuple__31);
-  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(3, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__31, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves2, 1589, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 1589, __pyx_L1_error)
+  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(3, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__31, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves2, 1594, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 1594, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1616
+  /* "ChessAI.pyx":1621
  * 
  *     # Function to return moves that are either captures, checks or promotions
  *     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
  * 
  *         cdef object move
  */
-  __pyx_tuple__32 = PyTuple_Pack(3, __pyx_n_s_self, __pyx_n_s_board, __pyx_n_s_move); if (unlikely(!__pyx_tuple__32)) __PYX_ERR(0, 1616, __pyx_L1_error)
+  __pyx_tuple__32 = PyTuple_Pack(3, __pyx_n_s_self, __pyx_n_s_board, __pyx_n_s_move); if (unlikely(!__pyx_tuple__32)) __PYX_ERR(0, 1621, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__32);
   __Pyx_GIVEREF(__pyx_tuple__32);
-  __pyx_codeobj__12 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__32, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_non_quiescence_moves, 1616, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 1616, __pyx_L1_error)
+  __pyx_codeobj__12 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__32, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_non_quiescence_moves, 1621, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 1621, __pyx_L1_error)
 
   /* "(tree fragment)":1
  * def __reduce_cython__(self):             # <<<<<<<<<<<<<<
@@ -26927,17 +26754,17 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GIVEREF(__pyx_tuple__35);
   __pyx_codeobj__36 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__35, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_stringsource, __pyx_n_s_setstate_cython, 3, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__36)) __PYX_ERR(1, 3, __pyx_L1_error)
 
-  /* "ChessAI.pyx":1831
+  /* "ChessAI.pyx":1836
  * 
  * 
  * def sort_by_alpha(list values, list objects):             # <<<<<<<<<<<<<<
  *     """
  *     Sorts the two lists 'values' and 'objects' in ascending order based on 'values'.
  */
-  __pyx_tuple__37 = PyTuple_Pack(6, __pyx_n_s_values, __pyx_n_s_objects, __pyx_n_s_combined, __pyx_n_s_sorted_combined, __pyx_n_s_sorted_values, __pyx_n_s_sorted_objects); if (unlikely(!__pyx_tuple__37)) __PYX_ERR(0, 1831, __pyx_L1_error)
+  __pyx_tuple__37 = PyTuple_Pack(6, __pyx_n_s_values, __pyx_n_s_objects, __pyx_n_s_combined, __pyx_n_s_sorted_combined, __pyx_n_s_sorted_values, __pyx_n_s_sorted_objects); if (unlikely(!__pyx_tuple__37)) __PYX_ERR(0, 1836, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__37);
   __Pyx_GIVEREF(__pyx_tuple__37);
-  __pyx_codeobj__38 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__37, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_sort_by_alpha, 1831, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__38)) __PYX_ERR(0, 1831, __pyx_L1_error)
+  __pyx_codeobj__38 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__37, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_sort_by_alpha, 1836, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__38)) __PYX_ERR(0, 1836, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -27084,15 +26911,15 @@ static int __Pyx_modinit_type_init_code(void) {
   if (__Pyx_setup_reduce((PyObject *) __pyx_ptype_7ChessAI_ChessAI) < 0) __PYX_ERR(0, 120, __pyx_L1_error)
   #endif
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7ChessAI___pyx_scope_struct__reorder_capture_moves_spec, NULL); if (unlikely(!__pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves)) __PYX_ERR(0, 1565, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7ChessAI___pyx_scope_struct__reorder_capture_moves_spec, __pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves) < 0) __PYX_ERR(0, 1565, __pyx_L1_error)
+  __pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7ChessAI___pyx_scope_struct__reorder_capture_moves_spec, NULL); if (unlikely(!__pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves)) __PYX_ERR(0, 1570, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7ChessAI___pyx_scope_struct__reorder_capture_moves_spec, __pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves) < 0) __PYX_ERR(0, 1570, __pyx_L1_error)
   #else
   __pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves = &__pyx_type_7ChessAI___pyx_scope_struct__reorder_capture_moves;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves) < 0) __PYX_ERR(0, 1565, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves) < 0) __PYX_ERR(0, 1570, __pyx_L1_error)
   #endif
   #if PY_MAJOR_VERSION < 3
   __pyx_ptype_7ChessAI___pyx_scope_struct__reorder_capture_moves->tp_print = 0;
@@ -27103,15 +26930,15 @@ static int __Pyx_modinit_type_init_code(void) {
   }
   #endif
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2 = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2_spec, NULL); if (unlikely(!__pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2)) __PYX_ERR(0, 1589, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2_spec, __pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2) < 0) __PYX_ERR(0, 1589, __pyx_L1_error)
+  __pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2 = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2_spec, NULL); if (unlikely(!__pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2)) __PYX_ERR(0, 1594, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2_spec, __pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2) < 0) __PYX_ERR(0, 1594, __pyx_L1_error)
   #else
   __pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2 = &__pyx_type_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2) < 0) __PYX_ERR(0, 1589, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2) < 0) __PYX_ERR(0, 1594, __pyx_L1_error)
   #endif
   #if PY_MAJOR_VERSION < 3
   __pyx_ptype_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2->tp_print = 0;
@@ -27122,15 +26949,15 @@ static int __Pyx_modinit_type_init_code(void) {
   }
   #endif
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7ChessAI___pyx_scope_struct_2_non_quiescence_moves_spec, NULL); if (unlikely(!__pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves)) __PYX_ERR(0, 1616, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7ChessAI___pyx_scope_struct_2_non_quiescence_moves_spec, __pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves) < 0) __PYX_ERR(0, 1616, __pyx_L1_error)
+  __pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7ChessAI___pyx_scope_struct_2_non_quiescence_moves_spec, NULL); if (unlikely(!__pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves)) __PYX_ERR(0, 1621, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7ChessAI___pyx_scope_struct_2_non_quiescence_moves_spec, __pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves) < 0) __PYX_ERR(0, 1621, __pyx_L1_error)
   #else
   __pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves = &__pyx_type_7ChessAI___pyx_scope_struct_2_non_quiescence_moves;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves) < 0) __PYX_ERR(0, 1616, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves) < 0) __PYX_ERR(0, 1621, __pyx_L1_error)
   #endif
   #if PY_MAJOR_VERSION < 3
   __pyx_ptype_7ChessAI___pyx_scope_struct_2_non_quiescence_moves->tp_print = 0;
@@ -28021,70 +27848,70 @@ if (!__Pyx_RefNanny) {
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   PyType_Modified(__pyx_ptype_7ChessAI_ChessAI);
 
-  /* "ChessAI.pyx":1423
+  /* "ChessAI.pyx":1428
  * 
  *     # Standing position evaluation function
  *     def ev(self, object board):             # <<<<<<<<<<<<<<
  *         self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False])
  *         return evaluate_board(board,self.zobrist)
  */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_11ev, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_ev, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__29)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1423, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_11ev, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_ev, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__29)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1428, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_ev, __pyx_t_2) < 0) __PYX_ERR(0, 1423, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_ev, __pyx_t_2) < 0) __PYX_ERR(0, 1428, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   PyType_Modified(__pyx_ptype_7ChessAI_ChessAI);
 
-  /* "ChessAI.pyx":1565
+  /* "ChessAI.pyx":1570
  *             return moves_list,self.alpha_list,self.beta_list,self.beta_move_list
  * 
  *     def reorder_capture_moves(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
  * 
  *         """
  */
-  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1565, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1570, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_return, __pyx_kp_s_Iterator_chess_Move) < 0) __PYX_ERR(0, 1565, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_13reorder_capture_moves, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_reorder_capture_moves, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__10)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1565, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_return, __pyx_kp_s_Iterator_chess_Move) < 0) __PYX_ERR(0, 1570, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_13reorder_capture_moves, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_reorder_capture_moves, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__10)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1570, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_CyFunction_SetAnnotationsDict(__pyx_t_3, __pyx_t_2);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_reorder_capture_moves, __pyx_t_3) < 0) __PYX_ERR(0, 1565, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_reorder_capture_moves, __pyx_t_3) < 0) __PYX_ERR(0, 1570, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   PyType_Modified(__pyx_ptype_7ChessAI_ChessAI);
 
-  /* "ChessAI.pyx":1589
+  /* "ChessAI.pyx":1594
  *                 yield move
  * 
  *     def reorder_capture_moves2(self, uint64_t mask, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
  *         """
  *         Function to order capture moves before other moves
  */
-  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1589, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1594, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_return, __pyx_kp_s_Iterator_chess_Move) < 0) __PYX_ERR(0, 1589, __pyx_L1_error)
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_16reorder_capture_moves2, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_reorder_capture_moves2, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__11)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1589, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_return, __pyx_kp_s_Iterator_chess_Move) < 0) __PYX_ERR(0, 1594, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_16reorder_capture_moves2, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_reorder_capture_moves2, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__11)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1594, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_CyFunction_SetAnnotationsDict(__pyx_t_2, __pyx_t_3);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_reorder_capture_moves2, __pyx_t_2) < 0) __PYX_ERR(0, 1589, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_reorder_capture_moves2, __pyx_t_2) < 0) __PYX_ERR(0, 1594, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   PyType_Modified(__pyx_ptype_7ChessAI_ChessAI);
 
-  /* "ChessAI.pyx":1616
+  /* "ChessAI.pyx":1621
  * 
  *     # Function to return moves that are either captures, checks or promotions
  *     def non_quiescence_moves(self, object board) -> Iterator[chess.Move]:             # <<<<<<<<<<<<<<
  * 
  *         cdef object move
  */
-  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1616, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1621, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_return, __pyx_kp_s_Iterator_chess_Move) < 0) __PYX_ERR(0, 1616, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_19non_quiescence_moves, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_non_quiescence_moves, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__12)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1616, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_return, __pyx_kp_s_Iterator_chess_Move) < 0) __PYX_ERR(0, 1621, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_7ChessAI_19non_quiescence_moves, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_non_quiescence_moves, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__12)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1621, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_CyFunction_SetAnnotationsDict(__pyx_t_3, __pyx_t_2);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_non_quiescence_moves, __pyx_t_3) < 0) __PYX_ERR(0, 1616, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_non_quiescence_moves, __pyx_t_3) < 0) __PYX_ERR(0, 1621, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   PyType_Modified(__pyx_ptype_7ChessAI_ChessAI);
 
@@ -28109,16 +27936,16 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_setstate_cython, __pyx_t_3) < 0) __PYX_ERR(1, 3, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "ChessAI.pyx":1831
+  /* "ChessAI.pyx":1836
  * 
  * 
  * def sort_by_alpha(list values, list objects):             # <<<<<<<<<<<<<<
  *     """
  *     Sorts the two lists 'values' and 'objects' in ascending order based on 'values'.
  */
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_1sort_by_alpha, 0, __pyx_n_s_sort_by_alpha, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__38)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1831, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_7ChessAI_1sort_by_alpha, 0, __pyx_n_s_sort_by_alpha, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__38)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1836, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_sort_by_alpha, __pyx_t_3) < 0) __PYX_ERR(0, 1831, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_sort_by_alpha, __pyx_t_3) < 0) __PYX_ERR(0, 1836, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
   /* "ChessAI.pyx":1

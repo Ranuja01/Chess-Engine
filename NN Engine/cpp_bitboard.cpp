@@ -40,17 +40,7 @@ std::vector<uint64_t> BB_RANK_MASKS;
 std::vector<std::unordered_map<uint64_t, uint64_t>> BB_RANK_ATTACKS;
 std::vector<std::vector<uint64_t>> BB_RAYS;
 
-// Define zobrist table, cache and insertion order for efficient hashing
-uint64_t zobristTable[12][64];
-std::unordered_map<uint64_t, int> moveCache;
-std::deque<uint64_t> insertionOrder;
 
-// Define caches for player move generation orders
-std::unordered_map<uint64_t, std::string> OpponentMoveGenCache;
-std::deque<uint64_t> OpponentMoveGenInsertionOrder;
-
-std::unordered_map<uint64_t, std::string> curPlayerMoveGenCache;
-std::deque<uint64_t> curPlayerMoveGenInsertionOrder;
 
 // Define the file bitboards
 constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
@@ -81,6 +71,31 @@ constexpr uint64_t BB_RANK_8 = 0xffULL << (8 * 7);
 constexpr std::array<uint64_t, 8> BB_RANKS = {
     BB_RANK_1, BB_RANK_2, BB_RANK_3, BB_RANK_4, BB_RANK_5, BB_RANK_6, BB_RANK_7, BB_RANK_8
 };
+
+// Define global masks for piece placement
+uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
+
+// Define global variables for offensive, defensive and piece value scores
+int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
+int blackPieceVal, whitePieceVal;
+
+
+
+// Define zobrist table, cache and insertion order for efficient hashing
+uint64_t zobristTable[12][64];
+std::unordered_map<uint64_t, int> moveCache;
+std::deque<uint64_t> insertionOrder;
+
+// Define caches for player move generation orders
+std::unordered_map<uint64_t, std::string> OpponentMoveGenCache;
+std::deque<uint64_t> OpponentMoveGenInsertionOrder;
+
+std::unordered_map<uint64_t, std::string> curPlayerMoveGenCache;
+std::deque<uint64_t> curPlayerMoveGenInsertionOrder;
+
+/*
+	Define a set of lookup tables
+*/
 
 // Array of piece values
 constexpr std::array<int, 7> values = {0, 1000, 3250, 3450, 5000, 10000, 12000};
@@ -215,25 +230,8 @@ std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
     }}
 }};
 
-std::unordered_map<uint64_t, uint8_t> initialize_bit_to_square() {
-    std::unordered_map<uint64_t, uint8_t> bit_to_square;
-    for (uint8_t i = 0; i < 64; ++i) {
-        bit_to_square[1ULL << i] = i;
-    }
-    return bit_to_square;
-}
-
-std::unordered_map<uint64_t, uint8_t> bit_to_square = initialize_bit_to_square();
-
 // Define array to hold the piece type 
 std::array<uint8_t, 64> pieceTypeLookUp = {};
-
-// Define global masks for piece placement
-uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
-
-// Define global variables for offensive, defensive and piece value scores
-int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
-int blackPieceVal, whitePieceVal;
 
 std::array<int, 64> pressure_white = {0};
 std::array<int, 64> support_white = {0};
@@ -265,8 +263,23 @@ std::array<std::array<int, 7>, 7> pressure_weights = {{
     /* King   */ {  0,    5,      5,      5,     5,     5,     0 } 
 }};
 
-bool horizon_mitigation_flag = false;
+const int decrement_lookup[7] = {0,  5, 25, 25, 50, 100, 1000};  // [piece_type]
+const int pressure_increase_lookup[7] = {0,  5, 10, 10, 20,  30,  30};
 
+// Create a compile-time array of bitmasks
+constexpr std::array<uint64_t, 64> generate_square_masks() {
+    std::array<uint64_t, 64> masks{};
+    for (int i = 0; i < 64; i++) {
+        masks[i] = 1ULL << i;
+    }
+    return masks;
+}
+
+// Global constant array of square bitmasks
+constexpr std::array<uint64_t, 64> BB_SQUARES = generate_square_masks();
+
+
+bool horizon_mitigation_flag = false;
 bool get_horizon_mitigation_flag(){return horizon_mitigation_flag;}
 
 /*
@@ -473,7 +486,7 @@ int placement_and_piece_midgame(uint8_t square){
     
 	// Acquire the piece type and colour
 	uint8_t piece_type = pieceTypeLookUp [square];
-	bool colour = bool(occupied_white & (1ULL << square)); 
+	bool colour = bool(occupied_white & (BB_SQUARES[square])); 
     
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;
@@ -515,14 +528,14 @@ int placement_and_piece_midgame(uint8_t square){
 				int bonus = rank * rank * 10;
 				int passed_bonus = ppIncrement >> 3; // dynamic influence
 
-				total += base + bonus + passed_bonus;
+				total -= base + bonus + passed_bonus;
 				
 				/*
 					This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 				*/
 				
-				uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
-				uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+				uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H;
+				uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A;
 				
 				// If the left square exists (original pawn not on the A file)
 				if (left != 0){
@@ -595,7 +608,7 @@ int placement_and_piece_midgame(uint8_t square){
 					
 					// Get the piece type and colour
                     uint8_t temp_piece_type = pieceTypeLookUp [att_square];
-					bool temp_colour = bool(occupied_white & (1ULL << att_square));
+					bool temp_colour = bool(occupied_white & (BB_SQUARES[att_square]));
 										
 					/*
 						In this section, update the rook increment based on how open the file is
@@ -659,8 +672,8 @@ int placement_and_piece_midgame(uint8_t square){
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);		
 			
-			if (occupied & (1ULL << r) & ~kings){
-				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (1ULL << r)));
+			if (occupied & (BB_SQUARES[r]) & ~kings){
+				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
 			}
 
 			// Get the x and y coordinates for the given square
@@ -681,10 +694,10 @@ int placement_and_piece_midgame(uint8_t square){
 				whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
 				
 				// Remove pieces from the copy of the occupied mask
-				occupiedCopy &= ~(1ULL << r);
+				occupiedCopy &= ~(BB_SQUARES[r]);
 				
 				// If each square doesn't contain a white piece, boost the score for mobility
-				if (bool(~occupied_white & (1ULL << r))){
+				if (bool(~occupied_white & (BB_SQUARES[r]))){
 					total -= 5;
 				}					
 			
@@ -705,14 +718,14 @@ int placement_and_piece_midgame(uint8_t square){
 				*/
 				
 				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
-				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << r))){
+				if (attackedPieceType == 1 && bool(occupied_white & (BB_SQUARES[r]))){
 					
 					// Increase the boost as the attacked pawn is closer to the center files
-					if (((1ULL << r) & (BB_FILE_D | BB_FILE_E)) != 0){
+					if (((BB_SQUARES[r]) & (BB_FILE_D | BB_FILE_E)) != 0){
 						total -= 125;
-					} else if (((1ULL << r) & (BB_FILE_C | BB_FILE_F)) != 0){
+					} else if (((BB_SQUARES[r]) & (BB_FILE_C | BB_FILE_F)) != 0){
 						total -= 75;
-					} else if (((1ULL << r) & (BB_FILE_B | BB_FILE_G)) != 0){
+					} else if (((BB_SQUARES[r]) & (BB_FILE_B | BB_FILE_G)) != 0){
 						total -= 15;
 					} else{
 						total -= 10;
@@ -723,7 +736,7 @@ int placement_and_piece_midgame(uint8_t square){
 			}else if (piece_type == 6){
 				
 				uint8_t kingRank = square >> 3;
-				uint64_t r_mask = 1ULL << r;
+				uint64_t r_mask = BB_SQUARES[r];
 
 				bool isWhitePawn = pieceTypeLookUp[r] == 1 && (occupied_white & r_mask);
 				bool isShielding = isWhitePawn && y == kingRank + 1;
@@ -750,7 +763,7 @@ int placement_and_piece_midgame(uint8_t square){
 						total -= baseIncrement;				
 					} else {
 						whiteDefensiveScore -= baseIncrement << 2;
-						total += baseIncrement << 2;
+						total += baseIncrement << 1;
 					}
 				}
 			
@@ -770,10 +783,10 @@ int placement_and_piece_midgame(uint8_t square){
 				if (piece_type == 3){
 					
 					// Remove the piece from the occupied mask copy
-					occupiedCopy &= ~(1ULL << r);
+					occupiedCopy &= ~(BB_SQUARES[r]);
 					
 					// If each square doesn't contain a white piece, boost the score for mobility
-					if (bool(~occupied_white & (1ULL << r))){
+					if (bool(~occupied_white & (BB_SQUARES[r]))){
 						total -= 15;
 					}
 				
@@ -781,10 +794,10 @@ int placement_and_piece_midgame(uint8_t square){
 				} else if (piece_type == 4){
 					
 					// Remove the piece from the occupied mask copy
-					occupiedCopy &= ~(1ULL << r);
+					occupiedCopy &= ~(BB_SQUARES[r]);
 					
 					// If each square doesn't contain a white piece, boost the score for mobility
-					if (bool(~occupied_white & (1ULL << r))){
+					if (bool(~occupied_white & (BB_SQUARES[r]))){
 						total -= 20;
 					}
 				
@@ -792,7 +805,7 @@ int placement_and_piece_midgame(uint8_t square){
 				} else{					
 					
 					// If each square doesn't contain a white piece, boost the score for mobility
-					if (bool(~occupied_white & (1ULL << r))){
+					if (bool(~occupied_white & (BB_SQUARES[r]))){
 						total -= 25;
 					}
 				}								
@@ -889,8 +902,8 @@ int placement_and_piece_midgame(uint8_t square){
 				*/
 				
 				
-				uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
-				uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+				uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H;
+				uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A;
 				
 				// If the left square exists (original pawn not on the A file)
 				if (left != 0){
@@ -957,14 +970,14 @@ int placement_and_piece_midgame(uint8_t square){
 				// Get the current square as the max bit of the current mask
 				r = 64 - __builtin_clzll(bb) - 1;
 				uint8_t att_square = r;
-				bb ^= (1ULL << r);
+				bb ^= (BB_SQUARES[r]);
 				
 				// Check if the attacked square is down the board from the rook
                 if (att_square < square){
 					
 					// Get the piece type and colour
                     uint8_t temp_piece_type = pieceTypeLookUp [att_square];
-					bool temp_colour = bool(occupied_white & (1ULL << att_square));
+					bool temp_colour = bool(occupied_white & (BB_SQUARES[att_square]));
 					
 					/*
 						In this section, update the rook increment based on how open the file is
@@ -1026,8 +1039,8 @@ int placement_and_piece_midgame(uint8_t square){
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb); 
 			
-			if (occupied & (1ULL << r) & ~kings){
-				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (1ULL << r)));
+			if (occupied & (BB_SQUARES[r]) & ~kings){
+				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
 			}
 			
 			// Get the x and y coordinates for the given square
@@ -1048,10 +1061,10 @@ int placement_and_piece_midgame(uint8_t square){
 				blackDefensiveScore += attackingLayer[0][x][y] >> 2;				
 				
 				// Remove pieces from the copy of the occupied mask
-				occupiedCopy &= ~(1ULL << r);
+				occupiedCopy &= ~(BB_SQUARES[r]);
 				
 				// If each square doesn't contain a black piece, boost the score for mobility
-				if (bool(~occupied_black & (1ULL << r))){
+				if (bool(~occupied_black & (BB_SQUARES[r]))){
 					total += 5;
 				}					
 				
@@ -1073,12 +1086,12 @@ int placement_and_piece_midgame(uint8_t square){
 				
 				// Increase the boost as the attacked pawn is closer to the center files
 				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
-				if (attackedPieceType == 1 && bool(occupied_black & (1ULL << r))){
-					if (((1ULL << r) & (BB_FILE_D | BB_FILE_E)) != 0){
+				if (attackedPieceType == 1 && bool(occupied_black & (BB_SQUARES[r]))){
+					if (((BB_SQUARES[r]) & (BB_FILE_D | BB_FILE_E)) != 0){
 						total += 125;
-					} else if (((1ULL << r) & (BB_FILE_C | BB_FILE_F)) != 0){
+					} else if (((BB_SQUARES[r]) & (BB_FILE_C | BB_FILE_F)) != 0){
 						total += 75;
-					} else if (((1ULL << r) & (BB_FILE_B | BB_FILE_G)) != 0){
+					} else if (((BB_SQUARES[r]) & (BB_FILE_B | BB_FILE_G)) != 0){
 						total += 15;
 					} else{
 						total += 10;
@@ -1089,7 +1102,7 @@ int placement_and_piece_midgame(uint8_t square){
 			}else if (piece_type == 6){
 				
 				uint8_t kingRank = square >> 3;
-				uint64_t r_mask = 1ULL << r;
+				uint64_t r_mask = BB_SQUARES[r];
 
 				bool isBlackPawn = pieceTypeLookUp[r] == 1 && (occupied_black & r_mask);
 				bool isShielding = isBlackPawn && y == kingRank - 1;
@@ -1113,7 +1126,7 @@ int placement_and_piece_midgame(uint8_t square){
 						total += baseIncrement;				
 					} else {
 						blackDefensiveScore -= baseIncrement << 2;
-						total -= baseIncrement << 2;
+						total -= baseIncrement << 1;
 					}
 				}
 								
@@ -1133,27 +1146,27 @@ int placement_and_piece_midgame(uint8_t square){
 				if (piece_type == 3){
 					
 					// Remove the piece from the occupied mask copy
-					occupiedCopy &= ~(1ULL << r);
+					occupiedCopy &= ~(BB_SQUARES[r]);
 					
 					// If each square doesn't contain a black piece, boost the score for mobility					
-					if (bool(~occupied_black & (1ULL << r))){
+					if (bool(~occupied_black & (BB_SQUARES[r]))){
 						total += 15;
 					}
 				// Check if the piece is a rook
 				} else if (piece_type == 4){
 					
 					// Remove the piece from the occupied mask copy
-					occupiedCopy &= ~(1ULL << r);
+					occupiedCopy &= ~(BB_SQUARES[r]);
 					
 					// If each square doesn't contain a black piece, boost the score for mobility
-					if (bool(~occupied_black & (1ULL << r))){
+					if (bool(~occupied_black & (BB_SQUARES[r]))){
 						total += 20;
 					}
 				// Else the piece is a knight
 				} else{
 					
 					// If each square doesn't contain a black piece, boost the score for mobility
-					if (bool(~occupied_black & (1ULL << r))){
+					if (bool(~occupied_black & (BB_SQUARES[r]))){
 						total += 25;
 					}					
 				}				
@@ -1208,7 +1221,7 @@ int placement_and_piece_midgame(uint8_t square){
 			}			
 		}
     }
-	//std::cout << total << " " << int(piece_type) << " " << bool(colour) << " " << rookIncrement  << std::endl;
+//	std::cout << total << " " << int(piece_type) << " " << bool(colour) << " " << rookIncrement  << std::endl;
 	return total;
 }
 
@@ -1236,7 +1249,7 @@ int placement_and_piece_endgame(uint8_t square){
     
 	// Acquire the piece type and colour
 	uint8_t piece_type = pieceTypeLookUp [square];
-	bool colour = bool(occupied_white & (1ULL << square));     
+	bool colour = bool(occupied_white & (BB_SQUARES[square]));     
 
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;	
@@ -1269,14 +1282,14 @@ int placement_and_piece_endgame(uint8_t square){
 			int bonus = rank * rank * 15;
 			int passed_bonus = ppIncrement >> 2; // dynamic influence
 
-			total += base + bonus + passed_bonus;
+			total -= base + bonus + passed_bonus;
 			
 			/*
 				This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 			*/
 			
-			uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
-			uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+			uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H;
+			uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A;
 			
 			// If the left square exists (original pawn not on the A file)
 			if (left != 0){
@@ -1315,7 +1328,7 @@ int placement_and_piece_endgame(uint8_t square){
 				
 				// Get the piece type and colour
 				uint8_t temp_piece_type = pieceTypeLookUp [att_square];
-				bool temp_colour = bool(occupied_white & (1ULL << att_square));
+				bool temp_colour = bool(occupied_white & (BB_SQUARES[att_square]));
                 
 				// Check if the piece is a pawn
 				if (temp_piece_type == 1){
@@ -1383,8 +1396,8 @@ int placement_and_piece_endgame(uint8_t square){
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);									
 
-			if (occupied & (1ULL << r) & ~kings){
-				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (1ULL << r)));
+			if (occupied & (BB_SQUARES[r]) & ~kings){
+				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
 			}
 
 			// Get the x and y coordinates for the given square
@@ -1399,10 +1412,10 @@ int placement_and_piece_endgame(uint8_t square){
 			if (piece_type == 3 || piece_type == 4 || piece_type == 5){
 				
 				// Remove the piece from the occupied mask copy
-				occupiedCopy &= ~(1ULL << r);
+				occupiedCopy &= ~(BB_SQUARES[r]);
 				
 				// If each square doesn't contain a white piece, boost the score for mobility
-				if (bool(~occupied_white & (1ULL << r))){
+				if (bool(~occupied_white & (BB_SQUARES[r]))){
 					total -= 10;
 				}
 			
@@ -1410,7 +1423,7 @@ int placement_and_piece_endgame(uint8_t square){
 			}else if (piece_type == 2){
 				
 				// If each square doesn't contain a white piece, boost the score for mobility
-				if (bool(~occupied_white & (1ULL << r))){
+				if (bool(~occupied_white & (BB_SQUARES[r]))){
 					total -= 10;
 				}
 				
@@ -1423,7 +1436,7 @@ int placement_and_piece_endgame(uint8_t square){
 				
 				// Increase the boost as the attacked pawn is closer to the center files				
 				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
-				if (attackedPieceType == 1 && bool(occupied_white & (1ULL << r))){
+				if (attackedPieceType == 1 && bool(occupied_white & (BB_SQUARES[r]))){
 					total -= 200;
 				}
 			}
@@ -1492,14 +1505,14 @@ int placement_and_piece_endgame(uint8_t square){
 				This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 			*/
 			
-			uint64_t left = ((1ULL << square) >> 1) & ~BB_FILE_H;
-			uint64_t right = ((1ULL << square) << 1) & ~BB_FILE_A;
+			uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H;
+			uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A;
 			
 			// If the left square exists (original pawn not on the A file)
 			if (left != 0){
 				
 				uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(left)]; 
-				if (attackedPieceType == 1 && !bool(occupied_white & (1ULL << left))){
+				if (attackedPieceType == 1 && !bool(occupied_white & left)){
 					total += 150;
 				}
 			}
@@ -1507,7 +1520,7 @@ int placement_and_piece_endgame(uint8_t square){
 			// If the right square exists (original pawn not on the H file)
 			if (right != 0){
 				uint8_t attackedPieceType = pieceTypeLookUp[63 - __builtin_clzll(right)]; 
-				if (attackedPieceType == 1 && !bool(occupied_white & (1ULL << right))){
+				if (attackedPieceType == 1 && !bool(occupied_white & right)){
 					total += 150;
 				}
 			}
@@ -1531,7 +1544,7 @@ int placement_and_piece_endgame(uint8_t square){
 				
 				// Get the piece type and colour
 				uint8_t temp_piece_type = pieceTypeLookUp [att_square];
-				bool temp_colour = bool(occupied_white & (1ULL << att_square));
+				bool temp_colour = bool(occupied_white & (BB_SQUARES[att_square]));
                 
 				// Check if the piece is a pawn
 				if (temp_piece_type == 1){    
@@ -1568,7 +1581,7 @@ int placement_and_piece_endgame(uint8_t square){
 						}
 					}
 				}
-				bb ^= (1ULL << r);			
+				bb ^= (BB_SQUARES[r]);			
 			}	
 
 			// Finally use the increment
@@ -1596,8 +1609,8 @@ int placement_and_piece_endgame(uint8_t square){
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);									
 
-			if (occupied & (1ULL << r) & ~kings){
-				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (1ULL << r)));
+			if (occupied & (BB_SQUARES[r]) & ~kings){
+				update_pressure_and_support_tables(r, piece_type, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
 			}
 
 			// Get the x and y coordinates for the given square
@@ -1612,10 +1625,10 @@ int placement_and_piece_endgame(uint8_t square){
 			if (piece_type == 3 || piece_type == 4 || piece_type == 5){
 				
 				// Remove the piece from the occupied mask copy
-				occupiedCopy &= ~(1ULL << r);
+				occupiedCopy &= ~(BB_SQUARES[r]);
 				
 				// If each square doesn't contain a black piece, boost the score for mobility	
-				if (bool(~occupied_black & (1ULL << r))){
+				if (bool(~occupied_black & (BB_SQUARES[r]))){
 					total += 10;
 				}
 				
@@ -1623,7 +1636,7 @@ int placement_and_piece_endgame(uint8_t square){
 			} else if (piece_type == 2){
 				
 				// If each square doesn't contain a black piece, boost the score for mobility	
-				if (bool(~occupied_black & (1ULL << r))){
+				if (bool(~occupied_black & (BB_SQUARES[r]))){
 					total += 10;
 				}
 				
@@ -1636,7 +1649,7 @@ int placement_and_piece_endgame(uint8_t square){
 				
 				// Increase the boost as the attacked pawn is closer to the center files
 				uint8_t attackedPieceType = pieceTypeLookUp[r]; 
-				if (attackedPieceType == 1 && !bool(occupied_white & (1ULL << r))){
+				if (attackedPieceType == 1 && !bool(occupied_white & (BB_SQUARES[r]))){
 					total += 200;
 				}
 			}			
@@ -1674,7 +1687,7 @@ int placement_and_piece_endgame(uint8_t square){
 			}
 		}
     }
-	
+	//std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << std::endl;
 	return total;
 }
 
@@ -1765,12 +1778,108 @@ void loop_and_update(uint64_t bb, uint8_t attacking_piece_type, bool attacking_p
     uint8_t r = 0;
 	while (bb) {
         r = __builtin_ctzll(bb);
-        update_pressure_and_support_tables(r, attacking_piece_type, decrement, attacking_piece_colour, bool(occupied_white & (1ULL << r)));
+        update_pressure_and_support_tables(r, attacking_piece_type, decrement, attacking_piece_colour, bool(occupied_white & (BB_SQUARES[r])));
         bb &= bb - 1;
     }
 }
 
-int advanced_endgame_eval(int total){
+void adjust_pressure_and_support_tables_for_pins(uint64_t bb){
+
+	while (bb) {
+        uint8_t current_square = __builtin_ctzll(bb);
+    	bb &= bb - 1;
+		
+		bool current_square_colour = bool(occupied_white & (BB_SQUARES[current_square])); 
+		uint8_t current_square_piece = pieceTypeLookUp[current_square];
+		
+		uint64_t currentSidePieces = current_square_colour ? occupied_white : occupied_black;
+		uint64_t opposingPieces = current_square_colour ? occupied_black : occupied_white;
+		
+		// Acquire the masks of the pieces on the same rank, file and diagonal as the given square
+		uint64_t rank_pieces = BB_RANK_MASKS[current_square] & occupied;
+		uint64_t file_pieces = BB_FILE_MASKS[current_square] & occupied;
+		uint64_t diag_pieces = BB_DIAG_MASKS[current_square] & occupied;
+
+		// Acquire all attack masks for each piece type
+		uint64_t attackers = (
+			(BB_RANK_ATTACKS[current_square][rank_pieces] & (queens | rooks)) |
+			(BB_FILE_ATTACKS[current_square][file_pieces] & (queens | rooks)) |
+			(BB_DIAG_ATTACKS[current_square][diag_pieces] & (queens | bishops))
+		);
+
+		// Perform a bitwise and with the opposing pieces 
+		uint64_t sliding_attackers_mask = attackers & opposingPieces;
+		uint64_t sliding_attackers = sliding_attackers_mask & (queens | rooks | bishops);
+
+		uint8_t sliding_attacker = 0;
+		uint8_t target = 0;
+
+		int decrement = 0;
+		int pressure_increase = 0;
+		
+		while (sliding_attackers) {
+			sliding_attacker = __builtin_ctzll(sliding_attackers);
+			sliding_attackers &= sliding_attackers - 1;
+
+			uint8_t pinning_piece_type = pieceTypeLookUp[sliding_attacker];
+			uint64_t attacked_pieces_behind_target = ~(sliding_attackers_mask) & attacks_mask(!current_square_colour,occupied & ~(BB_SQUARES[current_square]),sliding_attacker ,pinning_piece_type) & currentSidePieces;
+			
+			while (attacked_pieces_behind_target) {
+				target = __builtin_ctzll(attacked_pieces_behind_target);
+				attacked_pieces_behind_target &= attacked_pieces_behind_target - 1;
+
+				uint8_t pinned_to_piece_type = pieceTypeLookUp[target];		
+
+				if (pinned_to_piece_type == 6){
+					decrement += decrement_lookup[pinned_to_piece_type];
+					pressure_increase += pressure_increase_lookup[pinned_to_piece_type];
+					continue;
+				}
+				
+				int new_pressure = pressure_weights[pinning_piece_type][pinned_to_piece_type];
+				int pressure = current_square_colour ? pressure_black[target] + new_pressure: pressure_white[target] + new_pressure;
+				int support = current_square_colour ? support_white[target] : support_black[target];
+				bool high_pressure = pressure >= support;
+				
+				if (high_pressure){
+					decrement += decrement_lookup[pinned_to_piece_type];
+					pressure_increase += pressure_increase_lookup[pinned_to_piece_type];
+				}
+			}
+		}
+
+		if (current_square_colour){
+			pressure_black[current_square] += pressure_increase;
+		} else {
+			pressure_white[current_square] += pressure_increase;
+		}	
+
+		uint64_t current_piece_attacks = attacks_mask(current_square_colour,occupied,current_square,current_square_piece) & occupied;
+		uint8_t attacked_square = 0;
+		while (current_piece_attacks) {
+			attacked_square = __builtin_ctzll(current_piece_attacks);
+			current_piece_attacks &= current_piece_attacks - 1;
+
+			uint8_t attacked_piece_type = pieceTypeLookUp[attacked_square];
+
+			if (current_square_colour){
+				if ((occupied_white & (BB_SQUARES[attacked_square])) != 0){
+					support_white[attacked_square] += std::min(support_weights[current_square_piece][attacked_piece_type], decrement);				
+				} else {
+					pressure_white[attacked_square] += std::min(pressure_weights[current_square_piece][attacked_piece_type], decrement);
+				}
+			} else {
+				if ((occupied_white & (BB_SQUARES[attacked_square])) != 0){
+					pressure_black[attacked_square] += std::min(pressure_weights[current_square_piece][attacked_piece_type], decrement);	
+				} else {
+					support_black[attacked_square] += std::min(support_weights[current_square_piece][attacked_piece_type], decrement);
+				}
+			}	
+		}
+	}
+}
+
+int advanced_endgame_eval(int total, bool turn){
 
 	// Acquire the square positions of each king
 	uint8_t whiteKingSquare = __builtin_ctzll(occupied_white&kings);
@@ -1786,8 +1895,8 @@ int advanced_endgame_eval(int total){
 		total += (7-kingSeparation)*200;
 					
 		// Get the x and y coordinates for the white king
-		uint8_t x = whiteKingSquare >> 3;
-		uint8_t y = whiteKingSquare & 7;
+		uint8_t y = whiteKingSquare >> 3;
+		uint8_t x = whiteKingSquare & 7;
 		
 		/*
 			In this code section, lower white's score if it's king is closer to the board's edge
@@ -1813,8 +1922,8 @@ int advanced_endgame_eval(int total){
 		total -= (7-kingSeparation)*200;
 		
 		// Get the x and y coordinates for the black king
-		uint8_t x = blackKingSquare >> 3;
-		uint8_t y = blackKingSquare & 7;
+		uint8_t y = blackKingSquare >> 3;
+		uint8_t x = blackKingSquare & 7;
 		
 		/*
 			In this code section, lower black's score if it's king is closer to the board's edge
@@ -1838,70 +1947,102 @@ int advanced_endgame_eval(int total){
 	uint64_t firstHalf = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
 	uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
 	
-	// Define variables for average separation between each king and each coloured pawns
-	int averageBlackKing_blackPawnSeperation = 0;
-	int averageWhiteKing_whitePawnSeperation = 0;
-	int averageBlackKing_whitePawnSeperation = 0;
-	int averageWhiteKing_blackPawnSeperation = 0;
+	// Define variables for separation variables for each king and each coloured pawns and passed pawn bonuses
+	int blackKing_pawnSeparation = 0;
+	int whiteKing_pawnSeparation = 0;
+	int kingDist = 0;
+	int pawnDist = 0;
+
+	bool kingCanCatch;
+	
+	int ppIncrement = 0;
+	int blockModifier = 0;
+	int passedBonus = 0;
 	
 	// Loop through the mask containing black pawns in the first half
 	uint8_t r = 0;
 	uint64_t bb = firstHalf & occupied_black & pawns;
-	uint8_t size = 0;
 	while (bb) {
 		
 		// Get the position of the least significant set bit of the mask
 		r = __builtin_ctzll(bb);	
 
-		// Add all the distances between each king and the black pawns
-		averageBlackKing_blackPawnSeperation += square_distance(r,blackKingSquare);
-		averageWhiteKing_blackPawnSeperation += square_distance(r,whiteKingSquare);
-		bb &= bb - 1;
-		size += 1;
-	}
-	
-	// Divide the sums by the number of pawns to acquire the average
-	if (size > 0){
-		averageBlackKing_blackPawnSeperation /= size;
-		averageWhiteKing_blackPawnSeperation /= size;
+		uint8_t file = r & 7;
+		uint8_t rank = r >> 3;
+
+		// Black promotes on rank 0; square index = file (since rank * 8 + file = 0 * 8 + file)
+		uint8_t promotionSquare = file;
+
+		// Find the distance between each king and the black pawn
+		blackKing_pawnSeparation = square_distance(r,blackKingSquare);
+		whiteKing_pawnSeparation = square_distance(r,whiteKingSquare);
 		
-	// Otherwise set the average as the max distance
-	}else{
-		averageBlackKing_blackPawnSeperation = 7;
-		averageWhiteKing_blackPawnSeperation = 7;
+		ppIncrement = getPPIncrement(false, (occupied_white & pawns), 100, file, rank, occupied_white, occupied_black);
+		
+		kingDist = square_distance(whiteKingSquare, promotionSquare);
+		pawnDist = rank;
+
+		kingCanCatch = (turn) ? (kingDist <= pawnDist + 1) : (kingDist <= pawnDist);
+
+		// Defensive penalty for not being able to catch enemy pawn
+		blockModifier = 0;
+		if (!kingCanCatch) {
+			blockModifier = ppIncrement >> 1; // can't stop it, big problem
+		} else {
+			int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
+			blockModifier = -diff * (ppIncrement >> 3); // the closer we are, the better
+		}
+
+		passedBonus = ((7 - rank) * (ppIncrement + blockModifier)) >> 3;
+
+		total += (7 - blackKing_pawnSeparation) * passedBonus;
+		total -= (7 - whiteKing_pawnSeparation) * passedBonus;
+
+		bb &= bb - 1;
 	}
-	
+		
 	// Loop through the mask containing white pawns in the second half
 	r = 0;
 	bb = secondHalf & occupied_white & pawns;
-	size = 0;
 	while (bb) {
 		
 		// Get the position of the least significant set bit of the mask
-		r = __builtin_ctzll(bb);			
+		r = __builtin_ctzll(bb);	
 		
-		// Add all the distances between each king and the white pawns
-		averageWhiteKing_whitePawnSeperation += square_distance(r,whiteKingSquare);
-		averageBlackKing_whitePawnSeperation += square_distance(r,blackKingSquare);
-		bb &= bb - 1;
-		size += 1;
-	}
-	
-	// Divide the sums by the number of pawns to acquire the average
-	if (size > 0){
-		averageWhiteKing_whitePawnSeperation /= size;
-		averageBlackKing_whitePawnSeperation /= size;
-		
-	// Otherwise set the average as the max distance
-	}else{
-		averageWhiteKing_whitePawnSeperation = 7;
-		averageBlackKing_whitePawnSeperation = 7;
-	}
-	
-	// Update the scores based on the average distances
-	total += (7 - averageBlackKing_whitePawnSeperation) * 200 + (7 - averageBlackKing_blackPawnSeperation) * 250;
-	total -= (7 - averageWhiteKing_blackPawnSeperation) * 200 + (7 - averageWhiteKing_whitePawnSeperation) * 250;
+		uint8_t file = r & 7;
+		uint8_t rank = r >> 3;
 
+		// White promotes on rank 7; square index = 56 + file = 7 * 8 + file
+		uint8_t promotionSquare = 56 + file;
+		
+		// Find the distance between each king and the white pawns
+		blackKing_pawnSeparation = square_distance(r,blackKingSquare);
+		whiteKing_pawnSeparation = square_distance(r,whiteKingSquare);
+		
+		ppIncrement = getPPIncrement(true, (occupied_black & pawns), 100, file, rank, occupied_black, occupied_white);
+		
+		kingDist = square_distance(blackKingSquare, promotionSquare);
+
+		pawnDist = 7 - rank;
+		kingCanCatch = (!turn) ? (kingDist <= pawnDist + 1) : (kingDist <= pawnDist);
+
+		// Defensive penalty for not being able to catch enemy pawn
+		blockModifier = 0;
+		if (!kingCanCatch) {
+			blockModifier = ppIncrement >> 1; // can't stop it, big problem
+		} else {
+			int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
+			blockModifier = -diff * (ppIncrement >> 3); // the closer we are, the better
+		}
+
+		passedBonus = (rank * (ppIncrement + blockModifier)) >> 3;
+
+		total += (7 - blackKing_pawnSeparation) * passedBonus;
+		total -= (7 - whiteKing_pawnSeparation) * passedBonus;
+
+		bb &= bb - 1;
+	}
+	
 	return total;
 	//std::cout << averageBlackKing_blackPawnSeperation << " " << averageWhiteKing_whitePawnSeperation << " " <<  averageBlackKing_whitePawnSeperation << " " << averageWhiteKing_blackPawnSeperation << " " <<std::endl;
 }
@@ -1999,14 +2140,17 @@ int placement_and_piece_eval(int moveNum, bool turn, uint8_t lastMovedToSquare, 
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		adjust_pressure_and_support_tables_for_pins(occupied & ~kings);
+		//std::cout << total << std::endl;
 		total += get_pressure_increment(lastMovedToSquare, occupied & ~kings, turn);
+		//std::cout << total << std::endl;
 		
-		// Boost the score for the side with more piece vallue proportional to how many pieces are on the board
+		// Boost the score for the side with more piece value proportional to how many pieces are on the board
+		//std::cout << occupied << " black:" << blackPieceVal << "  white: " << whitePieceVal  << " diff: " << (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000) << std::endl;
 		if (blackPieceVal > whitePieceVal){
-			total += (int)(((blackPieceVal - whitePieceVal)/ blackPieceVal) * 2000);		
+			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000);		
 		}else if (whitePieceVal > blackPieceVal){			
-			total -= (int)(((whitePieceVal - blackPieceVal)/ whitePieceVal) * 2000);
+			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000);
 		}
 	
 	// Else the game is in endgame phase	
@@ -2027,19 +2171,19 @@ int placement_and_piece_eval(int moveNum, bool turn, uint8_t lastMovedToSquare, 
 			total += placement_and_piece_endgame(r);
 			bb &= bb - 1;			
 		} 
-		
+		adjust_pressure_and_support_tables_for_pins(occupied & ~kings);
 		total += get_pressure_increment(lastMovedToSquare, occupied & ~kings, turn);
 
 		// Boost the score for the side with more piece value proportional to how many pieces are on the board
 		if (blackPieceVal > whitePieceVal){
-			total += (int)(((blackPieceVal - whitePieceVal)/ blackPieceVal) * 2000);		
+			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 15000);		
 		}else if (whitePieceVal > blackPieceVal){			
-			total -= (int)(((whitePieceVal - blackPieceVal)/ whitePieceVal) * 2000);
+			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 15000);
 		}
 		
 		// Check if the position is an advanced endgame
 		if (isNearGameEnd){			
-			total = advanced_endgame_eval(total);
+			total = advanced_endgame_eval(total, turn);
 		}
 	}
 	
@@ -2063,12 +2207,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint8_t lastMovedToSquare, 
 	/*
 		In this code section, boost the scores of both sides based on how poor the side's defense is relative to the opponent's offense
 	*/
+	//std::cout << occupied << " black:" << blackOffensiveScore << "  white: " << whiteDefensiveScore  << " diff: " << ((blackOffensiveScore - std::max(whiteDefensiveScore, 0))/18) * 100 << std::endl;
+	//std::cout << occupied << " black:" << blackDefensiveScore << "  white: " << whiteOffensiveScore  << " diff: " << ((whiteOffensiveScore - std::max(blackDefensiveScore, 0))/18) * 100 << std::endl;
 	if (whiteOffensiveScore > blackDefensiveScore){
-		total -= ((whiteOffensiveScore - blackDefensiveScore)/12) * 100;
+		total -= ((whiteOffensiveScore - std::max(blackDefensiveScore, 0))/18) * 100;
 	}
 	
 	if (blackOffensiveScore > whiteDefensiveScore){
-		total += ((blackOffensiveScore - whiteDefensiveScore)/12) * 100;
+		total += ((blackOffensiveScore - std::max(whiteDefensiveScore, 0))/18) * 100;
 	}
 	
 	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;
@@ -2083,7 +2229,7 @@ inline int apply_pressure_with_horizon_mitigation(uint8_t current_square, uint8_
         current_square_colour ? occupied_black : occupied_white
     );
 
-    if ((attackMask & (1ULL << last_moved_to_square)) == 0)
+    if ((attackMask & (BB_SQUARES[last_moved_to_square])) == 0)
         return base_value;
 
     int piece_type = pieceTypeLookUp[current_square];
@@ -2127,7 +2273,7 @@ int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, bool turn)
         uint8_t r = __builtin_ctzll(bb);
         bb &= bb - 1;
 
-        bool current_colour = (occupied_white & (1ULL << r)) != 0;
+        bool current_colour = (occupied_white & (BB_SQUARES[r])) != 0;
         int piece_type = pieceTypeLookUp[r];
         int base_value = values[piece_type];
 
@@ -2141,7 +2287,7 @@ int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, bool turn)
 
         int increment = 0;
 
-        if (attackers == 1) {
+        if (attackers == 1 && supporters == 1) {
             if (pressure > 20)
                 increment = apply_pressure_with_horizon_mitigation(r, last_moved_to_square, current_colour, base_value >> 2, 1);
         } else if (attackers > supporters) {
@@ -2206,7 +2352,7 @@ uint8_t piece_type_at(uint8_t square){
 		In this section, see if the individual piece type masks bitwise Anded with the square exists
 		If so this suggests that the given square has the piece type of that mask
 	*/
-	uint64_t mask = (1ULL << square);
+	uint64_t mask = (BB_SQUARES[square]);
 
 	if (pawns & mask) {
 		return 1;
@@ -2300,10 +2446,10 @@ void setAttackingLayer(int increment){
         squareOpen = false;
 		pawnShield = false;
 		if (!isEndGame){
-			if ((occupied_white & (1ULL << r)) == 0){
+			if ((occupied_white & (BB_SQUARES[r])) == 0){
 				attackingLayer[1][x][y] += increment * multiplier;
 				squareOpen = true;
-			} else if ((occupied_white & pawns & (1ULL << r)) != 0){
+			} else if ((occupied_white & pawns & (BB_SQUARES[r])) != 0){
 				attackingLayer[1][x][y] -= increment >> 1;
 				pawnShield = true;
 			}
@@ -2327,7 +2473,7 @@ void setAttackingLayer(int increment){
 			// If the square is open around the king, boost the score further
 			if (!isEndGame){
 				if (squareOpen){
-					if ((occupied_white & (1ULL << r_inner)) == 0){
+					if ((occupied_white & (BB_SQUARES[r_inner])) == 0){
 						attackingLayer[1][x][y] += increment * multiplier;
 					}
 				} else if (pawnShield){
@@ -2360,10 +2506,10 @@ void setAttackingLayer(int increment){
         squareOpen = false;
 		pawnShield = false;
 		if (!isEndGame){
-			if ((occupied_black & (1ULL << r)) == 0){
+			if ((occupied_black & (BB_SQUARES[r])) == 0){
 				attackingLayer[0][x][y] += increment * multiplier;
 				squareOpen = true;
-			} else if ((occupied_black & pawns & (1ULL << r)) != 0){
+			} else if ((occupied_black & pawns & (BB_SQUARES[r])) != 0){
 				attackingLayer[0][x][y] -= increment >> 1;
 				pawnShield = true;
 			}
@@ -2387,7 +2533,7 @@ void setAttackingLayer(int increment){
 						
 			if (!isEndGame){
 				if (squareOpen){
-					if ((occupied_black & (1ULL << r_inner)) == 0){
+					if ((occupied_black & (BB_SQUARES[r_inner])) == 0){
 						attackingLayer[0][x][y] += increment * multiplier;
 					}
 				} else if (pawnShield){
@@ -2525,7 +2671,7 @@ int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint
 
 		// Give more of a boost if the passed pawn has supporters on either side or is defended.
 		uint8_t square = rank * 8 + file;
-		uint64_t pawnBB = 1ULL << square;
+		uint64_t pawnBB = BB_SQUARES[square];
 
 		uint64_t left = (pawnBB >> 1) & ~BB_FILE_H & pawns;
 		uint64_t right = (pawnBB << 1) & ~BB_FILE_A & pawns;
@@ -2691,8 +2837,8 @@ void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSqua
 		A hash of the starting position
 	*/
 	
-	const uint64_t fromBB = 1ULL << fromSquare;
-    const uint64_t toBB = 1ULL << toSquare;
+	const uint64_t fromBB = BB_SQUARES[fromSquare];
+    const uint64_t toBB = BB_SQUARES[toSquare];
 
     // Determine side
     bool isWhite = (occupied_whiteMask & fromBB) != 0;
@@ -3075,38 +3221,43 @@ void generatePieceMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &en
 		- to_mask: The mask of the possible ending positions for move generation		
 	*/
 	
-	// Mask of non-pawn pieces we can move
-    uint64_t non_pawn_pieces = (our_pieces & ~pawnsMask) & from_mask;
-
-    while (non_pawn_pieces) {
-        uint8_t from = __builtin_ctzll(non_pawn_pieces);
-        non_pawn_pieces &= non_pawn_pieces - 1;
-
-        // Identify the piece type directly using the bitmask
-        uint64_t bit = 1ULL << from;
-        uint8_t pt = 0;
-        if (knightsMask & bit) pt = 2;
-        else if (bishopsMask & bit) pt = 3;
-        else if (rooksMask & bit) pt = 4;
-        else if (queensMask & bit) pt = 5;
-        else if (kingsMask & bit) pt = 6;
-
-        // Determine the side
-        bool is_white = (occupied_white & bit) != 0;
-
-        // Get legal attacks for that piece type
-        uint64_t attacks = attacks_mask(is_white, occupied, from, pt);
-        uint64_t legal_moves = (attacks & ~our_pieces) & to_mask;
-
-        // Loop through all destination squares
-        while (legal_moves) {
-            uint8_t to = __builtin_ctzll(legal_moves);
-            legal_moves &= legal_moves - 1;
-
-            startPos.push_back(from);
-            endPos.push_back(to);
-        }
-    }
+	// Set the masks for each piece and for all white and black pieces globally
+	pawns = pawnsMask;
+	knights = knightsMask;
+	bishops = bishopsMask;
+	rooks = rooksMask;
+	queens = queensMask;
+	kings = kingsMask;
+	occupied_white = occupied_whiteMask;
+	occupied_black = occupied_blackMask;
+	occupied = occupiedMask;
+	
+	// Define mask of non pawn pieces
+	uint64_t non_pawns = (our_pieces & ~pawns) & from_mask;
+		
+	// Loop through the non pawn pieces
+	uint8_t r = 0;
+	uint64_t bb = non_pawns;
+	while (bb) {
+		r = __builtin_ctzll(bb) ;
+		
+		// Define the moves as a bitwise and between the squares attacked from the starting square and the starting mask
+		uint64_t moves = (attacks_mask(bool((1ULL<<r) & occupied_white),occupied,r,piece_type_at (r)) & ~our_pieces) & to_mask;		
+		
+		// Loop through the possible destinations
+		uint8_t r_inner = 0;
+		uint64_t bb_inner = moves;
+		while (bb_inner) {
+			r_inner = __builtin_ctzll(bb_inner);
+			
+			// Push the starting and ending positions to their respective vectors
+			startPos.push_back(r);
+			endPos.push_back(r_inner);  
+			bb_inner &= bb_inner - 1;
+		}
+		
+		bb &= bb - 1;
+	}
 }
 
 void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t opposingPieces, uint64_t occupied, bool colour, uint64_t pawnsMask, uint64_t from_mask, uint64_t to_mask){    			
@@ -3365,7 +3516,7 @@ void scan_reversed(uint64_t bb, std::vector<uint8_t> &result){
     while (bb) {
         r = 64 - __builtin_clzll(bb) - 1;
         result.push_back(r);
-        bb ^= (1ULL << r);		
+        bb ^= (BB_SQUARES[r]);		
     }    
 }
 

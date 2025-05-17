@@ -945,11 +945,11 @@ cdef class ChessAI:
         cdef int count = 0
         
         # Define and initialize the razoring threshold
-        cdef int razorThreshold
-        if (depthLimit == 3):
-            razorThreshold = max (int(1000 * .75** (depthLimit - 4)), 200) 
-        else:
-            razorThreshold = max (int(750 * .75** (depthLimit - 4)), 50)
+        # cdef int razorThreshold
+        # if (depthLimit == 3):
+        #     razorThreshold = max (int(2000 * .75** (depthLimit - 4)), 200) 
+        # else:
+        #     razorThreshold = max (int(1500 * .75** (depthLimit - 4)), 50)
             
         # Define variable to hold the zobrist hash for the current board state
         cdef uint64_t curHash = self.zobrist
@@ -990,18 +990,18 @@ cdef class ChessAI:
             for move in moves_list:
                 
                 # Razoring
-                if (not(beta_list[count] == None)):
-                    if (beta_list[count] - beta > razorThreshold):
-                        count+=1
-                        cur_beta_list.append(None)
-                        # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p5/2PPPP2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 14")):         
-                        #     # print(moves_list)
-                        #     print("REMOVED: ", move, beta_list[count], alpha, beta, count)
-                        # if (prevCapture):
-                        #     continue
-                        # else:
-                        #     break
-                        continue
+                # if (not(beta_list[count] == None)):
+                #     if (beta_list[count] - beta > razorThreshold):
+                #         count+=1
+                #         cur_beta_list.append(None)
+                #         # if (self.pgnBoard == chess.Board("r4rk1/p2nqppp/1p1bpn2/2p5/2PPPP2/2NB4/P1Q2P1P/R1B2RK1 w - - 0 14")):         
+                #         #     # print(moves_list)
+                #         #     print("REMOVED: ", move, beta_list[count], alpha, beta, count)
+                #         # if (prevCapture):
+                #         #     continue
+                #         # else:
+                #         #     break
+                #         continue
                 
                 # Check if the move is a promoting move
                 if (move.promotion):
@@ -1041,6 +1041,11 @@ cdef class ChessAI:
                     lowestScore = score
 
                 beta = min(beta, lowestScore)
+                
+                # if (not(beta_list[count] == None)):
+                #     if (beta_list[count] - beta > razorThreshold):
+                #         razorThreshold += beta_list[count] - beta
+                
                 count+=1
                 
                 if beta <= alpha:
@@ -1980,7 +1985,7 @@ cdef int evaluate_board(object board,uint64_t zobrist):
         # Call the c++ function 
         total += placement_and_piece_eval(moveNum, board.turn, board.peek().to_square, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
         horizonMitigation = get_horizon_mitigation_flag()        
-        # if (board.fen() == '8/7k/2b1B2p/3p3P/1Bp2pP1/8/6K1/8 w - - 0 57'):
+        # if (board.fen() == '1r3rk1/5ppp/4p3/3pN1q1/3P4/P3P1P1/Q2K1P1P/R6R b - - 2 25'):
         #     print(board)
         #     print(total)
         #     print (board.move_stack[-8:])

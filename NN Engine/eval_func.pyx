@@ -77,7 +77,7 @@ cdef int wrapper (object board):
         print(board)
         print()
         if len(board.move_stack) == 0:
-            prevMove = 0
+            prevMove = 64
         else:
             prevMove = board.peek().to_square
         total += placement_and_piece_eval(moveNum, board.turn, prevMove, pawns, knights, bishops, rooks, queens, kings, 0, occupied_white, occupied_black, occupied)   

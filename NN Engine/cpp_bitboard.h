@@ -26,7 +26,7 @@ uint64_t edges(uint8_t square);
 int placement_and_piece_midgame(uint8_t square);
 int placement_and_piece_endgame(uint8_t square);
 void update_pressure_and_support_tables(uint8_t current_square, uint8_t attacking_piece_type, uint8_t decrement, bool attacking_piece_colour, bool current_piece_colour);
-void handle_batteries_for_pressure_and_support_tables(uint8_t attacking_piece_square, uint8_t attacking_piece_type, bool attacking_piece_colour);
+void handle_batteries_for_pressure_and_support_tables(uint8_t attacking_piece_square, uint8_t attacking_piece_type, uint64_t prev_attack_mask, bool attacking_piece_colour);
 void loop_and_update(uint64_t bb, uint8_t attacking_piece_type, bool attacking_piece_colour, int decrement);
 void adjust_pressure_and_support_tables_for_pins(uint64_t bb);
 int advanced_endgame_eval(int total, bool turn);

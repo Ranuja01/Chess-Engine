@@ -9,7 +9,7 @@ Created on Mon Jul 29 12:50:22 2024
 
 import chess
 import chess.pgn
-import ChessAI
+# import ChessAI
 import io
 # Create a new chess board
 
@@ -27,7 +27,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("8/2p1kpp1/2P5/p4P2/2P3P1/4b1K1/8/3b4 b - - 0 37")
+board = chess.Board("r2qkb1r/pb1n1pp1/4pn1p/2p1P3/1p1P4/3B1N2/PP2NPPP/R1BQ1RK1 b kq - 0 12")
 
 # Print the board in a human-readable format
 print(board)

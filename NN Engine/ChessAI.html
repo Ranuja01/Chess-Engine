@@ -443,9 +443,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   if (<span class='py_c_api'>PyDict_SetItem</span>(__pyx_d, __pyx_n_s_chess, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 22, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
 /* … */
-  __pyx_tuple__15 = <span class='py_c_api'>PyTuple_Pack</span>(2, __pyx_n_s_chess, __pyx_n_s_polyglot);<span class='error_goto'> if (unlikely(!__pyx_tuple__15)) __PYX_ERR(0, 22, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__15);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__15);
+  __pyx_tuple__16 = <span class='py_c_api'>PyTuple_Pack</span>(2, __pyx_n_s_chess, __pyx_n_s_polyglot);<span class='error_goto'> if (unlikely(!__pyx_tuple__16)) __PYX_ERR(0, 22, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__16);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__16);
 </pre><pre class="cython line score-0">&#xA0;<span class="">0023</span>: <span class="k">from</span><span class="w"> </span><span class="nn">cython</span><span class="w"> </span><span class="k">cimport</span> <span class="k">nogil</span></pre>
 <pre class="cython line score-31" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0024</span>: <span class="k">from</span><span class="w"> </span><span class="nn">joblib</span><span class="w"> </span><span class="k">import</span> <span class="n">Parallel</span><span class="p">,</span> <span class="n">delayed</span></pre>
 <pre class='cython code score-31 '>  __pyx_t_2 = <span class='py_c_api'>PyList_New</span>(2);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 24, __pyx_L1_error)</span>
@@ -573,13 +573,13 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <pre class="cython line score-0">&#xA0;<span class="">0042</span>:     <span class="k">ctypedef</span> <span class="nb">unsigned</span> <span class="n">char</span> <span class="n">uint8_t</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">0043</span>:     <span class="k">ctypedef</span> <span class="nb">unsigned</span> <span class="nb">long</span> <span class="nb">long</span> <span class="n">uint64_t</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">0044</span>: </pre>
-<pre class="cython line score-0">&#xA0;<span class="">0045</span>: <span class="k">cdef</span><span class="w"> </span><span class="kr">extern</span> <span class="k">from</span> <span class="s">&quot;nnue.h&quot;</span><span class="p">:</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">0046</span>:     <span class="nb">int</span> <span class="n">evaluate_position</span><span class="p">(</span><span class="n">const</span> <span class="n">uint64_t</span><span class="o">*</span> <span class="n">bitboards</span><span class="p">)</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">0047</span>:     <span class="n">void</span> <span class="n">init_session</span><span class="p">(</span><span class="n">const</span> <span class="n">char</span><span class="o">*</span> <span class="n">model_path</span><span class="p">)</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">0048</span>:     <span class="n">void</span> <span class="n">load_all_weights</span><span class="p">()</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">0049</span>:     <span class="nb">int</span> <span class="n">run_inference</span><span class="p">(</span><span class="n">const</span> <span class="n">uint64_t</span><span class="o">*</span> <span class="n">bitboards</span><span class="p">)</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">0050</span>:     <span class="n">void</span> <span class="n">load_model</span><span class="p">()</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">0051</span>:     <span class="nb">int</span> <span class="n">run_inference_quantized</span><span class="p">(</span><span class="n">const</span> <span class="n">uint64_t</span><span class="o">*</span> <span class="n">bitboards</span><span class="p">)</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0045</span>: <span class="c"># cdef extern from &quot;nnue.h&quot;:</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0046</span>: <span class="c">#     int evaluate_position(const uint64_t* bitboards)</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0047</span>: <span class="c">#     void init_session(const char* model_path)</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0048</span>: <span class="c">#     void load_all_weights()</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0049</span>: <span class="c">#     int run_inference(const uint64_t* bitboards)</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0050</span>: <span class="c">#     void load_model()</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0051</span>: <span class="c">#     int run_inference_quantized(const uint64_t* bitboards)</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">0052</span>: </pre>
 <pre class="cython line score-0">&#xA0;<span class="">0053</span>: <span class="c"># Import functions from c++ file</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">0054</span>: <span class="k">cdef</span><span class="w"> </span><span class="kr">extern</span> <span class="k">from</span> <span class="s">&quot;cpp_bitboard.h&quot;</span><span class="p">:</span></pre>
@@ -649,7 +649,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyObject_GetAttrStr</span>(__pyx_t_3, __pyx_n_s_from_uci);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 102, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_2, __pyx_tuple__16, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 102, __pyx_L1_error)</span>
+  __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_2, __pyx_tuple__17, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 102, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='refnanny'>__Pyx_XGOTREF</span>(__pyx_v_7ChessAI_white_ksc);
@@ -657,9 +657,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_t_3);
   __pyx_t_3 = 0;
 /* … */
-  __pyx_tuple__16 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e1g1);<span class='error_goto'> if (unlikely(!__pyx_tuple__16)) __PYX_ERR(0, 102, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__16);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__16);
+  __pyx_tuple__17 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e1g1);<span class='error_goto'> if (unlikely(!__pyx_tuple__17)) __PYX_ERR(0, 102, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__17);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__17);
 </pre><pre class="cython line score-17" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0103</span>: <span class="k">cdef</span><span class="w"> </span><span class="kt">object</span> <span class="nf">white_qsc</span><span class="w"> </span><span class="o">=</span> <span class="n">chess</span><span class="o">.</span><span class="n">Move</span><span class="o">.</span><span class="n">from_uci</span><span class="p">(</span><span class="s">&#39;e1c1&#39;</span><span class="p">)</span></pre>
 <pre class='cython code score-17 '>  <span class='pyx_c_api'>__Pyx_GetModuleGlobalName</span>(__pyx_t_3, __pyx_n_s_chess);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 103, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
@@ -669,7 +669,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_GetAttrStr</span>(__pyx_t_2, __pyx_n_s_from_uci);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 103, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_3, __pyx_tuple__17, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 103, __pyx_L1_error)</span>
+  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_3, __pyx_tuple__18, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 103, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
   <span class='refnanny'>__Pyx_XGOTREF</span>(__pyx_v_7ChessAI_white_qsc);
@@ -677,9 +677,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_t_2);
   __pyx_t_2 = 0;
 /* … */
-  __pyx_tuple__17 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e1c1);<span class='error_goto'> if (unlikely(!__pyx_tuple__17)) __PYX_ERR(0, 103, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__17);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__17);
+  __pyx_tuple__18 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e1c1);<span class='error_goto'> if (unlikely(!__pyx_tuple__18)) __PYX_ERR(0, 103, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__18);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__18);
 </pre><pre class="cython line score-17" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0104</span>: <span class="k">cdef</span><span class="w"> </span><span class="kt">object</span> <span class="nf">black_ksc</span><span class="w"> </span><span class="o">=</span> <span class="n">chess</span><span class="o">.</span><span class="n">Move</span><span class="o">.</span><span class="n">from_uci</span><span class="p">(</span><span class="s">&#39;e8g8&#39;</span><span class="p">)</span></pre>
 <pre class='cython code score-17 '>  <span class='pyx_c_api'>__Pyx_GetModuleGlobalName</span>(__pyx_t_2, __pyx_n_s_chess);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 104, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
@@ -689,7 +689,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyObject_GetAttrStr</span>(__pyx_t_3, __pyx_n_s_from_uci);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 104, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_2, __pyx_tuple__18, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 104, __pyx_L1_error)</span>
+  __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_2, __pyx_tuple__19, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 104, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='refnanny'>__Pyx_XGOTREF</span>(__pyx_v_7ChessAI_black_ksc);
@@ -697,9 +697,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_t_3);
   __pyx_t_3 = 0;
 /* … */
-  __pyx_tuple__18 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e8g8);<span class='error_goto'> if (unlikely(!__pyx_tuple__18)) __PYX_ERR(0, 104, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__18);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__18);
+  __pyx_tuple__19 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e8g8);<span class='error_goto'> if (unlikely(!__pyx_tuple__19)) __PYX_ERR(0, 104, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__19);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__19);
 </pre><pre class="cython line score-17" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0105</span>: <span class="k">cdef</span><span class="w"> </span><span class="kt">object</span> <span class="nf">black_qsc</span><span class="w"> </span><span class="o">=</span> <span class="n">chess</span><span class="o">.</span><span class="n">Move</span><span class="o">.</span><span class="n">from_uci</span><span class="p">(</span><span class="s">&#39;e8c8&#39;</span><span class="p">)</span></pre>
 <pre class='cython code score-17 '>  <span class='pyx_c_api'>__Pyx_GetModuleGlobalName</span>(__pyx_t_3, __pyx_n_s_chess);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 105, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
@@ -709,7 +709,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_GetAttrStr</span>(__pyx_t_2, __pyx_n_s_from_uci);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 105, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_3, __pyx_tuple__19, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 105, __pyx_L1_error)</span>
+  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyObject_Call</span>(__pyx_t_3, __pyx_tuple__20, NULL);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 105, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
   <span class='refnanny'>__Pyx_XGOTREF</span>(__pyx_v_7ChessAI_black_qsc);
@@ -717,9 +717,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_t_2);
   __pyx_t_2 = 0;
 /* … */
-  __pyx_tuple__19 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e8c8);<span class='error_goto'> if (unlikely(!__pyx_tuple__19)) __PYX_ERR(0, 105, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__19);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__19);
+  __pyx_tuple__20 = <span class='py_c_api'>PyTuple_Pack</span>(1, __pyx_n_u_e8c8);<span class='error_goto'> if (unlikely(!__pyx_tuple__20)) __PYX_ERR(0, 105, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__20);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__20);
 </pre><pre class="cython line score-0">&#xA0;<span class="">0106</span>: </pre>
 <pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0107</span>: <span class="k">cdef</span><span class="w"> </span><span class="kt">const</span> <span class="kt">char</span>* <span class="nf">nnue_model_path</span><span class="w"> </span><span class="o">=</span> <span class="n">b</span><span class="s">&quot;/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/NNUE_treesearch_21_to_41.onnx&quot;</span></pre>
 <pre class='cython code score-0 '>  __pyx_v_7ChessAI_nnue_model_path = ((char const *)"/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/NNUE_treesearch_21_to_41.onnx");
@@ -1069,13 +1069,10 @@ static int __pyx_pf_7ChessAI_7ChessAI___cinit__(struct __pyx_obj_7ChessAI_ChessA
     <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_4); __pyx_t_4 = 0;
   }
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_1); __pyx_t_1 = 0;
-</pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0181</span>:         <span class="n">init_session</span><span class="p">(</span><span class="n">nnue_model_path</span><span class="p">)</span></pre>
-<pre class='cython code score-0 '>  init_session(__pyx_v_7ChessAI_nnue_model_path);
-</pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0182</span>:         <span class="n">load_all_weights</span><span class="p">()</span></pre>
-<pre class='cython code score-0 '>  load_all_weights();
-</pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0183</span>:         <span class="n">load_model</span><span class="p">()</span></pre>
-<pre class='cython code score-0 '>  load_model();
-</pre><pre class="cython line score-0">&#xA0;<span class="">0184</span>: </pre>
+</pre><pre class="cython line score-0">&#xA0;<span class="">0181</span>:         <span class="c"># init_session(nnue_model_path)</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0182</span>:         <span class="c"># load_all_weights()</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0183</span>:         <span class="c"># load_model()</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">0184</span>: </pre>
 <pre class="cython line score-0">&#xA0;<span class="">0185</span>:         <span class="c"># Initialize zobrist tables for hashing</span></pre>
 <pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0186</span>:         <span class="n">initializeZobrist</span><span class="p">()</span></pre>
 <pre class='cython code score-0 '>  initializeZobrist();
@@ -1233,16 +1230,16 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_2setWhiteCastledIndex(CYTHON_UNUSED 
   return __pyx_r;
 }
 /* … */
-  __pyx_tuple__20 = <span class='py_c_api'>PyTuple_Pack</span>(2, __pyx_n_s_self, __pyx_n_s_index);<span class='error_goto'> if (unlikely(!__pyx_tuple__20)) __PYX_ERR(0, 190, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__20);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__20);
+  __pyx_tuple__21 = <span class='py_c_api'>PyTuple_Pack</span>(2, __pyx_n_s_self, __pyx_n_s_index);<span class='error_goto'> if (unlikely(!__pyx_tuple__21)) __PYX_ERR(0, 190, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__21);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__21);
 /* … */
-  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_3setWhiteCastledIndex, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_setWhiteCastledIndex, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__21));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 190, __pyx_L1_error)</span>
+  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_3setWhiteCastledIndex, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_setWhiteCastledIndex, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__22));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 190, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_setWhiteCastledIndex, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 190, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
-  __pyx_codeobj__21 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_setWhiteCastledIndex, 190, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__21)) __PYX_ERR(0, 190, __pyx_L1_error)</span>
+  __pyx_codeobj__22 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__21, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_setWhiteCastledIndex, 190, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__22)) __PYX_ERR(0, 190, __pyx_L1_error)</span>
 </pre><pre class="cython line score-0">&#xA0;<span class="">0191</span>:         <span class="k">global</span> <span class="n">whiteCastledIndex</span></pre>
 <pre class="cython line score-7" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0192</span>:         <span class="n">whiteCastledIndex</span> <span class="o">=</span> <span class="n">index</span></pre>
 <pre class='cython code score-7 '>  __pyx_t_1 = <span class='pyx_c_api'>__Pyx_PyInt_As_int</span>(__pyx_v_index); if (unlikely((__pyx_t_1 == (int)-1) &amp;&amp; <span class='py_c_api'>PyErr_Occurred</span>())) <span class='error_goto'>__PYX_ERR(0, 192, __pyx_L1_error)</span>
@@ -1361,13 +1358,13 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_4setBlackCastledIndex(CYTHON_UNUSED 
   return __pyx_r;
 }
 /* … */
-  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_5setBlackCastledIndex, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_setBlackCastledIndex, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__22));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 195, __pyx_L1_error)</span>
+  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_5setBlackCastledIndex, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_setBlackCastledIndex, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__23));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 195, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_setBlackCastledIndex, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 195, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
 /* … */
-  __pyx_codeobj__22 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_setBlackCastledIndex, 195, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__22)) __PYX_ERR(0, 195, __pyx_L1_error)</span>
+  __pyx_codeobj__23 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__21, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_setBlackCastledIndex, 195, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__23)) __PYX_ERR(0, 195, __pyx_L1_error)</span>
 </pre><pre class="cython line score-0">&#xA0;<span class="">0196</span>:         <span class="k">global</span> <span class="n">blackCastledIndex</span></pre>
 <pre class="cython line score-7" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0197</span>:         <span class="n">blackCastledIndex</span> <span class="o">=</span> <span class="n">index</span></pre>
 <pre class='cython code score-7 '>  __pyx_t_1 = <span class='pyx_c_api'>__Pyx_PyInt_As_int</span>(__pyx_v_index); if (unlikely((__pyx_t_1 == (int)-1) &amp;&amp; <span class='py_c_api'>PyErr_Occurred</span>())) <span class='error_goto'>__PYX_ERR(0, 197, __pyx_L1_error)</span>
@@ -1496,16 +1493,16 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_6create_test_data(struct __pyx_obj_7
   return __pyx_r;
 }
 /* … */
-  __pyx_tuple__24 = <span class='py_c_api'>PyTuple_Pack</span>(14, __pyx_n_s_self, __pyx_n_s_board, __pyx_n_s_cacheSize, __pyx_n_s_a, __pyx_n_s_b, __pyx_n_s_c, __pyx_n_s_d, __pyx_n_s_promo, __pyx_n_s_val, __pyx_n_s_move, __pyx_n_s_result, __pyx_n_s_moves_list, __pyx_n_s__23, __pyx_n_s_length);<span class='error_goto'> if (unlikely(!__pyx_tuple__24)) __PYX_ERR(0, 200, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__24);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__24);
+  __pyx_tuple__25 = <span class='py_c_api'>PyTuple_Pack</span>(14, __pyx_n_s_self, __pyx_n_s_board, __pyx_n_s_cacheSize, __pyx_n_s_a, __pyx_n_s_b, __pyx_n_s_c, __pyx_n_s_d, __pyx_n_s_promo, __pyx_n_s_val, __pyx_n_s_move, __pyx_n_s_result, __pyx_n_s_moves_list, __pyx_n_s__24, __pyx_n_s_length);<span class='error_goto'> if (unlikely(!__pyx_tuple__25)) __PYX_ERR(0, 200, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__25);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__25);
 /* … */
-  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_7create_test_data, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_create_test_data, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__25));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 200, __pyx_L1_error)</span>
+  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_7create_test_data, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_create_test_data, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__26));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 200, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_create_test_data, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 200, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
-  __pyx_codeobj__25 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 14, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__24, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_create_test_data, 200, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__25)) __PYX_ERR(0, 200, __pyx_L1_error)</span>
+  __pyx_codeobj__26 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 14, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__25, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_create_test_data, 200, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__26)) __PYX_ERR(0, 200, __pyx_L1_error)</span>
 </pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0201</span>:         <span class="bp">self</span><span class="o">.</span><span class="n">is_training</span> <span class="o">=</span> <span class="bp">True</span></pre>
 <pre class='cython code score-0 '>  __pyx_v_self-&gt;is_training = 1;
 </pre><pre class="cython line score-2" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0202</span>:         <span class="bp">self</span><span class="o">.</span><span class="n">pgnBoard</span> <span class="o">=</span> <span class="n">board</span></pre>
@@ -1920,16 +1917,16 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_8alphaBetaWrapper(struct __pyx_obj_7
   return __pyx_r;
 }
 /* … */
-  __pyx_tuple__26 = <span class='py_c_api'>PyTuple_Pack</span>(19, __pyx_n_s_self, __pyx_n_s_t0, __pyx_n_s_cacheSize, __pyx_n_s_result, __pyx_n_s_a, __pyx_n_s_b, __pyx_n_s_c, __pyx_n_s_d, __pyx_n_s_promo, __pyx_n_s_val, __pyx_n_s_move, __pyx_n_s_t1, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_i, __pyx_n_s_j, __pyx_n_s_dif, __pyx_n_s_new_depth, __pyx_n_s_t0_new);<span class='error_goto'> if (unlikely(!__pyx_tuple__26)) __PYX_ERR(0, 240, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__26);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__26);
+  __pyx_tuple__27 = <span class='py_c_api'>PyTuple_Pack</span>(19, __pyx_n_s_self, __pyx_n_s_t0, __pyx_n_s_cacheSize, __pyx_n_s_result, __pyx_n_s_a, __pyx_n_s_b, __pyx_n_s_c, __pyx_n_s_d, __pyx_n_s_promo, __pyx_n_s_val, __pyx_n_s_move, __pyx_n_s_t1, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_i, __pyx_n_s_j, __pyx_n_s_dif, __pyx_n_s_new_depth, __pyx_n_s_t0_new);<span class='error_goto'> if (unlikely(!__pyx_tuple__27)) __PYX_ERR(0, 240, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__27);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__27);
 /* … */
-  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_9alphaBetaWrapper, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_alphaBetaWrapper, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__27));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 240, __pyx_L1_error)</span>
+  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_9alphaBetaWrapper, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_alphaBetaWrapper, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__28));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 240, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_alphaBetaWrapper, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 240, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
-  __pyx_codeobj__27 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(1, 0, 0, 19, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__26, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_alphaBetaWrapper, 240, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__27)) __PYX_ERR(0, 240, __pyx_L1_error)</span>
+  __pyx_codeobj__28 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(1, 0, 0, 19, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__27, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_alphaBetaWrapper, 240, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__28)) __PYX_ERR(0, 240, __pyx_L1_error)</span>
 </pre><pre class="cython line score-0">&#xA0;<span class="">0241</span>: </pre>
 <pre class="cython line score-0">&#xA0;<span class="">0242</span>:         <span class="c"># Start timer</span></pre>
 <pre class="cython line score-16" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">0243</span>:         <span class="n">t0</span><span class="o">=</span> <span class="n">timer</span><span class="p">()</span></pre>
@@ -8979,16 +8976,16 @@ static PyObject *__pyx_pf_7ChessAI_7ChessAI_10ev(struct __pyx_obj_7ChessAI_Chess
   return __pyx_r;
 }
 /* … */
-  __pyx_tuple__28 = <span class='py_c_api'>PyTuple_Pack</span>(2, __pyx_n_s_self, __pyx_n_s_board);<span class='error_goto'> if (unlikely(!__pyx_tuple__28)) __PYX_ERR(0, 1428, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__28);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__28);
+  __pyx_tuple__29 = <span class='py_c_api'>PyTuple_Pack</span>(2, __pyx_n_s_self, __pyx_n_s_board);<span class='error_goto'> if (unlikely(!__pyx_tuple__29)) __PYX_ERR(0, 1428, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__29);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__29);
 /* … */
-  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_11ev, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_ev, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__29));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1428, __pyx_L1_error)</span>
+  __pyx_t_2 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_7ChessAI_11ev, __Pyx_CYFUNCTION_CCLASS, __pyx_n_s_ChessAI_ev, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__30));<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1428, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_ev, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 1428, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
-  __pyx_codeobj__29 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__28, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_ev, 1428, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__29)) __PYX_ERR(0, 1428, __pyx_L1_error)</span>
+  __pyx_codeobj__30 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__29, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_ev, 1428, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__30)) __PYX_ERR(0, 1428, __pyx_L1_error)</span>
 </pre><pre class="cython line score-70" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1429</span>:         <span class="bp">self</span><span class="o">.</span><span class="n">zobrist</span> <span class="o">=</span> <span class="n">generateZobristHash</span><span class="p">(</span><span class="n">board</span><span class="o">.</span><span class="n">pawns</span><span class="p">,</span><span class="n">board</span><span class="o">.</span><span class="n">knights</span><span class="p">,</span><span class="n">board</span><span class="o">.</span><span class="n">bishops</span><span class="p">,</span><span class="n">board</span><span class="o">.</span><span class="n">rooks</span><span class="p">,</span><span class="n">board</span><span class="o">.</span><span class="n">queens</span><span class="p">,</span><span class="n">board</span><span class="o">.</span><span class="n">kings</span><span class="p">,</span><span class="n">board</span><span class="o">.</span><span class="n">occupied_co</span><span class="p">[</span><span class="bp">True</span><span class="p">],</span><span class="n">board</span><span class="o">.</span><span class="n">occupied_co</span><span class="p">[</span><span class="bp">False</span><span class="p">])</span></pre>
 <pre class='cython code score-70 '>  __pyx_t_1 = <span class='pyx_c_api'>__Pyx_PyObject_GetAttrStr</span>(__pyx_v_board, __pyx_n_s_pawns);<span class='error_goto'> if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1429, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_1);
@@ -10031,9 +10028,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_14generator(__pyx_CoroutineObject *_
 }
 static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
 /* … */
-  __pyx_tuple__30 = <span class='py_c_api'>PyTuple_Pack</span>(4, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move);<span class='error_goto'> if (unlikely(!__pyx_tuple__30)) __PYX_ERR(0, 1570, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__30);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__30);
+  __pyx_tuple__31 = <span class='py_c_api'>PyTuple_Pack</span>(4, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move);<span class='error_goto'> if (unlikely(!__pyx_tuple__31)) __PYX_ERR(0, 1570, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__31);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__31);
 /* … */
   __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyDict_NewPresized</span>(1);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1570, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
@@ -10045,7 +10042,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_reorder_capture_moves, __pyx_t_3) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 1570, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
-  __pyx_codeobj__10 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(3, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__30, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves, 1570, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 1570, __pyx_L1_error)</span>
+  __pyx_codeobj__10 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(3, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__31, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves, 1570, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 1570, __pyx_L1_error)</span>
 /* … */
 struct __pyx_obj_7ChessAI___pyx_scope_struct__reorder_capture_moves {
   PyObject_HEAD
@@ -10541,9 +10538,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_17generator1(__pyx_CoroutineObject *
 }
 static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
 /* … */
-  __pyx_tuple__31 = <span class='py_c_api'>PyTuple_Pack</span>(6, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move, __pyx_n_s_capture_moves, __pyx_n_s_enemy_pieces);<span class='error_goto'> if (unlikely(!__pyx_tuple__31)) __PYX_ERR(0, 1594, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__31);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__31);
+  __pyx_tuple__32 = <span class='py_c_api'>PyTuple_Pack</span>(6, __pyx_n_s_self, __pyx_n_s_mask, __pyx_n_s_board, __pyx_n_s_move, __pyx_n_s_capture_moves, __pyx_n_s_enemy_pieces);<span class='error_goto'> if (unlikely(!__pyx_tuple__32)) __PYX_ERR(0, 1594, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__32);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__32);
 /* … */
   __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyDict_NewPresized</span>(1);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1594, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
@@ -10555,7 +10552,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_reorder_capture_moves2, __pyx_t_2) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 1594, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_2); __pyx_t_2 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
-  __pyx_codeobj__11 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(3, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__31, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves2, 1594, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 1594, __pyx_L1_error)</span>
+  __pyx_codeobj__11 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(3, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__32, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_reorder_capture_moves2, 1594, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 1594, __pyx_L1_error)</span>
 /* … */
 struct __pyx_obj_7ChessAI___pyx_scope_struct_1_reorder_capture_moves2 {
   PyObject_HEAD
@@ -10950,9 +10947,9 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
   return __pyx_r;
 }
 /* … */
-  __pyx_tuple__32 = <span class='py_c_api'>PyTuple_Pack</span>(3, __pyx_n_s_self, __pyx_n_s_board, __pyx_n_s_move);<span class='error_goto'> if (unlikely(!__pyx_tuple__32)) __PYX_ERR(0, 1621, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__32);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__32);
+  __pyx_tuple__33 = <span class='py_c_api'>PyTuple_Pack</span>(3, __pyx_n_s_self, __pyx_n_s_board, __pyx_n_s_move);<span class='error_goto'> if (unlikely(!__pyx_tuple__33)) __PYX_ERR(0, 1621, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__33);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__33);
 /* … */
   __pyx_t_2 = <span class='pyx_c_api'>__Pyx_PyDict_NewPresized</span>(1);<span class='error_goto'> if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1621, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_2);
@@ -10964,7 +10961,7 @@ static PyObject *__pyx_gb_7ChessAI_7ChessAI_20generator2(__pyx_CoroutineObject *
   if (<span class='pyx_c_api'>__Pyx_SetItemOnTypeDict</span>((PyObject *)__pyx_ptype_7ChessAI_ChessAI, __pyx_n_s_non_quiescence_moves, __pyx_t_3) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 1621, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
   <span class='py_c_api'>PyType_Modified</span>(__pyx_ptype_7ChessAI_ChessAI);
-  __pyx_codeobj__12 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__32, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_non_quiescence_moves, 1621, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 1621, __pyx_L1_error)</span>
+  __pyx_codeobj__12 = (PyObject*)<span class='pyx_c_api'>__Pyx_PyCode_New</span>(2, 0, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__33, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ChessAI_pyx, __pyx_n_s_non_quiescence_moves, 1621, __pyx_empty_bytes);<span class='error_goto'> if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 1621, __pyx_L1_error)</span>
 /* … */
 struct __pyx_obj_7ChessAI___pyx_scope_struct_2_non_quiescence_moves {
   PyObject_HEAD
@@ -12244,11 +12241,11 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
   return __pyx_r;
 }
 /* … */
-  __pyx_tuple__37 = <span class='py_c_api'>PyTuple_Pack</span>(6, __pyx_n_s_values, __pyx_n_s_objects, __pyx_n_s_combined, __pyx_n_s_sorted_combined, __pyx_n_s_sorted_values, __pyx_n_s_sorted_objects);<span class='error_goto'> if (unlikely(!__pyx_tuple__37)) __PYX_ERR(0, 1836, __pyx_L1_error)</span>
-  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__37);
-  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__37);
+  __pyx_tuple__38 = <span class='py_c_api'>PyTuple_Pack</span>(6, __pyx_n_s_values, __pyx_n_s_objects, __pyx_n_s_combined, __pyx_n_s_sorted_combined, __pyx_n_s_sorted_values, __pyx_n_s_sorted_objects);<span class='error_goto'> if (unlikely(!__pyx_tuple__38)) __PYX_ERR(0, 1836, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_tuple__38);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_tuple__38);
 /* … */
-  __pyx_t_3 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_1sort_by_alpha, 0, __pyx_n_s_sort_by_alpha, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__38));<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1836, __pyx_L1_error)</span>
+  __pyx_t_3 = <span class='pyx_c_api'>__Pyx_CyFunction_New</span>(&amp;__pyx_mdef_7ChessAI_1sort_by_alpha, 0, __pyx_n_s_sort_by_alpha, NULL, __pyx_n_s_ChessAI, __pyx_d, ((PyObject *)__pyx_codeobj__39));<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1836, __pyx_L1_error)</span>
   <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
   if (<span class='py_c_api'>PyDict_SetItem</span>(__pyx_d, __pyx_n_s_sort_by_alpha, __pyx_t_3) &lt; 0) <span class='error_goto'>__PYX_ERR(0, 1836, __pyx_L1_error)</span>
   <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
@@ -12383,7 +12380,7 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
   uint64_t __pyx_v_kings;
   uint64_t __pyx_v_occupied_white;
   uint64_t __pyx_v_occupied_black;
-  uint64_t __pyx_v_bitboards[12];
+  CYTHON_UNUSED uint64_t __pyx_v_bitboards[12];
   int __pyx_v_total;
   int __pyx_v_moveNum;
   int __pyx_v_cache_result;
@@ -12592,9 +12589,8 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
 <pre class="cython line score-0">&#xA0;<span class="">1906</span>:         <span class="p">]</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">1907</span>: </pre>
 <pre class="cython line score-0">&#xA0;<span class="">1908</span>: </pre>
-<pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1909</span>:     <span class="n">total</span> <span class="o">=</span> <span class="n">evaluate_position</span><span class="p">(</span><span class="n">bitboards</span><span class="p">)</span></pre>
-<pre class='cython code score-0 '>  __pyx_v_total = evaluate_position(__pyx_v_bitboards);
-</pre><pre class="cython line score-0">&#xA0;<span class="">1910</span>:     <span class="c"># total = run_inference(bitboards)</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">1909</span>:     <span class="c"># total = evaluate_position(bitboards)</span></pre>
+<pre class="cython line score-0">&#xA0;<span class="">1910</span>:     <span class="c"># total = run_inference(bitboards)</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">1911</span>:     <span class="c"># total = run_inference_quantized(bitboards)</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">1912</span>: </pre>
 <pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1913</span>:     <span class="n">addToCache</span><span class="p">(</span><span class="n">zobrist</span><span class="p">,</span> <span class="n">total</span><span class="p">)</span></pre>
@@ -12872,13 +12868,39 @@ static PyObject *__pyx_pf_7ChessAI_sort_by_alpha(CYTHON_UNUSED PyObject *__pyx_s
     __pyx_v_total = (__pyx_v_total + placement_and_piece_eval(__pyx_v_moveNum, __pyx_t_4, __pyx_t_8, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, __pyx_v_7ChessAI_prevKings, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_occupied));
 </pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1987</span>:         <span class="n">horizonMitigation</span> <span class="o">=</span> <span class="n">get_horizon_mitigation_flag</span><span class="p">()</span></pre>
 <pre class='cython code score-0 '>    __pyx_v_horizonMitigation = get_horizon_mitigation_flag();
+</pre><pre class="cython line score-0" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1988</span>:         <span class="k">if</span> <span class="p">(</span><span class="n">total</span> <span class="o">==</span> <span class="o">-</span><span class="mf">1791</span><span class="p">):</span></pre>
+<pre class='cython code score-0 '>    __pyx_t_4 = (__pyx_v_total == -1791L);
+    if (__pyx_t_4) {
+/* … */
+    }
   }
   __pyx_L4:;
-</pre><pre class="cython line score-0">&#xA0;<span class="">1988</span>:         <span class="c"># if (board.fen() == &#39;1r3rk1/5ppp/4p3/3pN1q1/3P4/P3P1P1/Q2K1P1P/R6R b - - 2 25&#39;):</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">1989</span>:         <span class="c">#     print(board)</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">1990</span>:         <span class="c">#     print(total)</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">1991</span>:         <span class="c">#     print (board.move_stack[-8:])</span></pre>
-<pre class="cython line score-0">&#xA0;<span class="">1992</span>:         <span class="c"># print (board)</span></pre>
+</pre><pre class="cython line score-3" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1989</span>:             <span class="k">print</span><span class="p">(</span><span class="n">board</span><span class="p">)</span></pre>
+<pre class='cython code score-3 '>      __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_CallOneArg</span>(__pyx_builtin_print, __pyx_v_board);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1989, __pyx_L1_error)</span>
+      <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
+      <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
+</pre><pre class="cython line score-6" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1990</span>:             <span class="k">print</span><span class="p">(</span><span class="n">total</span><span class="p">)</span></pre>
+<pre class='cython code score-6 '>      __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyInt_From_int</span>(__pyx_v_total);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1990, __pyx_L1_error)</span>
+      <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
+      __pyx_t_1 = <span class='pyx_c_api'>__Pyx_PyObject_CallOneArg</span>(__pyx_builtin_print, __pyx_t_3);<span class='error_goto'> if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1990, __pyx_L1_error)</span>
+      <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_1);
+      <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
+      <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_1); __pyx_t_1 = 0;
+</pre><pre class="cython line score-14" onclick="(function(s){s.display=s.display==='block'?'none':'block'})(this.nextElementSibling.style)">+<span class="">1991</span>:             <span class="k">print</span> <span class="p">(</span><span class="n">board</span><span class="o">.</span><span class="n">move_stack</span><span class="p">[</span><span class="o">-</span><span class="mf">8</span><span class="p">:])</span></pre>
+<pre class='cython code score-14 '>      __pyx_t_1 = <span class='pyx_c_api'>__Pyx_PyObject_GetAttrStr</span>(__pyx_v_board, __pyx_n_s_move_stack);<span class='error_goto'> if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1991, __pyx_L1_error)</span>
+      <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_1);
+      __pyx_t_3 = <span class='pyx_c_api'>__Pyx_PyObject_GetSlice</span>(__pyx_t_1, -8L, 0, NULL, NULL, &amp;__pyx_slice__13, 1, 0, 0);<span class='error_goto'> if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1991, __pyx_L1_error)</span>
+      <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_3);
+      <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_1); __pyx_t_1 = 0;
+      __pyx_t_1 = <span class='pyx_c_api'>__Pyx_PyObject_CallOneArg</span>(__pyx_builtin_print, __pyx_t_3);<span class='error_goto'> if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1991, __pyx_L1_error)</span>
+      <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_t_1);
+      <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_3); __pyx_t_3 = 0;
+      <span class='pyx_macro_api'>__Pyx_DECREF</span>(__pyx_t_1); __pyx_t_1 = 0;
+/* … */
+  __pyx_slice__13 = <span class='py_c_api'>PySlice_New</span>(__pyx_int_neg_8, Py_None, Py_None);<span class='error_goto'> if (unlikely(!__pyx_slice__13)) __PYX_ERR(0, 1991, __pyx_L1_error)</span>
+  <span class='refnanny'>__Pyx_GOTREF</span>(__pyx_slice__13);
+  <span class='refnanny'>__Pyx_GIVEREF</span>(__pyx_slice__13);
+</pre><pre class="cython line score-0">&#xA0;<span class="">1992</span>:         <span class="c"># print (board)</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">1993</span>:         <span class="c"># print()</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">1994</span>:         <span class="c"># printLayers()</span></pre>
 <pre class="cython line score-0">&#xA0;<span class="">1995</span>:         <span class="c"># print()</span></pre>

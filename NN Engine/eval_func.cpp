@@ -2228,7 +2228,7 @@ typedef struct {
   PyObject *__pyx_n_s_test;
   PyObject *__pyx_n_s_to_square;
   PyObject *__pyx_n_s_turn;
-  PyObject *__pyx_int_0;
+  PyObject *__pyx_int_64;
   PyObject *__pyx_tuple__2;
   PyObject *__pyx_codeobj__3;
 } __pyx_mstate;
@@ -2305,7 +2305,7 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_n_s_test);
   Py_CLEAR(clear_module_state->__pyx_n_s_to_square);
   Py_CLEAR(clear_module_state->__pyx_n_s_turn);
-  Py_CLEAR(clear_module_state->__pyx_int_0);
+  Py_CLEAR(clear_module_state->__pyx_int_64);
   Py_CLEAR(clear_module_state->__pyx_tuple__2);
   Py_CLEAR(clear_module_state->__pyx_codeobj__3);
   return 0;
@@ -2360,7 +2360,7 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_n_s_test);
   Py_VISIT(traverse_module_state->__pyx_n_s_to_square);
   Py_VISIT(traverse_module_state->__pyx_n_s_turn);
-  Py_VISIT(traverse_module_state->__pyx_int_0);
+  Py_VISIT(traverse_module_state->__pyx_int_64);
   Py_VISIT(traverse_module_state->__pyx_tuple__2);
   Py_VISIT(traverse_module_state->__pyx_codeobj__3);
   return 0;
@@ -2427,7 +2427,7 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_n_s_test __pyx_mstate_global->__pyx_n_s_test
 #define __pyx_n_s_to_square __pyx_mstate_global->__pyx_n_s_to_square
 #define __pyx_n_s_turn __pyx_mstate_global->__pyx_n_s_turn
-#define __pyx_int_0 __pyx_mstate_global->__pyx_int_0
+#define __pyx_int_64 __pyx_mstate_global->__pyx_int_64
 #define __pyx_tuple__2 __pyx_mstate_global->__pyx_tuple__2
 #define __pyx_codeobj__3 __pyx_mstate_global->__pyx_codeobj__3
 /* #### Code section: module_code ### */
@@ -2923,7 +2923,7 @@ static int __pyx_f_9eval_func_wrapper(PyObject *__pyx_v_board) {
  *         print(board)
  *         print()             # <<<<<<<<<<<<<<
  *         if len(board.move_stack) == 0:
- *             prevMove = 0
+ *             prevMove = 64
  */
     __pyx_t_1 = __Pyx_PyObject_CallNoArg(__pyx_builtin_print); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 78, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
@@ -2933,7 +2933,7 @@ static int __pyx_f_9eval_func_wrapper(PyObject *__pyx_v_board) {
  *         print(board)
  *         print()
  *         if len(board.move_stack) == 0:             # <<<<<<<<<<<<<<
- *             prevMove = 0
+ *             prevMove = 64
  *         else:
  */
     __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_move_stack); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 79, __pyx_L1_error)
@@ -2946,25 +2946,25 @@ static int __pyx_f_9eval_func_wrapper(PyObject *__pyx_v_board) {
       /* "eval_func.pyx":80
  *         print()
  *         if len(board.move_stack) == 0:
- *             prevMove = 0             # <<<<<<<<<<<<<<
+ *             prevMove = 64             # <<<<<<<<<<<<<<
  *         else:
  *             prevMove = board.peek().to_square
  */
-      __Pyx_INCREF(__pyx_int_0);
-      __pyx_v_prevMove = __pyx_int_0;
+      __Pyx_INCREF(__pyx_int_64);
+      __pyx_v_prevMove = __pyx_int_64;
 
       /* "eval_func.pyx":79
  *         print(board)
  *         print()
  *         if len(board.move_stack) == 0:             # <<<<<<<<<<<<<<
- *             prevMove = 0
+ *             prevMove = 64
  *         else:
  */
       goto __pyx_L5;
     }
 
     /* "eval_func.pyx":82
- *             prevMove = 0
+ *             prevMove = 64
  *         else:
  *             prevMove = board.peek().to_square             # <<<<<<<<<<<<<<
  *         total += placement_and_piece_eval(moveNum, board.turn, prevMove, pawns, knights, bishops, rooks, queens, kings, 0, occupied_white, occupied_black, occupied)
@@ -3134,7 +3134,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
 
 static CYTHON_SMALL_CODE int __Pyx_InitConstants(void) {
   if (__Pyx_CreateStringTabAndInitStrings() < 0) __PYX_ERR(0, 1, __pyx_L1_error);
-  __pyx_int_0 = PyInt_FromLong(0); if (unlikely(!__pyx_int_0)) __PYX_ERR(0, 1, __pyx_L1_error)
+  __pyx_int_64 = PyInt_FromLong(64); if (unlikely(!__pyx_int_64)) __PYX_ERR(0, 1, __pyx_L1_error)
   return 0;
   __pyx_L1_error:;
   return -1;

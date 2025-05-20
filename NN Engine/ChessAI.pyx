@@ -42,13 +42,13 @@ cdef extern from "stdint.h":
     ctypedef unsigned char uint8_t
     ctypedef unsigned long long uint64_t
     
-cdef extern from "nnue.h":
-    int evaluate_position(const uint64_t* bitboards)
-    void init_session(const char* model_path)
-    void load_all_weights()
-    int run_inference(const uint64_t* bitboards)
-    void load_model()
-    int run_inference_quantized(const uint64_t* bitboards)
+# cdef extern from "nnue.h":
+#     int evaluate_position(const uint64_t* bitboards)
+#     void init_session(const char* model_path)
+#     void load_all_weights()
+#     int run_inference(const uint64_t* bitboards)
+#     void load_model()
+#     int run_inference_quantized(const uint64_t* bitboards)
 
 # Import functions from c++ file
 cdef extern from "cpp_bitboard.h":
@@ -178,9 +178,9 @@ cdef class ChessAI:
         # Initialize attack tables for move generation
         initialize_attack_tables()
         Cython_Chess.inititalize()
-        init_session(nnue_model_path)
-        load_all_weights()
-        load_model()
+        # init_session(nnue_model_path)
+        # load_all_weights()
+        # load_model()
         
         # Initialize zobrist tables for hashing
         initializeZobrist()
@@ -1906,7 +1906,7 @@ cdef evaluate_board1(object board,uint64_t zobrist):
         ]
           
     
-    total = evaluate_position(bitboards)
+    # total = evaluate_position(bitboards)
     # total = run_inference(bitboards)
     # total = run_inference_quantized(bitboards)
     
@@ -1985,10 +1985,10 @@ cdef int evaluate_board(object board,uint64_t zobrist):
         # Call the c++ function 
         total += placement_and_piece_eval(moveNum, board.turn, board.peek().to_square, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
         horizonMitigation = get_horizon_mitigation_flag()        
-        # if (board.fen() == '1r3rk1/5ppp/4p3/3pN1q1/3P4/P3P1P1/Q2K1P1P/R6R b - - 2 25'):
-        #     print(board)
-        #     print(total)
-        #     print (board.move_stack[-8:])
+        if (total == -1791):
+            print(board)
+            print(total)
+            print (board.move_stack[-8:])
         # print (board)
         # print()
         # printLayers()

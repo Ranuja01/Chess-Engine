@@ -12,14 +12,19 @@ from Cython.Build import cythonize
 import numpy as np
 import os
 
-onnx_path = "/home/ranuja/onnxruntime-linux-x64-1.21.0"
+# onnx_path = "/home/ranuja/onnxruntime-linux-x64-1.21.0"
 eigen_path = "/usr/include/eigen3/"
+
+# removed "nnue.cpp" from sources
+# removed os.path.join(onnx_path, "include"), from include_dirs
+# removed os.path.join(onnx_path, "lib") from library_dirs
+# remove onnxruntime from libraries
 
 # Define the extension module
 extensions = [
     Extension(
         "ChessAI",                     # Name of the compiled extension
-        sources=["cpp_bitboard.cpp", "nnue.cpp", "ChessAI.pyx"],       # Source Cython file
+        sources=["cpp_bitboard.cpp", "ChessAI.pyx"],       # Source Cython file
         language="c++",                # Use C++ compiler
         extra_compile_args=[
             "-Ofast", "-march=native", "-ffast-math", "-fopenmp",
@@ -31,9 +36,9 @@ extensions = [
         
         extra_link_args=["-flto=16", "-fopenmp"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-        library_dirs=[os.path.join(onnx_path, "lib")],
-        libraries=["onnxruntime"],
-        include_dirs=[np.get_include(), os.path.join(onnx_path, "include"), eigen_path]
+        library_dirs=[],
+        libraries=[],
+        include_dirs=[np.get_include(), eigen_path,]
     )
 ]
 

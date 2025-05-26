@@ -11,6 +11,7 @@ import chess
 import chess.pgn
 # import ChessAI
 import io
+import pyprofilerai
 # Create a new chess board
 
 pgn_string = """
@@ -27,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("r2qkb1r/pb1n1pp1/4pn1p/2p1P3/1p1P4/3B1N2/PP2NPPP/R1BQ1RK1 b kq - 0 12")
+board = chess.Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
 # Print the board in a human-readable format
 print(board)
@@ -122,28 +123,54 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 #         # print(move)
 #         # if (Cython_Chess.is_checkmate(board)):
 #         #     pass
-#         # board.push(move)
+        
 #         # print(move, Cython_Chess.is_checkmate(board))
 #         # print(board)
 #         # board.pop()
 #         pass
+#     board.push(move)
 # t1 = timer()
 # print("Time elapsed: ", t1 - t0)
+# print(board)
 
+# board = chess.Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 # t0= timer()
 # for i in range (100000):
 #     for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
 #         # print(move)
 #         # if (board.is_checkmate()):
 #         #     pass
-#         # board.push(move)
+        
 #         # print(move, board.is_checkmate())     
-#         # print(board)
+        
 #         # board.pop()
 #         pass
+#     board.push(move)
 # t1 = timer()
 # print("Time elapsed: ", t1 - t0)
+# print(board)
 
+# def cython_chess_function_benchmark():
+#     board = chess.Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+#     t0= timer()
+#     for i in range (100000):
+#         for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+#             pass
+#         board.push(move)
+#     t1 = timer()
+#     print("Time elapsed: ", t1 - t0)
+#     print(board)
+    
+# pyprofilerai.analyze_performance(cython_chess_function_benchmark)
+
+board = chess.Board("r1bqkb1r/p2n1ppp/2p1pn2/1p6/3P4/1BN1PN2/PP3PPP/R1BQK2R w KQkq - 0 1")
+print("Their list: ", len(list(board.generate_legal_moves())))
+for move in board.generate_legal_moves():
+    print(move)
+
+print("\nMy list: ", len(list(Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL))))
+for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+    print(move)
 
 # print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
 
@@ -171,58 +198,23 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
 # print(chess_ai.ev(b2))
 
 # print(board, board.ply())
-t0= timer()
-result = chess_ai.alphaBetaWrapper()
-# print(result['a'],result['b'],result['c'],result['d'])
-# print(f"Best score: {result['score']},")
-
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
-
-t0= timer()
-a,b = chess_ai.create_test_data(board)
-t1 = timer()
-print("Time elapsed: ", t1 - t0)
 
 
-# # print(chess_ai.ev(board))
-# a = chess.Board("5rk1/p1p4p/2p5/3p1pB1/8/1r5P/P1P1BK2/RN6 w - - 0 20")
-# # print(chess_ai.ev(a))
-# pgn_string = """
-# [Variant "From Position"]
-# [FEN "1rb2rk1/p1p2p1p/2p5/3p2p1/8/1P5P/P1PBBKP1/RN6 b - - 0 17"]
 
-# 17... Bxh3 18. gxh3 Rxb3 19. Bxg5 f5
-# """
 
-# # Create a PGN reader
-# pgn = chess.pgn.read_game(io.StringIO(pgn_string))
-
-# # Create a board from the game
-# a = pgn.board()
-# for move in pgn.mainline_moves():
-#     a.push(move)
-# print(chess_ai.ev(a))
-# Cython_Chess.inititalize()
-# Cython_Chess.test5(a,chess.Move.from_uci("a4b3"))
-# print()
-# Cython_Chess.test6(a,chess.Move.from_uci("a4b3"))
-# # Cython_Chess.test4 (a,5)
-
-# # print(a,a.ply())
-# # chess_ai = ChessAI(blackModel, whiteModel, a)
-# # t0= timer()
-# # result = chess_ai.alphaBetaWrapper(curDepth=0, depthLimit=5)
+# t0= timer()
+# result = chess_ai.alphaBetaWrapper()
 # # print(result['a'],result['b'],result['c'],result['d'])
 # # print(f"Best score: {result['score']},")
 
-# # t1 = timer()
-# # print("Time elapsed: ", t1 - t0)
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
 
-# # t0= timer()
-# # print(Cython_Chess.test3(100))
-# # t1 = timer()
-# # print("Time elapsed: ", t1 - t0)
+# t0= timer()
+# a,b = chess_ai.create_test_data(board)
+# t1 = timer()
+# print("Time elapsed: ", t1 - t0)
+
 
 
 

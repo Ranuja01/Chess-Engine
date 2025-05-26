@@ -69,7 +69,7 @@ cdef extern from "cpp_bitboard.h":
     int placement_and_piece_endgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_eval(int moveNum, bint turn, uint8_t lastMovedToSquare, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     void initializeZobrist()
-    uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask);
+    uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, bint whiteToMove);
     void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
     int accessCache(uint64_t key)
     void addToCache(uint64_t key,int value)
@@ -184,7 +184,7 @@ cdef class ChessAI:
         
         # Initialize zobrist tables for hashing
         initializeZobrist()
-        self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False])    
+        self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False], board.turn)    
     
     # Function to set global variable for white castling index
     def setWhiteCastledIndex(self, index):
@@ -226,7 +226,7 @@ cdef class ChessAI:
         cdef int a, b, c, d,promo,val
         cdef object move
         
-        self.zobrist = generateZobristHash(self.pgnBoard.pawns,self.pgnBoard.knights,self.pgnBoard.bishops,self.pgnBoard.rooks,self.pgnBoard.queens,self.pgnBoard.kings,self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False])
+        self.zobrist = generateZobristHash(self.pgnBoard.pawns,self.pgnBoard.knights,self.pgnBoard.bishops,self.pgnBoard.rooks,self.pgnBoard.queens,self.pgnBoard.kings,self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False], self.pgnBoard.turn)
         
         result = self.alphaBeta(curDepth=0, depthLimit=3, t0 = timer())
         moves_list ,_,_,_= self.reorder_legal_moves(-9999998,9999999, 3)
@@ -289,7 +289,7 @@ cdef class ChessAI:
         cdef int a, b, c, d,promo,val
         cdef object move
         
-        self.zobrist = generateZobristHash(self.pgnBoard.pawns,self.pgnBoard.knights,self.pgnBoard.bishops,self.pgnBoard.rooks,self.pgnBoard.queens,self.pgnBoard.kings,self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False])
+        self.zobrist = generateZobristHash(self.pgnBoard.pawns,self.pgnBoard.knights,self.pgnBoard.bishops,self.pgnBoard.rooks,self.pgnBoard.queens,self.pgnBoard.kings,self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False], self.pgnBoard.turn)
         
         # Code segment to check if the opponent has castled and set the castled index
         if (len(self.pgnBoard.move_stack) > 0):
@@ -868,7 +868,17 @@ cdef class ChessAI:
             updateZobristHashForMove(self.zobrist, move.from_square, move.to_square, isCapture, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, promotion)
             
             # Push the given move and call the minimizer
-            self.pgnBoard.push(move)
+            
+            try:
+                # code that might raise an exception
+                self.pgnBoard.push(move)
+            except Exception as e:
+                print(f"Something went wrong: {e}")
+                print(self.pgnBoard)
+                print(self.pgnBoard.move_stack)
+                # self.pgnBoard.pop()
+                for i in Cython_Chess.generate_legal_moves(self.pgnBoard, chess.BB_ALL, chess.BB_ALL):
+                    print(i)
             score = self.minimizer(curDepth + 1, depthLimit, alpha, beta, [],[], False)
             
             # Undo the move and restore the zobrist hash
@@ -1426,7 +1436,7 @@ cdef class ChessAI:
     
     # Standing position evaluation function
     def ev(self, object board):
-        self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False])
+        self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False], self.pgnBoard.turn)
         return evaluate_board(board,self.zobrist)
 
     @boundscheck(False)
@@ -1985,10 +1995,11 @@ cdef int evaluate_board(object board,uint64_t zobrist):
         # Call the c++ function 
         total += placement_and_piece_eval(moveNum, board.turn, board.peek().to_square, pawns, knights, bishops, rooks, queens, kings, prevKings, occupied_white, occupied_black, occupied)
         horizonMitigation = get_horizon_mitigation_flag()        
-        if (total == -1791):
-            print(board)
-            print(total)
-            print (board.move_stack[-8:])
+        # if (total == -1396):
+        #     print(board)
+        #     print(total)
+        #     print("Horizon Mitigation: ", horizonMitigation)
+        #     print (board.move_stack[-8:])
         # print (board)
         # print()
         # printLayers()

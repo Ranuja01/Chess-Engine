@@ -74,13 +74,10 @@ cdef int wrapper (object board):
             total = -9999999 + moveNum
     else:
         # Call the c++ function   
-        print(board)
-        print()
-        if len(board.move_stack) == 0:
-            prevMove = 64
-        else:
-            prevMove = board.peek().to_square
-        total += placement_and_piece_eval(moveNum, board.turn, prevMove, pawns, knights, bishops, rooks, queens, kings, 0, occupied_white, occupied_black, occupied)   
+        # print(board)
+        # print()
+        
+        total += placement_and_piece_eval(moveNum, board.turn, 64, pawns, knights, bishops, rooks, queens, kings, 0, occupied_white, occupied_black, occupied)   
         # ** Code segment to see if a bad capture was made ** 
         
         # # Get the previous move made

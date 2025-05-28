@@ -44,13 +44,19 @@ cdef extern from "cpp_bitboard.h":
     uint64_t betweenPieces(uint8_t a, uint8_t b)
     uint64_t ray(uint8_t a, uint8_t b)
     void update_bitmasks(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask)
-    bint is_safe(uint8_t king, uint64_t blockers, uint8_t from_square, uint8_t to_square, int ep_square, bint turn)
+    bint is_safe(uint8_t king, uint64_t blockers, uint8_t from_square, uint8_t to_square, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
+			 uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bint turn)
     
     bint is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bint is_en_passant)
     bint is_check(bint colour, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t opposingPieces)
     void initialize_attack_tables()
     void setAttackingLayer(int increment);
     void printLayers();
+    
+    void generateLegalMoves(vector[uint8_t] &startPos_filtered, vector[uint8_t] &endPos_filtered, vector[uint8_t] &promotions_filtered,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
+						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bint turn);
+    
     void generatePseudoLegalMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask, uint64_t king,  uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 							      uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bint turn)
     
@@ -65,6 +71,17 @@ cdef extern from "cpp_bitboard.h":
     
     void generateEnPassentMoves(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t from_mask, uint64_t to_mask,
                                 uint64_t our_pieces, uint64_t occupiedMask, uint64_t pawnsMask, int ep_square, bint turn)
+    
+    void generateEvasions(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t preliminary_castling_mask, uint8_t king, uint64_t checkers, uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces,
+					  uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bint turn)
+    
+    void generateLegalCaptures(vector[uint8_t] &startPos_filtered, vector[uint8_t] &endPos_filtered, vector[uint8_t] &promotions_filtered, uint64_t from_mask, uint64_t to_mask,
+	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
+						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bint turn)
+    
+    void generateLegalMovesReordered(vector[uint8_t] &startPos, vector[uint8_t] &endPos, vector[uint8_t] &promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bint turn)
     
     void initializeZobrist()
     void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
@@ -81,7 +98,39 @@ cdef extern from "cpp_bitboard.h":
     void evictOpponentMoveGenEntries(int numToEvict)
     void evictCurPlayerMoveGenEntries(int numToEvict)
     
+
 def generate_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
+
+    cdef vector[uint8_t] startPos_filtered
+    cdef vector[uint8_t] endPos_filtered
+    cdef vector[uint8_t] promotions_filtered
+    
+    startPos_filtered.reserve(128)
+    endPos_filtered.reserve(128)
+    promotions_filtered.reserve(128)
+    
+    cdef uint8_t num_moves
+    
+    cdef uint64_t preliminary_castling_mask = 0
+    
+    if from_mask & board.kings:
+        preliminary_castling_mask = board.clean_castling_rights()
+
+    # update_bitmasks(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False],board.occupied)
+
+    generateLegalMoves(startPos_filtered, endPos_filtered, promotions_filtered, preliminary_castling_mask, from_mask, to_mask, board.occupied, board.occupied_co[True],
+                       board.occupied_co[not board.turn], board.occupied_co[board.turn], board.pawns, board.knights, board.bishops,
+					   board.rooks, board.queens, board.kings, (-1 if board.ep_square is None else board.ep_square), board.turn);   
+    
+    num_moves = startPos_filtered.size()  
+    for i in range(num_moves):
+        if (promotions_filtered[i] == 1):
+            yield chess.Move(startPos_filtered[i], endPos_filtered[i])
+        else:
+            yield chess.Move(startPos_filtered[i], endPos_filtered[i], promotions_filtered[i])
+    
+    
+def generate_legal_moves1(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
     
     """
     Function to generate legal moves through yielding
@@ -121,69 +170,21 @@ def generate_legal_moves(object board, uint64_t from_mask, uint64_t to_mask) -> 
         # If there are pieces checking the king, generate evasions that do not keep the king in check
         if checkers:
             for move in _generate_evasions(board, king, checkers, from_mask, to_mask):
-                if is_safe(king, blockers, move.from_square, move.to_square, (-1 if board.ep_square is None else board.ep_square), board.turn):
+                if is_safe(king, blockers, move.from_square, move.to_square, board.occupied, board.occupied_co[True], board.occupied_co[not board.turn],
+                        board.occupied_co[board.turn], board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings,
+                        (-1 if board.ep_square is None else board.ep_square), board.turn):
                     # if (board._is_safe(king, blockers, move)):
                     yield move
         else: # If there is not, generate pseudo legal moves that do not put the own king in check
             for move in generate_pseudo_legal_moves(board, from_mask, to_mask, king_mask):            
-                if is_safe(king, blockers, move.from_square, move.to_square, (-1 if board.ep_square is None else board.ep_square), board.turn):
+                if is_safe(king, blockers, move.from_square, move.to_square, board.occupied, board.occupied_co[True], board.occupied_co[not board.turn],
+                        board.occupied_co[board.turn], board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings,
+                        (-1 if board.ep_square is None else board.ep_square), board.turn):
                     # if (board._is_safe(king, blockers, move)):
                     yield move
     else:
         yield from generate_pseudo_legal_moves(board, from_mask, to_mask, king_mask)
-        
-# cpdef list generate_legal_moves(object board, uint64_t from_mask, uint64_t to_mask):
-    
-#     """
-#     Function to generate legal moves through yielding
-
-#     Parameters:
-#     - board: The current board state
-#     - from_mask: The starting position mask
-#     - to_mask: The ending position mask
-
-#     Yields:
-#     - Legal chess.Moves
-#     """
-    
-#     # Define variables for the king piece and masks for king blocking pieces and checkers
-#     cdef uint8_t king
-#     cdef uint64_t blockers
-#     cdef uint64_t checkers
-#     cdef object move
-    
-#     cdef list moves_list = []
-    
-#     # Check if the game is over
-#     if board.is_variant_end():
-#         return
-
-#     # Acquire the mask for the current sides king square
-#     cdef uint64_t king_mask = board.kings & board.occupied_co[board.turn]
-#     if king_mask:
-        
-        
-#         king = king_mask.bit_length() - 1
-        
-#         # Call the c++ function to acquire the blockers and checkers masks
-#         blockers = slider_blockers(king, board.queens | board.rooks, board.queens | board.bishops, board.occupied_co[not board.turn], board.occupied_co[board.turn], board.occupied)                
-#         checkers = attackersMask(not board.turn, king, board.occupied, board.queens | board.rooks, board.queens | board.bishops, board.kings, board.knights, board.pawns, board.occupied_co[not board.turn])
-        
-#         # If there are pieces checking the king, generate evasions that do not keep the king in check
-#         if checkers:
-#             for move in _generate_evasions(board, king, checkers, from_mask, to_mask):
-#                 if board._is_safe(king, blockers, move):
-#                     moves_list.append(move)
-#         else: # If there is not, generate pseudo legal moves that do not put the own king in check
-#             for move in generate_pseudo_legal_moves(board, from_mask, to_mask):            
-#                 if board._is_safe(king, blockers, move):
-#                     moves_list.append(move)
-#     else:
-#         moves_list.extend(generate_pseudo_legal_moves(board, from_mask, to_mask))
-        
-#     return moves_list
-
-
+ 
 def generate_legal_ep(object board, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
     
     """
@@ -221,87 +222,83 @@ def generate_legal_captures(object board, uint64_t from_mask, uint64_t to_mask) 
     """
     
     # Use itertools to yield moves from the legal moves function and en passent function        
-    return itertools.chain(
-        generate_legal_moves(board,from_mask, to_mask & board.occupied_co[not board.turn]),
-        generate_legal_ep(board,from_mask, to_mask))        
+    # return itertools.chain(
+    #     generate_legal_moves(board,from_mask, to_mask & board.occupied_co[not board.turn]),
+    #     generate_legal_ep(board,from_mask, to_mask))   
+
+    cdef vector[uint8_t] startPos_filtered
+    cdef vector[uint8_t] endPos_filtered
+    cdef vector[uint8_t] promotions_filtered
+    
+    startPos_filtered.reserve(128)
+    endPos_filtered.reserve(128)
+    promotions_filtered.reserve(128)
+    
+    cdef uint8_t num_moves
+        
+    generateLegalCaptures(startPos_filtered, endPos_filtered, promotions_filtered, from_mask, to_mask, board.occupied, board.occupied_co[True], board.occupied_co[not board.turn],
+                          board.occupied_co[board.turn], board.pawns, board.knights,board.bishops, board.rooks, board.queens, board.kings,
+                          (-1 if board.ep_square is None else board.ep_square), board.turn)
+
+    num_moves = startPos_filtered.size()  
+    for i in range(num_moves):
+        if (promotions_filtered[i] == 1):
+            yield chess.Move(startPos_filtered[i], endPos_filtered[i])
+        else:
+            yield chess.Move(startPos_filtered[i], endPos_filtered[i], promotions_filtered[i])     
+            
+def generate_ordered_moves(object board, uint64_t from_mask, uint64_t to_mask):
+    cdef vector[uint8_t] startPos
+    cdef vector[uint8_t] endPos
+    cdef vector[uint8_t] promotions
+    
+    startPos.reserve(128)
+    endPos.reserve(128)
+    promotions.reserve(128)
+    
+    cdef uint8_t num_moves
+    
+    cdef uint64_t preliminary_castling_mask = 0
+    
+    if from_mask & board.kings:
+        preliminary_castling_mask = board.clean_castling_rights()
+
+    generateLegalMovesReordered(startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, board.occupied, board.occupied_co[True], board.occupied_co[not board.turn],
+                          board.occupied_co[board.turn], board.pawns, board.knights,board.bishops, board.rooks, board.queens, board.kings,
+                          (-1 if board.ep_square is None else board.ep_square), board.turn)
+    
+    num_moves = startPos.size()  
+    for i in range(num_moves):
+        if (promotions[i] == 1):
+            yield chess.Move(startPos[i], endPos[i])
+        else:
+            yield chess.Move(startPos[i], endPos[i], promotions[i])     
+
 
 def _generate_evasions(object board, uint8_t king, uint64_t checkers, uint64_t from_mask, uint64_t to_mask) -> Iterator[chess.Move]:
     
-    """
-    Function to generate evasions through yielding
+    cdef vector[uint8_t] startPos
+    cdef vector[uint8_t] endPos
+    cdef vector[uint8_t] promotions
+    
+    cdef uint8_t num_moves
+    
+    cdef uint64_t preliminary_castling_mask = 0
+    
+    if from_mask & board.kings:
+        preliminary_castling_mask = board.clean_castling_rights()
 
-    Parameters:
-    - board: The current board state
-    - king: The square where the current side's king is located
-    - checkers: The mask for pieces checking the king 
-    - from_mask: The starting position mask
-    - to_mask: The ending position mask
+    generateEvasions(startPos, endPos, promotions, preliminary_castling_mask, king, checkers, from_mask, to_mask, board.occupied, board.occupied_co[True],
+                     board.occupied_co[not board.turn], board.occupied_co[board.turn], board.pawns, board.knights, board.bishops, board.rooks,
+                     board.queens, board.kings, (-1 if board.ep_square is None else board.ep_square), board.turn)
 
-    Yields:
-    - Legal evasion chess.Moves
-    """
-    
-    # Define mask for sliding pieces which are also checkers
-    cdef uint64_t sliders = checkers & (board.bishops | board.rooks | board.queens)
-    
-    # Define mask to hold ray attacks towards the king
-    cdef uint64_t attacked = 0
-    
-    # Define variable to hold squares to stop check through either blocking or capture
-    cdef uint64_t target
-    cdef uint8_t last_double
-    cdef uint8_t checker
-    cdef vector[uint8_t] attackedVec
-    cdef vector[uint8_t] moveVec
-    
-    # Call c++ function to scan the sliders bitmask
-    scan_reversed(sliders,attackedVec)
-    cdef uint8_t size = attackedVec.size()
-    
-    # Acquire ray attacks 
-    for i in range(size):
-        attacked |= ray(king, attackedVec[i]) & ~chess.BB_SQUARES[int(attackedVec[i])]
+    num_moves = startPos.size()  
+    for i in range(num_moves):
+        if (promotions[i] == 1):
+            yield chess.Move(startPos[i], endPos[i])
+        else:
+            yield chess.Move(startPos[i], endPos[i], promotions[i])
 
-    # Return moves the king can make to evade check
-    if (1<<king) & from_mask:
-        
-        moveVec.clear()
-        scan_reversed(chess.BB_KING_ATTACKS[king] & ~board.occupied_co[board.turn] & ~attacked & to_mask, moveVec)
-        size = moveVec.size()
-        for i in range(size):
-            yield chess.Move(king, moveVec[i])    
-
-    checker = chess.msb(checkers)
-    
-    if chess.BB_SQUARES[checker] == checkers:
-        # Capture or block a single checker.
-        target = betweenPieces(king, checker) | checkers
-
-        yield from generate_pseudo_legal_moves(board, ~board.kings & from_mask, target & to_mask, chess.BB_SQUARES[king])
-        
-        # Capture the checking pawn en passant (but avoid yielding
-        # duplicate moves).
-        if board.ep_square and not chess.BB_SQUARES[board.ep_square] & target:
-            last_double = board.ep_square + (-8 if board.turn == chess.WHITE else 8)
-            if last_double == checker:
-                yield from board.generate_pseudo_legal_ep(from_mask, to_mask)
-
-# def generate_castling_moves(object board, uint64_t to_mask, uint64_t king) -> Iterator[Move]:
-          
-#     cdef vector[uint8_t] startPos
-#     cdef vector[uint8_t] endPos
-#     cdef vector[uint8_t] promotions
-
-#     generateCastlingMoves(startPos, endPos, promotions, board.clean_castling_rights(), to_mask, king, board.turn)
-    
-#     cdef uint8_t num_moves
-#     num_moves = startPos.size() 
-    
-#     if num_moves == 0:
-#         return
-    
-#     for i in range(num_moves):
-#         yield chess.Move(startPos[i], endPos[i])
 
 
 def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_mask, uint64_t king) -> Iterator[chess.Move]:
@@ -340,95 +337,6 @@ def generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_ma
         else:
             yield chess.Move(startPos[i], endPos[i], promotions[i])
 
-
-# cdef list generate_pseudo_legal_moves(object board, uint64_t from_mask, uint64_t to_mask, uint64_t king):
-    
-#     """
-#     Function to generate pseudo legal moves through yielding
-
-#     Parameters:
-#     - board: The current board state
-#     - from_mask: The starting position mask
-#     - to_mask: The ending position mask
-
-#     Yields:
-#     - Legal evasion chess.Moves
-#     """
-    
-#     # Define masks for our pieces and all pieces
-#     cdef uint64_t our_pieces = board.occupied_co[board.turn]
-#     cdef uint64_t all_pieces = board.occupied
-    
-#     # Define vectors to hold different pseudo legal moves
-#     cdef vector[uint8_t] pieceVec
-#     cdef vector[uint8_t] pieceMoveVec
-#     cdef vector[uint8_t] pieceMoveVecPromotion
-#     cdef vector[uint8_t] pawnVec
-#     cdef vector[uint8_t] pawnMoveVec
-#     cdef vector[uint8_t] pawnMoveVecPromotion
-#     cdef vector[uint8_t] promotionVec
-    
-#     cdef vector[uint8_t] startPos
-#     cdef vector[uint8_t] endPos
-#     cdef vector[uint8_t] promotions
-    
-#     cdef uint8_t num_moves
-
-#     cdef uint8_t outterSize
-#     cdef uint8_t innerSize
-    
-#     cdef vector[uint8_t] startPosEP
-#     cdef vector[uint8_t] endPosEP
-#     cdef vector[uint8_t] promotionsEP
-    
-
-    
-#     cdef list moves_list = []
-   
-#     # Call the c++ function to generate piece moves.
-#     generatePieceMoves(pieceVec, pieceMoveVec, pieceMoveVecPromotion, our_pieces, from_mask, to_mask)
-#     outterSize = pieceVec.size()  
-    
-#     for i in range(outterSize):
-#         moves_list.append(chess.Move(pieceVec[i], pieceMoveVec[i]))
-        
-    
-#     # Call the c++ function to generate castling moves.
-#     if from_mask & board.kings:
-#         generateCastlingMoves(startPos, endPos, promotions, board.clean_castling_rights(), to_mask, king, board.turn)
-#         num_moves = startPos.size() 
-        
-#         if num_moves != 0:
-                    
-#             for i in range(num_moves):
-#                 moves_list.append(chess.Move(startPos[i], endPos[i]))
-#         # moves_list.extend(board.generate_castling_moves(from_mask, to_mask))
-
-#     # The remaining moves are all pawn moves.
-#     cdef uint64_t pawns = board.pawns & board.occupied_co[board.turn] & from_mask
-#     if not pawns:
-#         return moves_list
-
-#     generatePawnMoves(pawnVec, pawnMoveVec, promotionVec, board.occupied_co[not board.turn], board.turn, pawns, from_mask, to_mask)
-#     outterSize = pawnVec.size()  
-#     for i in range(outterSize):
-#         if (promotionVec[i] == 1):
-#             moves_list.append(chess.Move(pawnVec[i], pawnMoveVec[i]))
-#         else:
-#             moves_list.append(chess.Move(pawnVec[i], pawnMoveVec[i], promotionVec[i]))
-
-#     # Call the c++ function to generate en passant captures.
-#     if board.ep_square:
-#         generateEnPassentMoves(startPosEP, endPosEP, promotionsEP, from_mask, to_mask, board.ep_square, board.turn)
-        
-#         num_moves = startPosEP.size() 
-        
-#         if num_moves != 0:
-                    
-#             for i in range(num_moves):
-#                 moves_list.append(chess.Move(startPosEP[i], endPosEP[i]))
-        
-#     return moves_list
 
 def gives_check(object board,object move):
     board.push(move)

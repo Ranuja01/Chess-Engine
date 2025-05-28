@@ -86,6 +86,12 @@ cdef extern from "cpp_bitboard.h":
     void evictCurPlayerMoveGenEntries(int numToEvict)
     void printLayers()
     
+    bint is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bint turn)
+    
+    bint is_stalemate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bint turn)
+    
 # Create struct to hold information regarding the chosen move by the engine
 cdef struct MoveData:
     int a
@@ -602,7 +608,8 @@ cdef class ChessAI:
             score = -100000000
         
         # Check if the move causes a stalemate
-        if (self.pgnBoard.is_stalemate()):            
+        if (is_stalemate(self.pgnBoard.clean_castling_rights(), occupied, occupied_white, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.occupied_co[self.pgnBoard.turn],
+                              pawns, knights, bishops, rooks, queens, kings, (-1 if self.pgnBoard.ep_square is None else self.pgnBoard.ep_square), self.pgnBoard.turn)):            
             score = -100000000
         
         # Undo the move and restore the zobrist hash
@@ -692,7 +699,8 @@ cdef class ChessAI:
                 score = -100000000
             
             # Check if the move causes a stalemate
-            if (self.pgnBoard.is_stalemate()):            
+            if (is_stalemate(self.pgnBoard.clean_castling_rights(), occupied, occupied_white, self.pgnBoard.occupied_co[not self.pgnBoard.turn], self.pgnBoard.occupied_co[self.pgnBoard.turn],
+                                  pawns, knights, bishops, rooks, queens, kings, (-1 if self.pgnBoard.ep_square is None else self.pgnBoard.ep_square), self.pgnBoard.turn)):            
                 score = -100000000
             
             # Undo the move, restore the zobrist hash and append the score list for the current move
@@ -855,7 +863,7 @@ cdef class ChessAI:
         # Acquire a moves list ordered such that captures are first
         # cdef list moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
         
-        for move in self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard):
+        for move in Cython_Chess.generate_ordered_moves(self.pgnBoard, chess.BB_ALL, chess.BB_ALL):
             
             # Check if the move is a promoting move
             if (move.promotion):
@@ -1085,7 +1093,7 @@ cdef class ChessAI:
                 cur_beta_list.append(None)
             self.beta_list.append(cur_beta_list)    
         else: # If not the second recursive depth, take advantage of the yielding feature to increase speed
-            for move in self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard):
+            for move in Cython_Chess.generate_ordered_moves(self.pgnBoard, chess.BB_ALL, chess.BB_ALL):
                 
                 # Check if the move is a promoting move
                 if (move.promotion):
@@ -1375,7 +1383,7 @@ cdef class ChessAI:
             return evaluate_board(self.pgnBoard,self.zobrist)
         
         # Acquire list of moves where captures appear first
-        cdef list moves_list = list(self.reorder_capture_moves(chess.BB_ALL, self.pgnBoard))
+        cdef list moves_list = list(Cython_Chess.generate_ordered_moves(self.pgnBoard, chess.BB_ALL, chess.BB_ALL))
         
         # Variable to hold full length of the list
         cdef int length = len(moves_list)
@@ -1985,7 +1993,8 @@ cdef int evaluate_board(object board,uint64_t zobrist):
     cdef bint horizonMitigation = False
 
     # Check if the board state is checkmate
-    if board.is_checkmate():
+    if is_checkmate(board.clean_castling_rights(), occupied, occupied_white, board.occupied_co[not board.turn], board.occupied_co[board.turn],
+                          pawns, knights, bishops, rooks, queens, kings, (-1 if board.ep_square is None else board.ep_square), board.turn):
         if board.turn:
             total = 9999999 - moveNum      
         else:

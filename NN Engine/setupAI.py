@@ -24,17 +24,17 @@ eigen_path = "/usr/include/eigen3/"
 extensions = [
     Extension(
         "ChessAI",                     # Name of the compiled extension
-        sources=["cpp_bitboard.cpp", "ChessAI.pyx"],       # Source Cython file
+        sources=["cpp_bitboard.cpp", "threadpool.cpp", "ChessAI.pyx"],       # Source Cython file
         language="c++",                # Use C++ compiler
         extra_compile_args=[
             "-Ofast", "-march=native", "-ffast-math", "-fopenmp",
             "-funroll-loops", "-flto", "-fomit-frame-pointer", "-std=c++20",
             "-fno-math-errno", "-fno-trapping-math", "-fassociative-math",
-            "-fno-signed-zeros", "-fno-rounding-math", "-ffp-contract=fast", "-fipa-pta", 
+            "-fno-signed-zeros", "-fno-rounding-math", "-ffp-contract=fast", "-fipa-pta", "-pthread" 
         ], # Optimization flags
         
         
-        extra_link_args=["-flto=16", "-fopenmp"],
+        extra_link_args=["-flto=16", "-fopenmp", "-pthread"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
         library_dirs=[],
         libraries=[],

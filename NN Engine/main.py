@@ -163,13 +163,13 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
     
 # pyprofilerai.analyze_performance(cython_chess_function_benchmark)
 
-board = chess.Board("r1bqkb1r/p2n1ppp/2p1pn2/1p6/3P4/1BN1PN2/PP3PPP/R1BQK2R w KQkq - 0 1")
+board = chess.Board("r1b1kb1r/2qn1ppp/2p1pn2/pp6/3PP3/1BN2N2/PP3PPP/R1BQR1K1 b kq - 0 3")
 print("Their list: ", len(list(board.generate_legal_moves())))
 for move in board.generate_legal_moves():
     print(move)
 
-print("\nMy list: ", len(list(Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL))))
-for move in Cython_Chess.generate_legal_moves(board,chess.BB_ALL,chess.BB_ALL):
+print("\nMy list: ", len(list(Cython_Chess.generate_ordered_moves(board, chess.BB_ALL, chess.BB_ALL))))
+for move in Cython_Chess.generate_ordered_moves(board, chess.BB_ALL, chess.BB_ALL):
     print(move)
 
 # print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))

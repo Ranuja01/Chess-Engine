@@ -2866,19 +2866,23 @@ static int __pyx_f_9eval_func_wrapper(PyObject *__pyx_v_board) {
     goto __pyx_L3;
   }
 
-  /* "eval_func.pyx":77
- *     else:
- *         # Call the c++ function
- *         total += placement_and_piece_eval(moveNum, pawns, knights, bishops, rooks, queens, kings, 0, occupied_white, occupied_black, occupied)             # <<<<<<<<<<<<<<
+  /* "eval_func.pyx":80
+ *         # print()
+ * 
+ *         total += placement_and_piece_eval(moveNum, board.turn, 64, pawns, knights, bishops, rooks, queens, kings, 0, occupied_white, occupied_black, occupied)             # <<<<<<<<<<<<<<
  *         # ** Code segment to see if a bad capture was made **
  * 
  */
   /*else*/ {
-    __pyx_v_total = (__pyx_v_total + placement_and_piece_eval(__pyx_v_moveNum, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, 0, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_occupied));
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_board, __pyx_n_s_turn); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 80, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 80, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_v_total = (__pyx_v_total + placement_and_piece_eval(__pyx_v_moveNum, __pyx_t_7, 64, __pyx_v_pawns, __pyx_v_knights, __pyx_v_bishops, __pyx_v_rooks, __pyx_v_queens, __pyx_v_kings, 0, __pyx_v_occupied_white, __pyx_v_occupied_black, __pyx_v_occupied));
   }
   __pyx_L3:;
 
-  /* "eval_func.pyx":102
+  /* "eval_func.pyx":105
  * 
  *         #             break
  *     return total             # <<<<<<<<<<<<<<

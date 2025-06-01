@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+board = chess.Board("2r2rk1/5ppp/p1nQbq2/1p2p3/4P2P/2P5/PPN2PP1/R3KB1R w KQ - 1 16")
 
 # Print the board in a human-readable format
 print(board)
@@ -96,7 +96,7 @@ whiteModel = tf.keras.models.load_model(data_path2)
 model = tf.keras.models.load_model(data_path3)
 
 # Assuming you have models already defined as black_model and white_model
-chess_ai = ChessAI(blackModel, whiteModel, board)
+chess_ai = ChessAI(blackModel, whiteModel, board, board.turn)
 
 #Cython_Chess.test4(board,5)
 
@@ -163,14 +163,14 @@ chess_ai = ChessAI(blackModel, whiteModel, board)
     
 # pyprofilerai.analyze_performance(cython_chess_function_benchmark)
 
-board = chess.Board("r1b1kb1r/2qn1ppp/2p1pn2/pp6/3PP3/1BN2N2/PP3PPP/R1BQR1K1 b kq - 0 3")
-print("Their list: ", len(list(board.generate_legal_moves())))
-for move in board.generate_legal_moves():
-    print(move)
+# board = chess.Board("7k/8/8/8/1Pp5/8/8/7K b - b3 0 13")
+# print("Their list: ", len(list(board.generate_legal_moves())))
+# for move in board.generate_legal_moves():
+#     print(move)
 
-print("\nMy list: ", len(list(Cython_Chess.generate_ordered_moves(board, chess.BB_ALL, chess.BB_ALL))))
-for move in Cython_Chess.generate_ordered_moves(board, chess.BB_ALL, chess.BB_ALL):
-    print(move)
+# print("\nMy list: ", len(list(Cython_Chess.generate_ordered_moves(board, chess.BB_ALL, chess.BB_ALL))))
+# for move in Cython_Chess.generate_ordered_moves(board, chess.BB_ALL, chess.BB_ALL):
+#     print(move)
 
 # print("Eval: ", model.predict(np.array([encode_board(board)]),verbose=0))
 
@@ -202,13 +202,14 @@ for move in Cython_Chess.generate_ordered_moves(board, chess.BB_ALL, chess.BB_AL
 
 
 
-# t0= timer()
-# result = chess_ai.alphaBetaWrapper()
-# # print(result['a'],result['b'],result['c'],result['d'])
-# # print(f"Best score: {result['score']},")
+t0= timer()
+result = chess_ai.alphaBetaWrapper()
+# result = chess_ai.alphaBetaWrapper_Cython()
+# print(result['a'],result['b'],result['c'],result['d'])
+# print(f"Best score: {result['score']},")
 
-# t1 = timer()
-# print("Time elapsed: ", t1 - t0)
+t1 = timer()
+print("Time elapsed: ", t1 - t0)
 
 # t0= timer()
 # a,b = chess_ai.create_test_data(board)

@@ -9,6 +9,7 @@ Code augmented from python-chess: https://github.com/niklasf/python-chess/tree/5
 */
 
 #include "cpp_bitboard.h"
+#include "search_engine.h"
 #include <vector>
 #include <array>
 #include <cstddef>
@@ -26,8 +27,8 @@ Code augmented from python-chess: https://github.com/niklasf/python-chess/tree/5
 #include <string>
 #include <cstring>
 #include <optional>
+#include <sstream>
 
-constexpr int NUM_SQUARES = 64;
 
 // Define masks for move generation
 std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
@@ -41,35 +42,7 @@ std::vector<uint64_t> BB_RANK_MASKS;
 std::vector<std::unordered_map<uint64_t, uint64_t>> BB_RANK_ATTACKS;
 std::vector<std::vector<uint64_t>> BB_RAYS;
 
-// Define the file bitboards
-constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
-constexpr uint64_t BB_FILE_B = 0x0101010101010101ULL << 1;
-constexpr uint64_t BB_FILE_C = 0x0101010101010101ULL << 2;
-constexpr uint64_t BB_FILE_D = 0x0101010101010101ULL << 3;
-constexpr uint64_t BB_FILE_E = 0x0101010101010101ULL << 4;
-constexpr uint64_t BB_FILE_F = 0x0101010101010101ULL << 5;
-constexpr uint64_t BB_FILE_G = 0x0101010101010101ULL << 6;
-constexpr uint64_t BB_FILE_H = 0x0101010101010101ULL << 7;
 
-// Array of file uint64_ts
-constexpr std::array<uint64_t, 8> BB_FILES = {
-    BB_FILE_A, BB_FILE_B, BB_FILE_C, BB_FILE_D, BB_FILE_E, BB_FILE_F, BB_FILE_G, BB_FILE_H
-};
-
-// Define the rank uint64_ts
-constexpr uint64_t BB_RANK_1 = 0xffULL << (8 * 0);
-constexpr uint64_t BB_RANK_2 = 0xffULL << (8 * 1);
-constexpr uint64_t BB_RANK_3 = 0xffULL << (8 * 2);
-constexpr uint64_t BB_RANK_4 = 0xffULL << (8 * 3);
-constexpr uint64_t BB_RANK_5 = 0xffULL << (8 * 4);
-constexpr uint64_t BB_RANK_6 = 0xffULL << (8 * 5);
-constexpr uint64_t BB_RANK_7 = 0xffULL << (8 * 6);
-constexpr uint64_t BB_RANK_8 = 0xffULL << (8 * 7);
-
-// Array of rank bitboards
-constexpr std::array<uint64_t, 8> BB_RANKS = {
-    BB_RANK_1, BB_RANK_2, BB_RANK_3, BB_RANK_4, BB_RANK_5, BB_RANK_6, BB_RANK_7, BB_RANK_8
-};
 
 // Define global masks for piece placement
 uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
@@ -84,22 +57,23 @@ int blackPieceVal, whitePieceVal;
 uint64_t zobristTable[12][64];
 uint64_t zobristTurn;
 
-std::unordered_map<uint64_t, int> moveCache;
+const int rook_squares[4] = {0, 7, 56, 63};
+uint64_t castling_hash[4];
+uint64_t ep_hash[65];
+
+std::unordered_map<uint64_t, int> evalCache;
 std::deque<uint64_t> insertionOrder;
 
-// Define caches for player move generation orders
-std::unordered_map<uint64_t, std::string> OpponentMoveGenCache;
-std::deque<uint64_t> OpponentMoveGenInsertionOrder;
+std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
+std::deque<uint64_t> moveGenInsertionOrder;
 
-std::unordered_map<uint64_t, std::string> curPlayerMoveGenCache;
-std::deque<uint64_t> curPlayerMoveGenInsertionOrder;
+
 
 /*
 	Define a set of lookup tables
 */
 
-// Array of piece values
-constexpr std::array<int, 7> values = {0, 1000, 3250, 3450, 5000, 10000, 12000};
+
 
 // Define a heat map for attacks
 std::array<std::array<std::array<int, 8>, 8>, 2> attackingLayer;
@@ -246,7 +220,7 @@ std::array<int, 64> num_supporters = {0};
 
 std::array<int, 64> square_values = {0};
 
-std::array<std::array<int, 7>, 7> support_weights = {{
+constexpr std::array<std::array<int, 7>, 7> support_weights = {{
     //             None  Pawn  Knight  Bishop  Rook  Queen  King
     /* None   */ {  0,    0,      0,      0,     0,     0,     0 },
     /* Pawn   */ {  0,   85,     20,     20,    15,     4,     0 }, 
@@ -257,7 +231,7 @@ std::array<std::array<int, 7>, 7> support_weights = {{
     /* King   */ {  0,    2,      1,      1,     1,     1,     0 }
 }};
 
-std::array<std::array<int, 7>, 7> pressure_weights = {{
+constexpr std::array<std::array<int, 7>, 7> pressure_weights = {{
     //             None  Pawn  Knight  Bishop  Rook  Queen  King
     /* None   */ {  0,    0,      0,      0,     0,     0,     0 },
     /* Pawn   */ {  0,   85,    100,    105,   125,   150,     0 }, 
@@ -268,20 +242,9 @@ std::array<std::array<int, 7>, 7> pressure_weights = {{
     /* King   */ {  0,    5,      5,      5,     5,     5,     0 } 
 }};
 
-const int decrement_lookup[7] = {0,  5, 35, 35, 100, 150, 1000};  // [piece_type]
-const int pressure_increase_lookup[7] = {0,  5, 10, 10, 20,  30,  30};
+constexpr int decrement_lookup[7] = {0,  5, 35, 35, 100, 150, 1000};  // [piece_type]
+constexpr int pressure_increase_lookup[7] = {0,  5, 10, 10, 20,  30,  30};
 
-// Create a compile-time array of bitmasks
-constexpr std::array<uint64_t, 64> generate_square_masks() {
-    std::array<uint64_t, 64> masks{};
-    for (int i = 0; i < 64; i++) {
-        masks[i] = 1ULL << i;
-    }
-    return masks;
-}
-
-// Global constant array of square bitmasks
-constexpr std::array<uint64_t, 64> BB_SQUARES = generate_square_masks();
 
 bool horizon_mitigation_flag = false;
 bool get_horizon_mitigation_flag(){return horizon_mitigation_flag;}
@@ -2102,7 +2065,7 @@ int advanced_endgame_eval(int total, bool turn){
 	
 }
 
-int placement_and_piece_eval(int moveNum, bool turn, uint8_t lastMovedToSquare, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t prevKingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
+int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
 
 	/*
 		Function to acquire a positional evaluation
@@ -2494,8 +2457,6 @@ int approximate_capture_gains1(uint64_t bb, bool turn) {
         bb &= bb - 1;
 
         bool current_colour = (occupied_white & (BB_SQUARES[r])) != 0;
-        int piece_type = pieceTypeLookUp[r];
-        int base_value = values[piece_type];
 
         int attackers = num_attackers[r];
         int supporters = num_supporters[r];
@@ -2504,8 +2465,7 @@ int approximate_capture_gains1(uint64_t bb, bool turn) {
 
         if (attackers == 0)
             continue;
-
-        int increment = 0;
+        
 		if (pressure > support) {
 			if (supporters == 0) {
 				uint8_t from = __builtin_ctzll(attack_bitmasks[r]);
@@ -2612,8 +2572,6 @@ int approximate_capture_gains(uint64_t bb, bool turn) {
         bb &= bb - 1;
 
         bool current_colour = (occupied_white & (BB_SQUARES[r])) != 0;
-        int piece_type = pieceTypeLookUp[r];
-        int base_value = values[piece_type];
 
         int attackers = num_attackers[r];
         int supporters = num_supporters[r];
@@ -2623,7 +2581,6 @@ int approximate_capture_gains(uint64_t bb, bool turn) {
         if (attackers == 0)
             continue;
 
-        int increment = 0;
 		if (pressure > support) {
 			if (supporters == 0) {
 				uint8_t from = __builtin_ctzll(attack_bitmasks[r]);
@@ -3154,6 +3111,14 @@ void initializeZobrist() {
         }
     }
 
+	for (int i = 0; i < 4; i++){
+		castling_hash[i] = rng();
+	}
+
+	for (int i = 0; i < 65; i++){
+		ep_hash[i] = rng();
+	}
+
 	zobristTurn = rng();
 }
 
@@ -3270,23 +3235,28 @@ void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSqua
 	/*
 		This section of code checks for castling moves and adjusts the hash for the rook move
 	*/
-	if (pieceType == 5){
-		if (fromSquare == 4){
-			if (toSquare == 6){
-				hash ^= zobristTable[3][5];
-			}else if (toSquare == 2){
-				hash ^= zobristTable[3][3];
+	if (pieceType == 5) { // White king
+		if (fromSquare == 4) {
+			if (toSquare == 6) { // White kingside castling
+				hash ^= zobristTable[3][7]; // remove rook from h1
+				hash ^= zobristTable[3][5]; // add rook to f1
+			} else if (toSquare == 2) { // White queenside castling
+				hash ^= zobristTable[3][0]; // remove rook from a1
+				hash ^= zobristTable[3][3]; // add rook to d1
 			}
 		}
-	}else if (pieceType == 11){
-		if (fromSquare == 60){
-			if (toSquare == 62){
-				hash ^= zobristTable[9][61];
-			}else if (toSquare == 58){
-				hash ^= zobristTable[9][59];
+	} else if (pieceType == 11) { // Black king
+		if (fromSquare == 60) {
+			if (toSquare == 62) { // Black kingside castling
+				hash ^= zobristTable[9][63]; // remove rook from h8
+				hash ^= zobristTable[9][61]; // add rook to f8
+			} else if (toSquare == 58) { // Black queenside castling
+				hash ^= zobristTable[9][56]; // remove rook from a8
+				hash ^= zobristTable[9][59]; // add rook to d8
 			}
 		}
 	}
+
 	
     // If a piece was captured, XOR the captured piece out of its position
     if (isCapture) {
@@ -3317,7 +3287,7 @@ void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSqua
     }
     
 	// If there exists a promotion piece, then handle it
-	if (promotion != 0){
+	if (promotion != 1){
 		
 		// Acquire the promotion piece type
 		pieceType = promotion - 1;
@@ -3351,8 +3321,8 @@ int accessCache(uint64_t key) {
 		The stored evaluation for the position if it exists
 	*/
 	
-    auto it = moveCache.find(key);
-    if (it != moveCache.end()) {
+    auto it = evalCache.find(key);
+    if (it != evalCache.end()) {
 		// Return the value if the key exists
         return it->second;  
     }
@@ -3372,105 +3342,8 @@ void addToCache(uint64_t key,int value) {
 	*/
 	
 	// Add the key-value pair to the cache as well as the key to the move order
-    moveCache[key] = value;
+    evalCache[key] = value;
 	insertionOrder.push_back(key);
-}
-
-std::string accessOpponentMoveGenCache(uint64_t key) {
-	
-	/*
-		Function to access the move cache of the opponent of the engine
-		
-		Parameters:
-		- key: The hash for the given position
-		
-		Returns:
-		The stored byte stream representing the legal moves list for the given position
-	*/
-	
-    auto it = OpponentMoveGenCache.find(key);
-	
-	// Return the value if the key exists
-    if (it != OpponentMoveGenCache.end()) {
-        return it->second;  
-    }
-	
-    // Return a binary representation of '0' if the key doesn't exist    
-	// Allocate space for '0' and null terminator
-	char* defaultValue = new char[2]; 
-    
-	defaultValue[0] = '0'; // Set the first byte to '0'
-    defaultValue[1] = '\0'; // Null terminator for string
-    return defaultValue;
-
-}
-
-void addToOpponentMoveGenCache(uint64_t key,char* data, int length) {
-	
-	/*
-		Function to add to the move cache of the opponent of the engine
-		
-		Parameters:
-		- key: The hash for the given position
-		- value: The value to be associated with the given key
-		- length: The length of the byte stream
-	*/
-	
-	// Convert the byte stream to a c++ string
-	std::string value(data, length);
-    
-	// Add the key-value pair to the cache as well as the key to the move order
-	OpponentMoveGenCache[key] = value;
-	OpponentMoveGenInsertionOrder.push_back(key);
-	
-}
-
-std::string accessCurPlayerMoveGenCache(uint64_t key) {
-	
-	/*
-		Function to access the move cache of the engine
-		
-		Parameters:
-		- key: The hash for the given position
-		
-		Returns:
-		The stored byte stream representing the legal moves list for the given position
-	*/
-	
-    auto it = curPlayerMoveGenCache.find(key);
-	
-	// Return the value if the key exists
-    if (it != curPlayerMoveGenCache.end()) {
-        return it->second;  
-    }
-	
-    // Return a binary representation of '0' if the key doesn't exist
-	// Allocate space for '0' and null terminator
-    char* defaultValue = new char[2]; 
-	
-    defaultValue[0] = '0'; // Set the first byte to '0'
-    defaultValue[1] = '\0'; // Null terminator for string
-    return defaultValue;
-
-}
-
-void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length) {
-	
-	/*
-		Function to add to the move cache of the engine
-		
-		Parameters:
-		- key: The hash for the given position
-		- value: The value to be associated with the given key
-		- length: The length of the byte stream
-	*/
-	
-	// Convert the byte stream to a c++ string
-	std::string value(data, length);
-	
-	// Add the key-value pair to the cache as well as the key to the move order
-    curPlayerMoveGenCache[key] = value;
-	curPlayerMoveGenInsertionOrder.push_back(key);
 }
 
 int printCacheStats() {
@@ -3483,7 +3356,7 @@ int printCacheStats() {
 	*/
 	
     // Get the number of entries in the map
-    int num_entries = moveCache.size();
+    int num_entries = evalCache.size();
 
     // Estimate the memory usage in bytes: each entry is a pair of (key, value)
     int size_in_bytes = num_entries * (sizeof(int64_t) + sizeof(int));
@@ -3497,74 +3370,8 @@ int printCacheStats() {
 }
 
 int getCacheStats(){
-	int num_entries = moveCache.size();
+	int num_entries = evalCache.size();
 
-	return num_entries;
-}
-
-int printOpponentMoveGenCacheStats() {
-	
-	/*
-		Function to print the opposition move cache size as well as return it
-		
-		Returns:
-		The number of entries in the cache
-	*/
-	
-    // Get the number of entries in the map
-    int num_entries = OpponentMoveGenCache.size();
-
-    // Estimate the memory usage in bytes
-    int size_in_bytes = 0;
-
-    // Size of the key (int64_t)
-    size_in_bytes += num_entries * sizeof(int64_t);
-
-    // Iterate through the map to calculate the size of each value
-    for (const auto& entry : OpponentMoveGenCache) {
-        // entry.first is the key
-        // entry.second is the char* value
-        size_in_bytes += entry.second.length() + 1; // +1 for the null terminator
-    }
-
-    // Print the results
-    std::cout << "Number of entries: " << num_entries << std::endl;
-    std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
-	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
-	
-	return num_entries;
-}
-
-int printCurPlayerMoveGenCacheStats() {
-	
-	/*
-		Function to print the engine's move cache size as well as return it
-		
-		Returns:
-		The number of entries in the cache
-	*/
-	
-    // Get the number of entries in the map
-    int num_entries = curPlayerMoveGenCache.size();
-
-    // Estimate the memory usage in bytes
-    int size_in_bytes = 0;
-
-    // Size of the key (int64_t)
-    size_in_bytes += num_entries * sizeof(int64_t);
-
-    // Iterate through the map to calculate the size of each value
-    for (const auto& entry : curPlayerMoveGenCache) {
-        // entry.first is the key
-        // entry.second is the char* value
-        size_in_bytes += entry.second.length() + 1; // +1 for the null terminator
-    }
-
-    // Print the results
-    std::cout << "Number of entries: " << num_entries << std::endl;
-    std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
-	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
-	
 	return num_entries;
 }
 
@@ -3583,639 +3390,116 @@ void evictOldEntries(int numToEvict) {
 		// Evict using the insertion order queue 
         uint64_t oldestKey = insertionOrder.front();
         insertionOrder.pop_front();  // Remove from deque
-        moveCache.erase(oldestKey);  // Erase from map
+        evalCache.erase(oldestKey);  // Erase from map
     }
 }
 
-void evictOpponentMoveGenEntries(int numToEvict) {
+
+std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
 	
 	/*
-		Function to add evict entries in the oposition move cache in an LRU fashion
+		Function to access the position cache
+		
+		Parameters:
+		- key: The hash for the given position
+		
+		Returns:
+		The stored evaluation for the position if it exists
+	*/
+
+	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+	
+    auto it = moveGenCache.find(updatedKey);
+    if (it != moveGenCache.end()) {
+		// Return the value if the key exists
+        return it->second;  
+    }
+	
+	// Return the default value if the key doesn't exist
+    std::vector<Move> dummy;
+	return dummy;   
+}
+
+void addToMoveGenCache(uint64_t key, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square){
+	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+	
+	moveGenCache[updatedKey] = reorderedMoves;
+	moveGenInsertionOrder.push_back(updatedKey);
+}
+
+void evictOldMoveGenEntries(int numToEvict) {
+	
+	/*
+		Function to add evict entries in the position cache in an LRU fashion
 		
 		Parameters:
 		- numToEvict: The number of entries to be evicted from the cache
 	*/
 	
 	// Loop through the cache until done or the cache empties
-    while (numToEvict-- > 0 && !OpponentMoveGenInsertionOrder.empty()) {
+    while (numToEvict-- > 0 && !moveGenInsertionOrder.empty()) {
 		
 		// Evict using the insertion order queue 
-        uint64_t oldestKey = OpponentMoveGenInsertionOrder.front();
-        OpponentMoveGenInsertionOrder.pop_front();  // Remove from deque
-        OpponentMoveGenCache.erase(oldestKey);  // Erase from map
+        uint64_t oldestKey = moveGenInsertionOrder.front();
+        moveGenInsertionOrder.pop_front();  // Remove from deque
+        moveGenCache.erase(oldestKey);  // Erase from map
     }
 }
 
-void evictCurPlayerMoveGenEntries(int numToEvict) {
-	
-	/*
-		Function to add evict entries in the engine's move cache in an LRU fashion
-		
-		Parameters:
-		- numToEvict: The number of entries to be evicted from the cache
-	*/
-	
-	// Loop through the cache until done or the cache empties
-    while (numToEvict-- > 0 && !curPlayerMoveGenInsertionOrder.empty()) {
-		
-		// Evict using the insertion order queue 
-        uint64_t oldestKey = curPlayerMoveGenInsertionOrder.front();
-        curPlayerMoveGenInsertionOrder.pop_front();  // Remove from deque
-        curPlayerMoveGenCache.erase(oldestKey);  // Erase from map
+int printMoveGenCacheStats() {
+    /*
+        Function to print stats for the move generation cache.
+
+        Parameters:
+        
+
+        Returns:
+        - Number of entries in the cache
+    */
+
+    int num_entries = moveGenCache.size();
+    size_t total_moves = 0;
+
+    for (const auto& entry : moveGenCache) {
+        total_moves += entry.second.size();
     }
+
+    size_t size_of_keys = num_entries * sizeof(uint64_t);
+    size_t size_of_vectors = num_entries * sizeof(std::vector<Move>);
+    size_t size_of_moves = total_moves * sizeof(Move);
+
+    size_t total_bytes = size_of_keys + size_of_vectors + size_of_moves;
+
+    std::cout << "Move cache stats:\n" << std::endl;
+    std::cout << "Number of entries: " << num_entries << std::endl;
+    std::cout << "Total moves stored: " << total_moves << std::endl;
+    std::cout << "Estimated size in bytes: " << total_bytes << std::endl;
+    std::cout << "Estimated size in megabytes: " << (total_bytes >> 20) << std::endl;
+
+    return num_entries;
 }
 
-
-/*
-	Set of functions used to generate moves
-*/
-void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
-	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
-						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-    
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
-
-	uint64_t king_mask = kingsMask & ourPieces;
-	uint8_t king = 63 - __builtin_clzll(king_mask);
-
-    
-	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);            
-    uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
-
-	if (checkers != 0){
-		generateEvasions(startPos, endPos, promotions, preliminary_castling_mask, king, checkers, from_mask, to_mask, occupiedMask,occupiedWhite,
-			             opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
-
-		for (size_t i = 0; i < startPos.size(); i++){
-			if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
-				knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
-				
-				startPos_filtered.push_back(startPos[i]);
-				endPos_filtered.push_back(endPos[i]);
-				promotions_filtered.push_back(promotions[i]);
-
-			}
-		}
-	} else {
-		generatePseudoLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask,
-	 						     king_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
-							     rooksMask, queensMask, kingsMask, ep_square, turn);
-
-		for (size_t i = 0; i < startPos.size(); i++){
-			if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
-				knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
-				
-				startPos_filtered.push_back(startPos[i]);
-				endPos_filtered.push_back(endPos[i]);
-				promotions_filtered.push_back(promotions[i]);
-
-			}
-		}
-	}
-
-}
-
-void generatePseudoLegalMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
-	 						  uint64_t king, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
-							  uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-
-	//uint64_t our_pieces = turn ? occupied_white : occupied_black;
-	//uint64_t opposingPieces = turn ? occupied_black : occupied_white;
-
-	// Call the function to generate piece moves.
-    generatePieceMoves(startPos, endPos, promotions, ourPieces, from_mask, to_mask, occupiedMask, occupiedWhite, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask);
-	
-	if ((from_mask & kingsMask) != 0){
-		generateCastlingMoves(startPos, endPos, promotions, preliminary_castling_mask, to_mask, king, opposingPieces, occupiedMask, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, turn);
-		
-	}
-
-	uint64_t pawns_mask = pawnsMask & ourPieces & from_mask;
-	if(pawns_mask == 0)
-		return;
-
-	generatePawnMoves(startPos, endPos, promotions, opposingPieces, turn, pawns_mask, occupiedMask, from_mask, to_mask);
-	
-	if (ep_square == -1)
-		return;
-	
-	generateEnPassentMoves(startPos, endPos, promotions, from_mask, to_mask, ourPieces, occupiedMask, pawnsMask, ep_square, turn);
-	
-}
-
-void generatePieceMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t our_pieces, uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask,
-	 					uint64_t occupiedWhite, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask){
-    
-	/*
-		Function to generate moves for non-pawn pieces
-		
-		Parameters:
-		- startPos: An empty vector to hold the starting positions, passed by reference 
-		- endPos: An empty vector to hold the ending positions, passed by reference 
-		- our_pieces: The mask containing only the pieces of the current side
-		- from_mask: The mask of the possible starting positions for move generation
-		- to_mask: The mask of the possible ending positions for move generation		
-	*/	
-	// Define mask of non pawn pieces
-	uint64_t non_pawns = (our_pieces & ~pawnsMask) & from_mask;
-		
-	// Loop through the non pawn pieces
-	uint8_t r = 0;
-	uint64_t bb = non_pawns;
-	while (bb) {
-		r = __builtin_ctzll(bb);
-
-		uint64_t mask = (BB_SQUARES[r]);
-		
-		uint8_t piece_type = 0;
-		if (pawnsMask & mask) {
-			piece_type = 1;
-		} else if (knightsMask & mask){
-			piece_type = 2;
-		} else if (bishopsMask & mask){
-			piece_type = 3;
-		} else if (rooksMask & mask){
-			piece_type = 4;
-		} else if (queensMask & mask){
-			piece_type = 5;
-		} else if (kingsMask & mask){
-			piece_type = 6;
-		}
-		
-		// Define the moves as a bitwise and between the squares attacked from the starting square and the starting mask
-		uint64_t moves = (attacks_mask(bool((1ULL<<r) & occupiedWhite),occupiedMask,r,piece_type) & ~our_pieces) & to_mask;		
-		
-		// Loop through the possible destinations
-		uint8_t r_inner = 0;
-		uint64_t bb_inner = moves;
-		while (bb_inner) {
-			r_inner = __builtin_ctzll(bb_inner);
-			
-			// Push the starting and ending positions to their respective vectors
-			startPos.push_back(r);
-			endPos.push_back(r_inner);
-			promotions.push_back(1);  
-			bb_inner &= bb_inner - 1;
-		}
-		
-		bb &= bb - 1;
-	}
-}
-
-void generatePawnMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t opposingPieces, bool colour, uint64_t pawnsMask, uint64_t occupiedMask,
-					   uint64_t from_mask, uint64_t to_mask){    			
-	
-	/*
-		Function to generate moves for pawn pieces
-		
-		Parameters:
-		- startPos: An empty vector to hold the starting positions, passed by reference 
-		- endPos: An empty vector to hold the ending positions, passed by reference 
-		- promotions: An empty vector to hold the promotion status, passed by reference
-		- opposingPieces: The mask containing only the pieces of the opposing side
-		- occupied: The mask containing all pieces
-		- colour: the colour of the current side
-		- pawnsMask: The mask containing only pawns
-		- from_mask: The mask of the possible starting positions for move generation
-		- to_mask: The mask of the possible ending positions for move generation		
-	*/
-		
-	/*
-		This section of code is used for pawn captures
-	*/		
-	// Loop through the pawns
-	uint8_t r = 0;
-	uint64_t bb = pawnsMask;
-	while (bb) {
-		r = __builtin_ctzll(bb);
-		
-		// Acquire the destinations that follow pawn attacks and opposing pieces
-		uint64_t moves = BB_PAWN_ATTACKS[colour][r] & opposingPieces & to_mask;
-		
-		// Loop through the destinations 
-		uint8_t r_inner = 0;
-		uint64_t bb_inner = moves;
-		while (bb_inner) {			
-			r_inner = __builtin_ctzll(bb_inner);
-			
-			// Check if the rank suggests the move is a promotion
-			uint8_t rank = r_inner / 8;			
-			if (rank == 7 || rank == 0){
-				
-				// Loop through all possible promotions
-				for (int k = 5; k > 1; k--){
-					startPos.push_back(r);
-					endPos.push_back(r_inner);
-					promotions.push_back(k);
-				}
-			
-			// Else the move is not a promotion
-			} else{
-				startPos.push_back(r);
-				endPos.push_back(r_inner);
-				promotions.push_back(1);
-			}  
-			bb_inner &= bb_inner - 1;
-		}
-		bb &= bb - 1;		
-	}
-	
-	/*
-		In this section, define single and double pawn pushes
-	*/
-	uint64_t single_moves, double_moves;
-	if (colour){
-        single_moves = pawnsMask << 8 & ~occupiedMask;
-        double_moves = single_moves << 8 & ~occupiedMask & (BB_RANK_3 | BB_RANK_4);
-    }else{
-        single_moves = pawnsMask >> 8 & ~occupiedMask;
-        double_moves = single_moves >> 8 & ~occupiedMask & (BB_RANK_6 | BB_RANK_5);
-	}
-    
-	single_moves &= to_mask;
-    double_moves &= to_mask;
-	
-	/*
-		This section of code is used for single pawn pushes
-	*/		
-	// Loop through the pawns
-	r = 0;
-	bb = single_moves;
-	while (bb) {
-		r = __builtin_ctzll(bb);
-		
-		// Set the destination square as either one square up or down the board depending on the colour
-		uint8_t from_square = r;
-		if (colour){
-			from_square -= 8;
-		} else{
-			from_square += 8;
-		}
-		
-		// Check if the rank suggests the move is a promotion
-		uint8_t rank = r / 8;
-		if (rank == 7 || rank == 0){	
-
-			// Loop through all possible promotions		
-			for (int j = 5; j > 1; j--){
-				startPos.push_back(from_square);
-				endPos.push_back(r);
-				promotions.push_back(j);
-			}
-		// Else the move is not a promotion
-		} else{
-			startPos.push_back(from_square);
-			endPos.push_back(r);
-			promotions.push_back(1);
-		}
-		bb &= bb - 1;
-	}
-	
-	/*
-		This section of code is used for double pawn pushes
-	*/		
-	// Loop through the pawns
-	r = 0;
-	bb = double_moves;
-	while (bb) {
-		r = __builtin_ctzll(bb);
-		
-		// Set the destination square as either two squares up or down the board depending on the colour
-		uint8_t from_square = r;
-		if (colour){
-			from_square -= 16;
-		} else{
-			from_square += 16;
-		}
-		
-		// Set the start and destination
-		startPos.push_back(from_square);
-		endPos.push_back(r);
-		promotions.push_back(1);
-		bb &= bb - 1;
-	}
-	
-}
-
-void generateCastlingMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t preliminary_castling_mask, uint64_t to_mask, uint64_t king,
-	                       uint64_t opposingPieces, uint64_t occupiedMask, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, bool turn){
-
-	uint64_t backrank = turn ? BB_RANK_1 : BB_RANK_8;
-	uint64_t candidates_mask = preliminary_castling_mask & backrank & to_mask;
-	
-	if (candidates_mask == 0)
-		return;
-
-	uint8_t king_square = __builtin_ctzll(king);
-
-	uint64_t bb_c = BB_FILE_C & backrank;
-    uint64_t bb_d = BB_FILE_D & backrank;
-    uint64_t bb_f = BB_FILE_F & backrank;
-    uint64_t bb_g = BB_FILE_G & backrank;
-
-	while (candidates_mask) {
-        // Get least significant bit index (square)
-        uint8_t candidate = __builtin_ctzll(candidates_mask);  // GCC/Clang builtin: count trailing zeros
-
-        // Clear the LSB from path
-        candidates_mask &= candidates_mask - 1;
-
-		uint64_t rook = BB_SQUARES[candidate];
-
-		bool a_side = candidate < king_square;
-		uint64_t king_to = a_side ? bb_c: bb_g;
-		uint64_t rook_to = a_side ? bb_d: bb_f;
-
-		uint64_t king_path = betweenPieces(king_square, __builtin_ctzll(king_to));
-		uint64_t rook_path = betweenPieces(candidate, __builtin_ctzll(rook_to));
-
-		if (!((occupiedMask ^ king ^ rook) & (king_path | rook_path | king_to | rook_to) || attackedForKing(!turn, king_path | king, occupiedMask ^ king, opposingPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask) || attackedForKing(!turn, king_to, occupiedMask ^ king ^ rook ^ rook_to, opposingPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask))){
-
-			if (king_square == 4 && turn) { // White E1
-                if (candidate == 7) {
-                    startPos.push_back(4); endPos.push_back(6); promotions.push_back(1); // O-O
-                } else if (candidate == 0) {
-                    startPos.push_back(4); endPos.push_back(2); promotions.push_back(1); // O-O-O
-                }
-            } else if (king_square == 60 && !turn) { // Black E8
-                if (candidate == 63) {
-                    startPos.push_back(60); endPos.push_back(62); promotions.push_back(1);
-                } else if (candidate == 56) {
-                    startPos.push_back(60); endPos.push_back(58); promotions.push_back(1);
-                }
-            }
-		}
-	}
-}
-
-void generateEnPassentMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t from_mask, uint64_t to_mask, uint64_t our_pieces, uint64_t occupiedMask, uint64_t pawnsMask, int ep_square, bool turn){
-	if (ep_square == -1 || (BB_SQUARES[ep_square] & to_mask) == 0)
-	    return;
-
-	if ((BB_SQUARES[ep_square] & occupiedMask) != 0)
-	    return;
-
-	uint64_t capturers = (
-            pawnsMask & our_pieces & from_mask &
-            BB_PAWN_ATTACKS[!turn][ep_square] &
-            BB_RANKS[turn ? 4 : 3]);
-	
-	while (capturers) {
-        // Get least significant bit index (square)
-        uint8_t capturer = __builtin_ctzll(capturers);  // GCC/Clang builtin: count trailing zeros
-
-        // Clear the LSB from path
-        capturers &= capturers - 1;
-
-		startPos.push_back(capturer); endPos.push_back(ep_square); promotions.push_back(1);
-	}
-}
-
-void generateEvasions(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t preliminary_castling_mask, uint8_t king, uint64_t checkers, uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces,
-					  uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-	
-    uint64_t king_mask = BB_SQUARES[king];
-
-	// Define mask for sliding pieces which are also checkers
-    uint64_t sliders = checkers & (bishopsMask | rooksMask | queensMask);
-    
-    // Define mask to hold ray attacks towards the king
-    uint64_t attacked = 0;
-
-	uint64_t bb = sliders;
-	while (bb) {
-		uint8_t r = __builtin_ctzll(bb);
-		
-		// Acquire ray attacks
-		attacked |= ray(king, r) & ~BB_SQUARES[r];
-
-		bb &= bb - 1;
-	}
-
-	if ((king_mask & from_mask) != 0){
-		uint64_t bb = BB_KING_ATTACKS[king] & ~ourPieces & ~attacked & to_mask;
-		while (bb) {
-			uint8_t r = __builtin_ctzll(bb);
-			
-			// Add king evasion moves
-			startPos.push_back(king); endPos.push_back(r); promotions.push_back(1);
-
-			bb &= bb - 1;
-		}
-	}
-
-	uint8_t checker = 63 - __builtin_clzll(checkers);
-
-	if (BB_SQUARES[checker] == checkers){
-
-		uint64_t target = betweenPieces(king, checker) | checkers;
-
-		generatePseudoLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~kingsMask & from_mask, target & to_mask,
-	 						  king_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
-							  rooksMask, queensMask, kingsMask, ep_square, turn);
-		
-		if (ep_square != -1 && ((BB_SQUARES[ep_square] & target) == 0)){
-			int last_double = ep_square + (turn ? -8 : 8);
-
-			if (last_double == checker)
-				generateEnPassentMoves(startPos, endPos, promotions, from_mask, to_mask, ourPieces, occupiedMask, pawnsMask, ep_square, turn);
-		}
-	}
-}
-
-void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered, uint64_t from_mask, uint64_t to_mask,
-	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
-						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-	
-	generateLegalMoves(startPos_filtered, endPos_filtered, promotions_filtered, 0, from_mask, to_mask & opposingPieces,
-	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
-					   rooksMask, queensMask, kingsMask, ep_square, turn);
-
-	if (ep_square == -1)
-		return;
-
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;	
-
-	generateEnPassentMoves(startPos, endPos, promotions, from_mask, to_mask, ourPieces, occupiedMask, pawnsMask, ep_square, turn);
-
-	for (size_t i = 0; i < startPos.size(); i++){
-		if (!is_into_check(startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
-			
-			startPos_filtered.push_back(startPos[i]);
-			endPos_filtered.push_back(endPos[i]);
-			promotions_filtered.push_back(promotions[i]);
-		}
-	}
-}
-
-
-void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
-								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn) {
-/*
-	uint64_t backrank = turn ? BB_RANK_1 : BB_RANK_8;
-	uint64_t candidates_mask = preliminary_castling_mask & backrank & to_mask;
-	
-	if (candidates_mask == 0)
-		return;
-*/
-	// Acquire the number of pieces on the board not including the kings
-	int pieceNum = scan_reversed_size(occupiedMask) - 2;
-	
-	// Determine if the game is at the endgame phase as well as an advanced endgame phase
-	bool isEndGame = pieceNum < 16;
-	bool isNearGameEnd = pieceNum < 10;
-	
-		
-	// If the queens are off the board, then it can be considered an endgame at a higher piece value
-	if (queensMask == 0){
-		isEndGame = pieceNum < 18;
-		isNearGameEnd = pieceNum < 12;
-	}
-
-	if (!isEndGame){
-		std::array<MaskPair, 17> mask_pairs = {
-			MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-			MaskPair(knightsMask | bishopsMask, (queensMask | rooksMask) & opposingPieces),
-
-			MaskPair(rooksMask, queensMask & opposingPieces),
-
-			MaskPair(knightsMask | bishopsMask, (knightsMask | bishopsMask) & opposingPieces),
-
-			MaskPair(pawnsMask, pawnsMask & opposingPieces),
-			MaskPair(rooksMask, rooksMask & opposingPieces),
-			MaskPair(queensMask, queensMask & opposingPieces),
-
-			MaskPair(knightsMask | bishopsMask, ~opposingPieces),
-			MaskPair(pawnsMask, ~opposingPieces),
-			MaskPair(queensMask, ~opposingPieces),
-			MaskPair(rooksMask | kingsMask, ~opposingPieces),
-
-			MaskPair(knightsMask | bishopsMask, pawnsMask & opposingPieces),
-
-			MaskPair(bishopsMask, pawnsMask & opposingPieces),
-
-			MaskPair(rooksMask, (bishopsMask | knightsMask) & opposingPieces),
-
-			MaskPair(queensMask, (rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-			MaskPair(rooksMask | queensMask, pawnsMask & opposingPieces),
-
-			MaskPair(kingsMask, (queensMask | rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces)
-		};
-
-		processMaskPairs(mask_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
-
-	} else{
-		if (isNearGameEnd){
-			std::array<MaskPair, 13> mask_pairs = {
-
-				// 1. Minor pieces capturing more major pieces
-				MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-				MaskPair(knightsMask | bishopsMask, (queensMask | rooksMask) & opposingPieces),
-
-				MaskPair(rooksMask, queensMask & opposingPieces),
-
-				// 2. King movement (positional)
-				MaskPair(kingsMask, ~0ULL),
-
-				// 3. Pawn/Rook/Queen captures eachother
-				MaskPair(pawnsMask, pawnsMask & opposingPieces),
-				MaskPair(rooksMask, rooksMask & opposingPieces),
-				MaskPair(queensMask, queensMask & opposingPieces),
-
-				// 4. Pawn pushes (promotion racing)
-				MaskPair(pawnsMask, ~opposingPieces),
-
-				// 5. Rook/queen quiet moves (only if still on board)
-				MaskPair(rooksMask | queensMask, ~opposingPieces),
-
-				// 6. Minor piece quiet moves
-				MaskPair(knightsMask | bishopsMask, ~opposingPieces),
-
-				// 7. Minor piece captures minor or pawns
-				MaskPair(knightsMask | bishopsMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 8. Rook captures (only if present)
-				MaskPair(rooksMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 9. Queen captures (only if present)
-				MaskPair(queensMask, (rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces),			
-
-			};
-
-			processMaskPairs(mask_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
-
-		} else {
-			std::array<MaskPair, 13> mask_pairs = {
-
-				// 1. Minor pieces capturing more major pieces
-				MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-				MaskPair(knightsMask | bishopsMask, (queensMask | rooksMask) & opposingPieces),
-
-				MaskPair(rooksMask, queensMask & opposingPieces),
-
-				// 2. Pawn/Rook/Queen captures eachother
-				MaskPair(pawnsMask, pawnsMask & opposingPieces),
-				MaskPair(rooksMask, rooksMask & opposingPieces),
-				MaskPair(queensMask, queensMask & opposingPieces),
-
-				// 3. Minor piece quiet moves
-				MaskPair(knightsMask | bishopsMask, ~opposingPieces),
-
-				// 4. Pawn pushes (promotion racing)
-				MaskPair(pawnsMask, ~opposingPieces),
-
-				// 5. Rook/queen quiet moves (only if still on board)
-				MaskPair(rooksMask | queensMask, ~opposingPieces),
-
-				// 6. King movement (positional)
-				MaskPair(kingsMask, ~0ULL),
-
-				// 7. Minor piece captures minor or pawns
-				MaskPair(knightsMask | bishopsMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 8. Rook captures (only if present)
-				MaskPair(rooksMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 9. Queen captures (only if present)
-				MaskPair(queensMask, (rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces),			
-
-			};
-
-			processMaskPairs(mask_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);			
-		}
-	}
-}
-
-template<std::size_t N>
-void processMaskPairs(const std::array<MaskPair, N>& mask_pairs, std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask,
-	                  uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-                      uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-    for (const MaskPair& pair : mask_pairs) {
-        uint64_t from = pair.from_mask;
-        uint64_t to = pair.to_mask;
-
-        if ((from & ourPieces) == 0 || to == 0) continue;
-
-        generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask,
-                           from_mask & from & ourPieces,
-                           to_mask & to,
-                           occupiedMask, occupiedWhite, opposingPieces, ourPieces,
-                           pawnsMask, knightsMask, bishopsMask, rooksMask,
-                           queensMask, kingsMask, ep_square, turn);
+uint64_t hash_castling(uint64_t castling_rights) {
+    uint64_t result = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (castling_rights & (1ULL << rook_squares[i])) {
+            result ^= castling_hash[i];
+        }
     }
+    return result;
 }
+
+uint64_t make_move_cache_key(uint64_t zobrist_base, uint64_t castling_rights, int ep_square) {
+    uint64_t key = zobrist_base;
+    key ^= hash_castling(castling_rights);
+
+    int ep_index = (ep_square == -1) ? 64 : ep_square;
+    key ^= ep_hash[ep_index];
+
+    return key;
+}
+
+
 
 uint64_t attackersMask(bool colour, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co){
     
@@ -4619,10 +3903,10 @@ bool is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uin
 	std::vector<uint8_t> endPos;
 	std::vector<uint8_t> promotions;
 
-	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL & opposingPieces,
+	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
 					   rooksMask, queensMask, kingsMask, ep_square, turn);
-
+	//std::cout << occupiedMask <<  " | " << ourPieces <<  " | " << startPos.size() << std::endl;
 	if (startPos.size() == 0)
 		return true;
 
@@ -4640,10 +3924,11 @@ bool is_stalemate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uin
 	std::vector<uint8_t> endPos;
 	std::vector<uint8_t> promotions;
 
-	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL & opposingPieces,
+	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
 					   rooksMask, queensMask, kingsMask, ep_square, turn);
 
+	//std::cout << occupiedMask <<  " | " << ourPieces <<  " | " << startPos.size() << std::endl;
 	if (startPos.size() == 0)
 		return true;
 
@@ -4733,3 +4018,260 @@ uint64_t attacks_mask(bool colour, uint64_t occupied, uint8_t square, uint8_t pi
 		return attacks;
 	}
 }
+
+int remove_piece_at(uint8_t square, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted){
+	
+	uint8_t piece_type = 0;
+	uint64_t mask = BB_SQUARES[square];
+
+	if (pawnsMask & mask) {
+		piece_type = 1;
+		pawnsMask ^= mask;
+	} else if (knightsMask & mask){
+		piece_type = 2;
+		knightsMask ^= mask;
+	} else if (bishopsMask & mask){
+		piece_type = 3;
+		bishopsMask ^= mask;
+	} else if (rooksMask & mask){
+		piece_type = 4;
+		rooksMask ^= mask;
+	} else if (queensMask & mask){
+		piece_type = 5;
+		queensMask ^= mask;
+	} else if (kingsMask & mask){
+		piece_type = 6;
+		kingsMask ^= mask;
+	} else{
+		return 0;
+	}
+
+	occupiedMask ^= mask;
+	occupiedWhite &= ~mask;
+	occupiedBlack &= ~mask;
+
+	promoted &= ~mask;
+
+	return piece_type;
+}
+
+void set_piece_at(uint8_t square, uint8_t piece_type, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted, bool promotedFlag, bool turn){
+	
+	remove_piece_at(square, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
+
+	uint64_t mask = BB_SQUARES[square];
+
+	if (piece_type == 1) {
+		pawnsMask |= mask;
+	} else if (piece_type == 2){
+		knightsMask |= mask;
+	} else if (piece_type == 3){
+		bishopsMask |= mask;
+	} else if (piece_type == 4){
+		rooksMask |= mask;
+	} else if (piece_type == 5){
+		queensMask |= mask;
+	} else if (piece_type == 6){
+		kingsMask |= mask;
+	} else{
+		return;
+	}
+
+	occupiedMask ^= mask;
+	
+	if (turn){
+		occupiedWhite ^= mask;
+	} else{
+		occupiedBlack ^= mask;
+	}
+
+	if (!promotedFlag)
+		return;
+	promoted ^= mask;
+
+}
+        
+void update_state(uint8_t to_square, uint8_t from_square, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted, uint64_t& castling_rights, int& ep_square, int promotion_type, bool turn){
+	uint64_t from_bb = BB_SQUARES[from_square];
+    uint64_t to_bb = BB_SQUARES[to_square];
+
+    bool promotedFlag = bool(promoted & from_bb);
+
+	
+    int piece_type = remove_piece_at(from_square, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+									 kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
+
+	if (piece_type == 0) {
+		std::ostringstream oss;
+		oss << "push() expects move to be pseudo-legal, but got move from: " << (int)from_square << " to: " << (int)to_square << " in " << create_fen(pawnsMask, knightsMask, bishopsMask, rooksMask,
+																																					  queensMask, kingsMask, occupiedMask, occupiedWhite, occupiedBlack,
+																																					  promoted, castling_rights, ep_square, turn);
+		throw std::runtime_error(oss.str());
+	}
+
+	uint8_t capture_square = to_square;
+	uint8_t captured_piece_type = 0;
+	uint64_t mask = (BB_SQUARES[capture_square]);
+		
+	if (pawnsMask & mask) {
+		captured_piece_type = 1;
+	} else if (knightsMask & mask){
+		captured_piece_type = 2;
+	} else if (bishopsMask & mask){
+		captured_piece_type = 3;
+	} else if (rooksMask & mask){
+		captured_piece_type = 4;
+	} else if (queensMask & mask){
+		captured_piece_type = 5;
+	} else if (kingsMask & mask){
+		captured_piece_type = 6;
+	}
+
+	castling_rights &= ~to_bb & ~from_bb;
+
+	if (piece_type == 6 && !promotedFlag){
+		if (turn)
+			castling_rights &= ~BB_RANK_1;
+		else
+			castling_rights &= ~BB_RANK_8;
+		
+	} else if(captured_piece_type == 6 && (promoted & to_bb) == 0){
+		if (turn && (to_square & 7) == 7)
+			castling_rights &= ~BB_RANK_8;
+		else if(!turn && (to_square & 7) == 0)
+			castling_rights &= ~BB_RANK_1;
+	}
+
+
+    if (piece_type == 1){
+		ep_square = -1;
+		int diff = to_square - from_square;
+
+		if(diff == 16 && (from_square & 7) == 1)
+			ep_square = from_square + 8;
+		else if(diff == -16 && (from_square & 7) == 6)
+			ep_square = from_square - 8;
+		else if (to_square == ep_square && (std::abs(diff) == 7 || std::abs(diff) == 9) && captured_piece_type == 0){
+			
+			int down = turn ? -8 : 8;
+            capture_square = to_square + down;
+        
+            captured_piece_type = remove_piece_at(capture_square, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+									 kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
+		}
+	}
+
+	if (promotion_type != 1){
+		promotedFlag = true;
+		piece_type = promotion_type;
+	}
+
+	bool castling = false;
+	if(piece_type == 6){
+		if (turn)
+			castling = (from_square == 4 && (to_square == 6 || to_square == 2));
+		else
+			castling = (from_square == 60 && (to_square == 62 || to_square == 58));
+	}
+
+	if (castling){
+		bool a_side = (to_square & 7) < (from_square & 7);
+
+		if (a_side){  
+			remove_piece_at(turn ? 0 : 56, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+							kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
+            
+            set_piece_at(turn ? 2 : 58, 6, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
+            
+			set_piece_at(turn ? 3 : 59, 4, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
+			
+		}else{
+			remove_piece_at(turn ? 7 : 63, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+							kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
+            
+            set_piece_at(turn ? 6 : 62, 6, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
+            
+			set_piece_at(turn ? 5 : 61, 4, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
+		}
+	} else{
+		set_piece_at(to_square, piece_type, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
+						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
+	}
+}
+
+std::string create_fen(uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask,
+                       uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask,
+                       uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack,
+                       uint64_t& promoted, uint64_t& castling_rights, int& ep_square, bool turn) {
+    char board[64] = {};
+
+    for (int sq = 0; sq < 64; ++sq) {
+        uint64_t mask = 1ULL << sq;
+        if (!(occupiedMask & mask)) continue;
+
+        bool is_white = (occupiedWhite & mask) != 0;
+        char piece = '?';
+
+        if (pawnsMask & mask)   piece = 'p';
+        else if (knightsMask & mask) piece = 'n';
+        else if (bishopsMask & mask) piece = 'b';
+        else if (rooksMask & mask)   piece = 'r';
+        else if (queensMask & mask)  piece = 'q';
+        else if (kingsMask & mask)   piece = 'k';
+
+        if (is_white) piece = std::toupper(piece);
+        board[sq] = piece;
+    }
+
+    std::ostringstream fen;
+
+    // Board layout
+    for (int rank = 7; rank >= 0; --rank) {
+        int empty = 0;
+        for (int file = 0; file < 8; ++file) {
+            int sq = rank * 8 + file;
+            if (board[sq] == 0) {
+                ++empty;
+            } else {
+                if (empty) {
+                    fen << empty;
+                    empty = 0;
+                }
+                fen << board[sq];
+            }
+        }
+        if (empty) fen << empty;
+        if (rank > 0) fen << '/';
+    }
+
+    // Active color
+    fen << ' ' << (turn ? 'w' : 'b');
+
+    // Castling rights
+    std::string castling;
+    if (castling_rights & (1ULL << 7))  castling += 'K'; // White kingside
+    if (castling_rights & (1ULL << 0))  castling += 'Q'; // White queenside
+    if (castling_rights & (1ULL << 63)) castling += 'k'; // Black kingside
+    if (castling_rights & (1ULL << 56)) castling += 'q'; // Black queenside
+    if (castling.empty()) castling = "-";
+    fen << ' ' << castling;
+
+    // En passant target square
+    if (ep_square == -1) {
+        fen << " -";
+    } else {
+        char file = 'a' + (ep_square % 8);
+        char rank = '1' + (ep_square / 8);
+        fen << ' ' << file << rank;
+    }
+
+    // Halfmove clock and fullmove number (defaults)
+    fen << " 0 1";
+
+    return fen.str();
+}
+

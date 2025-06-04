@@ -23,24 +23,38 @@ eigen_path = "/usr/include/eigen3/"
 # Define the extension module
 extensions = [
     Extension(
-        "ChessAI",                     # Name of the compiled extension
-        sources=["cpp_bitboard.cpp", "threadpool.cpp", "ChessAI.pyx"],       # Source Cython file
-        language="c++",                # Use C++ compiler
+        "ChessAI",
+        sources=["cpp_bitboard.cpp", "threadpool.cpp", "search_engine.cpp", "ChessAI.pyx"],
+        language="c++",
         extra_compile_args=[
-            "-Ofast", "-march=native", "-ffast-math", "-fopenmp",
-            "-funroll-loops", "-flto", "-fomit-frame-pointer", "-std=c++20",
-            "-fno-math-errno", "-fno-trapping-math", "-fassociative-math",
-            "-fno-signed-zeros", "-fno-rounding-math", "-ffp-contract=fast", "-fipa-pta", "-pthread" 
-        ], # Optimization flags
-        
-        
-        extra_link_args=["-flto=16", "-fopenmp", "-pthread"],
-        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-        library_dirs=[],
+            "-Ofast",                      # Safe high optimization
+            "-march=native",           # Optimize for host CPU
+            "-flto",                   # Link-time optimization
+            "-fopenmp",                # Multithreading support
+            "-g",
+            "-fno-omit-frame-pointer",
+                      
+            "-fno-rtti",               # Removes RTTI overhead
+            "-std=c++20",              # Use modern C++
+            
+            "-mpopcnt", "-mbmi2",      # Enable CPU bit manipulation instructions
+        ],
+        extra_link_args=[
+            "-flto", "-fopenmp", "-pthread"
+        ],
+        define_macros=[
+            ("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")
+        ],
+        include_dirs=[
+            np.get_include(),
+            eigen_path,
+            "." 
+        ],
         libraries=[],
-        include_dirs=[np.get_include(), eigen_path,]
+        library_dirs=[],
     )
 ]
+
 
 setup(
     ext_modules=cythonize(

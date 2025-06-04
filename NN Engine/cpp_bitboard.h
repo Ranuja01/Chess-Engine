@@ -1,6 +1,7 @@
 #ifndef CPP_BITBOARD_H
 #define CPP_BITBOARD_H
 
+#include "search_engine.h"
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -8,6 +9,93 @@
 #include <string>
 #include <cstring>
 #include <optional>
+
+constexpr uint8_t PAWN = 1;
+constexpr uint8_t KNIGHT = 2;
+constexpr uint8_t BISHOP = 3;
+constexpr uint8_t ROOK = 4;
+constexpr uint8_t QUEEN = 5;
+constexpr uint8_t KING = 6;
+
+constexpr int NUM_SQUARES = 64;
+
+// Define the file bitboards
+constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
+constexpr uint64_t BB_FILE_B = 0x0101010101010101ULL << 1;
+constexpr uint64_t BB_FILE_C = 0x0101010101010101ULL << 2;
+constexpr uint64_t BB_FILE_D = 0x0101010101010101ULL << 3;
+constexpr uint64_t BB_FILE_E = 0x0101010101010101ULL << 4;
+constexpr uint64_t BB_FILE_F = 0x0101010101010101ULL << 5;
+constexpr uint64_t BB_FILE_G = 0x0101010101010101ULL << 6;
+constexpr uint64_t BB_FILE_H = 0x0101010101010101ULL << 7;
+
+// Array of file uint64_ts
+constexpr std::array<uint64_t, 8> BB_FILES = {
+    BB_FILE_A, BB_FILE_B, BB_FILE_C, BB_FILE_D, BB_FILE_E, BB_FILE_F, BB_FILE_G, BB_FILE_H
+};
+
+// Define the rank uint64_ts
+constexpr uint64_t BB_RANK_1 = 0xffULL << (8 * 0);
+constexpr uint64_t BB_RANK_2 = 0xffULL << (8 * 1);
+constexpr uint64_t BB_RANK_3 = 0xffULL << (8 * 2);
+constexpr uint64_t BB_RANK_4 = 0xffULL << (8 * 3);
+constexpr uint64_t BB_RANK_5 = 0xffULL << (8 * 4);
+constexpr uint64_t BB_RANK_6 = 0xffULL << (8 * 5);
+constexpr uint64_t BB_RANK_7 = 0xffULL << (8 * 6);
+constexpr uint64_t BB_RANK_8 = 0xffULL << (8 * 7);
+
+// Array of rank bitboards
+constexpr std::array<uint64_t, 8> BB_RANKS = {
+    BB_RANK_1, BB_RANK_2, BB_RANK_3, BB_RANK_4, BB_RANK_5, BB_RANK_6, BB_RANK_7, BB_RANK_8
+};
+
+// Array of piece values
+constexpr std::array<int, 7> values = {0, 1000, 3250, 3450, 5000, 10000, 12000};
+
+constexpr std::array<int, 8> default_midgame_pawn_rank_bonus = {0, 15, 30, 45, 60, 75, 90, 105};
+constexpr std::array<int, 8> passed_midgame_pawn_rank_bonus = {0, 65, 160, 285, 440, 625, 840, 1085};
+
+constexpr std::array<int, 8> endgame_pawn_rank_bonus = {0, 90, 210, 360, 540, 750, 990, 1260};
+
+constexpr std::array<uint8_t, 11> pawn_wall_file_bonus = {
+    0,    // x - 1 invalid (x == 0)
+    75,   // x == 0
+    50,   // x == 1
+    60,   // x == 2
+    75,   // x == 3
+    75,   // x == 4
+    60,   // x == 5
+    50,   // x == 6
+    75,   // x == 7
+    0,    // x + 1 invalid (x == 7)
+    0     // safety pad
+};
+
+constexpr std::array<uint8_t, 8> pawn_chain_file_bonus = {
+    10,   // A
+    15,   // B
+    75,   // C
+    125,  // D
+    125,  // E
+    75,   // F
+    15,   // G
+    10    // H
+};
+
+
+// Create a compile-time array of bitmasks
+constexpr std::array<uint64_t, 64> generate_square_masks() {
+    std::array<uint64_t, 64> masks{};
+    for (int i = 0; i < 64; i++) {
+        masks[i] = 1ULL << i;
+    }
+    return masks;
+}
+
+// Global constant array of square bitmasks
+constexpr std::array<uint64_t, 64> BB_SQUARES = generate_square_masks();
+
+constexpr int rook_squares[4] = {0, 7, 56, 63};
 
 struct CaptureInfo {
     uint8_t from;
@@ -45,7 +133,7 @@ void handle_batteries_for_pressure_and_support_tables(uint8_t attacking_piece_sq
 void loop_and_update(uint64_t bb, uint8_t attacking_piece_type, bool attacking_piece_colour, int decrement);
 void adjust_pressure_and_support_tables_for_pins(uint64_t bb);
 int advanced_endgame_eval(int total, bool turn);
-int placement_and_piece_eval(int moveNum, bool turn, uint8_t lastMovedToSquare, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
 int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, bool turn);
 
 uint8_t lowest_value_attacker(uint64_t attackers, bool attackedColour);
@@ -57,30 +145,20 @@ int approximate_capture_gains(uint64_t bb, bool turn);
 int approximate_capture_gains1(uint64_t bb, bool turn);
 
 void initializePieceValues(uint64_t bb);
-uint8_t piece_type_at(uint8_t squareuint8_t);
+uint8_t piece_type_at(uint8_t square);
 void setAttackingLayer(int increment);
 void printLayers();
 int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces);
 
-/*
-	Set of functions used to cache data
-*/
-void initializeZobrist();
-uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, bool whiteToMove);
-void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bool isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion);
-int accessCache(uint64_t key);
-void addToCache(uint64_t key,int value);
-std::string accessOpponentMoveGenCache(uint64_t key);
-void addToOpponentMoveGenCache(uint64_t key,char* data, int length);
-std::string accessCurPlayerMoveGenCache(uint64_t key);
-void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length);
-int printCacheStats();
-int getCacheStats();
-int printOpponentMoveGenCacheStats();
-int printCurPlayerMoveGenCacheStats();
-void evictOldEntries(int numToEvict);
-void evictOpponentMoveGenEntries(int numToEvict);
-void evictCurPlayerMoveGenEntries(int numToEvict);
+
+
+std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square);
+void addToMoveGenCache(uint64_t key, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square);
+void evictOldMoveGenEntries(int numToEvict);
+int printMoveGenCacheStats();
+uint64_t hash_castling(uint64_t castling_rights);
+uint64_t make_move_cache_key(uint64_t zobrist_base, uint64_t castling_rights, int ep_square);
+
 
 /*
 	Set of functions used to generate moves
@@ -152,5 +230,13 @@ std::vector<uint8_t> scan_reversedOld(uint64_t bb);
 void scan_forward(uint64_t bb, std::vector<uint8_t> &result);
 uint64_t attacks_mask(bool colour, uint64_t occupied, uint8_t square, uint8_t pieceType);
 uint8_t square_distance(uint8_t sq1, uint8_t sq2);
+
+int remove_piece_at(uint8_t square, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted);
+void set_piece_at(uint8_t square, uint8_t piece_type, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted, bool promotedFlag, bool turn);
+void update_state(uint8_t to_square, uint8_t from_square, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted, uint64_t& castling_rights, int& ep_square, int promotion_type, bool turn);
+std::string create_fen(uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask,
+                       uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask,
+                       uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack,
+                       uint64_t& promoted, uint64_t& castling_rights, int& ep_square, bool turn);
 
 #endif // CPP_BITBOARD_H

@@ -13,6 +13,7 @@ cdef extern from "cpp_bitboard.h":
     void initialize_attack_tables()
     int placement_and_piece_eval(int moveNum, bint turn, uint8_t lastMovedToSquare, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     bint is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bint is_en_passant)
+    void test(uint64_t* occupied)
     
 initialize_attack_tables()
 
@@ -102,4 +103,7 @@ cdef int wrapper (object board):
         #                 total += values[board.piece_type_at(target_square)]
                     
         #             break    
+    print(board.occupied)
+    test(&board.occupied)
+    print(board.occupied)
     return total

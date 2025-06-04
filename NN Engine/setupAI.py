@@ -31,11 +31,12 @@ extensions = [
             "-march=native",           # Optimize for host CPU
             "-flto",                   # Link-time optimization
             "-fopenmp",                # Multithreading support
-            
-            "-fomit-frame-pointer",    # Frees a register            
+            "-g",
+            "-fno-omit-frame-pointer",
+                      
             "-fno-rtti",               # Removes RTTI overhead
             "-std=c++20",              # Use modern C++
-            "-fno-stack-protector",    # Remove stack canary (if recursion is safe)
+            
             "-mpopcnt", "-mbmi2",      # Enable CPU bit manipulation instructions
         ],
         extra_link_args=[
@@ -47,6 +48,7 @@ extensions = [
         include_dirs=[
             np.get_include(),
             eigen_path,
+            "." 
         ],
         libraries=[],
         library_dirs=[],

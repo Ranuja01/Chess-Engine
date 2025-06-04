@@ -91,6 +91,16 @@ cdef extern from "search_engine.h":
 #     void load_model()
 #     int run_inference_quantized(const uint64_t* bitboards)
 
+
+cdef extern from "cache_management.h":
+    void initializeZobrist()
+    uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, bint whiteToMove);
+    void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
+    int accessCache(uint64_t key)
+    void addToCache(uint64_t key, int max_size, int value)   
+    int printCacheStats()
+        
+
 # Import functions from c++ file
 cdef extern from "cpp_bitboard.h":
     bool get_horizon_mitigation_flag()
@@ -109,22 +119,7 @@ cdef extern from "cpp_bitboard.h":
     int placement_and_piece_midgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_endgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_eval(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
-    void initializeZobrist()
-    uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, bint whiteToMove);
-    void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bint isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion)
-    int accessCache(uint64_t key)
-    void addToCache(uint64_t key,int value)
-    string accessOpponentMoveGenCache(uint64_t key);
-    void addToOpponentMoveGenCache(uint64_t key,char* data, int length);
-    string accessCurPlayerMoveGenCache(uint64_t key);
-    void addToCurPlayerMoveGenCache(uint64_t key,char* data, int length);
-    int printCacheStats()
-    int getCacheStats()
-    int printOpponentMoveGenCacheStats();
-    int printCurPlayerMoveGenCacheStats();
-    void evictOldEntries(int numToEvict)
-    void evictOpponentMoveGenEntries(int numToEvict)
-    void evictCurPlayerMoveGenEntries(int numToEvict)
+    
     void printLayers()
     
     bint is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
@@ -243,7 +238,7 @@ cdef class ChessAI:
         initialize_engine(self.state_history, self.position_count, board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings, board.occupied, board.occupied_co[True],board.occupied_co[False],
                           board.promoted, board.castling_rights, (-1 if board.ep_square is None else board.ep_square), board.halfmove_clock, board.fullmove_number, board.turn, self.side_to_play)
         
-        self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False], board.turn)    
+        # self.zobrist = generateZobristHash(board.pawns,board.knights,board.bishops,board.rooks,board.queens,board.kings,board.occupied_co[True],board.occupied_co[False], board.turn)    
     
     # Function to set global variable for white castling index
     def setWhiteCastledIndex(self, index):
@@ -256,44 +251,44 @@ cdef class ChessAI:
         blackCastledIndex = index            
 
     
-    def create_test_data(self, object board):
-        self.is_training = True
-        self.pgnBoard = board
+    # def create_test_data(self, object board):
+    #     self.is_training = True
+    #     self.pgnBoard = board
         
-        # Initialize the lists required for iterative deepening
-        self.moves_list = []
-        self.alpha_list = []
-        self.beta_list = []
-        self.beta_move_list = []
-        self.numIterations = 0
+    #     # Initialize the lists required for iterative deepening
+    #     self.moves_list = []
+    #     self.alpha_list = []
+    #     self.beta_list = []
+    #     self.beta_move_list = []
+    #     self.numIterations = 0
         
-        cdef int cacheSize = getCacheStats()
+    #     cdef int cacheSize = getCacheStats()
         
-        if (self.pgnBoard.ply() < 30):
-            if (cacheSize > 16000000):
-                evictOldEntries(cacheSize - 16000000)                
-        elif(self.pgnBoard.ply() < 50):
-            if (cacheSize > 32000000):
-                evictOldEntries(cacheSize - 32000000)
-        elif(self.pgnBoard.ply() < 75):
-            if (cacheSize > 64000000):
-                evictOldEntries(cacheSize - 64000000)
-        else:
-            if (cacheSize > 128000000):
-                evictOldEntries(cacheSize - 128000000)
+    #     if (self.pgnBoard.ply() < 30):
+    #         if (cacheSize > 16000000):
+    #             evictOldEntries(cacheSize - 16000000)                
+    #     elif(self.pgnBoard.ply() < 50):
+    #         if (cacheSize > 32000000):
+    #             evictOldEntries(cacheSize - 32000000)
+    #     elif(self.pgnBoard.ply() < 75):
+    #         if (cacheSize > 64000000):
+    #             evictOldEntries(cacheSize - 64000000)
+    #     else:
+    #         if (cacheSize > 128000000):
+    #             evictOldEntries(cacheSize - 128000000)
         
-        cdef int a, b, c, d,promo,val
-        cdef object move
+    #     cdef int a, b, c, d,promo,val
+    #     cdef object move
         
-        self.zobrist = generateZobristHash(self.pgnBoard.pawns,self.pgnBoard.knights,self.pgnBoard.bishops,self.pgnBoard.rooks,self.pgnBoard.queens,self.pgnBoard.kings,self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False], self.pgnBoard.turn)
+    #     self.zobrist = generateZobristHash(self.pgnBoard.pawns,self.pgnBoard.knights,self.pgnBoard.bishops,self.pgnBoard.rooks,self.pgnBoard.queens,self.pgnBoard.kings,self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False], self.pgnBoard.turn)
         
-        result = self.alphaBeta(curDepth=0, depthLimit=3, t0 = timer())
-        moves_list ,_,_,_= self.reorder_legal_moves(-9999998,9999999, 3)
-        length = len(self.alpha_list)
+    #     result = self.alphaBeta(curDepth=0, depthLimit=3, t0 = timer())
+    #     moves_list ,_,_,_= self.reorder_legal_moves(-9999998,9999999, 3)
+    #     length = len(self.alpha_list)
         
         
-        self.is_training = False
-        return (moves_list [:length], self.alpha_list)
+    #     self.is_training = False
+    #     return (moves_list [:length], self.alpha_list)
     
     # Function to wrap the 
     def alphaBetaWrapper(self):
@@ -337,7 +332,7 @@ cdef class ChessAI:
 
         cdef MoveData move_data        
         if (len(self.pgnBoard.move_stack) > 0):
-                        
+            print(self.pgnBoard.ep_square)            
             set_current_state(self.state_history, self.position_count, self.pgnBoard.pawns, self.pgnBoard.knights, self.pgnBoard.bishops, self.pgnBoard.rooks, self.pgnBoard.queens,
                               self.pgnBoard.kings, self.pgnBoard.occupied, self.pgnBoard.occupied_co[True],self.pgnBoard.occupied_co[False], self.pgnBoard.promoted, 
                               self.pgnBoard.castling_rights, (-1 if self.pgnBoard.ep_square is None else self.pgnBoard.ep_square), self.pgnBoard.halfmove_clock,
@@ -414,18 +409,18 @@ cdef class ChessAI:
         #     evictCurPlayerMoveGenEntries(CurPlayerMoveGenCacheSize - 450000)
         
         # Code segment to control cache size
-        if (self.pgnBoard.ply() < 30):
-            if (cacheSize > 8000000):
-                evictOldEntries(cacheSize - 8000000)                
-        elif(self.pgnBoard.ply() < 50):
-            if (cacheSize > 16000000):
-                evictOldEntries(cacheSize - 16000000)
-        elif(self.pgnBoard.ply() < 75):
-            if (cacheSize > 32000000):
-                evictOldEntries(cacheSize - 32000000)
-        else:
-            if (cacheSize > 64000000):
-                evictOldEntries(cacheSize - 64000000)
+        # if (self.pgnBoard.ply() < 30):
+        #     if (cacheSize > 8000000):
+        #         evictOldEntries(cacheSize - 8000000)                
+        # elif(self.pgnBoard.ply() < 50):
+        #     if (cacheSize > 16000000):
+        #         evictOldEntries(cacheSize - 16000000)
+        # elif(self.pgnBoard.ply() < 75):
+        #     if (cacheSize > 32000000):
+        #         evictOldEntries(cacheSize - 32000000)
+        # else:
+        #     if (cacheSize > 64000000):
+        #         evictOldEntries(cacheSize - 64000000)
         
         # Set the variable for where the king was located before move selection is started
         prevKings = self.pgnBoard.kings
@@ -1893,7 +1888,7 @@ cdef evaluate_board1(object board,uint64_t zobrist):
     # total = run_inference(bitboards)
     # total = run_inference_quantized(bitboards)
     
-    addToCache(zobrist, total)
+    addToCache(zobrist, 0, total)
            
     return total
 
@@ -1975,7 +1970,7 @@ cdef int evaluate_board(object board,uint64_t zobrist, bint side_to_play):
             
     # Avoid the adding this evaluation to the cache if the move order matters
     if not(horizonMitigation):
-        addToCache(zobrist, total)
+        addToCache(zobrist, 0, total)
            
     
     return total

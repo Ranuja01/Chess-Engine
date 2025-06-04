@@ -12,21 +12,50 @@
 using Clock = std::chrono::steady_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 
+// Constants for material thresholds
+constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
+
+struct ConfigData {
+    int cache_size_multiplier;
+    double TIME_LIMIT;
+    std::array<double, 64> MOVE_TIMES;
+};
+
+namespace Configs {
+    constexpr ConfigData STANDARD = {
+        2,
+        90.0,
+        [] {
+            std::array<double, 64> times{};
+            times[3] = 5.0;
+            times[4] = 5.0;
+            times[5] = 5.5;
+            times[6] = 5.5;
+            for (int i = 7; i < 64; ++i) {
+                times[i] = 3.5;
+            }
+            return times;
+        }()
+    };
+
+    constexpr ConfigData LONG_FORMAT = {
+        5,
+        600.0,
+        [] {
+            std::array<double, 64> times{};
+            times[3] = 5.0;
+            times[4] = 5.0;
+            times[5] = 5.5;
+            for (int i = 6; i < 64; ++i) {
+                times[i] = 120.0;
+            }
+            return times;
+        }()
+    };    
+}
+
 namespace Config {
-    constexpr double TIME_LIMIT = 60.0;
-
-    constexpr std::array<double, 64> MOVE_TIMES = [] {
-        std::array<double, 64> times{};
-        times[3] = 5.0;
-        times[4] = 5.0;
-        times[5] = 5.5;
-        times[6] = 5.5;
-        for (int i = 7; i < 64; ++i) {
-            times[i] = 2.5;
-        }
-        return times;
-    }();
-
+    inline const ConfigData* ACTIVE = &Configs::STANDARD; // Default to classical
     inline bool side_to_play = false; // Default; can be set at runtime
 }
 
@@ -38,8 +67,7 @@ struct BoardState {
     uint64_t queens;
     uint64_t kings;
 
-    uint64_t occupied_white;
-    uint64_t occupied_black;
+    uint64_t occupied_colour[2];  // occupied[0] = black, occupied[1] = white
     uint64_t occupied;
 
     uint64_t promoted;
@@ -71,9 +99,7 @@ struct BoardState {
           bishops(bishops),
           rooks(rooks),
           queens(queens),
-          kings(kings),
-          occupied_white(occupied_white),
-          occupied_black(occupied_black),
+          kings(kings),          
           occupied(occupied),
           promoted(promoted),
           turn(turn),
@@ -81,7 +107,11 @@ struct BoardState {
           ep_square(ep_square),
           halfmove_clock(halfmove_clock),
           fullmove_number(fullmove_number)
-    {}
+    {
+        occupied_colour[0] = occupied_black;
+        occupied_colour[1] = occupied_white;
+
+    }
 };
 
 struct MoveData {
@@ -143,7 +173,7 @@ void update_cache(int num_plies);
 MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count);
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, const TimePoint& t0, SearchData& previous_search_data, Move& best_move, int& num_iterations);
 int minimizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
-int maximizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
+int maximizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations, bool last_move_was_capture);
 SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
 int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
 
@@ -152,6 +182,7 @@ void descending_sort_wrapper(const SearchData& preSearchData, SearchData& mainSe
 void ascending_sort(std::vector<int>& values, std::vector<Move>& moves);
 std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist);
 
+bool isUnsafeForNullMovePruning(BoardState current_state);
 bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count);
 int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations);
 

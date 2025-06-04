@@ -10,6 +10,13 @@
 #include <cstring>
 #include <optional>
 
+constexpr uint8_t PAWN = 1;
+constexpr uint8_t KNIGHT = 2;
+constexpr uint8_t BISHOP = 3;
+constexpr uint8_t ROOK = 4;
+constexpr uint8_t QUEEN = 5;
+constexpr uint8_t KING = 6;
+
 constexpr int NUM_SQUARES = 64;
 
 // Define the file bitboards
@@ -45,6 +52,37 @@ constexpr std::array<uint64_t, 8> BB_RANKS = {
 // Array of piece values
 constexpr std::array<int, 7> values = {0, 1000, 3250, 3450, 5000, 10000, 12000};
 
+constexpr std::array<int, 8> default_midgame_pawn_rank_bonus = {0, 15, 30, 45, 60, 75, 90, 105};
+constexpr std::array<int, 8> passed_midgame_pawn_rank_bonus = {0, 65, 160, 285, 440, 625, 840, 1085};
+
+constexpr std::array<int, 8> endgame_pawn_rank_bonus = {0, 90, 210, 360, 540, 750, 990, 1260};
+
+constexpr std::array<uint8_t, 11> pawn_wall_file_bonus = {
+    0,    // x - 1 invalid (x == 0)
+    75,   // x == 0
+    50,   // x == 1
+    60,   // x == 2
+    75,   // x == 3
+    75,   // x == 4
+    60,   // x == 5
+    50,   // x == 6
+    75,   // x == 7
+    0,    // x + 1 invalid (x == 7)
+    0     // safety pad
+};
+
+constexpr std::array<uint8_t, 8> pawn_chain_file_bonus = {
+    10,   // A
+    15,   // B
+    75,   // C
+    125,  // D
+    125,  // E
+    75,   // F
+    15,   // G
+    10    // H
+};
+
+
 // Create a compile-time array of bitmasks
 constexpr std::array<uint64_t, 64> generate_square_masks() {
     std::array<uint64_t, 64> masks{};
@@ -56,6 +94,8 @@ constexpr std::array<uint64_t, 64> generate_square_masks() {
 
 // Global constant array of square bitmasks
 constexpr std::array<uint64_t, 64> BB_SQUARES = generate_square_masks();
+
+constexpr int rook_squares[4] = {0, 7, 56, 63};
 
 struct CaptureInfo {
     uint8_t from;
@@ -105,22 +145,12 @@ int approximate_capture_gains(uint64_t bb, bool turn);
 int approximate_capture_gains1(uint64_t bb, bool turn);
 
 void initializePieceValues(uint64_t bb);
-uint8_t piece_type_at(uint8_t squareuint8_t);
+uint8_t piece_type_at(uint8_t square);
 void setAttackingLayer(int increment);
 void printLayers();
 int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces);
 
-/*
-	Set of functions used to cache data
-*/
-void initializeZobrist();
-uint64_t generateZobristHash(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, bool whiteToMove);
-void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t toSquare, bool isCapture, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, int promotion);
-int accessCache(uint64_t key);
-void addToCache(uint64_t key,int value);
-int printCacheStats();
-int getCacheStats();
-void evictOldEntries(int numToEvict);
+
 
 std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square);
 void addToMoveGenCache(uint64_t key, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square);

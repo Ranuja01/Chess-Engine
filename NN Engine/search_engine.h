@@ -15,10 +15,14 @@ using TimePoint = std::chrono::time_point<Clock>;
 // Constants for material thresholds
 constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
 
+constexpr int DECAY_INTERVAL = 25000; // Number of nodes before decay
+constexpr int DECAY_FACTOR = 1;       // Divide scores by 2
+
 struct ConfigData {
     int cache_size_multiplier;
     double TIME_LIMIT;
     std::array<double, 64> MOVE_TIMES;
+    std::array<int, 64> DEPTH_REDUCTION;
 };
 
 namespace Configs {
@@ -31,10 +35,32 @@ namespace Configs {
             times[4] = 5.0;
             times[5] = 5.5;
             times[6] = 5.5;
-            for (int i = 7; i < 64; ++i) {
+            times[7] = 5.0;
+            for (int i = 8; i < 64; ++i) {
                 times[i] = 3.5;
             }
             return times;
+        }(),
+
+        [] {
+            std::array<int, 64> new_depths{};
+            new_depths[1] = 0;
+            new_depths[2] = 1;
+            new_depths[3] = 2;
+            new_depths[4] = 3;
+            new_depths[5] = 4;
+            new_depths[6] = 5;
+            new_depths[7] = 6;
+            new_depths[8] = 7;
+            new_depths[9] = 8;
+            new_depths[10] = 8;
+            new_depths[11] = 9;
+            new_depths[12] = 10;
+            new_depths[13] = 11;            
+            for (int i = 14; i < 64; ++i) {
+                new_depths[i] = 12;
+            }
+            return new_depths;
         }()
     };
 
@@ -50,6 +76,28 @@ namespace Configs {
                 times[i] = 120.0;
             }
             return times;
+        }(),
+        [] {
+            std::array<int, 64> new_depths{};
+            new_depths[1] = 0;
+            new_depths[2] = 1;
+            new_depths[3] = 2;
+            new_depths[4] = 3;
+            new_depths[5] = 4;
+            new_depths[6] = 5;
+            new_depths[7] = 6;
+            new_depths[8] = 7;
+            new_depths[9] = 8;
+            new_depths[10] = 9;
+            new_depths[11] = 10;
+            new_depths[12] = 11;
+            new_depths[13] = 12;
+            new_depths[14] = 13;
+            new_depths[15] = 14;            
+            for (int i = 16; i < 64; ++i) {
+                new_depths[i] = 15;
+            }
+            return new_depths;
         }()
     };    
 }
@@ -137,6 +185,12 @@ struct Move {
     // Constructor with default values
     Move(uint8_t from_square_ = 0, uint8_t to_square_ = 0, uint8_t promotion_ = 0)
         : from_square(from_square_), to_square(to_square_), promotion(promotion_) {}
+
+    bool operator==(const Move& other) const {
+        return from_square == other.from_square &&
+               to_square == other.to_square &&
+               promotion == other.promotion;
+    }
 };
 
 struct SearchData {
@@ -180,7 +234,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, std::vect
 void sortSearchDataByScore(SearchData& data);
 void descending_sort_wrapper(const SearchData& preSearchData, SearchData& mainSearchData);
 void ascending_sort(std::vector<int>& values, std::vector<Move>& moves);
-std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist);
+std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply);
 
 bool isUnsafeForNullMovePruning(BoardState current_state);
 bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count);

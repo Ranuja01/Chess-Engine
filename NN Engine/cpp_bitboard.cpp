@@ -69,6 +69,10 @@ std::deque<uint64_t> insertionOrder;
 std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
 std::deque<uint64_t> moveGenInsertionOrder;
 
+Move killerMoves[MAX_PLY][2]; // Store up to 2 killer moves per ply
+
+int historyHeuristics[2][64][64];
+
 // Define a heat map for attacks
 std::array<std::array<std::array<int, 8>, 8>, 2> attackingLayer;
 
@@ -2536,7 +2540,9 @@ inline int evaluate_queens_endgame(uint8_t square){
 		// First subtract the piece value and increment the global white piece value
         total -= values[QUEEN];		
         whitePieceVal += values[QUEEN];
-		
+
+		// Boost the score for the existence of a queen in the endgame
+		total -= 1000;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -2610,7 +2616,8 @@ inline int evaluate_queens_endgame(uint8_t square){
 		// First subtract the piece value and increment the global white piece value
         total += values[QUEEN];
 		blackPieceVal += values[QUEEN];
-				
+		// Boost the score for the existence of a queen in the endgame
+		total += 1000;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -3021,7 +3028,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 			}					
 		}
 	}
-	
+	//std::cout<< "Inner " << total << std::endl;
 	// Create bitmasks for the first and second half of the board
 	uint64_t firstHalf = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
 	uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
@@ -3067,13 +3074,13 @@ inline int advanced_endgame_eval(int total, bool turn){
 		// Defensive penalty for not being able to catch enemy pawn
 		blockModifier = 0;
 		if (!kingCanCatch) {
-			blockModifier = ppIncrement; // can't stop it, big problem
+			blockModifier = ppIncrement >> 1; // can't stop it, big problem
 		} else {
 			int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
 			blockModifier = -diff * (ppIncrement >> 3); // the closer we are, the better
 		}
 
-		passedBonus = ((7 - rank) * (ppIncrement + blockModifier)) >> 2;
+		passedBonus = ((7 - rank) * (ppIncrement + blockModifier)) >> 4;
 
 		total += (7 - blackKing_pawnSeparation) * passedBonus;
 		//std::cout << total << " | " << ppIncrement << " | " << passedBonus << " | "<< blockModifier << " | " << int(r) <<std::endl;
@@ -3110,13 +3117,13 @@ inline int advanced_endgame_eval(int total, bool turn){
 		// Defensive penalty for not being able to catch enemy pawn
 		blockModifier = 0;
 		if (!kingCanCatch) {
-			blockModifier = ppIncrement; // can't stop it, big problem
+			blockModifier = ppIncrement >> 1; // can't stop it, big problem
 		} else {
 			int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
 			blockModifier = -diff * (ppIncrement >> 3); // the closer we are, the better
 		}
 		
-		passedBonus = (rank * (ppIncrement + blockModifier)) >> 2;
+		passedBonus = (rank * (ppIncrement + blockModifier)) >> 4;
 
 		total -= blackKing_pawnSeparation * passedBonus;
 		//std::cout << total << " | " << ppIncrement << " | " << passedBonus << " | "<< blockModifier << " | " << blackKing_pawnSeparation << " | " << int(r) <<std::endl;
@@ -3124,7 +3131,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 		//std::cout << total <<std::endl;
 		bb &= bb - 1;
 	}
-	//std::cout << total <<std::endl;
+	//std::cout <<"Inner2 "<< total <<std::endl;
 	return total;
 	
 }
@@ -3451,22 +3458,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			bb &= bb - 1;  
 		}
 
+		//std::cout<< total<< std::endl;
+
 
 		adjust_pressure_and_support_tables_for_pins(occupied & ~kings);
 		//total += get_pressure_increment(lastMovedToSquare, occupied & ~kings, turn);
 		total += approximate_capture_gains(occupied & ~kings, turn);
-
+		//std::cout<< total<< std::endl;
 		// Boost the score for the side with more piece value proportional to how many pieces are on the board
 		if (blackPieceVal > whitePieceVal){
 			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 15000);		
 		}else if (whitePieceVal > blackPieceVal){			
 			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 15000);
 		}
-		
+		//std::cout<< total<< std::endl;
 		// Check if the position is an advanced endgame
 		if (isNearGameEnd){			
 			total = advanced_endgame_eval(total, turn);
 		}
+		//std::cout<< total<< std::endl;
 	}
 	
 	/*
@@ -3498,6 +3508,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	if (blackOffensiveScore > whiteDefensiveScore){
 		total += ((blackOffensiveScore - std::max(whiteDefensiveScore, 0))/18) * 100;
 	}
+
+	//std::cout<< total<< std::endl;
 	//if (total == -288)
 	//std::cout << "AAAA: " << approximate_capture_gains1(occupied & ~kings, turn) << " occupied: " << (occupied & ~kings) << " turn: " << turn <<  std::endl;
 	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;

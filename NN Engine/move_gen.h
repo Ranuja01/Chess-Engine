@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cpp_bitboard.h"
+#include "cache_management.h"
 #include <vector>
 #include <array>
 #include <chrono>
@@ -449,8 +450,7 @@ void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<
 	}
 }
 
-
-inline void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn) {
 /*
@@ -595,6 +595,125 @@ inline void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vec
 	}
 }
 
+inline void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply) {
+
+	// Acquire the number of pieces on the board not including the kings
+	int pieceNum = scan_reversed_size(occupiedMask) - 2;
+	
+	// Determine if the game is at the endgame phase as well as an advanced endgame phase
+	bool isEndGame = pieceNum < 16;
+	bool isNearGameEnd = pieceNum < 10;
+	
+	std::vector<uint8_t> quietStartPos;
+	std::vector<uint8_t> quietEndPos;
+	std::vector<uint8_t> quietPromotions;
+		
+	// If the queens are off the board, then it can be considered an endgame at a higher piece value
+	if (queensMask == 0){
+		isEndGame = pieceNum < 18;
+		isNearGameEnd = pieceNum < 12;
+	}
+
+	std::array<MaskPair, 12> attack_pairs = {
+		MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
+
+		MaskPair(knightsMask | bishopsMask, (queensMask | rooksMask) & opposingPieces),
+
+		MaskPair(rooksMask, queensMask & opposingPieces),
+
+		MaskPair(knightsMask | bishopsMask, (knightsMask | bishopsMask) & opposingPieces),
+
+		MaskPair(pawnsMask, pawnsMask & opposingPieces),
+		MaskPair(rooksMask, rooksMask & opposingPieces),
+		MaskPair(queensMask, queensMask & opposingPieces),
+
+		MaskPair(knightsMask | bishopsMask, pawnsMask & opposingPieces),
+
+		MaskPair(rooksMask, (bishopsMask | knightsMask) & opposingPieces),
+
+		MaskPair(queensMask, (rooksMask | bishopsMask | knightsMask) & opposingPieces),
+
+		MaskPair(rooksMask | queensMask, pawnsMask & opposingPieces),
+
+		MaskPair(kingsMask, (queensMask | rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces)
+	};
+
+	processMaskPairs(attack_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+					 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+
+	if (!isEndGame){
+		std::array<MaskPair, 4> quiet_pairs = {
+			MaskPair(knightsMask | bishopsMask, ~opposingPieces),
+			MaskPair(pawnsMask, ~opposingPieces),
+			MaskPair(queensMask, ~opposingPieces),
+			MaskPair(rooksMask | kingsMask, ~opposingPieces)
+		};
+
+		processMaskPairs(quiet_pairs, quietStartPos, quietEndPos, quietPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+
+	} else{
+		if (isNearGameEnd){
+			std::array<MaskPair, 4> quiet_pairs = {
+
+				// 2. King movement (positional)
+				MaskPair(kingsMask, ~opposingPieces),
+
+				// 4. Pawn pushes (promotion racing)
+				MaskPair(pawnsMask, ~opposingPieces),
+
+				// 5. Rook/queen quiet moves (only if still on board)
+				MaskPair(rooksMask | queensMask, ~opposingPieces),
+
+				// 6. Minor piece quiet moves
+				MaskPair(knightsMask | bishopsMask, ~opposingPieces)
+			};
+
+			processMaskPairs(quiet_pairs, quietStartPos, quietEndPos, quietPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+		} else {
+			std::array<MaskPair, 4> quiet_pairs = {
+
+				// 3. Minor piece quiet moves
+				MaskPair(knightsMask | bishopsMask, ~opposingPieces),
+
+				// 4. Pawn pushes (promotion racing)
+				MaskPair(pawnsMask, ~opposingPieces),
+
+				// 5. Rook/queen quiet moves (only if still on board)
+				MaskPair(rooksMask | queensMask, ~opposingPieces),
+
+				// 6. King movement (positional)
+				MaskPair(kingsMask, ~opposingPieces),		
+
+			};
+			processMaskPairs(quiet_pairs, quietStartPos, quietEndPos, quietPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);	
+		}
+	}
+
+	std::vector<size_t> indices(quietStartPos.size());
+	std::iota(indices.begin(), indices.end(), 0); // Fill with 0..N-1
+
+	auto score_move = [&](size_t i) -> int {
+		uint8_t from = quietStartPos[i];
+		uint8_t to = quietEndPos[i];
+
+		return historyHeuristics[turn][from][to] + killerBonus(ply, Move(quietStartPos[i], quietEndPos[i], quietPromotions[i]));
+	};
+
+	std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
+		return score_move(a) > score_move(b);
+	});
+
+	for (size_t i : indices) {
+		startPos.push_back(quietStartPos[i]);
+		endPos.push_back(quietEndPos[i]);
+		promotions.push_back(quietPromotions[i]);
+	}
+}
 
 template<std::size_t N>
 void processMaskPairs(const std::array<MaskPair, N>& mask_pairs, std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask,

@@ -6,7 +6,7 @@ import numpy as np
 extensions = [
     Extension(
         "eval_func",                     # Name of the compiled extension
-        sources=["cpp_bitboard.cpp", "eval_func.pyx"],       # Source Cython file
+        sources=["cpp_bitboard.cpp", "threadpool.cpp", "search_engine.cpp", "eval_func.pyx"],       # Source Cython file
         language="c++",                # Use C++ compiler
         extra_compile_args=[
             "-Ofast", "-march=native", "-ffast-math", "-fopenmp",

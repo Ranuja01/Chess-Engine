@@ -36,6 +36,10 @@ extern std::deque<uint64_t> moveGenInsertionOrder;
 
 extern uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 
+extern Move killerMoves[MAX_PLY][2];
+
+extern int historyHeuristics[2][64][64];
+
 /*
 	Set of functions used to cache data
 */
@@ -324,6 +328,30 @@ inline int printCacheStats() {
 	return num_entries;
 }
 
+
+inline uint64_t hash_castling(uint64_t castling_rights) {
+    uint64_t result = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (castling_rights & (1ULL << rook_squares[i])) {
+            result ^= castling_hash[i];
+        }
+    }
+    return result;
+}
+
+inline uint64_t make_move_cache_key(uint64_t zobrist_base, uint64_t castling_rights, int ep_square) {
+    uint64_t key = zobrist_base;
+    key ^= hash_castling(castling_rights);
+
+    if (ep_square != -1 && ep_square >= 0 && ep_square < 64) {
+        key ^= ep_hash[ep_square];
+    }
+
+
+    return key;
+}
+
+
 inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
 	
 	/*
@@ -349,6 +377,12 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 	return dummy;   
 }
 
+inline std::vector<Move>& accessMutableMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    return moveGenCache[updatedKey];  // If not present, creates empty vector by default
+}
+
+
 inline void addToMoveGenCache(uint64_t key, int max_size, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square){
 	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 	
@@ -361,6 +395,66 @@ inline void addToMoveGenCache(uint64_t key, int max_size, std::vector<Move> reor
         moveGenCache.erase(oldestKey);
     }
 }
+
+inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, uint64_t ep_square, Move move, std::vector<Move> moves, std::vector<BoardState>& state_history){
+    std::vector<Move>& moveList = accessMutableMoveGenCache(zobrist, castling, ep_square);
+
+    if (moveList.empty()){
+        auto it = std::find(moves.begin(), moves.end(), move);
+        if (it != moves.end() && it != moves.begin()) {
+            std::iter_swap(it, moves.begin());
+        }
+
+        int num_plies = static_cast<int>(state_history.size());
+        int max_cache_size;
+        // Code segment to control cache size
+        if(num_plies < 30){
+            max_cache_size = 800000;         
+        }else if(num_plies < 50){
+            max_cache_size = 1600000;
+        }else if(num_plies < 75){
+            max_cache_size = 2400000; 
+        }else{
+            max_cache_size = 3000000; 
+        }
+        addToMoveGenCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, moves, castling, ep_square);
+        return;
+    }
+
+    auto it = std::find(moveList.begin(), moveList.end(), move);
+    if (it != moveList.end() && it != moveList.begin()) {
+        std::iter_swap(it, moveList.begin());
+    }    
+}
+
+inline void storeKillerMove(int ply, Move move) {
+    if (!(killerMoves[ply][0] == move)) {
+        killerMoves[ply][1] = killerMoves[ply][0];
+        killerMoves[ply][0] = move;
+    }
+}
+
+inline int killerBonus(int ply, Move move) {
+    if (killerMoves[ply][0] == move)
+		return 10000;
+
+	if (killerMoves[ply][1] == move)
+		return 9000;	
+	return 0;
+}
+
+inline void decayHistoryHeuristics() {
+    for (int side = 0; side < 2; ++side) {
+        for (int from = 0; from < 64; ++from) {
+            for (int to = 0; to < 64; ++to) {
+                historyHeuristics[side][from][to] >>= DECAY_FACTOR;
+            }
+        }
+    }
+}
+
+
+
 
 inline int printMoveGenCacheStats() {
     /*
@@ -397,26 +491,4 @@ inline int printMoveGenCacheStats() {
     
 
     return num_entries;
-}
-
-inline uint64_t hash_castling(uint64_t castling_rights) {
-    uint64_t result = 0;
-    for (int i = 0; i < 4; ++i) {
-        if (castling_rights & (1ULL << rook_squares[i])) {
-            result ^= castling_hash[i];
-        }
-    }
-    return result;
-}
-
-inline uint64_t make_move_cache_key(uint64_t zobrist_base, uint64_t castling_rights, int ep_square) {
-    uint64_t key = zobrist_base;
-    key ^= hash_castling(castling_rights);
-
-    if (ep_square != -1 && ep_square >= 0 && ep_square < 64) {
-        key ^= ep_hash[ep_square];
-    }
-
-
-    return key;
 }

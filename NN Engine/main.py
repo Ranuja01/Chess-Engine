@@ -28,7 +28,7 @@ board = pgn.board()
 for move in pgn.mainline_moves():
     board.push(move)
 
-board = chess.Board("1r2k1nr/pbq1bpp1/4p3/2p1P3/2Pp1B2/1N1B3p/PP1Q1PPP/2R1R1K1 w k - 0 17")
+board = chess.Board("5k2/R1n2ppp/4r3/5p2/3p3P/2p3P1/5P2/4RK2 b - - 3 40")
 
 # Print the board in a human-readable format
 print(board)

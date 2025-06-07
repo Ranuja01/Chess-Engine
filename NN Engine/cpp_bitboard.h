@@ -18,6 +18,7 @@ constexpr uint8_t QUEEN = 5;
 constexpr uint8_t KING = 6;
 
 constexpr int NUM_SQUARES = 64;
+constexpr int MAX_PLY = 64;
 
 // Define the file bitboards
 constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
@@ -149,16 +150,6 @@ uint8_t piece_type_at(uint8_t square);
 void setAttackingLayer(int increment);
 void printLayers();
 int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces);
-
-
-
-std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square);
-void addToMoveGenCache(uint64_t key, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square);
-void evictOldMoveGenEntries(int numToEvict);
-int printMoveGenCacheStats();
-uint64_t hash_castling(uint64_t castling_rights);
-uint64_t make_move_cache_key(uint64_t zobrist_base, uint64_t castling_rights, int ep_square);
-
 
 /*
 	Set of functions used to generate moves

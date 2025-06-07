@@ -11,7 +11,7 @@ cdef extern from "stdint.h":
 # Import functions from c++ file
 cdef extern from "cpp_bitboard.h":
     void initialize_attack_tables()
-    int placement_and_piece_eval(int moveNum, bint turn, uint8_t lastMovedToSquare, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t prevKings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
+    int placement_and_piece_eval(int moveNum, bint turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask)
     bint is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bint is_en_passant)
     void test(uint64_t* occupied)
     
@@ -78,7 +78,8 @@ cdef int wrapper (object board):
         # print(board)
         # print()
         
-        total += placement_and_piece_eval(moveNum, board.turn, 64, pawns, knights, bishops, rooks, queens, kings, 0, occupied_white, occupied_black, occupied)   
+        
+        total += placement_and_piece_eval(moveNum, board.turn, pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied)   
         # ** Code segment to see if a bad capture was made ** 
         
         # # Get the previous move made
@@ -103,7 +104,7 @@ cdef int wrapper (object board):
         #                 total += values[board.piece_type_at(target_square)]
                     
         #             break    
-    print(board.occupied)
-    test(&board.occupied)
-    print(board.occupied)
+    # print(board.occupied)
+    # test(&board.occupied)
+    # print(board.occupied)
     return total

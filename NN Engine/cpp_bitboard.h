@@ -75,12 +75,38 @@ constexpr std::array<uint8_t, 11> pawn_wall_file_bonus = {
 constexpr std::array<uint8_t, 8> pawn_chain_file_bonus = {
     10,   // A
     15,   // B
-    75,   // C
-    125,  // D
-    125,  // E
-    75,   // F
+    100,   // C
+    150,  // D
+    150,  // E
+    100,   // F
     15,   // G
     10    // H
+};
+
+constexpr std::array<uint64_t, 8> white_king_zones = {
+    (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6), // A file
+    (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6), // B file
+    (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6), // C file
+    
+    (BB_FILE_B | BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // D file
+    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F | BB_FILE_G) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // E file
+
+    (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // F file
+    (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // G file
+    (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6)  // H file
+};
+
+constexpr std::array<uint64_t, 8> black_king_zones = {
+    (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // A file
+    (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // B file
+    (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // C file
+    
+    (BB_FILE_B | BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // D file
+    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F | BB_FILE_G) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // E file
+
+    (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // F file
+    (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // G file
+    (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3)  // H file
 };
 
 
@@ -95,6 +121,14 @@ constexpr std::array<uint64_t, 64> generate_square_masks() {
 
 // Global constant array of square bitmasks
 constexpr std::array<uint64_t, 64> BB_SQUARES = generate_square_masks();
+
+constexpr uint64_t central_squares = BB_SQUARES[27] | BB_SQUARES[28] | BB_SQUARES[35] | BB_SQUARES[36];
+
+constexpr uint64_t extended_central_squares =
+    BB_SQUARES[18] | BB_SQUARES[19] | BB_SQUARES[20] | BB_SQUARES[21] |
+    BB_SQUARES[26] | BB_SQUARES[29] |
+    BB_SQUARES[34] | BB_SQUARES[37] |
+    BB_SQUARES[42] | BB_SQUARES[43] | BB_SQUARES[44] | BB_SQUARES[45];
 
 constexpr int rook_squares[4] = {0, 7, 56, 63};
 
@@ -134,6 +168,7 @@ void handle_batteries_for_pressure_and_support_tables(uint8_t attacking_piece_sq
 void loop_and_update(uint64_t bb, uint8_t attacking_piece_type, bool attacking_piece_colour, int decrement);
 void adjust_pressure_and_support_tables_for_pins(uint64_t bb);
 int advanced_endgame_eval(int total, bool turn);
+void update_global_central_scores(int base_increment, uint64_t square_mask);
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
 int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, bool turn);
 
@@ -147,7 +182,7 @@ int approximate_capture_gains1(uint64_t bb, bool turn);
 
 void initializePieceValues(uint64_t bb);
 uint8_t piece_type_at(uint8_t square);
-void setAttackingLayer(int increment);
+void setAttackingLayer(int increment, bool isEndGame);
 void printLayers();
 int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces);
 

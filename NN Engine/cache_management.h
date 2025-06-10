@@ -1,4 +1,7 @@
-#pragma once
+
+#ifndef CACHE_MANAGEMENT_H
+#define CACHE_MANAGEMENT_H
+
 
 #include "cpp_bitboard.h"
 #include "search_engine.h"
@@ -453,9 +456,6 @@ inline void decayHistoryHeuristics() {
     }
 }
 
-
-
-
 inline int printMoveGenCacheStats() {
     /*
         Function to print stats for the move generation cache.
@@ -492,3 +492,5 @@ inline int printMoveGenCacheStats() {
 
     return num_entries;
 }
+
+#endif

@@ -1,4 +1,6 @@
-#pragma once
+
+#ifndef MOVE_GEN_H
+#define MOVE_GEN_H
 
 #include "cpp_bitboard.h"
 #include "cache_management.h"
@@ -452,7 +454,7 @@ void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<
 
 inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn) {
+								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply) {
 /*
 	uint64_t backrank = turn ? BB_RANK_1 : BB_RANK_8;
 	uint64_t candidates_mask = preliminary_castling_mask & backrank & to_mask;
@@ -733,3 +735,4 @@ void processMaskPairs(const std::array<MaskPair, N>& mask_pairs, std::vector<uin
                            queensMask, kingsMask, ep_square, turn);
     }
 }
+#endif

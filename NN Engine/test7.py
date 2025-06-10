@@ -107,7 +107,7 @@ def encode_board(board: chess.Board) -> np.ndarray:
 # model = onnx.load("NNUE.onnx")
 # print(model.graph.input[0].type.tensor_type.shape)
 
-board = chess.Board("8/8/3R3P/4P1P1/5P2/5K2/2k5/2q1b3 w - - 2 55")
+board = chess.Board("r2r2k1/1b2bp1p/4pnpP/pp6/2pP1N2/2P2PN1/PPB3P1/1K1R3R b - - 1 24")
 t0 = timer()  
 result = evaluate_board(board)
 t1 = timer()

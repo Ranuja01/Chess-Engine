@@ -8,9 +8,12 @@
 #include <algorithm>
 #include <numeric> 
 #include <unordered_map>
+#include <atomic>
 
 using Clock = std::chrono::steady_clock;
 using TimePoint = std::chrono::time_point<Clock>;
+
+constexpr int TIME_CHECK_INTERVAL = 5000000;
 
 // Constants for material thresholds
 constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
@@ -37,7 +40,7 @@ namespace Configs {
             times[6] = 5.5;
             times[7] = 5.0;
             for (int i = 8; i < 64; ++i) {
-                times[i] = 3.5;
+                times[i] = 4.5;
             }
             return times;
         }(),
@@ -90,12 +93,9 @@ namespace Configs {
             new_depths[9] = 8;
             new_depths[10] = 9;
             new_depths[11] = 10;
-            new_depths[12] = 11;
-            new_depths[13] = 12;
-            new_depths[14] = 13;
-            new_depths[15] = 14;            
-            for (int i = 16; i < 64; ++i) {
-                new_depths[i] = 15;
+            new_depths[12] = 11;                        
+            for (int i = 13; i < 64; ++i) {
+                new_depths[i] = 12;
             }
             return new_depths;
         }()
@@ -226,10 +226,10 @@ void update_cache(int num_plies);
 
 MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count);
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, const TimePoint& t0, SearchData& previous_search_data, Move& best_move, int& num_iterations);
-int minimizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
-int maximizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations, bool last_move_was_capture);
-SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
-int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
+int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
+int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations, bool last_move_was_capture);
+SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint& t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
+int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
 
 void sortSearchDataByScore(SearchData& data);
 void descending_sort_wrapper(const SearchData& preSearchData, SearchData& mainSearchData);

@@ -1,6 +1,7 @@
 #ifndef SEARCH_ENGINE_H
 #define SEARCH_ENGINE_H
 
+
 #include <vector>
 #include <array>
 #include <chrono>
@@ -21,6 +22,8 @@ constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
 constexpr int DECAY_INTERVAL = 25000; // Number of nodes before decay
 constexpr int DECAY_FACTOR = 1;       // Divide scores by 2
 
+constexpr std::array<int, 3> FUTILITY_MARGINS = {300, 500, 700};
+
 struct ConfigData {
     int cache_size_multiplier;
     double TIME_LIMIT;
@@ -31,7 +34,7 @@ struct ConfigData {
 namespace Configs {
     constexpr ConfigData STANDARD = {
         2,
-        90.0,
+        60.0,
         [] {
             std::array<double, 64> times{};
             times[3] = 5.0;

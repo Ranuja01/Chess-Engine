@@ -13,6 +13,12 @@
 
 std::atomic<bool> time_up;
 
+std::atomic<int> eval_visits;
+std::atomic<int> eval_cache_hits;
+
+std::atomic<int> move_gen_visits;
+std::atomic<int> move_gen_cache_hits;
+
 void initialize_engine(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bool turn, bool side_to_play){
     
     BoardState initialState(
@@ -200,6 +206,12 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
 
     time_up = false;
 
+    eval_visits = 0;
+    eval_cache_hits = 0;
+
+    move_gen_visits = 0;
+    move_gen_cache_hits = 0;
+
     BoardState current = state_history.back();
 
     uint64_t zobrist = generateZobristHash(current.pawns, current.knights, current.bishops, current.rooks, current.queens, current.kings, current.occupied_colour[true], current.occupied_colour[false], current.turn);
@@ -293,7 +305,13 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
     );
 
     make_move(state_history, position_count, move, zobrist);
-    //std::cout << state_history.back().occupied << std::endl;
+    
+    std::cout << "EVAL CACHE VISITS: "<< eval_visits << std::endl;
+    std::cout << "EVAL CACHE HITS: "<< eval_cache_hits << std::endl;
+
+    std::cout << "MOVE GEN CACHE VISITS: "<< move_gen_visits << std::endl;
+    std::cout << "MOVE GEN CACHE HITS: "<< move_gen_cache_hits << std::endl;
+    
     return chosenMove;
 
 }
@@ -374,13 +392,13 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.second_level_preliminary_scores[0], current_search_data.second_level_moves_list[0], previous_search_data, state_history, position_count, zobrist, num_iterations);
     
     //std::cout <<"DDDD"<< std::endl;
-    if(is_repetition(position_count, zobrist, 2)){
+    /* if(is_repetition(position_count, zobrist, 2)){
         repetition_flag = true;
         repetition_move = current_search_data.moves_list[0];
         repetition_score = score;
         repetition_index = 0;
         score = -100000000;
-    }
+    } */
 
 
     unmake_move(state_history, position_count, zobrist);
@@ -472,13 +490,13 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.second_level_preliminary_scores[i], current_search_data.second_level_moves_list[i], previous_search_data, state_history, position_count, zobrist, num_iterations);
         }
 
-        if(is_repetition(position_count, zobrist, 2)){
+        /* if(is_repetition(position_count, zobrist, 2)){
             repetition_flag = true;
             repetition_move = move;
             repetition_score = score;
             repetition_index = i;
             score = -100000001;
-        }
+        } */
 
         unmake_move(state_history, position_count, zobrist);
 
@@ -526,7 +544,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         }
         
         if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT){
-            if (repetition_flag) {
+            /* if (repetition_flag) {
                 if (alpha < repetition_score) {
                     if (alpha <= -500) {
                         best_move = repetition_move;
@@ -534,13 +552,13 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                         return 0;
                     }
                 }
-            }
+            } */
             return best_score;
         }
     }
 
     if (cur_depth == 0){
-        if (repetition_flag) {
+        /* if (repetition_flag) {
             if (alpha < repetition_score) {
                 if (alpha <= -500) {
                     best_move = repetition_move;
@@ -548,7 +566,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                     best_score = 0;
                 }
             }
-        }
+        } */
 
         if (depth_limit >= 7) {
             std::cout << std::endl;
@@ -560,9 +578,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     return best_score;
 }
 
-int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations){
-
-    num_iterations++;
+int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations){    
 
     if (time_up){
         return 0;
@@ -582,6 +598,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     if (cur_depth >= depth_limit)
         return get_board_evaluation(state_history, zobrist, num_iterations);
 
+    num_iterations++;
+
     BoardState current_state = state_history.back();
         
     uint64_t cur_hash = zobrist;
@@ -590,6 +608,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     int score;    
 
     Move best_move;
+
+    bool all_moves_pruned = true;
+    int best_early_eval = 9999999;
 
     /*
     int razor_threshold;
@@ -773,12 +794,26 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 && depth_limit >= 6);
 
             if (do_lmr){
+
+                if ((depth_limit - cur_depth) <= 3 && (depth_limit - cur_depth) > 1){
+                    int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
+
+                    if (early_score - FUTILITY_MARGINS[depth_limit - cur_depth - 1] > beta){
+                        best_early_eval = std::min(best_early_eval, early_score);
+                        unmake_move(state_history, position_count, zobrist);
+                        zobrist = cur_hash;
+                        continue;
+                    }
+                }
+                all_moves_pruned = false;
                 int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
                 score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, num_iterations, capture_move);
 
                 if (score < beta)
                     score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, num_iterations, capture_move);
+                
             } else{
+                all_moves_pruned = false;
                 score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, num_iterations, capture_move);
             }        
             /*
@@ -816,6 +851,10 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             }
         }
 
+        if (all_moves_pruned){
+            return best_early_eval;
+        }
+
         // Check if no moves are available, inidicating a game ending move was made previously
         if(lowest_score == 9999999 - static_cast<int>(state_history.size())){            
             
@@ -844,7 +883,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations, bool last_move_was_capture){
     
-    num_iterations++;
+    
 
     if(is_repetition(position_count, zobrist, 3)){
         return 0;
@@ -864,6 +903,8 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     if (cur_depth >= depth_limit)
         return get_board_evaluation(state_history, zobrist, num_iterations);
 
+    num_iterations++;
+
     BoardState current_state = state_history.back();
     uint64_t cur_hash = zobrist;    
     
@@ -876,11 +917,16 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     std::vector<Move> dummy_moves;
     SearchData dummy_data;
 
+    bool all_moves_pruned = true;
+    int best_early_eval = -9999999;
+
     // Null Move Pruning
     if (cur_depth >= 4 && depth_limit >= 6 && !last_move_was_capture && !isUnsafeForNullMovePruning(current_state)){
         state_history.back().turn = !state_history.back().turn;
         updateZobristHashForNullMove(zobrist);
-        score = minimizer(cur_depth + 1, depth_limit - 1, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, num_iterations);
+
+        int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+        score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, num_iterations);
         state_history.back().turn = !state_history.back().turn;        
         zobrist = cur_hash;
         
@@ -932,12 +978,27 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 && depth_limit >= 6);
 
         if (do_lmr){
+
+            if ((depth_limit - cur_depth) <= 3 && (depth_limit - cur_depth) > 1){
+                int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
+
+                if (early_score + FUTILITY_MARGINS[depth_limit - cur_depth - 1] < alpha){
+                    best_early_eval = std::max(best_early_eval, early_score);
+                    unmake_move(state_history, position_count, zobrist);
+                    zobrist = cur_hash;
+                    continue;
+                }
+            }
+
+            all_moves_pruned = false;
             int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
             score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, num_iterations);
 
             if (score > alpha)
                 score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, num_iterations);
+            
         } else{
+            all_moves_pruned = false;
             score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, num_iterations);
         }        
                 
@@ -967,6 +1028,10 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
             return highest_score;
         }
+    }
+
+    if (all_moves_pruned){
+        return best_early_eval;
     }
 
     // Check if no moves are available, inidicating a game ending move was made previously
@@ -1131,7 +1196,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
 
 int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations){
     
-    num_iterations++;
+    
 
     if(is_repetition(position_count, zobrist, 3)){
         return 0;
@@ -1142,6 +1207,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 
     if (cur_depth >= depth_limit)
         return get_board_evaluation(state_history, zobrist, num_iterations);
+
+    num_iterations++;
 
     BoardState current_state = state_history.back();
     //zobrist = generateZobristHash(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.turn);
@@ -1378,6 +1445,7 @@ inline void ascending_sort(std::vector<int>& values, std::vector<Move>& moves) {
 
 inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply){
 
+    move_gen_visits++;
     BoardState current_state = state_history.back();
     //uint64_t zobrist2 = zobrist;
     //zobrist = generateZobristHash(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.turn);
@@ -1387,8 +1455,9 @@ inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& sta
     
     std::vector<Move> cached_moves = accessMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square);
     if(cached_moves.size() != 0){
-        
+        move_gen_cache_hits++;
         if (cached_moves.size() > 1){
+            
             int firstNonCapture = 0;      
             int firstKillerMoveUsed = false;
             for (size_t i = 0; i < cached_moves.size(); ++i) {
@@ -1550,10 +1619,15 @@ inline bool isUnsafeForNullMovePruning(BoardState current_state) {
 
 inline int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations){    
 
+    num_iterations++;
+    eval_visits++;
     int cache_result = accessCache(zobrist);
 
-    if (cache_result != 0)
+    if (cache_result != 0){
+        eval_cache_hits++;
         return cache_result;
+    }
+        
 
     BoardState current_state = state_history.back();
 

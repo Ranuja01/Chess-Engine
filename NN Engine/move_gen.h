@@ -599,24 +599,35 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 
 inline void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply) {
+								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove) {
 
-	// Acquire the number of pieces on the board not including the kings
-	int pieceNum = scan_reversed_size(occupiedMask) - 2;
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
-	bool isEndGame = pieceNum < 16;
-	bool isNearGameEnd = pieceNum < 10;
+	bool isEndGame;
+	bool isNearGameEnd;
+
+	int phase = 0;
+	phase += 4 * __builtin_popcountll(queensMask);
+	phase += 2 * __builtin_popcountll(rooksMask);
+	phase += 1 * __builtin_popcountll(bishopsMask | knightsMask);
+
+	int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to 128
+
+	if (phase_score <= 62) {
+    	// Midgame
+		isEndGame = false;
+	} else if (phase_score <= 96) {
+		// Normal endgame
+		isEndGame = true;
+	} else {		
+		isEndGame = true;
+		isNearGameEnd = true;
+	}
 	
 	std::vector<uint8_t> quietStartPos;
 	std::vector<uint8_t> quietEndPos;
 	std::vector<uint8_t> quietPromotions;
-		
-	// If the queens are off the board, then it can be considered an endgame at a higher piece value
-	if (queensMask == 0){
-		isEndGame = pieceNum < 18;
-		isNearGameEnd = pieceNum < 12;
-	}
+	
 
 	std::array<MaskPair, 12> attack_pairs = {
 		MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
@@ -703,7 +714,15 @@ inline void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vec
 		uint8_t from = quietStartPos[i];
 		uint8_t to = quietEndPos[i];
 
-		return historyHeuristics[turn][from][to] + killerBonus(ply, Move(quietStartPos[i], quietEndPos[i], quietPromotions[i]));
+		Move cur(quietStartPos[i], quietEndPos[i], quietPromotions[i]);
+		int counterMoveBonus = 0;
+		if(counterMoves[prevMove.from_square][prevMove.to_square] == cur){
+			counterMoveBonus = 8000;
+		}
+
+		return historyHeuristics[turn][from][to] + killerBonus(ply, Move(quietStartPos[i], quietEndPos[i], quietPromotions[i]))
+			   + counterMoveBonus + counterMoveHeuristics[turn][prevMove.from_square * 64 + prevMove.to_square][quietStartPos[i] * 64 + quietEndPos[i]]
+			   ;
 	};
 
 	std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
@@ -716,6 +735,7 @@ inline void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vec
 		promotions.push_back(quietPromotions[i]);
 	}
 }
+
 
 template<std::size_t N>
 void processMaskPairs(const std::array<MaskPair, N>& mask_pairs, std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask,

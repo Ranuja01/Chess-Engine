@@ -34,14 +34,20 @@ extern uint64_t ep_hash[65];
 extern std::unordered_map<uint64_t, int> evalCache;
 extern std::deque<uint64_t> insertionOrder;
 
+extern std::unordered_map<uint64_t, int> quiesceEvalCache;
+extern std::deque<uint64_t> quiesceinsertionOrder;
+
 extern std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
 extern std::deque<uint64_t> moveGenInsertionOrder;
 
 extern uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 
 extern Move killerMoves[MAX_PLY][2];
+extern Move counterMoves[64][64];
 
+extern int counterMoveHeuristics[2][4096][4096];
 extern int historyHeuristics[2][64][64];
+extern int moveFrequency[2][64][64];
 
 /*
 	Set of functions used to cache data
@@ -308,6 +314,8 @@ inline void addToCache(uint64_t key,int max_size, int value) {
     }
 }
 
+
+
 inline int printCacheStats() {
 	
 	/*
@@ -319,6 +327,29 @@ inline int printCacheStats() {
 	
     // Get the number of entries in the map
     int num_entries = evalCache.size();
+
+    // Estimate the memory usage in bytes: each entry is a pair of (key, value)
+    int size_in_bytes = num_entries * (sizeof(int64_t) + sizeof(int));
+
+    // Print the results
+    std::cout << "Number of entries: " << num_entries << std::endl;
+    std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
+	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
+	
+	return num_entries;
+}
+
+inline int printQCacheStats() {
+	
+	/*
+		Function to print the position cache size as well as return it
+		
+		Returns:
+		The number of entries in the cache
+	*/
+	
+    // Get the number of entries in the map
+    int num_entries = quiesceEvalCache.size();
 
     // Estimate the memory usage in bytes: each entry is a pair of (key, value)
     int size_in_bytes = num_entries * (sizeof(int64_t) + sizeof(int));
@@ -399,6 +430,49 @@ inline void addToMoveGenCache(uint64_t key, int max_size, std::vector<Move> reor
     }
 }
 
+inline int accessQCache(uint64_t key, uint64_t castling_rights, int ep_square) {
+	
+	/*
+		Function to access the position cache
+		
+		Parameters:
+		- key: The hash for the given position
+		
+		Returns:
+		The stored evaluation for the position if it exists
+	*/
+	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    auto it = quiesceEvalCache.find(updatedKey);
+    if (it != quiesceEvalCache.end()) {
+		// Return the value if the key exists
+        return it->second;  
+    }
+	
+	// Return the default value if the key doesn't exist
+    return 0;   
+}
+
+inline void addToQCache(uint64_t key,int max_size, int value, uint64_t castling_rights, int ep_square) {
+	
+	/*
+		Function to add to the position cache
+		
+		Parameters:
+		- key: The hash for the given position
+		- value: The value to be associated with the given key
+	*/
+	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+	// Add the key-value pair to the cache as well as the key to the move order
+    quiesceEvalCache[updatedKey] = value;
+	quiesceinsertionOrder.push_back(updatedKey);
+
+    if (static_cast<int>(quiesceEvalCache.size()) > max_size && !quiesceinsertionOrder.empty()) {
+        uint64_t oldestKey = quiesceinsertionOrder.front();
+        quiesceinsertionOrder.pop_front();
+        quiesceEvalCache.erase(oldestKey);
+    }
+}
+
 inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, uint64_t ep_square, Move move, std::vector<Move> moves, std::vector<BoardState>& state_history){
     std::vector<Move>& moveList = accessMutableMoveGenCache(zobrist, castling, ep_square);
 
@@ -455,6 +529,28 @@ inline void decayHistoryHeuristics() {
         }
     }
 }
+
+inline void decayCounterMoveHeuristics() {
+    for (int side = 0; side < 2; ++side) {
+        for (int from = 0; from < 4096; ++from) {
+            for (int to = 0; to < 4096; ++to) {
+                counterMoveHeuristics[side][from][to] >>= DECAY_FACTOR;
+            }
+        }
+    }
+}
+
+inline void decayMoveFrequency() {
+    for (int side = 0; side < 2; ++side) {
+        for (int from = 0; from < 64; ++from) {
+            for (int to = 0; to < 64; ++to) {
+                moveFrequency[side][from][to] >>= 2;
+            }
+        }
+    }
+}
+
+
 
 inline int printMoveGenCacheStats() {
     /*

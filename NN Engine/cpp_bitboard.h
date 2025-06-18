@@ -270,6 +270,40 @@ bool ep_skewered(int king, int capturer, int ep_square, bool turn, uint64_t occu
 bool attackedForKing(bool opponent_color,uint64_t path, uint64_t occupied, uint64_t opposingPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask);
 
 
+inline uint8_t piece_type_at(uint8_t square){
+    
+	/*
+		Function to get the piece type
+		
+		Parameters:
+		- square: The square to be analyzed		
+		
+		Returns:
+		A unsigned char representing the piece type
+	*/
+    
+	/* 
+		In this section, see if the individual piece type masks bitwise Anded with the square exists
+		If so this suggests that the given square has the piece type of that mask
+	*/
+	uint64_t mask = (BB_SQUARES[square]);
+
+	if (pawns & mask) {
+		return 1;
+	} else if (knights & mask){
+		return 2;
+	} else if (bishops & mask){
+		return 3;
+	} else if (rooks & mask){
+		return 4;
+	} else if (queens & mask){
+		return 5;
+	} else if (kings & mask){
+		return 6;
+	} else{
+		return 0;
+	}
+}
 
 inline uint64_t attackersMask(bool colour, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co){
     
@@ -1101,7 +1135,7 @@ inline int get_least_valuable_attacker(uint64_t attackers, const BoardState& sta
 	uint64_t bb = attackers;
 	uint8_t r = 0;
 
-	int least_value = 15000;
+	int least_value = 999999999;
 	int least_value_square = -1;
 	while (bb) {		
 		r = __builtin_ctzll(bb);  
@@ -1129,35 +1163,133 @@ inline int get_least_valuable_attacker(uint64_t attackers, const BoardState& sta
 	return 0; // or INT_MAX, or some sentinel for "no attacker" */
 }
 
+inline int get_least_valuable_attacker_static(uint64_t attackers, const BoardState& state) {
+    if ((attackers & state.pawns) != 0) {
+        return __builtin_ctzll(attackers & state.pawns); // pawn
+    } else if ((attackers & state.knights) != 0) {
+        return __builtin_ctzll(attackers & state.knights);  // knight
+    } else if ((attackers & state.bishops) != 0) {
+        return __builtin_ctzll(attackers & state.bishops);  // bishop
+    } else if ((attackers & state.rooks) != 0) {
+        return __builtin_ctzll(attackers & state.rooks);  // rook
+    } else if ((attackers & state.queens) != 0) {
+        return __builtin_ctzll(attackers & state.queens);  // queen
+    } else if ((attackers & state.kings) != 0) {
+        return __builtin_ctzll(attackers & state.kings);  // king (very rare)
+    }
+
+
+    return 0; // or INT_MAX, or some sentinel
+}
+
+
 inline void update_attackers_for_piece_removal(uint8_t to_square, uint64_t& occupancy, uint64_t colour_attackers[2], bool turn, const BoardState& state){
 	colour_attackers[turn] = attackersMask(turn, to_square, occupancy, (state.queens | state.rooks) & occupancy, (state.queens | state.bishops) & occupancy, state.kings & occupancy, state.knights & occupancy, state.pawns & occupancy, state.occupied_colour[turn] & occupancy);
 }
 
-inline int see (uint8_t to_square, bool side_to_move, const BoardState& state){
+inline int see(uint8_t to_square, bool side_to_move, const BoardState& state){
 	
+	bool breaks_early = false;
     int gain[32];
     int depth = 0;
 
-    int piece_value_captured = square_values[to_square];
-	//int piece_value_captured = get_value_at(to_square, state);
+    //int piece_value_captured = square_values[to_square];
+	int piece_value_captured = get_value_at(to_square, state);
+	//std::cout << "piece_value_captured: " << piece_value_captured << std::endl;
+
+    gain[depth++] = piece_value_captured;
+
+
+    bool stm = side_to_move;
+    uint64_t occupancy = state.occupied;
+    uint64_t color_attackers[2] = {attack_bitmasks[to_square] & state.occupied_colour[false], attack_bitmasks[to_square] & state.occupied_colour[true]};
+		
+	//std::cout << "WHITE: " << color_attackers[1] << std::endl;
+	//std::cout << "BLACK: " << color_attackers[0] << std::endl;
+    while (true) {
+		//std::cout << "AAA: " << color_attackers[stm] << std::endl;
+        uint64_t attackers_now = color_attackers[stm];
+        if (!attackers_now) break;
+		//std::cout << "BBB" << std::endl;
+        // Get least valuable attacker
+        int from_sq = get_least_valuable_attacker(attackers_now, state);
+        //int piece_val = square_values[from_sq];
+		int piece_val = get_value_at(from_sq, state);
+		
+		/* std::cout << "CCc" << std::endl;
+		std::cout << "piece val former: " << gain[depth - 1] << std::endl;
+		std::cout << "piece val current: " << piece_val << " | " << (int)from_sq << std::endl;
+ 		*/
+        gain[depth] = piece_val - gain[depth - 1];
+        
+		/* if (std::max(-gain[depth - 1], gain[depth]) < 0){
+			breaks_early = true;
+			break;
+		} */
+            
+		//std::cout << "DDD" << std::endl;
+        // Remove attacker from occupancy & update attackers
+        occupancy &= ~(1ULL << from_sq);
+        
+        update_attackers_for_piece_removal(to_square, occupancy, color_attackers, stm, state);
+		//std::cout << "EEE" << std::endl;
+        stm = !stm;
+        depth++;
+    }
+	//std::cout << depth << " SEE final gain[0]: " << gain[depth - 1]  << std::endl;
+    
+	// Propagate max gain back
+	
+	if (breaks_early) {
+		if (depth > 1){
+			for (int i = depth - 1; i > 0; --i) {
+				gain[i - 1] = -std::max(-gain[i - 1], gain[i]);
+			}
+		}
+		
+	} else {
+		if (depth > 2){
+			for (int i = depth - 2; i > 0; --i) {
+				gain[i - 1] = -std::max(-gain[i - 1], gain[i]);
+			}
+		}
+	}
+	
+	//std::cout << depth << "SEE final gain[0]: " << gain[depth] << std::endl;
+    return gain[0];
+}
+
+
+inline int get_see_score(uint8_t to_square, bool side_to_move, const BoardState& state){
+	
+	bool breaks_early = false;
+    int gain[32];
+    int depth = 0;
+
+    //int piece_value_captured = square_values[to_square];
+	int piece_value_captured = get_value_at(to_square, state);
     gain[depth++] = piece_value_captured;
 
     bool stm = side_to_move;
     uint64_t occupancy = state.occupied;
-    uint64_t color_attackers[2] = {attack_bitmasks[to_square] & state.occupied_colour[true], attack_bitmasks[to_square] & state.occupied_colour[false]};
+    uint64_t color_attackers[2] = {attackersMask(false, to_square, occupancy, (state.queens | state.rooks) & occupancy, (state.queens | state.bishops) & occupancy, state.kings & occupancy, state.knights & occupancy, state.pawns & occupancy, state.occupied_colour[false] & occupancy)
+		                          ,attackersMask(true, to_square, occupancy, (state.queens | state.rooks) & occupancy, (state.queens | state.bishops) & occupancy, state.kings & occupancy, state.knights & occupancy, state.pawns & occupancy, state.occupied_colour[true] & occupancy)};
 
     while (true) {
         uint64_t attackers_now = color_attackers[stm];
         if (!attackers_now) break;
 
         // Get least valuable attacker
-        int from_sq = get_least_valuable_attacker(attackers_now, state);
-        int piece_val = square_values[from_sq];
-		//int piece_val = get_value_at(from_sq, state);
+        int from_sq = get_least_valuable_attacker_static(attackers_now, state);
+        //int piece_val = square_values[from_sq];
+		int piece_val = get_value_at(from_sq, state);
 
         gain[depth] = piece_val - gain[depth - 1];
-        if (std::max(-gain[depth - 1], gain[depth]) < 0)
-            break;
+        if (std::max(-gain[depth - 1], gain[depth]) < 0){
+			breaks_early = true;
+			break;
+		}
+            
 
         // Remove attacker from occupancy & update attackers
         occupancy &= ~(1ULL << from_sq);
@@ -1169,11 +1301,19 @@ inline int see (uint8_t to_square, bool side_to_move, const BoardState& state){
     }
 
     // Propagate max gain back
-    for (--depth; depth > 0; --depth)
-        gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
+    if(breaks_early){
+		for (depth; depth > 0; --depth){
+			//std::cout <<gain[depth] <<  " : " << -gain[depth - 1] << std::endl;
+			gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
+		}
+	}else{
+		for (--depth; depth > 1; --depth){
+			//std::cout <<gain[depth - 1] <<  " : " << -gain[depth - 2] << std::endl;
+			gain[depth - 2] = -std::max(-gain[depth - 2], gain[depth - 1]);
+		}
+	}
 
     return gain[0];
 }
-
 
 #endif // CPP_BITBOARD_H

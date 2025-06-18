@@ -454,81 +454,59 @@ void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<
 
 inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply) {
-/*
-	uint64_t backrank = turn ? BB_RANK_1 : BB_RANK_8;
-	uint64_t candidates_mask = preliminary_castling_mask & backrank & to_mask;
-	
-	if (candidates_mask == 0)
-		return;
-*/
-	// Acquire the number of pieces on the board not including the kings
-	int pieceNum = scan_reversed_size(occupiedMask) - 2;
+								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove) {
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
-	bool isEndGame = pieceNum < 16;
-	bool isNearGameEnd = pieceNum < 10;
-	
-		
-	// If the queens are off the board, then it can be considered an endgame at a higher piece value
-	if (queensMask == 0){
-		isEndGame = pieceNum < 18;
-		isNearGameEnd = pieceNum < 12;
+	bool isEndGame;
+	bool isNearGameEnd;
+
+	int phase = 0;
+	phase += 4 * __builtin_popcountll(queensMask);
+	phase += 2 * __builtin_popcountll(rooksMask);
+	phase += 1 * __builtin_popcountll(bishopsMask | knightsMask);
+
+	int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to 128
+
+	if (phase_score <= 62) {
+    	// Midgame
+		isEndGame = false;
+	} else if (phase_score <= 96) {
+		// Normal endgame
+		isEndGame = true;
+	} else {		
+		isEndGame = true;
+		isNearGameEnd = true;
 	}
+	
+	std::vector<uint8_t> preliminaryStartPos;
+	std::vector<uint8_t> preliminaryEndPos;
+	std::vector<uint8_t> preliminaryPromotions;
+	
+	generateLegalMoves(preliminaryStartPos, preliminaryEndPos, preliminaryPromotions, preliminary_castling_mask,
+                           from_mask & ourPieces,
+                           to_mask & opposingPieces,
+                           occupiedMask, occupiedWhite, opposingPieces, ourPieces,
+                           pawnsMask, knightsMask, bishopsMask, rooksMask,
+                           queensMask, kingsMask, ep_square, turn);
+
 
 	if (!isEndGame){
-		std::array<MaskPair, 17> mask_pairs = {
-			MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-			MaskPair(knightsMask | bishopsMask, (queensMask | rooksMask) & opposingPieces),
-
-			MaskPair(rooksMask, queensMask & opposingPieces),
-
-			MaskPair(knightsMask | bishopsMask, (knightsMask | bishopsMask) & opposingPieces),
-
-			MaskPair(pawnsMask, pawnsMask & opposingPieces),
-			MaskPair(rooksMask, rooksMask & opposingPieces),
-			MaskPair(queensMask, queensMask & opposingPieces),
-
+		std::array<MaskPair, 4> quiet_pairs = {
 			MaskPair(knightsMask | bishopsMask, ~opposingPieces),
 			MaskPair(pawnsMask, ~opposingPieces),
 			MaskPair(queensMask, ~opposingPieces),
-			MaskPair(rooksMask | kingsMask, ~opposingPieces),
-
-			MaskPair(knightsMask | bishopsMask, pawnsMask & opposingPieces),
-
-			MaskPair(bishopsMask, pawnsMask & opposingPieces),
-
-			MaskPair(rooksMask, (bishopsMask | knightsMask) & opposingPieces),
-
-			MaskPair(queensMask, (rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-			MaskPair(rooksMask | queensMask, pawnsMask & opposingPieces),
-
-			MaskPair(kingsMask, (queensMask | rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces)
+			MaskPair(rooksMask | kingsMask, ~opposingPieces)
 		};
 
-		processMaskPairs(mask_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+		processMaskPairs(quiet_pairs, preliminaryStartPos, preliminaryEndPos, preliminaryPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+						 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
 
 	} else{
 		if (isNearGameEnd){
-			std::array<MaskPair, 13> mask_pairs = {
-
-				// 1. Minor pieces capturing more major pieces
-				MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-				MaskPair(knightsMask | bishopsMask, (queensMask | rooksMask) & opposingPieces),
-
-				MaskPair(rooksMask, queensMask & opposingPieces),
+			std::array<MaskPair, 4> quiet_pairs = {
 
 				// 2. King movement (positional)
-				MaskPair(kingsMask, ~0ULL),
-
-				// 3. Pawn/Rook/Queen captures eachother
-				MaskPair(pawnsMask, pawnsMask & opposingPieces),
-				MaskPair(rooksMask, rooksMask & opposingPieces),
-				MaskPair(queensMask, queensMask & opposingPieces),
+				MaskPair(kingsMask, ~opposingPieces),
 
 				// 4. Pawn pushes (promotion racing)
 				MaskPair(pawnsMask, ~opposingPieces),
@@ -537,36 +515,13 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 				MaskPair(rooksMask | queensMask, ~opposingPieces),
 
 				// 6. Minor piece quiet moves
-				MaskPair(knightsMask | bishopsMask, ~opposingPieces),
-
-				// 7. Minor piece captures minor or pawns
-				MaskPair(knightsMask | bishopsMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 8. Rook captures (only if present)
-				MaskPair(rooksMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 9. Queen captures (only if present)
-				MaskPair(queensMask, (rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces),			
-
+				MaskPair(knightsMask | bishopsMask, ~opposingPieces)
 			};
 
-			processMaskPairs(mask_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
-
+			processMaskPairs(quiet_pairs, preliminaryStartPos, preliminaryEndPos, preliminaryPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
 		} else {
-			std::array<MaskPair, 13> mask_pairs = {
-
-				// 1. Minor pieces capturing more major pieces
-				MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
-
-				MaskPair(knightsMask | bishopsMask, (queensMask | rooksMask) & opposingPieces),
-
-				MaskPair(rooksMask, queensMask & opposingPieces),
-
-				// 2. Pawn/Rook/Queen captures eachother
-				MaskPair(pawnsMask, pawnsMask & opposingPieces),
-				MaskPair(rooksMask, rooksMask & opposingPieces),
-				MaskPair(queensMask, queensMask & opposingPieces),
+			std::array<MaskPair, 4> quiet_pairs = {
 
 				// 3. Minor piece quiet moves
 				MaskPair(knightsMask | bishopsMask, ~opposingPieces),
@@ -578,22 +533,80 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 				MaskPair(rooksMask | queensMask, ~opposingPieces),
 
 				// 6. King movement (positional)
-				MaskPair(kingsMask, ~0ULL),
-
-				// 7. Minor piece captures minor or pawns
-				MaskPair(knightsMask | bishopsMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 8. Rook captures (only if present)
-				MaskPair(rooksMask, (bishopsMask | knightsMask | pawnsMask) & opposingPieces),
-
-				// 9. Queen captures (only if present)
-				MaskPair(queensMask, (rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces),			
+				MaskPair(kingsMask, ~opposingPieces),		
 
 			};
-
-			processMaskPairs(mask_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);			
+			processMaskPairs(quiet_pairs, preliminaryStartPos, preliminaryEndPos, preliminaryPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);	
 		}
+	}
+
+	
+
+	std::vector<size_t> indices(preliminaryStartPos.size());
+	std::iota(indices.begin(), indices.end(), 0); // Fill with 0..N-1
+
+	BoardState state(
+		pawnsMask,
+		knightsMask,
+		bishopsMask,
+		rooksMask,
+		queensMask,
+		kingsMask,
+		occupiedWhite,
+		~occupiedWhite & occupiedMask,
+		occupiedMask,
+		1,
+		turn,                  
+		0,
+		0,                          
+		0,                           
+		0    
+	);
+
+	auto score_move = [&](size_t i) -> int {
+		uint8_t from = preliminaryStartPos[i];
+		uint8_t to = preliminaryEndPos[i];
+
+		if(BB_SQUARES[to] & opposingPieces){
+			/* int score = get_see_score(preliminaryEndPos[i], turn, state);
+			//int score = 100000;
+			return score < 0? score + preliminaryPromotions[i] * 5000: 15000 + score + preliminaryPromotions[i] * 5000; */
+
+			int value_captured = get_value_at(to, state);
+			int value_attacker = get_value_at(from, state);
+			int promo_bonus = preliminaryPromotions[i] * 5000;
+			//return 15000 + value_captured - value_attacker + promo_bonus;
+			if (value_captured >= value_attacker) {
+				// Clearly good capture, skip SEE
+				return 30000 + value_captured - value_attacker + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]];
+			} else {
+				// Unclear or losing capture, run SEE
+				int see_score = get_see_score(to, turn, state);
+				return see_score < 0 ? see_score + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]] : 30000 + see_score + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]];
+			}
+
+		}
+
+		Move cur(preliminaryStartPos[i], preliminaryEndPos[i], preliminaryPromotions[i]);
+		int counterMoveBonus = 0;
+		if(counterMoves[prevMove.from_square][prevMove.to_square] == cur){
+			counterMoveBonus = 8000;
+		}
+
+		return historyHeuristics[turn][from][to] + killerBonus(ply, Move(preliminaryStartPos[i], preliminaryEndPos[i], preliminaryPromotions[i]))
+			   + counterMoveBonus + counterMoveHeuristics[turn][prevMove.from_square * 64 + prevMove.to_square][preliminaryStartPos[i] * 64 + preliminaryEndPos[i]]
+			   + preliminaryPromotions[i] * 5000 + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]];;
+	};
+
+	std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
+		return score_move(a) > score_move(b);
+	});
+
+	for (size_t i : indices) {
+		startPos.push_back(preliminaryStartPos[i]);
+		endPos.push_back(preliminaryEndPos[i]);
+		promotions.push_back(preliminaryPromotions[i]);
 	}
 }
 
@@ -721,8 +734,8 @@ inline void generateLegalMovesReordered(std::vector<uint8_t>& startPos, std::vec
 		}
 
 		return historyHeuristics[turn][from][to] + killerBonus(ply, Move(quietStartPos[i], quietEndPos[i], quietPromotions[i]))
-			   + counterMoveBonus + counterMoveHeuristics[turn][prevMove.from_square * 64 + prevMove.to_square][quietStartPos[i] * 64 + quietEndPos[i]]
-			   ;
+			   + counterMoveBonus + counterMoveHeuristics[turn][prevMove.from_square * 64 + prevMove.to_square][from * 64 + to]
+			   + quietPromotions[i] * 5000 + moveFrequency[turn][from][to];
 	};
 
 	std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {

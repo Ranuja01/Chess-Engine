@@ -24,9 +24,11 @@ constexpr int DECAY_FACTOR = 1;       // Divide scores by 2
 
 constexpr std::array<int, 4> FUTILITY_MARGINS = {200, 500, 700, 1000};
 
-constexpr int MAX_QDEPTH = 10;
+constexpr int MAX_QDEPTH = 12;
 constexpr int SUPPORT_MARGIN = 0;
-constexpr int DELTA_MARGIN = 75;
+constexpr int DELTA_MARGIN = 100;
+
+constexpr bool USE_Q_SEARCH = true;
 
 struct ConfigData {
     int cache_size_multiplier;
@@ -110,7 +112,7 @@ namespace Configs {
 }
 
 namespace Config {
-    inline const ConfigData* ACTIVE = &Configs::LONG_FORMAT; // Default to classical
+    inline const ConfigData* ACTIVE = &Configs::STANDARD; // Default to classical
     inline bool side_to_play = false; // Default; can be set at runtime
 }
 
@@ -226,7 +228,7 @@ struct SearchData {
 
 void initialize_engine(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bool turn, bool side_to_play);
 void set_current_state(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bool turn);
-void make_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, Move move, uint64_t zobrist);
+void make_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, Move move, uint64_t zobrist, bool capture_move);
 void unmake_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key);
 
 void update_cache(int num_plies);
@@ -237,16 +239,17 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture);
 SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint& t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
 int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations);
-int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations);
+int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing);
 
 void sortSearchDataByScore(SearchData& data);
 void descending_sort_wrapper(const SearchData& preSearchData, SearchData& mainSearchData);
 void ascending_sort(std::vector<int>& values, std::vector<Move>& moves);
-std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply, Move prevMove);
-std::vector<Move> buildNoisyMoveList(std::vector<BoardState>& state_history, int cur_ply, Move prevMove);
-
 bool isUnsafeForNullMovePruning(BoardState current_state);
 bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count);
+int reduced_search_depth(int depth_limit, int move_number, BoardState current_state);
+
 int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations);
+std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply, Move prevMove);
+std::vector<Move> buildNoisyMoveList(std::vector<BoardState>& state_history, int cur_ply, Move prevMove);
 
 #endif // SEARCH_ENGINE_H

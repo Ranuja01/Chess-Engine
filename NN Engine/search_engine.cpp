@@ -13,6 +13,7 @@
 #include <unordered_set>
 
 std::atomic<bool> time_up;
+std::atomic<bool> is_draw;
 
 std::atomic<int> eval_visits;
 std::atomic<int> eval_cache_hits;
@@ -80,7 +81,7 @@ void set_current_state(std::vector<BoardState>& state_history, std::unordered_ma
     position_count[zobrist]++;
 }
 
-inline void make_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, Move move, uint64_t zobrist){
+inline void make_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, Move move, uint64_t zobrist, bool capture_move){
     
     BoardState current = state_history.back();
 
@@ -124,6 +125,13 @@ inline void make_move(std::vector<BoardState>& state_history, std::unordered_map
     );
 
     //halfmove_clock += 1
+    // Reset the halfmove clock if the move is a pawn move or capture
+    if (capture_move || (BB_SQUARES[move.from_square] & pawns)) {
+        halfmove_clock = 0;
+    } else {
+        halfmove_clock += 1;
+    }
+
     if (!turn)
         fullmove_number += 1;
 
@@ -219,6 +227,7 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
 
 
     time_up = false;
+    is_draw = false;
 
     eval_visits = 0;
     eval_cache_hits = 0;
@@ -227,7 +236,7 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
     move_gen_cache_hits = 0;
 
     qsearchVisits = 0;
-
+    
     BoardState current = state_history.back();
 
     uint64_t zobrist = generateZobristHash(current.pawns, current.knights, current.bishops, current.rooks, current.queens, current.kings, current.occupied_colour[true], current.occupied_colour[false], current.turn);
@@ -249,6 +258,9 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
 
     while (elapsed <= Config::ACTIVE->MOVE_TIMES[depth_limit] && depth_limit + 1 < 64 && score < 9000000){
         
+        if (is_draw && score == 0)
+            break;
+        is_draw = false;
         int x1 = (move.from_square & 7) + 1;
         int y1 = (move.from_square >> 3) + 1;
 
@@ -285,7 +297,9 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
         }else{
             score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, t0, preliminary_search_data, move, num_iterations);
         }  */
-        //decayMoveFrequency();
+        
+        if (depth_limit >= 13 && (depth_limit - 3) % 5 == 0)
+            decayMoveFrequency();
         score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, t0, preliminary_search_data, move, num_iterations);
 
         bool side = current.turn;
@@ -293,10 +307,10 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
             
             Move move = pv_table[0][i];
 
-            //int bonus = (depth_limit * depth_limit) * (pv_length[0] - i) * (pv_length[0] - i);
-            //moveFrequency[side][move.from_square][move.to_square] += 100;
+            int bonus = (depth_limit * depth_limit) * (pv_length[0] - i) * (pv_length[0] - i);
+            moveFrequency[side][move.from_square][move.to_square] += bonus;
 
-            if(depth_limit >= 8){
+            if(depth_limit >= 9){
                 std::cout 
                 << "(" << ((move.from_square & 7) + 1) << ","
                 << ((move.from_square >> 3) + 1) << ") -> ("
@@ -306,7 +320,7 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
             side = !side;
 
         }
-        if(depth_limit >= 8){
+        if(depth_limit >= 9){
             std::cout <<std::endl;
         }    
 
@@ -348,7 +362,7 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
         move.promotion
     );
 
-    make_move(state_history, position_count, move, zobrist);
+    make_move(state_history, position_count, move, zobrist, capture_move);
     
     std::cout << "EVAL CACHE VISITS: "<< eval_visits << std::endl;
     std::cout << "EVAL CACHE HITS: "<< eval_cache_hits << std::endl;
@@ -408,9 +422,13 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     int repetition_score = 0;
     int repetition_index = 0;
 
-    if (depth_limit >= 8) {
+    if (depth_limit >= 9) {
         std::cout << "Num Moves: " << num_legal_moves << std::endl;
     }
+
+    /* if (depth_limit >= 24) {
+        std::cout << "AAAA: " << num_legal_moves << std::endl;
+    } */
     
     bool en_passant_move = is_en_passant(current_search_data.moves_list[0].from_square, current_search_data.moves_list[0].to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 
@@ -435,8 +453,10 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     );
 
     //std::cout <<"BBB" << std::endl;
-    make_move(state_history, position_count, current_search_data.moves_list[0], zobrist);
-
+    make_move(state_history, position_count, current_search_data.moves_list[0], zobrist, capture_move);
+    /* if (depth_limit >= 24) {
+        std::cout << "BBB: " << num_legal_moves << std::endl;
+    } */
     //std::cout <<"CCC"<< std::endl;
     score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.second_level_preliminary_scores[0], current_search_data.second_level_moves_list[0], previous_search_data, state_history, position_count, zobrist, current_search_data.moves_list[0], num_iterations);
     
@@ -448,12 +468,18 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         repetition_index = 0;
         score = -100000000;
     } */
-
+    /* if (depth_limit >= 24) {
+        std::cout << "CCCC: " << num_legal_moves << std::endl;
+    } */
 
     unmake_move(state_history, position_count, zobrist);
+    //std::cout <<"CC" << std::endl;
+    /* if (depth_limit >= 24) {
+        std::cout << "DDDD: " << num_legal_moves << std::endl;
+    } */
     zobrist = cur_hash;
 
-    if (depth_limit >= 8){
+    if (depth_limit >= 9){
         std::cout << 0 << " "
           << score << " "
           << current_search_data.top_level_preliminary_scores[0] << " "
@@ -526,7 +552,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             move.promotion
         );
 
-        make_move(state_history, position_count, move, zobrist);
+        make_move(state_history, position_count, move, zobrist, capture_move);
         //std::cout <<"EEE" << std::endl;
         score = minimizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, current_search_data.second_level_preliminary_scores[i], current_search_data.second_level_moves_list[i], previous_search_data, state_history, position_count, zobrist, move, num_iterations);
         
@@ -562,7 +588,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         zobrist = cur_hash;
         previous_search_data.top_level_preliminary_scores.push_back(score);
         
-        if (depth_limit >= 8){
+        if (depth_limit >= 9){
             std::cout << i << " "
             << score << " "
             << current_search_data.top_level_preliminary_scores[i] << " "
@@ -589,7 +615,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
         // Check for a beta cutoff 
         if (beta <= alpha){
-            if (depth_limit >= 8) {
+            if (depth_limit >= 9) {
                 std::cout << std::endl;
                 std::cout << "Best: " << best_move_index << std::endl;
             }
@@ -604,15 +630,11 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         }
         
         if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT){
-            /* if (repetition_flag) {
-                if (alpha < repetition_score) {
-                    if (alpha <= -500) {
-                        best_move = repetition_move;
-                        previous_search_data.top_level_preliminary_scores[repetition_index] = repetition_score;                        
-                        return 0;
-                    }
-                }
-            } */
+            if (depth_limit >= 9) {
+                std::cout << std::endl;
+                std::cout << "TIME LIMIT EXCEEDED" << std::endl;
+                std::cout << "Best: " << best_move_index << std::endl;
+            }
             return best_score;
         }
     }
@@ -628,7 +650,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             }
         } */
 
-        if (depth_limit >= 8) {
+        if (depth_limit >= 9) {
             std::cout << std::endl;
             std::cout << "Best: " << best_move_index << std::endl;
         }
@@ -647,47 +669,54 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             time_up = true;
         }
     }
-
-    if(is_repetition(position_count, zobrist, 3)){
+    BoardState current_state = state_history.back();
+    if(is_repetition(position_count, zobrist, 3) || current_state.halfmove_clock >= 100){
+        if (cur_depth == 1)
+            is_draw = true;
         return 0;
     }
+    /* if (depth_limit >= 24) {
+        std::cout << "EE: " << std::endl;
+    } */
 
     if (num_iterations % DECAY_INTERVAL == 0)
         decayHistoryHeuristics();
 
-    if ((num_iterations % (DECAY_INTERVAL * 64)) == 0)
+    if ((num_iterations % (DECAY_INTERVAL * 4096)) == 0)
         decayCounterMoveHeuristics();
 
-    BoardState current_state = state_history.back();
-    if (cur_depth >= depth_limit){
+    
+    if (cur_depth >= depth_limit){        
+
+        if (USE_Q_SEARCH){
+            int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+
+            if (cache_result != 0){
+                //eval_cache_hits++;
+                num_iterations++;
+                return cache_result;
+            }
+
+            int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, previousMove, num_iterations, false);
+
+            int num_plies = state_history.size();
+            int max_cache_size;
+            // Code segment to control cache size
+            if(num_plies < 30){
+                max_cache_size = 2000000;         
+            }else if(num_plies < 50){
+                max_cache_size = 4000000;
+            }else if(num_plies < 75){
+                max_cache_size = 8000000; 
+            }else{
+                max_cache_size = 16000000; 
+            }
+
+            addToQCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, result, current_state.castling_rights, current_state.ep_square);
+
+            return result;
+        }
         return get_board_evaluation(state_history, zobrist, num_iterations);
-
-        /* int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
-
-        if (cache_result != 0){
-            //eval_cache_hits++;
-            num_iterations++;
-            return cache_result;
-        }
-
-        int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, previousMove, num_iterations);
-
-        int num_plies = state_history.size();
-        int max_cache_size;
-        // Code segment to control cache size
-        if(num_plies < 30){
-            max_cache_size = 2000000;         
-        }else if(num_plies < 50){
-            max_cache_size = 4000000;
-        }else if(num_plies < 75){
-            max_cache_size = 8000000; 
-        }else{
-            max_cache_size = 16000000; 
-        }
-
-        addToQCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, result, current_state.castling_rights, current_state.ep_square);
-
-        return result; */
     }
 
     num_iterations++;
@@ -702,7 +731,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     Move best_move;
 
     bool all_moves_pruned = true;
-    int best_early_eval = 9999999;
+    int best_early_eval = 9999999 - static_cast<int>(state_history.size());
 
     /*
     int razor_threshold;
@@ -731,7 +760,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
         for (size_t i = 0; i < second_level_moves_list.size(); ++i) {
             Move& move = second_level_moves_list[i];
-
+            /* if (depth_limit >= 24) {
+                std::cout << "FF: " << std::endl;
+            } */
             /*
             // Razoring
             if (i < second_level_preliminary_scores.size()) {
@@ -768,7 +799,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 std::cout << current_state.occupied << " | " << current_state.turn << " | " << en_passant_move << " | " << current_state.pawns << std::endl;  */
 
             bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-            make_move(state_history, position_count, move, zobrist);        
+            make_move(state_history, position_count, move, zobrist, capture_move);        
 
             BoardState updated_state = state_history.back();
 
@@ -776,10 +807,11 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 std::cout << updated_state.occupied << " | " << updated_state.turn << " | " << en_passant_move << " | " << updated_state.pawns << std::endl; */
 
             bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 && depth_limit >= 6);
+            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
 
             if (do_lmr){
-                int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+                int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+                //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
                 score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
 
                 if (score < beta)
@@ -892,16 +924,18 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             );
 
             bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-            make_move(state_history, position_count, move, zobrist);        
+            
+            
+            make_move(state_history, position_count, move, zobrist, capture_move);        
 
             BoardState updated_state = state_history.back();
 
             bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 && depth_limit >= 6);
+            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 );
 
             if (do_lmr){
 
-                if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1){
+                if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5){
                     int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
 
                     if (early_score - FUTILITY_MARGINS[depth_limit - cur_depth - 1] > beta){
@@ -912,7 +946,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     }
                 }
                 all_moves_pruned = false;
-                int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+                int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+                //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
                 score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
 
                 if (score < beta)
@@ -939,6 +974,11 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             
             //lowest_score = std::min(score,lowest_score);
             if (score < lowest_score){
+
+                
+
+                
+                
                 lowest_score = score;
                 best_move = move;
 
@@ -965,13 +1005,13 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             }
         }
 
-        if (all_moves_pruned){
-            return best_early_eval;
-        }
+        
 
         // Check if no moves are available, inidicating a game ending move was made previously
         if(lowest_score == 9999999 - static_cast<int>(state_history.size())){            
-            
+            /* if (current_state.occupied == 197633){
+                    std::cout << "MINIMIZER FROM: " << " SCORE: " << score << " LOWEST SCORE: " << lowest_score << std::endl; 
+                } */
             if (is_checkmate(current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
                              current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
             {
@@ -981,7 +1021,12 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                              current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
             {
                 return 0;
+            }else if (all_moves_pruned){
+                return best_early_eval;
             }
+            /* if (current_state.occupied == 197633){
+                    std::cout << "MINIMIZER FROM: " << " SCORE: " << score << " LOWEST SCORE: " << lowest_score << std::endl; 
+                } */
         }
 
     }
@@ -997,7 +1042,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture){
     
-    if(is_repetition(position_count, zobrist, 3)){
+    BoardState current_state = state_history.back();
+    if(is_repetition(position_count, zobrist, 3) || current_state.halfmove_clock >= 100){
         return 0;
     }
 
@@ -1009,50 +1055,52 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         }
     }
 
-    BoardState current_state = state_history.back();
-
     if (num_iterations % DECAY_INTERVAL == 0)
         decayHistoryHeuristics();
 
-    if ((num_iterations % (DECAY_INTERVAL * 64)) == 0)
+    if ((num_iterations % (DECAY_INTERVAL * 4096)) == 0)
         decayCounterMoveHeuristics();
 
     if (cur_depth >= depth_limit){
+
+        if (USE_Q_SEARCH){
+            int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+
+            if (cache_result != 0){
+                //eval_cache_hits++;
+                num_iterations++;
+                return cache_result;
+            }
+
+            int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, previousMove, num_iterations, true);
+
+            int num_plies = state_history.size();
+            int max_cache_size;
+            // Code segment to control cache size
+            if(num_plies < 30){
+                max_cache_size = 2000000;         
+            }else if(num_plies < 50){
+                max_cache_size = 4000000;
+            }else if(num_plies < 75){
+                max_cache_size = 8000000; 
+            }else{
+                max_cache_size = 16000000; 
+            }
+
+            addToQCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, result, current_state.castling_rights, current_state.ep_square);
+
+            return result;
+        }
+
         return get_board_evaluation(state_history, zobrist, num_iterations);
-
-        /* int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
-
-        if (cache_result != 0){
-            //eval_cache_hits++;
-            num_iterations++;
-            return cache_result;
-        }
-
-        int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, previousMove, num_iterations);
-
-        int num_plies = state_history.size();
-        int max_cache_size;
-        // Code segment to control cache size
-        if(num_plies < 30){
-            max_cache_size = 2000000;         
-        }else if(num_plies < 50){
-            max_cache_size = 4000000;
-        }else if(num_plies < 75){
-            max_cache_size = 8000000; 
-        }else{
-            max_cache_size = 16000000; 
-        }
-
-        addToQCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, result, current_state.castling_rights, current_state.ep_square);
-
-        return result; */
+        
     }
 
     num_iterations++;
 
     uint64_t cur_hash = zobrist;    
     
-    int highest_score = -9999999;
+    int highest_score = -9999999 + static_cast<int>(state_history.size());
     int score;  
 
     Move best_move;
@@ -1062,7 +1110,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     SearchData dummy_data;
 
     bool all_moves_pruned = true;
-    int best_early_eval = -9999999;
+    int best_early_eval = -9999999 + static_cast<int>(state_history.size());;
 
     // Null Move Pruning
     if (cur_depth >= 4 && depth_limit >= 6 && !last_move_was_capture && !isUnsafeForNullMovePruning(current_state)){
@@ -1116,16 +1164,16 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         );
 
         bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-        make_move(state_history, position_count, move, zobrist);   
+        make_move(state_history, position_count, move, zobrist, capture_move);   
         
         BoardState updated_state = state_history.back();
 
         bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-        bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 && depth_limit >= 6);
+        bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
 
         if (do_lmr){
 
-            if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1){
+            if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5){
                 int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
 
                 if (early_score + FUTILITY_MARGINS[depth_limit - cur_depth - 1] < alpha){
@@ -1137,16 +1185,34 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             }
 
             all_moves_pruned = false;
-            int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+            int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+            //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
             score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
 
             if (score > alpha)
                 score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+
+            /* int move_score = historyHeuristics[current_state.turn][move.from_square][move.to_square] + killerBonus(cur_depth, move);
+
+            if(move_score < 45000){
+                int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+                //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+                score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+
+                if (score > alpha)
+                    score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+            }else{
+                score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+            } */
             
         } else{
             all_moves_pruned = false;
             score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
-        }        
+        }    
+        
+        /* if (current_state.occupied == 16909313 && move.from_square == 24 && move.to_square == 16){
+            std::cout << "MAXIMIZER FROM: " << updated_state.occupied << std::endl; 
+        } */
                 
         unmake_move(state_history, position_count, zobrist);
 
@@ -1157,6 +1223,10 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         //highest_score = std::max(score,highest_score);
 
         if(score > highest_score){
+
+            /* if (current_state.occupied == 16909313){
+                std::cout << "MAXIMIZER FROM: " << (int)move.from_square << " TO: " << (int)move.to_square << std::endl; 
+            } */
             highest_score = score;
             best_move = move;
 
@@ -1195,7 +1265,15 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                             current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
         {
             return -100000000;
+        }else if(is_stalemate(current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
+                             current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
+        {
+            return 0;
+        }else if (all_moves_pruned){
+            return best_early_eval;
         }
+
+
     }
 
     bool en_passant_move = is_en_passant(best_move.from_square, best_move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
@@ -1254,7 +1332,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
         moves_list[0].promotion
     );
 
-    make_move(state_history, position_count, moves_list[0], zobrist);
+    make_move(state_history, position_count, moves_list[0], zobrist, capture_move);
 
     std::vector<int> preliminary_scores;
     std::vector<Move> preliminary_moves;
@@ -1305,7 +1383,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
         );
         //std::cout <<"BBB4-2" << std::endl;
 
-        make_move(state_history, position_count, move, zobrist);
+        make_move(state_history, position_count, move, zobrist, capture_move);
         //std::cout <<"BBB4-3" << std::endl;
         std::vector<int> preliminary_scores;
         std::vector<Move> preliminary_moves;
@@ -1353,8 +1431,8 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
     for (int i = 0; i < pv_length[0]; i++) {
         
         Move move = pv_table[0][i];
-        //int bonus = (depth * depth ) * (pv_length[0] - i) * (pv_length[0] - i);
-        //moveFrequency[side][move.from_square][move.to_square] += 100;
+        int bonus = (depth * depth ) * (pv_length[0] - i) * (pv_length[0] - i);
+        moveFrequency[side][move.from_square][move.to_square] += bonus;
         side = !side;
     }
     //std::cout <<"BBB5" << std::endl;
@@ -1378,46 +1456,50 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
     
     BoardState current_state = state_history.back();
 
-    if(is_repetition(position_count, zobrist, 3)){
+    if(is_repetition(position_count, zobrist, 3) || current_state.halfmove_clock >= 100){
+        if (cur_depth == 1)
+            is_draw = true;
         return 0;
     }
 
     if (num_iterations % DECAY_INTERVAL == 0)
         decayHistoryHeuristics();
 
-    if ((num_iterations % (DECAY_INTERVAL * 64)) == 0)
+    if ((num_iterations % (DECAY_INTERVAL * 4096)) == 0)
         decayCounterMoveHeuristics();
 
-    if (cur_depth >= depth_limit){
+    if (cur_depth >= depth_limit){        
+
+        if (USE_Q_SEARCH){
+            int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+
+            if (cache_result != 0){
+                //eval_cache_hits++;
+
+                num_iterations++;
+                return cache_result;
+            }
+
+            int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, prevMove, num_iterations, false);
+
+            int num_plies = state_history.size();
+            int max_cache_size;
+            // Code segment to control cache size
+            if(num_plies < 30){
+                max_cache_size = 2000000;         
+            }else if(num_plies < 50){
+                max_cache_size = 4000000;
+            }else if(num_plies < 75){
+                max_cache_size = 8000000; 
+            }else{
+                max_cache_size = 16000000; 
+            }
+
+            addToQCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, result, current_state.castling_rights, current_state.ep_square);
+
+            return result;
+        }
         return get_board_evaluation(state_history, zobrist, num_iterations);
-
-        /* int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
-
-        if (cache_result != 0){
-            //eval_cache_hits++;
-
-            num_iterations++;
-            return cache_result;
-        }
-
-        int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, prevMove, num_iterations);
-
-        int num_plies = state_history.size();
-        int max_cache_size;
-        // Code segment to control cache size
-        if(num_plies < 30){
-            max_cache_size = 2000000;         
-        }else if(num_plies < 50){
-            max_cache_size = 4000000;
-        }else if(num_plies < 75){
-            max_cache_size = 8000000; 
-        }else{
-            max_cache_size = 16000000; 
-        }
-
-        addToQCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, result, current_state.castling_rights, current_state.ep_square);
-
-        return result; */
     }
         
     num_iterations++;
@@ -1468,15 +1550,16 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
         );
 
         bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-        make_move(state_history, position_count, move, zobrist); 
+        make_move(state_history, position_count, move, zobrist, capture_move); 
         
         BoardState updated_state = state_history.back();
 
         bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-        bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 && depth_limit >= 6);
+        bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
 
         if (do_lmr){
-            int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+            int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+            //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
             score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
 
             if (score < beta)
@@ -1543,7 +1626,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 }
 
 
-int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations){
+int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing){
     qsearchVisits++;
     if(is_repetition(position_count, zobrist, 3)){
         return 0;
@@ -1555,16 +1638,17 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardSta
     num_iterations++;
 
     BoardState current_state = state_history.back();
+    int moveNum = static_cast<int>(state_history.size());
     uint64_t cur_hash = zobrist;  
 
     bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
     
     if (currently_in_check){
         std::vector<Move>moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth + qDepth, prevMove);
-
+        
         if (moves_list.empty()){
             int eval = 0;
-            int moveNum = static_cast<int>(state_history.size());
+            
 
             if(is_stalemate(current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
                             current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
@@ -1581,9 +1665,8 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardSta
                 eval = -eval;
 
             return eval;        
-        }
-
-        int best = -9999999;
+        }        
+        int best = is_maximizing ? -9999999 + moveNum : 9999999 - moveNum;
 
         for (size_t i = 0; i < moves_list.size(); ++i) {
             Move& move = moves_list[i];
@@ -1611,34 +1694,46 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardSta
             );
 
             //bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-            make_move(state_history, position_count, move, zobrist);   
-            int score = -qSearch(-beta, -alpha, cur_depth, qDepth + 1, state_history, position_count, zobrist, move, num_iterations);
+            make_move(state_history, position_count, move, zobrist, capture_move);   
+            int score = qSearch(alpha, beta, cur_depth, qDepth + 1, state_history, position_count, zobrist, move, num_iterations, !is_maximizing);
             unmake_move(state_history, position_count, zobrist);
             
             zobrist = cur_hash;
             
-            if(score >= beta)
-                return score;
+            if (is_maximizing) {
+                if (score > best) best = score;
+                if (best > alpha) alpha = best;
+                if (best >= beta) return best; // beta cutoff
+            } else {
+                if (score < best) best = score;
+                if (best < beta) beta = best;
+                if (best <= alpha) return best; // alpha cutoff
+            }
 
-            if(score > best)
-                best = score;               
-            
-            if (score > alpha)
-                alpha = score;
+
         }
         return best;
     }
 
     int static_eval = get_board_evaluation(state_history, zobrist, num_iterations);
+    if (is_maximizing) {
+        if (static_eval >= beta)
+            return static_eval; // Fail-hard beta cutoff
+        if (static_eval > alpha)
+            alpha = static_eval;
+        if (static_eval < alpha - DELTA_MARGIN)
+            return static_eval; // Optional delta pruning
+    } else {
+        if (static_eval <= alpha)
+            return static_eval; // Fail-hard alpha cutoff
+        if (static_eval < beta)
+            beta = static_eval;
+        if (static_eval > beta + DELTA_MARGIN)
+            return static_eval; // Optional delta pruning
+    }
 
-    if(static_eval >= beta)
-        return static_eval;
-    if(static_eval > alpha)
-        alpha = static_eval;
-    if (static_eval < alpha - DELTA_MARGIN)
-        return static_eval;
 
-    int best = static_eval;
+    int best = is_maximizing ? -9999999 + moveNum : 9999999 - moveNum;
 
     std::vector<Move> moves_list = buildNoisyMoveList(state_history, cur_depth + qDepth, prevMove);
 
@@ -1666,26 +1761,34 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardSta
             current_state.occupied_colour[false],
             move.promotion
         );
-
+        //std::cout << (int)move.from_square << " | " << (int)move.to_square << std::endl;
         //bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-        make_move(state_history, position_count, move, zobrist);   
-        int score = -qSearch(-beta, -alpha, cur_depth, qDepth + 1, state_history, position_count, zobrist, move, num_iterations);
+        make_move(state_history, position_count, move, zobrist, capture_move);
+        //int test_score = get_board_evaluation(state_history, zobrist, num_iterations);   
+        int score = qSearch(alpha, beta, cur_depth, qDepth + 1, state_history, position_count, zobrist, move, num_iterations, !is_maximizing);
         unmake_move(state_history, position_count, zobrist);
 
-        
+        /* if(score < 0){
+            std::cout << test_score << " | " << score << " | " << create_fen(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
+                                current_state.queens, current_state.kings, current_state.occupied, current_state.occupied_colour[true],
+                                current_state.occupied_colour[false], current_state.promoted, current_state.castling_rights,
+                                current_state.ep_square, current_state.turn) << std::endl;
+        } 
+        std::cout << std::endl;*/
         zobrist = cur_hash;
         
-        if(score >= beta)
-            return score;
+        if (is_maximizing) {
+            if (score > best) best = score;
+            if (best > alpha) alpha = best;
+            if (best >= beta) return best; // beta cutoff
+        } else {
+            if (score < best) best = score;
+            if (best < beta) beta = best;
+            if (best <= alpha) return best; // alpha cutoff
+        }
 
-        if(score > best)
-            best = score;               
-        
-        if (score > alpha)
-            alpha = score;
     }
     return best;
-
 }
 
 inline void sortSearchDataByScore(SearchData& data) {
@@ -1740,7 +1843,13 @@ inline void descending_sort_wrapper(const SearchData& preSearchData, SearchData&
     //std::cout <<"BBB8" << std::endl;
     // Determine count of valid entries in mainSearchData.top_level_preliminary_scores
     // Since no NULL, use size directly
-    size_t count = mainSearchData.top_level_preliminary_scores.size();
+    size_t count = std::min({
+        mainSearchData.top_level_preliminary_scores.size(),
+        preSearchData.top_level_preliminary_scores.size(),
+        preSearchData.second_level_preliminary_scores.size(),
+        preSearchData.second_level_moves_list.size()
+    });
+
 
     // Prepare sublists excluding first element
     std::vector<int> top_level_preliminary_scores_sub(mainSearchData.top_level_preliminary_scores.begin() + 1, mainSearchData.top_level_preliminary_scores.end());
@@ -1802,6 +1911,85 @@ inline void ascending_sort(std::vector<int>& values, std::vector<Move>& moves) {
     std::move(sorted_moves.begin(), sorted_moves.end(), moves.begin());
 
     // values is unchanged in size and content, so no need to touch it
+}
+
+
+inline bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count) {
+    auto it = position_count.find(zobrist_key);
+    return it != position_count.end() && it->second >= repetition_count;
+}
+
+inline bool isUnsafeForNullMovePruning(BoardState current_state) {
+    
+    // 1. In check? Disable null move pruning    
+    if (is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
+        return true;
+
+    // 2. Low material check — define material weight function
+    /* int material = 0;
+
+    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.pawns) * values[PAWN];
+    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.knights) * values[KNIGHT];
+    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.bishops) * values[BISHOP];
+    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.rooks) * values[ROOK];
+    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.queens) * values[QUEEN];
+    
+
+    if (material < MIN_MATERIAL_FOR_NULL_MOVE) {
+        // Very low material — risky for null move pruning
+        return true;
+    } */
+
+
+    // 3. Additional zugzwang heuristics (optional)
+
+    // Acquire the number of pieces on the board not including the kings
+	int pieceNum = __builtin_popcountll(current_state.occupied_colour[current_state.turn]) - 1;
+			
+	if ((current_state.occupied_colour[current_state.turn] & current_state.queens) == 0){
+		if(pieceNum < 7)
+            return true;
+	}else{
+        if(pieceNum < 4)
+            return true;
+    }
+
+    // 4. (Optional) Check for fortress / locked structure heuristics
+
+    // Passed all checks — safe to null prune
+    return false;
+}
+
+inline int reduced_search_depth(int depth_limit, int move_number, BoardState current_state) {
+    if (depth_limit < 4)
+        return depth_limit;  // No reduction for shallow depths
+
+    // Adjust move number so 1 and 2 map to no reduction
+    int adjusted_move = std::max(move_number - 2, 1);    
+    int base = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+    
+    int phase = 0;
+	phase += 4 * __builtin_popcountll(current_state.queens);
+	phase += 2 * __builtin_popcountll(current_state.rooks);
+	phase += 1 * __builtin_popcountll(current_state.bishops | current_state.knights);
+
+	int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to 128
+
+	if (phase_score <= 96) {
+    	double scale = 2.0;
+        double move_factor = std::log2(adjusted_move);
+        int r = static_cast<int>(base - (move_factor / scale));
+        
+        return std::max(r, 1);  // Ensure at least 1 ply is searched
+	} else if (phase_score < 117) {
+		double scale = 3.0;        
+        double move_factor = std::log2(adjusted_move);
+        int r = static_cast<int>(base - (move_factor / scale));
+        
+        return std::max(r, 1);  // Ensure at least 1 ply is searched
+	} else {
+		return base;
+	}    
 }
 
 inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply, Move prevMove){
@@ -1979,7 +2167,7 @@ inline std::vector<Move> buildNoisyMoveList(std::vector<BoardState>& state_histo
                 noisy_moves.push_back(Move(startPos[i],endPos[i],promotions[i]));
             }
 
-        }/* else{
+        }else{
             uint64_t pawns = current_state.pawns;
             uint64_t knights = current_state.knights;
             uint64_t bishops = current_state.bishops;
@@ -2029,76 +2217,30 @@ inline std::vector<Move> buildNoisyMoveList(std::vector<BoardState>& state_histo
             if (move_is_check){
                 noisy_moves.push_back(Move(startPos[i],endPos[i],promotions[i]));
             }
-        }  */ 
+        }
     }
     noisy_moves.shrink_to_fit();
     return noisy_moves;
 }
-
-
-
-inline bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count) {
-    auto it = position_count.find(zobrist_key);
-    return it != position_count.end() && it->second >= repetition_count;
-}
-
-
-inline bool isUnsafeForNullMovePruning(BoardState current_state) {
-    
-    // 1. In check? Disable null move pruning    
-    if (is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
-        return true;
-
-    // 2. Low material check — define material weight function
-    /* int material = 0;
-
-    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.pawns) * values[PAWN];
-    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.knights) * values[KNIGHT];
-    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.bishops) * values[BISHOP];
-    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.rooks) * values[ROOK];
-    material += __builtin_popcountll(current_state.occupied_colour[current_state.turn] & current_state.queens) * values[QUEEN];
-    
-
-    if (material < MIN_MATERIAL_FOR_NULL_MOVE) {
-        // Very low material — risky for null move pruning
-        return true;
-    } */
-
-
-    // 3. Additional zugzwang heuristics (optional)
-
-    // Acquire the number of pieces on the board not including the kings
-	int pieceNum = __builtin_popcountll(current_state.occupied_colour[current_state.turn]) - 1;
-			
-	if ((current_state.occupied_colour[current_state.turn] & current_state.queens) == 0){
-		if(pieceNum < 7)
-            return true;
-	}else{
-        if(pieceNum < 4)
-            return true;
-    }
-
-    // 4. (Optional) Check for fortress / locked structure heuristics
-
-    // Passed all checks — safe to null prune
-    return false;
-}
-
 
 inline int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations){    
 
     num_iterations++;
     BoardState current_state = state_history.back();
 
-    /* int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+    int cache_result = 0;
+    
+    if (USE_Q_SEARCH){
+        cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
 
-    if (cache_result != 0){
-        //eval_cache_hits++;
-        return cache_result;
-    } */
-
+        if (cache_result != 0){
+            //eval_cache_hits++;
+            return cache_result;
+        }
+    }
+    
     eval_visits++;
-    int cache_result = accessCache(zobrist);
+    cache_result = accessCache(zobrist);
 
     if (cache_result != 0){
         eval_cache_hits++;
@@ -2116,6 +2258,10 @@ inline int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t
         } else{
             total = -9999999 + moveNum;
         }
+    }else if(is_stalemate(current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
+                            current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
+    {
+        return 0;
     }else{
         total = placement_and_piece_eval(moveNum, current_state.turn, current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
                                           current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.occupied); 

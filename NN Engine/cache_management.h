@@ -544,7 +544,7 @@ inline void decayMoveFrequency() {
     for (int side = 0; side < 2; ++side) {
         for (int from = 0; from < 64; ++from) {
             for (int to = 0; to < 64; ++to) {
-                moveFrequency[side][from][to] >>= 2;
+                moveFrequency[side][from][to] >>= 1;
             }
         }
     }

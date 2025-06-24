@@ -579,11 +579,11 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 			//return 15000 + value_captured - value_attacker + promo_bonus;
 			if (value_captured >= value_attacker) {
 				// Clearly good capture, skip SEE
-				return 30000 + value_captured - value_attacker + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]];
+				return 20000 + value_captured - value_attacker + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]];
 			} else {
 				// Unclear or losing capture, run SEE
-				int see_score = get_see_score(to, turn, state);
-				return see_score < 0 ? see_score + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]] : 30000 + see_score + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]];
+				int see_score = see(to, turn, state);
+				return see_score < 0 ? see_score + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]] : 20000 + see_score + promo_bonus + moveFrequency[turn][preliminaryStartPos[i]][preliminaryEndPos[i]];
 			}
 
 		}

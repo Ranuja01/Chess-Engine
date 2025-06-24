@@ -40,6 +40,28 @@ extern std::deque<uint64_t> quiesceinsertionOrder;
 extern std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
 extern std::deque<uint64_t> moveGenInsertionOrder;
 
+enum class TTFlag : uint8_t {
+    EXACT,        // Score is exact
+    LOWERBOUND,   // Score is a lower bound (fail-high)
+    UPPERBOUND    // Score is an upper bound (fail-low)
+};
+
+struct TTEntry {
+    int score;             // Evaluated score
+    int depth;             // Depth at which this score was obtained
+    TTFlag flag;           // Type of score
+    int alpha; // NEW
+    int beta;  // NEW
+
+	TTEntry() : score(0), depth(0), flag(TTFlag::EXACT) {}
+
+    TTEntry(int s, int d, TTFlag f, int a = -9999999, int b = 9999999)
+        : score(s), depth(d), flag(f), alpha(a), beta(b) {}
+};
+
+extern std::unordered_map<uint64_t, TTEntry> searchEvalCache;
+extern std::deque<uint64_t> searchInsertionOrder;
+
 extern uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 
 extern Move killerMoves[MAX_PLY][2];
@@ -225,6 +247,7 @@ inline void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t
 			
 			// Handle removing the pawn captured through en passent
 			if (fromSquareColour){
+
 				hash ^= zobristTable[6][toSquare - 8];
 			} else{
 				hash ^= zobristTable[0][toSquare + 8];
@@ -411,6 +434,12 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 	return dummy;   
 }
 
+inline std::vector<Move>* accessMoveGenCache1(uint64_t key, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    auto it = moveGenCache.find(updatedKey);
+    return (it != moveGenCache.end()) ? &it->second : nullptr;
+}
+
 inline std::vector<Move>& accessMutableMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     return moveGenCache[updatedKey];  // If not present, creates empty vector by default
@@ -472,6 +501,84 @@ inline void addToQCache(uint64_t key,int max_size, int value, uint64_t castling_
         quiesceEvalCache.erase(oldestKey);
     }
 }
+
+
+inline std::optional<TTEntry> accessSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    auto it = searchEvalCache.find(updatedKey);
+    if (it != searchEvalCache.end()) {
+        // Return a copy of the stored TTEntry wrapped in std::optional
+        return it->second;
+    }
+    // Return an empty optional if not found
+    return std::nullopt;
+}
+
+
+inline void addToSearchEvalCache(uint64_t key, int num_plies, TTEntry entry, uint64_t castling_rights, int ep_square) {
+    
+	int val = entry.score;
+
+	if (val >= 9000000 || val <= -9000000)
+		return;
+	int max_size;
+    if (num_plies < 30) {
+        max_size = 8000000;
+    } else if (num_plies < 50) {
+        max_size = 16000000;
+    } else if (num_plies < 75) {
+        max_size = 32000000;
+    } else {
+        max_size = 64000000;
+    }
+
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+
+    /* auto it = searchEvalCache.find(updatedKey);
+    if (it != searchEvalCache.end()) {
+        // Entry exists, compare depths
+        if (entry.depth < it->second.depth) {
+            // Existing entry is deeper, don't replace
+            return;
+        }
+    } */
+
+    // Store or replace
+    searchEvalCache[updatedKey] = entry;
+    searchInsertionOrder.push_back(updatedKey);
+
+    // Manage size
+    if (static_cast<int>(searchEvalCache.size()) > max_size && !searchInsertionOrder.empty()) {
+        uint64_t oldestKey = searchInsertionOrder.front();
+        searchInsertionOrder.pop_front();
+        searchEvalCache.erase(oldestKey);
+    }
+}
+
+
+inline int printSearchEvalCacheStats() {
+	
+	/*
+		Function to print the position cache size as well as return it
+		
+		Returns:
+		The number of entries in the cache
+	*/
+	
+    // Get the number of entries in the map
+    int num_entries = searchEvalCache.size();
+
+    // Estimate the memory usage in bytes: each entry is a pair of (key, value)
+    int size_in_bytes = num_entries * (sizeof(int64_t) +  2 * sizeof(int) + sizeof(uint8_t));
+
+    // Print the results
+    std::cout << "Number of entries: " << num_entries << std::endl;
+    std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
+	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
+	
+	return num_entries;
+}
+
 
 inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, uint64_t ep_square, Move move, std::vector<Move> moves, std::vector<BoardState>& state_history){
     std::vector<Move>& moveList = accessMutableMoveGenCache(zobrist, castling, ep_square);
@@ -544,7 +651,7 @@ inline void decayMoveFrequency() {
     for (int side = 0; side < 2; ++side) {
         for (int from = 0; from < 64; ++from) {
             for (int to = 0; to < 64; ++to) {
-                moveFrequency[side][from][to] >>= 1;
+                moveFrequency[side][from][to] >>= 2;
             }
         }
     }

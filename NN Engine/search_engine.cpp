@@ -15,6 +15,8 @@
 std::atomic<bool> time_up;
 std::atomic<bool> is_draw;
 
+std::atomic<int> nodes_since_time_check;
+
 std::atomic<int> eval_visits;
 std::atomic<int> eval_cache_hits;
 
@@ -104,7 +106,8 @@ inline void make_move(std::vector<BoardState>& state_history, std::unordered_map
     int ep_square = current.ep_square;
     int halfmove_clock = current.halfmove_clock;
     int fullmove_number = current.fullmove_number;
-
+    /* std::cout << "BEFORE: "<< std::endl;
+    std::cout << occupied << " | " << occupied_white<< " | " << occupied_black << std::endl; */
     update_state(
         move.to_square, 
         move.from_square,
@@ -123,7 +126,9 @@ inline void make_move(std::vector<BoardState>& state_history, std::unordered_map
         move.promotion,
         turn
     );
-
+    
+    /* std::cout << occupied << " | " << occupied_white<< " | " << occupied_black << std::endl;
+    std::cout << "AFTER: "<< std::endl; */
     //halfmove_clock += 1
     // Reset the halfmove clock if the move is a pawn move or capture
     if (capture_move || (BB_SQUARES[move.from_square] & pawns)) {
@@ -169,7 +174,7 @@ inline void unmake_move(std::vector<BoardState>& state_history, std::unordered_m
 
 }
 
-void update_cache(int num_plies){
+inline void update_cache(int num_plies){
     
     printCacheStats();
     
@@ -189,7 +194,9 @@ void update_cache(int num_plies){
             evictOldEntries(cacheSize - 64000000); 
     }
     */
+    std::cout << std::endl;
     
+    printSearchEvalCacheStats();
     
     std::cout << std::endl;
 
@@ -222,12 +229,14 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
     update_cache(static_cast<int>(state_history.size()));
     std::fill(&killerMoves[0][0], &killerMoves[0][0] + 64 * 2, Move{});
     std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
-    std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
-    std::fill(pv_length, pv_length + MAX_PLY, 0);
+    /* std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
+    std::fill(pv_length, pv_length + MAX_PLY, 0); */
 
 
     time_up = false;
     is_draw = false;
+
+    nodes_since_time_check = 0;
 
     eval_visits = 0;
     eval_cache_hits = 0;
@@ -249,11 +258,11 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
     int beta = 9999999;
 
     SearchData preliminary_search_data;
-
+    TimePoint search_start_time = Clock::now();
     TimePoint t0 = Clock::now();
 
     decayMoveFrequency();
-    int score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, t0, preliminary_search_data, move, num_iterations);
+    int score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
     double elapsed = std::chrono::duration<double>(Clock::now() - t0).count();
 
     while (elapsed <= Config::ACTIVE->MOVE_TIMES[depth_limit] && depth_limit + 1 < 64 && score < 9000000){
@@ -300,14 +309,14 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
         
         if (depth_limit >= 13 && (depth_limit - 3) % 5 == 0)
             decayMoveFrequency();
-        score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, t0, preliminary_search_data, move, num_iterations);
+        score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
 
         bool side = current.turn;
         for (int i = 0; i < pv_length[0]; i++) {
             
             Move move = pv_table[0][i];
 
-            int bonus = (depth_limit * depth_limit) * (pv_length[0] - i) * (pv_length[0] - i);
+            int bonus = ((depth_limit - 1) * (depth_limit - 1)) * (pv_length[0] - i) * (pv_length[0] - i);
             moveFrequency[side][move.from_square][move.to_square] += bonus;
 
             if(depth_limit >= 9){
@@ -325,6 +334,7 @@ MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_
         }    
 
         elapsed = std::chrono::duration<double>(Clock::now() - t0).count();
+        std::cout << "ELAPSED: " << elapsed << std::endl;
     }
          
     int x1 = (move.from_square & 7) + 1;
@@ -385,12 +395,15 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
     uint64_t cur_hash = zobrist;
     //std::cout << "AAA" << std::endl;
+    std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
+    std::fill(pv_length, pv_length + MAX_PLY, 0);
+
     SearchData current_search_data = reorder_legal_moves(alpha,beta, depth_limit, t0, zobrist, previous_search_data, state_history, position_count, num_iterations);
     
     std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0);
 
-    if (time_up){
+    if (time_up.load(std::memory_order_relaxed)){
         std::cout << "TIME LIMIT EXCEEDED" << std::endl;
         best_move = current_search_data.moves_list[0];
         best_score = current_search_data.top_level_preliminary_scores[0];
@@ -422,7 +435,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     int repetition_score = 0;
     int repetition_index = 0;
 
-    if (depth_limit >= 9) {
+    if (depth_limit >= 8) {
         std::cout << "Num Moves: " << num_legal_moves << std::endl;
     }
 
@@ -471,7 +484,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     /* if (depth_limit >= 24) {
         std::cout << "CCCC: " << num_legal_moves << std::endl;
     } */
-
+    BoardState updated_state = state_history.back();
+    addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit, TTFlag::EXACT, alpha, beta), updated_state.castling_rights, updated_state.ep_square);
     unmake_move(state_history, position_count, zobrist);
     //std::cout <<"CC" << std::endl;
     /* if (depth_limit >= 24) {
@@ -479,7 +493,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     } */
     zobrist = cur_hash;
 
-    if (depth_limit >= 9){
+    if (depth_limit >= 8){
         std::cout << 0 << " "
           << score << " "
           << current_search_data.top_level_preliminary_scores[0] << " "
@@ -496,12 +510,12 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
     pv_table[0][0] = current_search_data.moves_list[0];
     for (int j = 0; j < pv_length[1]; ++j)
-        pv_table[0][1 + j] = pv_table[1][1 + j];
-    pv_length[0] = 1 + pv_length[1];
+        pv_table[0][j + 1] = pv_table[1][j];
+    pv_length[0] = pv_length[1] + 1;
 
     alpha = std::max(alpha, best_score);
 
-    if (time_up){
+    if (time_up.load(std::memory_order_relaxed)){
         std::cout << "TIME LIMIT EXCEEDED" << std::endl;
         best_move = current_search_data.moves_list[0];
         best_score = current_search_data.top_level_preliminary_scores[0];
@@ -572,23 +586,24 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             repetition_index = i;
             score = -100000001;
         } */
-
+        updated_state = state_history.back();
+        addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit, TTFlag::EXACT, alpha, beta), updated_state.castling_rights, updated_state.ep_square);
         unmake_move(state_history, position_count, zobrist);
 
-        if (time_up){
+        if (time_up.load(std::memory_order_relaxed)){
             std::cout << "TIME LIMIT EXCEEDED" << std::endl;
 
-            if (alpha < current_search_data.top_level_preliminary_scores[0]){
+            /* if (alpha < current_search_data.top_level_preliminary_scores[0]){
                 best_move = current_search_data.moves_list[0];
                 best_score = current_search_data.top_level_preliminary_scores[0];                
-            }
+            } */
             return best_score;            
         }
 
         zobrist = cur_hash;
         previous_search_data.top_level_preliminary_scores.push_back(score);
         
-        if (depth_limit >= 9){
+        if (depth_limit >= 8){
             std::cout << i << " "
             << score << " "
             << current_search_data.top_level_preliminary_scores[i] << " "
@@ -607,15 +622,16 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
             pv_table[0][0] = move;
             for (int j = 0; j < pv_length[1]; ++j)
-                pv_table[0][1 + j] = pv_table[1][1 + j];
-            pv_length[0] = 1 + pv_length[1];
+                pv_table[0][j + 1] = pv_table[1][j];
+            pv_length[0] = pv_length[1] + 1;  
+
         }
             
         alpha = std::max(alpha, best_score);
 
         // Check for a beta cutoff 
         if (beta <= alpha){
-            if (depth_limit >= 9) {
+            if (depth_limit >= 8) {
                 std::cout << std::endl;
                 std::cout << "Best: " << best_move_index << std::endl;
             }
@@ -630,7 +646,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         }
         
         if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT){
-            if (depth_limit >= 9) {
+            if (depth_limit >= 8) {
                 std::cout << std::endl;
                 std::cout << "TIME LIMIT EXCEEDED" << std::endl;
                 std::cout << "Best: " << best_move_index << std::endl;
@@ -650,7 +666,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             }
         } */
 
-        if (depth_limit >= 9) {
+        if (depth_limit >= 8) {
             std::cout << std::endl;
             std::cout << "Best: " << best_move_index << std::endl;
         }
@@ -662,42 +678,41 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
 int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations){    
 
-    if (time_up){
+    if (time_up.load(std::memory_order_relaxed)) {
         return 0;
-    } else if (num_iterations % TIME_CHECK_INTERVAL == 0){
-        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT){
-            time_up = true;
+    } else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL) {
+        nodes_since_time_check.store(0, std::memory_order_relaxed);
+
+        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT) {
+            time_up.store(true, std::memory_order_relaxed);
         }
     }
+
     BoardState current_state = state_history.back();
-    if(is_repetition(position_count, zobrist, 3) || current_state.halfmove_clock >= 100){
-        if (cur_depth == 1)
-            is_draw = true;
-        return 0;
-    }
+    
     /* if (depth_limit >= 24) {
         std::cout << "EE: " << std::endl;
     } */
 
-    if (num_iterations % DECAY_INTERVAL == 0)
+    /* if (num_iterations % DECAY_INTERVAL == 0)
         decayHistoryHeuristics();
 
-    if ((num_iterations % (DECAY_INTERVAL * 4096)) == 0)
-        decayCounterMoveHeuristics();
+    if ((num_iterations % (DECAY_INTERVAL * 32)) == 0)
+        decayCounterMoveHeuristics(); */
 
     
     if (cur_depth >= depth_limit){        
 
-        if (USE_Q_SEARCH){
-            int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+        if (USE_Q_SEARCH && depth_limit >= 8){
+            /* int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
 
             if (cache_result != 0){
                 //eval_cache_hits++;
                 num_iterations++;
                 return cache_result;
-            }
+            } */
 
-            int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, previousMove, num_iterations, false);
+            int result = qSearch(alpha, beta, cur_depth, 0, t0, state_history, position_count, zobrist, previousMove, num_iterations, false);
 
             int num_plies = state_history.size();
             int max_cache_size;
@@ -719,18 +734,20 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         return get_board_evaluation(state_history, zobrist, num_iterations);
     }
 
-    num_iterations++;
-
-    
+    increment_node_count_with_decay(num_iterations);
         
     uint64_t cur_hash = zobrist;
 
     int lowest_score = 9999999 - static_cast<int>(state_history.size()); 
     int score;    
+    int beta_orig = beta;
+    int alpha_orig = alpha;
 
     Move best_move;
 
     bool all_moves_pruned = true;
+    Move best_futility_move;
+    bool using_tt = false;
     int best_early_eval = 9999999 - static_cast<int>(state_history.size());
 
     /*
@@ -751,7 +768,10 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     } */
     
     if (cur_depth == 1){
-
+        if(is_repetition(position_count, zobrist, 3) || current_state.halfmove_clock >= 100){            
+            is_draw = true;
+            return 0;
+        }
         std::vector<int>cur_second_level_preliminary_scores;
         cur_second_level_preliminary_scores.reserve(64);
 
@@ -760,9 +780,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
         for (size_t i = 0; i < second_level_moves_list.size(); ++i) {
             Move& move = second_level_moves_list[i];
-            /* if (depth_limit >= 24) {
-                std::cout << "FF: " << std::endl;
-            } */
+            using_tt = false;
+            
             /*
             // Razoring
             if (i < second_level_preliminary_scores.size()) {
@@ -793,61 +812,225 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 move.promotion
             );
 
-            //std::cout << "From: " << (int)move.from_square << " To: " << (int)move.to_square << " EP: " << current_state.ep_square<< std::endl;
-
-            /* if (move.from_square == 36 && move.to_square == 45)
-                std::cout << current_state.occupied << " | " << current_state.turn << " | " << en_passant_move << " | " << current_state.pawns << std::endl;  */
-
             bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
             make_move(state_history, position_count, move, zobrist, capture_move);        
 
-            BoardState updated_state = state_history.back();
+            BoardState updated_state = state_history.back();            
+            if(is_repetition(position_count, zobrist, 3) || updated_state.halfmove_clock >= 100){
+                score = 0;
+            }else{                
+                
+                auto entry_opt = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
+                if (i == 0) {
+                    // Full window search for first move
+                    
+                    if (entry_opt.has_value()) {                
+                        TTEntry entry = entry_opt.value();                        
+                        if (entry.depth >= (depth_limit - cur_depth)) {                        
+                            if (entry.flag == TTFlag::EXACT){                                                             
+                                score = entry.score;
+                                using_tt = true;
+                                increment_node_count_with_decay(num_iterations);
+                            }
+                            
+                            /* if (entry.flag == TTFlag::LOWERBOUND) {
+                                if (entry.score >= beta && entry.beta >= beta) {
+                                    unmake_move(state_history, position_count, zobrist);
+                                    cur_second_level_preliminary_scores.push_back(entry.score);
+                                    previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);
+                                    increment_node_count_with_decay(num_iterations);
+                                    if(!capture_move){
+                                        storeKillerMove(cur_depth, move);
+                                        historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                        counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                    }
 
-            /* if (move.from_square == 36 && move.to_square == 45)
-                std::cout << updated_state.occupied << " | " << updated_state.turn << " | " << en_passant_move << " | " << updated_state.pawns << std::endl; */
+                                    // TT Cutoff — update PV
+                                    pv_table[cur_depth][0] = move;
+                                    for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                        pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                    pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                    return entry.score; // Fail-high cutoff (minimizer: position is worse than we can allow)
+                                }
+                                //beta = std::min(beta, entry.score);
+                            } */
 
-            bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
+                            if (entry.flag == TTFlag::UPPERBOUND) {
+                                if (entry.score <= alpha/*  && entry.alpha <= alpha */) {
+                                    unmake_move(state_history, position_count, zobrist);
+                                    cur_second_level_preliminary_scores.push_back(entry.score);
+                                    previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);
+                                    increment_node_count_with_decay(num_iterations);
+                                    if(!capture_move){
+                                        storeKillerMove(cur_depth, move);
+                                        historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                        counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                    }
 
-            if (do_lmr){
-                int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
-                //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
-                score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                                    // TT Cutoff — update PV
+                                    pv_table[cur_depth][0] = move;
+                                    for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                        pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                    pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                    return entry.score; // Fail-low cutoff (minimizer: safe position, already good enough)
+                                }
+                                //alpha = std::max(alpha, entry.score);
+                            }
 
-                if (score < beta)
-                    score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
-            } else{
-                score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                            /* if (beta <= alpha){
+                                unmake_move(state_history, position_count, zobrist);               
+                                if(!capture_move){
+                                    storeKillerMove(cur_depth, move);
+                                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                    counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                }      
+                                cur_second_level_preliminary_scores.push_back(entry.score);
+                                previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);                          
+                                return entry.score;
+                            } */         
+                        }                
+                    }
+                    if (!using_tt){
+                        score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                        if(cur_depth < depth_limit - 1){
+                            TTFlag flag;
+                            if (score <= alpha_orig) {
+                                flag = TTFlag::UPPERBOUND;
+                            } else if (score >= beta_orig) {
+                                flag = TTFlag::LOWERBOUND;
+                            } else {
+                                flag = TTFlag::EXACT;
+                            }
+                            
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                        }
+                    } 
+                } else {
+                    // LMR flag can still be computed here as you do
+                    bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);                
+                    bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
+                                        
+                    // Null window search with LMR applied inside
+                    if (do_lmr) {
+                        int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+                        
+                        if (entry_opt.has_value()) {                
+                            TTEntry entry = entry_opt.value();                            
+                            if (entry.depth >= (reduced_depth - cur_depth)) {                            
+                                if (entry.flag == TTFlag::EXACT){                                                             
+                                    score = entry.score;
+                                    using_tt = true;
+                                    increment_node_count_with_decay(num_iterations);
+                                }                
+                            }                
+                        }
+                        if (!using_tt){
+                            score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                            if(cur_depth < reduced_depth - 1){
+                                TTFlag flag;
+                                if (score <= alpha) {
+                                    flag = TTFlag::UPPERBOUND;
+                                    addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                                } else if (score >= alpha + 1) {
+                                    flag = TTFlag::LOWERBOUND;
+                                    addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                                }
+                            }
+                        }
+                    } else {
+
+                        if (entry_opt.has_value()) {                
+                            TTEntry entry = entry_opt.value();                            
+                            if (entry.depth >= (depth_limit - cur_depth)) {                            
+                                if (entry.flag == TTFlag::EXACT){                                                             
+                                    score = entry.score;
+                                    using_tt = true;
+                                    increment_node_count_with_decay(num_iterations);
+                                }  
+                            }                
+                        }
+                        if (!using_tt){
+                            score = maximizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                            if(cur_depth < depth_limit - 1){
+                                TTFlag flag;
+                                if (score <= alpha) {
+                                    flag = TTFlag::UPPERBOUND;
+                                    addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                                } else if (score >= alpha + 1) {
+                                    flag = TTFlag::LOWERBOUND;
+                                    addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                                }
+                            }
+                        }                        
+                    }
+
+                    // If score is promising, re-search full window without reduction
+                    if (score > alpha && score < beta) {
+                        using_tt = false;                        
+
+                        if (entry_opt.has_value()) {                
+                            TTEntry entry = entry_opt.value();
+                            if (entry.depth >= (depth_limit - cur_depth)) {                            
+                                if (entry.flag == TTFlag::EXACT){                                                             
+                                    score = entry.score;
+                                    using_tt = true;
+                                    increment_node_count_with_decay(num_iterations);
+                                }                
+                            }                
+                        }
+                        if (!using_tt){
+                            score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                            if(cur_depth < depth_limit - 1){
+                                TTFlag flag;
+                                if (score <= alpha_orig) {
+                                    flag = TTFlag::UPPERBOUND;
+                                } else if (score >= beta_orig) {
+                                    flag = TTFlag::LOWERBOUND;
+                                } else {
+                                    flag = TTFlag::EXACT;
+                                }                                
+                                addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                            }
+                        }                        
+                    }
+                }
+                
+                if (!using_tt){
+                    if(cur_depth < depth_limit - 1){
+                        TTFlag flag;
+                        if (score <= alpha_orig) {
+                            flag = TTFlag::UPPERBOUND;
+                        } else if (score >= beta_orig) {
+                            flag = TTFlag::LOWERBOUND;
+                        } else {
+                            flag = TTFlag::EXACT;
+                        }                    
+                        addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                    }
+                }  
             }
-
-            /*
-            // If the score is within the window, re-search with full window
-            if (alpha < score && score < beta){
-                previous_search_data.second_level_preliminary_scores.pop_back();
-                previous_search_data.second_level_moves_list.pop_back();
-                score = minimizer(cur_depth + 1, depth_limit, alpha, beta, current_search_data.second_level_preliminary_scores[i], current_search_data.second_level_moves_list[i], state_history, position_count, zobrist, num_iterations);
-            }
-            */
+                   
             
             unmake_move(state_history, position_count, zobrist);
 
-            if (time_up)
+            if (time_up.load(std::memory_order_relaxed))
                 return 0;
 
             zobrist = cur_hash;
             cur_second_level_preliminary_scores.push_back(score);
-            
-            //lowest_score = std::min(score,lowest_score);
-
+     
             if (score < lowest_score){
                 lowest_score = score;
                 best_move = move;
 
                 // Beta improved — update PV
-                pv_table[cur_depth][cur_depth] = move;
+                pv_table[cur_depth][0] = move;
                 for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
-                    pv_table[cur_depth][cur_depth + 1 + j] = pv_table[cur_depth + 1][cur_depth + 1 + j];
-                pv_length[cur_depth] = 1 + pv_length[cur_depth + 1];
+                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
 
             }
 
@@ -856,8 +1039,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             // Check for a beta cutoff 
             if (beta <= alpha){
                 //std::cout <<score << std::endl;
-                previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);
-                return lowest_score;
+                previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);                
 
                 if(!capture_move){
                     storeKillerMove(cur_depth, move);
@@ -865,6 +1047,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
                     counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
                 }
+                return lowest_score;
             }
         }
 
@@ -881,6 +1064,12 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                              current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
             {
                 return 0;
+            }else if (all_moves_pruned){
+                pv_table[cur_depth][0] = best_futility_move;
+                for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                return best_early_eval;
             }
         }
         previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);
@@ -891,16 +1080,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
         for (size_t i = 0; i < moves_list.size(); ++i) {
             Move& move = moves_list[i];
-
-            /*
-            // Razoring
-            if (i < second_level_preliminary_scores.size()) {
-                if ((second_level_preliminary_scores[i] - beta > razor_threshold)) {
-                    continue;
-                }
-            }
-            */
-            
+            using_tt = false;
+                        
             bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 
             // Acquire the zobrist hash for the new position if the given move was made
@@ -923,70 +1104,195 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 move.promotion
             );
 
-            bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-            
-            
+            bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);            
             make_move(state_history, position_count, move, zobrist, capture_move);        
 
             BoardState updated_state = state_history.back();
-
-            bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 );
-
-            if (do_lmr){
-
-                if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5){
-                    int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
-
-                    if (early_score - FUTILITY_MARGINS[depth_limit - cur_depth - 1] > beta){
-                        best_early_eval = std::min(best_early_eval, early_score);
-                        unmake_move(state_history, position_count, zobrist);
-                        zobrist = cur_hash;
-                        continue;
-                    }
-                }
-                all_moves_pruned = false;
-                int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
-                //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
-                score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
-
-                if (score < beta)
-                    score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+            if(is_repetition(position_count, zobrist, 3) || updated_state.halfmove_clock >= 100){
+                score = 0;
+            }else{
+                auto entry_opt = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                 
-            } else{
-                all_moves_pruned = false;
-                score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
-            }        
-            /*
-            // If the score is within the window, re-search with full window
-            if (alpha < score && score < beta){
-                previous_search_data.second_level_preliminary_scores.pop_back();
-                previous_search_data.second_level_moves_list.pop_back();
-                score = minimizer(cur_depth + 1, depth_limit, alpha, beta, current_search_data.second_level_preliminary_scores[i], current_search_data.second_level_moves_list[i], state_history, position_count, zobrist, num_iterations);
+                bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
+                bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 );
+
+                if (do_lmr){
+
+                    if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !relevant_pin_exists(state_history)){
+                        int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
+
+                        if (early_score - FUTILITY_MARGINS[depth_limit - cur_depth - 1] > beta){
+                            best_early_eval = std::min(best_early_eval, early_score);
+                            best_futility_move = move;
+                            unmake_move(state_history, position_count, zobrist);
+                            zobrist = cur_hash;
+                            continue;
+                        }
+                    }
+                    all_moves_pruned = false;
+                    int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+                    //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+                    
+                    if (entry_opt.has_value()) {                
+                        TTEntry entry = entry_opt.value();
+                        
+                        if (entry.depth >= (reduced_depth - cur_depth)) {
+                        
+                            if (entry.flag == TTFlag::EXACT){                                                             
+                                score = entry.score;
+                                using_tt = true;
+                                increment_node_count_with_decay(num_iterations);
+                            } 
+                        }                
+                    }
+                    if(!using_tt){
+                        score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                        if(cur_depth < reduced_depth - 1){
+                            TTFlag flag;
+                            if (score <= alpha) {
+                                flag = TTFlag::UPPERBOUND;
+                                addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                            } else if (score >= alpha + 1) {
+                                flag = TTFlag::LOWERBOUND;
+                                addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                            }                                           
+                        }
+                    }
+
+                    if (score < beta){
+                        using_tt = false;
+                        if (entry_opt.has_value()) {                
+                            TTEntry entry = entry_opt.value();                            
+                            if (entry.depth >= (depth_limit - cur_depth)) {                            
+                                if (entry.flag == TTFlag::EXACT){
+                                    using_tt = true;
+                                    score = entry.score;
+                                    increment_node_count_with_decay(num_iterations);
+                                }   
+                            }                
+                        }
+                        if(!using_tt){
+                            score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                            if(cur_depth < depth_limit - 1){
+                                TTFlag flag;
+                                if (score <= alpha_orig) {
+                                    flag = TTFlag::UPPERBOUND;
+                                } else if (score >= beta_orig) {
+                                    flag = TTFlag::LOWERBOUND;
+                                } else {
+                                    flag = TTFlag::EXACT;
+                                }                                
+                                addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                            }
+                        }
+                    }                                            
+                } else{
+                    all_moves_pruned = false;
+                    if (entry_opt.has_value()) {                
+                        TTEntry entry = entry_opt.value();
+                        
+                        if (entry.depth >= (depth_limit - cur_depth)) {
+                        
+                            if (entry.flag == TTFlag::EXACT){
+                                using_tt = true;
+                                score = entry.score;
+                                increment_node_count_with_decay(num_iterations);
+                            }
+                            
+                            /* if (entry.flag == TTFlag::LOWERBOUND) {
+                                if (entry.score >= beta && entry.beta >= beta) {
+                                    unmake_move(state_history, position_count, zobrist);
+                                    increment_node_count_with_decay(num_iterations);
+                                    updateMoveCacheForBetaCutoff(cur_hash, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+                
+                                    if(!capture_move){
+                                        storeKillerMove(cur_depth, move);
+                                        historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                        counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                    }
+                                    pv_table[cur_depth][0] = move;
+                                    for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                        pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                    pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                    return entry.score; // Fail-high cutoff (minimizer: position is worse than we can allow)
+                                }
+                                //beta = std::min(beta, entry.score);
+                            } */
+
+                            if (entry.flag == TTFlag::UPPERBOUND) {
+                                if (entry.score <= alpha/*  && entry.alpha <= alpha */) {
+                                    unmake_move(state_history, position_count, zobrist);
+                                    increment_node_count_with_decay(num_iterations);
+                                    updateMoveCacheForBetaCutoff(cur_hash, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+                
+                                    if(!capture_move){
+                                        storeKillerMove(cur_depth, move);
+                                        historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                        counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                    }
+                                    pv_table[cur_depth][0] = move;
+                                    for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                        pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                    pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                    return entry.score; // Fail-low cutoff (minimizer: safe position, already good enough)
+                                }
+                                //alpha = std::max(alpha, entry.score);
+                            }
+                            
+                            /* if (beta <= alpha){
+                                unmake_move(state_history, position_count, zobrist);
+                                updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+                
+                                if(!capture_move){
+                                    storeKillerMove(cur_depth, move);
+                                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                    counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                }                                
+                                return entry.score;
+                            } */
+                        }                
+                    }
+                    if(!using_tt){
+                        score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                        if(cur_depth < depth_limit - 1){
+                            TTFlag flag;
+                            if (score <= alpha_orig) {
+                                flag = TTFlag::UPPERBOUND;
+                            } else if (score >= beta_orig) {
+                                flag = TTFlag::LOWERBOUND;
+                            } else {
+                                flag = TTFlag::EXACT;
+                            }
+                            
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                        }
+                    }
+                } 
+                
             }
-            */
             
+            
+                        
             unmake_move(state_history, position_count, zobrist);
 
-            if (time_up)
+            if (time_up.load(std::memory_order_relaxed))
                 return 0;
             zobrist = cur_hash;
             
             //lowest_score = std::min(score,lowest_score);
             if (score < lowest_score){
 
-                
-
-                
-                
                 lowest_score = score;
                 best_move = move;
 
                 // Beta improved — update PV
-                pv_table[cur_depth][cur_depth] = move;
+                pv_table[cur_depth][0] = move;
                 for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
-                    pv_table[cur_depth][cur_depth + 1 + j] = pv_table[cur_depth + 1][cur_depth + 1 + j];
-                pv_length[cur_depth] = 1 + pv_length[cur_depth + 1];
+                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
             }
             beta = std::min(beta,lowest_score);
 
@@ -1003,9 +1309,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
                 return lowest_score;
             }
-        }
-
-        
+        }       
 
         // Check if no moves are available, inidicating a game ending move was made previously
         if(lowest_score == 9999999 - static_cast<int>(state_history.size())){            
@@ -1021,7 +1325,11 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                              current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
             {
                 return 0;
-            }else if (all_moves_pruned){
+            }else if (all_moves_pruned){                
+                pv_table[cur_depth][0] = best_futility_move;
+                for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
                 return best_early_eval;
             }
             /* if (current_state.occupied == 197633){
@@ -1043,36 +1351,37 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture){
     
     BoardState current_state = state_history.back();
-    if(is_repetition(position_count, zobrist, 3) || current_state.halfmove_clock >= 100){
-        return 0;
-    }
+    
 
-    if (time_up){
+    if (time_up.load(std::memory_order_relaxed)) {
         return 0;
-    } else if (num_iterations % TIME_CHECK_INTERVAL == 0){
-        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT){
-            time_up = true;
+    } else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL) {
+        nodes_since_time_check.store(0, std::memory_order_relaxed);
+
+        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT) {
+            time_up.store(true, std::memory_order_relaxed);
         }
     }
 
-    if (num_iterations % DECAY_INTERVAL == 0)
+
+    /* if (num_iterations % DECAY_INTERVAL == 0)
         decayHistoryHeuristics();
 
-    if ((num_iterations % (DECAY_INTERVAL * 4096)) == 0)
-        decayCounterMoveHeuristics();
+    if ((num_iterations % (DECAY_INTERVAL * 32)) == 0)
+        decayCounterMoveHeuristics(); */
 
     if (cur_depth >= depth_limit){
 
-        if (USE_Q_SEARCH){
-            int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+        if (USE_Q_SEARCH && depth_limit >= 8){
+            /* int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
 
             if (cache_result != 0){
                 //eval_cache_hits++;
                 num_iterations++;
                 return cache_result;
-            }
+            } */
 
-            int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, previousMove, num_iterations, true);
+            int result = qSearch(alpha, beta, cur_depth, 0, t0, state_history, position_count, zobrist, previousMove, num_iterations, true);
 
             int num_plies = state_history.size();
             int max_cache_size;
@@ -1096,12 +1405,14 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         
     }
 
-    num_iterations++;
+    increment_node_count_with_decay(num_iterations);
 
     uint64_t cur_hash = zobrist;    
     
     int highest_score = -9999999 + static_cast<int>(state_history.size());
     int score;  
+    int beta_orig = beta;   
+    int alpha_orig = alpha;    
 
     Move best_move;
     
@@ -1110,18 +1421,42 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     SearchData dummy_data;
 
     bool all_moves_pruned = true;
+    Move best_futility_move;
+    bool using_tt = false;
     int best_early_eval = -9999999 + static_cast<int>(state_history.size());;
 
     // Null Move Pruning
     if (cur_depth >= 4 && depth_limit >= 6 && !last_move_was_capture && !isUnsafeForNullMovePruning(current_state)){
         state_history.back().turn = !state_history.back().turn;
+
+        int cur_ep_square = state_history.back().ep_square;
+        state_history.back().ep_square = -1;
         updateZobristHashForNullMove(zobrist);
 
         int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
 
-        Move dummyMove;
-        score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, dummyMove, num_iterations);
-        state_history.back().turn = !state_history.back().turn;        
+        if(depth_limit >= 10){
+            reduced_depth -= 1;
+        }
+                
+        auto entry_opt = accessSearchEvalCache(zobrist, state_history.back().castling_rights, state_history.back().ep_square);
+        if (entry_opt.has_value()) {                
+            TTEntry entry = entry_opt.value();
+            if (entry.depth >= (reduced_depth - cur_depth)) {
+                if (entry.flag == TTFlag::EXACT){                                                             
+                    score = entry.score;
+                    using_tt = true;
+                    increment_node_count_with_decay(num_iterations);
+                }             
+            }                
+        }
+        if (!using_tt){
+            Move dummyMove;
+            score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, dummyMove, num_iterations);
+        }
+        
+        state_history.back().turn = !state_history.back().turn;    
+        state_history.back().ep_square = cur_ep_square;    
         zobrist = cur_hash;
         
         if (score >= beta) {
@@ -1140,7 +1475,18 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     
     for (size_t i = 0; i < moves_list.size(); ++i) {
         Move& move = moves_list[i];
-                
+        using_tt = false;
+        /* if(cur_depth == 10 && current_state.occupied == 7269981482836742504 && current_state.queens == 1126449662656512){
+            if (depth_limit >= 8){
+                std::cout << "AAAA: "<< i << " "
+                << alpha << " "                
+                << "(" << ((move.from_square & 7) + 1) << ","
+                << ((move.from_square >> 3) + 1) << ") -> ("
+                << ((move.to_square & 7) + 1) << ","
+                << ((move.to_square >> 3) + 1) << ") " << current_state.occupied_colour[true] << " | " << current_state.occupied_colour[false]
+                << std::endl;
+            }
+        } */
         bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 
         // Acquire the zobrist hash for the new position if the given move was made
@@ -1167,56 +1513,195 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         make_move(state_history, position_count, move, zobrist, capture_move);   
         
         BoardState updated_state = state_history.back();
+        if(is_repetition(position_count, zobrist, 3) || updated_state.halfmove_clock >= 100){
+            score = 0;
+        }else{
+            auto entry_opt = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
+            
+            bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
+            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
 
-        bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-        bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
+            if (do_lmr){
 
-        if (do_lmr){
+                if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !relevant_pin_exists(state_history)){
+                    int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
 
-            if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5){
-                int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
-
-                if (early_score + FUTILITY_MARGINS[depth_limit - cur_depth - 1] < alpha){
-                    best_early_eval = std::max(best_early_eval, early_score);
-                    unmake_move(state_history, position_count, zobrist);
-                    zobrist = cur_hash;
-                    continue;
+                    if (early_score + FUTILITY_MARGINS[depth_limit - cur_depth - 1] < alpha){
+                        best_early_eval = std::max(best_early_eval, early_score);
+                        best_futility_move = move;
+                        unmake_move(state_history, position_count, zobrist);
+                        zobrist = cur_hash;
+                        continue;
+                    }
                 }
-            }
 
-            all_moves_pruned = false;
-            int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
-            //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
-            score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
-
-            if (score > alpha)
-                score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
-
-            /* int move_score = historyHeuristics[current_state.turn][move.from_square][move.to_square] + killerBonus(cur_depth, move);
-
-            if(move_score < 45000){
+                all_moves_pruned = false;
                 int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
                 //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
-                score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+                if (entry_opt.has_value()) {                
+                    TTEntry entry = entry_opt.value();
+                    if (entry.depth >= (reduced_depth - cur_depth)) {
+                        if (entry.flag == TTFlag::EXACT){                                                             
+                            score = entry.score;
+                            using_tt = true;
+                            increment_node_count_with_decay(num_iterations);
+                        }             
+                    }                
+                }
+                if(!using_tt){
+                    score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+                    if(cur_depth < reduced_depth - 1){
+                        TTFlag flag;
+                        if (score <= alpha) {
+                            flag = TTFlag::UPPERBOUND;
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                        } else if (score >= alpha + 1) {
+                            flag = TTFlag::LOWERBOUND;
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                        }
+                    }
+                }
+                if (score > alpha){
+                    using_tt = false;
+                    if (entry_opt.has_value()) {                
+                        TTEntry entry = entry_opt.value();                        
+                        if (entry.depth >= (depth_limit - cur_depth)) {                        
+                            if (entry.flag == TTFlag::EXACT){                                                             
+                                score = entry.score;
+                                using_tt = true;
+                                increment_node_count_with_decay(num_iterations);
+                            }      
+                        }                
+                    }
 
-                if (score > alpha)
+                    if(!using_tt){
+                        score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+                        if(cur_depth < depth_limit - 1){
+                            TTFlag flag;
+                            if (score <= alpha_orig) {
+                                flag = TTFlag::UPPERBOUND;
+                            } else if (score >= beta_orig) {
+                                flag = TTFlag::LOWERBOUND;
+                            } else {
+                                flag = TTFlag::EXACT;
+                            }                            
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                        }
+                    }
+                }                   
+
+                /* int move_score = historyHeuristics[current_state.turn][move.from_square][move.to_square] + killerBonus(cur_depth, move);
+
+                if(move_score < 45000){
+                    int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+                    //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+                    score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+
+                    if (score > alpha)
+                        score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+                }else{
                     score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
-            }else{
-                score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
-            } */
+                } */
+                
+            } else{
+                all_moves_pruned = false;
+                
+                if (entry_opt.has_value()) {                
+                    TTEntry entry = entry_opt.value();                    
+                    if (entry.depth >= (depth_limit - cur_depth)) {
+                    
+                        if (entry.flag == TTFlag::EXACT){                                                             
+                            score = entry.score;
+                            using_tt = true;
+                            increment_node_count_with_decay(num_iterations);
+                        }
+                        if (entry.flag == TTFlag::LOWERBOUND) {
+                            if (entry.score >= beta/*  && entry.beta >= beta */) {
+                                unmake_move(state_history, position_count, zobrist);
+                                updateMoveCacheForBetaCutoff(cur_hash, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
             
-        } else{
-            all_moves_pruned = false;
-            score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
-        }    
-        
-        /* if (current_state.occupied == 16909313 && move.from_square == 24 && move.to_square == 16){
-            std::cout << "MAXIMIZER FROM: " << updated_state.occupied << std::endl; 
-        } */
+                                if(!capture_move){
+                                    storeKillerMove(cur_depth, move);
+                                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                    counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                }
+                                increment_node_count_with_decay(num_iterations);
+                                pv_table[cur_depth][0] = move;
+                                for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                return entry.score; // fail-high cutoff
+                            }
+                            //alpha = std::max(alpha, entry.score);
+                        }
+
+                        /* if (entry.flag == TTFlag::UPPERBOUND) {
+                            if (entry.score <= alpha && entry.alpha <= alpha) {
+                                unmake_move(state_history, position_count, zobrist);
+                                updateMoveCacheForBetaCutoff(cur_hash, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+            
+                                if(!capture_move){
+                                    storeKillerMove(cur_depth, move);
+                                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                    counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                                }
+                                increment_node_count_with_decay(num_iterations);
+                                pv_table[cur_depth][0] = move;
+                                for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                return entry.score; // fail-low cutoff
+                            }
+                            //beta = std::min(beta, entry.score);
+                        } */
+
+                        /* if (beta <= alpha){
+                            unmake_move(state_history, position_count, zobrist);
+                            updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+            
+                            if(!capture_move){
+                                storeKillerMove(cur_depth, move);
+                                historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                counterMoves[previousMove.from_square][previousMove.to_square] = move;
+                                counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth;
+                            }                            
+                            return entry.score;
+                        } */              
+                    }                
+                }
+                if(!using_tt){
+                    score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations);
+                    if(cur_depth < depth_limit - 1){
+                        TTFlag flag;
+                        if (score <= alpha_orig) {
+                            flag = TTFlag::UPPERBOUND;
+                        } else if (score >= beta_orig) {
+                            flag = TTFlag::LOWERBOUND;
+                        } else {
+                            flag = TTFlag::EXACT;
+                        }                        
+                        addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                    }
+                }                    
+            }                
+        }
+          
                 
         unmake_move(state_history, position_count, zobrist);
-
-        if (time_up)
+        /* if(cur_depth == 10 && current_state.occupied == 7269981482836742504 && current_state.queens == 1126449662656512){
+            if (depth_limit >= 8){
+                std::cout << "BBBB: "<< i << " "
+                << score << " "                
+                << "(" << ((move.from_square & 7) + 1) << ","
+                << ((move.from_square >> 3) + 1) << ") -> ("
+                << ((move.to_square & 7) + 1) << ","
+                << ((move.to_square >> 3) + 1) << ") " << current_state.occupied_colour[true] << " | " << current_state.occupied_colour[false]
+                << std::endl;
+            }
+        } */
+        if (time_up.load(std::memory_order_relaxed))
             return 0;
         
         zobrist = cur_hash;
@@ -1231,10 +1716,11 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             best_move = move;
 
             // Alpha improved — update PV
-            pv_table[cur_depth][cur_depth] = move;
+            pv_table[cur_depth][0] = move;
             for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
-                pv_table[cur_depth][cur_depth + 1 + j] = pv_table[cur_depth + 1][cur_depth + 1 + j];
-            pv_length[cur_depth] = 1 + pv_length[cur_depth + 1];
+                pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+            pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+
         }
 
         alpha = std::max(alpha,highest_score);
@@ -1254,22 +1740,27 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         }
     }
 
-    if (all_moves_pruned){
+    /* if (all_moves_pruned){
         return best_early_eval;
-    }
+    } */
 
     // Check if no moves are available, inidicating a game ending move was made previously
-    if(highest_score == -9999999){
+    if(highest_score == -9999999 + static_cast<int>(state_history.size())){
 
         if (is_checkmate(current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
                             current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
         {
-            return -100000000;
+            return highest_score;
         }else if(is_stalemate(current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
                              current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
         {
             return 0;
         }else if (all_moves_pruned){
+            pv_table[cur_depth][0] = best_futility_move;
+            for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+            pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+
             return best_early_eval;
         }
 
@@ -1287,7 +1778,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
 SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint& t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations){
 
-    num_iterations++;
+    increment_node_count_with_decay(num_iterations);
 
     BoardState current_state = state_history.back();
 
@@ -1336,20 +1827,21 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
 
     std::vector<int> preliminary_scores;
     std::vector<Move> preliminary_moves;
-    
     highest_score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, moves_list[0], num_iterations);
     //std::cout <<"BBB3" << std::endl;
+    BoardState updated_state = state_history.back();
+    addToSearchEvalCache(zobrist, state_history.size(), TTEntry(highest_score, depth_limit, TTFlag::EXACT, alpha, beta), updated_state.castling_rights, updated_state.ep_square);
     unmake_move(state_history, position_count, zobrist);
 
-    if (time_up){
+    if (time_up.load(std::memory_order_relaxed)){
         return previous_search_data;
     }
     zobrist = cur_hash;
 
     pv_table[0][0] = moves_list[0];
     for (int j = 0; j < pv_length[1]; ++j)
-        pv_table[0][1 + j] = pv_table[1][1 + j];
-    pv_length[0] = 1 + pv_length[1];
+        pv_table[0][j + 1] = pv_table[1][j];
+    pv_length[0] = pv_length[1] + 1;
 
     alpha = std::max(alpha, highest_score);
 
@@ -1403,10 +1895,12 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
         current_search_data.second_level_preliminary_scores.push_back(preliminary_scores);
         current_search_data.second_level_moves_list.push_back(preliminary_moves);
         //std::cout <<"BBB5-1" << std::endl;
+        updated_state = state_history.back();
+        addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit, TTFlag::EXACT, alpha, beta), updated_state.castling_rights, updated_state.ep_square);
         
         unmake_move(state_history, position_count, zobrist);
         
-        if (time_up){
+        if (time_up.load(std::memory_order_relaxed)){
             return previous_search_data;
         }
         //std::cout <<"BBB5-2" << std::endl;
@@ -1419,8 +1913,9 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
             
             pv_table[0][0] = move;
             for (int j = 0; j < pv_length[1]; ++j)
-                pv_table[0][1 + j] = pv_table[1][1 + j];
-            pv_length[0] = 1 + pv_length[1];
+                pv_table[0][j + 1] = pv_table[1][j];
+            pv_length[0] = pv_length[1] + 1;            
+
         }
 
         alpha = std::max(alpha,highest_score);
@@ -1431,7 +1926,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
     for (int i = 0; i < pv_length[0]; i++) {
         
         Move move = pv_table[0][i];
-        int bonus = (depth * depth ) * (pv_length[0] - i) * (pv_length[0] - i);
+        int bonus = ((depth - 1) * (depth - 1)) * (pv_length[0] - i) * (pv_length[0] - i);
         moveFrequency[side][move.from_square][move.to_square] += bonus;
         side = !side;
     }
@@ -1462,25 +1957,25 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
         return 0;
     }
 
-    if (num_iterations % DECAY_INTERVAL == 0)
+    /* if (num_iterations % DECAY_INTERVAL == 0)
         decayHistoryHeuristics();
 
-    if ((num_iterations % (DECAY_INTERVAL * 4096)) == 0)
-        decayCounterMoveHeuristics();
+    if ((num_iterations % (DECAY_INTERVAL * 32)) == 0)
+        decayCounterMoveHeuristics(); */
 
     if (cur_depth >= depth_limit){        
 
-        if (USE_Q_SEARCH){
-            int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+        if (USE_Q_SEARCH && depth_limit >= 8){
+            /* int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
 
             if (cache_result != 0){
                 //eval_cache_hits++;
 
                 num_iterations++;
                 return cache_result;
-            }
+            } */
 
-            int result = qSearch(alpha, beta, cur_depth, 0, state_history, position_count, zobrist, prevMove, num_iterations, false);
+            int result = qSearch(alpha, beta, cur_depth, 0, t0, state_history, position_count, zobrist, prevMove, num_iterations, false);
 
             int num_plies = state_history.size();
             int max_cache_size;
@@ -1502,22 +1997,25 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
         return get_board_evaluation(state_history, zobrist, num_iterations);
     }
         
-    num_iterations++;
+    increment_node_count_with_decay(num_iterations);
 
     //zobrist = generateZobristHash(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.turn);
     uint64_t cur_hash = zobrist;
 
     int lowest_score = 9999999 - static_cast<int>(state_history.size()); 
-    int score;    
+    int score;
+    int beta_orig = beta;   
+    int alpha_orig = alpha;    
+    bool using_tt = false;
 
     Move best_move;
     
     std::vector<Move>moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, prevMove);
     pre_moves_list = moves_list;
-
+    
     for (size_t i = 0; i < moves_list.size(); ++i) {
         Move& move = moves_list[i];
-
+        using_tt = false;
         /*
         // Razoring
         if (i < second_level_preliminary_scores.size()) {
@@ -1526,12 +2024,12 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
             }
         }
         */
-                
+       
         bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 
         // Acquire the zobrist hash for the new position if the given move was made
         bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
-
+         
         // Assuming `updateZobristHashForMove` is defined elsewhere and works similarly
         updateZobristHashForMove(
             zobrist,
@@ -1553,21 +2051,160 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
         make_move(state_history, position_count, move, zobrist, capture_move); 
         
         BoardState updated_state = state_history.back();
+        if(is_repetition(position_count, zobrist, 3) || updated_state.halfmove_clock >= 100){
+            score = 0;
+        }else{
+            auto entry_opt = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);        
+            
+            bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
+            bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
 
-        bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-        bool do_lmr = (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
+            if (do_lmr){
+                int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
+                //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
 
-        if (do_lmr){
-            int reduced_depth = reduced_search_depth(depth_limit, i, current_state);
-            //int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
-            score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                if (entry_opt.has_value()) {                
+                    TTEntry entry = entry_opt.value();                    
+                    if (entry.depth >= (reduced_depth - cur_depth)) {                    
+                        if (entry.flag == TTFlag::EXACT){                                                             
+                            score = entry.score;
+                            using_tt = true;
+                            increment_node_count_with_decay(num_iterations);
+                        } 
+                    }                
+                }
+                if(!using_tt){
+                    score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                        
+                    if(cur_depth < reduced_depth - 1){
+                        TTFlag flag;
+                        if (score <= alpha) {
+                            flag = TTFlag::UPPERBOUND;
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                        } else if (score >= alpha + 1) {
+                            flag = TTFlag::LOWERBOUND;
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, reduced_depth - cur_depth, flag, alpha, alpha + 1), updated_state.castling_rights, updated_state.ep_square);
+                        }                                            
+                    }
+                    
+                }
+                if (score < beta){
+                    using_tt = false;
+                    if (entry_opt.has_value()) {                
+                        TTEntry entry = entry_opt.value();                        
+                        if (entry.depth >= (depth_limit - cur_depth)) {                        
+                            if (entry.flag == TTFlag::EXACT){                                                             
+                                score = entry.score;
+                                using_tt = true;
+                                increment_node_count_with_decay(num_iterations);
+                            }              
+                        }                
+                    }
+                    if(!using_tt){
+                        score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                        if(cur_depth < depth_limit - 1){
+                            TTFlag flag;
+                            if (score <= alpha_orig) {
+                                flag = TTFlag::UPPERBOUND;
+                            } else if (score >= beta_orig) {
+                                flag = TTFlag::LOWERBOUND;
+                            } else {
+                                flag = TTFlag::EXACT;
+                            }                            
+                            addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                        }
+                    }                        
+                }                               
+            } else{
+                if (entry_opt.has_value()) {                
+                    TTEntry entry = entry_opt.value();
+                    
+                    if (entry.depth >= (depth_limit - cur_depth)) {
+                    
+                        if (entry.flag == TTFlag::EXACT){                                                             
+                            score = entry.score;
+                            using_tt = true;
+                            increment_node_count_with_decay(num_iterations);
+                        }
+                        
+                        /* if (entry.flag == TTFlag::LOWERBOUND) {
+                            if (entry.score >= beta && entry.beta >= beta) {
+                                unmake_move(state_history, position_count, zobrist);
+                                preliminary_scores.push_back(entry.score);
+                                increment_node_count_with_decay(num_iterations);
+                                updateMoveCacheForBetaCutoff(cur_hash, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 
-            if (score < beta)
-                score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
-        } else{
-            score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);
+                                if(!capture_move){
+                                    storeKillerMove(cur_depth, move);
+                                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                    counterMoves[prevMove.from_square][prevMove.to_square] = move;
+                                    counterMoveHeuristics[current_state.turn][prevMove.from_square * 64 + prevMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth * cur_depth;
+                                }
+                                pv_table[cur_depth][0] = move;
+                                for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                return entry.score; // Fail-high cutoff (minimizer: position is worse than we can allow)
+                            }
+                            //beta = std::min(beta, entry.score);
+                        } */
+
+                        if (entry.flag == TTFlag::UPPERBOUND) {
+                            if (entry.score <= alpha/*  && entry.alpha <= alpha */) {
+                                unmake_move(state_history, position_count, zobrist);
+                                preliminary_scores.push_back(entry.score);
+                                increment_node_count_with_decay(num_iterations);
+                                updateMoveCacheForBetaCutoff(cur_hash, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+
+                                if(!capture_move){
+                                    storeKillerMove(cur_depth, move);
+                                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                    counterMoves[prevMove.from_square][prevMove.to_square] = move;
+                                    counterMoveHeuristics[current_state.turn][prevMove.from_square * 64 + prevMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth * cur_depth;
+                                }
+                                pv_table[cur_depth][0] = move;
+                                for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
+                                    pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+                                pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
+                                return entry.score; // Fail-low cutoff (minimizer: safe position, already good enough)
+                            }
+                            //alpha = std::max(alpha, entry.score);
+                        }   
+                        
+                        /* if (beta <= alpha){
+                            unmake_move(state_history, position_count, zobrist);
+                            updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+            
+                            if(!capture_move){
+                                storeKillerMove(cur_depth, move);
+                                historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                                counterMoves[prevMove.from_square][prevMove.to_square] = move;
+                                counterMoveHeuristics[current_state.turn][prevMove.from_square * 64 + prevMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth * cur_depth;
+                            }
+                            preliminary_scores.push_back(entry.score);                 
+                            return entry.score;
+                        } */ 
+                    }                
+                }
+                if(!using_tt){
+                    score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move);                    
+                    if(cur_depth < depth_limit - 1){
+                        TTFlag flag;
+                        if (score <= alpha_orig) {
+                            flag = TTFlag::UPPERBOUND;
+                        } else if (score >= beta_orig) {
+                            flag = TTFlag::LOWERBOUND;
+                        } else {
+                            flag = TTFlag::EXACT;
+                        }                        
+                        addToSearchEvalCache(zobrist, state_history.size(), TTEntry(score, depth_limit - cur_depth, flag, alpha_orig, beta_orig), updated_state.castling_rights, updated_state.ep_square);
+                    }
+                }
+            }
+              
         }
-        
+              
+
         unmake_move(state_history, position_count, zobrist);
         zobrist = cur_hash;
 
@@ -1578,10 +2215,10 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
             lowest_score = score;
             best_move = move;
             // Beta improved — update PV
-            pv_table[cur_depth][cur_depth] = move;
+            pv_table[cur_depth][0] = move;
             for (int j = 0; j < pv_length[cur_depth + 1]; ++j)
-                pv_table[cur_depth][cur_depth + 1 + j] = pv_table[cur_depth + 1][cur_depth + 1 + j];
-            pv_length[cur_depth] = 1 + pv_length[cur_depth + 1];
+                pv_table[cur_depth][j + 1] = pv_table[cur_depth + 1][j];
+            pv_length[cur_depth] = pv_length[cur_depth + 1] + 1;
         }
 
         beta = std::min(beta,lowest_score);
@@ -1626,18 +2263,35 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 }
 
 
-int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing){
+int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing){
     qsearchVisits++;
     if(is_repetition(position_count, zobrist, 3)){
         return 0;
+    }
+    if (time_up.load(std::memory_order_relaxed)) {
+        return 0;
+    } else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL) {
+        nodes_since_time_check.store(0, std::memory_order_relaxed);
+
+        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT) {
+            time_up.store(true, std::memory_order_relaxed);
+        }
     }
 
     if(qDepth >= MAX_QDEPTH)
         return get_board_evaluation(state_history, zobrist, num_iterations);
 
-    num_iterations++;
-
     BoardState current_state = state_history.back();
+    int cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
+
+    if (cache_result != 0){
+        //eval_cache_hits++;
+        increment_node_count_with_decay(num_iterations);
+        return cache_result;
+    }
+    increment_node_count_with_decay(num_iterations);
+
+    
     int moveNum = static_cast<int>(state_history.size());
     uint64_t cur_hash = zobrist;  
 
@@ -1695,7 +2349,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardSta
 
             //bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
             make_move(state_history, position_count, move, zobrist, capture_move);   
-            int score = qSearch(alpha, beta, cur_depth, qDepth + 1, state_history, position_count, zobrist, move, num_iterations, !is_maximizing);
+            int score = qSearch(alpha, beta, cur_depth, qDepth + 1, t0, state_history, position_count, zobrist, move, num_iterations, !is_maximizing);
             unmake_move(state_history, position_count, zobrist);
             
             zobrist = cur_hash;
@@ -1765,7 +2419,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardSta
         //bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
         make_move(state_history, position_count, move, zobrist, capture_move);
         //int test_score = get_board_evaluation(state_history, zobrist, num_iterations);   
-        int score = qSearch(alpha, beta, cur_depth, qDepth + 1, state_history, position_count, zobrist, move, num_iterations, !is_maximizing);
+        int score = qSearch(alpha, beta, cur_depth, qDepth + 1, t0, state_history, position_count, zobrist, move, num_iterations, !is_maximizing);
         unmake_move(state_history, position_count, zobrist);
 
         /* if(score < 0){
@@ -1787,6 +2441,10 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, std::vector<BoardSta
             if (best <= alpha) return best; // alpha cutoff
         }
 
+    }
+
+    if (moves_list.empty()) {
+        return static_eval;
     }
     return best;
 }
@@ -1913,6 +2571,92 @@ inline void ascending_sort(std::vector<int>& values, std::vector<Move>& moves) {
     // values is unchanged in size and content, so no need to touch it
 }
 
+inline uint8_t get_piece_type(uint8_t square, std::vector<BoardState>& state_history){
+    
+	BoardState current_state = state_history.back();
+	uint64_t mask = (BB_SQUARES[square]);
+
+	if (current_state.pawns & mask) {
+		return PAWN;
+	} else if (current_state.knights & mask){
+		return KNIGHT;
+	} else if (current_state.bishops & mask){
+		return BISHOP;
+	} else if (current_state.rooks & mask){
+		return ROOK;
+	} else if (current_state.queens & mask){
+		return QUEEN;
+	} else if (current_state.kings & mask){
+		return KING;
+	} else{
+		return 0;
+	}
+}
+
+inline bool relevant_pin_exists(std::vector<BoardState>& state_history) {
+    
+    BoardState current_state = state_history.back();
+
+    //uint64_t relevant_pins = 0;
+    uint64_t bb = current_state.occupied & ~current_state.pawns & ~current_state.kings;
+
+    while (bb) {
+        uint8_t current_square = __builtin_ctzll(bb);
+        bb &= bb - 1;
+
+        bool is_white = current_state.occupied_colour[true] & BB_SQUARES[current_square];
+
+        uint64_t own_pieces = is_white ? current_state.occupied_colour[true] : current_state.occupied_colour[false];
+        uint64_t opp_pieces = is_white ? current_state.occupied_colour[false] : current_state.occupied_colour[true];
+
+        // Get sliding attackers
+        uint64_t rank_pieces = BB_RANK_MASKS[current_square] & current_state.occupied;
+        uint64_t file_pieces = BB_FILE_MASKS[current_square] & current_state.occupied;
+        uint64_t diag_pieces = BB_DIAG_MASKS[current_square] & current_state.occupied;
+
+        uint64_t attackers = (
+            (BB_RANK_ATTACKS[current_square][rank_pieces] & (current_state.queens | current_state.rooks)) |
+            (BB_FILE_ATTACKS[current_square][file_pieces] & (current_state.queens | current_state.rooks)) |
+            (BB_DIAG_ATTACKS[current_square][diag_pieces] & (current_state.queens | current_state.bishops))
+        ) & opp_pieces;
+
+        while (attackers) {
+            uint8_t attacker_square = __builtin_ctzll(attackers);
+            attackers &= attackers - 1;
+
+            uint8_t attacker_type = get_piece_type(attacker_square, state_history);
+            uint64_t behind_mask = attacks_mask(!is_white, current_state.occupied ^ BB_SQUARES[current_square], attacker_square, attacker_type) &
+                                   ~attacks_mask(!is_white, current_state.occupied, attacker_square, attacker_type) & own_pieces;
+
+            while (behind_mask) {
+                uint8_t pinned_to_sq = __builtin_ctzll(behind_mask);
+                behind_mask &= behind_mask - 1;
+
+                /* uint8_t pinned_piece_type = pieceTypeLookUp[current_square];
+                    */
+                uint8_t pinned_to_piece_type = get_piece_type(pinned_to_sq, state_history);             
+
+                // Consider it relevant if pinned to king, queen, or rook
+                if (pinned_to_piece_type == KING || pinned_to_piece_type == QUEEN || pinned_to_piece_type == ROOK) {
+                    return true;
+                    //relevant_pins |= BB_SQUARES[current_square];
+                }
+            }
+        }
+    }
+    return false;
+    //return relevant_pins;
+}
+
+
+inline void increment_node_count_with_decay(int& num_iterations){
+    num_iterations++;
+    if (num_iterations % DECAY_INTERVAL == 0)
+        decayHistoryHeuristics();
+
+    if ((num_iterations % (DECAY_INTERVAL * 32)) == 0)
+        decayCounterMoveHeuristics();
+}
 
 inline bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count) {
     auto it = position_count.find(zobrist_key);
@@ -1973,23 +2717,21 @@ inline int reduced_search_depth(int depth_limit, int move_number, BoardState cur
 	phase += 2 * __builtin_popcountll(current_state.rooks);
 	phase += 1 * __builtin_popcountll(current_state.bishops | current_state.knights);
 
-	int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to 128
-
-	if (phase_score <= 96) {
-    	double scale = 2.0;
-        double move_factor = std::log2(adjusted_move);
-        int r = static_cast<int>(base - (move_factor / scale));
-        
-        return std::max(r, 1);  // Ensure at least 1 ply is searched
+	int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to 
+    double scale = 0;
+    if (phase_score <= 64) {
+    	scale = 1.5;                
+	}else if (phase_score <= 96) {
+    	scale = 2.0;                
 	} else if (phase_score < 117) {
-		double scale = 3.0;        
-        double move_factor = std::log2(adjusted_move);
-        int r = static_cast<int>(base - (move_factor / scale));
-        
-        return std::max(r, 1);  // Ensure at least 1 ply is searched
+		scale = 3.0;              
 	} else {
 		return base;
 	}    
+    double move_factor = std::log2(adjusted_move);
+    int r = static_cast<int>(base - (move_factor / scale));
+    
+    return std::max(r, 1);  // Ensure at least 1 ply is searched
 }
 
 inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply, Move prevMove){
@@ -2225,19 +2967,19 @@ inline std::vector<Move> buildNoisyMoveList(std::vector<BoardState>& state_histo
 
 inline int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations){    
 
-    num_iterations++;
+    increment_node_count_with_decay(num_iterations);
     BoardState current_state = state_history.back();
 
     int cache_result = 0;
     
-    if (USE_Q_SEARCH){
+    /* if (USE_Q_SEARCH){
         cache_result = accessQCache(zobrist, current_state.castling_rights, current_state.ep_square);
 
         if (cache_result != 0){
             //eval_cache_hits++;
             return cache_result;
         }
-    }
+    } */
     
     eval_visits++;
     cache_result = accessCache(zobrist);
@@ -2299,7 +3041,6 @@ inline int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t
     }else{
         max_cache_size = 64000000; 
     }
-
 
     addToCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, total);
            

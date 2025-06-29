@@ -1,5 +1,7 @@
+
 #ifndef CPP_BITBOARD_H
 #define CPP_BITBOARD_H
+#pragma once
 
 #include "search_engine.h"
 #include <vector>
@@ -215,7 +217,7 @@ void initializePieceValues(uint64_t bb);
 uint8_t piece_type_at(uint8_t square);
 inline void setAttackingLayer(int increment, bool isEndGame);
 void printLayers();
-inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces);
+inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns);
 
 /*
 	Set of functions used to generate moves

@@ -11,24 +11,28 @@
 #include <unordered_map>
 #include <atomic>
 
+
 using Clock = std::chrono::steady_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 
-constexpr int TIME_CHECK_INTERVAL = 200000;
+constexpr int TIME_CHECK_INTERVAL = 300000;
 
 // Constants for material thresholds
 constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
 
-constexpr int DECAY_INTERVAL = 200000; // Number of nodes before decay
+ // Number of nodes before decay
 constexpr int DECAY_FACTOR = 1;       // Divide scores by 2
 
-constexpr std::array<int, 4> FUTILITY_MARGINS = {200, 500, 700, 1000};
+constexpr std::array<int, 4> FUTILITY_MARGINS = {200, 450, 650, 950};
 
-constexpr int MAX_QDEPTH = 12;
+constexpr int MAX_QDEPTH = 10;
 constexpr int SUPPORT_MARGIN = 0;
-constexpr int DELTA_MARGIN = 100;
+constexpr int DELTA_MARGIN = 1500;
 
 constexpr bool USE_Q_SEARCH = true;
+
+struct TTEntry;
+struct QCacheEntry;
 
 struct ConfigData {
     int cache_size_multiplier;
@@ -113,8 +117,9 @@ namespace Configs {
 }
 
 namespace Config {
-    inline const ConfigData* ACTIVE = &Configs::LONG_FORMAT; // Default to classical
+    inline const ConfigData* ACTIVE = &Configs::STANDARD; // Default to classical
     inline bool side_to_play = false; // Default; can be set at runtime
+    inline int DECAY_INTERVAL = 75000;
 }
 
 struct BoardState {
@@ -235,8 +240,8 @@ inline void update_cache(int num_plies);
 
 MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count);
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, const TimePoint& t0, SearchData& previous_search_data, Move& best_move, int& num_iterations);
-int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations);
-int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture);
+int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move);
+int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move);
 SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint& t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
 int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations);
 int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing);
@@ -245,7 +250,8 @@ inline void sortSearchDataByScore(SearchData& data);
 inline void descending_sort_wrapper(const SearchData& preSearchData, SearchData& mainSearchData);
 inline void ascending_sort(std::vector<int>& values, std::vector<Move>& moves);
 inline uint8_t get_piece_type(uint8_t square, std::vector<BoardState>& state_history);
-inline bool relevant_pin_exists(std::vector<BoardState>& state_history);
+inline bool relevant_pin_exists(std::vector<BoardState>& state_history, bool probe);
+inline void use_tt_entry(TTEntry& entry, int& score, bool& using_tt, int alpha, int beta, int& num_iterations, bool is_maximizing);
 inline void increment_node_count_with_decay(int& num_iterations);
 inline bool isUnsafeForNullMovePruning(BoardState current_state);
 inline bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count);

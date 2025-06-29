@@ -59,6 +59,16 @@ struct TTEntry {
         : score(s), depth(d), flag(f), alpha(a), beta(b) {}
 };
 
+struct QCacheEntry {
+    int score;
+    TTFlag flag;           // Type of score
+    
+	QCacheEntry() : score(0), flag(TTFlag::EXACT) {}
+
+    QCacheEntry(int s, TTFlag f)
+        : score(s), flag(f) {}
+};
+
 extern std::unordered_map<uint64_t, TTEntry> searchEvalCache;
 extern std::deque<uint64_t> searchInsertionOrder;
 
@@ -459,6 +469,35 @@ inline void addToMoveGenCache(uint64_t key, int max_size, std::vector<Move> reor
     }
 }
 
+/* inline bool probeQCache(uint64_t key, uint64_t castling_rights, int ep_square, int alpha, int beta, int& outScore) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+	auto it = quiesceEvalCache.find(updatedKey);
+    if (it == quiesceEvalCache.end()) return false;
+
+    const QCacheEntry& entry = it->second;
+
+    switch (entry.flag) {
+        case TTFlag::EXACT:
+            outScore = entry.score;
+            return true;
+
+        case TTFlag::LOWERBOUND:
+            if (entry.score >= beta) {
+                outScore = entry.score;
+                return true;
+            }
+            break;
+
+        case TTFlag::UPPERBOUND:
+            if (entry.score <= alpha) {
+                outScore = entry.score;
+                return true;
+            }
+            break;
+    }
+    return false; // Not safe to use this entry for this window
+} */
+
 inline int accessQCache(uint64_t key, uint64_t castling_rights, int ep_square) {
 	
 	/*
@@ -519,7 +558,7 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, TTEntry entry, uin
     
 	int val = entry.score;
 
-	if (val >= 9000000 || val <= -9000000)
+	if (val >= 9000000 || val <= -9000000 || val == 0)
 		return;
 	int max_size;
     if (num_plies < 30) {

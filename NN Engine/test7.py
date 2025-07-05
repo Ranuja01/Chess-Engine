@@ -107,24 +107,31 @@ def encode_board(board: chess.Board) -> np.ndarray:
 # model = onnx.load("NNUE.onnx")
 # print(model.graph.input[0].type.tensor_type.shape)
 
-board = chess.Board("r1r3k1/p4ppp/1p1qpn2/3pn3/8/P3Q3/1P1NBPPP/R1B2RK1 b - - 5 19")
-t0 = timer()  
-result = evaluate_board(board)
-t1 = timer()
-print('Actual Eval:', result, t1 - t0)
-
-print()
-
-board = chess.Board("1r1r2k1/p1bn1ppp/B3pn2/8/2NPp2P/P7/1P3PP1/R1B1K2R w KQ - 3 20")
-t0 = timer()  
-result = evaluate_board(board)
-t1 = timer()
-print('Actual Eval:', result, t1 - t0)
-
-print()
-
 board = chess.Board("1r1qnrk1/p2nbppp/1p6/1B1p4/3Pp3/P3PP2/1P1NQ1PP/R1B2RK1 b - - 0 19")
 t0 = timer()  
 result = evaluate_board(board)
 t1 = timer()
 print('Actual Eval:', result, t1 - t0)
+
+print()
+
+board = chess.Board("3rk2r/p1qnnppp/Bp1bp3/6B1/Q2PN3/P7/1P3PPP/R3K2R w KQk - 3 19")
+t0 = timer()  
+result = evaluate_board(board)
+t1 = timer()
+print('Actual Eval:', result, t1 - t0)
+
+print()
+
+board = chess.Board("r2r2k1/p1bn1ppp/Bp2p3/3p4/3Pn3/P1B1PN2/1P3PPP/R3K2R w KQ - 4 19")
+t0 = timer()  
+result = evaluate_board(board)
+t1 = timer()
+print('Actual Eval:', result, t1 - t0)
+
+board = chess.Board("rq3rk1/pB1n1ppp/1pQbpn2/3p4/3P4/P3P3/1P1N1PPP/R1B1K2R b KQ - 7 15")
+t0 = timer()  
+result = evaluate_board(board)
+t1 = timer()
+print('Actual Eval:', result, t1 - t0)
+

@@ -114,13 +114,18 @@ constexpr std::array<uint8_t, 8> pawn_chain_file_bonus = {
     10    // H
 };
 
+constexpr int BAD_THRESHOLD = 100;
+constexpr int NEUTRAL_THRESHOLD = 125;
+constexpr int MAX_THRESHOLD = 225;
+constexpr int MAX_BONUS = 275;  // in millipawns
+
 constexpr std::array<uint64_t, 8> white_king_zones = {
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6), // A file
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6), // B file
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6), // C file
     
-    (BB_FILE_B | BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // D file
-    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F | BB_FILE_G) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // E file
+    (BB_FILE_B | BB_FILE_C | BB_FILE_D | BB_FILE_E) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // D file
+    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // E file
 
     (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // F file
     (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // G file
@@ -132,8 +137,8 @@ constexpr std::array<uint64_t, 8> black_king_zones = {
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // B file
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // C file
     
-    (BB_FILE_B | BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // D file
-    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F | BB_FILE_G) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // E file
+    (BB_FILE_B | BB_FILE_C | BB_FILE_D | BB_FILE_E) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // D file
+    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // E file
 
     (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // F file
     (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // G file
@@ -161,7 +166,42 @@ constexpr uint64_t extended_central_squares =
     BB_SQUARES[34] | BB_SQUARES[37] |
     BB_SQUARES[42] | BB_SQUARES[43] | BB_SQUARES[44] | BB_SQUARES[45];
 
-constexpr int rook_squares[4] = {0, 7, 56, 63};
+
+constexpr uint64_t light_dark_square_mask(bool light) {
+    uint64_t mask = 0ULL;
+    for (int rank = 0; rank < 8; ++rank) {
+        for (int file = 0; file < 8; ++file) {
+            int sq = rank * 8 + file;
+            bool is_light = (rank + file) % 2 == 1;
+            if (is_light == light) {
+                mask |= (1ULL << sq);
+            }
+        }
+    }
+    return mask;
+}
+
+// Base color masks
+constexpr uint64_t LIGHT_SQUARES = light_dark_square_mask(true);
+constexpr uint64_t DARK_SQUARES  = light_dark_square_mask(false);
+
+// White bishop candidate zones: ranks 1–5 (0–4)
+constexpr uint64_t WHITE_BASE_MASK = 
+    BB_RANKS[0] | BB_RANKS[1] | BB_RANKS[2] | BB_RANKS[3] | BB_RANKS[4];
+
+// Black bishop candidate zones: ranks 8–4 (7–3)
+constexpr uint64_t BLACK_BASE_MASK = 
+    BB_RANKS[7] | BB_RANKS[6] | BB_RANKS[5] | BB_RANKS[4] | BB_RANKS[3];
+
+// Final masks
+constexpr uint64_t WHITE_LIGHT_BISHOP_ZONE = WHITE_BASE_MASK & LIGHT_SQUARES;
+constexpr uint64_t WHITE_DARK_BISHOP_ZONE  = WHITE_BASE_MASK & DARK_SQUARES;
+
+constexpr uint64_t BLACK_LIGHT_BISHOP_ZONE = BLACK_BASE_MASK & LIGHT_SQUARES;
+constexpr uint64_t BLACK_DARK_BISHOP_ZONE  = BLACK_BASE_MASK & DARK_SQUARES;
+
+
+	constexpr int rook_squares[4] = {0, 7, 56, 63};
 
 struct CaptureInfo {
     uint8_t from;
@@ -210,7 +250,7 @@ inline void apply_basic_capture(uint8_t from, uint8_t to, uint64_t& white_pieces
 inline CaptureInfo* find_last_viable_capture(std::vector<CaptureInfo>& captures, uint64_t& white_pieces, uint64_t& black_pieces, bool captureColour);
 inline std::optional<CaptureInfo> find_and_pop_last_viable_capture(std::vector<CaptureInfo>& captures, uint64_t white_pieces, uint64_t black_pieces, bool captureColour);
 inline bool can_evade(uint8_t target_square, bool target_colour);
-inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& state);
+inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& state, std::unordered_map<uint8_t, int> pawn_rank_bonuses);
 inline int approximate_capture_gains1(uint64_t bb, bool turn);
 
 void initializePieceValues(uint64_t bb);

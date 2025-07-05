@@ -81,7 +81,7 @@ namespace Configs {
     };
 
     constexpr ConfigData LONG_FORMAT = {
-        5,
+        3,
         600.0,
         [] {
             std::array<double, 64> times{};
@@ -240,8 +240,8 @@ inline void update_cache(int num_plies);
 
 MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count);
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, const TimePoint& t0, SearchData& previous_search_data, Move& best_move, int& num_iterations);
-int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move);
-int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move);
+int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
+int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
 SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint& t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
 int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations);
 int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing);
@@ -251,11 +251,12 @@ inline void descending_sort_wrapper(const SearchData& preSearchData, SearchData&
 inline void ascending_sort(std::vector<int>& values, std::vector<Move>& moves);
 inline uint8_t get_piece_type(uint8_t square, std::vector<BoardState>& state_history);
 inline bool relevant_pin_exists(std::vector<BoardState>& state_history, bool probe);
-inline void use_tt_entry(TTEntry& entry, int& score, bool& using_tt, int alpha, int beta, int& num_iterations, bool is_maximizing);
+inline void use_tt_entry(TTEntry& entry, int& score, bool& using_tt, int alpha, int beta, int& num_iterations, bool is_maximizing, bool using_extra_precautions);
 inline void increment_node_count_with_decay(int& num_iterations);
 inline bool isUnsafeForNullMovePruning(BoardState current_state);
 inline bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count);
-inline int reduced_search_depth(int depth_limit, int move_number, BoardState current_state);
+inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relavent_pin, int move_number, BoardState current_state);
+inline void updatePV(Move move, int cur_depth);
 
 int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations);
 inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply, Move prevMove);

@@ -59,6 +59,25 @@ struct TTEntry {
         : score(s), depth(d), flag(f), alpha(a), beta(b) {}
 };
 
+/* struct TTEntry {
+    int score;
+    int depth;
+    TTFlag flag;
+    int alpha;
+    int beta;    
+
+    std::array<Move, 8> pv;  // Short principal variation
+    int pv_length;
+
+	TTEntry() : score(0), depth(0), flag(TTFlag::EXACT) {}
+
+	TTEntry(int s, int d, TTFlag f, int a, int b, const std::vector<Move>& pv_line)
+        : score(s), depth(d), flag(f), alpha(a), beta(b), pv_length(std::min((int)pv_line.size(), 8)) {
+        std::copy_n(pv_line.begin(), pv_length, pv.begin());
+		}
+}; */
+
+
 struct QCacheEntry {
     int score;
     TTFlag flag;           // Type of score
@@ -568,7 +587,7 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, TTEntry entry, uin
     } else if (num_plies < 75) {
         max_size = 32000000;
     } else {
-        max_size = 64000000;
+        max_size = 40000000;
     }
 
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);

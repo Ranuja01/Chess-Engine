@@ -31,14 +31,34 @@ extern uint64_t zobristTurn;
 extern uint64_t castling_hash[4];
 extern uint64_t ep_hash[65];
 
+/* extern size_t CACHE_SIZE;  // example: 1M entries
+extern uint64_t CACHE_MASK; */
+
+struct EvalEntry {
+    uint64_t key = 0;
+    int value = 0;
+    bool valid = false;
+};
+
+struct MoveEntry {
+    uint64_t key = 0;
+    std::vector<Move> moves;
+    //int num_beta_reorders = 0;
+    bool valid = false;
+};
+
+extern std::vector<EvalEntry> evalCacheNew;
+extern std::vector<MoveEntry> moveGenCache;
+
 extern std::unordered_map<uint64_t, int> evalCache;
 extern std::deque<uint64_t> insertionOrder;
+extern std::vector<EvalEntry> quiesceEvalCache;
 
-extern std::unordered_map<uint64_t, int> quiesceEvalCache;
-extern std::deque<uint64_t> quiesceinsertionOrder;
+/* extern std::unordered_map<uint64_t, int> quiesceEvalCache;
+extern std::deque<uint64_t> quiesceinsertionOrder; */
 
-extern std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
-extern std::deque<uint64_t> moveGenInsertionOrder;
+/* extern std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
+extern std::deque<uint64_t> moveGenInsertionOrder; */
 
 enum class TTFlag : uint8_t {
     EXACT,        // Score is exact
@@ -51,13 +71,28 @@ struct TTEntry {
     int depth;             // Depth at which this score was obtained
     TTFlag flag;           // Type of score
     int alpha; // NEW
-    int beta;  // NEW
+    int beta;  // NEW    
 
 	TTEntry() : score(0), depth(0), flag(TTFlag::EXACT) {}
 
     TTEntry(int s, int d, TTFlag f, int a = -9999999, int b = 9999999)
         : score(s), depth(d), flag(f), alpha(a), beta(b) {}
 };
+
+/* struct TTEntry {
+    uint64_t key = 0;
+    int score;             // Evaluated score
+    int depth;             // Depth at which this score was obtained
+    TTFlag flag;           // Type of score
+    int alpha; // NEW
+    int beta;  // NEW
+    bool valid = false;
+
+	TTEntry() : score(0), depth(0), flag(TTFlag::EXACT) {}
+
+    TTEntry(int s, int d, TTFlag f, int a = -9999999, int b = 9999999)
+        : score(s), depth(d), flag(f), alpha(a), beta(b) {}
+}; */
 
 /* struct TTEntry {
     int score;
@@ -90,6 +125,8 @@ struct QCacheEntry {
 
 extern std::unordered_map<uint64_t, TTEntry> searchEvalCache;
 extern std::deque<uint64_t> searchInsertionOrder;
+
+//extern std::vector<TTEntry> searchEvalCache;
 
 extern uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 
@@ -345,6 +382,29 @@ inline int accessCache(uint64_t key) {
     return 0;   
 }
 
+inline int accessCacheNew(uint64_t key) {
+    size_t idx = key & CACHE_MASK;
+    /* assert(idx < CACHE_SIZE);
+    assert(idx >= 0); */
+    EvalEntry &entry = evalCacheNew[idx];
+
+    if (entry.valid && entry.key == key) {
+        return entry.value;  // Cache hit
+    }
+    return 0;  // Cache miss (or default value)
+}
+
+inline void addToCacheNew(uint64_t key, int value) {
+    size_t idx = key & CACHE_MASK;
+    /* assert(idx < CACHE_SIZE);
+    assert(idx >= 0); */
+    EvalEntry& entry = evalCacheNew[idx];
+    entry.key = key;
+    entry.value = value;
+    entry.valid = true;
+}
+
+
 inline void addToCache(uint64_t key,int max_size, int value) {
 	
 	/*
@@ -384,6 +444,7 @@ inline int printCacheStats() {
     int size_in_bytes = num_entries * (sizeof(int64_t) + sizeof(int));
 
     // Print the results
+    std::cout << "EVAL CACHE: "<< std::endl;
     std::cout << "Number of entries: " << num_entries << std::endl;
     std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
 	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
@@ -406,7 +467,8 @@ inline int printQCacheStats() {
     // Estimate the memory usage in bytes: each entry is a pair of (key, value)
     int size_in_bytes = num_entries * (sizeof(int64_t) + sizeof(int));
 
-    // Print the results
+    // Print the 
+    std::cout << "Q CACHE: "<< std::endl;
     std::cout << "Number of entries: " << num_entries << std::endl;
     std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
 	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
@@ -451,8 +513,19 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 	*/
 
 	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-	
-    auto it = moveGenCache.find(updatedKey);
+	size_t idx = updatedKey & CACHE_MASK;
+    /* assert(idx < CACHE_SIZE);
+    assert(idx >= 0); */
+
+    MoveEntry &entry = moveGenCache[idx];
+
+    if (entry.valid && entry.key == updatedKey) {
+        return entry.moves;  // Cache hit
+    }
+    std::vector<Move> dummy;
+	return dummy;  // Cache miss (or default value)
+
+    /* auto it = moveGenCache.find(updatedKey);
     if (it != moveGenCache.end()) {
 		// Return the value if the key exists
         return it->second;  
@@ -460,33 +533,54 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 	
 	// Return the default value if the key doesn't exist
     std::vector<Move> dummy;
-	return dummy;   
+	return dummy;    */
 }
 
-inline std::vector<Move>* accessMoveGenCache1(uint64_t key, uint64_t castling_rights, int ep_square) {
+
+/* inline std::vector<Move>& accessMutableMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-    auto it = moveGenCache.find(updatedKey);
-    return (it != moveGenCache.end()) ? &it->second : nullptr;
-}
-
-inline std::vector<Move>& accessMutableMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
-    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-    return moveGenCache[updatedKey];  // If not present, creates empty vector by default
-}
-
-
-inline void addToMoveGenCache(uint64_t key, int max_size, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square){
-	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-	
-	moveGenCache[updatedKey] = reorderedMoves;
-	moveGenInsertionOrder.push_back(updatedKey);
-
-    if (static_cast<int>(moveGenCache.size()) > max_size && !moveGenInsertionOrder.empty()) {
-        uint64_t oldestKey = moveGenInsertionOrder.front();
-        moveGenInsertionOrder.pop_front();
-        moveGenCache.erase(oldestKey);
+    //return moveGenCache[updatedKey];  // If not present, creates empty vector by default
+    size_t idx = updatedKey & CACHE_MASK;
+    
+    MoveEntry &entry = moveGenCache[idx];
+    // If the entry is valid and belongs to the current position, return it
+    if (entry.valid && entry.key == updatedKey) {
+        return entry.moves;
     }
+
+    // Otherwise, overwrite the entry
+    entry.key = updatedKey;
+    entry.valid = true;
+    entry.moves.clear();  // Clear previous moves (for a different position!)
+    return entry.moves;
+} */
+
+inline MoveEntry& accessMutableMoveGenCache(uint64_t updatedKey, uint64_t castling_rights, int ep_square) {
+    
+    //return moveGenCache[updatedKey];  // If not present, creates empty vector by default
+    size_t idx = updatedKey & CACHE_MASK;
+    /* assert(idx < CACHE_SIZE);
+    assert(idx >= 0); */
+    MoveEntry& entry = moveGenCache[idx];
+    // If the entry is valid and belongs to the current position, return it
+    if (entry.valid && entry.key == updatedKey) {
+        return entry;
+    }
+
+    // Otherwise, overwrite the entry
+    entry.key = updatedKey;
+    entry.valid = true;
+    entry.moves.clear();  // Clear previous moves (for a different position!)
+    return entry;
 }
+
+inline void addToMoveGenCache(uint64_t key, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    MoveEntry& moveEntry = accessMutableMoveGenCache(updatedKey, castling_rights, ep_square);
+    moveEntry.moves = std::move(reorderedMoves);  // Move for speed    
+}
+
+
 
 /* inline bool probeQCache(uint64_t key, uint64_t castling_rights, int ep_square, int alpha, int beta, int& outScore) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
@@ -517,68 +611,99 @@ inline void addToMoveGenCache(uint64_t key, int max_size, std::vector<Move> reor
     return false; // Not safe to use this entry for this window
 } */
 
+
 inline int accessQCache(uint64_t key, uint64_t castling_rights, int ep_square) {
 	
-	/*
-		Function to access the position cache
-		
-		Parameters:
-		- key: The hash for the given position
-		
-		Returns:
-		The stored evaluation for the position if it exists
-	*/
-	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-    auto it = quiesceEvalCache.find(updatedKey);
-    if (it != quiesceEvalCache.end()) {
-		// Return the value if the key exists
-        return it->second;  
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+	size_t idx = updatedKey & CACHE_MASK;
+    EvalEntry &entry = quiesceEvalCache[idx];
+
+    if (entry.valid && entry.key == updatedKey) {
+        return entry.value;  // Cache hit
     }
-	
-	// Return the default value if the key doesn't exist
-    return 0;   
+    return 0;  // Cache miss (or default value)
 }
 
 inline void addToQCache(uint64_t key,int max_size, int value, uint64_t castling_rights, int ep_square) {
 	
-	/*
-		Function to add to the position cache
-		
-		Parameters:
-		- key: The hash for the given position
-		- value: The value to be associated with the given key
-	*/
-	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-	// Add the key-value pair to the cache as well as the key to the move order
-    quiesceEvalCache[updatedKey] = value;
-	quiesceinsertionOrder.push_back(updatedKey);
+    if (value >= 9000000 || value <= -9000000 || value == 0)
+		return;
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+	size_t idx = updatedKey & CACHE_MASK;
+    EvalEntry& entry = quiesceEvalCache[idx];
+    entry.key = updatedKey;
+    entry.value = value;
+    entry.valid = true;
 
-    if (static_cast<int>(quiesceEvalCache.size()) > max_size && !quiesceinsertionOrder.empty()) {
-        uint64_t oldestKey = quiesceinsertionOrder.front();
-        quiesceinsertionOrder.pop_front();
-        quiesceEvalCache.erase(oldestKey);
-    }
 }
 
 
-inline std::optional<TTEntry> accessSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
+/* inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
+   
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    //return moveGenCache[updatedKey];  // If not present, creates empty vector by default
+    size_t idx = updatedKey & TT_CACHE_MASK;
+    
+    TTEntry &entry = searchEvalCache[idx];
+    // If the entry is valid and belongs to the current position, return it
+    if (entry.valid && entry.key == updatedKey) {
+        return &entry;
+    }
+
+    // Return an empty optional if not found
+    return nullptr;
+    
+}
+
+
+inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int depth_used, TTFlag flag, int alpha_orig, int beta_orig, uint64_t castling_rights, int ep_square) {	
+
+	if (score >= 9000000 || score <= -9000000 || score == 0)
+		return;
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    
+    size_t idx = updatedKey & TT_CACHE_MASK;
+    
+    TTEntry& entry = searchEvalCache[idx];
+    if((updatedKey != entry.key) || (entry.depth <= depth_used)){
+        entry.key = updatedKey;
+        entry.score = score;
+        entry.depth = depth_used;
+        entry.flag = flag;
+        entry.alpha = alpha_orig;
+        entry.beta = beta_orig;
+        entry.valid = true;
+    }
+    
+} */
+
+inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     auto it = searchEvalCache.find(updatedKey);
     if (it != searchEvalCache.end()) {
         // Return a copy of the stored TTEntry wrapped in std::optional
-        return it->second;
+        return &it->second;
     }
     // Return an empty optional if not found
-    return std::nullopt;
+    return nullptr;
 }
 
 
-inline void addToSearchEvalCache(uint64_t key, int num_plies, TTEntry entry, uint64_t castling_rights, int ep_square) {
+inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int depth_used, TTFlag flag, int alpha_orig, int beta_orig, uint64_t castling_rights, int ep_square) {
     
-	int val = entry.score;
-
-	if (val >= 9000000 || val <= -9000000 || val == 0)
+	if (score >= 9000000 || score <= -9000000 || score == 0)
 		return;
+
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    auto it = searchEvalCache.find(updatedKey);
+    if (it != searchEvalCache.end()) {
+        // Entry exists, compare depths
+        if (depth_used < it->second.depth) {
+            // Existing entry is deeper, don't replace
+            return;
+        }
+    }
+
 	int max_size;
     if (num_plies < 30) {
         max_size = 8000000;
@@ -590,19 +715,8 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, TTEntry entry, uin
         max_size = 40000000;
     }
 
-    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-
-    /* auto it = searchEvalCache.find(updatedKey);
-    if (it != searchEvalCache.end()) {
-        // Entry exists, compare depths
-        if (entry.depth < it->second.depth) {
-            // Existing entry is deeper, don't replace
-            return;
-        }
-    } */
-
     // Store or replace
-    searchEvalCache[updatedKey] = entry;
+    searchEvalCache[updatedKey] = TTEntry(score, depth_used, flag, alpha_orig, beta_orig);
     searchInsertionOrder.push_back(updatedKey);
 
     // Manage size
@@ -627,9 +741,10 @@ inline int printSearchEvalCacheStats() {
     int num_entries = searchEvalCache.size();
 
     // Estimate the memory usage in bytes: each entry is a pair of (key, value)
-    int size_in_bytes = num_entries * (sizeof(int64_t) +  2 * sizeof(int) + sizeof(uint8_t));
+    int size_in_bytes = num_entries * (sizeof(int64_t) +  4 * sizeof(int) + sizeof(uint8_t));
 
     // Print the results
+    std::cout << "TT CACHE: "<< std::endl;
     std::cout << "Number of entries: " << num_entries << std::endl;
     std::cout << "Estimated size in bytes: " << size_in_bytes << std::endl;
 	std::cout << "Estimated size in Megabytes: " << (size_in_bytes >> 20) << std::endl;
@@ -639,15 +754,17 @@ inline int printSearchEvalCacheStats() {
 
 
 inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, uint64_t ep_square, Move move, std::vector<Move> moves, std::vector<BoardState>& state_history){
-    std::vector<Move>& moveList = accessMutableMoveGenCache(zobrist, castling, ep_square);
+    uint64_t updatedKey = make_move_cache_key(zobrist, castling, ep_square);
+    MoveEntry& moveEntry = accessMutableMoveGenCache(updatedKey, castling, ep_square);
 
-    if (moveList.empty()){
-        auto it = std::find(moves.begin(), moves.end(), move);
+    if (moveEntry.key != updatedKey){
+        /* auto it = std::find(moves.begin(), moves.end(), move);
         if (it != moves.end() && it != moves.begin()) {
             std::iter_swap(it, moves.begin());
-        }
+        } */
+        promoteMoveToFront(moves, move);
 
-        int num_plies = static_cast<int>(state_history.size());
+        /* int num_plies = static_cast<int>(state_history.size());
         int max_cache_size;
         // Code segment to control cache size
         if(num_plies < 30){
@@ -658,15 +775,18 @@ inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, ui
             max_cache_size = 2400000; 
         }else{
             max_cache_size = 3000000; 
-        }
-        addToMoveGenCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, moves, castling, ep_square);
+        } */
+        //addToMoveGenCache(zobrist, /* max_cache_size * Config::ACTIVE->cache_size_multiplier, */ moves, castling, ep_square);
+        moveEntry.moves = std::move(moves);
         return;
     }
 
-    auto it = std::find(moveList.begin(), moveList.end(), move);
+    /* auto it = std::find(moveList.begin(), moveList.end(), move);
     if (it != moveList.end() && it != moveList.begin()) {
         std::iter_swap(it, moveList.begin());
-    }    
+    } */
+    
+    promoteMoveToFront(moveEntry.moves, move);
 }
 
 inline void storeKillerMove(int ply, Move move) {
@@ -677,6 +797,9 @@ inline void storeKillerMove(int ply, Move move) {
 }
 
 inline int killerBonus(int ply, Move move) {
+    if (ply > 63)
+        return 0;
+
     if (killerMoves[ply][0] == move)
 		return 10000;
 
@@ -735,7 +858,7 @@ inline int printMoveGenCacheStats() {
     size_t total_moves = 0;
 
     for (const auto& entry : moveGenCache) {
-        total_moves += entry.second.size();
+        total_moves += entry.moves.size();
     }
 
     size_t size_of_keys = num_entries * sizeof(uint64_t);
@@ -744,7 +867,7 @@ inline int printMoveGenCacheStats() {
 
     size_t total_bytes = size_of_keys + size_of_vectors + size_of_moves;
 
-    std::cout << "Move cache stats:\n" << std::endl;
+    std::cout << "MOVE GEN:" << std::endl;
     std::cout << "Number of entries: " << num_entries << std::endl;
     std::cout << "Total moves stored: " << total_moves << std::endl;
     std::cout << "Estimated size in bytes: " << total_bytes << std::endl;

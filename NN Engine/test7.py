@@ -129,9 +129,17 @@ result = evaluate_board(board)
 t1 = timer()
 print('Actual Eval:', result, t1 - t0)
 
-board = chess.Board("rq3rk1/pB1n1ppp/1pQbpn2/3p4/3P4/P3P3/1P1N1PPP/R1B1K2R b KQ - 7 15")
+board = chess.Board("r4k1r/pbq2pp1/3Np2p/3nP2Q/1p1b4/3B4/PP3PPP/R1B1R1K1 b - - 9 19")
 t0 = timer()  
 result = evaluate_board(board)
 t1 = timer()
 print('Actual Eval:', result, t1 - t0)
+
+board = chess.Board("4rk1r/pb3pp1/1q2p3/3nP2p/1p5Q/3B4/PP1B1PPP/2RR2K1 b - - 5 22")
+t0 = timer()  
+result = evaluate_board(board)
+t1 = timer()
+print('Actual Eval:', result, t1 - t0)
+
+
 

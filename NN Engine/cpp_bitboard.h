@@ -4,6 +4,7 @@
 #pragma once
 
 #include "search_engine.h"
+
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -15,6 +16,12 @@
 
 constexpr int NUM_SQUARES = 64;
 constexpr int MAX_PLY = 64;
+
+constexpr size_t CACHE_SIZE = 1 << 23;  // example: 1M entries
+constexpr uint64_t CACHE_MASK = CACHE_SIZE - 1;
+
+constexpr size_t TT_CACHE_SIZE = 1 << 24;  // example: 1M entries
+constexpr uint64_t TT_CACHE_MASK = TT_CACHE_SIZE - 1;
 
 // Define masks for move generation
 extern std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
@@ -156,7 +163,7 @@ constexpr std::array<uint64_t, 64> generate_square_masks() {
 }
 
 // Global constant array of square bitmasks
-constexpr std::array<uint64_t, 64> BB_SQUARES = generate_square_masks();
+alignas(64) constexpr std::array<uint64_t, 64> BB_SQUARES = generate_square_masks();
 
 constexpr uint64_t central_squares = BB_SQUARES[27] | BB_SQUARES[28] | BB_SQUARES[35] | BB_SQUARES[36];
 
@@ -262,7 +269,7 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 /*
 	Set of functions used to generate moves
 */
-inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn);
 
@@ -281,7 +288,7 @@ inline void generateCastlingMoves(std::vector<uint8_t> &startPos, std::vector<ui
 
 inline void generateEnPassentMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t from_mask, uint64_t to_mask, uint64_t our_pieces, uint64_t occupiedMask, uint64_t pawnsMask, int ep_square, bool turn);
 
-inline void generateEvasions(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t preliminary_castling_mask, uint8_t king, uint64_t checkers, uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces,
+void generateEvasions(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions, uint64_t preliminary_castling_mask, uint8_t king, uint64_t checkers, uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces,
 					  uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn);
 
 inline void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered, uint64_t from_mask, uint64_t to_mask,
@@ -313,6 +320,16 @@ inline bool is_en_passant(uint8_t from_square, uint8_t to_square, int ep_square,
 inline uint64_t pin_mask(bool colour, int square, uint8_t king, uint64_t occupiedMask, uint64_t opposingPieces, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask);
 inline bool ep_skewered(int king, int capturer, int ep_square, bool turn, uint64_t occupiedMask, uint64_t opposingPieces, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask);
 inline bool attackedForKing(bool opponent_color,uint64_t path, uint64_t occupied, uint64_t opposingPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask);
+
+// Promote a move to the front of the moveList vector
+inline void promoteMoveToFront(std::vector<Move>& moveList, Move move) {
+    auto it = std::find(moveList.begin(), moveList.end(), move);
+    if (it != moveList.end() && it != moveList.begin()) {
+        Move temp = *it;
+        moveList.erase(it); // O(n), but small list, so acceptable
+        moveList.insert(moveList.begin(), temp); // shift others right
+    }
+}
 
 
 inline uint8_t piece_type_at(uint8_t square){
@@ -477,6 +494,10 @@ inline bool is_into_check(uint8_t from_square, uint8_t to_square, uint64_t occup
 	std::vector<uint8_t> startPos;
     std::vector<uint8_t> endPos;
     std::vector<uint8_t> promotions;
+
+	startPos.reserve(32);
+	endPos.reserve(32);
+	promotions.reserve(32);
 
     generateEvasions(startPos, endPos, promotions,
                      0, king, checkers, BB_SQUARES[from_square], BB_SQUARES[to_square],
@@ -731,7 +752,7 @@ inline bool is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied
 		A mask containing the squares between a and b
 	*/
 	
-	uint64_t touched = (1ULL << from_square) ^ (1ULL << to_square);
+	uint64_t touched = /* (1ULL << from_square) ^ */ (1ULL << to_square);
 	return bool(touched & occupied_co) || is_en_passant;
 }
 
@@ -758,7 +779,9 @@ inline bool is_check(bool colour, uint64_t occupied, uint64_t queens_and_rooks, 
 	return (bool)(attackersMask(!colour, kingSquare, occupied, queens_and_rooks, queens_and_bishops, kings, knights, pawns, opposingPieces));
 }
 
-inline bool is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square);
+
+inline bool is_checkmate(uint64_t zobrist, uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bool turn){
 
 	if (!is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
@@ -767,6 +790,15 @@ inline bool is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMa
 	std::vector<uint8_t> startPos;
 	std::vector<uint8_t> endPos;
 	std::vector<uint8_t> promotions;
+
+	startPos.reserve(32);
+	endPos.reserve(32);
+	promotions.reserve(32);
+	
+	std::vector<Move> cached_moves = accessMoveGenCache(zobrist, preliminary_castling_mask, ep_square);
+    if(cached_moves.size() != 0){
+		return false;
+	}
 
 	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
@@ -779,7 +811,7 @@ inline bool is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMa
 
 }
 
-inline bool is_stalemate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+inline bool is_stalemate(uint64_t zobrist, uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bool turn){
 
 	if (is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
@@ -788,6 +820,15 @@ inline bool is_stalemate(uint64_t preliminary_castling_mask, uint64_t occupiedMa
 	std::vector<uint8_t> startPos;
 	std::vector<uint8_t> endPos;
 	std::vector<uint8_t> promotions;
+
+	startPos.reserve(32);
+	endPos.reserve(32);
+	promotions.reserve(32);
+
+	std::vector<Move> cached_moves = accessMoveGenCache(zobrist, preliminary_castling_mask, ep_square);
+    if(cached_moves.size() != 0){
+		return false;
+	}
 
 	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
@@ -1306,7 +1347,7 @@ inline int see(uint8_t to_square, bool side_to_move, const BoardState& state){
 }
 
 
-inline int get_see_score(uint8_t to_square, bool side_to_move, const BoardState& state){
+/* inline int get_see_score(uint8_t to_square, bool side_to_move, const BoardState& state){
 	
 	bool breaks_early = false;
     int gain[32];
@@ -1360,6 +1401,6 @@ inline int get_see_score(uint8_t to_square, bool side_to_move, const BoardState&
 	}
 
     return gain[0];
-}
+} */
 
 #endif // CPP_BITBOARD_H

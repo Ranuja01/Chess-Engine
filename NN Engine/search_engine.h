@@ -15,7 +15,7 @@
 using Clock = std::chrono::steady_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 
-constexpr int TIME_CHECK_INTERVAL = 300000;
+constexpr int TIME_CHECK_INTERVAL = 200000;
 
 // Constants for material thresholds
 constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
@@ -33,6 +33,7 @@ constexpr bool USE_Q_SEARCH = true;
 
 struct TTEntry;
 struct QCacheEntry;
+struct MoveEntry;
 
 struct ConfigData {
     int cache_size_multiplier;
@@ -42,6 +43,83 @@ struct ConfigData {
 };
 
 namespace Configs {
+
+    constexpr ConfigData LIGHTNING = {
+        2,
+        1.0,
+        [] {
+            std::array<double, 64> times{};
+            times[3] = 0.5;
+            times[4] = 0.5;
+            times[5] = 0.5;
+            times[6] = 0.75;
+            times[7] = 0.75;
+            for (int i = 8; i < 64; ++i) {
+                times[i] = 0.75;
+            }
+            return times;
+        }(),
+
+        [] {
+            std::array<int, 64> new_depths{};
+            new_depths[1] = 0;
+            new_depths[2] = 1;
+            new_depths[3] = 2;
+            new_depths[4] = 3;
+            new_depths[5] = 4;
+            new_depths[6] = 5;
+            new_depths[7] = 6;
+            new_depths[8] = 7;
+            new_depths[9] = 8;
+            new_depths[10] = 8;
+            new_depths[11] = 9;
+            new_depths[12] = 10;
+            new_depths[13] = 11;            
+            for (int i = 14; i < 64; ++i) {
+                new_depths[i] = 12;
+            }
+            return new_depths;
+        }()
+    };
+
+    constexpr ConfigData BLITZ = {
+        2,
+        3.5,
+        [] {
+            std::array<double, 64> times{};
+            times[3] = 1.0;
+            times[4] = 1.0;
+            times[5] = 1.5;
+            times[6] = 1.5;
+            times[7] = 1.5;
+            for (int i = 8; i < 64; ++i) {
+                times[i] = 2.0;
+            }
+            return times;
+        }(),
+
+        [] {
+            std::array<int, 64> new_depths{};
+            new_depths[1] = 0;
+            new_depths[2] = 1;
+            new_depths[3] = 2;
+            new_depths[4] = 3;
+            new_depths[5] = 4;
+            new_depths[6] = 5;
+            new_depths[7] = 6;
+            new_depths[8] = 7;
+            new_depths[9] = 8;
+            new_depths[10] = 8;
+            new_depths[11] = 9;
+            new_depths[12] = 10;
+            new_depths[13] = 11;            
+            for (int i = 14; i < 64; ++i) {
+                new_depths[i] = 12;
+            }
+            return new_depths;
+        }()
+    };
+
     constexpr ConfigData STANDARD = {
         2,
         45.0,
@@ -117,9 +195,9 @@ namespace Configs {
 }
 
 namespace Config {
-    inline const ConfigData* ACTIVE = &Configs::STANDARD; // Default to classical
+    inline const ConfigData* ACTIVE = &Configs::LONG_FORMAT; // Default to classical
     inline bool side_to_play = false; // Default; can be set at runtime
-    inline int DECAY_INTERVAL = 75000;
+    inline int DECAY_INTERVAL = 35000;
 }
 
 struct BoardState {
@@ -258,8 +336,9 @@ inline bool is_repetition(const std::unordered_map<uint64_t, int>& position_coun
 inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relavent_pin, int move_number, BoardState current_state);
 inline void updatePV(Move move, int cur_depth);
 
-int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations);
+inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint& t0, std::vector<BoardState>& state_history, BoardState current_state, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing);
+inline int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations);
 inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply, Move prevMove);
-inline std::vector<Move> buildNoisyMoveList(std::vector<BoardState>& state_history, int cur_ply, Move prevMove);
+inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState>& state_history, int cur_ply, Move prevMove);
 
 #endif // SEARCH_ENGINE_H

@@ -145,7 +145,7 @@ inline void generatePieceMoves(std::vector<uint8_t> &startPos, std::vector<uint8
 		
 		
 		// Define the moves as a bitwise and between the squares attacked from the starting square and the starting mask
-		uint64_t moves = (attacks_mask(bool((1ULL<<r) & occupiedWhite),occupiedMask,r,piece_type) & ~our_pieces) & to_mask;		
+		uint64_t moves = (attacks_mask(bool((mask) & occupiedWhite),occupiedMask,r,piece_type) & ~our_pieces) & to_mask;		
 		
 		// Loop through the possible destinations
 		uint8_t r_inner = 0;
@@ -620,7 +620,6 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 				int see_score = see(to, turn, state);
 				return see_score < 0 ? see_score + promo_bonus + move_freq_bonus : capture_base_value + see_score + promo_bonus + move_freq_bonus;
 			}
-
 		}
 
 		Move cur(from, to, promotions[i]);

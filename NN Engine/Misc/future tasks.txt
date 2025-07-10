@@ -1,0 +1,98 @@
+
+Absolutely — here's a concise summary of the task and approach for **handling trapped or ineffective minor pieces (like the bishop on f8) in endgame evaluation**, especially for fortress detection:
+
+---
+
+## 📝 **Task Summary: Improving Endgame Evaluation with Piece Stuckness Heuristics**
+
+### 🎯 **Goal:**
+
+Fix incorrect winning evaluations in positions where the engine overestimates material and passed pawns, but misses that a **minor piece (e.g. bishop)** is effectively **trapped or inactive**, leading to a **fortress/draw** instead of a win.
+
+---
+
+## 🔍 **Core Problem:**
+
+In positions like:
+
+* `4bk2/5p2/5PpK/4n3/8/1R6/8/8 w - - 0 76`
+
+The engine incorrectly evaluates as winning for Black due to:
+
+* Passed pawn
+* Material advantage
+* Rook vs minor piece imbalance
+
+But in reality, it's **drawn** due to:
+
+* Rook domination
+* Bishop is trapped (effectively pinned)
+* No real progress can be made
+
+A minor change (e.g. bishop on d8 instead of f8) **removes the fortress**, showing that **the bishop’s mobility is critical**.
+
+---
+
+## 🧠 **Solution Overview:**
+
+### ✅ 1. **Safe Mobility Evaluation**
+
+* Count **safe legal moves** for each minor piece.
+* Penalize pieces (especially bishops/knights) with ≤ 2 safe moves.
+
+### ✅ 2. **Domination Heuristic**
+
+* Penalize pieces trapped behind **own pawns** with **no escape** due to enemy control (e.g. rook cuts diagonals or files).
+
+### ✅ 3. **Virtual Pin Detection**
+
+* Simulate a **shallow search** (1-2 plies): if moving a minor piece **opens up infiltration** (e.g. enemy rook gets behind pawns), apply a **penalty**.
+
+### ✅ 4. **Inactivity Tracker (Optional)**
+
+* Track how long each piece has gone **without moving** and penalize long-term inactivity, especially with low mobility.
+
+---
+
+## 🛠️ **Implementation Tips:**
+
+* Use safe move counters (filtered for suicidally bad moves).
+* Identify own pawn blockages and enemy control zones (via bitboards).
+* Modularize into evaluation terms like:
+
+  * `low_mobility_penalty`
+  * `domination_penalty`
+  * `pseudo_pin_penalty`
+* Avoid overfitting — use scalable/gradual penalties (e.g., scale by number of legal moves).
+* Build a **test suite** with fortress vs non-fortress positions to validate & tune constants.
+
+---
+
+## 💡 Example Pseudocode
+
+```cpp
+int bishop_mobility = count_safe_moves(bishop);
+if (bishop_mobility <= 2) eval -= 40;
+
+if (bishop_blocked_by_own_pawns() && rook_controls_escape()) {
+    eval -= 80; // Dominated piece
+}
+
+if (bishop_move_allows_rook_entry()) {
+    eval -= 50; // Virtual pin
+}
+```
+
+---
+
+## 🚀 Next Steps
+
+1. Implement safe mobility check for minor pieces.
+2. Add structural + domination heuristics.
+3. Validate on fortress vs winning positions.
+4. Tune weights to match observed evaluation errors.
+
+---
+
+Let me know if you want this as a downloadable file or want me to help write test positions for your engine.
+

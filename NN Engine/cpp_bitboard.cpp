@@ -10,6 +10,7 @@ Code augmented from python-chess: https://github.com/niklasf/python-chess/tree/5
 
 #include "cpp_bitboard.h"
 #include "search_engine.h"
+#include "cache_management.h"
 #include <vector>
 #include <array>
 #include <cstddef>
@@ -52,6 +53,8 @@ uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied
 int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
 int blackPieceVal, whitePieceVal;
 
+
+int central_score;
 /*
 	Define a set of lookup tables
 */
@@ -63,41 +66,64 @@ uint64_t zobristTurn;
 uint64_t castling_hash[4];
 uint64_t ep_hash[65];
 
+
+std::vector<EvalEntry> evalCacheNew(CACHE_SIZE);
+
 std::unordered_map<uint64_t, int> evalCache;
 std::deque<uint64_t> insertionOrder;
 
-std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
-std::deque<uint64_t> moveGenInsertionOrder;
+/* std::unordered_map<uint64_t, int> quiesceEvalCache;
+std::deque<uint64_t> quiesceinsertionOrder; */
 
-Move killerMoves[MAX_PLY][2]; // Store up to 2 killer moves per ply
 
-int historyHeuristics[2][64][64];
+std::vector<MoveEntry> moveGenCache(CACHE_SIZE);
+std::vector<EvalEntry> quiesceEvalCache(CACHE_SIZE);
+//std::vector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
+/* std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
+std::deque<uint64_t> moveGenInsertionOrder; */
+
+std::unordered_map<uint64_t, TTEntry> searchEvalCache;
+std::deque<uint64_t> searchInsertionOrder;
+
+alignas(64) Move killerMoves[MAX_PLY][2];
+
+alignas(64) Move counterMoves[64][64];
+
+alignas(64) int counterMoveHeuristics[2][4096][4096] = {};
+
+alignas(64) int historyHeuristics[2][64][64] = {};
+
+alignas(64) int moveFrequency[2][64][64] = {};
+
+
+
+
 
 // Define a heat map for attacks
-std::array<std::array<std::array<int, 8>, 8>, 2> attackingLayer;
+alignas(64) std::array<std::array<std::array<int, 8>, 8>, 2> attackingLayer;
 
 // Define heat maps for piece placement for both white and black
-std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = {{
+alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = {{
     {{ // Pawns
         {{0,20,7,7,10,15,20,0}},
         {{0,20,5,5,7,15,20,0}},
-        {{0,15,15,25,20,35,30,0}},
-        {{0,0,20,35,50,35,30,0}},
-        {{0,0,20,35,50,35,30,0}},
-        {{0,15,15,25,20,35,30,0}},
+        {{0,15,15,30,25,35,30,0}},
+        {{0,0,20,50,60,35,30,0}},
+        {{0,0,20,50,60,35,30,0}},
+        {{0,15,15,30,25,35,30,0}},
         {{0,20,5,5,7,15,20,0}},
         {{0,20,7,7,10,15,20,0}}
     }},
-    {{ // Knights
-        {{0,0,10,15,20,20,15,10}},
-        {{0,0,10,15,20,20,15,10}},
-        {{0,0,15,20,25,25,20,10}},
-        {{0,0,15,20,25,25,20,10}},
-        {{0,0,15,20,25,25,20,10}},
-        {{0,0,15,20,25,25,20,10}},
-        {{0,0,10,15,20,20,15,10}},
-        {{0,0,10,15,20,20,15,10}}
-    }},
+    {{ // Knights 
+		{{  0,  5, 10, 15, 15, 10,  5,  0 }}, // File A
+		{{  5, 10, 20, 25, 25, 20, 10,  5 }}, // File B
+		{{ 10, 20, 30, 35, 35, 30, 20, 10 }}, // File C
+		{{ 15, 25, 35, 40, 40, 35, 25, 15 }}, // File D (center)
+		{{ 15, 25, 35, 40, 40, 35, 25, 15 }}, // File E (center)
+		{{ 10, 20, 30, 35, 35, 30, 20, 10 }}, // File F
+		{{  5, 10, 20, 25, 25, 20, 10,  5 }}, // File G
+		{{  0,  5, 10, 15, 15, 10,  5,  0 }}  // File H
+	}},
     {{ // Bishops
         {{10,10,20,20,25,25,15,20}},
         {{10,20,20,35,20,25,20,20}},
@@ -119,48 +145,48 @@ std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = {{
         {{0,0,0,0,0,0,0,0}}
     }},
     {{ // Queens
-        {{10,20,40,40,35,20,15,20}},
-		{{10,30,60,60,55,25,20,20}},
-		{{10,40,65,65,60,20,20,20}},
-		{{10,45,65,65,60,25,20,20}},
-		{{10,45,65,65,60,25,20,20}},
-		{{10,40,65,65,60,20,20,20}},
-		{{10,30,60,60,55,20,20,20}},
-		{{10,20,40,40,35,20,20,20}}
+        {{40,20,40,40,35,20,15,20}},
+		{{40,30,60,60,55,25,20,20}},
+		{{40,40,65,65,60,20,20,20}},
+		{{40,45,65,65,60,25,20,20}},
+		{{40,45,65,65,60,25,20,20}},
+		{{40,40,65,65,60,20,20,20}},
+		{{40,30,60,60,55,20,20,20}},
+		{{40,20,40,40,35,20,20,20}}
     }},
-    {{ // Kings
-        {{0,0,0,0,0,0,0,0}},
-        {{0,0,3,10,10,2,0,0}},
-        {{0,0,3,15,15,5,0,0}},
-        {{0,0,3,20,25,5,0,0}},
-        {{0,0,3,20,25,5,0,0}},
-        {{0,0,3,15,15,5,0,0}},
-        {{0,0,3,10,10,2,0,0}},
-        {{0,0,0,0,0,0,0,0}}
-    }}
+    {{ // Kings - Endgame
+		{{  0,  5,  5,  5,  5,  5,  5,  0 }},
+		{{  5, 10, 15, 20, 20, 15, 10,  5 }},
+		{{  5, 15, 25, 30, 30, 25, 15,  5 }},
+		{{  5, 20, 30, 35, 35, 30, 20,  5 }},
+		{{  5, 20, 30, 35, 35, 30, 20,  5 }},
+		{{  5, 15, 25, 30, 30, 25, 15,  5 }},
+		{{  5, 10, 15, 20, 20, 15, 10,  5 }},
+		{{  0,  5,  5,  5,  5,  5,  5,  0 }}
+	}}
 }};
 
-std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
+alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
     {{ // Pawns
-        {0, 20, 15, 10, 7, 7, 20, 0},
-		{0, 20, 15, 7, 5, 5, 20, 0},
-		{0, 30, 35, 20, 25, 15, 15, 0},
-		{0, 30, 35, 50, 35, 20, 0, 0},
-		{0, 30, 35, 50, 35, 20, 0, 0},
-		{0, 30, 35, 20, 25, 15, 15, 0},
-		{0, 20, 15, 7, 5, 5, 20, 0},
-		{0, 20, 15, 10, 7, 7, 20, 0}
-    }},
-    {{ // Knights
-        {{10,15,20,20,15,10,0,0}},
-		{{10,15,20,20,15,10,0,0}},
-		{{10,20,25,25,20,15,0,0}},
-		{{10,20,25,25,20,15,0,0}},
-		{{10,20,25,25,20,15,0,0}},
-		{{10,20,25,25,20,15,0,0}},
-		{{10,15,20,20,15,10,0,0}},
-		{{10,15,20,20,15,10,0,0}}
-    }},
+		{{ 0, 20, 15, 10,  7,  7, 20,  0 }},
+		{{ 0, 20, 15,  7,  5,  5, 20,  0 }},
+		{{ 0, 30, 35, 25, 30, 15, 15,  0 }},
+		{{ 0, 30, 35, 60, 50, 20,  0,  0 }},
+		{{ 0, 30, 35, 60, 50, 20,  0,  0 }},
+		{{ 0, 30, 35, 25, 30, 15, 15,  0 }},
+		{{ 0, 20, 15,  7,  5,  5, 20,  0 }},
+		{{ 0, 20, 15, 10,  7,  7, 20,  0 }}
+	}},
+    {{ // Knights 
+		{{  0,  5, 10, 15, 15, 10,  5,  0 }}, // File A
+		{{  5, 10, 20, 25, 25, 20, 10,  5 }}, // File B
+		{{ 10, 20, 30, 35, 35, 30, 20, 10 }}, // File C
+		{{ 15, 25, 35, 40, 40, 35, 25, 15 }}, // File D (center)
+		{{ 15, 25, 35, 40, 40, 35, 25, 15 }}, // File E (center)
+		{{ 10, 20, 30, 35, 35, 30, 20, 10 }}, // File F
+		{{  5, 10, 20, 25, 25, 20, 10,  5 }}, // File G
+		{{  0,  5, 10, 15, 15, 10,  5,  0 }}  // File H
+	}},
     {{ // Bishops
         {{20,15,25,25,20,20,10,10}},
 		{{20,20,25,20,35,20,20,10}},
@@ -182,31 +208,33 @@ std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
         {{0,0,0,0,0,0,0,0}}
     }},
     {{ // Queens
-        {{20,15,20,35,40,40,20,10}},
-		{{20,20,25,55,60,60,30,10}},
-		{{20,20,20,60,65,65,40,10}},
-		{{20,20,25,60,65,65,45,10}},
-		{{20,20,25,60,65,65,45,10}},
-		{{20,20,20,60,65,65,40,10}},
-		{{20,20,20,55,60,60,30,10}},
-		{{20,20,20,35,40,40,20,10}}
+        {{20,15,20,35,40,40,20,40}},
+		{{20,20,25,55,60,60,30,40}},
+		{{20,20,20,60,65,65,40,40}},
+		{{20,20,25,60,65,65,45,40}},
+		{{20,20,25,60,65,65,45,40}},
+		{{20,20,20,60,65,65,40,40}},
+		{{20,20,20,55,60,60,30,40}},
+		{{20,20,20,35,40,40,20,40}}
     }},
-    {{ // Kings
-        {{0,0,0,0,0,0,0,0}},
-        {{0,0,2,10,10,3,0,0}},
-        {{0,0,5,15,15,3,0,0}},
-        {{0,0,5,25,20,3,0,0}},
-        {{0,0,5,25,20,3,0,0}},
-        {{0,0,5,15,15,3,0,0}},
-        {{0,0,2,10,10,3,0,0}},
-        {{0,0,0,0,0,0,0,0}}
-    }}
+    {{ // Kings - Endgame
+		{{  0,  5,  5,  5,  5,  5,  5,  0 }},
+		{{  5, 10, 15, 20, 20, 15, 10,  5 }},
+		{{  5, 15, 25, 30, 30, 25, 15,  5 }},
+		{{  5, 20, 30, 35, 35, 30, 20,  5 }},
+		{{  5, 20, 30, 35, 35, 30, 20,  5 }},
+		{{  5, 15, 25, 30, 30, 25, 15,  5 }},
+		{{  5, 10, 15, 20, 20, 15, 10,  5 }},
+		{{  0,  5,  5,  5,  5,  5,  5,  0 }}
+	}}
+
 }};
 
 // Define array to hold the piece type 
-std::array<uint8_t, 64> pieceTypeLookUp = {};
+alignas(64) std::array<uint8_t, 64> pieceTypeLookUp = {};
 
 std::array<uint64_t, 64> attack_bitmasks = {0ULL};
+
 
 std::array<int, 64> pressure_white = {0};
 std::array<int, 64> support_white = {0};
@@ -242,6 +270,7 @@ constexpr std::array<std::array<int, 7>, 7> pressure_weights = {{
 
 constexpr int decrement_lookup[7] = {0,  5, 35, 35, 100, 150, 1000};  // [piece_type]
 constexpr int pressure_increase_lookup[7] = {0,  5, 10, 10, 20,  30,  30};
+
 
 
 bool horizon_mitigation_flag = false;
@@ -428,9 +457,11 @@ uint64_t edges(uint8_t square) {
 	Set of functions directly used to evaluate the position
 */
 
-inline int evaluate_pawns_midgame(uint8_t square){
+inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns, int& pawn_rank_bonus){
 	// Initialize the evaluation
     int total = 0;
+	int structural_bonus = 0;
+	int positional_bonus = 0;
 	
 	// Initialize the maximum increment for pawn placement
 	int ppIncrement = 200;
@@ -448,27 +479,52 @@ inline int evaluate_pawns_midgame(uint8_t square){
         whitePieceVal += values[PAWN];
 
 		// Subtract the placement layer for the given piece at that square
-		total -= whitePlacementLayer[PAWN - 1][x][y];
+		positional_bonus += whitePlacementLayer[PAWN - 1][x][y];
+
+		// Subtract the score based on the attack of the opposing position and defense of white's own position
+		positional_bonus += attackingLayer[0][x][y];
+		positional_bonus += attackingLayer[1][x][y];
 		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
+		whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
+
+		update_global_central_scores(-(whitePlacementLayer[PAWN - 1][x][y] << 1), BB_SQUARES[square]);
+		//central_score -= whitePlacementLayer[PAWN - 1][x][y] << 2;
+
 		// Lower white's score for more than one white pawn being on the same file
-		total += 200 * (__builtin_popcountll(BB_FILES[x] & (occupied_white & pawns)) > 1);
+		total += 125 * (__builtin_popcountll(BB_FILES[x] & (occupied_white & pawns)) > 1);
 		
 		// Call the function to acquire an extra boost for passed and semi passed pawns
-		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white);
+		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns);
 		ppIncrement = std::min(ppIncrement, 400); // cap runaway boosts
 
 		int rank = y;
 		//total -= ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));
-		total -= (default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 200)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 200));
+		pawn_rank_bonus = -(((default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement < 100)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 100)));
+		total += std::min(pawn_rank_bonus,275);
+		
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 		*/
 		
 		uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H & occupied_white & pawns;
-		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_white & pawns;		
+		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_white & pawns;
+		uint64_t sw  = (BB_SQUARES[square] >> 9) & ~BB_FILE_H & occupied_white & pawns;
+		uint64_t se = (BB_SQUARES[square] >> 7) & ~BB_FILE_A & occupied_white & pawns;
 
-		total -= pawn_wall_file_bonus[x]     * (left  != 0); // for pawn on file x-1
-		total -= pawn_wall_file_bonus[x + 2] * (right != 0); // for pawn on file x+1
+		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
+		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);
+		
+		structural_bonus += pawn_wall_file_bonus[x]     * (left  != 0); // for pawn on file x-1
+		structural_bonus += pawn_wall_file_bonus[x + 2] * (right != 0); // for pawn on file x+1
+		
+		structural_bonus += (pawn_chain_file_bonus[x] + 15) * (sw != 0);
+		structural_bonus += (pawn_chain_file_bonus[x] + 15) * (se != 0);
+		
+		structural_bonus += 30 * (sw == 0) * ((latent_left_support_mask & occupied_white & pawns) != 0) * ((latent_left_support_mask & occupied_black) == 0);
+		structural_bonus += 30 * (se == 0) * ((latent_right_support_mask & occupied_white & pawns) != 0) * ((latent_right_support_mask & occupied_black) == 0);  
 		
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_PAWN_ATTACKS[colour][square];	
@@ -485,31 +541,42 @@ inline int evaluate_pawns_midgame(uint8_t square){
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (square_mask) & ~kings){				
+			/* if (occupied & (square_mask) & ~kings){				
 				update_pressure_and_support_tables(r, PAWN, 0, colour, bool(occupied_white & (square_mask)));
-			}
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
 							
 			// Subtract the score based on the attack of the opposing position and defense of white's own position
-			total -= attackingLayer[0][x][y];
-			total -= attackingLayer[1][x][y];
+			positional_bonus += attackingLayer[0][x][y];
+			positional_bonus += attackingLayer[1][x][y];
 			
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
 			whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
 			
+			update_global_central_scores(-(attackingLayer[0][x][y] << 1), square_mask);
+
+			if (square_mask & white_passed_pawns){
+				total -= 100;
+			} else if(square_mask & black_passed_pawns){
+				total -= 100;
+			}
+
+			//central_score -= attackingLayer[0][x][y] << 2;
 			/*
 				In this section, award pawn chains where pawns are supporting eachother defensively
 			*/
-			total -= pawn_chain_file_bonus[x] * ((square_mask & occupied_white & pawns)  != 0);
+			structural_bonus += pawn_chain_file_bonus[x] * ((square_mask & occupied_white & pawns)  != 0);
 								
 			bb &= bb - 1;		
-		}			
-
+		}
+		//std::cout << total << std::endl;
+		total -= std::min(225, structural_bonus + positional_bonus);			
+		//std::cout << structural_bonus << " | " << positional_bonus<< std::endl;
 	}else{
 		
 		// First add the piece value
@@ -517,27 +584,51 @@ inline int evaluate_pawns_midgame(uint8_t square){
 		blackPieceVal += values[PAWN];
 		            
 		// Add the placement layer for the given piece at that square
-		total += blackPlacementLayer[PAWN - 1][x][y];
+		positional_bonus += blackPlacementLayer[PAWN - 1][x][y];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		positional_bonus += attackingLayer[1][x][y];
+		positional_bonus += attackingLayer[0][x][y];
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		blackOffensiveScore += attackingLayer[1][x][y] >> 1;
+		blackDefensiveScore += attackingLayer[0][x][y] >> 2;
+
+		update_global_central_scores((blackPlacementLayer[PAWN - 1][x][y] << 1), BB_SQUARES[square]);
+		//central_score += blackPlacementLayer[PAWN - 1][x][y] << 2;
 						
 		// Lower black's score for more than one black pawn being on the same file						
-		total -= 200 * (__builtin_popcountll(BB_FILES[x] & (occupied_black & pawns)) > 1);
+		total -= 125 * (__builtin_popcountll(BB_FILES[x] & (occupied_black & pawns)) > 1);
 		
-		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black);
+		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns);
 		ppIncrement = std::min(ppIncrement, 400); // cap runaway boosts
 		
 		int rank = 7 - y;
-		//total += ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));
-		total += (default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 200)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 200));				
+		//total += ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));		
+		
+		pawn_rank_bonus = ((default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement < 100)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 100));
+		total += std::min(pawn_rank_bonus,275);
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 		*/
 				
 		uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H & occupied_black & pawns;
-		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_black & pawns;		
-
-		total += pawn_wall_file_bonus[x]     * (left  != 0); // for pawn on file x-1
-		total += pawn_wall_file_bonus[x + 2] * (right != 0); // for pawn on file x+1
+		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_black & pawns;
+		uint64_t ne  = (BB_SQUARES[square] << 9) & ~BB_FILE_H & occupied_black & pawns;
+		uint64_t nw = (BB_SQUARES[square] << 7) & ~BB_FILE_A & occupied_black & pawns;	
 		
+		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
+		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);
+
+		structural_bonus += pawn_wall_file_bonus[x]     * (left  != 0); // for pawn on file x-1
+		structural_bonus += pawn_wall_file_bonus[x + 2] * (right != 0); // for pawn on file x+1
+		
+		structural_bonus += (pawn_chain_file_bonus[x] + 15) * (nw != 0);
+		structural_bonus += (pawn_chain_file_bonus[x] + 15) * (ne != 0);
+
+		structural_bonus += 30 * (nw == 0) * ((latent_left_support_mask & occupied_black & pawns) != 0) * ((latent_left_support_mask & occupied_white) == 0);
+		structural_bonus += 30 * (ne == 0) * ((latent_right_support_mask & occupied_black & pawns) != 0) * ((latent_right_support_mask & occupied_white) == 0);  
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -557,38 +648,49 @@ inline int evaluate_pawns_midgame(uint8_t square){
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (square_mask) & ~kings){
+			/* if (occupied & (square_mask) & ~kings){
 				//if (r == 27){std::cout << (int)piece_type << "  "<< (int)(square) <<std::endl;}
 				update_pressure_and_support_tables(r, PAWN, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			} */
 			
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
 							
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
-			total += attackingLayer[1][x][y];
-			total += attackingLayer[0][x][y];
+			positional_bonus += attackingLayer[1][x][y];
+			positional_bonus += attackingLayer[0][x][y];
 			
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
 			blackDefensiveScore += attackingLayer[0][x][y] >> 2;
 			
+			update_global_central_scores((attackingLayer[1][x][y] << 1), square_mask);
+
+			if (square_mask & black_passed_pawns){
+				total += 100;
+			} else if(square_mask & white_passed_pawns){
+				total += 100;
+			}
+			//central_score += attackingLayer[1][x][y] << 2;
 			/*
 				In this section, award pawn chains where pawns are supporting eachother defensively
 			*/
 			
 			// Increase the boost as the attacked pawn is closer to the center files			 
-			total += pawn_chain_file_bonus[x] * ((square_mask & occupied_black & pawns)  != 0);
+			structural_bonus += pawn_chain_file_bonus[x] * ((square_mask & occupied_black & pawns) != 0);
 
 			bb &= bb - 1; 
-		}   
+		}
+		//std::cout << total << std::endl;
+		total += std::min(225, structural_bonus + positional_bonus);			
+		//std::cout << structural_bonus << " | " << positional_bonus<< std::endl;
 	}	
 	return total;
 }
 
-inline int pawns_simd_initializer(uint64_t bb){
+/* inline int pawns_simd_initializer(uint64_t bb, uint64_t white_passed_pawns, uint64_t black_passed_pawns){
 	uint8_t  x[16] = {};
     int32_t  rank[16] = {};
     int32_t  ppIncrement_simd[16]  = {0};
@@ -624,7 +726,7 @@ inline int pawns_simd_initializer(uint64_t bb){
 
 		if (colour){
 			
-			ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, square_file, square_rank, occupied_white, occupied_black);
+			ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, square_file, square_rank, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns);
 			ppIncrement = std::min(ppIncrement, 400);
 			
 			ppIncrement_simd[count] = ppIncrement;
@@ -649,7 +751,7 @@ inline int pawns_simd_initializer(uint64_t bb){
 			is_white[count] = true;
 
 		} else {
-			ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, square_file, square_rank, occupied_black, occupied_white);
+			ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, square_file, square_rank, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns);
 			ppIncrement = std::min(ppIncrement, 400);
 			
 			ppIncrement_simd[count] = ppIncrement;
@@ -672,8 +774,9 @@ inline int pawns_simd_initializer(uint64_t bb){
 			pawn_wall_file_bonus_val[count] += pawn_wall_file_bonus[square_file + 2] * (right != 0); // for pawn on file x-1
 
 			is_white[count] = false;
-		}		
-		int result = evaluate_pawns_midgame(r);
+		}
+		int dummy_int;		
+		int result = evaluate_pawns_midgame(r, white_passed_pawns, black_passed_pawns,dummy_int);
 		attack_score[count] = result;
 		square_values[r] = 1000;
 		total += result;
@@ -736,13 +839,14 @@ inline int pawns_simd_initializer(uint64_t bb){
 	}
 	total += result_sum;	
 	return total;
-}
+} */
 
-inline int evaluate_knights_midgame(uint8_t square){
+inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns, uint64_t relevant_pins){
 	// Initialize the evaluation
     int total = 0;
     
 	bool colour = bool(occupied_white & (BB_SQUARES[square])); 
+	bool is_pinned = bool(relevant_pins & BB_SQUARES[square]);
     
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;
@@ -757,9 +861,21 @@ inline int evaluate_knights_midgame(uint8_t square){
 		     
 		// Subtract the placement layer for the given piece at that square
 		total -= whitePlacementLayer[KNIGHT - 1][x][y];
+
+		// Subtract the score based on the attack of the opposing position and defense of white's own position				
+		total -= attackingLayer[0][x][y] >> 1;   
+		total -= attackingLayer[1][x][y] >> 1;  
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		whiteOffensiveScore += attackingLayer[0][x][y];
+		whiteDefensiveScore += attackingLayer[1][x][y];
+
+		//std::cout << total << std::endl;
+		update_global_central_scores(-(whitePlacementLayer[KNIGHT - 1][x][y]), BB_SQUARES[square]);
 		
 		// Subtract extra value for the existence of a bishop or knight in the midgame		
-		total -= 250;	
+		//total -= 150;	
 
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_KNIGHT_ATTACKS[square];
@@ -771,34 +887,77 @@ inline int evaluate_knights_midgame(uint8_t square){
 			
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);		
+
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){				
-				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){				
+				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y];   
-			total -= attackingLayer[1][x][y];  
+			total -= attackingLayer[0][x][y] >> 1;   
+			total -= attackingLayer[1][x][y] >> 1;  
 			
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y];
 			whiteDefensiveScore += attackingLayer[1][x][y];
-			
-			// If each square doesn't contain a white piece, boost the score for mobility
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
-				total -= 35;
+
+			update_global_central_scores(-(attackingLayer[0][x][y] * 3) / 2, square_mask);
+
+			if (square_mask & white_passed_pawns){
+				total -= 100;
+			} else if(square_mask & black_passed_pawns){
+				total -= 100;
 			}
-														
+			
+			// If each square doesn't contain a white piece, boost the score for mobility			
+			if (!((occupied_white & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_black) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_black);
+
+				if (!attacked_by_lower_value_piece) {
+		
+					total -= 20;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_KNIGHT_ATTACKS[r];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask							
+							uint8_t secondary = __builtin_ctzll(bb_second);							
+							uint64_t second_sq = BB_SQUARES[secondary];
+
+							// If each square doesn't contain a white piece, boost the score for mobility
+							if (!(simulatedOccupied & second_sq)){
+								total -= 5;
+								//std::cout << (int)secondary << " | " << BB_SQUARES[secondary] <<std::endl;								
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
+			}
+			//std::cout << (int)r << " | " << total << std::endl;								
 			bb &= bb - 1;		
 		}
-		
+		total = std::max(total, -3750);
 	}else{
 		// First add the piece value
         total += values[KNIGHT];
@@ -806,9 +965,22 @@ inline int evaluate_knights_midgame(uint8_t square){
 		            
 		// Add the placement layer for the given piece at that square
 		total += blackPlacementLayer[KNIGHT - 1][x][y];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y] >> 1;
+		total += attackingLayer[0][x][y] >> 1;
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		blackOffensiveScore += attackingLayer[1][x][y];
+		blackDefensiveScore += attackingLayer[0][x][y];
+
+		update_global_central_scores(blackPlacementLayer[KNIGHT - 1][x][y], BB_SQUARES[square]);
 		
 		// Add extra value for the existence of a bishop or knight in the midgame
-		total += 250;
+		//total += 150;
+
+		//std::cout << total << std::endl;	
 
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
         uint64_t pieceAttackMask = BB_KNIGHT_ATTACKS[square];
@@ -819,45 +991,384 @@ inline int evaluate_knights_midgame(uint8_t square){
 		while (bb) {
 			
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb); 
+			r = __builtin_ctzll(bb);
+			
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & square_mask & ~kings){
 				//if (r == 27){std::cout << (int)piece_type << "  "<< (int)(square) <<std::endl;}
-				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & square_mask));
+			} */
 			
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
 						
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
-			total += attackingLayer[1][x][y];
-			total += attackingLayer[0][x][y];
+			total += attackingLayer[1][x][y] >> 1;
+			total += attackingLayer[0][x][y] >> 1;
 			
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y];
 			blackDefensiveScore += attackingLayer[0][x][y];	
+
+			update_global_central_scores((attackingLayer[1][x][y] * 3) / 2, square_mask);
+
+			if (square_mask & black_passed_pawns){
+				total += 100;
+			} else if(square_mask & white_passed_pawns){
+				total += 100;
+			}
 								
-			// If each square doesn't contain a black piece, boost the score for mobility
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
-				total += 35;
+			// If each square doesn't contain a black piece, boost the score for mobility  			
+			if (!((occupied_black & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_white);
+				//std::cout << (int)r << " | " << attacked_by_lower_value_piece << " | " << total << std::endl;	
+				if (!attacked_by_lower_value_piece) {
+
+					total += 20;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_KNIGHT_ATTACKS[r];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask
+							uint8_t secondary = __builtin_ctzll(bb_second);							
+							uint64_t second_sq = BB_SQUARES[secondary];
+							
+							// If each square doesn't contain a white piece, boost the score for mobility							
+							if (!(simulatedOccupied & second_sq)){
+								total += 5;								
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
 			}								
-			
+			//std::cout << (int)r << " | " << total << std::endl;	
 			bb &= bb - 1; 
 		}            
+		total = std::min(total, 3750);
 	}
 	return total;
 }
 
-inline int evaluate_bishops_midgame(uint8_t square){
+inline int get_latent_bishop_activity_score(uint64_t originalAttackMask, uint8_t square, bool colour, uint64_t opposingPieces, uint64_t ourPieces){
+	int total = 0;
+
+	// Loop through the attacks mask
+	uint8_t r = 0;
+	uint64_t bb = ~originalAttackMask & BB_DIAG_ATTACKS[square][BB_DIAG_MASKS[square] & (occupied & ~(originalAttackMask & ourPieces))];
+	while (bb) {
+		
+		// Get the position of the least significant set bit of the mask
+		r = __builtin_ctzll(bb);		
+
+		uint64_t square_mask = BB_SQUARES[r];		
+
+		// Get the x and y coordinates for the given square
+		uint8_t y = r >> 3;
+		uint8_t x = r & 7;
+					
+		if(colour){
+			// Subtract the score based on the attack of the opposing position and defense of white's own position				
+			total -= attackingLayer[0][x][y] / 3;   
+			total -= attackingLayer[1][x][y] / 3;  
+			
+			// Similar to above, increment the absolute offensive and defensive scores
+			// Bit shift to reduce global scores
+			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
+			whiteDefensiveScore += attackingLayer[1][x][y] >> 1;
+			update_global_central_scores(-attackingLayer[0][x][y], square_mask);
+		}else{
+			// Subtract the score based on the attack of the opposing position and defense of black's own position
+			total += attackingLayer[1][x][y] / 3;
+			total += attackingLayer[0][x][y] / 3;
+			
+			// Similar to above, increment the absolute offensive and defensive scores
+			// Bit shift to reduce global scores
+			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
+			blackDefensiveScore += attackingLayer[0][x][y] >> 1;	
+			update_global_central_scores(attackingLayer[0][x][y], square_mask);
+		}
+		
+		int mobility_increment = 0;
+		
+		// If each square doesn't contain a white piece, boost the score for mobility
+		if (!(ourPieces & square_mask) && (BB_PAWN_ATTACKS[colour][r] & pawns & opposingPieces)){
+			mobility_increment += 15;
+
+			if (bool(~opposingPieces & square_mask)){
+
+				uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
+				uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
+		
+				while (secondAttackMask) {
+		
+					// Get the position of the least significant set bit of the mask
+					uint8_t secondary = __builtin_ctzll(secondAttackMask);		
+					
+					// If each square doesn't contain a white piece, boost the score for mobility
+					if (bool(~simulatedOccupied & (BB_SQUARES[secondary]))){
+						mobility_increment += 5;
+					}
+					secondAttackMask &= secondAttackMask - 1;		
+				}
+			}
+		}	
+		total += (colour ? mobility_increment * -1 : mobility_increment);
+		bb &= bb - 1;		
+	}
+	//std::cout << total << std::endl;
+	return total;
+}
+
+
+inline bool is_white_square(int square) {
+    int file = square % 8;
+    int rank = square / 8;
+    return (file + rank) % 2 == 1;
+}
+
+inline uint64_t bishop_floodfill_fast(uint8_t start_sq, uint64_t occupied, uint64_t our_pawns, uint64_t our_pieces, std::array<int, 64>& depth_map) {
+    uint64_t visited = 0ULL;
+    uint64_t queue = BB_SQUARES[start_sq];
+    uint64_t result = 0ULL;
+
+	std::fill(depth_map.begin(), depth_map.end(), 255); // 255 = unreachable
+
+	depth_map[start_sq] = 0;
+
+    while (queue) {
+        uint8_t sq = __builtin_ctzll(queue);
+        queue &= queue - 1; // pop
+
+        //if (visited & (1ULL << sq)) continue;
+        visited |= BB_SQUARES[sq];
+        result |= BB_SQUARES[sq];
+
+        for (int delta : {9, 7, -7, -9}) {
+            int dir_sq = sq;
+            int blockers = 0;
+			
+			//std::cout << "AAAA: " << dir_sq << " | " << delta << " | " << queue << std::endl;
+            while (true) {
+				bool blocker_check_flag = false;
+				
+                int next = dir_sq + delta;
+
+				if (next < 0 || next >= 64) break;
+                if (abs((next % 8) - (dir_sq % 8)) != 1) break;
+
+				if(depth_map[next] > depth_map[sq] + blockers + 1){
+					blocker_check_flag = true;
+					depth_map[next] = depth_map[sq] + blockers + 1;
+				}
+					
+                //std::cout << "BBBB: " << dir_sq << " | " << next << " | " << queue << std::endl;
+				
+
+                uint64_t m = BB_SQUARES[next];                                                
+
+                if (occupied & m) {
+					if (our_pawns & m) {
+						visited |= m;
+						break; // ❌ Stop immediately — pawn blocks
+					}else if (our_pieces & m) {
+						// Non-pawn friendly blocker
+						//std::cout << "DDDD: " << dir_sq << " | " << next << " | "  << blockers << " | " << queue << std::endl;
+						if (blockers == 0) {
+							++blockers;
+							if (blocker_check_flag)
+								depth_map[next]++;
+							if (visited & m) break;
+							queue |= m; // ✅ Allow going THROUGH the first non-pawn blocker
+							result |= m;
+							
+							//std::cout << "EEE: " << dir_sq << " | " << next << " | "  << blockers << " | " << result << " | " << queue << std::endl;						
+							// Also mark this square as reachable
+						} else {
+							visited |= m;
+							break; // ❌ Second friendly blocker — stop
+						}
+					}else {
+						// Opponent piece: we can take it, but can't go beyond
+						//result |= m; // ✅ Mark square as reachable (capture)
+						visited |= m;
+						break;
+					}
+				}else {
+					if (visited & m) break;
+					queue |= m; // ✅ Empty square — 
+					result |= m;
+				}
+				visited |= m;
+                dir_sq = next;
+            }
+        }
+    }
+
+    return result;
+}
+
+inline int eval_bishop_influence_score(int increment) {
+    
+
+    if (increment <= BAD_THRESHOLD) {
+        // Penalty: scale from 0 to -100
+        return (increment - BAD_THRESHOLD) * 2;  // e.g. -50 at 75
+    } else if (increment <= NEUTRAL_THRESHOLD) {
+        return 0;  // Flat zone
+    } else if (increment <= MAX_THRESHOLD) {
+        // Scale bonus: 0 to +150
+        return ((increment - NEUTRAL_THRESHOLD) * MAX_BONUS) / (MAX_THRESHOLD - NEUTRAL_THRESHOLD);
+    } else {
+        return MAX_BONUS;  // Cap
+    }
+}
+
+
+inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t attack_mask){
+	
+	int increment = 0;
+	int same_half_count = 0;
+	int other_half_count = 0;
+	int king_zone_count = 0;
+
+	bool is_light = is_white_square(square);
+	 
+	uint64_t white_king_zone = white_king_zones[__builtin_ctzll(occupied_white&kings) & 7] & ~BB_RANK_4 & ~BB_RANK_5;
+	uint64_t black_king_zone = black_king_zones[__builtin_ctzll(occupied_black&kings) & 7] & ~BB_RANK_4 & ~BB_RANK_5;
+
+	uint64_t base_zone = colour
+    ? (is_light ? WHITE_LIGHT_BISHOP_ZONE : WHITE_DARK_BISHOP_ZONE)
+    : (is_light ? BLACK_LIGHT_BISHOP_ZONE : BLACK_DARK_BISHOP_ZONE);
+
+	uint64_t opposingPieces = colour ? occupied_black : occupied_white;
+	uint64_t ourPieces = colour ? occupied_white : occupied_black;
+
+	uint64_t included = 0;
+
+	base_zone |= attack_mask | BB_SQUARES[square];
+
+	std::array<int, 64> depth_map;
+	uint64_t reachable = bishop_floodfill_fast(square, occupied, pawns & ourPieces, ourPieces, depth_map);
+	uint64_t bb = base_zone & reachable;
+	
+	//std::cout << bb << std::endl;
+	//std::cout << reachable << std::endl;
+	while (bb) {
+		// Get the position of the least significant set bit of the mask
+		uint8_t r = __builtin_ctzll(bb);		
+		
+		//uint64_t square_mask = BB_SQUARES[r];	
+
+		uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+		bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & opposingPieces) ||
+													(BB_KNIGHT_ATTACKS[r] & knights & opposingPieces) ||
+													(BB_DIAG_ATTACKS[r][diag_pieces] & bishops & opposingPieces);
+		//std::cout << (int)r << " | " << depth_map[r] << std::endl;
+		/* std::cout << (occupied & square_mask) << std::endl;
+		std::cout << attacked_by_lower_value_piece << std::endl;
+		std::cout << std::endl; */
+		if (!(/* (occupied & square_mask) || */ attacked_by_lower_value_piece)){
+
+			
+			uint64_t raw_attacks = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & (occupied & ~BB_SQUARES[square])];
+
+			uint64_t forward_mask;
+			if (colour) {
+				// White — forward = upward ranks (higher square indices)
+				forward_mask = (r < 63) ? (~0ULL << (r + 1)) : 0ULL;
+			} else {
+				// Black — forward = downward ranks (lower square indices)
+				forward_mask = (r > 0) ? ((1ULL << r) - 1) : 0ULL;
+			}
+
+
+			uint64_t forward_attacks = raw_attacks & forward_mask & ~(ourPieces & ~BB_SQUARES[square]);
+			
+			//std::cout << "FORWARD: " << forward_attacks << std::endl;
+			while (forward_attacks) {
+				// Get the position of the least significant set bit of the mask
+				
+				uint8_t staging_square = __builtin_ctzll(forward_attacks);
+				//std::cout << (int)r << " | " << (int)staging_square << " | " << depth_map[r] << std::endl;
+				uint64_t staging_square_mask = BB_SQUARES[staging_square];
+				if(!(staging_square_mask & included)){
+					included |= staging_square_mask;	
+					//increment += 5;
+					int move_depth = depth_map[r];
+					increment += std::max(0, 11 - 2 * move_depth);
+					same_half_count++;
+					if(colour){
+						//std::cout << (int)r << " | "  << (int)staging_square << " | " << (occupied & ~square_mask) << " | " << raw_attacks << std::endl;
+						if(staging_square_mask & (BB_RANK_8 | BB_RANK_7 | BB_RANK_6 | BB_RANK_5)){
+							//increment += 5;
+							increment += std::max(0, 11 - 2 * move_depth);
+							same_half_count--;
+							other_half_count++;
+						}
+
+						if(staging_square_mask & black_king_zone){
+							//increment += 5;							
+							increment += std::max(0, 11 - 2 * move_depth);
+							king_zone_count++;
+						}
+							
+					}else{
+						if(staging_square_mask & (BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4)){
+							//increment += 5;
+							increment += std::max(0, 11 - 2 * move_depth);
+							same_half_count--;
+							other_half_count++;
+						}
+
+						if(staging_square_mask & white_king_zone){
+							//increment += 5;
+							increment += std::max(0, 11 - 2 * move_depth);
+							king_zone_count++;
+						}
+					}
+				}					
+				forward_attacks &= forward_attacks - 1;   	
+			}			
+		}		
+		bb &= bb - 1;   	
+	}
+	/* std::cout << same_half_count << std::endl;
+	std::cout << other_half_count << std::endl;
+	std::cout << king_zone_count << std::endl; 
+	std::cout << std::endl;
+	std::cout << "Increment: " << increment << std::endl;*/
+	
+	int final_value = eval_bishop_influence_score(increment);
+	//std::cout << "final value: " << final_value << std::endl;
+	
+	return final_value;
+}
+
+
+inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns, uint64_t relevant_pins){
 	// Initialize the evaluation
     int total = 0;
     
 	bool colour = bool(occupied_white & (BB_SQUARES[square])); 
-    
+    bool is_pinned = bool(relevant_pins & BB_SQUARES[square]);
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;
     uint8_t x = square & 7;
@@ -869,9 +1380,20 @@ inline int evaluate_bishops_midgame(uint8_t square){
 		            
 		// Subtract the placement layer for the given piece at that square
 		total -= whitePlacementLayer[BISHOP - 1][x][y];
+
+		// Subtract the score based on the attack of the opposing position and defense of white's own position				
+		total -= attackingLayer[0][x][y] >> 1;   
+		total -= attackingLayer[1][x][y] >> 1;  
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		whiteOffensiveScore += attackingLayer[0][x][y];
+		whiteDefensiveScore += attackingLayer[1][x][y];
+
+		update_global_central_scores(-(whitePlacementLayer[BISHOP - 1][x][y]), BB_SQUARES[square]);
 		
 		// Subtract extra value for the existence of a bishop or knight in the midgame            
-		total -= 250;
+		//total -= 200;
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -888,38 +1410,46 @@ inline int evaluate_bishops_midgame(uint8_t square){
 			
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);		
+
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){				
-				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){				
+				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
 			 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y];   
-			total -= attackingLayer[1][x][y];  
+			total -= attackingLayer[0][x][y] >> 1;   
+			total -= attackingLayer[1][x][y] >> 1;  
 			
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y];
 			whiteDefensiveScore += attackingLayer[1][x][y];
+
+			update_global_central_scores(-(attackingLayer[0][x][y] * 3) / 2, square_mask);
 			
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
 			
+			if (square_mask & white_passed_pawns){
+				total -= 100;
+			} else if(square_mask & black_passed_pawns){
+				total -= 100;
+			}
+
 			// If each square doesn't contain a white piece, boost the score for mobility
-			
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
+			if (!((occupied_white & square_mask) || is_pinned) && (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black)){
 				total -= 20;
 
-				if (bool(~occupied_black & (BB_SQUARES[r]))){
+				if (bool(~occupied_black & square_mask)){
 
-					uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | BB_SQUARES[r];
-
+					uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
 					uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
 			
 					while (secondAttackMask) {
@@ -928,7 +1458,7 @@ inline int evaluate_bishops_midgame(uint8_t square){
 						uint8_t secondary = __builtin_ctzll(secondAttackMask);		
 						
 						// If each square doesn't contain a white piece, boost the score for mobility
-						if (bool(~occupied & (BB_SQUARES[secondary]))){
+						if (bool(~simulatedOccupied & (BB_SQUARES[secondary]))){
 							total -= 5;
 						}
 						secondAttackMask &= secondAttackMask - 1;		
@@ -942,7 +1472,7 @@ inline int evaluate_bishops_midgame(uint8_t square){
 			In this section, the scores for x-ray attacks are acquired
 		*/
 			
-		handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,BISHOP);
@@ -968,6 +1498,10 @@ inline int evaluate_bishops_midgame(uint8_t square){
 			}				
 			bb &= bb - 1;
 		}            
+		total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_black, occupied_white);		
+		total = std::max(total, -3850);
+		total -= get_bishop_colour_complex_score(colour, square, pieceAttackMask);
+		total = std::max(total, -4000);
 	}else{
 		// First add the piece value
         total += values[BISHOP];
@@ -975,9 +1509,20 @@ inline int evaluate_bishops_midgame(uint8_t square){
 		            
 		// Add the placement layer for the given piece at that square
 		total += blackPlacementLayer[BISHOP - 1][x][y];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y] >> 1;
+		total += attackingLayer[0][x][y] >> 1;
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		blackOffensiveScore += attackingLayer[1][x][y];
+		blackDefensiveScore += attackingLayer[0][x][y];	
+
+		update_global_central_scores(blackPlacementLayer[BISHOP - 1][x][y], BB_SQUARES[square]);
 		
 		// Add extra value for the existence of a bishop or knight in the midgame            
-		total += 250;
+		//total += 200;
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -994,38 +1539,47 @@ inline int evaluate_bishops_midgame(uint8_t square){
 			
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb); 
+
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & square_mask & ~kings){
 				//if (r == 27){std::cout << (int)piece_type << "  "<< (int)(square) <<std::endl;}
-				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & square_mask));
+			} */
 			
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
 						
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
-			total += attackingLayer[1][x][y];
-			total += attackingLayer[0][x][y];
+			total += attackingLayer[1][x][y] >> 1;
+			total += attackingLayer[0][x][y] >> 1;
 			
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y];
 			blackDefensiveScore += attackingLayer[0][x][y];	
+
+			update_global_central_scores((attackingLayer[1][x][y] * 3) / 2, square_mask);
 				
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(BB_SQUARES[r]);
+
+			if (square_mask & black_passed_pawns){
+				total += 100;
+			} else if(square_mask & white_passed_pawns){
+				total += 100;
+			}
 			
-			// If each square doesn't contain a black piece, boost the score for mobility					
-						
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
+			// If each square doesn't contain a black piece, boost the score for mobility											
+			if (!((occupied_black & square_mask) || is_pinned) && (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white)){
 				total += 20;
 
-				if (bool(~occupied_white & (BB_SQUARES[r]))){
+				if (bool(~occupied_white & square_mask)){
 
-					uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | BB_SQUARES[r];
+					uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
 
 					uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
 			
@@ -1035,7 +1589,7 @@ inline int evaluate_bishops_midgame(uint8_t square){
 						uint8_t secondary = __builtin_ctzll(secondAttackMask);		
 						
 						// If each square doesn't contain a white piece, boost the score for mobility
-						if (bool(~occupied & (BB_SQUARES[secondary]))){
+						if (bool(~simulatedOccupied & (BB_SQUARES[secondary]))){
 							total += 5;
 						}
 						secondAttackMask &= secondAttackMask - 1;		
@@ -1050,7 +1604,7 @@ inline int evaluate_bishops_midgame(uint8_t square){
 			In this section, the scores for x-ray attacks are acquired
 		*/
 					
-		handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,BISHOP);
@@ -1078,20 +1632,106 @@ inline int evaluate_bishops_midgame(uint8_t square){
 			}
 			bb &= bb - 1; 
 		}			         
+		total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_white, occupied_black);		
+		total = std::min(total, 3850);
+		total += get_bishop_colour_complex_score(colour, square, pieceAttackMask);
+		total = std::min(total, 4000);
 	}
+	
 	return total;
 }
 
-inline int evaluate_rooks_midgame(uint8_t square){
+inline int get_latent_rook_activity_score(uint8_t square){
+	int total = 0;
+
+	bool colour = bool(occupied_white & (BB_SQUARES[square])); 
+
+	uint64_t opposingPieces = colour ? occupied_black : occupied_white;
+	uint64_t ourPieces = colour ? occupied_white : occupied_black;
+
+	// Acquire the attacks mask for the current piece and make a copy of the occupied mask
+	uint64_t originalAttackMask = BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied] | BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied];
+
+	// Loop through the attacks mask
+	uint8_t r = 0;
+	uint64_t hypothetical_occupied = (occupied & ~(originalAttackMask & ourPieces & ~pawns));
+	uint64_t bb = ~originalAttackMask & (BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & hypothetical_occupied] | BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & hypothetical_occupied]);
+	while (bb) {
+		
+		// Get the position of the least significant set bit of the mask
+		r = __builtin_ctzll(bb);		
+
+		uint64_t square_mask = BB_SQUARES[r];		
+
+		// Get the x and y coordinates for the given square
+		uint8_t y = r >> 3;
+		uint8_t x = r & 7;
+					
+		if(colour){
+			// Subtract the score based on the attack of the opposing position and defense of white's own position				
+			total -= attackingLayer[0][x][y] / 3;   
+			total -= attackingLayer[1][x][y] / 3;  
+			
+			// Similar to above, increment the absolute offensive and defensive scores
+			// Bit shift to reduce global scores
+			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
+			whiteDefensiveScore += attackingLayer[1][x][y] >> 1;
+			update_global_central_scores(-(attackingLayer[0][x][y]), square_mask);
+		}else{
+			// Subtract the score based on the attack of the opposing position and defense of black's own position
+			total += attackingLayer[1][x][y] / 3;
+			total += attackingLayer[0][x][y] / 3;
+			
+			// Similar to above, increment the absolute offensive and defensive scores
+			// Bit shift to reduce global scores
+			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
+			blackDefensiveScore += attackingLayer[0][x][y] >> 1;	
+			update_global_central_scores((attackingLayer[0][x][y]), square_mask);
+		}
+		
+		int mobility_increment = 0;
+		
+		// If each square doesn't contain a white piece, boost the score for mobility
+		if (!(ourPieces & square_mask) && (BB_PAWN_ATTACKS[colour][r] & pawns & opposingPieces)){
+			mobility_increment += 10;
+
+			if (bool(~opposingPieces & square_mask)){
+
+				uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
+				uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
+		
+				while (secondAttackMask) {
+		
+					// Get the position of the least significant set bit of the mask
+					uint8_t secondary = __builtin_ctzll(secondAttackMask);		
+					
+					// If each square doesn't contain a white piece, boost the score for mobility
+					if (bool(~simulatedOccupied & (BB_SQUARES[secondary]))){
+						mobility_increment += 5;
+					}
+					secondAttackMask &= secondAttackMask - 1;		
+				}
+			}
+		}	
+		total += (colour ? mobility_increment * -1 : mobility_increment);
+		bb &= bb - 1;		
+	}
+	//std::cout << total << std::endl;
+	return total;
+}
+
+
+inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns, uint64_t relevant_pins){
 	// Initialize the evaluation
     int total = 0;
+	int mobility_bonus = 0;
 
 	// Define the maximum increment for rook-file positioning and attack mask
 	int rookIncrement = 250;
     uint64_t rooks_mask = 0ULL;
     
 	bool colour = bool(occupied_white & (BB_SQUARES[square])); 
-    
+    bool is_pinned = bool(relevant_pins & BB_SQUARES[square]);
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;
     uint8_t x = square & 7;
@@ -1102,22 +1742,31 @@ inline int evaluate_rooks_midgame(uint8_t square){
         total -= values[ROOK];
         whitePieceVal += values[ROOK];
 
+		// Subtract the score based on the attack of the opposing position and defense of white's own position				
+		total -= attackingLayer[0][x][y] >> 1;   
+		total -= attackingLayer[1][x][y] >> 2;  
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		whiteOffensiveScore += attackingLayer[0][x][y];
+		whiteDefensiveScore += attackingLayer[1][x][y];
+
 		// Boost the score if a rook is placed on the 7th Rank
 		if (y >= 6){
-			rookIncrement += 200;
+			rookIncrement += 150;
 		}
 
 		if (((BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied]) & (occupied_white & rooks)) != 0){
-			rookIncrement += 200;
-		} else if (((BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied]) & (occupied_white & rooks)) != 0){
 			rookIncrement += 150;
+		} else if (((BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied]) & (occupied_white & rooks)) != 0){
+			rookIncrement += 125;
 		}
 		
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
 		rooks_mask |= BB_FILES[x] & occupied;            
 		
 		// Loop through the occupied pieces
-		uint64_t r = 0;
+		uint8_t r = 0;
 		uint64_t bb = rooks_mask;
 		while (bb) {
 			
@@ -1143,12 +1792,16 @@ inline int evaluate_rooks_midgame(uint8_t square){
 					
 					// Check if the piece is the rook's own pawn
 					if (temp_piece_type == 1){     
-						
-						// If the pawn is within its own (first) half, lower the rook's increment and break the loop
-						if (att_square / 8 < 5){
-							rookIncrement -= (50 + ((3 - (att_square / 8)) * 125));
-							break;
-						}
+
+						if (white_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (att_square >> 3) * 50;
+						}else{
+							// If the pawn is within its own (first) half, lower the rook's increment and break the loop
+							if ((att_square >> 3) < 5){
+								rookIncrement -= (50 + ((3 - (att_square >> 3)) * 125));
+								break;
+							}
+						}				
 					
 					// If a white knight or bishop is in the way, lower the rook increment
 					} else if(temp_piece_type == 2 || temp_piece_type == 3){
@@ -1161,22 +1814,27 @@ inline int evaluate_rooks_midgame(uint8_t square){
 					// Check if the piece is the opponents (black) pawn
 					if (temp_piece_type == 1){
 						
-						// If the pawn is within the opponent's (second) half, lower the rook's increment
-						if (att_square / 8 > 4){
-							rookIncrement -= 50;
-						}
+						if (black_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (7 - (att_square >> 3)) * 25;
+						}else{
+							// If the pawn is within the opponent's (second) half, lower the rook's increment
+							if ((att_square >> 3) > 4){
+								rookIncrement -= 50;
+							}
+						}	
+
 					// If a black knight or bishop is in the way, lower the rook increment
 					}else if(temp_piece_type == 2 || temp_piece_type == 3){
-						rookIncrement -= 35;
+						rookIncrement -= 15;
 					// If a black rook is in the way, lower the rook increment
 					}else if(temp_piece_type == 4){
-						rookIncrement -= 75;
+						rookIncrement -= 35;
 					}
 				}
 			}
 		}
 		// Finally use the rook increment
-		total -= rookIncrement;
+		total -= std::min(rookIncrement, 300);
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -1192,50 +1850,74 @@ inline int evaluate_rooks_midgame(uint8_t square){
 		while (bb) {
 			
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);		
+			r = __builtin_ctzll(bb);	
+			
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){				
-				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){				
+				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
 							
 			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y];   
+			total -= attackingLayer[0][x][y] >> 1;   
 			total -= attackingLayer[1][x][y] >> 2;  
 			
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y];
 			whiteDefensiveScore += attackingLayer[1][x][y];
+
+			update_global_central_scores(attackingLayer[0][x][y], square_mask);
 			
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
 			
-			// If each square doesn't contain a white piece, boost the score for mobility
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
-				total -= 15;
+			if (square_mask & white_passed_pawns){
+				total -= 25;
+			} else if(square_mask & black_passed_pawns){
+				total -= 25;
+			}
 
-				if (bool(~occupied_black & (BB_SQUARES[r]))){
+			// If each square doesn't contain a white piece, boost the score for mobility			
+			if (!((occupied_white & square_mask) || is_pinned)){
 
-					uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | BB_SQUARES[r];
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
 
-					uint64_t secondAttackMask = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
-			
-					while (secondAttackMask) {
-			
-						// Get the position of the least significant set bit of the mask
-						uint8_t secondary = __builtin_ctzll(secondAttackMask);		
-						
-						// If each square doesn't contain a white piece, boost the score for mobility
-						if (bool(~occupied & (BB_SQUARES[secondary]))){
-							total -= 10;
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_black) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_black) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & rooks & occupied_black) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_black);
+
+				if (!attacked_by_lower_value_piece) {
+		
+					mobility_bonus += 15;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
+
+						uint64_t secondAttackMask = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
+				
+						while (secondAttackMask) {
+				
+							// Get the position of the least significant set bit of the mask
+							uint8_t secondary = __builtin_ctzll(secondAttackMask);		
+							
+							// If each square doesn't contain a white piece, boost the score for mobility
+							if (!(simulatedOccupied & BB_SQUARES[secondary])){
+								mobility_bonus += 10;
+							}
+							secondAttackMask &= secondAttackMask - 1;		
 						}
-						secondAttackMask &= secondAttackMask - 1;		
 					}
 				}
 			}
@@ -1246,9 +1928,8 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			In this section, the scores for x-ray attacks are acquired
 		*/
 		
-		// Only consider bishop, rook and queens for x-ray attacks
 					
-		handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,ROOK);
@@ -1256,7 +1937,7 @@ inline int evaluate_rooks_midgame(uint8_t square){
 
 		// Boost score for semi connected rooks			
 		if ((unBlockedMask & (occupied_white & rooks)) != 0){
-			total -= 150;
+			total -= 125;
 		}			
 
 		// Loop through the attacks mask
@@ -1271,7 +1952,7 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			x = r & 7;
 			
 			// Subtract a reduced score for square attacks behind a piece				
-			total += attackingLayer[0][x][y] >> 4;
+			total += attackingLayer[0][x][y] >> 3;
 							
 			// If a black piece exists behind the blockers, subtract a reduced piece value
 			uint8_t xRayPieceType = pieceTypeLookUp[r]; 
@@ -1280,21 +1961,32 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			}				
 			bb &= bb - 1;
 		}
+		total -= std::min(mobility_bonus, 225);
+		//std::cout << mobility_bonus  << std::endl;
 	}else{
 		// First add the piece value
         total += values[ROOK];
 		blackPieceVal += values[ROOK];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y] >> 1;
+		total += attackingLayer[0][x][y] >> 2;
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		blackOffensiveScore += attackingLayer[1][x][y];
+		blackDefensiveScore += attackingLayer[0][x][y];
 		
 		// Boost the score if a rook is placed on the 2nd Rank
 		if (y <= 1){
-			rookIncrement += 200;
+			rookIncrement += 150;
 		}
 
 		// Boost the score if rooks are connected			
 		if (((BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied]) & (occupied_black & rooks)) != 0){
-			rookIncrement += 200;
-		} else if (((BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied]) & (occupied_black & rooks)) != 0){
 			rookIncrement += 150;
+		} else if (((BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied]) & (occupied_black & rooks)) != 0){
+			rookIncrement += 125;
 		}
 
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
@@ -1326,30 +2018,39 @@ inline int evaluate_rooks_midgame(uint8_t square){
 				if (temp_colour){
 					
 					// Check if the piece is the opponents (white) pawn
-					if (temp_piece_type == 1){     
-						
-						// If the pawn is within the opponent's (first) half, lower the rook's increment
-						if (att_square / 8 < 5){
-							rookIncrement -= 50;
-						}
+					if (temp_piece_type == 1){    
+						 
+						if (white_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (att_square >> 3) * 25;
+						}else{
+							// If the pawn is within the opponent's (first) half, lower the rook's increment
+							if ((att_square >> 3) < 5){
+								rookIncrement -= 50;
+							}
+						}	
+												
 					// If a white knight or bishop is in the way, lower the rook increment
 					}else if(temp_piece_type == 2 || temp_piece_type == 3){
-						rookIncrement -= 35;
+						rookIncrement -= 15;
 					// If a white rook is in the way, lower the rook increment
 					}else if(temp_piece_type == 4){
-						rookIncrement -= 75;
+						rookIncrement -= 35;
 					}
 				}else{
 					
 					// Check if the piece is the rook's own pawn
 					if (temp_piece_type == 1){
-						
-						// If the pawn is within its own (second) half, lower the rook's increment and break the loop
-						if ((att_square / 8) > 4){
-							rookIncrement -= (50 + (((att_square / 8) - 4) * 125));								
-							break;
+
+						if (black_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (7 - (att_square >> 3)) * 50;
+						}else{
+							// If the pawn is within its own (second) half, lower the rook's increment and break the loop
+							if ((att_square >> 3) > 4){
+								rookIncrement -= (50 + (((att_square / 8) - 4) * 125));								
+								break;
+							}
 						}
-						
+											
 					// If a white knight or bishop is in the way, lower the rook increment
 					}else if(temp_piece_type == 2 || temp_piece_type == 3){
 						rookIncrement -= 15;
@@ -1358,7 +2059,7 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			}
 		}
 		// Finally use the rook increment
-		total += rookIncrement;
+		total += std::min(rookIncrement, 300);
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -1375,12 +2076,14 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb); 
+
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			if (occupied & square_mask & ~kings){
 				//if (r == 27){std::cout << (int)piece_type << "  "<< (int)(square) <<std::endl;}
-				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
+				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & square_mask));
 			}
 			
 			// Get the x and y coordinates for the given square
@@ -1388,7 +2091,7 @@ inline int evaluate_rooks_midgame(uint8_t square){
             x = r & 7;
 			
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
-			total += attackingLayer[1][x][y];
+			total += attackingLayer[1][x][y] >> 1;
 			total += attackingLayer[0][x][y] >> 2;
 			
 			// Similar to above, increment the absolute offensive and defensive scores
@@ -1396,29 +2099,52 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			blackOffensiveScore += attackingLayer[1][x][y];
 			blackDefensiveScore += attackingLayer[0][x][y];	
 
+			update_global_central_scores(attackingLayer[1][x][y], square_mask);
+
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
-			
-			// If each square doesn't contain a black piece, boost the score for mobility
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
-				total += 15;
+			occupiedCopy &= ~(square_mask);
 
-				if (bool(~occupied_white & (BB_SQUARES[r]))){
-
-					uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | BB_SQUARES[r];
-
-					uint64_t secondAttackMask = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
+			if (square_mask & black_passed_pawns){
+				total += 25;
+			} else if(square_mask & white_passed_pawns){
+				total += 25;
+			}
 			
-					while (secondAttackMask) {
-			
-						// Get the position of the least significant set bit of the mask
-						uint8_t secondary = __builtin_ctzll(secondAttackMask);		
-						
-						// If each square doesn't contain a white piece, boost the score for mobility
-						if (bool(~occupied & (BB_SQUARES[secondary]))){
-							total += 10;
+			// If each square doesn't contain a black piece, boost the score for mobility  			
+			if (!((occupied_black & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_white) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & rooks & occupied_white) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_white);
+
+				if (!attacked_by_lower_value_piece) {
+
+					mobility_bonus += 15;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
+
+						uint64_t secondAttackMask = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
+				
+						while (secondAttackMask) {
+				
+							// Get the position of the least significant set bit of the mask
+							uint8_t secondary = __builtin_ctzll(secondAttackMask);		
+							
+							// If each square doesn't contain a white piece, boost the score for mobility
+							
+							if (!(simulatedOccupied & BB_SQUARES[secondary])){
+								mobility_bonus += 10;
+							}
+							secondAttackMask &= secondAttackMask - 1;		
 						}
-						secondAttackMask &= secondAttackMask - 1;		
 					}
 				}
 			}			
@@ -1429,7 +2155,7 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			In this section, the scores for x-ray attacks are acquired
 		*/
 				
-		handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,ROOK);
@@ -1437,7 +2163,7 @@ inline int evaluate_rooks_midgame(uint8_t square){
 
 		// Boost score for semi connected rooks		
 		if ((unBlockedMask & (occupied_black & rooks)) != 0){
-			total += 150;
+			total += 125;
 		}		
 		
 		// Loop through the xray attacks mask
@@ -1452,7 +2178,7 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			x = r & 7;
 			
 			// Subtract a reduced score for square attacks behind a piece			
-			total += attackingLayer[1][x][y] >> 4;			
+			total += attackingLayer[1][x][y] >> 3;			
 			
 			// If a white piece exists behind the blockers, subtract a reduced piece value
 			uint8_t xRayPieceType = pieceTypeLookUp[r]; 
@@ -1461,11 +2187,14 @@ inline int evaluate_rooks_midgame(uint8_t square){
 			}
 			bb &= bb - 1; 
 		}			       
+	
+		total += std::min(mobility_bonus, 225);
+		//std::cout << mobility_bonus  << std::endl;
 	}
 	return total;	
 }
 
-inline int evaluate_queens_midgame(uint8_t square){
+inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns){
 	// Initialize the evaluation
     int total = 0;
     
@@ -1482,8 +2211,17 @@ inline int evaluate_queens_midgame(uint8_t square){
 		
 		// Subtract the placement layer for the given piece at that square
 		total -= whitePlacementLayer[QUEEN - 1][x][y];
+
+		// Adjust the score by bit shifting heavily so that the queen's ability to attack many squares isn't overrated
+		total -= attackingLayer[0][x][y] >> 2;				
+		total -= attackingLayer[1][x][y] >> 3;
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
+		whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
             
-        
+        update_global_central_scores(-(whitePlacementLayer[QUEEN - 1][x][y]), BB_SQUARES[square]);
         //if (piece_type == 6){std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << " rook increment: " << rookIncrement << std::endl;}
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -1499,13 +2237,15 @@ inline int evaluate_queens_midgame(uint8_t square){
 		while (bb) {
 			
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);		
+			r = __builtin_ctzll(bb);
+			
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){				
-				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){				
+				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -1520,14 +2260,36 @@ inline int evaluate_queens_midgame(uint8_t square){
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
 			whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
+
+			update_global_central_scores(-(attackingLayer[0][x][y] >> 1), square_mask);
 			
 			// Remove pieces from the copy of the occupied mask
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
+
+			if (square_mask & white_passed_pawns){
+				total -= 25;
+			} else if(square_mask & black_passed_pawns){
+				total -= 25;
+			}
 			
-			// If each square doesn't contain a white piece, boost the score for mobility
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
-				total -= 5;
-			}								
+			// If each square doesn't contain a white piece, boost the score for mobility			
+			if (!(occupied_white & square_mask)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_black) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & (queens | bishops) & occupied_black) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & (queens | rooks) & occupied_black) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & (queens | rooks) & occupied_black);
+
+				if (!attacked_by_lower_value_piece) {
+					total -= 5;
+				}	
+			}
+
 			bb &= bb - 1;		
 		}
 		//if (piece_type == 6){std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << " rook increment: " << rookIncrement << std::endl;}
@@ -1535,7 +2297,7 @@ inline int evaluate_queens_midgame(uint8_t square){
 			In this section, the scores for x-ray attacks are acquired
 		*/
 			
-		handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,QUEEN);
@@ -1553,12 +2315,12 @@ inline int evaluate_queens_midgame(uint8_t square){
 			x = r & 7;
 			
 			// Subtract a reduced score for square attacks behind a piece			
-			total += attackingLayer[0][x][y] >> 2;			
+			total += attackingLayer[0][x][y] >> 3;			
 			
 			// If a black piece exists behind the blockers, subtract a reduced piece value
 			uint8_t xRayPieceType = pieceTypeLookUp[r]; 
 			if (xRayPieceType != 0){				
-				total -= values[xRayPieceType] >> 7;				
+				total -= values[xRayPieceType] >> 8;				
 			}				
 			bb &= bb - 1;
 		}
@@ -1570,6 +2332,17 @@ inline int evaluate_queens_midgame(uint8_t square){
 	
 		// Add the placement layer for the given piece at that square
 		total += blackPlacementLayer[QUEEN - 1][x][y];
+
+		// Adjust the score by bit shifting heavily so that the queen's ability to attack many squares isn't overrated
+		total += attackingLayer[1][x][y] >> 2;
+		total += attackingLayer[0][x][y] >> 3;
+		
+		// Similar to above, increment the absolute offensive and defensive scores
+		// Bit shift to reduce global scores
+		blackOffensiveScore += attackingLayer[1][x][y] >> 1;
+		blackDefensiveScore += attackingLayer[0][x][y] >> 2;
+
+		update_global_central_scores(blackPlacementLayer[QUEEN - 1][x][y], BB_SQUARES[square]);
 		
 		//if (piece_type == 6){std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << " rook increment: " << rookIncrement << std::endl;}
 		/*
@@ -1587,13 +2360,15 @@ inline int evaluate_queens_midgame(uint8_t square){
 			
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb); 
+
+			uint64_t square_mask = BB_SQUARES[r];
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & square_mask & ~kings){
 				//if (r == 27){std::cout << (int)piece_type << "  "<< (int)(square) <<std::endl;}
-				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & square_mask));
+			} */
 			
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -1607,15 +2382,37 @@ inline int evaluate_queens_midgame(uint8_t square){
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
-			blackDefensiveScore += attackingLayer[0][x][y] >> 2;				
+			blackDefensiveScore += attackingLayer[0][x][y] >> 2;	
+			
+			update_global_central_scores(attackingLayer[1][x][y] >> 1, square_mask);
 			
 			// Remove pieces from the copy of the occupied mask
 			occupiedCopy &= ~(BB_SQUARES[r]);
+
+			if (square_mask & black_passed_pawns){
+				total += 25;
+			} else if(square_mask & white_passed_pawns){
+				total += 25;
+			}
 			
 			// If each square doesn't contain a black piece, boost the score for mobility
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
-				total += 5;
-			}					
+						
+			if (!(occupied_black & square_mask)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & (queens | bishops) & occupied_white) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & (queens | rooks) & occupied_white) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & (queens | rooks) & occupied_white);
+
+				if (!attacked_by_lower_value_piece) {
+					total += 5;
+				}	
+			}
 			
 			bb &= bb - 1; 
 		}
@@ -1624,7 +2421,7 @@ inline int evaluate_queens_midgame(uint8_t square){
 			In this section, the scores for x-ray attacks are acquired
 		*/
 		
-		handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,QUEEN);
@@ -1643,12 +2440,12 @@ inline int evaluate_queens_midgame(uint8_t square){
 			x = r & 7;
 			
 			// Subtract a reduced score for square attacks behind a piece			
-			total += attackingLayer[1][x][y] >> 2;
+			total += attackingLayer[1][x][y] >> 3;
 						
 			// If a white piece exists behind the blockers, subtract a reduced piece value
 			uint8_t xRayPieceType = pieceTypeLookUp[r]; 
 			if (xRayPieceType != 0){				
-				total += values[xRayPieceType] >> 7;								
+				total += values[xRayPieceType] >> 8;								
 			}
 			bb &= bb - 1; 
 		}					
@@ -1656,7 +2453,7 @@ inline int evaluate_queens_midgame(uint8_t square){
 	return total;
 }
 
-inline int evaluate_kings_midgame(uint8_t square){
+inline int evaluate_kings_midgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns){
 	// Initialize the evaluation
     int total = 0;
         	
@@ -1690,9 +2487,9 @@ inline int evaluate_kings_midgame(uint8_t square){
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){				
+			/* if (occupied & (BB_SQUARES[r]) & ~kings){				
 				update_pressure_and_support_tables(r, KING, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -1715,29 +2512,26 @@ inline int evaluate_kings_midgame(uint8_t square){
 			int baseIncrement = attackingLayer[1][x][y];
 			if (kingRank == 0) {									
 				bool isPartialShielding = (isInfront && (BB_SQUARES[r + 8] & occupied_white & pawns) != 0);					
-				if (isShielding || isPartialShielding) {
-					if (isShielding){
-						whiteDefensiveScore += (baseIncrement << 2) + 250;
-						total -= (baseIncrement << 2) + 175;
-					}else{
-						whiteDefensiveScore += (baseIncrement << 1) + 100;
-						total -= (baseIncrement << 1) + 75;
-					}
-									
-				} else {
+				if (isShielding) {
+					whiteDefensiveScore += (baseIncrement << 2);
+					total -= (baseIncrement << 2) + 185;									
+				}else if(isPartialShielding){
+					whiteDefensiveScore += (baseIncrement << 1);
+					total -= (baseIncrement << 1) + 75;
+				}else {
 					whiteDefensiveScore += baseIncrement;
 					total += baseIncrement >> 2;
 				}
+				
 			} else {
 				if (isShielding) {
 					whiteDefensiveScore += baseIncrement;
 					total -= baseIncrement;				
 				} else {
-					whiteDefensiveScore -= baseIncrement << 2;
+					whiteDefensiveScore -= (baseIncrement << 1) / 2;
 					total += baseIncrement << 1;
 				}
-			}		
-			
+			}					
 			bb &= bb - 1;		
 		}
 	} else{
@@ -1762,10 +2556,10 @@ inline int evaluate_kings_midgame(uint8_t square){
 			
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & (BB_SQUARES[r]) & ~kings){
 				//if (r == 27){std::cout << (int)piece_type << "  "<< (int)(square) <<std::endl;}
 				update_pressure_and_support_tables(r, KING, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			} */
 			
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -1776,8 +2570,7 @@ inline int evaluate_kings_midgame(uint8_t square){
 
 			bool isBlackPawn = pieceTypeLookUp[r] == 1 && (occupied_black & r_mask);
 			bool isInfront = y == kingRank - 1;
-			bool isShielding = isBlackPawn && isInfront;
-			
+			bool isShielding = isBlackPawn && isInfront;			
 
 			// Subtract the score based on the attack of the opposing position and absolute offensive score				
 			total += attackingLayer[1][x][y];
@@ -1786,42 +2579,37 @@ inline int evaluate_kings_midgame(uint8_t square){
 			int baseIncrement = attackingLayer[0][x][y];
 			if (kingRank == 7) {
 				bool isPartialShielding = (isInfront && (BB_SQUARES[r - 8] & occupied_black & pawns) != 0);					
-				if (isShielding || isPartialShielding) {
-					if (isShielding){
-						blackDefensiveScore += (baseIncrement << 2) + 250;
-						total += (baseIncrement << 2) + 175;
-					}else{
-						blackDefensiveScore += (baseIncrement << 1) + 100;
-						total += (baseIncrement << 1) + 75;
-					}
-									
-				} else {
+				if (isShielding) {
+					blackDefensiveScore += (baseIncrement << 2);
+					total += (baseIncrement << 2) + 185;									
+				}else if(isPartialShielding){
+					blackDefensiveScore += (baseIncrement << 1);
+					total += (baseIncrement << 1) + 75;
+				}else {
 					blackDefensiveScore += baseIncrement;
 					total += baseIncrement >> 2;
-				}
+				}				
 			} else {
 				if (isShielding) {
 					blackDefensiveScore += baseIncrement;
 					total += baseIncrement;				
 				} else {
-					blackDefensiveScore -= baseIncrement << 2;
+					blackDefensiveScore -= (baseIncrement << 1) / 2;
 					total -= baseIncrement << 1;
 				}
-			}
-			
+			}			
 			bb &= bb - 1; 
 		}
-
-		
 	}
 	return total;
 }
 
 
-inline int evaluate_pawns_endgame(uint8_t square){
+inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns, int& pawn_rank_bonus){
 	
 	// Initialize the evaluation
     int total = 0;
+	int structural_bonus = 0;
 	
 	// Initialize the maximum increment for pawn placement
     int ppIncrement = 400;	
@@ -1837,33 +2625,44 @@ inline int evaluate_pawns_endgame(uint8_t square){
         total -= values[PAWN];		
         whitePieceVal += values[PAWN];
 
+		// Subtract the score based on the attack of the opposing position and defense of white's own position
+		total -= attackingLayer[0][x][y];
+		total -= attackingLayer[1][x][y] >> 1;
+
 		// Lower white's score for more than one white pawn being on the same file
-		total += 300 * (__builtin_popcountll(BB_FILES[x] & (occupied_white & pawns)) > 1);
+		total += 150 * (__builtin_popcountll(BB_FILES[x] & (occupied_white & pawns)) > 1);
 			
 		// Call the function to acquire an extra pawn squared based on the position of opposing pawns
 		// Only consider this if the pawn is above the 3rd rank
 		
-		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white);
+		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns);
 		ppIncrement = std::min(ppIncrement, 600); // cap runaway boosts
 
-		int rank = y;
-		// Scale with advancement and final increment value
-		// int base = rank * 75;
-		// int bonus = rank * rank * 15;
-		int passed_bonus = ppIncrement >> 2; // dynamic influence
-
-		total -= endgame_pawn_rank_bonus[rank] + passed_bonus;
+		int rank = y;		
 		
+		pawn_rank_bonus = -((3 * default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 300)) + ((endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2)) * (ppIncrement >= 300)));
+		total += pawn_rank_bonus;
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 		*/
 		
 		uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H & occupied_white & pawns;
 		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_white & pawns;
+		uint64_t sw  = (BB_SQUARES[square] >> 9) & ~BB_FILE_H & occupied_white & pawns;
+		uint64_t se = (BB_SQUARES[square] >> 7) & ~BB_FILE_A & occupied_white & pawns;
+
+		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
+		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);
+
+		structural_bonus += 100 * (left != 0);
+		structural_bonus += 100 * (right != 0);
 		
-		total -= 150 * (left != 0);
-		total -= 150 * (right != 0);
-		
+		structural_bonus += 135 * (sw != 0);
+		structural_bonus += 135 * (se != 0);
+
+		structural_bonus += 50 * (sw == 0) * ((latent_left_support_mask & occupied_white & pawns) != 0) * ((latent_left_support_mask & occupied_black) == 0);
+		structural_bonus += 50 * (se == 0) * ((latent_right_support_mask & occupied_white & pawns) != 0) * ((latent_right_support_mask & occupied_black) == 0);  
+		//std::cout << total << std::endl;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -1877,12 +2676,12 @@ inline int evaluate_pawns_endgame(uint8_t square){
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);									
-
+			uint64_t square_mask = BB_SQUARES[r];
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & (BB_SQUARES[r]) & ~kings){
 				update_pressure_and_support_tables(r, PAWN, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -1890,50 +2689,67 @@ inline int evaluate_pawns_endgame(uint8_t square){
 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position
             total -= attackingLayer[0][x][y];
-			total -= attackingLayer[1][x][y] >> 1;			
+			total -= attackingLayer[1][x][y] >> 1;	
+			
+			if (square_mask & white_passed_pawns){
+				total -= 200;
+			} else if(square_mask & black_passed_pawns){
+				total -= 100;
+			}			
 			
 			/*
 				In this section, award pawn chains where pawns are supporting eachother defensively
 			*/
-			total -= 200 * ((BB_SQUARES[r] & occupied_white & pawns) != 0);
+			structural_bonus += 115 * ((BB_SQUARES[r] & occupied_white & pawns) != 0);
 
 			bb &= bb - 1;   	
 		}
+		total -= std::min(175, structural_bonus);
+		//std::cout << structural_bonus<< std::endl;
 	}else{
 		// First subtract the piece value and increment the global white piece value
         total += values[PAWN];
 		blackPieceVal += values[PAWN];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y];
+		total += attackingLayer[0][x][y] >> 1;
 		
 		// Lower white's score for more than one white pawn being on the same file
-		total -= 300 * (__builtin_popcountll(BB_FILES[x] & (occupied_black & pawns)) > 1);
+		total -= 150 * (__builtin_popcountll(BB_FILES[x] & (occupied_black & pawns)) > 1);
 		
 		// Call the function to acquire an extra pawn squared based on the position of opposing pawns
 		// Only consider this if the pawn is below the 6th rank
-		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black);
+		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns);
 		ppIncrement = std::min(ppIncrement, 600); // cap runaway boosts
 
 		int rank = 7 - y;
-		// Scale with advancement and final increment value
-		//int base = rank * 75;
-		//int bonus = rank * rank * 15;
-		int passed_bonus = ppIncrement >> 2; // dynamic influence
-
-		//total += base + bonus + passed_bonus;
-		total += endgame_pawn_rank_bonus[rank] + passed_bonus;
+				
+		pawn_rank_bonus = (3 * default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 300)) + ((endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2)) * (ppIncrement >= 300));
+		total += pawn_rank_bonus;
 		
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 		*/		
 		uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H & occupied_black & pawns;
 		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_black & pawns;
+		uint64_t ne  = (BB_SQUARES[square] << 9) & ~BB_FILE_H & occupied_black & pawns;
+		uint64_t nw = (BB_SQUARES[square] << 7) & ~BB_FILE_A & occupied_black & pawns;
+
+		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
+		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);
 		
-		total += 150 * (left != 0);
-		total += 150 * (right != 0);	
-		
+		structural_bonus += 100 * (left != 0);
+		structural_bonus += 100 * (right != 0);	
+		structural_bonus += 135 * (nw != 0);
+		structural_bonus += 135 * (ne != 0);
+		structural_bonus += 50 * (nw == 0) * ((latent_left_support_mask & occupied_black & pawns) != 0) * ((latent_left_support_mask & occupied_white) == 0);
+		structural_bonus += 50 * (ne == 0) * ((latent_right_support_mask & occupied_black & pawns) != 0) * ((latent_right_support_mask & occupied_white) == 0);  
+
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
-		
+		//std::cout << total << std::endl;
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_PAWN_ATTACKS[colour][square];		
         		
@@ -1943,12 +2759,12 @@ inline int evaluate_pawns_endgame(uint8_t square){
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);									
-
+			uint64_t square_mask = BB_SQUARES[r];
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & (BB_SQUARES[r]) & ~kings){
 				update_pressure_and_support_tables(r, PAWN, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -1957,24 +2773,32 @@ inline int evaluate_pawns_endgame(uint8_t square){
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
             total += attackingLayer[1][x][y];
 			total += attackingLayer[0][x][y] >> 1;
+
+			if (square_mask & black_passed_pawns){
+				total += 200;
+			} else if(square_mask & white_passed_pawns){
+				total += 100;
+			}
 			
 			/*
 				In this section, award pawn chains where pawns are supporting eachother defensively
 			*/											
-			total += 200 * ((BB_SQUARES[r] & occupied_black & pawns) != 0);
+			structural_bonus += 115 * ((BB_SQUARES[r] & occupied_black & pawns) != 0);
 						
 			bb &= bb - 1; 
 		}
+		total += std::min(175, structural_bonus);
+		//std::cout << structural_bonus<< std::endl;
 	}	
 	return total;			        
 }
 
-inline int evaluate_knights_endgame(uint8_t square){
+inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns, uint64_t relevant_pins){
 	// Initialize the evaluation
     int total = 0;
 	    
 	bool colour = bool(occupied_white & (BB_SQUARES[square]));     
-
+	bool is_pinned = bool(relevant_pins & BB_SQUARES[square]);
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;	
     uint8_t x = square & 7;
@@ -1983,9 +2807,13 @@ inline int evaluate_knights_endgame(uint8_t square){
 		// First subtract the piece value and increment the global white piece value
         total -= values[KNIGHT];		
         whitePieceVal += values[KNIGHT];
-				
-		total -= 300;
 
+		// Subtract the score based on the attack of the opposing position and defense of white's own position
+		total -= attackingLayer[0][x][y];
+		total -= attackingLayer[1][x][y] >> 1;
+				
+		total -= 200;
+		total += 150 * is_pinned;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -1998,13 +2826,15 @@ inline int evaluate_knights_endgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2013,11 +2843,50 @@ inline int evaluate_knights_endgame(uint8_t square){
 			// Subtract the score based on the attack of the opposing position and defense of white's own position
             total -= attackingLayer[0][x][y];
 			total -= attackingLayer[1][x][y] >> 1;			
+
+			if (square_mask & white_passed_pawns){
+				total -= 150;
+			} else if(square_mask & black_passed_pawns){
+				total -= 100;
+			}
 				
-			// If each square doesn't contain a white piece, boost the score for mobility
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
-				total -= 10;
-			}				
+			// If each square doesn't contain a white piece, boost the score for mobility			
+			if (!((occupied_white & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_black) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_black);
+
+				if (!attacked_by_lower_value_piece) {
+		
+					total -= 10;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_KNIGHT_ATTACKS[r];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask							
+							uint8_t secondary = __builtin_ctzll(bb_second);
+							
+							uint64_t second_sq = BB_SQUARES[secondary];
+							// If each square doesn't contain a white piece, boost the score for mobility
+							if (!(simulatedOccupied & second_sq)){
+								total -= 10;
+								//std::cout << (int)secondary << " | " << BB_SQUARES[secondary] <<std::endl;								
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
+			}		
 			
 			bb &= bb - 1;   	
 		}
@@ -2028,8 +2897,12 @@ inline int evaluate_knights_endgame(uint8_t square){
         total += values[KNIGHT];
 		blackPieceVal += values[KNIGHT];
 
-		total += 300;
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y];
+		total += attackingLayer[0][x][y] >> 1;
 
+		total += 200;
+		total -= 150 * is_pinned;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -2042,13 +2915,15 @@ inline int evaluate_knights_endgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);	
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, KNIGHT, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2057,10 +2932,50 @@ inline int evaluate_knights_endgame(uint8_t square){
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
             total += attackingLayer[1][x][y];
 			total += attackingLayer[0][x][y] >> 1;
+
+			if (square_mask & black_passed_pawns){
+				total += 150;
+			} else if(square_mask & white_passed_pawns){
+				total += 100;
+			}
 			
-			// If each square doesn't contain a black piece, boost the score for mobility	
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
-				total += 10;
+			// If each square doesn't contain a black piece, boost the score for mobility  			
+			if (!((occupied_black & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				//uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				//uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_white);
+
+				if (!attacked_by_lower_value_piece) {
+
+					total += 15;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_KNIGHT_ATTACKS[r];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask							
+							uint8_t secondary = __builtin_ctzll(bb_second);
+															
+							uint64_t second_sq = BB_SQUARES[secondary];
+							// If each square doesn't contain a white piece, boost the score for mobility							
+							if (!(simulatedOccupied & second_sq)){
+								total += 10;								
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
 			}
 						
 			bb &= bb - 1; 
@@ -2069,11 +2984,12 @@ inline int evaluate_knights_endgame(uint8_t square){
 	return total;
 }
 
-inline int evaluate_bishops_endgame(uint8_t square){
+inline int evaluate_bishops_endgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns, uint64_t relevant_pins){
 	// Initialize the evaluation
     int total = 0;
 	
 	bool colour = bool(occupied_white & (BB_SQUARES[square]));     
+	bool is_pinned = bool(relevant_pins & BB_SQUARES[square]);
 
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;	
@@ -2085,10 +3001,14 @@ inline int evaluate_bishops_endgame(uint8_t square){
 		// First subtract the piece value and increment the global white piece value
         total -= values[BISHOP];		
         whitePieceVal += values[BISHOP];
+
+		// Subtract the score based on the attack of the opposing position and defense of white's own position
+		total -= attackingLayer[0][x][y];
+		total -= attackingLayer[1][x][y] >> 1;	
 		
 		// Boost the scores for the existence of a bishop or knight		
-		total -= 350;
-
+		total -= 250;
+		total += 150 * is_pinned;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -2102,13 +3022,15 @@ inline int evaluate_bishops_endgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);		
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2120,16 +3042,59 @@ inline int evaluate_bishops_endgame(uint8_t square){
 							
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(BB_SQUARES[r]);
+
+			if (square_mask & white_passed_pawns){
+				total -= 150;
+			} else if(square_mask & black_passed_pawns){
+				total -= 100;
+			}
 			
-			// If each square doesn't contain a white piece, boost the score for mobility
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
-				total -= 10;
+			// If each square doesn't contain a white piece, boost the score for mobility			
+			if (!((occupied_white & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_black) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_black);
+
+				if (!attacked_by_lower_value_piece) {
+		
+					total -= 10;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask							
+							uint8_t secondary = __builtin_ctzll(bb_second);
+							
+							uint64_t second_sq = BB_SQUARES[secondary];
+							// If each square doesn't contain a white piece, boost the score for mobility
+							if (!(simulatedOccupied & second_sq)){
+								total -= 10;
+								//std::cout << (int)secondary << " | " << BB_SQUARES[secondary] <<std::endl;
+								
+								if ((second_sq & BB_RANK_8) != 0 || (second_sq & BB_RANK_7) != 0) {
+									total -= 5;
+								}
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
 			}
 			
 			bb &= bb - 1;   	
 		}		
 			
-		handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,BISHOP)) & ~occupied_white;
@@ -2160,10 +3125,14 @@ inline int evaluate_bishops_endgame(uint8_t square){
 		// First subtract the piece value and increment the global white piece value
         total += values[BISHOP];
 		blackPieceVal += values[BISHOP];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y];
+		total += attackingLayer[0][x][y] >> 1;
 		
 		// Boost the scores for the existence of a bishop or knight
-        total += 350;		
-		
+        total += 250;		
+		total -= 150 * is_pinned;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -2177,13 +3146,15 @@ inline int evaluate_bishops_endgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, BISHOP, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2194,17 +3165,61 @@ inline int evaluate_bishops_endgame(uint8_t square){
 			total += attackingLayer[0][x][y] >> 1;
 			
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
+
+			if (square_mask & black_passed_pawns){
+				total += 150;
+			} else if(square_mask & white_passed_pawns){
+				total += 100;
+			}
 			
-			// If each square doesn't contain a black piece, boost the score for mobility	
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
-				total += 10;
+			// If each square doesn't contain a black piece, boost the score for mobility  			
+			if (!((occupied_black & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_white);
+
+				if (!attacked_by_lower_value_piece) {
+
+					total += 10;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask
+							
+							uint8_t secondary = __builtin_ctzll(bb_second);
+							
+								
+							uint64_t second_sq = BB_SQUARES[secondary];
+							// If each square doesn't contain a white piece, boost the score for mobility							
+							if (!(simulatedOccupied & second_sq)){
+								total += 10;
+								
+								if ((second_sq & BB_RANK_1) != 0 || (second_sq & BB_RANK_2) != 0) {
+									total += 5;
+								}
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
 			}
 						
 			bb &= bb - 1; 
 		}		
 			
-		handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, BISHOP, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,BISHOP)) & ~occupied_black;
@@ -2234,15 +3249,17 @@ inline int evaluate_bishops_endgame(uint8_t square){
 	return total;
 }
 
-inline int evaluate_rooks_endgame(uint8_t square){
+inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns, uint64_t relevant_pins){
 	// Initialize the evaluation
     int total = 0;
+	int mobility_bonus = 0;
 	
 	// Define the maximum increment for rook-file positioning and attack mask
     int rookIncrement = 200;
 	uint64_t rooks_mask = 0ULL;
 	
 	bool colour = bool(occupied_white & (BB_SQUARES[square]));     
+	bool is_pinned = bool(relevant_pins & BB_SQUARES[square]);
 
 	// Acquire the x and y coordinates of the given square
     uint8_t y = square >> 3;	
@@ -2254,15 +3271,21 @@ inline int evaluate_rooks_endgame(uint8_t square){
 		// First subtract the piece value and increment the global white piece value
         total -= values[ROOK];		
         whitePieceVal += values[ROOK];
+
+		// Subtract the score based on the attack of the opposing position and defense of white's own position
+		total -= attackingLayer[0][x][y];
+		total -= attackingLayer[1][x][y] >> 1;	
 		
 		// Boost the score for the existence of a rook in the endgame
-		total -= 500;
+		total -= 350;
+
+		total += 150 * is_pinned;
 		
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
 		rooks_mask |= BB_FILES[x] & occupied;            
 		
 		// Loop through the occupied pieces
-		uint64_t r = 0;
+		uint8_t r = 0;
 		uint64_t bb = rooks_mask;
 		while (bb) {
 			
@@ -2282,20 +3305,25 @@ inline int evaluate_rooks_endgame(uint8_t square){
 				
 					// Check if the pawn is white 
 					if (temp_colour){ 
-						
-						// Increment rook for supporting the white pawn
-						rookIncrement += ((att_square / 8) + 1) * 100; 
+						if (white_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (att_square / 8) * 75;
+						}else{
+							// Increment rook for supporting the white pawn
+							rookIncrement += (att_square / 8) * 35; 
+						}						
 					
 					// Check if the pawn is black
-					}else{ 
-					
-						// Increment rook for blockading black pawn  
-						rookIncrement += (8 - (att_square / 8)) * 50; 
-					}
-				
+					}else{
+						if (black_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (7 - (att_square / 8)) * 75;
+						}else{
+							// Increment rook for blockading black pawn  
+							rookIncrement += (7 - (att_square / 8)) * 50; 
+						}						
+					}		
+					break;		
 				// Down the board from the white rook
 				}else { 
-				
 					// Check if the pawn is white
 					if (temp_colour){ 
 						if (att_square / 8 > 3){
@@ -2307,8 +3335,13 @@ inline int evaluate_rooks_endgame(uint8_t square){
 					// Check if the pawn is black
 					}else{ 
 					
-						// Increment rook for attacking black pawn from behind
-						rookIncrement += (8 - (att_square / 8)) * 50; 
+						// Increment rook for attacking black pawn from behind						
+
+						if (black_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (7 - (att_square / 8)) * 75;
+						}else{							
+							rookIncrement += (7 - (att_square / 8)) * 35; 
+						}
 					}
 				}
 			}
@@ -2320,8 +3353,7 @@ inline int evaluate_rooks_endgame(uint8_t square){
         		
 		/*
 			In this section, the scores for piece attacks are acquired
-		*/
-		
+		*/		
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied] | BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied];
 		uint64_t occupiedCopy = occupied;
@@ -2331,13 +3363,15 @@ inline int evaluate_rooks_endgame(uint8_t square){
 		bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2348,17 +3382,62 @@ inline int evaluate_rooks_endgame(uint8_t square){
 			total -= attackingLayer[1][x][y] >> 1;			
 				
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
+
+			if (square_mask & white_passed_pawns){
+				total -= 50;
+			} else if(square_mask & black_passed_pawns){
+				total -= 25;
+			}
 			
-			// If each square doesn't contain a white piece, boost the score for mobility
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
-				total -= 10;
+			// If each square doesn't contain a white piece, boost the score for mobility			
+			if (!((occupied_white & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_black) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_black) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & rooks & occupied_black) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_black);
+
+				if (!attacked_by_lower_value_piece) {
+		
+					mobility_bonus += 5;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
+
+						uint64_t secondAttackMask = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
+				
+						while (secondAttackMask) {
+				
+							// Get the position of the least significant set bit of the mask
+							uint8_t secondary = __builtin_ctzll(secondAttackMask);		
+							
+							
+							// If each square doesn't contain a piece, boost the score for mobility
+							uint64_t sq = BB_SQUARES[secondary];
+							if (!(simulatedOccupied & sq)){
+								mobility_bonus += 5;
+								
+								if ((sq & BB_RANK_8) || (sq & BB_RANK_7)) {
+									mobility_bonus += 5;
+								}
+							}
+							secondAttackMask &= secondAttackMask - 1;		
+						}
+					}
+				}
 			}
 			
 			bb &= bb - 1;   	
 		}
 							
-		handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,ROOK)) & ~occupied_white;
@@ -2385,16 +3464,22 @@ inline int evaluate_rooks_endgame(uint8_t square){
 			bb &= bb - 1; 	
 		}
 		
+		total -= std::min(mobility_bonus, 350);
+		//std::cout << mobility_bonus  << std::endl;
 	// Else the piece is black (positive values for evaluation)
     }else{
 		
 		// First subtract the piece value and increment the global white piece value
         total += values[ROOK];
 		blackPieceVal += values[ROOK];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y];
+		total += attackingLayer[0][x][y] >> 1;
 				
 		// Boost the score for the existence of a rook in the endgame
-		total += 500;
-		
+		total += 350;
+		total -= 150 * is_pinned;
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
 		rooks_mask |= BB_FILES[x] & occupied;            
 		
@@ -2419,15 +3504,22 @@ inline int evaluate_rooks_endgame(uint8_t square){
 					
 					// If the pawn is white
 					if (temp_colour){ 
-					
-						// Increment rook for blockading white pawn
-						rookIncrement += ((att_square / 8) + 1) * 50;                        
+						if (white_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (att_square / 8) * 75;
+						}else{
+							// Increment rook for blockading white pawn
+							rookIncrement += (att_square / 8) * 50;      
+						}									                  
 					// If the pawn is black
-					}else{ 
-						
-						// Increment rook for supporting the black pawn
-						rookIncrement += (8 - (att_square / 8)) * 100; 
+					}else{
+						if (black_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (7 - (att_square / 8)) * 75;
+						}else{
+							// Increment rook for supporting the black pawn
+							rookIncrement += (7 - (att_square / 8)) * 35; 
+						}							
 					}
+					break;
 				// Up the board from the black rook
 				}else{ 
 				
@@ -2435,7 +3527,13 @@ inline int evaluate_rooks_endgame(uint8_t square){
 					if (temp_colour){ 
 					
 						// Increment rook for attacking white pawn from behind
-						rookIncrement += ((att_square / 8) + 1) * 50; 
+						rookIncrement += (att_square / 8) * 35; 
+
+						if (white_passed_pawns & BB_SQUARES[att_square]){
+							rookIncrement += (att_square / 8) * 75;
+						}else{							
+							rookIncrement += (att_square / 8) * 35;      
+						}	
 					// If the pawn is black
 					}else{ 
 						if (att_square / 8 < 4){
@@ -2465,13 +3563,15 @@ inline int evaluate_rooks_endgame(uint8_t square){
 		bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);	
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, ROOK, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2482,18 +3582,62 @@ inline int evaluate_rooks_endgame(uint8_t square){
 			total += attackingLayer[0][x][y] >> 1;
 			
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
+
+			if (square_mask & black_passed_pawns){
+				total += 50;
+			} else if(square_mask & white_passed_pawns){
+				total += 25;
+			}
 			
-			// If each square doesn't contain a black piece, boost the score for mobility	
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
-				total += 10;
+			// If each square doesn't contain a black piece, boost the score for mobility  			
+			if (!((occupied_black & square_mask) || is_pinned)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_white) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & rooks & occupied_white) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_white);
+
+				if (!attacked_by_lower_value_piece) {
+
+					mobility_bonus += 5;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
+
+						uint64_t secondAttackMask = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
+				
+						while (secondAttackMask) {
+				
+							// Get the position of the least significant set bit of the mask
+							uint8_t secondary = __builtin_ctzll(secondAttackMask);		
+							
+							// If each square doesn't contain a white piece, boost the score for mobility
+							uint64_t sq = BB_SQUARES[secondary];
+							if (!(simulatedOccupied & sq)){
+								mobility_bonus += 5;
+								
+								if ((sq & BB_RANK_1) || (sq & BB_RANK_2)) {
+									mobility_bonus += 5;
+								}
+							}
+							secondAttackMask &= secondAttackMask - 1;		
+						}
+					}
+				}
 			}
 						
 			bb &= bb - 1; 
 		}
 		
 			
-		handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, ROOK, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,ROOK)) & ~occupied_black;
@@ -2519,12 +3663,15 @@ inline int evaluate_rooks_endgame(uint8_t square){
 			}
 			bb &= bb - 1;  
 		}
-    }
+    
+		total += std::min(mobility_bonus, 350);
+		//std::cout << mobility_bonus  << std::endl;
+	}
 	//std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << std::endl;
 	return total;
 }
 
-inline int evaluate_queens_endgame(uint8_t square){
+inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns){
 	// Initialize the evaluation
     int total = 0;
 	
@@ -2541,8 +3688,12 @@ inline int evaluate_queens_endgame(uint8_t square){
         total -= values[QUEEN];		
         whitePieceVal += values[QUEEN];
 
+		// Subtract the score based on the attack of the opposing position and defense of white's own position
+		total -= attackingLayer[0][x][y];
+		total -= attackingLayer[1][x][y] >> 1;	
+
 		// Boost the score for the existence of a queen in the endgame
-		total -= 1000;
+		total -= 900;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -2556,13 +3707,15 @@ inline int evaluate_queens_endgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);		
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2573,17 +3726,64 @@ inline int evaluate_queens_endgame(uint8_t square){
 			total -= attackingLayer[1][x][y] >> 1;			
 				
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
+
+			if (square_mask & white_passed_pawns){
+				total -= 100;
+			} else if(square_mask & black_passed_pawns){
+				total -= 50;
+			}
 			
-			// If each square doesn't contain a white piece, boost the score for mobility
-			if (bool(~occupied_white & (BB_SQUARES[r]))){
-				total -= 10;
+			// If each square doesn't contain a white piece, boost the score for mobility			
+			if (!(occupied_white & square_mask)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_black) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_black) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_black) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & rooks & occupied_black) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_black);
+
+				if (!attacked_by_lower_value_piece) {
+		
+					total -= 5;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied] | BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask							
+							uint8_t secondary = __builtin_ctzll(bb_second);
+							
+							uint64_t second_sq = BB_SQUARES[secondary];
+							// If each square doesn't contain a white piece, boost the score for mobility
+							if (!(simulatedOccupied & second_sq)){
+								total -= 5;
+								//std::cout << (int)secondary << " | " << BB_SQUARES[secondary] <<std::endl;
+								
+								if ((second_sq & BB_RANK_8) != 0 || (second_sq & BB_RANK_7) != 0) {
+									total -= 5;
+								}
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
 			}
 			
 			bb &= bb - 1;   	
 		}
 				
-		handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,QUEEN)) & ~occupied_white;
@@ -2616,8 +3816,14 @@ inline int evaluate_queens_endgame(uint8_t square){
 		// First subtract the piece value and increment the global white piece value
         total += values[QUEEN];
 		blackPieceVal += values[QUEEN];
+
+		// Subtract the score based on the attack of the opposing position and defense of black's own position
+		total += attackingLayer[1][x][y];
+		total += attackingLayer[0][x][y] >> 1;
+
 		// Boost the score for the existence of a queen in the endgame
-		total += 1000;
+		total += 900;
+		
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -2631,13 +3837,15 @@ inline int evaluate_queens_endgame(uint8_t square){
 		uint64_t bb = pieceAttackMask;
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);									
+			r = __builtin_ctzll(bb);		
+			
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
-				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			/* if (occupied & square_mask & ~kings){
+				update_pressure_and_support_tables(r, QUEEN, 0, colour, bool(occupied_white & square_mask));
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
@@ -2648,17 +3856,65 @@ inline int evaluate_queens_endgame(uint8_t square){
 			total += attackingLayer[0][x][y] >> 1;
 				
 			// Remove the piece from the occupied mask copy
-			occupiedCopy &= ~(BB_SQUARES[r]);
+			occupiedCopy &= ~(square_mask);
+
+			if (square_mask & black_passed_pawns){
+				total += 100;
+			} else if(square_mask & white_passed_pawns){
+				total += 50;
+			}
 			
-			// If each square doesn't contain a black piece, boost the score for mobility	
-			if (bool(~occupied_black & (BB_SQUARES[r]))){
-				total += 10;
+			// If each square doesn't contain a black piece, boost the score for mobility  			
+			if (!(occupied_black & square_mask)){
+
+				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
+				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
+				uint64_t file_pieces = BB_FILE_MASKS[r] & occupied;
+
+				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
+													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
+													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_white) ||
+													 (BB_RANK_ATTACKS[r][rank_pieces] & rooks & occupied_white) ||
+     												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_white);
+
+				if (!attacked_by_lower_value_piece) {
+
+					total += 5;
+
+					if (!(occupied & square_mask)){
+
+						uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) & ~BB_SQUARES[r]; // Remove piece from both square and r
+						simulatedOccupied |= BB_SQUARES[r]; // Place piece at r
+
+						uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied] | BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied] | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied];
+						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
+						uint64_t bb_second = secondAttackMask;
+						while (bb_second) {
+				
+							// Get the position of the least significant set bit of the mask
+							
+							uint8_t secondary = __builtin_ctzll(bb_second);
+							
+								
+							uint64_t second_sq = BB_SQUARES[secondary];
+							// If each square doesn't contain a white piece, boost the score for mobility							
+							if (!(simulatedOccupied & second_sq)){
+								total += 5;
+								
+								if ((second_sq & BB_RANK_1) != 0 || (second_sq & BB_RANK_2) != 0) {
+									total += 5;
+								}
+							}
+							bb_second &= bb_second - 1;		
+						}
+					}
+				}
 			}
 						
 			bb &= bb - 1; 
 		}
 		
-		handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour);
+		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,QUEEN)) & ~occupied_black;
@@ -2689,7 +3945,7 @@ inline int evaluate_queens_endgame(uint8_t square){
 	return total;
 }
 
-inline int evaluate_kings_endgame(uint8_t square){
+inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, uint64_t black_passed_pawns){
 	// Initialize the evaluation
     int total = 0;
 	
@@ -2706,6 +3962,9 @@ inline int evaluate_kings_endgame(uint8_t square){
         total -= values[KING];		
         whitePieceVal += values[KING];
 
+		// Add the placement layer for the given piece at that square
+		total -= whitePlacementLayer[KING - 1][x][y];
+
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_KING_ATTACKS[square];
 		
@@ -2715,16 +3974,22 @@ inline int evaluate_kings_endgame(uint8_t square){
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);									
-
+			uint64_t square_mask = BB_SQUARES[r];
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & (BB_SQUARES[r]) & ~kings){
 				update_pressure_and_support_tables(r, KING, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
+
+			if (square_mask & white_passed_pawns){
+				total -= 150;
+			} else if(square_mask & black_passed_pawns){
+				total -= 125;
+			}
 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position
             total -= attackingLayer[0][x][y];
@@ -2740,6 +4005,7 @@ inline int evaluate_kings_endgame(uint8_t square){
         total += values[KING];
 		blackPieceVal += values[KING];
 
+		total += blackPlacementLayer[KING - 1][x][y];
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -2753,16 +4019,23 @@ inline int evaluate_kings_endgame(uint8_t square){
 		while (bb) {
 			// Get the position of the least significant set bit of the mask
 			r = __builtin_ctzll(bb);									
+			uint64_t square_mask = BB_SQUARES[r];
 
 			attack_bitmasks[r] |= BB_SQUARES[square];
 
-			if (occupied & (BB_SQUARES[r]) & ~kings){
+			/* if (occupied & (BB_SQUARES[r]) & ~kings){
 				update_pressure_and_support_tables(r, KING, 0, colour, bool(occupied_white & (BB_SQUARES[r])));
-			}
+			} */
 
 			// Get the x and y coordinates for the given square
 			y = r >> 3;
             x = r & 7;
+
+			if (square_mask & black_passed_pawns){
+				total += 150;
+			} else if(square_mask & white_passed_pawns){
+				total += 125;
+			}
 			
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
             total += attackingLayer[1][x][y];
@@ -2775,6 +4048,51 @@ inline int evaluate_kings_endgame(uint8_t square){
 	return total;
 }
 
+
+inline uint64_t latent_support_mask_left(int square, bool is_white) {
+    int file = square % 8;
+    int rank = square / 8;
+    uint64_t mask = 0ULL;
+
+    if (file > 0) {
+        for (int dr = 1; dr <= 3; ++dr) {
+            int r = is_white ? (rank - dr) : (rank + dr);
+            if (r < 0 || r > 7) break;
+
+            int sq = r * 8 + (file - 1);
+            mask |= BB_SQUARES[sq];
+        }
+    }
+
+    return mask;
+}
+
+inline uint64_t latent_support_mask_right(int square, bool is_white) {
+    int file = square % 8;
+    int rank = square / 8;
+    uint64_t mask = 0ULL;
+
+    if (file < 7) {
+        for (int dr = 1; dr <= 3; ++dr) {
+            int r = is_white ? (rank - dr) : (rank + dr);
+            if (r < 0 || r > 7) break;
+
+            int sq = r * 8 + (file + 1);
+            mask |= BB_SQUARES[sq];
+        }
+    }
+
+    return mask;
+}
+
+
+inline void update_global_central_scores(int base_increment, uint64_t square_mask){
+	if (square_mask & central_squares){
+		central_score += base_increment * 2;
+	}else if(square_mask & extended_central_squares){
+		central_score += (base_increment * 3) / 2;
+	}
+}
 
 inline void update_pressure_and_support_tables(uint8_t current_square, uint8_t attacking_piece_type, uint8_t decrement, bool attacking_piece_colour, bool current_piece_colour){
 	
@@ -3046,6 +4364,8 @@ inline int advanced_endgame_eval(int total, bool turn){
 	int passedBonus = 0;
 	
 	// Loop through the mask containing black pawns in the first half
+	uint64_t dummy;
+
 	uint8_t r = 0;
 	uint64_t bb = firstHalf & occupied_black & pawns;
 	//std::cout << total <<std::endl;
@@ -3064,7 +4384,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 		blackKing_pawnSeparation = square_distance(r,blackKingSquare);
 		whiteKing_pawnSeparation = square_distance(r,whiteKingSquare);
 		
-		ppIncrement = getPPIncrement(false, (occupied_white & pawns), 100, file, rank, occupied_white, occupied_black);
+		ppIncrement = getPPIncrement(false, (occupied_white & pawns), 100, file, rank, occupied_white, occupied_black,dummy,dummy);
 		
 		kingDist = square_distance(whiteKingSquare, promotionSquare);
 		pawnDist = rank;
@@ -3077,7 +4397,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 			blockModifier = ppIncrement >> 1; // can't stop it, big problem
 		} else {
 			int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
-			blockModifier = -diff * (ppIncrement >> 3); // the closer we are, the better
+			blockModifier = -diff * (ppIncrement >> 2); // the closer we are, the better
 		}
 
 		passedBonus = ((7 - rank) * (ppIncrement + blockModifier)) >> 4;
@@ -3107,7 +4427,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 		blackKing_pawnSeparation = square_distance(r,blackKingSquare);
 		whiteKing_pawnSeparation = square_distance(r,whiteKingSquare);
 		
-		ppIncrement = getPPIncrement(true, (occupied_black & pawns), 100, file, rank, occupied_black, occupied_white);
+		ppIncrement = getPPIncrement(true, (occupied_black & pawns), 100, file, rank, occupied_black, occupied_white,dummy,dummy);
 		
 		kingDist = square_distance(blackKingSquare, promotionSquare);
 
@@ -3120,7 +4440,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 			blockModifier = ppIncrement >> 1; // can't stop it, big problem
 		} else {
 			int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
-			blockModifier = -diff * (ppIncrement >> 3); // the closer we are, the better
+			blockModifier = -diff * (ppIncrement >> 2); // the closer we are, the better
 		}
 		
 		passedBonus = (rank * (ppIncrement + blockModifier)) >> 4;
@@ -3134,6 +4454,701 @@ inline int advanced_endgame_eval(int total, bool turn){
 	//std::cout <<"Inner2 "<< total <<std::endl;
 	return total;
 	
+}
+
+
+
+inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king_square){
+	
+	uint64_t white_king_zone = white_king_zones[white_king_square & 7];
+	uint64_t black_king_zone = black_king_zones[black_king_square & 7];
+
+	int black_increment = 0;
+	int white_increment = 0;
+	
+	int num_attackers_in_white_zone = 0;
+	int num_attackers_in_black_zone = 0;
+
+	int num_defenders_in_white_zone = 0;
+	int num_defenders_in_black_zone = 0;
+
+	int num_attacked_squares_in_white_zone = 0;
+	int num_attacked_squares_in_black_zone = 0;
+
+	int num_defended_squares_in_white_zone = 0;
+	int num_defended_squares_in_black_zone = 0;
+
+	int white_zone_attack_increment = 50;
+	int white_zone_presence_increment = 80;
+
+	int black_zone_attack_increment = 50;
+	int black_zone_presence_increment = 80;
+
+	uint64_t bb = white_king_zone;
+	uint8_t r = 0;
+	while (bb) {		
+		r = __builtin_ctzll(bb);  
+
+		uint64_t mask = BB_SQUARES[r];
+
+		if(occupied_white & mask){
+			num_defenders_in_white_zone++;
+
+			if (pawns & mask) {
+				white_zone_presence_increment -= 2;
+			} else if (knights & mask){
+				white_zone_presence_increment -= 5;
+			} else if (bishops & mask){
+				white_zone_presence_increment -= 3;
+			} else if (rooks & mask){
+				white_zone_presence_increment -= 1;
+			} else if (queens & mask){
+				white_zone_presence_increment -= 2;
+			}
+
+		}else if(occupied_black & BB_SQUARES[r]){
+			num_attackers_in_white_zone++;
+
+			if (pawns & mask) {
+				white_zone_presence_increment += 10;
+			} else if (knights & mask){
+				white_zone_presence_increment += 7;
+			} else if (bishops & mask){
+				white_zone_presence_increment += 7;
+			} else if (rooks & mask){
+				white_zone_presence_increment += 3;
+			} else if (queens & mask){
+				white_zone_presence_increment += 7;
+			}
+		}
+
+		uint64_t attack_mask = attack_bitmasks[r];
+		while (attack_mask) {		
+			uint8_t attack_square = __builtin_ctzll(attack_mask);  
+			attack_mask &= attack_mask - 1;
+
+			uint64_t attack_square_mask = BB_SQUARES[attack_square];
+			if (attack_square_mask & occupied_white){
+				num_defended_squares_in_white_zone++;
+
+				if (pawns & attack_square_mask) {
+					white_zone_attack_increment -= 2;
+				} else if (knights & attack_square_mask){
+					white_zone_attack_increment -= 10;
+				} else if (bishops & attack_square_mask){
+					white_zone_attack_increment -= 7;
+				} else if (rooks & attack_square_mask){
+					white_zone_attack_increment -= 1;
+				} else if (queens & attack_square_mask){
+					white_zone_attack_increment -= 2;
+				}
+			} else{
+				num_attacked_squares_in_white_zone++;
+
+				if (pawns & attack_square_mask) {
+					white_zone_attack_increment += 10;
+				} else if (knights & attack_square_mask){
+					white_zone_attack_increment += 7;
+				} else if (bishops & attack_square_mask){
+					white_zone_attack_increment += 7;
+				} else if (rooks & attack_square_mask){
+					white_zone_attack_increment += 5;
+				} else if (queens & attack_square_mask){
+					white_zone_attack_increment += 5;
+				}
+			}
+		}	
+		
+		bb &= bb - 1;  
+	}
+
+	bb = black_king_zone;
+	r = 0;
+	while (bb) {		
+		r = __builtin_ctzll(bb);  
+
+		uint64_t mask = BB_SQUARES[r];
+
+		if(occupied_white & mask){
+			num_attackers_in_black_zone++;
+
+			if (pawns & mask) {
+				black_zone_presence_increment += 10;
+			} else if (knights & mask){
+				black_zone_presence_increment += 7;
+			} else if (bishops & mask){
+				black_zone_presence_increment += 7;
+			} else if (rooks & mask){
+				black_zone_presence_increment += 3;
+			} else if (queens & mask){
+				black_zone_presence_increment += 7;
+			}
+
+		}else if(occupied_black & BB_SQUARES[r]){
+			num_defenders_in_black_zone++;
+
+			if (pawns & mask) {
+				black_zone_presence_increment -= 2;
+			} else if (knights & mask){
+				black_zone_presence_increment -= 5;
+			} else if (bishops & mask){
+				black_zone_presence_increment -= 3;
+			} else if (rooks & mask){
+				black_zone_presence_increment -= 1;
+			} else if (queens & mask){
+				black_zone_presence_increment -= 2;
+			}
+		}
+
+		uint64_t attack_mask = attack_bitmasks[r];
+		while (attack_mask) {		
+			uint8_t attack_square = __builtin_ctzll(attack_mask);  
+			attack_mask &= attack_mask - 1;
+
+			uint64_t attack_square_mask = BB_SQUARES[attack_square];
+			if (attack_square_mask & occupied_white){
+				num_attacked_squares_in_black_zone ++;
+
+				if (pawns & attack_square_mask) {
+					black_zone_attack_increment += 10;
+				} else if (knights & attack_square_mask){
+					black_zone_attack_increment += 7;
+				} else if (bishops & attack_square_mask){
+					black_zone_attack_increment += 7;
+				} else if (rooks & attack_square_mask){
+					black_zone_attack_increment += 5;
+				} else if (queens & attack_square_mask){
+					black_zone_attack_increment += 5;
+				}
+			} else{
+				num_defended_squares_in_black_zone++;
+
+				if (pawns & attack_square_mask) {
+					black_zone_attack_increment -= 2;
+				} else if (knights & attack_square_mask){
+					black_zone_attack_increment -= 10;
+				} else if (bishops & attack_square_mask){
+					black_zone_attack_increment -= 7;
+				} else if (rooks & attack_square_mask){
+					black_zone_attack_increment -= 1;
+				} else if (queens & attack_square_mask){
+					black_zone_attack_increment -= 2;
+				}
+			}
+		}	
+		
+		bb &= bb - 1;  
+	}
+
+	int white_defended_threshold = (num_defended_squares_in_white_zone >> 3) * 5;
+	int black_defended_threshold = (num_defended_squares_in_black_zone >> 3) * 5;
+
+	if (num_attacked_squares_in_white_zone > white_defended_threshold){
+		black_increment += (num_attacked_squares_in_white_zone - white_defended_threshold) * white_zone_attack_increment;
+	}
+	//std::cout << "black_increment: " << black_increment << std::endl;
+	black_increment += std::max(0, (num_attackers_in_white_zone - num_defenders_in_white_zone + 4) * white_zone_presence_increment);
+
+	if (num_attacked_squares_in_black_zone > black_defended_threshold){
+		white_increment += (num_attacked_squares_in_black_zone - black_defended_threshold) * black_zone_attack_increment;
+	}
+
+	white_increment += std::max(0, (num_attackers_in_black_zone - num_defenders_in_black_zone + 4) * black_zone_presence_increment); 
+
+	//black_increment = (num_attacked_squares_in_white_zone - num_defended_squares_in_white_zone + 7) * 100 + (num_attackers_in_white_zone - num_defenders_in_white_zone + 6) * 100;
+	//white_increment = (num_attacked_squares_in_black_zone - num_defended_squares_in_black_zone + 7) * 100 + (num_attackers_in_black_zone - num_defenders_in_black_zone + 6) * 100;
+
+	/* std::cout << "black_increment: " << black_increment << std::endl;
+	std::cout << "white_increment: " << white_increment << std::endl; */
+	if(num_defenders_in_black_zone <= (num_defended_squares_in_black_zone - 4) / 4)
+		white_increment *= 2;
+
+	if(num_defenders_in_white_zone <= (num_defended_squares_in_white_zone - 4) / 4)
+		black_increment *= 2;
+
+	if(num_attackers_in_black_zone <= num_attacked_squares_in_black_zone / 4)
+		white_increment /= 3;
+
+	if(num_attackers_in_white_zone <= num_attacked_squares_in_white_zone / 4)
+		black_increment /= 3;
+
+
+	/* // For black_increment
+std::cout << "num_attacked_squares_in_white_zone: " << num_attacked_squares_in_white_zone << std::endl;
+std::cout << "num_defended_squares_in_white_zone: " << num_defended_squares_in_white_zone << std::endl;
+std::cout << "num_attackers_in_white_zone: " << num_attackers_in_white_zone << std::endl;
+std::cout << "num_defenders_in_white_zone: " << num_defenders_in_white_zone << std::endl;
+std::cout << "black_increment: " << black_increment << std::endl;
+
+// For white_increment
+std::cout << "num_attacked_squares_in_black_zone: " << num_attacked_squares_in_black_zone << std::endl;
+std::cout << "num_defended_squares_in_black_zone: " << num_defended_squares_in_black_zone << std::endl;
+std::cout << "num_attackers_in_black_zone: " << num_attackers_in_black_zone << std::endl;
+std::cout << "num_defenders_in_black_zone: " << num_defenders_in_black_zone << std::endl;
+std::cout << "white_increment: " << white_increment << std::endl; */
+
+	if((black_king_square & 7) == 3 || (black_king_square & 7) == 4){
+		if (white_increment <= 0){
+			black_increment += 75;
+		}
+	}
+
+	if((white_king_square & 7) == 3 || (white_king_square & 7) == 4){
+		if (black_increment <= 0){
+			white_increment += 75;
+		}
+	}
+
+
+	return black_increment - white_increment;
+}
+
+inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns, uint64_t black_passed_pawns, std::unordered_map<uint8_t, int> pawn_rank_bonuses, bool isEndGame){
+
+	int black_adjustment = 0;
+	int white_adjustment = 0;
+	int adjustment = 0;
+	if (white_passed_pawns){
+
+		uint64_t bb = white_passed_pawns;
+		int r = 0;
+
+		while (bb) {
+			
+			r = __builtin_ctzll(bb);  
+			
+			black_adjustment = 0;
+			white_adjustment = 0;
+
+			int y = r >> 3;		
+			int scale = 2;
+			if(y >= 4 && isEndGame){
+				scale = 1;
+			}				
+
+			if (y > 2){
+				for (int i = r + 8; i <= 63; i += 8){
+					uint64_t cur_mask = BB_SQUARES[i];
+
+					if (cur_mask & occupied_white){
+						white_adjustment += (y * 75) / scale;
+						//square_values[i] -= (y * 100);
+						
+					}else if(cur_mask & occupied_black){
+						black_adjustment += (y * 100) / scale;
+						//square_values[i] += (y * 125);
+						
+					} else{
+
+						// Acquire the masks of the pieces on the same rank, file and diagonal as the given square
+						uint64_t rank_pieces = BB_RANK_MASKS[i] & occupied;
+						uint64_t file_pieces = BB_FILE_MASKS[i] & occupied;
+						uint64_t diag_pieces = BB_DIAG_MASKS[i] & occupied;
+
+						// Acquire all attack masks for each piece type
+						uint64_t attackers = (
+							(BB_KING_ATTACKS[i] & kings) |
+							(BB_KNIGHT_ATTACKS[i] & knights) |
+							(BB_RANK_ATTACKS[i][rank_pieces] & (queens | rooks)) |
+							(BB_FILE_ATTACKS[i][file_pieces] & (queens | rooks)) |
+							(BB_DIAG_ATTACKS[i][diag_pieces] & (queens | bishops))
+						);
+
+						if (attackers){
+							while (attackers) {			
+								uint8_t attacker = __builtin_ctzll(attackers); 
+								if (BB_SQUARES[attacker] & occupied_white){
+									white_adjustment -= (y * 60) / scale;
+									//std::cout << "WHITE: " << (int)attacker << std::endl;
+									//square_values[attacker] += (y * 75);
+								}else{
+									black_adjustment += (y * 50) / scale;
+									//std::cout << "BLACK: " << (int)attacker << std::endl;
+									//square_values[attacker] += (y * 60);
+								}
+								attackers &= attackers - 1;  
+							}
+						}
+					}					
+				}
+			}
+			adjustment += white_adjustment + std::min(-pawn_rank_bonuses[r],black_adjustment); 
+			//std::cout << "ADJUSTMENT for white pp: " << white_adjustment + std::min(-pawn_rank_bonuses[r],black_adjustment) << " | " << (int)r << " | " << (int)y << std::endl;
+			bb &= bb - 1;  
+		}
+	}
+	//std::cout << "ADJUSTMENT for white pp: " << adjustment << std::endl;
+	if (black_passed_pawns){
+		uint64_t bb = black_passed_pawns;
+		int r = 0;
+
+		while (bb) {
+			
+			r = __builtin_ctzll(bb);  
+
+			black_adjustment = 0;
+			white_adjustment = 0;
+			
+			int y = r >> 3;
+			int scale = 2;
+			if(y <= 3 && isEndGame){
+				scale = 1;
+			}			
+
+			if (y < 5){
+				for (int i = r - 8; i >= 0; i -= 8){
+					uint64_t cur_mask = BB_SQUARES[i];
+
+					if (cur_mask & occupied_white){
+						white_adjustment -= ((7 - y) * 100) / scale;
+						//square_values[i] += ((7 - y) * 125);					
+					}else if(cur_mask & occupied_black){
+						black_adjustment -= ((7 - y) * 75) / scale;
+						//square_values[i] -= ((7 - y) * 100);						
+					} else{
+
+						// Acquire the masks of the pieces on the same rank, file and diagonal as the given square
+						uint64_t rank_pieces = BB_RANK_MASKS[i] & occupied;
+						uint64_t file_pieces = BB_FILE_MASKS[i] & occupied;
+						uint64_t diag_pieces = BB_DIAG_MASKS[i] & occupied;
+
+						// Acquire all attack masks for each piece type
+						uint64_t attackers = (
+							(BB_KING_ATTACKS[i] & kings) |
+							(BB_KNIGHT_ATTACKS[i] & knights) |
+							(BB_RANK_ATTACKS[i][rank_pieces] & (queens | rooks)) |
+							(BB_FILE_ATTACKS[i][file_pieces] & (queens | rooks)) |
+							(BB_DIAG_ATTACKS[i][diag_pieces] & (queens | bishops))
+						);
+
+						if (attackers){
+							while (attackers) {			
+								uint8_t attacker = __builtin_ctzll(attackers); 
+								if (BB_SQUARES[attacker] & occupied_white){
+									white_adjustment -= ((7 - y) * 50) / scale;
+									//square_values[attacker] += ((7 - y) * 60);
+								}else{
+									black_adjustment += ((7 - y) * 60) / scale;
+									//square_values[attacker] += ((7 - y) * 75);
+								}
+								attackers &= attackers - 1;  
+							}
+						}
+					}
+				}
+			}
+			adjustment += black_adjustment + std::max(-pawn_rank_bonuses[r],white_adjustment); 
+			//std::cout << "ADJUSTMENT for black pp: " << black_adjustment + std::max(-pawn_rank_bonuses[r],white_adjustment) << " | " << (int)r << " | " << black_adjustment << " | " << -pawn_rank_bonuses[r] << " | " << white_adjustment << std::endl;
+			bb &= bb - 1;  
+		}
+	}
+
+	return adjustment;
+}
+
+
+
+inline int chebyshev_distance(int from_sq, int to_sq) {
+    int fx = from_sq % 8, fy = from_sq / 8;
+    int tx = to_sq % 8, ty = to_sq / 8;
+    return std::max(abs(fx - tx), abs(fy - ty));
+}
+
+inline bool is_practically_drawn(int pieceNum) {
+    uint64_t no_king_mask = occupied & ~kings;
+	//std::cout << "AAA: " << pieceNum<< std::endl;
+    
+	// King vs. King, King+Bishop vs. King, King+Knight vs. King
+	if (__builtin_popcountll(occupied_white) == __builtin_popcountll(occupied_black)) {
+		if (no_king_mask == bishops || no_king_mask == knights)
+			return true;
+	}
+
+	// King + one minor piece vs King
+	if (__builtin_popcountll(bishops) == 1 && no_king_mask == bishops)
+		return true;
+
+	if (__builtin_popcountll(knights) == 1 && no_king_mask == knights)
+		return true;
+
+	/* bool white_has_minor = (__builtin_popcountll(knights & occupied_white) == 1 ||
+                        __builtin_popcountll(bishops & occupied_white) == 1);
+	bool black_has_minor = (__builtin_popcountll(knights & occupied_black) == 1 ||
+							__builtin_popcountll(bishops & occupied_black) == 1);
+
+	bool white_has_pawn = (__builtin_popcountll(pawns & occupied_white) == 1);
+	bool black_has_pawn = (__builtin_popcountll(pawns & occupied_black) == 1);
+
+	// No other material on the board
+	bool only_minor_and_pawn_exist = __builtin_popcountll(occupied & ~(kings | pawns | knights | bishops)) == 0;
+
+	// Now apply draw condition
+	if (only_minor_and_pawn_exist) {
+		if ((white_has_minor && black_has_pawn) ||
+			(black_has_minor && white_has_pawn)) {
+			return true; // minor piece vs lone pawn is practically drawn
+		}
+	} */
+
+
+	if (no_king_mask == 0)
+		return true;
+    
+	// Bishop + Rook Pawn special case
+	//std::cout << "AAA" << std::endl;
+	if ((no_king_mask == (bishops | pawns)) &&
+		(__builtin_popcountll(bishops) == 1) &&
+		(__builtin_popcountll(pawns) == 1)) {
+		//std::cout << "BBB" << std::endl;
+		//bool bishop_is_white = (bishops & occupied_white);
+		bool pawn_is_white = (pawns & occupied_white);
+
+		int bishop_square = __builtin_ctzll(bishops);
+		bool bishop_square_color = is_white_square(bishop_square);
+
+		int pawn_square = __builtin_ctzll(pawns);
+		int promotion_square = (pawns & BB_FILE_A) ?
+								(pawn_is_white ? 56 : 0) :
+								(pawn_is_white ? 63 : 7);
+
+		if (!((pawns & BB_FILE_A) || (pawns & BB_FILE_H)))
+			return false; // Not a rook pawn
+		//std::cout << "CCC" << std::endl;
+		bool promotion_color = is_white_square(promotion_square);
+		if (bishop_square_color != promotion_color) {
+			// Now check king proximity
+			uint64_t white_king_bb = kings & occupied_white;
+			uint64_t black_king_bb = kings & occupied_black;
+
+			int white_king_sq = __builtin_ctzll(white_king_bb);
+			int black_king_sq = __builtin_ctzll(black_king_bb);
+
+			int attacker_king_sq = pawn_is_white ? white_king_sq : black_king_sq;
+			int defender_king_sq = pawn_is_white ? black_king_sq : white_king_sq;
+
+			int defender_dist = chebyshev_distance(defender_king_sq, promotion_square);
+			int attacker_dist = chebyshev_distance(attacker_king_sq, promotion_square);
+			int pawn_dist = chebyshev_distance(pawn_square, promotion_square);
+			//std::cout << "DDD" << std::endl;
+			if (defender_dist <= std::min(pawn_dist, attacker_dist))
+				return true; // Drawn by opposition
+			//std::cout << "EEE" << std::endl;
+		}
+	}
+
+	// Rook and Bishop vs Rook — known theoretical draw in most cases
+	if (__builtin_popcountll(no_king_mask) == 3 &&
+		__builtin_popcountll(rooks) == 2 &&
+		__builtin_popcountll(bishops) == 1)
+	{
+		int white_rooks = __builtin_popcountll(rooks & occupied_white);
+		int black_rooks = __builtin_popcountll(rooks & occupied_black);
+		int white_bishops = __builtin_popcountll(bishops & occupied_white);
+		int black_bishops = __builtin_popcountll(bishops & occupied_black);
+
+		if ((white_rooks == 1 && white_bishops == 1 && black_rooks == 1 && black_bishops == 0) ||
+			(black_rooks == 1 && black_bishops == 1 && white_rooks == 1 && white_bishops == 0))
+		{
+			return true;
+		}
+	}
+
+	// Bishop vs Pawn (where the pawn cannot promote)
+	if (__builtin_popcountll(no_king_mask) == 2 &&
+		__builtin_popcountll(bishops) == 1 &&
+		__builtin_popcountll(pawns) == 1)
+	{
+		bool bishop_is_white = (bishops & occupied_white);
+		bool pawn_is_white = (pawns & occupied_white);
+
+		// Must be opposite colors for bishop vs pawn
+		if (bishop_is_white != pawn_is_white)
+		{
+			int bishop_square = __builtin_ctzll(bishops);
+			int pawn_square = __builtin_ctzll(pawns);
+			bool bishop_square_color = is_white_square(bishop_square);
+
+			// Check if pawn is on rook file (A or H)
+			if ((pawns & BB_FILE_A) || (pawns & BB_FILE_H)) {
+				int promotion_square = (pawns & BB_FILE_A) ?
+										(pawn_is_white ? 56 : 0) :
+										(pawn_is_white ? 63 : 7);
+
+				bool promotion_square_color = is_white_square(promotion_square);
+
+				// If bishop is on opposite color as promotion square
+				if (bishop_square_color != promotion_square_color) {
+
+					// Get king squares
+					uint64_t white_king_bb = kings & occupied_white;
+					uint64_t black_king_bb = kings & occupied_black;
+					int white_king_sq = __builtin_ctzll(white_king_bb);
+					int black_king_sq = __builtin_ctzll(black_king_bb);
+
+					int attacker_king_sq = pawn_is_white ? white_king_sq : black_king_sq;
+					int defender_king_sq = pawn_is_white ? black_king_sq : white_king_sq;
+
+					int defender_dist = chebyshev_distance(defender_king_sq, promotion_square);
+					int attacker_dist = chebyshev_distance(attacker_king_sq, promotion_square);
+					int pawn_dist = chebyshev_distance(pawn_square, promotion_square);
+
+					// Defender has opposition or equal distance to block promotion
+					if (defender_dist <= std::min(pawn_dist, attacker_dist)) {
+						return true; // Practically drawn
+					}
+				}
+			}
+		}
+	}
+
+	// Knight vs Pawn (where the pawn cannot promote)
+	if (__builtin_popcountll(no_king_mask) == 2 &&
+		__builtin_popcountll(knights) == 1 &&
+		__builtin_popcountll(pawns) == 1)
+	{
+		bool knight_is_white = (knights & occupied_white);
+		bool pawn_is_white = (pawns & occupied_white);
+
+		// Must be opposite sides
+		if (knight_is_white != pawn_is_white)
+		{
+			int knight_square = __builtin_ctzll(knights);
+			int pawn_square = __builtin_ctzll(pawns);
+
+			// Only consider rook pawns
+			if ((pawns & BB_FILE_A) || (pawns & BB_FILE_H)) {
+				int promotion_square = (pawns & BB_FILE_A) ?
+										(pawn_is_white ? 56 : 0) :
+										(pawn_is_white ? 63 : 7);
+
+				// Get kings
+				uint64_t white_king_bb = kings & occupied_white;
+				uint64_t black_king_bb = kings & occupied_black;
+				int white_king_sq = __builtin_ctzll(white_king_bb);
+				int black_king_sq = __builtin_ctzll(black_king_bb);
+
+				int attacker_king_sq = pawn_is_white ? white_king_sq : black_king_sq;
+				int defender_king_sq = pawn_is_white ? black_king_sq : white_king_sq;
+
+				int defender_dist = chebyshev_distance(defender_king_sq, promotion_square);
+				int attacker_dist = chebyshev_distance(attacker_king_sq, promotion_square);
+				int pawn_dist = chebyshev_distance(pawn_square, promotion_square);
+
+				// If defender controls promotion square and attacker too far
+				if (defender_dist <= std::min(pawn_dist, attacker_dist) &&
+					chebyshev_distance(knight_square, promotion_square) > 2) {
+					return true;
+				}
+			}
+		}
+	}
+
+
+    
+    return false;
+}
+
+
+
+inline void print_bitboard(uint64_t bb, const std::string& label) {
+    std::cout << label << ":\n";
+    for (int rank = 7; rank >= 0; --rank) {
+        for (int file = 0; file < 8; ++file) {
+            int sq = rank * 8 + file;
+            std::cout << ((bb >> sq) & 1ULL ? "1 " : ". ");
+        }
+        std::cout << "\n";
+    }
+    std::cout << "\n";
+}
+
+
+inline uint64_t get_relevant_pin(bool probe) {
+    
+
+    uint64_t relevant_pins = 0;
+    uint64_t bb = ~kings;
+    uint64_t candidates = 0;     
+
+    uint8_t white_king = __builtin_ctzll(kings & occupied_white);
+    uint64_t queen_attacks_from_square = (BB_DIAG_ATTACKS[white_king][BB_DIAG_MASKS[white_king] & occupied] | BB_RANK_ATTACKS[white_king][BB_RANK_MASKS[white_king] & occupied] | 
+                                         BB_FILE_ATTACKS[white_king][BB_FILE_MASKS[white_king] & occupied]) & occupied_white; 
+
+    candidates |= queen_attacks_from_square;                                    
+    
+
+    uint8_t black_king = __builtin_ctzll(kings & occupied_black);
+    queen_attacks_from_square = (BB_DIAG_ATTACKS[black_king][BB_DIAG_MASKS[black_king] & occupied] | BB_RANK_ATTACKS[black_king][BB_RANK_MASKS[black_king] & occupied] | 
+                                         BB_FILE_ATTACKS[black_king][BB_FILE_MASKS[black_king] & occupied]) & occupied_black; 
+    
+    candidates |= queen_attacks_from_square;
+                                        
+
+    /* if(current_state.occupied_colour[true] & current_state.queens){
+        uint8_t white_queen = __builtin_ctzll(current_state.queens & current_state.occupied_colour[true]);
+        queen_attacks_from_square = (BB_DIAG_ATTACKS[white_queen][BB_DIAG_MASKS[white_queen] & current_state.occupied] | BB_RANK_ATTACKS[white_queen][BB_RANK_MASKS[white_queen] & current_state.occupied] | 
+                                         BB_FILE_ATTACKS[white_queen][BB_FILE_MASKS[white_queen] & current_state.occupied]) & current_state.occupied_colour[true];
+        candidates |= queen_attacks_from_square;        
+    }
+
+    
+
+    if(current_state.occupied_colour[false] & current_state.queens){
+        uint8_t black_queen = __builtin_ctzll(current_state.queens & current_state.occupied_colour[false]);
+        queen_attacks_from_square = (BB_DIAG_ATTACKS[black_queen][BB_DIAG_MASKS[black_queen] & current_state.occupied] | BB_RANK_ATTACKS[black_queen][BB_RANK_MASKS[black_queen] & current_state.occupied] | 
+                                         BB_FILE_ATTACKS[black_queen][BB_FILE_MASKS[black_queen] & current_state.occupied]) & current_state.occupied_colour[false];
+        candidates |= queen_attacks_from_square;        
+    } */    
+
+    bb &= candidates & bishops & knights & rooks;    
+    if(probe)
+        std::cout << "BITMASK:" << bb << ";"<< std::endl;
+    while (bb) {
+        uint8_t current_square = __builtin_ctzll(bb);
+        bb &= bb - 1;
+
+        bool is_white = occupied_white & BB_SQUARES[current_square];
+
+        uint64_t own_pieces = is_white ? occupied_white : occupied_black;
+        uint64_t opp_pieces = is_white ? occupied_black : occupied_white;
+
+        // Get sliding attackers
+        uint64_t rank_pieces = BB_RANK_MASKS[current_square] & occupied;
+        uint64_t file_pieces = BB_FILE_MASKS[current_square] & occupied;
+        uint64_t diag_pieces = BB_DIAG_MASKS[current_square] & occupied;
+
+        uint64_t attackers = (
+            (BB_RANK_ATTACKS[current_square][rank_pieces] & (queens | rooks)) |
+            (BB_FILE_ATTACKS[current_square][file_pieces] & (queens | rooks)) |
+            (BB_DIAG_ATTACKS[current_square][diag_pieces] & (queens | bishops))
+        ) & opp_pieces;
+
+        while (attackers) {
+            uint8_t attacker_square = __builtin_ctzll(attackers);
+            attackers &= attackers - 1;
+
+            uint8_t attacker_type = pieceTypeLookUp [attacker_square];
+            uint64_t behind_mask = attacks_mask(!is_white, occupied ^ BB_SQUARES[current_square], attacker_square, attacker_type) &
+                                   ~attacks_mask(!is_white, occupied, attacker_square, attacker_type) & own_pieces;
+
+            while (behind_mask) {
+                uint8_t pinned_to_sq = __builtin_ctzll(behind_mask);
+                behind_mask &= behind_mask - 1;
+
+                //uint8_t pinned_piece_type = pieceTypeLookUp [current_square];              
+                uint8_t pinned_to_piece_type = pieceTypeLookUp [pinned_to_sq];             
+                
+                if (pinned_to_piece_type == KING) {
+                    if(probe)
+                        std::cout << (int)pinned_to_sq << " | " << (int)current_square << std::endl;                    
+                    relevant_pins |= BB_SQUARES[current_square];
+                }
+            }
+        }
+    }
+	if(probe)
+        std::cout << relevant_pins << std::endl;   
+    return relevant_pins;
 }
 
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
@@ -3183,8 +5198,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	blackPieceVal = 0;
 	whitePieceVal = 0;
 
+	// Initialize central score
+	central_score = 0;
+
 	// Initialize piece attack arrays
 	attack_bitmasks.fill(0ULL);
+
+	uint64_t white_passed_pawns = 0;
+	uint64_t black_passed_pawns = 0;
 
 	pressure_white.fill(0);
 	support_white.fill(0);
@@ -3199,62 +5220,92 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	horizon_mitigation_flag = false;
 	
 	// Acquire the number of pieces on the board not including the kings
-	int pieceNum = scan_reversed_size(occupied) - 2;
+	int pieceNum = __builtin_popcountll(occupied) - 2;
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
-	bool isEndGame = pieceNum < 16;
-	bool isNearGameEnd = pieceNum < 10;
+	bool isEndGame;
+	bool isNearGameEnd;
+
+	bool boost_white_for_piece_value_advantage = false;
+	bool boost_black_for_piece_value_advantage = false;
+
+	std::unordered_map<uint8_t, int> pawn_rank_bonuses;
 	
 	// Call the function to initialize global piece values
 	initializePieceValues(occupied);
-		
+	uint64_t relevant_pins = get_relevant_pin(false);
 	// If the queens are off the board, then it can be considered an endgame at a higher piece value
-	if (queens == 0){
+	/* if (queens == 0){
 		isEndGame = pieceNum < 18;
 		isNearGameEnd = pieceNum < 12;
-	}
+	} */
 	
+	int phase = 0;
+	phase += 4 * __builtin_popcountll(queensMask);
+	phase += 2 * __builtin_popcountll(rooksMask);
+	phase += 1 * __builtin_popcountll(bishopsMask | knightsMask);
+
+	int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to 128
+
+	if (phase_score <= 64) {
+    	// Midgame
+		isEndGame = false;
+	} else if (phase_score <= 96) {
+		// Normal endgame
+		isEndGame = true;
+	} else {
+		// Advanced endgame
+		//setAttackingLayer(5, true);
+		isEndGame = true;
+		isNearGameEnd = true;
+	}
+/* 	print_bitboard(WHITE_LIGHT_BISHOP_ZONE, "WHITE_LIGHT_BISHOP_ZONE");
+	print_bitboard(WHITE_DARK_BISHOP_ZONE,  "WHITE_DARK_BISHOP_ZONE");
+	print_bitboard(BLACK_LIGHT_BISHOP_ZONE, "BLACK_LIGHT_BISHOP_ZONE");
+	print_bitboard(BLACK_DARK_BISHOP_ZONE,  "BLACK_DARK_BISHOP_ZONE"); */
+
 	// If the game is not in endgame phase
 	if (!isEndGame){
 
 		// Update the attacking layer based on the position of the king
-		setAttackingLayer(5);
-	
-		/*
-		// Loop through the occupied mask
-		uint8_t r = 0;
-		uint64_t bb = occupied & ~pawnsMask &~knightsMask &~bishopsMask &~rooksMask &~queensMask;
-		while (bb) {
-			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);  // __builtin_ctzll gives the index of the least significant set bit
-			//if (r == 34){std::cout << occupied << " y:" << r / 8 << "  x: " << r % 8 << " piece: " << (int)pieceTypeLookUp[r] << std::endl;}
-			// Call the midgame evaluation function 
-			int result = placement_and_piece_midgame(r);
-			square_values[r] = abs(result);
-			total += result;
-			
-			// Clear the least significant set bit
-			bb &= bb - 1;  
-		}
-		*/		
-
+		setAttackingLayer(5, isEndGame);
+		//std::cout << total << std::endl;
 		uint64_t bb = pawnsMask;
 		uint8_t r = 0;
 		while (bb) {
 			
 			r = __builtin_ctzll(bb);  
-			
-			// Call the midgame pawns evaluation function 
-			int result = evaluate_pawns_midgame(r);
-			square_values[r] = abs(result);
-			total += result;
-			
-			// Clear the least significant set bit
 			bb &= bb - 1;  
+			
+			int blended_score;
+			if (phase_score <= 40) {
+				int pawn_rank_bonus = 0;
+				int result_mid = evaluate_pawns_midgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus);
+				pawn_rank_bonuses[r] = pawn_rank_bonus;
+				blended_score = result_mid;
+			} else {
+				int pawn_rank_bonus_mid = 0;
+				int pawn_rank_bonus_end = 0;
+
+				int result_mid = evaluate_pawns_midgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus_mid);
+				int result_end = evaluate_pawns_endgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus_end);
+
+				int blend_range = 30; // 70 - 40
+				int end_weight = phase_score - 40;
+				int mid_weight = blend_range - end_weight;
+				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
+
+				pawn_rank_bonuses[r] = (mid_weight * pawn_rank_bonus_mid + end_weight * pawn_rank_bonus_end) / blend_range;
+			}
+
+			total += blended_score;
+
+			//std::cout << "PAWNS: " << int(r) << " | " << blended_score << std::endl;					
 		}
 
 		//total += pawns_simd_initializer(bb);
-
+		//std::cout << total << std::endl;
+		
 		bb = knightsMask;
 		r = 0;
 		while (bb) {
@@ -3262,14 +5313,16 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_knights_midgame(r);
+			int result = evaluate_knights_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
+			//std::cout << "KNIGHTS: " << int(r) << " | " << result << std::endl;
 			
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		
+		//std::cout << total << std::endl;
 		bb = bishopsMask;
 		r = 0;
 		while (bb) {
@@ -3277,14 +5330,16 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_bishops_midgame(r);
+			int result = evaluate_bishops_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
+			//std::cout << "BISHOPS: " << int(r) << " | " << result << std::endl;
 			
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
 
+		//std::cout << total << std::endl;
 		bb = rooksMask;
 		r = 0;
 		while (bb) {
@@ -3292,14 +5347,42 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_rooks_midgame(r);
+			/* int result = evaluate_rooks_midgame(r);
 			square_values[r] = abs(result);
 			total += result;
-			
+			std::cout << "ROOKS: " << int(r) << " | " << result << std::endl; */
+
+			int blended_score;
+			if (phase_score <= 40) {
+				int result_mid = evaluate_rooks_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
+				blended_score = result_mid;
+			} else if (phase_score >= 70) {
+				int result_end = evaluate_rooks_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
+				blended_score = result_end;
+			} else {
+				int result_mid = evaluate_rooks_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
+				int result_end = evaluate_rooks_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
+
+				int blend_range = 30; // 70 - 40
+				int end_weight = phase_score - 40;
+				int mid_weight = blend_range - end_weight;
+				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
+			}
+
+			blended_score += get_latent_rook_activity_score(r);
+
+			if(blended_score < 0){
+				blended_score = std::max(blended_score, -5600);
+			}else{
+				blended_score = std::min(blended_score, 5600);
+			}
+			//square_values[r] = abs(blended_score);
+			total += blended_score;
+			//std::cout << "ROOKS: " << int(r) << " | " << blended_score << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		//std::cout << total << std::endl;
 		bb = queensMask;
 		r = 0;
 		while (bb) {
@@ -3307,14 +5390,36 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_queens_midgame(r);
+			int result = evaluate_queens_midgame(r, white_passed_pawns, black_passed_pawns);
 			square_values[r] = abs(result);
 			total += result;
+			//std::cout << "QUEENS: " << int(r) << " | " << result << std::endl;
+
+			/* int blended_score;
+			if (phase_score <= 40) {
+				int result_mid = evaluate_queens_midgame(r);
+				blended_score = result_mid;
+			} else if (phase_score >= 70) {
+				int result_end = evaluate_queens_endgame(r);
+				blended_score = result_end;
+			} else {
+				int result_mid = evaluate_queens_midgame(r);
+				int result_end = evaluate_queens_endgame(r);
+
+				int blend_range = 30; // 70 - 40
+				int end_weight = phase_score - 40;
+				int mid_weight = blend_range - end_weight;
+				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
+			}
+
+			//square_values[r] = abs(blended_score);
+			total += blended_score;
+			std::cout << "QUEENS: " << int(r) << " | " << blended_score << std::endl; */
 			
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		//std::cout << total << std::endl;
 		bb = kingsMask;
 		r = 0;
 		while (bb) {
@@ -3322,67 +5427,125 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_kings_midgame(r);
-			square_values[r] = abs(result);
-			total += result;
 			
+			int blended_score;
+			if (phase_score <= 40) {
+				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
+				blended_score = result_mid;
+			} else if (phase_score >= 70) {
+				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
+				blended_score = result_end;
+			} else {
+				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
+				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
+
+				int blend_range = 30; // 70 - 40
+				int end_weight = phase_score - 40;
+				int mid_weight = blend_range - end_weight;
+				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
+			}
+
+			square_values[r] = abs(blended_score);
+			total += blended_score;
+			//std::cout << "KINGS: " << int(r) << " | " << blended_score << std::endl;
+			/* int result = evaluate_kings_midgame(r);
+			square_values[r] = abs(result);
+			total += result; */
+
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
+		//std::cout << total << std::endl;
+		//adjust_pressure_and_support_tables_for_pins(occupied & ~kings);
+		
+		BoardState state(
+			pawnsMask,
+			knightsMask,
+			bishopsMask,
+			rooksMask,
+			queensMask,
+			kingsMask,
+			occupied_whiteMask,
+			occupied_blackMask,
+			occupiedMask,
+			1,
+			turn,                  
+			0,
+			0,                          
+			0,                           
+			0    
+		);
+		//std::cout << total << std::endl;
+		total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		//std::cout << total << std::endl;
+		total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+		//std::cout << total << std::endl;
+		total += get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
+		//std::cout << total << std::endl;
+		
+		//std::cout << phase_score << std::endl;
+		if(phase_score < 20){
+			total += std::min((central_score * 3) / 2, 400);
+		} else if (phase_score < 31){
+			total += std::min(central_score, 350);
+		} else if (phase_score < 45){
+			total += std::min(central_score / 2, 300);
+		} else{
+			total += std::min(central_score / 4, 300);
+		}
+
+		if(total <= -1500){
+			boost_white_for_piece_value_advantage = true;
+		}else if(total >= 1500){
+			boost_black_for_piece_value_advantage = true;
+		}
+
+		//std::cout << total << std::endl;
+
+
+		// Boost the score for the side with more piece value proportional to how many pieces are on the board	    
+		
+		//std::cout << total << " black:" << blackPieceVal << "  white: " << whitePieceVal  << " diff: " << (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000) << std::endl;
 		
 
-		adjust_pressure_and_support_tables_for_pins(occupied & ~kings);
-		//std::cout << total << std::endl;
-		//total += get_pressure_increment(lastMovedToSquare, occupied & ~kings, turn);
-		total += approximate_capture_gains(occupied & ~kings, turn);
-		//std::cout << total << std::endl;
 		
-		// Boost the score for the side with more piece value proportional to how many pieces are on the board
-		//std::cout << total << " black:" << blackPieceVal << "  white: " << whitePieceVal  << " diff: " << (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000) << std::endl;
-		if (blackPieceVal > whitePieceVal){
-			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000);		
-		}else if (whitePieceVal > blackPieceVal){			
-			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000);
+		// Boost the scores of both sides based on how poor the side's defense is relative to the opponent's offense
+		
+		//std::cout << occupied << " black:" << blackOffensiveScore << "  white: " << whiteDefensiveScore  << " diff: " << ((blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * 3)<< std::endl;
+		//std::cout << occupied << " black:" << blackDefensiveScore << "  white: " << whiteOffensiveScore  << " diff: " << ((whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * 3) << std::endl;
+		if (whiteOffensiveScore > blackDefensiveScore){
+			total -= (whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * 3;
+		}
+		
+		if (blackOffensiveScore > whiteDefensiveScore){
+			total += (blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * 3;
 		}
 	
 	// Else the game is in endgame phase	
 	}else{
 		
+		if (is_practically_drawn(pieceNum))
+			return 0;
+
 		// Update the attacking layer based on the position of the king
-		setAttackingLayer(5);
-		/*
-		// Loop through the occupied mask
-		uint8_t r = 0;
-		uint64_t bb = occupied & ~pawnsMask &~knightsMask &~bishopsMask &~rooksMask;
-		while (bb) {
-			
-			// Get the position of the least significant set bit of the mask
-			r = __builtin_ctzll(bb);
-
-			// Call the endgame evaluation function 
-			int result = placement_and_piece_endgame(r);
-			square_values[r] = abs(result);
-			total += result;
-			bb &= bb - 1;			
-		} 
-		*/
-		
-
+		setAttackingLayer(10, isEndGame);
+		//std::cout << total << std::endl;			
 		uint64_t bb = pawnsMask;
 		uint8_t r = 0;
 		while (bb) {
 			
 			r = __builtin_ctzll(bb);  
-			
+			int pawn_rank_bonus = 0;
 			// Call the midgame pawns evaluation function 
-			int result = evaluate_pawns_endgame(r);
+			int result = evaluate_pawns_endgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus);
 			square_values[r] = abs(result);
+			pawn_rank_bonuses[r] = pawn_rank_bonus;
 			total += result;
-			
+			//std::cout << "PAWNS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		//std::cout << total << std::endl;		
 		bb = knightsMask;
 		r = 0;
 		while (bb) {
@@ -3390,14 +5553,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_knights_endgame(r);
+			int result = evaluate_knights_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
-			
+			//std::cout << "KNIGHTS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		//std::cout << total << std::endl;		
 		bb = bishopsMask;
 		r = 0;
 		while (bb) {
@@ -3405,14 +5568,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_bishops_endgame(r);
+			int result = evaluate_bishops_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
-			
+			//std::cout << "BISHOPS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		//std::cout << total << std::endl;		
 		bb = rooksMask;
 		r = 0;
 		while (bb) {
@@ -3420,14 +5583,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_rooks_endgame(r);
+			int result = evaluate_rooks_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
-			
+			//std::cout << "ROOKS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		//std::cout << total << std::endl;		
 		bb = queensMask;
 		r = 0;
 		while (bb) {
@@ -3435,82 +5598,109 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
-			int result = evaluate_queens_endgame(r);
+			int result = evaluate_queens_endgame(r, white_passed_pawns, black_passed_pawns);
 			square_values[r] = abs(result);
 			total += result;
-			
+			//std::cout << "QUEENS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
-
+		//std::cout << total << std::endl;		
 		bb = kingsMask;
 		r = 0;
 		while (bb) {
 			
 			r = __builtin_ctzll(bb);  
 			
-			// Call the midgame knights evaluation function 
-			int result = evaluate_kings_endgame(r);
-			square_values[r] = abs(result);
-			total += result;
+			
+			int blended_score;
+			if (phase_score <= 40) {
+				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
+				blended_score = result_mid;
+			} else if (phase_score >= 70) {
+				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
+				blended_score = result_end;
+			} else {
+				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
+				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
+
+				int blend_range = 30; // 70 - 40
+				int end_weight = phase_score - 40;
+				int mid_weight = blend_range - end_weight;
+				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
+			}
+
+			square_values[r] = abs(blended_score);
+			total += blended_score;
 			
 			// Clear the least significant set bit
 			bb &= bb - 1;  
 		}
 
-		//std::cout<< total<< std::endl;
+		//adjust_pressure_and_support_tables_for_pins(occupied & ~kings);
+		
+		BoardState state(
+			pawnsMask,
+			knightsMask,
+			bishopsMask,
+			rooksMask,
+			queensMask,
+			kingsMask,
+			occupied_whiteMask,
+			occupied_blackMask,
+			occupiedMask,
+			1,
+			turn,                  
+			0,
+			0,                          
+			0,                           
+			0    
+		);
+		//std::cout << total << std::endl;
+		total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		//std::cout << total << std::endl;
+		total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+		//std::cout << " after pp: " << total << std::endl;		
 
-
-		adjust_pressure_and_support_tables_for_pins(occupied & ~kings);
-		//total += get_pressure_increment(lastMovedToSquare, occupied & ~kings, turn);
-		total += approximate_capture_gains(occupied & ~kings, turn);
-		//std::cout<< total<< std::endl;
-		// Boost the score for the side with more piece value proportional to how many pieces are on the board
-		if (blackPieceVal > whitePieceVal){
-			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 15000);		
-		}else if (whitePieceVal > blackPieceVal){			
-			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 15000);
+		if(total <= -1500){
+			boost_white_for_piece_value_advantage = true;
+		}else if(total >= 1500){
+			boost_black_for_piece_value_advantage = true;
 		}
-		//std::cout<< total<< std::endl;
+
 		// Check if the position is an advanced endgame
 		if (isNearGameEnd){			
 			total = advanced_endgame_eval(total, turn);
-		}
-		//std::cout<< total<< std::endl;
-	}
+		}	
+	}	
 	
 	/*
 		In this code section, boost both white and blacks score based on the existence of bishop and knight pairs
 	*/
-	if (scan_reversed_size(occupied_white&bishops) == 2){
-		total -= 350;
+	if (__builtin_popcountll(occupied_white&bishops) == 2){
+		total -= 300;
 	}
-	if (scan_reversed_size(occupied_white&knights) == 2){
-		total -= 250;
+	if (__builtin_popcountll(occupied_white&knights) == 2){
+		total -= 200;
 	}
-	if (scan_reversed_size(occupied_black&bishops) == 2){
-		total += 350;
+	if (__builtin_popcountll(occupied_black&bishops) == 2){
+		total += 300;
 	}
-	if (scan_reversed_size(occupied_black&knights) == 2){
-		total += 250;
+	if (__builtin_popcountll(occupied_black&knights) == 2){
+		total += 200;
 	}
-	
-	
-	/*
-		In this code section, boost the scores of both sides based on how poor the side's defense is relative to the opponent's offense
-	*/
-	//std::cout << occupied << " black:" << blackOffensiveScore << "  white: " << whiteDefensiveScore  << " diff: " << ((blackOffensiveScore - std::max(whiteDefensiveScore, 0))/18) * 100 << std::endl;
-	//std::cout << occupied << " black:" << blackDefensiveScore << "  white: " << whiteOffensiveScore  << " diff: " << ((whiteOffensiveScore - std::max(blackDefensiveScore, 0))/18) * 100 << std::endl;
-	if (whiteOffensiveScore > blackDefensiveScore){
-		total -= ((whiteOffensiveScore - std::max(blackDefensiveScore, 0))/18) * 100;
+	//std::cout << " before boost: "<< total << std::endl;	
+	if (blackPieceVal > whitePieceVal){
+		if(boost_black_for_piece_value_advantage){
+			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000);		
+		}
+		
+	}else if (whitePieceVal > blackPieceVal){	
+		if(boost_white_for_piece_value_advantage){
+			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000);
+		}				
 	}
-	
-	if (blackOffensiveScore > whiteDefensiveScore){
-		total += ((blackOffensiveScore - std::max(whiteDefensiveScore, 0))/18) * 100;
-	}
-
-	//std::cout<< total<< std::endl;
-	//if (total == -288)
+	//std::cout << total << std::endl;	
 	//std::cout << "AAAA: " << approximate_capture_gains1(occupied & ~kings, turn) << " occupied: " << (occupied & ~kings) << " turn: " << turn <<  std::endl;
 	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;
 	return total;
@@ -3601,7 +5791,9 @@ inline std::optional<CaptureInfo> find_and_pop_last_viable_capture(std::vector<C
 inline bool can_evade(uint8_t target_square, bool target_colour){
 	
 	// Acquire the attacks mask for the current piece
-	uint64_t pieceAttackMask = attacks_mask(target_colour,occupied,target_square,pieceTypeLookUp[target_square]);
+	uint64_t ourPieces = target_colour ? occupied_white : occupied_black;
+
+	uint64_t pieceAttackMask = attacks_mask(target_colour,occupied,target_square,pieceTypeLookUp[target_square]) & ~ourPieces;
 
 	uint64_t opposingPieces = target_colour ? occupied_black : occupied_white;
 
@@ -3621,7 +5813,7 @@ inline bool can_evade(uint8_t target_square, bool target_colour){
 	return false;
 }
 
-inline int approximate_capture_gains(uint64_t bb, bool turn) {
+inline int approximate_capture_gains1(uint64_t bb, bool turn) {
     int black_gains = 0;
     int white_gains = 0;
 
@@ -3668,7 +5860,7 @@ inline int approximate_capture_gains(uint64_t bb, bool turn) {
 	});
 
 	std::sort(white_captures.begin(), white_captures.end(), [](const CaptureInfo& a, const CaptureInfo& b) {
-    return a.value_gained < b.value_gained; 
+    	return a.value_gained < b.value_gained; 
 	});
 
 	bool current_turn = turn;
@@ -3733,6 +5925,118 @@ inline int approximate_capture_gains(uint64_t bb, bool turn) {
     return black_gains - white_gains;
 }
 
+inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& state, std::unordered_map<uint8_t, int> pawn_rank_bonuses) {
+    int black_gains = 0;
+    int white_gains = 0;
+
+	std::vector<CaptureInfo> white_captures;
+	std::vector<CaptureInfo> black_captures;
+
+    while (bb) {
+        uint8_t r = __builtin_ctzll(bb);
+        bb &= bb - 1;
+
+        bool current_colour = (occupied_white & (BB_SQUARES[r])) != 0;
+
+        int attackers = __builtin_popcountll(attack_bitmasks[r] & state.occupied_colour[!current_colour]);
+        
+
+        if (attackers == 0)
+            continue;
+		//std::cout << std::endl;
+		//std::cout <<(int)r << std::endl;
+		int static_exchange_eval = see (r, !current_colour, state);
+		//std::cout << static_exchange_eval << std::endl;
+		if (static_exchange_eval >= 0) {
+
+			uint8_t from = get_least_valuable_attacker(attack_bitmasks[r] & state.occupied_colour[!current_colour], state);
+			CaptureInfo newCapture(from, r, static_exchange_eval);
+
+			if (current_colour)
+				black_captures.push_back(newCapture);
+			else
+				white_captures.push_back(newCapture);
+		}			
+    }
+
+	std::sort(black_captures.begin(), black_captures.end(), [](const CaptureInfo& a, const CaptureInfo& b) {
+    	return a.value_gained < b.value_gained;
+	});
+
+	std::sort(white_captures.begin(), white_captures.end(), [](const CaptureInfo& a, const CaptureInfo& b) {
+    	return a.value_gained < b.value_gained; 
+	});
+
+	bool current_turn = turn;
+	//std::cout << current_turn << std::endl;
+	uint64_t black_pieces = occupied_black;
+	uint64_t white_pieces = occupied_white;
+	
+	while (!white_captures.empty() || !black_captures.empty()) {
+		bool evading = false;
+
+		std::vector<CaptureInfo>& own_captures = current_turn ? white_captures : black_captures;
+		std::vector<CaptureInfo>& opp_captures = current_turn ? black_captures : white_captures;
+
+		// Step 1: Evaluate evasion option
+		if (!opp_captures.empty()) {
+			CaptureInfo* cur_side_capture = find_last_viable_capture(own_captures, white_pieces, black_pieces, current_turn);
+			
+			
+			if (cur_side_capture != nullptr){
+
+				uint64_t black_pieces_copy = black_pieces;
+				uint64_t white_pieces_copy = white_pieces;
+
+				apply_basic_capture(cur_side_capture->from, cur_side_capture->to, white_pieces_copy, black_pieces_copy, current_turn);
+				CaptureInfo* opp_side_capture = find_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy, !current_turn);
+				
+				if (opp_side_capture != nullptr && opp_side_capture->value_gained > cur_side_capture->value_gained && can_evade(opp_side_capture->to, current_turn)){								
+					evading = true;
+					find_and_pop_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy, current_turn);															
+				}
+				
+			} else {
+				CaptureInfo* opp_side_capture = find_last_viable_capture(opp_captures, white_pieces, black_pieces, !current_turn);
+				if (opp_side_capture != nullptr && can_evade(opp_side_capture->to, current_turn)){				
+					evading = true;
+					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces, current_turn);								
+				}
+			}
+		}
+
+		// Step 2: Perform a capture if not evading
+		if (!evading) {
+			std::optional<CaptureInfo> cur_side_capture = find_and_pop_last_viable_capture(own_captures, white_pieces, black_pieces, current_turn);
+			if (cur_side_capture) {
+				//std::cout << (int)cur_side_capture->from << " | " << (int)cur_side_capture->to << " | " << (int)cur_side_capture->value_gained << std::endl;
+				apply_basic_capture(cur_side_capture->from, cur_side_capture->to, white_pieces, black_pieces, current_turn);
+				if (current_turn){
+					int value_gained = cur_side_capture->value_gained;
+					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
+						value_gained += pawn_rank_bonuses[cur_side_capture->to];
+					}
+					white_gains += value_gained;
+					blackPieceVal -= value_gained;
+
+					
+				} else {
+					int value_gained = cur_side_capture->value_gained;
+					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
+						value_gained += pawn_rank_bonuses[cur_side_capture->to];
+					}
+					black_gains += value_gained;
+					whitePieceVal -= value_gained;
+				}
+			}
+		}
+
+		// Flip the turn
+		current_turn = !current_turn;
+	}
+    return black_gains - white_gains;
+}
+
 inline void initializePieceValues(uint64_t bb){
 	
 	/*
@@ -3758,42 +6062,9 @@ inline void initializePieceValues(uint64_t bb){
 	} 
 }
 
-inline uint8_t piece_type_at(uint8_t square){
-    
-	/*
-		Function to get the piece type
-		
-		Parameters:
-		- square: The square to be analyzed		
-		
-		Returns:
-		A unsigned char representing the piece type
-	*/
-    
-	/* 
-		In this section, see if the individual piece type masks bitwise Anded with the square exists
-		If so this suggests that the given square has the piece type of that mask
-	*/
-	uint64_t mask = (BB_SQUARES[square]);
 
-	if (pawns & mask) {
-		return 1;
-	} else if (knights & mask){
-		return 2;
-	} else if (bishops & mask){
-		return 3;
-	} else if (rooks & mask){
-		return 4;
-	} else if (queens & mask){
-		return 5;
-	} else if (kings & mask){
-		return 6;
-	} else{
-		return 0;
-	}
-}
 
-inline void setAttackingLayer(int increment){
+inline void setAttackingLayer(int increment, bool isEndGame){
 	
 	/*
 		Function to update the attacking layer relative to the king's positions
@@ -3806,28 +6077,55 @@ inline void setAttackingLayer(int increment){
 	*/
 	
 	// Set the default attacking layer
-	attackingLayer = {{
-		{{
-			{{0,3,3,3,3,3,3,10}},
-			{{0,0,5,5,5,7,10,15}},
-			{{0,0,5,15,20,30,10,15}},
-			{{0,0,5,30,35,35,10,15}},
-			{{0,0,5,30,35,35,10,15}},
-			{{0,0,5,15,20,30,10,15}},
-			{{0,0,5,5,5,7,10,15}},
-			{{0,3,3,3,3,3,3,10}}
-		}},
-		{{
-			{{10,3,3,3,3,3,3,0}},
-			{{15,10,7,5,5,5,0,0}},
-			{{15,10,30,20,15,5,0,0}},
-			{{15,10,35,35,30,5,0,0}},
-			{{15,10,35,35,30,5,0,0}},
-			{{15,10,30,20,15,5,0,0}},
-			{{15,10,7,5,5,5,0,0}},
-			{{10,3,3,3,3,3,3,0}}
-		}}
-	}};
+
+	if (isEndGame){
+		attackingLayer = {{
+			{{
+				{{0,3,3,3,3,3,3,10}},
+				{{0,0,5,5,5,7,10,15}},
+				{{0,0,5,15,20,30,10,15}},
+				{{0,0,5,30,35,35,10,15}},
+				{{0,0,5,30,35,35,10,15}},
+				{{0,0,5,15,20,30,10,15}},
+				{{0,0,5,5,5,7,10,15}},
+				{{0,3,3,3,3,3,3,10}}
+			}},
+			{{
+				{{10,3,3,3,3,3,3,0}},
+				{{15,10,7,5,5,5,0,0}},
+				{{15,10,30,20,15,5,0,0}},
+				{{15,10,35,35,30,5,0,0}},
+				{{15,10,35,35,30,5,0,0}},
+				{{15,10,30,20,15,5,0,0}},
+				{{15,10,7,5,5,5,0,0}},
+				{{10,3,3,3,3,3,3,0}}
+			}}
+		}};
+	} else {
+		attackingLayer = {{
+			{{
+				{{0,3,3,3,5,7,10,10}},
+				{{0,0,5,5,15,20,25,15}},
+				{{0,0,5,30,45,40,25,15}},
+				{{0,0,5,50,65,45,25,15}},
+				{{0,0,5,50,65,45,25,15}},
+				{{0,0,5,30,45,40,25,15}},
+				{{0,0,5,5,15,20,25,15}},
+				{{0,3,3,3,5,7,10,10}}
+			}},
+			{{
+				{{10,10,7,5,3,3,3,0}},
+				{{15,25,20,15,5,5,0,0}},
+				{{15,25,40,45,30,5,0,0}},
+				{{15,25,45,65,50,5,0,0}},
+				{{15,25,45,65,50,5,0,0}},
+				{{15,25,40,45,30,5,0,0}},
+				{{15,25,20,15,5,5,0,0}},
+				{{10,10,7,5,3,3,3,0}}
+			}}
+		}};
+	}
+	/* 
 	
 	// Acquire the number of pieces on the board excluding the kings
 	int pieceNum = scan_reversed_size(occupied) - 2;
@@ -3836,7 +6134,7 @@ inline void setAttackingLayer(int increment){
 	bool isEndGame = pieceNum < 16;
 	if (queens == 0){
 		isEndGame = pieceNum < 18;
-	}
+	} */
 	
 	// Set variable for squares being open near the king
 	bool squareOpen = true;
@@ -3894,14 +6192,11 @@ inline void setAttackingLayer(int increment){
 			
 			// If the square is open around the king, boost the score further
 			if (!isEndGame){
-				if (squareOpen){
-					if ((occupied_white & (BB_SQUARES[r_inner])) == 0){
-						attackingLayer[1][x][y] += increment * multiplier;
-					}
+				if (squareOpen && (occupied_white & (BB_SQUARES[r_inner])) == 0){					
+					attackingLayer[1][x][y] += increment * multiplier;					
 				} else if (pawnShield){
 					attackingLayer[1][x][y] -= increment >> 1;
-				}
-				
+				}				
 			}
 			bb_inner &= bb_inner - 1;
 		}
@@ -3954,16 +6249,12 @@ inline void setAttackingLayer(int increment){
 			// If the square is open around the king, boost the score further
 						
 			if (!isEndGame){
-				if (squareOpen){
-					if ((occupied_black & (BB_SQUARES[r_inner])) == 0){
-						attackingLayer[0][x][y] += increment * multiplier;
-					}
+				if (squareOpen && (occupied_black & (BB_SQUARES[r_inner])) == 0){					
+					attackingLayer[0][x][y] += increment * multiplier;					
 				} else if (pawnShield){
 					attackingLayer[0][x][y] -= increment >> 1;
-				}
-				
-			}
-			
+				}				
+			}			
 			bb_inner &= bb_inner - 1;
 		}		
 		bb &= bb - 1;
@@ -3989,7 +6280,7 @@ void printLayers(){
 	
 }
 
-inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces) {
+inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns) {
 	
 	/*
 		Function to acquire the increment for a pawn being or having the potential to be a passed pawn
@@ -4056,6 +6347,7 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 	// Of the squares in front of pawn, filter to only include opposing pawns
     bitmask &= opposingPawnMask;	
 		
+	//std::cout << "PPMASK: " << bitmask << std::endl;
 	// Loop through the bitmask 
 	uint8_t r = 0;
 	uint64_t bb = bitmask;
@@ -4078,11 +6370,17 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 	// Otherwise check if the increment does not suffer a decrement, this suggests the pawn is a passed pawn
 	} else if (ppIncrement == incrementCopy){
 		
+		if (colour){			
+			white_passed_pawns |= BB_SQUARES[y * 8 + x];
+		}else{			
+			black_passed_pawns |= BB_SQUARES[y * 8 + x];
+		}
+
 		// Check if there exists a non-pawn blocker infront of the passed pawn
-		if ((infrontMask & (opposingPieces | curSidePieces)) != 0){
+		if ((infrontMask & (opposingPieces | curSidePieces))){
 			
 			// If the piece is the that of the opponent, decrement the score as it is blockaded
-			if ((infrontMask & opposingPieces) != 0){
+			if ((infrontMask & opposingPieces)){
 				ppIncrement -= 100;
 			}
 		// Else no blocker exists, the passed pawn is un-impeded, earning a larger boost
@@ -4153,113 +6451,6 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 	return ppIncrement;
 }
 
-
-
-uint64_t attackersMask(bool colour, uint8_t square, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t occupied_co){
-    
-	/*
-		Function to generate a mask containing attacks from the given square
-		
-		Parameters:
-		- colour: The colour of the opposing side
-		- square: The starting square
-		- occupied: The mask containing all pieces
-		- queens_and_rooks: The mask containing queens and rooks
-		- queens_and_bishops: The mask containing queens and bishops
-		- kings: The mask containing only kings
-		- knights: The mask containing only knights
-		- pawns: The mask containing only pawns
-		- occupied_co: The mask containing the pieces of the opposing side
-		
-		Returns:
-		A mask containing attacks from the given square
-	*/
-	
-	// Acquire the masks of the pieces on the same rank, file and diagonal as the given square
-	uint64_t rank_pieces = BB_RANK_MASKS[square] & occupied;
-    uint64_t file_pieces = BB_FILE_MASKS[square] & occupied;
-    uint64_t diag_pieces = BB_DIAG_MASKS[square] & occupied;
-
-	// Acquire all attack masks for each piece type
-    uint64_t attackers = (
-        (BB_KING_ATTACKS[square] & kings) |
-        (BB_KNIGHT_ATTACKS[square] & knights) |
-        (BB_RANK_ATTACKS[square][rank_pieces] & queens_and_rooks) |
-        (BB_FILE_ATTACKS[square][file_pieces] & queens_and_rooks) |
-        (BB_DIAG_ATTACKS[square][diag_pieces] & queens_and_bishops) |
-        (BB_PAWN_ATTACKS[!colour][square] & pawns));
-
-	// Perform a bitwise and with the opposing pieces 
-    return attackers & occupied_co;
-}
-
-uint64_t slider_blockers(uint8_t king, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t occupied_co_opp, uint64_t occupied_co, uint64_t occupied){    
-    
-	/*
-		Function to generate a mask that represents check blocking pieces
-		
-		Parameters:
-		- king: The square of the current side's king
-		- queens_and_rooks: The mask containing queens and rooks
-		- queens_and_bishops: The mask containing queens and bishops
-		- occupied_co_opp: The mask containing only pieces from the opposition
-		- occupied_co: The mask containing only pieces from the current side
-		- occupied_co: The mask containing the pieces of the opposing side
-		
-		Returns:
-		A mask containing check blockers
-	*/
-	
-	// Define a mask for possible sliding attacks on the king square
-    uint64_t snipers = ((BB_RANK_ATTACKS[king][0] & queens_and_rooks) |
-                (BB_FILE_ATTACKS[king][0] & queens_and_rooks) |
-                (BB_DIAG_ATTACKS[king][0] & queens_and_bishops));
-
-	// Define a mask containing possible squares to block the attack
-    uint64_t blockers = 0;
-	
-	
-	// Loop through the mask containing sniper attackers
-	uint8_t r = 0;
-	uint64_t bb = snipers & occupied_co_opp;
-	while (bb) {
-		r = __builtin_ctzll(bb);
-		
-		// Update the blockers where there is exactly one blocker per attack 
-		uint64_t b = betweenPieces(king, r) & occupied;        
-        if (b && (1ULL << (63 - __builtin_clzll(b)) == b)){
-            blockers |= b;
-		}
-		bb &= bb - 1;
-	}
-	
-	// Return the blockers where the square contains a piece of the current side
-    return blockers & occupied_co;
-}
-	
-uint64_t betweenPieces(uint8_t a, uint8_t b){
-		
-	/*
-		Function to get a mask of the squares between a and b
-		
-		Parameters:
-		- a: The starting square
-		- b: The ending square
-		
-		Returns:
-		A mask containing the squares between a and b
-	*/
-	
-	// Use BB_RAYS to get a mask of all square in the same ray as a and back
-	// Use (~0x0ULL << a) ^ (~0x0ULL << b) to get all square between a and b in counting order
-    uint64_t bb = BB_RAYS[a][b] & ((~0x0ULL << a) ^ (~0x0ULL << b));
-	
-	// Remove a and b themselves
-    return bb & (bb - 1);
-}
-
-uint64_t ray(uint8_t a, uint8_t b){return BB_RAYS[a][b];}
-
 void update_bitmasks(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
 	pawns = pawnsMask;
 	knights = knightsMask;
@@ -4272,664 +6463,5 @@ void update_bitmasks(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsM
 	occupied = occupiedMask;
 }
 
-bool is_into_check(uint8_t from_square, uint8_t to_square, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, 
-	               uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-	
-	uint64_t king_mask = kingsMask & ourPieces;
-	uint8_t king = 63 - __builtin_clzll(king_mask);
 
-	uint64_t checkers = attackersMask(
-				!turn,
-				king,
-				occupiedMask,
-				queensMask | rooksMask,
-				queensMask | bishopsMask,
-				kingsMask,
-				knightsMask,
-				pawnsMask,
-				opposingPieces
-			);
-
-	std::vector<uint8_t> startPos;
-    std::vector<uint8_t> endPos;
-    std::vector<uint8_t> promotions;
-
-    generateEvasions(startPos, endPos, promotions,
-                     0, king, checkers, BB_SQUARES[from_square], BB_SQUARES[to_square],
-                     occupiedMask, occupiedWhite, opposingPieces, ourPieces,
-                     pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
-                     ep_square, turn);
-
-    bool found = false;
-		for (size_t i = 0; i < startPos.size(); ++i) {
-			if (startPos[i] == from_square && endPos[i] == to_square) {
-				found = true;
-				break;
-			}
-		}
-
-	if (!found)
-		return true; // move is not a legal evasion
-
-	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
-
-	return !is_safe(king, blockers, from_square, to_square, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
-				knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
-}
-
-bool is_safe(uint8_t king, uint64_t blockers, uint8_t from_square, uint8_t to_square, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
-			 uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn) {
-    if (from_square == king) {
-        if (is_castling(from_square, to_square, turn, ourPieces, rooksMask, kingsMask)) {
-            return true;
-        } else {
-
-            return attackersMask(
-				!turn,
-				to_square,
-				occupiedMask,
-				queensMask | rooksMask,
-				queensMask | bishopsMask,
-				kingsMask,
-				knightsMask,
-				pawnsMask,
-				opposingPieces
-			) == 0;
-        }
-    }
-    else if (is_en_passant(from_square, to_square, ep_square, occupiedMask, pawnsMask)) {
-        return (pin_mask(turn, from_square, king, occupiedMask, opposingPieces, bishopsMask, rooksMask, queensMask) & BB_SQUARES[to_square]) &&
-               !ep_skewered(king, from_square, ep_square, turn, occupiedMask, opposingPieces, bishopsMask, rooksMask, queensMask);
-    }
-    else {
-        return (!(blockers & BB_SQUARES[from_square])) ||
-               (ray(from_square, to_square) & BB_SQUARES[king]);
-    }
-}
-
-bool is_castling(uint8_t from_square, uint8_t to_square, bool turn, uint64_t ourPieces, uint64_t rooksMask, uint64_t kingsMask) {
-
-    if (kingsMask & BB_SQUARES[from_square]) {
-        int diff = (from_square & 7) - (to_square & 7);
-        return (std::abs(diff) > 1) ||
-               ((rooksMask & ourPieces) & BB_SQUARES[to_square]);
-    }
-    return false;
-}
-
-bool is_en_passant(uint8_t from_square, uint8_t to_square, int ep_square, uint64_t occupiedMask, uint64_t pawnsMask) {
-    // Check if the target square is the en passant square
-    if (ep_square != to_square)
-        return false;
-
-    // Check if the moving piece is a pawn at the from-square
-    if (!(pawnsMask & BB_SQUARES[from_square]))
-        return false;
-
-    // Check if the move is a diagonal (7 or 9 square offset)
-    int diff = std::abs(to_square - from_square);
-    if (diff != 7 && diff != 9)
-        return false;
-
-    // Check that the to-square is not actually occupied
-    if (occupiedMask & BB_SQUARES[to_square])
-        return false;
-
-    return true;
-}
-
-uint64_t pin_mask(bool colour, int square, uint8_t king, uint64_t occupiedMask, uint64_t opposingPieces, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask) {
-    uint64_t square_mask = BB_SQUARES[square];
-
-    // File pin check (↑ ↓)
-    uint64_t rays = BB_FILE_ATTACKS[king][0];
-    if (rays & square_mask) {
-        uint64_t snipers = rays & (rooksMask | queensMask) & opposingPieces;
-        while (snipers) {
-            int sniper = 63 - __builtin_clzll(snipers);
-            snipers ^= BB_SQUARES[sniper];
-            if ((betweenPieces(sniper, king) & (occupiedMask | square_mask)) == square_mask)
-                return ray(king, sniper);
-        }
-    }
-
-    // Rank pin check (← →)
-    rays = BB_RANK_ATTACKS[king][0];
-    if (rays & square_mask) {
-        uint64_t snipers = rays & (rooksMask | queensMask) & opposingPieces;
-        while (snipers) {
-            int sniper = 63 - __builtin_clzll(snipers);
-            snipers ^= BB_SQUARES[sniper];
-            if ((betweenPieces(sniper, king) & (occupiedMask | square_mask)) == square_mask)
-                return ray(king, sniper);
-        }
-    }
-
-    // Diagonal pin check (↗ ↙ ↖ ↘)
-    rays = BB_DIAG_ATTACKS[king][0];
-    if (rays & square_mask) {
-        uint64_t snipers = rays & (bishopsMask | queensMask) & opposingPieces;
-        while (snipers) {
-            int sniper = 63 - __builtin_clzll(snipers);
-            snipers ^= BB_SQUARES[sniper];
-            if ((betweenPieces(sniper, king) & (occupiedMask | square_mask)) == square_mask)
-                return ray(king, sniper);
-        }
-    }
-
-    return ~0ULL;  // Not pinned
-}
-
-bool ep_skewered(int king, int capturer, int ep_square, bool turn, uint64_t occupiedMask, uint64_t opposingPieces, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask) {
-    // Assumes:
-    // - ep_square is an int (en passant square index, or -1 if not set)
-    // - turn is a bool or enum (true for white, false for black)
-    // - BB_SQUARES is a constexpr array of 64 bitboards (1ULL << square)
-    // - BB_RANK_ATTACKS and BB_DIAG_ATTACKS are lookup tables of attacks
-    // - BB_RANK_MASKS and BB_DIAG_MASKS are masks for those directions
-    // - All bitboards (occupied, rooks, queens, bishops, occupied_co, etc.) are globally defined
-
-    // ep_square must be valid
-	if (ep_square == -1)
-	    return false;
-
-    // Compute square of the pawn that moved two steps
-    int last_double = ep_square + (turn? -8 : 8);
-
-    // Reconstruct the hypothetical board: remove captured pawn and capturer,
-    // add the en passant square (as if the pawn moved into it)
-    uint64_t new_occupancy = (occupiedMask & ~BB_SQUARES[last_double] & ~BB_SQUARES[capturer]) | BB_SQUARES[ep_square];
-
-    // Horizontal (rank) skewer detection
-    uint64_t horizontal_attackers = opposingPieces & (rooksMask | queensMask);
-    if (BB_RANK_ATTACKS[king][BB_RANK_MASKS[king] & new_occupancy] & horizontal_attackers)
-        return true;
-
-    // Diagonal skewer detection (technically impossible, but checked anyway)
-    uint64_t diagonal_attackers = opposingPieces & (bishopsMask | queensMask);
-    if (BB_DIAG_ATTACKS[king][BB_DIAG_MASKS[king] & new_occupancy] & diagonal_attackers)
-        return true;
-
-    return false;
-}
-
-bool attackedForKing(bool opponent_color,uint64_t path, uint64_t occupied, uint64_t opposingPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask){
-    
-	while (path) {
-        // Get least significant bit index (square)
-        uint8_t sq = __builtin_ctzll(path);  // GCC/Clang builtin: count trailing zeros
-
-        // Clear the LSB from path
-        path &= path - 1;
-
-        // Call attackersMask for this square
-        uint64_t attackers =  attackersMask(
-				opponent_color,
-				sq,
-				occupied,
-				queensMask | rooksMask,
-				queensMask | bishopsMask,
-				kingsMask,
-				knightsMask,
-				pawnsMask,
-				opposingPieces
-			);
-
-        if (attackers != 0) {
-            return true;  // square is attacked by opponent
-        }
-    }
-
-    return false;  // no square in path attacked
-}
-
-
-/*
-	Set of functions used as utilities for all above functions
-*/
-void scan_reversed(uint64_t bb, std::vector<uint8_t> &result){	
-		
-	/*
-		Function to acquire a vector of set bits in a given bitmask starting from the top of the board
-		
-		Parameters:
-		- bb: The bitmask to be scanned
-		- result: An empty vector to hold the set bits, passed by reference
-	*/
-	
-	uint8_t r = 0;
-    while (bb) {
-        r = 64 - __builtin_clzll(bb) - 1;
-        result.push_back(r);
-        bb ^= (BB_SQUARES[r]);		
-    }    
-}
-
-bool is_capture(uint8_t from_square, uint8_t to_square, uint64_t occupied_co, bool is_en_passant){
-    	
-	/*
-		Function to determine if a move is a capture
-		
-		Parameters:
-		- from_square: The starting square
-		- to_square: The ending square
-		- occupied_co: A mask containing occupied pieces of the opposing side
-		- is_en_passant: A boolean determining whether the move is an en passent
-		
-		Returns:
-		A mask containing the squares between a and b
-	*/
-	
-	uint64_t touched = (1ULL << from_square) ^ (1ULL << to_square);
-	return bool(touched & occupied_co) || is_en_passant;
-}
-
-bool is_check(bool colour, uint64_t occupied, uint64_t queens_and_rooks, uint64_t queens_and_bishops, uint64_t kings, uint64_t knights, uint64_t pawns, uint64_t opposingPieces){
-		
-	/*
-		Function to determine if a move is a check
-		
-		Parameters:
-		- colour: The colour of the current side
-		- occupied: The mask containing all pieces
-		- queens_and_rooks: The mask containing queens and rooks
-		- queens_and_bishops: The mask containing queens and bishops
-		- kings: The mask containing only kings
-		- knights: The mask containing only knights
-		- pawns: The mask containing only pawns
-		- opposingPieces: The mask containing the pieces of the opposing side
-		
-		Returns:
-		A boolean defining whether the move is a check
-	*/
-	
-    uint8_t kingSquare = 63 - __builtin_clzll(~opposingPieces&kings);
-	return (bool)(attackersMask(!colour, kingSquare, occupied, queens_and_rooks, queens_and_bishops, kings, knights, pawns, opposingPieces));
-}
-
-bool is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bool turn){
-
-	if (!is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
-		return false;
-	
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
-
-	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
-	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
-					   rooksMask, queensMask, kingsMask, ep_square, turn);
-	//std::cout << occupiedMask <<  " | " << ourPieces <<  " | " << startPos.size() << std::endl;
-	if (startPos.size() == 0)
-		return true;
-
-	return false;
-
-}
-
-bool is_stalemate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bool turn){
-
-	if (is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
-		return false;
-	
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
-
-	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
-	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
-					   rooksMask, queensMask, kingsMask, ep_square, turn);
-
-	//std::cout << occupiedMask <<  " | " << ourPieces <<  " | " << startPos.size() << std::endl;
-	if (startPos.size() == 0)
-		return true;
-
-	return false;
-
-}
-
-void scan_forward(uint64_t bb, std::vector<uint8_t> &result) {
-		
-	/*
-		Function to acquire a vector of set bits in a given bitmask starting from the bottom of the board
-		
-		Parameters:
-		- bb: The bitmask to be scanned
-		- result: An empty vector to hold the set bits, passed by reference
-	*/
-	
-	uint64_t r = 0;
-    while (bb) {
-        r = __builtin_ctzll(bb);
-        result.push_back(r);
-        bb &= bb - 1;
-    }
-}
-
-uint8_t scan_reversed_size(uint64_t bb) {
-		
-	/*
-		Function to acquires the number of set bits in a bitmask
-		
-		Parameters:
-		- bb: The bitmask to be examined
-	*/
-	
-    return __builtin_popcountll(bb);
-}
-
-uint8_t square_distance(uint8_t sq1, uint8_t sq2) {
-		
-	/*
-		Function to acquire the Chebyshev distance (king's distance)
-		
-		Parameters:
-		- sq1: The starting square
-		- sq2: The ending square
-		
-		Returns:
-		The distance that a king would have to travel to travel the squares
-	*/
-		
-    int file_distance = abs((sq1 & 7) - (sq2 & 7));
-    int rank_distance = abs((sq1 >> 3) - (sq2 >> 3));
-    return std::max(file_distance, rank_distance);
-}
-
-inline uint64_t attacks_mask(bool colour, uint64_t occupied, uint8_t square, uint8_t pieceType){	
-	
-	/*
-		Function to acquire an attack mask for a given piece on a given square
-		
-		Parameters:
-		- colour: The colour of the current side
-		- occupied: The mask containing all pieces
-		- square: The current square to be analyzed
-		- pieceType: The piece type on the given square
-		
-		Returns:
-		A boolean defining whether the move is a check
-	*/
-	
-	switch (pieceType) {
-		case 1: // Pawn
-			return BB_PAWN_ATTACKS[colour][square];
-		case 2: // Knight
-			return BB_KNIGHT_ATTACKS[square];
-		case 6: // King
-			return BB_KING_ATTACKS[square];
-		case 3: // Bishop
-			return BB_DIAG_ATTACKS[square][BB_DIAG_MASKS[square] & occupied];
-		case 4: // Rook
-			return BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied] |
-				   BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied];
-		case 5: // Queen (bishop + rook)
-			return BB_DIAG_ATTACKS[square][BB_DIAG_MASKS[square] & occupied] |
-				   BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied] |
-				   BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied];
-		default:
-			return 0ULL; // no attacks for unknown piece types
-	}
-}
-
-int remove_piece_at(uint8_t square, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted){
-	
-	uint8_t piece_type = 0;
-	uint64_t mask = BB_SQUARES[square];
-
-	if (pawnsMask & mask) {
-		piece_type = 1;
-		pawnsMask ^= mask;
-	} else if (knightsMask & mask){
-		piece_type = 2;
-		knightsMask ^= mask;
-	} else if (bishopsMask & mask){
-		piece_type = 3;
-		bishopsMask ^= mask;
-	} else if (rooksMask & mask){
-		piece_type = 4;
-		rooksMask ^= mask;
-	} else if (queensMask & mask){
-		piece_type = 5;
-		queensMask ^= mask;
-	} else if (kingsMask & mask){
-		piece_type = 6;
-		kingsMask ^= mask;
-	} else{
-		return 0;
-	}
-
-	occupiedMask ^= mask;
-	occupiedWhite &= ~mask;
-	occupiedBlack &= ~mask;
-
-	promoted &= ~mask;
-
-	return piece_type;
-}
-
-void set_piece_at(uint8_t square, uint8_t piece_type, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted, bool promotedFlag, bool turn){
-	
-	remove_piece_at(square, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
-
-	uint64_t mask = BB_SQUARES[square];
-
-	if (piece_type == 1) {
-		pawnsMask |= mask;
-	} else if (piece_type == 2){
-		knightsMask |= mask;
-	} else if (piece_type == 3){
-		bishopsMask |= mask;
-	} else if (piece_type == 4){
-		rooksMask |= mask;
-	} else if (piece_type == 5){
-		queensMask |= mask;
-	} else if (piece_type == 6){
-		kingsMask |= mask;
-	} else{
-		return;
-	}
-
-	occupiedMask ^= mask;
-	
-	if (turn){
-		occupiedWhite ^= mask;
-	} else{
-		occupiedBlack ^= mask;
-	}
-
-	if (!promotedFlag)
-		return;
-	promoted ^= mask;
-
-}
-        
-void update_state(uint8_t to_square, uint8_t from_square, uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask, uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask, uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack, uint64_t& promoted, uint64_t& castling_rights, int& ep_square, int promotion_type, bool turn){
-	uint64_t from_bb = BB_SQUARES[from_square];
-    uint64_t to_bb = BB_SQUARES[to_square];
-
-    bool promotedFlag = bool(promoted & from_bb);
-
-	
-    int piece_type = remove_piece_at(from_square, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-									 kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
-
-	if (piece_type == 0) {
-		std::ostringstream oss;
-		oss << "push() expects move to be pseudo-legal, but got move from: " << (int)from_square << " to: " << (int)to_square << " in " << create_fen(pawnsMask, knightsMask, bishopsMask, rooksMask,
-																																					  queensMask, kingsMask, occupiedMask, occupiedWhite, occupiedBlack,
-																																					  promoted, castling_rights, ep_square, turn);
-		throw std::runtime_error(oss.str());
-	}
-
-	uint8_t capture_square = to_square;
-	uint8_t captured_piece_type = 0;
-	uint64_t mask = (BB_SQUARES[capture_square]);
-		
-	if (pawnsMask & mask) {
-		captured_piece_type = 1;
-	} else if (knightsMask & mask){
-		captured_piece_type = 2;
-	} else if (bishopsMask & mask){
-		captured_piece_type = 3;
-	} else if (rooksMask & mask){
-		captured_piece_type = 4;
-	} else if (queensMask & mask){
-		captured_piece_type = 5;
-	} else if (kingsMask & mask){
-		captured_piece_type = 6;
-	}
-
-	castling_rights &= ~to_bb & ~from_bb;
-
-	if (piece_type == 6 && !promotedFlag){
-		if (turn)
-			castling_rights &= ~BB_RANK_1;
-		else
-			castling_rights &= ~BB_RANK_8;
-		
-	} else if(captured_piece_type == 6 && (promoted & to_bb) == 0){
-		if (turn && (to_square & 7) == 7)
-			castling_rights &= ~BB_RANK_8;
-		else if(!turn && (to_square & 7) == 0)
-			castling_rights &= ~BB_RANK_1;
-	}
-
-
-    if (piece_type == 1){
-		
-		int ep_copy = ep_square;
-		ep_square = -1;
-		
-		int diff = to_square - from_square;
-
-		if(diff == 16 && (from_square >> 3) == 1)
-			ep_square = from_square + 8;
-		else if(diff == -16 && (from_square >> 3) == 6)
-			ep_square = from_square - 8;
-		else if (to_square == ep_copy && (std::abs(diff) == 7 || std::abs(diff) == 9) && captured_piece_type == 0){
-			
-			int down = turn ? -8 : 8;
-            capture_square = to_square + down;
-        
-            captured_piece_type = remove_piece_at(capture_square, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-									 kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
-		}
-	}
-
-	if (promotion_type != 1){
-		promotedFlag = true;
-		piece_type = promotion_type;
-	}
-
-	bool castling = false;
-	if(piece_type == 6){
-		if (turn)
-			castling = (from_square == 4 && (to_square == 6 || to_square == 2));
-		else
-			castling = (from_square == 60 && (to_square == 62 || to_square == 58));
-	}
-
-	if (castling){
-		bool a_side = (to_square & 7) < (from_square & 7);
-
-		if (a_side){  
-			remove_piece_at(turn ? 0 : 56, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-							kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
-            
-            set_piece_at(turn ? 2 : 58, 6, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
-            
-			set_piece_at(turn ? 3 : 59, 4, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
-			
-		}else{
-			remove_piece_at(turn ? 7 : 63, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-							kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted);
-            
-            set_piece_at(turn ? 6 : 62, 6, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
-            
-			set_piece_at(turn ? 5 : 61, 4, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
-		}
-	} else{
-		set_piece_at(to_square, piece_type, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, 
-						kingsMask, occupiedMask, occupiedWhite, occupiedBlack, promoted, promotedFlag, turn);
-	}
-}
-
-std::string create_fen(uint64_t& pawnsMask, uint64_t& knightsMask, uint64_t& bishopsMask,
-                       uint64_t& rooksMask, uint64_t& queensMask, uint64_t& kingsMask,
-                       uint64_t& occupiedMask, uint64_t& occupiedWhite, uint64_t& occupiedBlack,
-                       uint64_t& promoted, uint64_t& castling_rights, int& ep_square, bool turn) {
-    char board[64] = {};
-
-    for (int sq = 0; sq < 64; ++sq) {
-        uint64_t mask = 1ULL << sq;
-        if (!(occupiedMask & mask)) continue;
-
-        bool is_white = (occupiedWhite & mask) != 0;
-        char piece = '?';
-
-        if (pawnsMask & mask)   piece = 'p';
-        else if (knightsMask & mask) piece = 'n';
-        else if (bishopsMask & mask) piece = 'b';
-        else if (rooksMask & mask)   piece = 'r';
-        else if (queensMask & mask)  piece = 'q';
-        else if (kingsMask & mask)   piece = 'k';
-
-        if (is_white) piece = std::toupper(piece);
-        board[sq] = piece;
-    }
-
-    std::ostringstream fen;
-
-    // Board layout
-    for (int rank = 7; rank >= 0; --rank) {
-        int empty = 0;
-        for (int file = 0; file < 8; ++file) {
-            int sq = rank * 8 + file;
-            if (board[sq] == 0) {
-                ++empty;
-            } else {
-                if (empty) {
-                    fen << empty;
-                    empty = 0;
-                }
-                fen << board[sq];
-            }
-        }
-        if (empty) fen << empty;
-        if (rank > 0) fen << '/';
-    }
-
-    // Active color
-    fen << ' ' << (turn ? 'w' : 'b');
-
-    // Castling rights
-    std::string castling;
-    if (castling_rights & (1ULL << 7))  castling += 'K'; // White kingside
-    if (castling_rights & (1ULL << 0))  castling += 'Q'; // White queenside
-    if (castling_rights & (1ULL << 63)) castling += 'k'; // Black kingside
-    if (castling_rights & (1ULL << 56)) castling += 'q'; // Black queenside
-    if (castling.empty()) castling = "-";
-    fen << ' ' << castling;
-
-    // En passant target square
-    if (ep_square == -1) {
-        fen << " -";
-    } else {
-        char file = 'a' + (ep_square % 8);
-        char rank = '1' + (ep_square / 8);
-        fen << ' ' << file << rank;
-    }
-
-    // Halfmove clock and fullmove number (defaults)
-    fen << " 0 1";
-
-    return fen.str();
-}
 

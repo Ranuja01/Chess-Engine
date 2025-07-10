@@ -1,0 +1,19 @@
+export ASAN_OPTIONS=detect_leaks=1:strict_string_checks=1
+export UBSAN_OPTIONS=print_stacktrace=1
+
+
+extra_compile_args=[
+            "-O1",                            # Keep optimizations mild to help sanitizers
+            "-g",                             # Include debug symbols
+            "-fsanitize=undefined",  # Enable ASan + UBSan
+            "-fno-omit-frame-pointer",        # Needed for better stack traces
+            "-fno-optimize-sibling-calls",    # Prevent tail call optimization
+            "-fno-sanitize-recover=all",      # Exit immediately on first sanitizer error (optional)
+            "-std=c++20",                     # Your C++ version
+        ],
+        extra_link_args=[
+            "-fsanitize=undefined",
+            "-fno-omit-frame-pointer",
+            "-fno-sanitize-recover=all",
+            "-g",
+        ],

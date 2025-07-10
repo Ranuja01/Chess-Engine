@@ -1,6 +1,7 @@
 #ifndef SEARCH_ENGINE_H
 #define SEARCH_ENGINE_H
 
+
 #include <vector>
 #include <array>
 #include <chrono>
@@ -8,15 +9,31 @@
 #include <algorithm>
 #include <numeric> 
 #include <unordered_map>
+#include <atomic>
+
 
 using Clock = std::chrono::steady_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 
+constexpr int TIME_CHECK_INTERVAL = 200000;
+
 // Constants for material thresholds
 constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
 
-constexpr int DECAY_INTERVAL = 25000; // Number of nodes before decay
+ // Number of nodes before decay
 constexpr int DECAY_FACTOR = 1;       // Divide scores by 2
+
+constexpr std::array<int, 4> FUTILITY_MARGINS = {200, 450, 650, 950};
+
+constexpr int MAX_QDEPTH = 10;
+constexpr int SUPPORT_MARGIN = 0;
+constexpr int DELTA_MARGIN = 1500;
+
+constexpr bool USE_Q_SEARCH = true;
+
+struct TTEntry;
+struct QCacheEntry;
+struct MoveEntry;
 
 struct ConfigData {
     int cache_size_multiplier;
@@ -26,18 +43,95 @@ struct ConfigData {
 };
 
 namespace Configs {
+
+    constexpr ConfigData LIGHTNING = {
+        2,
+        1.0,
+        [] {
+            std::array<double, 64> times{};
+            times[3] = 0.5;
+            times[4] = 0.5;
+            times[5] = 0.5;
+            times[6] = 0.75;
+            times[7] = 0.75;
+            for (int i = 8; i < 64; ++i) {
+                times[i] = 0.75;
+            }
+            return times;
+        }(),
+
+        [] {
+            std::array<int, 64> new_depths{};
+            new_depths[1] = 0;
+            new_depths[2] = 1;
+            new_depths[3] = 2;
+            new_depths[4] = 3;
+            new_depths[5] = 4;
+            new_depths[6] = 5;
+            new_depths[7] = 6;
+            new_depths[8] = 7;
+            new_depths[9] = 8;
+            new_depths[10] = 8;
+            new_depths[11] = 9;
+            new_depths[12] = 10;
+            new_depths[13] = 11;            
+            for (int i = 14; i < 64; ++i) {
+                new_depths[i] = 12;
+            }
+            return new_depths;
+        }()
+    };
+
+    constexpr ConfigData BLITZ = {
+        2,
+        3.5,
+        [] {
+            std::array<double, 64> times{};
+            times[3] = 1.0;
+            times[4] = 1.0;
+            times[5] = 1.5;
+            times[6] = 1.5;
+            times[7] = 1.5;
+            for (int i = 8; i < 64; ++i) {
+                times[i] = 2.0;
+            }
+            return times;
+        }(),
+
+        [] {
+            std::array<int, 64> new_depths{};
+            new_depths[1] = 0;
+            new_depths[2] = 1;
+            new_depths[3] = 2;
+            new_depths[4] = 3;
+            new_depths[5] = 4;
+            new_depths[6] = 5;
+            new_depths[7] = 6;
+            new_depths[8] = 7;
+            new_depths[9] = 8;
+            new_depths[10] = 8;
+            new_depths[11] = 9;
+            new_depths[12] = 10;
+            new_depths[13] = 11;            
+            for (int i = 14; i < 64; ++i) {
+                new_depths[i] = 12;
+            }
+            return new_depths;
+        }()
+    };
+
     constexpr ConfigData STANDARD = {
         2,
-        90.0,
+        45.0,
         [] {
             std::array<double, 64> times{};
             times[3] = 5.0;
             times[4] = 5.0;
             times[5] = 5.5;
             times[6] = 5.5;
-            times[7] = 5.0;
+            times[7] = 6.5;
             for (int i = 8; i < 64; ++i) {
-                times[i] = 3.5;
+                times[i] = 6.0;
             }
             return times;
         }(),
@@ -65,7 +159,7 @@ namespace Configs {
     };
 
     constexpr ConfigData LONG_FORMAT = {
-        5,
+        3,
         600.0,
         [] {
             std::array<double, 64> times{};
@@ -88,14 +182,12 @@ namespace Configs {
             new_depths[7] = 6;
             new_depths[8] = 7;
             new_depths[9] = 8;
-            new_depths[10] = 9;
-            new_depths[11] = 10;
-            new_depths[12] = 11;
-            new_depths[13] = 12;
-            new_depths[14] = 13;
-            new_depths[15] = 14;            
-            for (int i = 16; i < 64; ++i) {
-                new_depths[i] = 15;
+            new_depths[10] = 8;
+            new_depths[11] = 9;
+            new_depths[12] = 10;
+            new_depths[13] = 11;            
+            for (int i = 14; i < 64; ++i) {
+                new_depths[i] = 12;
             }
             return new_depths;
         }()
@@ -103,8 +195,9 @@ namespace Configs {
 }
 
 namespace Config {
-    inline const ConfigData* ACTIVE = &Configs::STANDARD; // Default to classical
+    inline const ConfigData* ACTIVE = &Configs::LONG_FORMAT; // Default to classical
     inline bool side_to_play = false; // Default; can be set at runtime
+    inline int DECAY_INTERVAL = 35000;
 }
 
 struct BoardState {
@@ -176,7 +269,6 @@ struct MoveData {
         : a(a_), b(b_), c(c_), d(d_), promotion(promotion_), score(score_), num_iterations(num_iterations_) {}
 };
 
-
 struct Move {
     uint8_t from_square;
     uint8_t to_square;
@@ -219,25 +311,34 @@ struct SearchData {
 
 void initialize_engine(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bool turn, bool side_to_play);
 void set_current_state(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bool turn);
-void make_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, Move move, uint64_t zobrist);
-void unmake_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key);
+inline void make_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, Move move, uint64_t zobrist, bool capture_move);
+inline void unmake_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key);
 
-void update_cache(int num_plies);
+inline void update_cache(int num_plies);
 
 MoveData get_engine_move(std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count);
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, const TimePoint& t0, SearchData& previous_search_data, Move& best_move, int& num_iterations);
-int minimizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
-int maximizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations, bool last_move_was_capture);
-SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
-int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, int& num_iterations);
+int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>second_level_preliminary_scores, std::vector<Move>second_level_moves_list, SearchData& previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
+int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move previousMove, int& num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
+SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint& t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, int& num_iterations);
+int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint& t0, std::vector<int>& preliminary_scores, std::vector<Move>& pre_moves_list, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations);
+int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint& t0, std::vector<BoardState>& state_history, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing);
 
-void sortSearchDataByScore(SearchData& data);
-void descending_sort_wrapper(const SearchData& preSearchData, SearchData& mainSearchData);
-void ascending_sort(std::vector<int>& values, std::vector<Move>& moves);
-std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply);
+inline void sortSearchDataByScore(SearchData& data);
+inline void descending_sort_wrapper(const SearchData& preSearchData, SearchData& mainSearchData);
+inline void ascending_sort(std::vector<int>& values, std::vector<Move>& moves);
+inline uint8_t get_piece_type(uint8_t square, std::vector<BoardState>& state_history);
+inline bool relevant_pin_exists(std::vector<BoardState>& state_history, bool probe);
+inline void use_tt_entry(TTEntry& entry, int& score, bool& using_tt, int alpha, int beta, int& num_iterations, bool is_maximizing, bool using_extra_precautions);
+inline void increment_node_count_with_decay(int& num_iterations);
+inline bool isUnsafeForNullMovePruning(BoardState current_state);
+inline bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count);
+inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relavent_pin, int move_number, BoardState current_state);
+inline void updatePV(Move move, int cur_depth);
 
-bool isUnsafeForNullMovePruning(BoardState current_state);
-bool is_repetition(const std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist_key, const int repetition_count);
-int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations);
+inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint& t0, std::vector<BoardState>& state_history, BoardState current_state, std::unordered_map<uint64_t, int>& position_count, uint64_t zobrist, Move prevMove, int& num_iterations, bool is_maximizing);
+inline int get_board_evaluation(std::vector<BoardState>& state_history, uint64_t zobrist, int& num_iterations);
+inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState>& state_history, uint64_t zobrist, int cur_ply, Move prevMove);
+inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState>& state_history, int cur_ply, Move prevMove);
 
 #endif // SEARCH_ENGINE_H

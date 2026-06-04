@@ -32,6 +32,7 @@ extensions = [
             "-flto",                   # Link-time optimization
             "-fopenmp",                # Multithreading support
             "-fno-rtti",               # Removes RTTI overhead
+            "-fno-semantic-interposition", # .so build: let internal calls inline instead of routing through the PLT
             "-std=c++20",              # Use modern C++
 
             "-mpopcnt", "-mbmi2",      # Enable CPU bit manipulation instructions

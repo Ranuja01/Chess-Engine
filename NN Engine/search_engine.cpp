@@ -58,16 +58,16 @@ static int env_int(const char *name, int dflt)
 // index-corresponding, and every Move handed to make_move must be pseudo-legal. When the flag is off
 // both are no-ops. See dev_notes/CRASH_INVESTIGATION_PLAYBOOK.md.
 
-// Log a SearchData parallel-array length mismatch (the corruption invariant). Cheap: four size() reads.
+// Log a SearchData length invariant violation. The grouped scores vector makes the old three-way drift
+// structurally impossible; the only remaining rule is that the searched-score list never outruns the
+// full move list (alpha_beta reads moves_list[i] for i < scores.size()). Cheap: two size() reads.
 static inline void dbg_searchdata(const char *where, const SearchData &d)
 {
     if (!Config::DEBUG_INVARIANTS)
         return;
-    size_t m = d.moves_list.size(), t = d.top_level_preliminary_scores.size(),
-           s2m = d.second_level_moves_list.size(), s2s = d.second_level_preliminary_scores.size();
-    if (!(m == t && t == s2m && s2m == s2s))
-        std::cerr << "[INV] " << where << " m/t/s2m/s2s = " << m << " " << t << " " << s2m << " " << s2s
-                  << std::endl;
+    size_t m = d.moves_list.size(), s = d.scores.size();
+    if (s > m)
+        std::cerr << "[INV] " << where << " scores/moves = " << s << " " << m << std::endl;
 }
 
 // Return true (and log) if `move` is NOT pseudo-legal in `st` (square index out of range, or no
@@ -926,7 +926,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     {
         std::cout << "TIME LIMIT EXCEEDED" << std::endl;
         best_move = current_search_data.moves_list[0];
-        best_score = current_search_data.top_level_preliminary_scores[0];
+        best_score = current_search_data.scores[0].top_score;
         return best_score;
     }
     int razor_threshold;
@@ -941,9 +941,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     // std::cout << "BBB" << std::endl;
 
     previous_search_data.moves_list.clear();
-    previous_search_data.top_level_preliminary_scores.clear();
-    previous_search_data.second_level_moves_list.clear();
-    previous_search_data.second_level_preliminary_scores.clear();
+    previous_search_data.scores.clear();
 
     // Define the number of moves, the best move index and the current index
     int num_legal_moves = static_cast<int>(current_search_data.moves_list.size());
@@ -994,7 +992,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         std::cout << "BBB: " << num_legal_moves << std::endl;
     } */
     // std::cout <<"CCC"<< std::endl;
-    score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.second_level_preliminary_scores[0], current_search_data.second_level_moves_list[0], previous_search_data, state_history, position_count, zobrist, current_search_data.moves_list[0], num_iterations, capture_move, false, false);
+    RootScore entry;
+    score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.scores[0].second_scores, current_search_data.scores[0].second_moves, entry, state_history, position_count, zobrist, current_search_data.moves_list[0], num_iterations, capture_move, false, false);
 
     // std::cout <<"DDDD"<< std::endl;
     /* if(is_repetition(position_count, zobrist, 2)){
@@ -1021,7 +1020,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     {
         std::cout << 0 << " "
                   << score << " "
-                  << current_search_data.top_level_preliminary_scores[0] << " "
+                  << current_search_data.scores[0].top_score << " "
                   << "(" << ((current_search_data.moves_list[0].from_square & 7) + 1) << ","
                   << ((current_search_data.moves_list[0].from_square >> 3) + 1) << ") -> ("
                   << ((current_search_data.moves_list[0].to_square & 7) + 1) << ","
@@ -1042,15 +1041,16 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     {
         std::cout << "TIME LIMIT EXCEEDED" << std::endl;
         best_move = current_search_data.moves_list[0];
-        best_score = current_search_data.top_level_preliminary_scores[0];
+        best_score = current_search_data.scores[0].top_score;
         return best_score;
     }
 
-    if (alpha - current_search_data.top_level_preliminary_scores[0] > razor_threshold)
-        razor_threshold += alpha - current_search_data.top_level_preliminary_scores[0];
+    if (alpha - current_search_data.scores[0].top_score > razor_threshold)
+        razor_threshold += alpha - current_search_data.scores[0].top_score;
 
     previous_search_data.moves_list = current_search_data.moves_list;
-    previous_search_data.top_level_preliminary_scores.push_back(score);
+    entry.top_score = score;
+    previous_search_data.scores.push_back(std::move(entry));
 
     if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
         return score;
@@ -1060,10 +1060,10 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         Move &move = current_search_data.moves_list[i];
 
         // Razoring
-        if (i < current_search_data.top_level_preliminary_scores.size())
+        if (i < current_search_data.scores.size())
         {
-            int score_diff = alpha - current_search_data.top_level_preliminary_scores[i];
-            // int best_diff = current_search_data.top_level_preliminary_scores[0] - current_search_data.top_level_preliminary_scores[i];
+            int score_diff = alpha - current_search_data.scores[i].top_score;
+            // int best_diff = current_search_data.scores[0].top_score - current_search_data.scores[i].top_score;
 
             if (Config::ENABLE_RAZORING && (score_diff > razor_threshold) && (alpha < 9000000))
             {
@@ -1097,15 +1097,16 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         dbg_bad_move("alpha_beta_parent", (int)i, move, current_state);
         make_move(state_history, position_count, move, zobrist, capture_move);
         // std::cout <<"EEE" << std::endl;
-        score = minimizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, current_search_data.second_level_preliminary_scores[i], current_search_data.second_level_moves_list[i], previous_search_data, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+        RootScore entry;
+        score = minimizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
 
         // std::cout <<"FFF" << std::endl;
-        //  If the score is within the window, re-search with full window
+        //  If the score is within the window, re-search with full window. Discard the scout's entry first
+        //  (this replaces the old second_level pop_backs) so the kept entry reflects the full-window search.
         if (alpha < score && score < beta)
         {
-            previous_search_data.second_level_preliminary_scores.pop_back();
-            previous_search_data.second_level_moves_list.pop_back();
-            score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.second_level_preliminary_scores[i], current_search_data.second_level_moves_list[i], previous_search_data, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+            entry = RootScore{};
+            score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
         }
 
         /* if(is_repetition(position_count, zobrist, 2)){
@@ -1124,21 +1125,22 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         {
             std::cout << "TIME LIMIT EXCEEDED" << std::endl;
 
-            /* if (alpha < current_search_data.top_level_preliminary_scores[0]){
+            /* if (alpha < current_search_data.scores[0].top_score){
                 best_move = current_search_data.moves_list[0];
-                best_score = current_search_data.top_level_preliminary_scores[0];
+                best_score = current_search_data.scores[0].top_score;
             } */
             return best_score;
         }
 
         zobrist = cur_hash;
-        previous_search_data.top_level_preliminary_scores.push_back(score);
+        entry.top_score = score;
+        previous_search_data.scores.push_back(std::move(entry));
 
         if (depth_limit >= 10)
         {
             std::cout << i << " "
                       << score << " "
-                      << current_search_data.top_level_preliminary_scores[i] << " "
+                      << current_search_data.scores[i].top_score << " "
                       << "(" << ((move.from_square & 7) + 1) << ","
                       << ((move.from_square >> 3) + 1) << ") -> ("
                       << ((move.to_square & 7) + 1) << ","
@@ -1448,7 +1450,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
     int score = 0;
     std::vector<int> dummy_ints;
     std::vector<Move> dummy_moves;
-    SearchData dummy_data;
+    RootScore dummy_entry;
     BoardState updated_state = state_history.back();
     if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || updated_state.halfmove_clock >= 100)
     {
@@ -1500,7 +1502,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // Full window search for first move
                 if (!using_tt)
                 {
-                    score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                    score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                     if (cur_depth < depth_limit - 1)
                     {
                         TTFlag flag;
@@ -1561,7 +1563,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     if (!using_tt)
                     {
 
-                        score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                        score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (Config::LMR_PROFILE)
                             lmr_profile_event(depth_limit, cur_depth, i, alpha, beta, score, reduced_depth, move, current_state, previousMove);
                         if (cur_depth < reduced_depth - 1)
@@ -1604,7 +1606,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     }
                     if (!using_tt)
                     {
-                        score = minimizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                        score = minimizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (cur_depth < depth_limit - 1)
                         {
                             TTFlag flag;
@@ -1640,7 +1642,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         // shallow depth_limit - VERIFY_RESEARCH_REDUCTION; the normal PVS
                         // re-search stays at full depth.
                         int research_depth = (score > alpha && score < beta) ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
-                        score = minimizer(cur_depth + 1, research_depth, alpha, beta, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                        score = minimizer(cur_depth + 1, research_depth, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (cur_depth < research_depth - 1)
                         {
                             TTFlag flag;
@@ -1686,7 +1688,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
 }
 
 int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<int> second_level_preliminary_scores, std::vector<Move> second_level_moves_list,
-              SearchData &previous_search_data, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove,
+              RootScore &out_entry, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove,
               int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search)
 {
 
@@ -1841,7 +1843,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         cur_second_level_preliminary_scores.reserve(64);
 
         ascending_sort(second_level_preliminary_scores, second_level_moves_list);
-        previous_search_data.second_level_moves_list.push_back(second_level_moves_list);
+        out_entry.second_moves = second_level_moves_list;
         bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
         for (size_t i = 0; i < second_level_moves_list.size(); ++i)
         {
@@ -1922,7 +1924,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             if (beta <= alpha)
             {
                 // std::cout <<score << std::endl;
-                previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);
+                out_entry.second_scores = cur_second_level_preliminary_scores;
 
                 if (!capture_move)
                 {
@@ -1939,7 +1941,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if (lowest_score == 9999999 - static_cast<int>(state_history.size()))
         {
 
-            previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);
+            out_entry.second_scores = cur_second_level_preliminary_scores;
 
             if (is_checkmate(zobrist, current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
                              current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
@@ -1958,7 +1960,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 return best_early_eval;
             }
         }
-        previous_search_data.second_level_preliminary_scores.push_back(cur_second_level_preliminary_scores);
+        out_entry.second_scores = cur_second_level_preliminary_scores;
     }
     else
     {
@@ -2319,7 +2321,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
     std::vector<int> dummy_ints;
     std::vector<Move> dummy_moves;
-    SearchData dummy_data;
+    RootScore dummy_entry;
 
     bool all_moves_pruned = true;
     Move best_futility_move;
@@ -2379,7 +2381,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if (!using_tt)
         {
             Move dummyMove;
-            null_move_score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_data, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true);
+            null_move_score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true);
         }
 
         state_history.back().turn = !state_history.back().turn;
@@ -2685,9 +2687,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
 
     alpha = std::max(alpha, highest_score);
 
-    current_search_data.top_level_preliminary_scores.push_back(highest_score);
-    current_search_data.second_level_preliminary_scores.push_back(preliminary_scores);
-    current_search_data.second_level_moves_list.push_back(preliminary_moves);
+    current_search_data.scores.push_back(RootScore{highest_score, std::move(preliminary_moves), std::move(preliminary_scores)});
 
     for (size_t i = 1; i < moves_list.size(); ++i)
     {
@@ -2732,9 +2732,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
             score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
         }
         // std::cout <<"BBB5-0" << std::endl;
-        current_search_data.top_level_preliminary_scores.push_back(score);
-        current_search_data.second_level_preliminary_scores.push_back(preliminary_scores);
-        current_search_data.second_level_moves_list.push_back(preliminary_moves);
+        current_search_data.scores.push_back(RootScore{score, std::move(preliminary_moves), std::move(preliminary_scores)});
         // std::cout <<"BBB5-1" << std::endl;
         updated_state = state_history.back();
         // std::vector<Move> line(pv_table[1], pv_table[1] + pv_length[1]);
@@ -3348,15 +3346,10 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
 inline void sortSearchDataByScore(SearchData &data)
 {
-    // The four parallel arrays must be the same length for the index-based reorder below. An upstream
-    // desync (descending_sort_wrapper builds/resizes them independently and can leave one shorter)
-    // would make `vec[indices[i]]` read past a shorter array — a heap overflow. Clamp to the shortest
-    // so the reorder is always in-bounds; in the normal consistent case this is the common size, so
-    // the result is byte-identical.
-    size_t n = std::min({data.top_level_preliminary_scores.size(),
-                         data.moves_list.size(),
-                         data.second_level_moves_list.size(),
-                         data.second_level_preliminary_scores.size()});
+    // moves_list and the grouped scores must be the same length for the index reorder below. They are
+    // equal whenever this is called (the grouping makes the old three-way drift impossible), so clamping
+    // to the shorter is a safety net that is byte-identical in practice.
+    size_t n = std::min(data.moves_list.size(), data.scores.size());
 
     // Create index vector
     std::vector<size_t> indices(n);
@@ -3366,7 +3359,7 @@ inline void sortSearchDataByScore(SearchData &data)
     std::sort(indices.begin(), indices.end(),
               [&](size_t a, size_t b)
               {
-                  return data.top_level_preliminary_scores[a] > data.top_level_preliminary_scores[b];
+                  return data.scores[a].top_score > data.scores[b].top_score;
               });
 
     // Helper lambda to reorder any vector by indices
@@ -3379,109 +3372,68 @@ inline void sortSearchDataByScore(SearchData &data)
         vec = std::move(temp);
     };
 
-    // Reorder all associated vectors
-    reorder(data.top_level_preliminary_scores);
+    // Reorder the moves and their grouped scores together (one permutation each instead of four).
     reorder(data.moves_list);
-    reorder(data.second_level_moves_list);
-    reorder(data.second_level_preliminary_scores);
+    reorder(data.scores);
     dbg_searchdata("sortSearchDataByScore", data);
 }
 
 inline void descending_sort_wrapper(const SearchData &preSearchData, SearchData &mainSearchData)
 {
-
-    // The four arrays are parallel (one entry per root move). An upstream desync can leave them at
-    // different lengths (e.g. the append/resize below grow the score arrays but not moves_list);
-    // operating to the longest would then index/copy past the shortest — a heap-buffer-overflow that
-    // smashes an adjacent vector header and later surfaces as std::bad_array_new_length. Work only
-    // over the common prefix, and bail if there is nothing to reorder. (In the normal all-equal-length
-    // case `common` is the common size, so this is byte-identical.)
-    size_t common = std::min({mainSearchData.top_level_preliminary_scores.size(),
-                              mainSearchData.moves_list.size(),
-                              mainSearchData.second_level_preliminary_scores.size(),
-                              mainSearchData.second_level_moves_list.size()});
+    // mainSearchData carries the previous iteration's full move list (moves_list) with its real searched
+    // scores (cutoff length <= N); preSearchData holds a fresh shallow pre-pass score for every move.
+    // Keep main's first `count` real entries, fill the rest of the tail from the pre-pass, then sort the
+    // tail. Grouping the scores makes the move<->score correspondence atomic, so the old length-drift and
+    // out-of-bounds swap/copy (the corruption crash) are structurally impossible. Bail if nothing to do.
+    size_t common = std::min(mainSearchData.scores.size(), mainSearchData.moves_list.size());
     if (common == 0)
         return;
 
-    // Find max alpha index in mainSearchData.top_level_preliminary_scores (over the common prefix, so
-    // the swap below can never index moves_list out of bounds).
+    // Find the max-scoring entry among the real searched prefix and swap it (move + grouped scores) to
+    // the front. Searching only the common prefix keeps the swap in bounds.
     int max_index = 0;
-    int max_value = mainSearchData.top_level_preliminary_scores[0];
+    int max_value = mainSearchData.scores[0].top_score;
     for (size_t i = 1; i < common; ++i)
     {
-        if (mainSearchData.top_level_preliminary_scores[i] > max_value)
+        if (mainSearchData.scores[i].top_score > max_value)
         {
-            max_value = mainSearchData.top_level_preliminary_scores[i];
+            max_value = mainSearchData.scores[i].top_score;
             max_index = static_cast<int>(i);
         }
     }
-    // std::cout <<"BBB7" << std::endl;
-    //  Swap max to front in *mainSearchData* vectors
     if (max_index != 0)
     {
-        std::swap(mainSearchData.top_level_preliminary_scores[0], mainSearchData.top_level_preliminary_scores[max_index]);
         std::swap(mainSearchData.moves_list[0], mainSearchData.moves_list[max_index]);
-        std::swap(mainSearchData.second_level_preliminary_scores[0], mainSearchData.second_level_preliminary_scores[max_index]);
-        std::swap(mainSearchData.second_level_moves_list[0], mainSearchData.second_level_moves_list[max_index]);
-    }
-    // std::cout <<"BBB8" << std::endl;
-    //  Determine count of valid entries in mainSearchData.top_level_preliminary_scores
-    //  Since no NULL, use size directly
-    size_t count = std::min({mainSearchData.top_level_preliminary_scores.size(),
-                             preSearchData.top_level_preliminary_scores.size(),
-                             preSearchData.second_level_preliminary_scores.size(),
-                             preSearchData.second_level_moves_list.size()});
-
-    // Prepare sublists excluding first element
-    std::vector<int> top_level_preliminary_scores_sub(mainSearchData.top_level_preliminary_scores.begin() + 1, mainSearchData.top_level_preliminary_scores.end());
-    std::vector<Move> moves_list_sub(mainSearchData.moves_list.begin() + 1, mainSearchData.moves_list.end());
-    std::vector<std::vector<int>> second_level_preliminary_scores_sub(mainSearchData.second_level_preliminary_scores.begin() + 1, mainSearchData.second_level_preliminary_scores.end());
-    std::vector<std::vector<Move>> second_level_moves_list_sub(mainSearchData.second_level_moves_list.begin() + 1, mainSearchData.second_level_moves_list.end());
-    // std::cout <<"BBB9" << std::endl;
-    //  Append prelim search data starting from count
-    if (preSearchData.top_level_preliminary_scores.size() > count)
-    {
-        top_level_preliminary_scores_sub.insert(top_level_preliminary_scores_sub.end(), preSearchData.top_level_preliminary_scores.begin() + count, preSearchData.top_level_preliminary_scores.end());
-        second_level_preliminary_scores_sub.insert(second_level_preliminary_scores_sub.end(), preSearchData.second_level_preliminary_scores.begin() + count, preSearchData.second_level_preliminary_scores.end());
-        second_level_moves_list_sub.insert(second_level_moves_list_sub.end(), preSearchData.second_level_moves_list.begin() + count, preSearchData.second_level_moves_list.end());
+        std::swap(mainSearchData.scores[0], mainSearchData.scores[max_index]);
     }
 
-    // Keep the score sublists parallel to the moves. The append above (preSearchData has no moves_list)
-    // can leave score-only entries with no matching move; carried forward they drift the array lengths
-    // apart and cause the out-of-bounds swap/copy that corrupts memory. Truncate to the move count so
-    // all four sublists stay the same length. (No-op when they already match — the normal case.)
-    size_t real_moves = moves_list_sub.size();
-    if (top_level_preliminary_scores_sub.size() > real_moves)
-        top_level_preliminary_scores_sub.resize(real_moves);
-    if (second_level_preliminary_scores_sub.size() > real_moves)
-        second_level_preliminary_scores_sub.resize(real_moves);
-    if (second_level_moves_list_sub.size() > real_moves)
-        second_level_moves_list_sub.resize(real_moves);
+    // Number of real searched entries to keep from main; the tail beyond it comes from the pre-pass.
+    size_t count = std::min(mainSearchData.scores.size(), preSearchData.scores.size());
 
-    SearchData sub_data(moves_list_sub, top_level_preliminary_scores_sub, second_level_moves_list_sub, second_level_preliminary_scores_sub);
+    // Build the tail (everything after the front): main's remaining moves, paired with main's real
+    // searched scores for the first count-1 of them and the fresh pre-pass scores beyond that.
+    std::vector<Move> moves_sub(mainSearchData.moves_list.begin() + 1, mainSearchData.moves_list.end());
+    std::vector<RootScore> scores_sub(mainSearchData.scores.begin() + 1, mainSearchData.scores.end());
+    if (preSearchData.scores.size() > count)
+        scores_sub.insert(scores_sub.end(), preSearchData.scores.begin() + count, preSearchData.scores.end());
 
-    // Now sort the sublists descending by top_level_preliminary_scores_sub
+    // Keep the scores parallel to the moves (drop any score-only overhang). No-op in the normal case.
+    if (scores_sub.size() > moves_sub.size())
+        scores_sub.resize(moves_sub.size());
+
+    SearchData sub_data;
+    sub_data.moves_list = std::move(moves_sub);
+    sub_data.scores = std::move(scores_sub);
+
+    // Sort the tail descending by top_score
     sortSearchDataByScore(sub_data);
 
-    if (mainSearchData.top_level_preliminary_scores.size() < top_level_preliminary_scores_sub.size() + 1)
-    {
-        mainSearchData.top_level_preliminary_scores.resize(top_level_preliminary_scores_sub.size() + 1);
-    }
+    // Write the sorted tail back after the front entry, growing main to the full length if needed.
+    if (mainSearchData.scores.size() < sub_data.scores.size() + 1)
+        mainSearchData.scores.resize(sub_data.scores.size() + 1);
 
-    if (mainSearchData.second_level_preliminary_scores.size() < second_level_preliminary_scores_sub.size() + 1)
-    {
-        mainSearchData.second_level_preliminary_scores.resize(second_level_preliminary_scores_sub.size() + 1);
-    }
-
-    if (mainSearchData.second_level_moves_list.size() < second_level_moves_list_sub.size() + 1)
-    {
-        mainSearchData.second_level_moves_list.resize(second_level_moves_list_sub.size() + 1);
-    }
-
-    std::copy(sub_data.top_level_preliminary_scores.begin(), sub_data.top_level_preliminary_scores.end(), mainSearchData.top_level_preliminary_scores.begin() + 1);
     std::copy(sub_data.moves_list.begin(), sub_data.moves_list.end(), mainSearchData.moves_list.begin() + 1);
-    std::copy(sub_data.second_level_preliminary_scores.begin(), sub_data.second_level_preliminary_scores.end(), mainSearchData.second_level_preliminary_scores.begin() + 1);
-    std::copy(sub_data.second_level_moves_list.begin(), sub_data.second_level_moves_list.end(), mainSearchData.second_level_moves_list.begin() + 1);
+    std::copy(sub_data.scores.begin(), sub_data.scores.end(), mainSearchData.scores.begin() + 1);
     dbg_searchdata("descending_sort_wrapper", mainSearchData);
 }
 

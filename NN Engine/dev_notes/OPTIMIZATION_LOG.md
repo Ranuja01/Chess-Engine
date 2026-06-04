@@ -20,6 +20,19 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 **⚠️ Measurement method (validated on E2b):** the engine sits on a **depth-step boundary** — a small per-node speedup flips whether the next ply runs, so time-bounded `Time Taken`/`Positions Analyzed` totals swing by a whole ply and are NOT comparable across builds. The clean method (used for E2b): **force a fixed search depth** so both builds run the identical tree, then compare `Time Taken` / `Average Static Analysis Speed` on equal node counts. Correctness gate unchanged (per-depth PV + score tables + cache stats must match). NB: the full time-bounded run's `Average Static Analysis Speed` is *diluted* by the extra deep ply — don't use it as the speedup figure; use the fixed-depth run.
 
+## CORRECTNESS — SearchData grouped-scores refactor (2026-06-04, byte-identical + crash-killing)
+Self-play found a warm-cache corruption crash family (`bad_array_new_length` / `"pseudo-legal"` throw). Root:
+`SearchData`'s parallel arrays desynced — `top_level` pushed unconditionally by `alpha_beta`, the second-level
+arrays conditionally by `minimizer` (skipped on draw/time-up early-exits), worsened by the PVS pop. Fix =
+group the three drifting fields into `RootScore{top_score, second_moves, second_scores}` so `SearchData` is
+`{vector<Move> moves_list; vector<RootScore> scores}`; `alpha_beta` is the sole writer (one push per searched
+move, PVS pop deleted); `minimizer` writes one `out_entry`. Desync is structurally impossible. **Diagnostics
+first proved aspiration was a non-cause** (`[INV]` 12/12 with DELTA=500, still 10/12 with DELTA=0; signature
+always `34 34 33 33`). **Validated:** WAC `MAX_DEPTH=10` nodes byte-identical to the digit (254,973,405) +
+259/300 + same 41 fails; speed neutral (two runs 574s/667s straddle old 609 = jitter, not regression — the
+changed ops are root-only, the deep `dummy_entry` is now *fewer* allocs); replay loop 0 `[INV]`/`[BADMOVE]`/
+aborts (was 12/12). `search_engine.{h,cpp}` only. Full writeup: `CRASH_INVESTIGATION_PLAYBOOK.md`.
+
 ## 3b failure — root cause analysis
 `storeTTBestMove` created "move-only" TT entries at **near-horizon nodes** (whose score write is gated off by `if (cur_depth < depth_limit - 1)` in `get_score_*`). Those entries — the *bulk of the tree* — never upgraded to real entries, so they **flooded/thrashed the direct-mapped TT** (evicting deep score entries) and **promoted noisy depth-1 moves** to the front → ordering worsened → +40% nodes → time-budget overrun → corrupted deep eval.
 

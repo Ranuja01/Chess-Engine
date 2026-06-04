@@ -401,29 +401,35 @@ struct Move
     }
 };
 
+struct RootScore
+{
+    // The top-level score alpha_beta found for one root move, paired with the second-level reply
+    // ordering and scores minimizer produced for it (carried into the next iteration as a move-ordering
+    // hint). Grouping these three formerly-parallel fields makes a per-move push/pop atomic, so they can
+    // never drift out of index-correspondence -- the SearchData desync that caused the warm-cache
+    // corruption crashes.
+    int top_score;
+    std::vector<Move> second_moves;
+    std::vector<int> second_scores;
+
+    RootScore() : top_score(0) {}
+
+    RootScore(int top_score_, std::vector<Move> second_moves_, std::vector<int> second_scores_)
+        : top_score(top_score_),
+          second_moves(std::move(second_moves_)),
+          second_scores(std::move(second_scores_)) {}
+};
+
 struct SearchData
 {
-
-    // Set of moves and preliminary scores for the top level
+    // Full ordered root-move list (length N). Set once per node; never push/pop'd element-wise.
     std::vector<Move> moves_list;
-    std::vector<int> top_level_preliminary_scores;
 
-    // Set of moves and preliminary scores for the second recursive depth
-    std::vector<std::vector<Move>> second_level_moves_list;
-    std::vector<std::vector<int>> second_level_preliminary_scores;
+    // One entry per *searched* root move (cutoff length <= N): the top-level score plus the second-level
+    // reply ordering/scores. moves_list[i] corresponds to scores[i] for every i < scores.size().
+    std::vector<RootScore> scores;
 
-    // Default constructor
     SearchData() = default;
-
-    // Constructor that initializes all members (optional if you want to pass in initial values)
-    SearchData(const std::vector<Move> &moves,
-               const std::vector<int> &top_scores,
-               const std::vector<std::vector<Move>> &second_moves,
-               const std::vector<std::vector<int>> &second_scores)
-        : moves_list(moves),
-          top_level_preliminary_scores(top_scores),
-          second_level_moves_list(second_moves),
-          second_level_preliminary_scores(second_scores) {}
 };
 
 void initialize_engine(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bool turn, bool side_to_play);
@@ -435,7 +441,7 @@ inline void update_cache(int num_plies);
 
 MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count);
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, SearchData &previous_search_data, Move &best_move, int &num_iterations);
-int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<int> second_level_preliminary_scores, std::vector<Move> second_level_moves_list, SearchData &previous_search_data, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
+int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<int> second_level_preliminary_scores, std::vector<Move> second_level_moves_list, RootScore &out_entry, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
 SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint &t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, int &num_iterations);
 int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<int> &preliminary_scores, std::vector<Move> &pre_moves_list, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prevMove, int &num_iterations);

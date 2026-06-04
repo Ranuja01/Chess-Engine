@@ -4,6 +4,8 @@
 
 **Read this first in a fresh session**, then the memory files (`engine-cpp-optimization`, `engine-opt-working-method`) and the per-item log (`dev_notes/OPTIMIZATION_LOG.md`).
 
+> **✅ CORRECTNESS milestone (2026-06-04): SearchData desync crash family FIXED & VALIDATED** via the grouped-scores refactor (`SearchData={moves_list; vector<RootScore>}`; alpha_beta sole writer; PVS pop deleted). WAC nodes byte-identical (254,973,405), 259/300, speed neutral; the replay loop that logged `[INV]` 12/12 now logs 0. Full writeup: `dev_notes/CRASH_INVESTIGATION_PLAYBOOK.md`. The self-play harness that found it lives in `selfplay/` (memory `selfplay-harness`).
+
 ## What we're doing
 Optimizing the **C++ chess engine** in `NN Engine/` (entry `ChessAI.pyx` → `search_engine.cpp` + `cpp_bitboard.cpp` (eval) + `cache_management.h` + `move_gen.h`). It's a **non-standard alternating minimax** (separate `minimizer`/`maximizer`, NOT negamax), **absolute eval** (positive = Black good, flipped once via `Config::side_to_play`), ~2700 Elo, **piece values pawn=1000 … queen=10000** (so its "centipawn" ≈ our/10). Build/run in **WSL** from `NN Engine/`: `python setupAI.py build_ext --inplace`. The user compiles & runs; you read code, design, and diff their output.
 

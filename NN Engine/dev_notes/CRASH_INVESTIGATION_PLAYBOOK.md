@@ -1,9 +1,26 @@
 # Crash investigation playbook — the SearchData parallel-array corruption
 
 A worked record of a real memory-corruption hunt in this engine: the bug, how it was found, and a
-**reusable methodology** for the next corruption. Status as of 2026-06-04: **root cause CONFIRMED,
-grand fix NOT yet applied** (we paused to choose between a localized sync fix and the array-of-structs
-refactor). Cross-refs: memory `selfplay-harness`, `engine-cpp-optimization`.
+**reusable methodology** for the next corruption. Status as of 2026-06-04: **FIXED & VALIDATED.**
+Cross-refs: memory `selfplay-harness`, `engine-cpp-optimization`.
+
+## RESOLUTION (2026-06-04) — grouped-scores refactor
+
+The chosen fix was **grouping the three drifting fields into a `RootScore` struct**, not the naive
+four-field array-of-structs (which mis-models the deliberate full-moves / cutoff-scores asymmetry). The
+key design finding: `moves_list` is intentionally full-length N while the score fields are cutoff-length;
+only the **three score fields drifting from each other** crash. So `SearchData` became
+`{ std::vector<Move> moves_list; std::vector<RootScore> scores; }` where
+`RootScore = {int top_score; std::vector<Move> second_moves; std::vector<int> second_scores}`.
+`minimizer` now writes a single `out_entry` (no `SearchData`); `alpha_beta` is the sole writer of
+`scores`, pushing one `RootScore` per searched root move; the PVS pop was deleted (the re-search reuses a
+reset `entry`). One push, zero pops, per move ⟹ the `34 34 33 33` desync is structurally unrepresentable.
+
+**Validated:** WAC `MAX_DEPTH=10` nodes **byte-identical to the digit** (254,973,405) vs `asp_d500`, same
+259/300 and same 41 fails; speed neutral (two new-build runs 574s/667s straddle the old 609s — pure
+run-to-run jitter); the `CHESS_DEBUG_INVARIANTS=1` replay loop that previously logged `[INV]` 12/12 now
+logs **0 `[INV]`, 0 `[BADMOVE]`, 0 aborts**, every run finishing. Aspiration was confirmed a non-cause
+(the desync fired with `ASPIRATION_DELTA=0` too). Diff: `search_engine.{h,cpp}` only (~−42 net lines).
 
 ## The bug (root cause — confirmed by instrumentation)
 
@@ -40,10 +57,19 @@ reorder; (3) the search actually reaching the **last move** so the OOB index is 
 it's ~50% of deep STANDARD replays, rare in shallow/short positions, and **never on cold fixed-depth
 benchmarks** (WAC/STS were byte-identical pre/post — corruption is confined to warm-cache real play).
 
-**Suspected aggravator (to test, not yet confirmed): aspiration windows** (shipped 2026-06-03; user
-"rarely crashed before"). The aspiration **retry loop** in `get_engine_move` runs `alpha_beta` multiple
-times per iteration on the *same* carried-forward `previous_search_data`, multiplying the slip chances.
-Test: replay crash-rate at `ASPIRATION_DELTA=0` vs `500` (and `VERIFY_MARGIN=0`).
+**Aggravator TESTED — aspiration is NOT the cause (2026-06-04).** 12× LIGHTNING replays of
+`ship_standard/game_002` at `ASPIRATION_DELTA=500` vs `0` (`VERIFY_MARGIN=0`), `CHESS_DEBUG_INVARIANTS=1`:
+the desync `[INV]` fired **12/12 with aspiration ON, 10/12 with it OFF** — so the bug is **intrinsic to the
+search structure**, present without aspiration; the retry loop is at most a marginal multiplier (it reruns
+`alpha_beta` on the same carried-forward `previous_search_data`, surfacing an existing latent slip more
+often). **Every `[INV]` had the same signature `m/t/s2m/s2s = 34 34 33 33`** (logged at both
+`reorder_legal_moves` and `descending_sort_wrapper` exits): `moves_list` and `top_level` lead by one while
+**both** second-level arrays lag together and stay mutually equal. That pins the dominant slip to a path
+that drops **both** `minimizer` second-level pushes at once while `alpha_beta` still pushes `top_level` —
+the **draw early-return (1838)** and the **PVS pop without re-push (1106-08)** — NOT a between-second-level
+desync (the time-up-mid-loop `s2m≠s2s` case never appeared). The signature alone pins the slip, so the
+step-2 probe was unnecessary. The grouped-scores fix makes `34 34 33 33` structurally unrepresentable
+(one `scores` vector; the drawn move becomes one present-but-empty `RootScore`).
 
 ## Fixes
 - **Partial fixes already shipped** (correct but incomplete): `sortSearchDataByScore` min-clamp

@@ -31,16 +31,14 @@ extensions = [
             "-march=native",           # Optimize for host CPU
             "-flto",                   # Link-time optimization
             "-fopenmp",                # Multithreading support
-            "-g",
-            "-fno-omit-frame-pointer",
-                      
             "-fno-rtti",               # Removes RTTI overhead
             "-std=c++20",              # Use modern C++
-            
+
             "-mpopcnt", "-mbmi2",      # Enable CPU bit manipulation instructions
         ],
         extra_link_args=[
-            "-flto", "-fopenmp", "-pthread"
+            "-flto",
+            "-fopenmp", "-pthread"
         ],
         define_macros=[
             ("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")

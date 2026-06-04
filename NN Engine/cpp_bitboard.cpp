@@ -38,11 +38,11 @@ std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
 std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
 std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 std::vector<uint64_t> BB_DIAG_MASKS;
-std::vector<std::unordered_map<uint64_t, uint64_t>> BB_DIAG_ATTACKS;
+std::vector<SlidingRow> BB_DIAG_ATTACKS;
 std::vector<uint64_t> BB_FILE_MASKS;
-std::vector<std::unordered_map<uint64_t, uint64_t>> BB_FILE_ATTACKS;
+std::vector<SlidingRow> BB_FILE_ATTACKS;
 std::vector<uint64_t> BB_RANK_MASKS;
-std::vector<std::unordered_map<uint64_t, uint64_t>> BB_RANK_ATTACKS;
+std::vector<SlidingRow> BB_RANK_ATTACKS;
 std::vector<std::vector<uint64_t>> BB_RAYS;
 
 
@@ -77,13 +77,11 @@ std::deque<uint64_t> quiesceinsertionOrder; */
 
 
 std::vector<MoveEntry> moveGenCache(CACHE_SIZE);
-std::vector<EvalEntry> quiesceEvalCache(CACHE_SIZE);
-//std::vector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
+std::vector<QTTEntry> quiesceEvalCache(CACHE_SIZE);
 /* std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
 std::deque<uint64_t> moveGenInsertionOrder; */
 
-std::unordered_map<uint64_t, TTEntry> searchEvalCache;
-std::deque<uint64_t> searchInsertionOrder;
+std::vector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
 
 alignas(64) Move killerMoves[MAX_PLY][2];
 
@@ -303,38 +301,67 @@ void initialize_attack_tables() {
 	attack_table({-9, -7, 7, 9},BB_DIAG_MASKS,BB_DIAG_ATTACKS);
 	attack_table({-8, 8},BB_FILE_MASKS,BB_FILE_ATTACKS);
 	attack_table({-1, 1},BB_RANK_MASKS,BB_RANK_ATTACKS);
-	
+
+#ifdef PEXT_SELFCHECK
+	// Prove the PEXT row lookup returns identical attack sets to the reference
+	// generator for every square and every masked-occupancy subset.
+	{
+		const std::vector<int8_t> diag_deltas = {-9, -7, 7, 9};
+		const std::vector<int8_t> file_deltas = {-8, 8};
+		const std::vector<int8_t> rank_deltas = {-1, 1};
+		for (int sq = 0; sq < NUM_SQUARES; ++sq) {
+			std::vector<uint64_t> subsets;
+			carry_rippler(BB_DIAG_MASKS[sq], subsets);
+			for (uint64_t s : subsets) assert(BB_DIAG_ATTACKS[sq][s] == sliding_attacks(sq, s, diag_deltas));
+			subsets.clear();
+			carry_rippler(BB_FILE_MASKS[sq], subsets);
+			for (uint64_t s : subsets) assert(BB_FILE_ATTACKS[sq][s] == sliding_attacks(sq, s, file_deltas));
+			subsets.clear();
+			carry_rippler(BB_RANK_MASKS[sq], subsets);
+			for (uint64_t s : subsets) assert(BB_RANK_ATTACKS[sq][s] == sliding_attacks(sq, s, rank_deltas));
+		}
+	}
+#endif
+
 	rays(BB_RAYS);
 }
 
-void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<std::unordered_map<uint64_t, uint64_t>> &attack_table) {
-    
+void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<SlidingRow> &attack_table) {
+
 	/*
 		Function to initialize attack mask tables for diagonal, file and rank attacks
-		
+
 		Parameters:
 		- deltas: A vector of position delta values, passed by reference
 		- mask_table: An empty vector to hold the sliding attacks masks, passed by reference
 		- attack_table: An empty vector to hold the attack subsets of the mask, passed by reference
+
+		Each square's attacks are stored in a PEXT (Parallel Bits Extract) row:
+		the masked occupancy subset is compressed with _pext_u64 into a dense
+		index into a flat array, replacing the prior unordered_map lookup.
 	*/
-	
-	// Loop through all squares 
+
+	// Loop through all squares
     for (int square = 0; square < 64; ++square) {
-        std::unordered_map<uint64_t, uint64_t> attacks;
-		
+
 		// Acquire sliding attacks mask for the given deltas
         uint64_t mask = sliding_attacks(square, 0ULL, deltas) & ~edges(square);
-        
+
+		// Build the dense PEXT-indexed attack array for this square
+		SlidingRow row;
+		row.mask = mask;
+		row.data.assign(1ULL << __builtin_popcountll(mask), 0ULL);
+
 		// Acquire subsets of attacks mask and loop through them to form the attack table
 		std::vector<uint64_t> subsets;
 		carry_rippler(mask,subsets);
         for (uint64_t subset : subsets) {
-            attacks[subset] = sliding_attacks(square, subset, deltas);
+            row.data[_pext_u64(subset, mask)] = sliding_attacks(square, subset, deltas);
         }
 
 		// Push the current mask and attack tables to the full set
         mask_table.push_back(mask);
-        attack_table.push_back(attacks);
+        attack_table.push_back(std::move(row));
     }
 }
 
@@ -4703,7 +4730,7 @@ std::cout << "white_increment: " << white_increment << std::endl; */
 	return black_increment - white_increment;
 }
 
-inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns, uint64_t black_passed_pawns, std::unordered_map<uint8_t, int> pawn_rank_bonuses, bool isEndGame){
+inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns, uint64_t black_passed_pawns, const std::array<int, 64>& pawn_rank_bonuses, bool isEndGame){
 
 	int black_adjustment = 0;
 	int white_adjustment = 0;
@@ -5229,8 +5256,11 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	bool boost_white_for_piece_value_advantage = false;
 	bool boost_black_for_piece_value_advantage = false;
 
-	std::unordered_map<uint8_t, int> pawn_rank_bonuses;
-	
+	// Indexed by square (0-63); a zero entry means "no bonus" for that square,
+	// matching the old unordered_map's value-initialized miss. Zero-initialized
+	// per eval so unwritten squares read 0.
+	std::array<int, 64> pawn_rank_bonuses{};
+
 	// Call the function to initialize global piece values
 	initializePieceValues(occupied);
 	uint64_t relevant_pins = get_relevant_pin(false);
@@ -5744,7 +5774,7 @@ void apply_basic_capture(uint8_t from, uint8_t to, uint64_t& white_pieces, uint6
 	}
 }
 
-inline CaptureInfo* find_last_viable_capture(std::vector<CaptureInfo>& captures, uint64_t& white_pieces, uint64_t& black_pieces, bool captureColour) {
+inline CaptureInfo* find_last_viable_capture(CaptureStack& captures, uint64_t& white_pieces, uint64_t& black_pieces, bool captureColour) {
 	
 	uint64_t from_side = captureColour ? white_pieces : black_pieces;
     uint64_t to_side   = captureColour ? black_pieces : white_pieces;
@@ -5766,7 +5796,7 @@ inline CaptureInfo* find_last_viable_capture(std::vector<CaptureInfo>& captures,
     return nullptr;
 }
 
-inline std::optional<CaptureInfo> find_and_pop_last_viable_capture(std::vector<CaptureInfo>& captures, uint64_t white_pieces, uint64_t black_pieces, bool captureColour) {
+inline std::optional<CaptureInfo> find_and_pop_last_viable_capture(CaptureStack& captures, uint64_t white_pieces, uint64_t black_pieces, bool captureColour) {
     uint64_t from_side = captureColour ? white_pieces : black_pieces;
     uint64_t to_side   = captureColour ? black_pieces : white_pieces;
 
@@ -5817,8 +5847,8 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
     int black_gains = 0;
     int white_gains = 0;
 
-	std::vector<CaptureInfo> white_captures;
-	std::vector<CaptureInfo> black_captures;
+	CaptureStack white_captures;
+	CaptureStack black_captures;
 
     while (bb) {
         uint8_t r = __builtin_ctzll(bb);
@@ -5870,8 +5900,8 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
 	while (!white_captures.empty() || !black_captures.empty()) {
 		bool evading = false;
 
-		std::vector<CaptureInfo>& own_captures = current_turn ? white_captures : black_captures;
-		std::vector<CaptureInfo>& opp_captures = current_turn ? black_captures : white_captures;
+		CaptureStack& own_captures = current_turn ? white_captures : black_captures;
+		CaptureStack& opp_captures = current_turn ? black_captures : white_captures;
 
 		// Step 1: Evaluate evasion option
 		if (!opp_captures.empty()) {
@@ -5925,12 +5955,12 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
     return black_gains - white_gains;
 }
 
-inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& state, std::unordered_map<uint8_t, int> pawn_rank_bonuses) {
+inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& state, const std::array<int, 64>& pawn_rank_bonuses) {
     int black_gains = 0;
     int white_gains = 0;
 
-	std::vector<CaptureInfo> white_captures;
-	std::vector<CaptureInfo> black_captures;
+	CaptureStack white_captures;
+	CaptureStack black_captures;
 
     while (bb) {
         uint8_t r = __builtin_ctzll(bb);
@@ -5975,8 +6005,8 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 	while (!white_captures.empty() || !black_captures.empty()) {
 		bool evading = false;
 
-		std::vector<CaptureInfo>& own_captures = current_turn ? white_captures : black_captures;
-		std::vector<CaptureInfo>& opp_captures = current_turn ? black_captures : white_captures;
+		CaptureStack& own_captures = current_turn ? white_captures : black_captures;
+		CaptureStack& opp_captures = current_turn ? black_captures : white_captures;
 
 		// Step 1: Evaluate evasion option
 		if (!opp_captures.empty()) {

@@ -1,0 +1,23 @@
+# Build artifacts (machine-specific: -Ofast -march=native)
+build/
+*.so
+*.o
+*.html
+
+# Cython-generated translation unit (regenerated from ChessAI.pyx on every build)
+ChessAI.cpp
+
+# Profiling
+callgrind.out.*
+
+# Loose run-output dumps
+*.stderr
+*.log
+
+# Self-play & diagnostics RUN OUTPUT (reproducible, bulky).
+# Harness code, openings, and the EPD suites stay tracked; the 3 crash.json
+# replay fixtures are kept via `git add -f`.
+selfplay/games/
+selfplay/crashcheck/
+diagnostics/results/
+**/__pycache__/

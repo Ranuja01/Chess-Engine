@@ -17,11 +17,11 @@ extern std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
 extern std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
 extern std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 extern std::vector<uint64_t> BB_DIAG_MASKS;
-extern std::vector<std::unordered_map<uint64_t, uint64_t>> BB_DIAG_ATTACKS;
+extern std::vector<SlidingRow> BB_DIAG_ATTACKS;
 extern std::vector<uint64_t> BB_FILE_MASKS;
-extern std::vector<std::unordered_map<uint64_t, uint64_t>> BB_FILE_ATTACKS;
+extern std::vector<SlidingRow> BB_FILE_ATTACKS;
 extern std::vector<uint64_t> BB_RANK_MASKS;
-extern std::vector<std::unordered_map<uint64_t, uint64_t>> BB_RANK_ATTACKS;
+extern std::vector<SlidingRow> BB_RANK_ATTACKS;
 extern std::vector<std::vector<uint64_t>> BB_RAYS;
 
 /*
@@ -633,8 +633,14 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			   + promo_bonus + moveFrequency[turn][from][to];
 	};
 
+	// Score each move once up front — score_move runs SEE for unclear captures, so
+	// calling it inside the comparator would repeat that work O(log n) times per move
+	std::vector<int> moveScores(indices.size());
+	for (size_t i = 0; i < indices.size(); ++i)
+		moveScores[i] = score_move(i);
+
 	std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
-		return score_move(a) > score_move(b);
+		return moveScores[a] > moveScores[b];
 	});
 
 	/* std::sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {

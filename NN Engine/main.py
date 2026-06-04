@@ -41,8 +41,10 @@ from timeit import default_timer as timer
 import easygui
 import copy
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
+# TensorFlow is legacy (the C++ engine never uses the keras models); skipping it speeds startup.
+# Set CHESS_ENABLE_TF=1 and restore these imports + the load_model calls below to bring it back.
+# import tensorflow as tf
+# from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, Flatten, Dense, InputLayer
 #from pickle import dump
 from timeit import default_timer as timer
@@ -86,14 +88,13 @@ if platform.system() == 'Windows':
     data_path2 = '../Models/WhiteModel1.keras'
     data_path3 = '../Models/WhiteEval_21_36.keras'
 elif platform.system() == 'Linux':
-    data_path1 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel4.keras'
-    data_path2 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel1.keras'
-    data_path3 = '/mnt/c/Users/Kumodth/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteEval_21_36.keras'
+    data_path1 = '/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/Models/BlackModel4.keras'
+    data_path2 = '/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteModel1.keras'
+    data_path3 = '/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/Models/WhiteEval_21_36.keras'
 
-blackModel = tf.keras.models.load_model(data_path1)
-whiteModel = tf.keras.models.load_model(data_path2)
-
-model = tf.keras.models.load_model(data_path3)
+blackModel = None
+whiteModel = None
+model = None
 
 # Assuming you have models already defined as black_model and white_model
 chess_ai = ChessAI(blackModel, whiteModel, board, board.turn)

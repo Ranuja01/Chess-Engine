@@ -13,6 +13,7 @@
 #include <cstring>
 #include <optional>
 #include <sstream>
+#include <immintrin.h>
 
 constexpr int NUM_SQUARES = 64;
 constexpr int MAX_PLY = 64;
@@ -23,16 +24,35 @@ constexpr uint64_t CACHE_MASK = CACHE_SIZE - 1;
 constexpr size_t TT_CACHE_SIZE = 1 << 24;  // example: 1M entries
 constexpr uint64_t TT_CACHE_MASK = TT_CACHE_SIZE - 1;
 
+/*
+	PEXT (Parallel Bits Extract, BMI2 _pext_u64) sliding-attack row.
+
+	A per-square attack table for one slider direction set. The masked
+	occupancy is compressed with _pext_u64 into a dense index, so a lookup is a
+	single array read instead of an unordered_map hash + pointer chase. Because
+	_pext_u64(mask & occupied, mask) == _pext_u64(occupied, mask) and
+	_pext_u64(0, mask) == 0, every existing call site works unchanged whether it
+	passes (BB_X_MASKS[sq] & occupied) or a literal 0 (empty-board rays).
+
+	Note: _pext_u64 is fast on Intel and on AMD Zen3+, but microcoded/slow on
+	AMD Zen1/Zen2 — fine on this -march=native build.
+*/
+struct SlidingRow {
+	uint64_t mask = 0;
+	std::vector<uint64_t> data;  // size 1 << popcount(mask), indexed by pext(occ, mask)
+	uint64_t operator[](uint64_t occ) const { return data[_pext_u64(occ, mask)]; }
+};
+
 // Define masks for move generation
 extern std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
 extern std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
 extern std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 extern std::vector<uint64_t> BB_DIAG_MASKS;
-extern std::vector<std::unordered_map<uint64_t, uint64_t>> BB_DIAG_ATTACKS;
+extern std::vector<SlidingRow> BB_DIAG_ATTACKS;
 extern std::vector<uint64_t> BB_FILE_MASKS;
-extern std::vector<std::unordered_map<uint64_t, uint64_t>> BB_FILE_ATTACKS;
+extern std::vector<SlidingRow> BB_FILE_ATTACKS;
 extern std::vector<uint64_t> BB_RANK_MASKS;
-extern std::vector<std::unordered_map<uint64_t, uint64_t>> BB_RANK_ATTACKS;
+extern std::vector<SlidingRow> BB_RANK_ATTACKS;
 extern std::vector<std::vector<uint64_t>> BB_RAYS;
 
 // Define global masks for piece placement
@@ -213,9 +233,30 @@ constexpr uint64_t BLACK_DARK_BISHOP_ZONE  = BLACK_BASE_MASK & DARK_SQUARES;
 struct CaptureInfo {
     uint8_t from;
 	uint8_t to;
-    int value_gained;    
+    int value_gained;
 
+	CaptureInfo() = default;
 	CaptureInfo(uint8_t from_square, uint8_t to_square, int value) : from(from_square), to(to_square), value_gained(value) {}
+};
+
+/*
+	Fixed-capacity LIFO stack of CaptureInfo, used per eval in place of a heap
+	std::vector. Capacity 32 safely exceeds the per-side non-king piece count
+	(<=15). Exposes the same member names the capture helpers call so their
+	bodies are unchanged; begin()/end() return raw pointers for std::sort.
+*/
+struct CaptureStack {
+	CaptureInfo data[32];
+	int n = 0;
+	void push_back(const CaptureInfo& c){ data[n++] = c; }
+	bool empty() const { return n == 0; }
+	int  size()  const { return n; }
+	CaptureInfo& operator[](int i){ return data[i]; }
+	const CaptureInfo& operator[](int i) const { return data[i]; }
+	CaptureInfo& back(){ return data[n - 1]; }
+	void pop_back(){ --n; }
+	CaptureInfo* begin(){ return data; }
+	CaptureInfo* end(){ return data + n; }
 };
 
 struct MaskPair {
@@ -230,7 +271,7 @@ bool get_horizon_mitigation_flag();
 	Set of functions to initialize masks for move generation
 */
 void initialize_attack_tables();
-void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<std::unordered_map<uint64_t, uint64_t>> &attack_table);
+void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<SlidingRow> &attack_table);
 uint64_t sliding_attacks(uint8_t square, uint64_t occupied, const std::vector<int8_t>& deltas);
 void carry_rippler(uint64_t mask, std::vector<uint64_t> &subsets);
 void rays(std::vector<std::vector<uint64_t>> &rays);
@@ -254,10 +295,10 @@ inline int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, boo
 
 inline uint8_t lowest_value_attacker(uint64_t attackers, bool attackedColour);
 inline void apply_basic_capture(uint8_t from, uint8_t to, uint64_t& white_pieces, uint64_t& black_pieces, bool white_to_move);
-inline CaptureInfo* find_last_viable_capture(std::vector<CaptureInfo>& captures, uint64_t& white_pieces, uint64_t& black_pieces, bool captureColour);
-inline std::optional<CaptureInfo> find_and_pop_last_viable_capture(std::vector<CaptureInfo>& captures, uint64_t white_pieces, uint64_t black_pieces, bool captureColour);
+inline CaptureInfo* find_last_viable_capture(CaptureStack& captures, uint64_t& white_pieces, uint64_t& black_pieces, bool captureColour);
+inline std::optional<CaptureInfo> find_and_pop_last_viable_capture(CaptureStack& captures, uint64_t white_pieces, uint64_t black_pieces, bool captureColour);
 inline bool can_evade(uint8_t target_square, bool target_colour);
-inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& state, std::unordered_map<uint8_t, int> pawn_rank_bonuses);
+inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& state, const std::array<int, 64>& pawn_rank_bonuses);
 inline int approximate_capture_gains1(uint64_t bb, bool turn);
 
 void initializePieceValues(uint64_t bb);

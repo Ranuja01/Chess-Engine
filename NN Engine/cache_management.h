@@ -52,7 +52,6 @@ extern std::vector<MoveEntry> moveGenCache;
 
 extern std::unordered_map<uint64_t, int> evalCache;
 extern std::deque<uint64_t> insertionOrder;
-extern std::vector<EvalEntry> quiesceEvalCache;
 
 /* extern std::unordered_map<uint64_t, int> quiesceEvalCache;
 extern std::deque<uint64_t> quiesceinsertionOrder; */
@@ -67,11 +66,13 @@ enum class TTFlag : uint8_t {
 };
 
 struct TTEntry {
+    uint64_t key = 0;
     int score;             // Evaluated score
     int depth;             // Depth at which this score was obtained
     TTFlag flag;           // Type of score
-    int alpha; // NEW
-    int beta;  // NEW    
+    int alpha = -9999999; // NEW
+    int beta = 9999999;  // NEW
+    bool valid = false;
 
 	TTEntry() : score(0), depth(0), flag(TTFlag::EXACT) {}
 
@@ -123,8 +124,20 @@ struct QCacheEntry {
         : score(s), flag(f) {}
 };
 
-extern std::unordered_map<uint64_t, TTEntry> searchEvalCache;
-extern std::deque<uint64_t> searchInsertionOrder;
+// Direct-mapped quiescence cache slot. Carries the bound flag so a cached
+// q-search result is reused only when valid for the probing [alpha, beta]
+// window (same gating the main TT uses via use_tt_entry). Replaces the prior
+// raw-score EvalEntry, which handed back fail-high/fail-low bounds as if exact.
+struct QTTEntry {
+    uint64_t key = 0;
+    int score = 0;
+    TTFlag flag = TTFlag::EXACT;
+    bool valid = false;
+};
+
+extern std::vector<QTTEntry> quiesceEvalCache;
+
+extern std::vector<TTEntry> searchEvalCache;
 
 //extern std::vector<TTEntry> searchEvalCache;
 
@@ -415,9 +428,14 @@ inline void addToCache(uint64_t key,int max_size, int value) {
 		- value: The value to be associated with the given key
 	*/
 	
-	// Add the key-value pair to the cache as well as the key to the move order
+	// Add the key-value pair to the cache as well as the key to the move order.
+	// Only record insertion order for genuinely new keys — pushing on every update
+	// lets a hot key accumulate stale deque copies and be evicted from the map
+	// while a fresher copy is still live
+	bool isNewEntry = (evalCache.find(key) == evalCache.end());
     evalCache[key] = value;
-	insertionOrder.push_back(key);
+	if (isNewEntry)
+		insertionOrder.push_back(key);
 
     if (static_cast<int>(evalCache.size()) > max_size && !insertionOrder.empty()) {
         uint64_t oldestKey = insertionOrder.front();
@@ -612,29 +630,49 @@ inline void addToMoveGenCache(uint64_t key, std::vector<Move> reorderedMoves, ui
 } */
 
 
-inline int accessQCache(uint64_t key, uint64_t castling_rights, int ep_square) {
-	
+inline bool probeQCache(uint64_t key, uint64_t castling_rights, int ep_square, int alpha, int beta, int& outScore) {
+
+	/*
+		Probe the quiescence cache, returning a stored score only when its bound
+		flag is valid for the current window: EXACT is always usable, a
+		LOWERBOUND on a beta cutoff (score >= beta), an UPPERBOUND on an alpha
+		cutoff (score <= alpha). This prevents reusing a fail-high/fail-low value
+		as if it were exact in an incompatible window.
+	*/
+
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 	size_t idx = updatedKey & CACHE_MASK;
-    EvalEntry &entry = quiesceEvalCache[idx];
+    QTTEntry &entry = quiesceEvalCache[idx];
 
-    if (entry.valid && entry.key == updatedKey) {
-        return entry.value;  // Cache hit
-    }
-    return 0;  // Cache miss (or default value)
+	if (!entry.valid || entry.key != updatedKey)
+		return false;
+
+	switch (entry.flag) {
+		case TTFlag::EXACT:
+			outScore = entry.score;
+			return true;
+		case TTFlag::LOWERBOUND:
+			if (entry.score >= beta) { outScore = entry.score; return true; }
+			break;
+		case TTFlag::UPPERBOUND:
+			if (entry.score <= alpha) { outScore = entry.score; return true; }
+			break;
+	}
+	return false;
 }
 
-inline void addToQCache(uint64_t key,int max_size, int value, uint64_t castling_rights, int ep_square) {
-	
-    if (value >= 9000000 || value <= -9000000 || value == 0)
+inline void addToQCache(uint64_t key, int score, TTFlag flag, uint64_t castling_rights, int ep_square) {
+
+	// Skip mate scores — stored without ply adjustment, as the main TT does
+    if (score >= 9000000 || score <= -9000000)
 		return;
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 	size_t idx = updatedKey & CACHE_MASK;
-    EvalEntry& entry = quiesceEvalCache[idx];
+    QTTEntry& entry = quiesceEvalCache[idx];
     entry.key = updatedKey;
-    entry.value = value;
+    entry.score = score;
+    entry.flag = flag;
     entry.valid = true;
-
 }
 
 
@@ -679,12 +717,22 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
 
 inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-    auto it = searchEvalCache.find(updatedKey);
-    if (it != searchEvalCache.end()) {
-        // Return a copy of the stored TTEntry wrapped in std::optional
-        return &it->second;
+
+    if (Config::TT_WAYS <= 1) {
+        size_t idx = updatedKey & TT_CACHE_MASK;
+        TTEntry& entry = searchEvalCache[idx];
+        if (entry.valid && entry.key == updatedKey)
+            return &entry;
+        return nullptr;
     }
-    // Return an empty optional if not found
+
+    // N-way set-associative: the index selects a bucket of TT_WAYS contiguous entries.
+    size_t base = (updatedKey & (TT_CACHE_SIZE / Config::TT_WAYS - 1)) * Config::TT_WAYS;
+    for (int i = 0; i < Config::TT_WAYS; ++i) {
+        TTEntry& entry = searchEvalCache[base + i];
+        if (entry.valid && entry.key == updatedKey)
+            return &entry;
+    }
     return nullptr;
 }
 
@@ -695,36 +743,48 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
 		return;
 
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-    auto it = searchEvalCache.find(updatedKey);
-    if (it != searchEvalCache.end()) {
-        // Entry exists, compare depths
-        if (depth_used < it->second.depth) {
-            // Existing entry is deeper, don't replace
+
+    if (Config::TT_WAYS <= 1) {
+        size_t idx = updatedKey & TT_CACHE_MASK;
+        TTEntry& entry = searchEvalCache[idx];
+
+        // Take the slot on a new/colliding key, or replace a same-position entry only
+        // when the new search is equal-or-deeper (depth-preferred). num_plies is unused now.
+        if ((updatedKey != entry.key) || (entry.depth <= depth_used)) {
+            entry.key = updatedKey;
+            entry.score = score;
+            entry.depth = depth_used;
+            entry.flag = flag;
+            entry.alpha = alpha_orig;
+            entry.beta = beta_orig;
+            entry.valid = true;
+        }
+        return;
+    }
+
+    // N-way set-associative replacement: prefer an empty slot, then a same-position slot if the new
+    // search is equal-or-deeper (deeper existing entries are kept), otherwise evict the shallowest
+    // entry in the bucket so expensive deep entries survive collisions.
+    size_t base = (updatedKey & (TT_CACHE_SIZE / Config::TT_WAYS - 1)) * Config::TT_WAYS;
+    TTEntry* victim = nullptr;
+    for (int i = 0; i < Config::TT_WAYS; ++i) {
+        TTEntry& e = searchEvalCache[base + i];
+        if (!e.valid) { victim = &e; break; }
+        if (e.key == updatedKey) {
+            if (e.depth <= depth_used) { victim = &e; break; }
             return;
         }
+        if (victim == nullptr || e.depth < victim->depth)
+            victim = &e;
     }
 
-	int max_size;
-    if (num_plies < 30) {
-        max_size = 8000000;
-    } else if (num_plies < 50) {
-        max_size = 16000000;
-    } else if (num_plies < 75) {
-        max_size = 32000000;
-    } else {
-        max_size = 40000000;
-    }
-
-    // Store or replace
-    searchEvalCache[updatedKey] = TTEntry(score, depth_used, flag, alpha_orig, beta_orig);
-    searchInsertionOrder.push_back(updatedKey);
-
-    // Manage size
-    if (static_cast<int>(searchEvalCache.size()) > max_size && !searchInsertionOrder.empty()) {
-        uint64_t oldestKey = searchInsertionOrder.front();
-        searchInsertionOrder.pop_front();
-        searchEvalCache.erase(oldestKey);
-    }
+    victim->key = updatedKey;
+    victim->score = score;
+    victim->depth = depth_used;
+    victim->flag = flag;
+    victim->alpha = alpha_orig;
+    victim->beta = beta_orig;
+    victim->valid = true;
 }
 
 
@@ -737,11 +797,11 @@ inline int printSearchEvalCacheStats() {
 		The number of entries in the cache
 	*/
 	
-    // Get the number of entries in the map
+    // Direct-mapped array: number of slots (capacity), like the Q / move-gen caches
     int num_entries = searchEvalCache.size();
 
-    // Estimate the memory usage in bytes: each entry is a pair of (key, value)
-    int size_in_bytes = num_entries * (sizeof(int64_t) +  4 * sizeof(int) + sizeof(uint8_t));
+    // Estimate the memory usage in bytes
+    size_t size_in_bytes = (size_t)num_entries * sizeof(TTEntry);
 
     // Print the results
     std::cout << "TT CACHE: "<< std::endl;
@@ -755,13 +815,18 @@ inline int printSearchEvalCacheStats() {
 
 inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, uint64_t ep_square, Move move, std::vector<Move> moves, std::vector<BoardState>& state_history){
     uint64_t updatedKey = make_move_cache_key(zobrist, castling, ep_square);
-    MoveEntry& moveEntry = accessMutableMoveGenCache(updatedKey, castling, ep_square);
+    // Read the slot directly: accessMutableMoveGenCache would stamp the key first,
+    // making the miss below undetectable and silently discarding the move list
+    size_t idx = updatedKey & CACHE_MASK;
+    MoveEntry& moveEntry = moveGenCache[idx];
 
-    if (moveEntry.key != updatedKey){
+    if (!moveEntry.valid || moveEntry.key != updatedKey){
         /* auto it = std::find(moves.begin(), moves.end(), move);
         if (it != moves.end() && it != moves.begin()) {
             std::iter_swap(it, moves.begin());
         } */
+        moveEntry.key = updatedKey;
+        moveEntry.valid = true;
         promoteMoveToFront(moves, move);
 
         /* int num_plies = static_cast<int>(state_history.size());

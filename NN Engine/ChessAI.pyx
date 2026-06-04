@@ -28,8 +28,22 @@ import multiprocessing
 import time
 import itertools
 from typing import Iterator
-import tensorflow as tf
-from tensorflow.keras.models import Model
+# TensorFlow / keras are LEGACY (the old NN engine): the C++ search never uses the models, and
+# init_session/load_model are already disabled. Importing TF slows every startup, so it is OFF by
+# default — set CHESS_ENABLE_TF=1 to restore the old path. tf/Model are not referenced anywhere else
+# in this module, so the stubs below are pure safety; callers may pass None for the model arguments.
+import os as _legacy_os
+if _legacy_os.environ.get("CHESS_ENABLE_TF") == "1":
+    import tensorflow as tf
+    from tensorflow.keras.models import Model
+else:
+    tf = None
+    Model = object
+
+# Opening book is ON by default (byte-identical to the historical behavior). Self-play sets
+# USE_OPENING_BOOK=0 so the engines THINK from a seeded opening instead of marching the shared book.
+_USE_OPENING_BOOK = _legacy_os.environ.get("USE_OPENING_BOOK", "1") == "1"
+
 from operator import itemgetter
 
 # Import data structures from the c++ standard library
@@ -297,8 +311,9 @@ cdef class ChessAI:
         cdef int a, b, c, d,promo,val
         # cdef int x,y,i,j
         cdef object move
-        # If less than 30 plies have been played, check the opening book
-        if (len(self.pgnBoard.move_stack) < 30):
+        # If less than 30 plies have been played, check the opening book (unless disabled via
+        # USE_OPENING_BOOK=0, in which case fall straight through to the C++ search).
+        if (_USE_OPENING_BOOK and len(self.pgnBoard.move_stack) < 30):
             t0 = timer()
             result = self.opening_book()
                                       
@@ -375,9 +390,36 @@ cdef class ChessAI:
                 return chess.Move.from_uci(x+y+i+j+promotion_char)
         else:
             return None
-        
-    
-    
+
+
+    # Raw static evaluation of an arbitrary board, exposing placement_and_piece_eval
+    # directly (no search, no quiescence). The ABSOLUTE convention is preserved:
+    # positive favours Black; the search flips this once via Config::side_to_play,
+    # which is deliberately NOT replicated here so the value is side-to-move agnostic
+    # and the caller can normalize. Mirrors the call in eval_func.pyx. Relies on the
+    # attack tables initialized by the constructor, so call on a constructed ChessAI.
+    def ev(self, object board):
+
+        cdef uint64_t pawns = board.pawns
+        cdef uint64_t knights = board.knights
+        cdef uint64_t bishops = board.bishops
+        cdef uint64_t rooks = board.rooks
+        cdef uint64_t queens = board.queens
+        cdef uint64_t kings = board.kings
+        cdef uint64_t occupied_white = board.occupied_co[True]
+        cdef uint64_t occupied_black = board.occupied_co[False]
+        cdef uint64_t occupied = board.occupied
+        cdef int moveNum = board.ply()
+
+        # placement_and_piece_eval assumes a non-terminal position; mate is scored
+        # outside it in the engine (get_board_evaluation), so guard it the same way.
+        if board.is_checkmate():
+            return (9999999 - moveNum) if board.turn else (-9999999 + moveNum)
+
+        return placement_and_piece_eval(moveNum, board.turn, pawns, knights, bishops,
+                                        rooks, queens, kings, occupied_white, occupied_black, occupied)
+
+
     # Function for opening book moves
     @cython.ccall
     @cython.exceptval(check=False)

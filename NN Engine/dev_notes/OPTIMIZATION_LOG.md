@@ -33,6 +33,34 @@ always `34 34 33 33`). **Validated:** WAC `MAX_DEPTH=10` nodes byte-identical to
 changed ops are root-only, the deep `dummy_entry` is now *fewer* allocs); replay loop 0 `[INV]`/`[BADMOVE]`/
 aborts (was 12/12). `search_engine.{h,cpp}` only. Full writeup: `CRASH_INVESTIGATION_PLAYBOOK.md`.
 
+## SPEED micro-opt sequence (2026-06-04) — on the clean grouped-scores base
+Measured one-at-a-time, main.py forced-depth best-of-3 + WAC node-identity gate (254,973,405).
+| Item | What | Result | Verdict |
+| --- | --- | --- | --- |
+| S1 | `-fno-semantic-interposition` (setupAI.py; .so internal calls skip the PLT) | byte-identical (nodes+cache stats); **~2%** (best 14.06→13.70s) | **kept, commit `5acfb7f`** |
+| S2 | strip `-fwrapv` (add `-fno-wrapv`) | byte-identical, flat-to-slightly-worse | **reverted** (no gain + latent UB risk) |
+| S3 | drop dead `use_tt_entry1` + TTEntry `alpha`/`beta` fields | analysis only: TT is **DRAM-bound** (512 MB ≫ L3, zobrist-random) so entry size barely matters, AND 24 B straddles 64 B cache lines → likely *neutral-to-worse* | **skipped** |
+| S4 | move-list scratch buffers (kill per-node malloc in `generateLegalMovesReordered`) | ~440k malloc/free over a 5M-node search ≈ **~0.3%** | **skipped** |
+| S5 | null-move progressive reduction `NULLMOVE_PROGRESSIVE` (env, default-off) | **depth-dependent**: −18% nodes @ genuine d12, **+4.7% @ d10** (check-extension inflation makes `depth_limit>=12` fire on shallow forcing lines). Refined to gate on `depth_limit - g_check_extensions ≥ 12/14`. | **parked** — overnight A/B → `NULLMOVE_OVERNIGHT.md` |
+
+## STRATEGIC — depth is EBF-bound, not nps-bound (2026-06-04, the pivot)
+STANDARD self-play (5 games): **~d13 @ 21s/move**, ~10.2M nodes/move → **effective branching factor ≈ 3.4**
+(`10M^(1/13)`). 2010–2018 traditional engines hit ~d18–20 at EBF ~2.2–2.5. Depth ∝ log(nodes)/log(EBF), so
+**EBF dominates; raw nps is logarithmic** (10% PGO ≈ +0.07 ply; EBF 3.4→2.5 ≈ +3.5 plies at the *same* node
+budget). ⟹ the lever for ~3000 at the current system level is **search efficiency (move ordering + pruning)
++ eval** (coupled: eval → PV stability → first-move cutoffs → lower EBF), NOT speed micro-opts. **PGO deferred
+to the finisher** (profiles final hot path; cheap to redo). NNUE/SMP = deliberate "easy multipliers", LAST.
+
+Standard-game depth histogram (323 searched moves): mode d12–13, tail to d16–17, rare d20–21; opening ~d12.4,
+midgame ~d14.1. **DIAGNOSTIC DONE → PRUNING-BOUND.** Behavior-neutral `g_fh_total`/`g_fh_first` cutoff
+counters at the 3 main-search cutoff sites + `[search]` stderr line; byte-identical (WAC d10 still
+254,973,405). **Measured `first_move_cutoff = 91.9%`** (10,782,520/11,729,997) — squarely in strong-engine
+range (90–95%) → **move ordering is already good; the EBF gap is PRUNING-bound, not ordering-bound.** ⟹ do
+NOT chase move ordering; the depth lever is **more-aggressive pruning (LMR/null-move/futility) + smarter
+verification** (the engine prunes conservatively for tactical safety — `VERIFY_MARGIN` exists for that; the
+play is "prune harder + verify smarter" without losing deep tactics, validated on STS + self-play). The
+queued null-move depth-adaptive overnight is step 1.
+
 ## 3b failure — root cause analysis
 `storeTTBestMove` created "move-only" TT entries at **near-horizon nodes** (whose score write is gated off by `if (cur_depth < depth_limit - 1)` in `get_score_*`). Those entries — the *bulk of the tree* — never upgraded to real entries, so they **flooded/thrashed the direct-mapped TT** (evicting deep score entries) and **promoted noisy depth-1 moves** to the front → ordering worsened → +40% nodes → time-budget overrun → corrupted deep eval.
 

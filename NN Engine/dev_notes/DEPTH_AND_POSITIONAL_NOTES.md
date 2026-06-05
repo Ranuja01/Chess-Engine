@@ -2,7 +2,18 @@
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** (`MAX_DEPTH=10` searches to depth 10); a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`. The "d10"/depth labels in this file are unchanged.
 
-Captured 2026-06 to revisit later. Not active work; reference for the strategic direction.
+Captured 2026-06. **As of 2026-06-04 this is now the ACTIVE strategic direction** (see the MEASURED note).
+
+## MEASURED (2026-06-04) — no longer theory: our EBF ≈ 3.4
+STANDARD self-play (5 games, 323 searched moves): **mean depth ~13.4 @ 21s/move, ~10.2M nodes/move → EBF ≈
+3.4** (`10M^(1/13)`). Histogram: mode d12–13, tail to d16–17, rare d20–21 (opening ~d12.4, midgame ~d14.1).
+So the "EBF dominates" point below is **confirmed for us**: at EBF 3.4 we get d13 in ~10M nodes; reaching d20
+in the *same* node budget needs EBF ~2.2 — a ~7-ply gap that **no raw-speed win closes** (10% PGO ≈ +0.07
+ply; EBF 3.4→2.5 ≈ +3.5 plies). ⟹ the lever for ~3000 at the current system level is **EBF (move ordering +
+pruning) + eval** (eval feeds ordering → cutoffs → lower EBF); PGO is the finisher; NNUE/SMP the deliberate
+last-step multipliers. **DIAGNOSTIC IN FLIGHT** to call ordering-vs-pruning: behavior-neutral `g_fh_total`/
+`g_fh_first` first-move-cutoff counters + a `[search]` stderr line. **Fork: <~85% first-move-cutoff =
+ORDERING-bound; ~90%+ = PRUNING-bound.** Details in `HANDOFF.md` / `OPTIMIZATION_LOG.md`.
 
 ## Why Stockfish reaches depth ~30 and we reach ~12–20 (both C++)
 

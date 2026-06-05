@@ -221,6 +221,7 @@ namespace Config
     inline bool ENABLE_FUTILITY = true; // futility pruning (inside the LMR block)
     inline bool ENABLE_RAZORING = true; // razoring (alpha_beta root loop)
     inline bool ENABLE_NULLMOVE = true; // null-move pruning
+    inline bool NULLMOVE_PROGRESSIVE = false; // depth-scaled null-move reduction (-2 at d>=12, -3 at d>=14); off = flat -1
     inline bool ENABLE_QDELTA = true;   // delta pruning in quiescence
 
     inline bool LMR_PROFILE = false; // env-gated LMR-miss profiler (diagnostic; off = byte-identical)

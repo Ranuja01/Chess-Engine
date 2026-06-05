@@ -383,6 +383,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_FUTILITY = env_flag("ENABLE_FUTILITY", true);
         Config::ENABLE_RAZORING = env_flag("ENABLE_RAZORING", true);
         Config::ENABLE_NULLMOVE = env_flag("ENABLE_NULLMOVE", true);
+        Config::NULLMOVE_PROGRESSIVE = env_flag("NULLMOVE_PROGRESSIVE", Config::NULLMOVE_PROGRESSIVE);
         Config::ENABLE_QDELTA = env_flag("ENABLE_QDELTA", true);
         Config::LMR_PROFILE = env_flag("LMR_PROFILE", false);
         Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", false);
@@ -451,6 +452,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " FUTILITY=" << Config::ENABLE_FUTILITY
                   << " RAZORING=" << Config::ENABLE_RAZORING
                   << " NULLMOVE=" << Config::ENABLE_NULLMOVE
+                  << " NULLMOVE_PROGRESSIVE=" << Config::NULLMOVE_PROGRESSIVE
                   << " QDELTA=" << Config::ENABLE_QDELTA
                   << " LMR_PROFILE=" << Config::LMR_PROFILE
                   << " PROTECT_KILLERS=" << Config::PROTECT_KILLERS
@@ -1992,16 +1994,17 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
 
             if (depth_limit >= 10)
-            {
                 reduced_depth -= 1;
-            }
-            else if (depth_limit >= 12)
+            if (Config::NULLMOVE_PROGRESSIVE)
             {
-                reduced_depth -= 2;
-            }
-            else if (depth_limit >= 14)
-            {
-                reduced_depth -= 3;
+                // Gate on the genuine iteration depth, not the check-extension-inflated depth_limit, so the
+                // extra reduction only fires when the search is really at depth >=12 (not on shallow lines
+                // that a check extension pushed there). g_check_extensions = active extensions on this path.
+                int base_depth = depth_limit - g_check_extensions;
+                if (base_depth >= 12)
+                    reduced_depth -= 1;
+                if (base_depth >= 14)
+                    reduced_depth -= 1;
             }
 
             /* if ((reduced_depth <= cur_depth + 1) && relevant_pin_exists(state_history, false)){
@@ -2362,16 +2365,16 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
 
         if (depth_limit >= 10)
-        {
             reduced_depth -= 1;
-        }
-        else if (depth_limit >= 12)
+        if (Config::NULLMOVE_PROGRESSIVE)
         {
-            reduced_depth -= 2;
-        }
-        else if (depth_limit >= 14)
-        {
-            reduced_depth -= 3;
+            // Gate on the genuine iteration depth, not the check-extension-inflated depth_limit (see the
+            // minimizer block): only fire the extra reduction when the search is really at depth >=12.
+            int base_depth = depth_limit - g_check_extensions;
+            if (base_depth >= 12)
+                reduced_depth -= 1;
+            if (base_depth >= 14)
+                reduced_depth -= 1;
         }
 
         /* if ((reduced_depth <= cur_depth + 1) && relevant_pin_exists(state_history, false)){

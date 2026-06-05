@@ -138,6 +138,11 @@ struct CheckExtensionGuard
 static long g_asp_windows = 0;
 static long g_asp_fails = 0;
 static long g_asp_fallbacks = 0;
+// Move-ordering quality (observability only; never affects search). Of all beta cutoffs in the main
+// alternating-search loops, the fraction landing on the first-ordered move (i==0): strong engines ~90-95%.
+// Cumulative across a run, like the aspiration counters above.
+static long g_fh_total = 0;
+static long g_fh_first = 0;
 
 // ===================== LMR-miss profiler (diagnostic) =====================
 // Localizes WHERE late-move reductions drop winning moves. Side-effect-free:
@@ -849,6 +854,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cerr << "[aspiration] windows=" << g_asp_windows
                   << " fails=" << g_asp_fails
                   << " fallbacks=" << g_asp_fallbacks << std::endl;
+
+    // Move-ordering quality (cumulative first-move-cutoff rate) + this-move effective branching factor.
+    if (g_fh_total > 0)
+        std::cerr << "[search] first_move_cutoff=" << (100.0 * g_fh_first / g_fh_total) << "% ("
+                  << g_fh_first << "/" << g_fh_total << ")  ebf="
+                  << ((depth_limit > 0 && num_iterations > 0) ? std::pow((double)num_iterations, 1.0 / depth_limit) : 0.0)
+                  << " (nodes=" << num_iterations << " d=" << depth_limit << ")" << std::endl;
 
     int x1 = (move.from_square & 7) + 1;
     int y1 = (move.from_square >> 3) + 1;
@@ -1923,6 +1935,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             // Check for a beta cutoff
             if (beta <= alpha)
             {
+                ++g_fh_total;
+                if (i == 0)
+                    ++g_fh_first;
                 // std::cout <<score << std::endl;
                 out_entry.second_scores = cur_second_level_preliminary_scores;
 
@@ -2169,6 +2184,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             // Check for a beta cutoff
             if (beta <= alpha)
             {
+                ++g_fh_total;
+                if (i == 0)
+                    ++g_fh_first;
                 if (i != 0)
                     updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 
@@ -2562,6 +2580,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         // Check for a beta cutoff
         if (beta <= alpha)
         {
+            ++g_fh_total;
+            if (i == 0)
+                ++g_fh_first;
             if (i != 0)
                 updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 

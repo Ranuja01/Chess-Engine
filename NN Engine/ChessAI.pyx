@@ -133,7 +133,32 @@ cdef extern from "cpp_bitboard.h":
     int placement_and_piece_midgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_endgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_eval(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
-    
+
+    # Diagnostic-only per-term static-eval attribution (see EvalBreakdown in cpp_bitboard.h).
+    cdef struct EvalBreakdown:
+        int total
+        int pieces
+        int material
+        int capture_gains
+        int passed_pawn_support
+        int latent_threat
+        int central
+        int imbalance_white
+        int imbalance_black
+        int pair_bonus
+        int piece_value_boost
+        int phase_score
+        int advanced_endgame_total
+        bint is_endgame
+        bint advanced_endgame_fired
+        int pt_pawns
+        int pt_knights
+        int pt_bishops
+        int pt_rooks
+        int pt_queens
+        int pt_kings
+    EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
+
     void printLayers()
     
     bint is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
@@ -418,6 +443,54 @@ cdef class ChessAI:
 
         return placement_and_piece_eval(moveNum, board.turn, pawns, knights, bishops,
                                         rooks, queens, kings, occupied_white, occupied_black, occupied)
+
+
+    # Diagnostic: per-term attribution of the static eval for one position. Returns a plain dict in the
+    # engine's absolute (Black-positive) milli-pawn units; the caller normalizes to White-POV (see
+    # diagnostics/eval_breakdown.py). Wraps the REAL placement_and_piece_eval via the capture flag, so the
+    # numbers are exactly what search uses.
+    def ev_breakdown(self, object board):
+
+        cdef uint64_t pawns = board.pawns
+        cdef uint64_t knights = board.knights
+        cdef uint64_t bishops = board.bishops
+        cdef uint64_t rooks = board.rooks
+        cdef uint64_t queens = board.queens
+        cdef uint64_t kings = board.kings
+        cdef uint64_t occupied_white = board.occupied_co[True]
+        cdef uint64_t occupied_black = board.occupied_co[False]
+        cdef uint64_t occupied = board.occupied
+        cdef int moveNum = board.ply()
+
+        if board.is_checkmate():
+            return {"checkmate": True,
+                    "total": (9999999 - moveNum) if board.turn else (-9999999 + moveNum)}
+
+        cdef EvalBreakdown b = eval_breakdown_capture(moveNum, board.turn, pawns, knights, bishops,
+                                                      rooks, queens, kings, occupied_white, occupied_black, occupied)
+        return {
+            "total": b.total,
+            "pieces": b.pieces,
+            "material": b.material,
+            "capture_gains": b.capture_gains,
+            "passed_pawn_support": b.passed_pawn_support,
+            "latent_threat": b.latent_threat,
+            "central": b.central,
+            "imbalance_white": b.imbalance_white,
+            "imbalance_black": b.imbalance_black,
+            "pair_bonus": b.pair_bonus,
+            "piece_value_boost": b.piece_value_boost,
+            "phase_score": b.phase_score,
+            "advanced_endgame_total": b.advanced_endgame_total,
+            "is_endgame": b.is_endgame,
+            "advanced_endgame_fired": b.advanced_endgame_fired,
+            "pt_pawns": b.pt_pawns,
+            "pt_knights": b.pt_knights,
+            "pt_bishops": b.pt_bishops,
+            "pt_rooks": b.pt_rooks,
+            "pt_queens": b.pt_queens,
+            "pt_kings": b.pt_kings,
+        }
 
 
     # Function for opening book moves

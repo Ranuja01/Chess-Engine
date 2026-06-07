@@ -291,6 +291,45 @@ inline void adjust_pressure_and_support_tables_for_pins(uint64_t bb);
 inline int advanced_endgame_eval(int total, bool turn);
 inline void update_global_central_scores(int base_increment, uint64_t square_mask);
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+
+/*
+	Diagnostic-only static-eval term attribution. When g_capture_eval_breakdown is set,
+	placement_and_piece_eval records each term's contribution to `total` (captured as read-only deltas of
+	`total` at term boundaries, so search behaviour is byte-identical) into g_eval_breakdown. Values are in the
+	engine's absolute (Black-positive) milli-pawn units, matching `total`. `pieces` lumps the six per-piece
+	placement loops; `material` is informational (blackPieceVal - whitePieceVal), NOT part of the additive sum.
+	latent_threat/central/imbalance_* are midgame-only (0 in the endgame path). When advanced_endgame_fired,
+	the additive terms reflect the pre-replace state and total == advanced_endgame_total + pair_bonus +
+	piece_value_boost.
+*/
+struct EvalBreakdown {
+	int total;
+	int pieces;
+	int material;
+	int capture_gains;
+	int passed_pawn_support;
+	int latent_threat;
+	int central;
+	int imbalance_white;
+	int imbalance_black;
+	int pair_bonus;
+	int piece_value_boost;
+	int phase_score;
+	int advanced_endgame_total;
+	bool is_endgame;
+	bool advanced_endgame_fired;
+	// Per-piece-type contribution to `pieces` (midgame path) for color-mirror localization.
+	int pt_pawns;
+	int pt_knights;
+	int pt_bishops;
+	int pt_rooks;
+	int pt_queens;
+	int pt_kings;
+};
+extern EvalBreakdown g_eval_breakdown;
+extern bool g_capture_eval_breakdown;
+EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+
 inline int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, bool turn);
 
 inline uint8_t lowest_value_attacker(uint64_t attackers, bool attackedColour);

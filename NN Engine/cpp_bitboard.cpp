@@ -244,6 +244,10 @@ std::array<int, 64> num_supporters = {0};
 
 std::array<int, 64> square_values = {0};
 
+// Diagnostic-only static-eval term attribution (see EvalBreakdown in cpp_bitboard.h). Off during search.
+EvalBreakdown g_eval_breakdown = {};
+bool g_capture_eval_breakdown = false;
+
 constexpr std::array<std::array<int, 7>, 7> support_weights = {{
     //             None  Pawn  Knight  Bishop  Rook  Queen  King
     /* None   */ {  0,    0,      0,      0,     0,     0,     0 },
@@ -530,7 +534,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		int rank = y;
 		//total -= ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));
 		pawn_rank_bonus = -(((default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement < 100)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 100)));
-		total += std::min(pawn_rank_bonus,275);
+		total += std::max(pawn_rank_bonus,-275);
 		
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
@@ -642,8 +646,8 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 				
 		uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H & occupied_black & pawns;
 		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_black & pawns;
-		uint64_t ne  = (BB_SQUARES[square] << 9) & ~BB_FILE_H & occupied_black & pawns;
-		uint64_t nw = (BB_SQUARES[square] << 7) & ~BB_FILE_A & occupied_black & pawns;	
+		uint64_t ne  = (BB_SQUARES[square] << 9) & ~BB_FILE_A & occupied_black & pawns;
+		uint64_t nw = (BB_SQUARES[square] << 7) & ~BB_FILE_H & occupied_black & pawns;
 		
 		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
 		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);
@@ -1130,7 +1134,7 @@ inline int get_latent_bishop_activity_score(uint64_t originalAttackMask, uint8_t
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
 			blackDefensiveScore += attackingLayer[0][x][y] >> 1;	
-			update_global_central_scores(attackingLayer[0][x][y], square_mask);
+			update_global_central_scores(attackingLayer[1][x][y], square_mask);
 		}
 		
 		int mobility_increment = 0;
@@ -1171,7 +1175,16 @@ inline bool is_white_square(int square) {
     return (file + rank) % 2 == 1;
 }
 
-inline uint64_t bishop_floodfill_fast(uint8_t start_sq, uint64_t occupied, uint64_t our_pawns, uint64_t our_pieces, std::array<int, 64>& depth_map) {
+// Pick the next square so the scan order is colour-mirror-symmetric. White scans low square first;
+// Black scans the vertically-mirrored order (byteswap flips ranks but preserves file order within a
+// rank, ^56 maps the chosen bit back to its real square). This keeps the bishop reach/depth scan an
+// exact mirror between colours, so eval(P) == -eval(mirror(P)) holds for the colour-complex term.
+inline uint8_t mirror_aware_lsb(uint64_t bb, bool colour) {
+    return colour ? static_cast<uint8_t>(__builtin_ctzll(bb))
+                  : static_cast<uint8_t>(__builtin_ctzll(__builtin_bswap64(bb)) ^ 56);
+}
+
+inline uint64_t bishop_floodfill_fast(uint8_t start_sq, uint64_t occupied, uint64_t our_pawns, uint64_t our_pieces, std::array<int, 64>& depth_map, bool colour) {
     uint64_t visited = 0ULL;
     uint64_t queue = BB_SQUARES[start_sq];
     uint64_t result = 0ULL;
@@ -1181,8 +1194,8 @@ inline uint64_t bishop_floodfill_fast(uint8_t start_sq, uint64_t occupied, uint6
 	depth_map[start_sq] = 0;
 
     while (queue) {
-        uint8_t sq = __builtin_ctzll(queue);
-        queue &= queue - 1; // pop
+        uint8_t sq = mirror_aware_lsb(queue, colour);
+        queue &= ~BB_SQUARES[sq]; // pop
 
         //if (visited & (1ULL << sq)) continue;
         visited |= BB_SQUARES[sq];
@@ -1293,14 +1306,14 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 	base_zone |= attack_mask | BB_SQUARES[square];
 
 	std::array<int, 64> depth_map;
-	uint64_t reachable = bishop_floodfill_fast(square, occupied, pawns & ourPieces, ourPieces, depth_map);
+	uint64_t reachable = bishop_floodfill_fast(square, occupied, pawns & ourPieces, ourPieces, depth_map, colour);
 	uint64_t bb = base_zone & reachable;
-	
+
 	//std::cout << bb << std::endl;
 	//std::cout << reachable << std::endl;
 	while (bb) {
-		// Get the position of the least significant set bit of the mask
-		uint8_t r = __builtin_ctzll(bb);		
+		// Scan in colour-mirror order so the first-claim attribution below is colour-symmetric
+		uint8_t r = mirror_aware_lsb(bb, colour);
 		
 		//uint64_t square_mask = BB_SQUARES[r];	
 
@@ -1372,10 +1385,10 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 						}
 					}
 				}					
-				forward_attacks &= forward_attacks - 1;   	
-			}			
-		}		
-		bb &= bb - 1;   	
+				forward_attacks &= forward_attacks - 1;
+			}
+		}
+		bb &= ~BB_SQUARES[r];
 	}
 	/* std::cout << same_half_count << std::endl;
 	std::cout << other_half_count << std::endl;
@@ -1516,8 +1529,8 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			y = r >> 3;
 			x = r & 7;
 			
-			total += attackingLayer[0][x][y] >> 2;
-							
+			total -= attackingLayer[0][x][y] >> 2;
+
 			// If a black piece exists behind the blockers, subtract a reduced piece value
 			uint8_t xRayPieceType = pieceTypeLookUp[r]; 
 			if (xRayPieceType != 0){
@@ -1713,7 +1726,7 @@ inline int get_latent_rook_activity_score(uint8_t square){
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
 			blackDefensiveScore += attackingLayer[0][x][y] >> 1;	
-			update_global_central_scores((attackingLayer[0][x][y]), square_mask);
+			update_global_central_scores((attackingLayer[1][x][y]), square_mask);
 		}
 		
 		int mobility_increment = 0;
@@ -1900,7 +1913,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 			whiteOffensiveScore += attackingLayer[0][x][y];
 			whiteDefensiveScore += attackingLayer[1][x][y];
 
-			update_global_central_scores(attackingLayer[0][x][y], square_mask);
+			update_global_central_scores(-attackingLayer[0][x][y], square_mask);
 			
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
@@ -1978,14 +1991,14 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 			y = r >> 3;
 			x = r & 7;
 			
-			// Subtract a reduced score for square attacks behind a piece				
-			total += attackingLayer[0][x][y] >> 3;
-							
+			// Subtract a reduced score for square attacks behind a piece
+			total -= attackingLayer[0][x][y] >> 3;
+
 			// If a black piece exists behind the blockers, subtract a reduced piece value
-			uint8_t xRayPieceType = pieceTypeLookUp[r]; 
-			if (xRayPieceType != 0){					
-				total -= values[xRayPieceType] >> 7;					
-			}				
+			uint8_t xRayPieceType = pieceTypeLookUp[r];
+			if (xRayPieceType != 0){
+				total -= values[xRayPieceType] >> 7;
+			}
 			bb &= bb - 1;
 		}
 		total -= std::min(mobility_bonus, 225);
@@ -2342,13 +2355,13 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			x = r & 7;
 			
 			// Subtract a reduced score for square attacks behind a piece			
-			total += attackingLayer[0][x][y] >> 3;			
-			
+			total -= attackingLayer[0][x][y] >> 3;
+
 			// If a black piece exists behind the blockers, subtract a reduced piece value
-			uint8_t xRayPieceType = pieceTypeLookUp[r]; 
-			if (xRayPieceType != 0){				
-				total -= values[xRayPieceType] >> 8;				
-			}				
+			uint8_t xRayPieceType = pieceTypeLookUp[r];
+			if (xRayPieceType != 0){
+				total -= values[xRayPieceType] >> 8;
+			}
 			bb &= bb - 1;
 		}
 		
@@ -2614,8 +2627,8 @@ inline int evaluate_kings_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					total += (baseIncrement << 1) + 75;
 				}else {
 					blackDefensiveScore += baseIncrement;
-					total += baseIncrement >> 2;
-				}				
+					total -= baseIncrement >> 2;
+				}
 			} else {
 				if (isShielding) {
 					blackDefensiveScore += baseIncrement;
@@ -4714,14 +4727,19 @@ std::cout << "num_attackers_in_black_zone: " << num_attackers_in_black_zone << s
 std::cout << "num_defenders_in_black_zone: " << num_defenders_in_black_zone << std::endl;
 std::cout << "white_increment: " << white_increment << std::endl; */
 
+	// Snapshot both increments first so the two king-file bonuses are order-independent
+	// (otherwise the first one to fire changes the other's condition, breaking color symmetry).
+	int white_increment_pre = white_increment;
+	int black_increment_pre = black_increment;
+
 	if((black_king_square & 7) == 3 || (black_king_square & 7) == 4){
-		if (white_increment <= 0){
+		if (white_increment_pre <= 0){
 			black_increment += 75;
 		}
 	}
 
 	if((white_king_square & 7) == 3 || (white_king_square & 7) == 4){
-		if (black_increment <= 0){
+		if (black_increment_pre <= 0){
 			white_increment += 75;
 		}
 	}
@@ -5201,9 +5219,19 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		A position evaluation
 	*/
 	
-	// Define the total 
-	int total = 0;	
-	
+	// Define the total
+	int total = 0;
+
+	// Diagnostic-only term-attribution accumulators. These only ever READ `total` and write to locals/globals;
+	// they never feed back into `total`, so the search tree is byte-identical whether capture is on or off.
+	int br_run = 0;
+	int br_pieces = 0, br_capture = 0, br_passed = 0, br_latent = 0, br_central = 0;
+	int br_imbalance_white = 0, br_imbalance_black = 0, br_pairs = 0, br_pv_boost = 0;
+	int br_advanced_total = 0;
+	bool br_advanced_fired = false;
+	// Per-piece-type contribution to `pieces` (midgame path), for color-mirror localization.
+	int br_pt_pawns = 0, br_pt_knights = 0, br_pt_bishops = 0, br_pt_rooks = 0, br_pt_queens = 0, br_pt_kings = 0;
+
 	// Set the masks for each piece and for all white and black pieces globally
 	pawns = pawnsMask;
 	knights = knightsMask;
@@ -5329,6 +5357,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			}
 
 			total += blended_score;
+			br_pt_pawns += blended_score;
 
 			//std::cout << "PAWNS: " << int(r) << " | " << blended_score << std::endl;					
 		}
@@ -5346,6 +5375,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			int result = evaluate_knights_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
+			br_pt_knights += result;
 			//std::cout << "KNIGHTS: " << int(r) << " | " << result << std::endl;
 			
 			// Clear the least significant set bit
@@ -5363,6 +5393,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			int result = evaluate_bishops_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
+			br_pt_bishops += result;
 			//std::cout << "BISHOPS: " << int(r) << " | " << result << std::endl;
 			
 			// Clear the least significant set bit
@@ -5408,6 +5439,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			}
 			//square_values[r] = abs(blended_score);
 			total += blended_score;
+			br_pt_rooks += blended_score;
 			//std::cout << "ROOKS: " << int(r) << " | " << blended_score << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
@@ -5423,6 +5455,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			int result = evaluate_queens_midgame(r, white_passed_pawns, black_passed_pawns);
 			square_values[r] = abs(result);
 			total += result;
+			br_pt_queens += result;
 			//std::cout << "QUEENS: " << int(r) << " | " << result << std::endl;
 
 			/* int blended_score;
@@ -5477,6 +5510,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 			square_values[r] = abs(blended_score);
 			total += blended_score;
+			br_pt_kings += blended_score;
 			//std::cout << "KINGS: " << int(r) << " | " << blended_score << std::endl;
 			/* int result = evaluate_kings_midgame(r);
 			square_values[r] = abs(result);
@@ -5506,23 +5540,28 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			0    
 		);
 		//std::cout << total << std::endl;
+		br_pieces = total; br_run = total;
 		total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		total += get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
+		br_latent = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		
+
 		//std::cout << phase_score << std::endl;
 		if(phase_score < 20){
-			total += std::min((central_score * 3) / 2, 400);
+			total += std::max(std::min((central_score * 3) / 2, 400), -400);
 		} else if (phase_score < 31){
-			total += std::min(central_score, 350);
+			total += std::max(std::min(central_score, 350), -350);
 		} else if (phase_score < 45){
-			total += std::min(central_score / 2, 300);
+			total += std::max(std::min(central_score / 2, 300), -300);
 		} else{
-			total += std::min(central_score / 4, 300);
+			total += std::max(std::min(central_score / 4, 300), -300);
 		}
+		br_central = total - br_run; br_run = total;
 
 		if(total <= -1500){
 			boost_white_for_piece_value_advantage = true;
@@ -5546,12 +5585,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		if (whiteOffensiveScore > blackDefensiveScore){
 			total -= (whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * 3;
 		}
-		
+		br_imbalance_white = total - br_run; br_run = total;
+
 		if (blackOffensiveScore > whiteDefensiveScore){
 			total += (blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * 3;
 		}
-	
-	// Else the game is in endgame phase	
+		br_imbalance_black = total - br_run; br_run = total;
+
+	// Else the game is in endgame phase
 	}else{
 		
 		if (is_practically_drawn(pieceNum))
@@ -5687,10 +5728,13 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			0    
 		);
 		//std::cout << total << std::endl;
+		br_pieces = total; br_run = total;
 		total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
-		//std::cout << " after pp: " << total << std::endl;		
+		br_passed = total - br_run; br_run = total;
+		//std::cout << " after pp: " << total << std::endl;
 
 		if(total <= -1500){
 			boost_white_for_piece_value_advantage = true;
@@ -5699,10 +5743,13 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 
 		// Check if the position is an advanced endgame
-		if (isNearGameEnd){			
+		if (isNearGameEnd){
 			total = advanced_endgame_eval(total, turn);
-		}	
-	}	
+			br_advanced_fired = true;
+			br_advanced_total = total;
+			br_run = total;
+		}
+	}
 	
 	/*
 		In this code section, boost both white and blacks score based on the existence of bishop and knight pairs
@@ -5719,21 +5766,63 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	if (__builtin_popcountll(occupied_black&knights) == 2){
 		total += 200;
 	}
-	//std::cout << " before boost: "<< total << std::endl;	
+	br_pairs = total - br_run; br_run = total;
+	//std::cout << " before boost: "<< total << std::endl;
 	if (blackPieceVal > whitePieceVal){
 		if(boost_black_for_piece_value_advantage){
-			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000);		
+			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000);
 		}
-		
-	}else if (whitePieceVal > blackPieceVal){	
+
+	}else if (whitePieceVal > blackPieceVal){
 		if(boost_white_for_piece_value_advantage){
 			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000);
-		}				
+		}
 	}
-	//std::cout << total << std::endl;	
+	br_pv_boost = total - br_run; br_run = total;
+	//std::cout << total << std::endl;
 	//std::cout << "AAAA: " << approximate_capture_gains1(occupied & ~kings, turn) << " occupied: " << (occupied & ~kings) << " turn: " << turn <<  std::endl;
 	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;
+
+	// Diagnostic-only: publish the per-term attribution (read-only w.r.t. `total`; see EvalBreakdown).
+	if (g_capture_eval_breakdown){
+		g_eval_breakdown.total = total;
+		g_eval_breakdown.pieces = br_pieces;
+		g_eval_breakdown.material = blackPieceVal - whitePieceVal;
+		g_eval_breakdown.capture_gains = br_capture;
+		g_eval_breakdown.passed_pawn_support = br_passed;
+		g_eval_breakdown.latent_threat = br_latent;
+		g_eval_breakdown.central = br_central;
+		g_eval_breakdown.imbalance_white = br_imbalance_white;
+		g_eval_breakdown.imbalance_black = br_imbalance_black;
+		g_eval_breakdown.pair_bonus = br_pairs;
+		g_eval_breakdown.piece_value_boost = br_pv_boost;
+		g_eval_breakdown.phase_score = phase_score;
+		g_eval_breakdown.is_endgame = isEndGame;
+		g_eval_breakdown.advanced_endgame_fired = br_advanced_fired;
+		g_eval_breakdown.advanced_endgame_total = br_advanced_total;
+		g_eval_breakdown.pt_pawns = br_pt_pawns;
+		g_eval_breakdown.pt_knights = br_pt_knights;
+		g_eval_breakdown.pt_bishops = br_pt_bishops;
+		g_eval_breakdown.pt_rooks = br_pt_rooks;
+		g_eval_breakdown.pt_queens = br_pt_queens;
+		g_eval_breakdown.pt_kings = br_pt_kings;
+	}
 	return total;
+}
+
+EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
+
+	/*
+		Diagnostic wrapper: run the REAL static eval with term capture enabled and return the per-term
+		breakdown. The global is zeroed first so the practically-drawn early-return (which skips the publish
+		block) still yields an honest all-zero / total-0 reading. Not reentrant; single-threaded diagnostic use.
+	*/
+	g_eval_breakdown = {};
+	g_capture_eval_breakdown = true;
+	int total = placement_and_piece_eval(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask);
+	g_capture_eval_breakdown = false;
+	g_eval_breakdown.total = total;
+	return g_eval_breakdown;
 }
 
 uint8_t lowest_value_attacker(uint64_t attackers, bool attackedColour){

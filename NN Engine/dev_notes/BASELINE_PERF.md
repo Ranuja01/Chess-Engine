@@ -1,4 +1,30 @@
-# Baseline performance reference — `main.py` single-position search
+# Baseline performance reference
+
+## ⭐ CURRENT control (2026-06-07, post eval color-symmetry fix)
+
+The eval color-symmetry fix (12 non-mirrored items, memory `eval-color-symmetry-fix`) is **behavioral**,
+so it voided the previous byte-identity control. Re-baselined at the shipped defaults
+(`PRESET=LONG_FORMAT MAX_DEPTH=10`, `[toggles]` VERIFY_MARGIN=6000 RR=2 CHECK_EXTENSION=3
+REPETITION_THRESHOLD=2 ASPIRATION_DELTA=500 HONEST_ROOT_TT=1):
+
+| Gate | Pre-fix (shipped) | **NEW control** | Notes |
+| --- | --- | --- | --- |
+| WAC d10 solved | 259/300 | **258/300** | −1 = within aspiration churn (not a regression) |
+| WAC d10 total nodes | 254,973,405 | **263,422,651** | the new **byte-identity control** for search-only changes |
+| STS300 d10 | 48.4% (1451/3000) | **50.1% (1503/3000)** | **+52 pts** — symmetry fix is mildly positional-positive |
+
+Repro:
+```
+PRESET=LONG_FORMAT MAX_DEPTH=10 python diagnostics/tactical_test.py wac.epd <tag>
+awk -F, 'NR>1{n+=$8} END{print n}' diagnostics/results/tactical_results_<tag>.csv   # => 263422651
+MAX_DEPTH=10 PRESET=LONG_FORMAT python diagnostics/sts_test.py sts300.epd <tag>      # => 50.1%
+```
+A future search-only change must reproduce **263,422,651** with its flag OFF (byte-identity gate);
+behavioral changes are judged on WAC-solved (over-correction guard) + STS300 (positional gate) + self-play.
+
+---
+
+# Baseline performance reference — `main.py` single-position search (older, pre-symmetry)
 
 Captured **2026-05-28**, before the cache-bug fixes (Bug 1 / Bug 2). Use this to check for regressions and speedups after engine changes.
 

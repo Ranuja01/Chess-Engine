@@ -272,6 +272,38 @@ static inline void lmr_profile_event(int depth_limit, int cur_depth, int move_nu
         g_lmr.bm_dropped++;
 }
 
+// History-aware LMR adjustment, in plies, SIGNED:
+//   > 0  "reduce-less" — a known-good late quiet (killer/counter, or a real history track record,
+//        tier >= 2 == history >= 4000) is searched closer to (never beyond) full depth.
+//   < 0  "reduce-more" — a never-cut quiet (tier 0 == history exactly 0 == has never produced a beta
+//        cutoff) is pruned harder. This is the EBF-saving half (the Stockfish "history further
+//        reduction"); gated separately by HISTORY_LMR_MORE_CAP (0 = reduce-less only).
+// Coarse categorical signals only (not absolute thresholds), so it is robust to the unbounded/uneven
+// history magnitudes. The caller clamps r to [2, depth_limit] and gates the whole thing on
+// Config::ENABLE_HISTORY_LMR so the off-path stays byte-identical.
+inline int history_lmr_delta(const Move &move, const Move &previousMove, const BoardState &cs, int ply)
+{
+    int tier = lmr_hist_tier(historyHeuristics[cs.turn][move.from_square][move.to_square]);
+
+    int reduce_less = 0;
+    // A killer at this ply, or the counter to the previous move: an empirically cutoff-causing quiet.
+    if (killerMoves[ply][0] == move || killerMoves[ply][1] == move ||
+        counterMoves[previousMove.from_square][previousMove.to_square] == move)
+        reduce_less += 1;
+    // A real history track record (not a one-off).
+    if (tier >= 2)
+        reduce_less += 1;
+
+    if (reduce_less > 0)
+        return std::min(reduce_less, Config::HISTORY_LMR_CAP);
+
+    // No positive signal: a never-cut quiet (history == 0) is reduced more.
+    if (tier == 0)
+        return -Config::HISTORY_LMR_MORE_CAP;
+
+    return 0;
+}
+
 // Dump the cumulative profile to stderr (kept off the captured stdout). Compact;
 // read the LAST position's dump for the whole-suite picture.
 static void lmr_profile_dump()
@@ -388,6 +420,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LMR_PROFILE = env_flag("LMR_PROFILE", false);
         Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", false);
         Config::PROTECT_PV = env_flag("PROTECT_PV", false);
+        // History-aware LMR (default off = byte-identical). CAP = plies removed for good quiets;
+        // MORE_CAP = plies added for never-cut quiets (0 = reduce-less only, the prior behavior).
+        Config::ENABLE_HISTORY_LMR = env_flag("ENABLE_HISTORY_LMR", Config::ENABLE_HISTORY_LMR);
+        Config::HISTORY_LMR_CAP = env_int("HISTORY_LMR_CAP", Config::HISTORY_LMR_CAP);
+        Config::HISTORY_LMR_MORE_CAP = env_int("HISTORY_LMR_MORE_CAP", Config::HISTORY_LMR_MORE_CAP);
         // Fall back to the header defaults (the blitz-validated VERIFY keeper) so the
         // built-in value is the single source of truth; an env var still overrides it
         // (e.g. VERIFY_MARGIN=0 to recover the old search for the d10 control).
@@ -457,6 +494,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " LMR_PROFILE=" << Config::LMR_PROFILE
                   << " PROTECT_KILLERS=" << Config::PROTECT_KILLERS
                   << " PROTECT_PV=" << Config::PROTECT_PV
+                  << " ENABLE_HISTORY_LMR=" << Config::ENABLE_HISTORY_LMR
+                  << " HISTORY_LMR_CAP=" << Config::HISTORY_LMR_CAP
+                  << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " PRESET=" << active_preset
@@ -1329,6 +1369,13 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         }
                     }
                     int reduced_depth = reduced_search_depth(depth_limit, cur_depth, is_in_relavent_pin, i, current_state);
+                    if (Config::ENABLE_HISTORY_LMR)
+                    {
+                        int hist_delta = history_lmr_delta(move, previousMove, current_state, cur_depth);
+                        if (hist_delta < 0 && is_in_relavent_pin)
+                            hist_delta = 0; // keep the pin-defender protection; only reduce-LESS may touch pins
+                        reduced_depth = std::clamp(reduced_depth + hist_delta, 2, depth_limit);
+                    }
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -1558,6 +1605,13 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         }
                     }
                     int reduced_depth = reduced_search_depth(depth_limit, cur_depth, is_in_relavent_pin, i, current_state);
+                    if (Config::ENABLE_HISTORY_LMR)
+                    {
+                        int hist_delta = history_lmr_delta(move, previousMove, current_state, cur_depth);
+                        if (hist_delta < 0 && is_in_relavent_pin)
+                            hist_delta = 0; // keep the pin-defender protection; only reduce-LESS may touch pins
+                        reduced_depth = std::clamp(reduced_depth + hist_delta, 2, depth_limit);
+                    }
 
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)

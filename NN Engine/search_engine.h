@@ -232,6 +232,14 @@ namespace Config
     inline bool PROTECT_KILLERS = false; // don't LMR-reduce killer / counter moves
     inline bool PROTECT_PV = false;      // don't LMR-reduce at PV nodes (beta - alpha > 1)
 
+    // History-aware LMR ("reduce-less"): search known-good late quiets a little less reduced (toward,
+    // never beyond, full depth). Categorical signal — killer/counter membership + a coarse history
+    // tier — not an absolute score threshold, so it is robust to the unbounded/uneven history values
+    // and to a later continuation-history upgrade. Default OFF = byte-identical (reduce-less forced 0).
+    inline bool ENABLE_HISTORY_LMR = false; // master gate for the history-aware LMR adjustment
+    inline int HISTORY_LMR_CAP = 2;         // max plies to REMOVE for good quiets (killer/counter +1, hist-tier>=2 +1)
+    inline int HISTORY_LMR_MORE_CAP = 0;    // max plies to ADD for never-cut (tier-0) quiets; 0 = reduce-less only
+
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
     // uses the "how close to alpha" signal. The default is the blitz-validated

@@ -425,6 +425,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_HISTORY_LMR = env_flag("ENABLE_HISTORY_LMR", Config::ENABLE_HISTORY_LMR);
         Config::HISTORY_LMR_CAP = env_int("HISTORY_LMR_CAP", Config::HISTORY_LMR_CAP);
         Config::HISTORY_LMR_MORE_CAP = env_int("HISTORY_LMR_MORE_CAP", Config::HISTORY_LMR_MORE_CAP);
+        Config::ENABLE_MATE_DRIVE_SCALE = env_flag("ENABLE_MATE_DRIVE_SCALE", Config::ENABLE_MATE_DRIVE_SCALE);
         // Fall back to the header defaults (the blitz-validated VERIFY keeper) so the
         // built-in value is the single source of truth; an env var still overrides it
         // (e.g. VERIFY_MARGIN=0 to recover the old search for the d10 control).
@@ -497,6 +498,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_HISTORY_LMR=" << Config::ENABLE_HISTORY_LMR
                   << " HISTORY_LMR_CAP=" << Config::HISTORY_LMR_CAP
                   << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
+                  << " ENABLE_MATE_DRIVE_SCALE=" << Config::ENABLE_MATE_DRIVE_SCALE
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " PRESET=" << active_preset

@@ -235,10 +235,16 @@ namespace Config
     // History-aware LMR ("reduce-less"): search known-good late quiets a little less reduced (toward,
     // never beyond, full depth). Categorical signal — killer/counter membership + a coarse history
     // tier — not an absolute score threshold, so it is robust to the unbounded/uneven history values
-    // and to a later continuation-history upgrade. Default OFF = byte-identical (reduce-less forced 0).
-    inline bool ENABLE_HISTORY_LMR = false; // master gate for the history-aware LMR adjustment
-    inline int HISTORY_LMR_CAP = 2;         // max plies to REMOVE for good quiets (killer/counter +1, hist-tier>=2 +1)
-    inline int HISTORY_LMR_MORE_CAP = 0;    // max plies to ADD for never-cut (tier-0) quiets; 0 = reduce-less only
+    // and to a later continuation-history upgrade. SHIPPED default = the reduce-MORE arm (CAP=0,
+    // MORE_CAP=1): STS300 50.1->51.7% and -1.3% nodes @d10; self-play +25.5 +/-65 (positive, not sig).
+    inline bool ENABLE_HISTORY_LMR = true;  // master gate for the history-aware LMR adjustment
+    inline int HISTORY_LMR_CAP = 0;         // plies to REMOVE for good quiets (reduce-less; 0 = off, the shipped arm)
+    inline int HISTORY_LMR_MORE_CAP = 1;    // plies to ADD for never-cut (tier-0) quiets (reduce-more; the shipped lever)
+
+    // Eval: scale the advanced-endgame mate-drive by the winner's material margin (default off =
+    // byte-identical). Unproven (no definitive self-play result); the R+N-vs-R case it targeted is now
+    // handled by is_practically_drawn. Kept as a knob for the graded endgame-scaling rework.
+    inline bool ENABLE_MATE_DRIVE_SCALE = false;
 
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that

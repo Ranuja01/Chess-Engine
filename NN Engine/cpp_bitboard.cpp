@@ -4323,6 +4323,12 @@ inline void adjust_pressure_and_support_tables_for_pins(uint64_t bb){
 	}
 }
 
+// Mate-drive (king->enemy-king proximity + drive-to-edge) is scaled by the winner's MATERIAL margin:
+// no drive below ~1.5 pawns, full by ~a rook. Material is the reliable winning signal (the positional
+// total is inflated and must not gate its own amplifier); a defending queen zeroes it.
+constexpr int MATE_DRIVE_LO = 1500;
+constexpr int MATE_DRIVE_HI = 5000;
+
 inline int advanced_endgame_eval(int total, bool turn){
 	//std::cout << total <<std::endl;
 	// Acquire the square positions of each king
@@ -4331,6 +4337,9 @@ inline int advanced_endgame_eval(int total, bool turn){
 	
 	// Acquire the separation between the kings
 	uint8_t kingSeparation = square_distance(whiteKingSquare,blackKingSquare);
+
+	// Pre-drive total, for the optional material-scaled mate-drive (ENABLE_MATE_DRIVE_SCALE) below.
+	int mate_drive_before = total;
 	
 	// Check if the black side has a 2000 point advantage or greater
 	if (total > 2000){
@@ -4385,6 +4394,28 @@ inline int advanced_endgame_eval(int total, bool turn){
 				total -= ((7 - x) + (7 - y)) * 45;
 			}					
 		}
+	}
+
+	// Optionally scale the mate-drive just added by the winner's MATERIAL margin (env-gated, default
+	// off = byte-identical). A defending queen zeroes it; keeps real KX-K mates at full strength, stops
+	// amplifying sharp/compensated leads where driving the king to the edge is not a mating plan.
+	if (Config::ENABLE_MATE_DRIVE_SCALE && (mate_drive_before > 2000 || mate_drive_before < -2000)){
+		int whiteMat = __builtin_popcountll(occupied_white & pawns)   * values[PAWN]
+		             + __builtin_popcountll(occupied_white & knights) * values[KNIGHT]
+		             + __builtin_popcountll(occupied_white & bishops) * values[BISHOP]
+		             + __builtin_popcountll(occupied_white & rooks)   * values[ROOK]
+		             + __builtin_popcountll(occupied_white & queens)  * values[QUEEN];
+		int blackMat = __builtin_popcountll(occupied_black & pawns)   * values[PAWN]
+		             + __builtin_popcountll(occupied_black & knights) * values[KNIGHT]
+		             + __builtin_popcountll(occupied_black & bishops) * values[BISHOP]
+		             + __builtin_popcountll(occupied_black & rooks)   * values[ROOK]
+		             + __builtin_popcountll(occupied_black & queens)  * values[QUEEN];
+		bool black_winning = (mate_drive_before > 2000);
+		int margin = black_winning ? (blackMat - whiteMat) : (whiteMat - blackMat);
+		bool defender_has_queen = black_winning ? bool(occupied_white & queens) : bool(occupied_black & queens);
+		double drive_scale = defender_has_queen ? 0.0 :
+			std::max(0.0, std::min(1.0, double(margin - MATE_DRIVE_LO) / double(MATE_DRIVE_HI - MATE_DRIVE_LO)));
+		total = mate_drive_before + (int)((total - mate_drive_before) * drive_scale);
 	}
 	//std::cout<< "Inner " << total << std::endl;
 	// Create bitmasks for the first and second half of the board
@@ -4996,6 +5027,37 @@ inline bool is_practically_drawn(int pieceNum) {
 		{
 			return true;
 		}
+	}
+
+	// Rook and Knight vs Rook — known theoretical draw in most cases
+	if (__builtin_popcountll(no_king_mask) == 3 &&
+		__builtin_popcountll(rooks) == 2 &&
+		__builtin_popcountll(knights) == 1)
+	{
+		int white_rooks = __builtin_popcountll(rooks & occupied_white);
+		int black_rooks = __builtin_popcountll(rooks & occupied_black);
+		int white_knights = __builtin_popcountll(knights & occupied_white);
+		int black_knights = __builtin_popcountll(knights & occupied_black);
+
+		if ((white_rooks == 1 && white_knights == 1 && black_rooks == 1 && black_knights == 0) ||
+			(black_rooks == 1 && black_knights == 1 && white_rooks == 1 && white_knights == 0))
+		{
+			return true;
+		}
+	}
+
+	// Bare rook vs bare minor (KRKN / KRKB) — a theoretical draw; the lone minor + king holds
+	if (__builtin_popcountll(no_king_mask) == 2 &&
+		__builtin_popcountll(rooks) == 1 &&
+		(__builtin_popcountll(knights) == 1 || __builtin_popcountll(bishops) == 1))
+	{
+		uint64_t minor = knights | bishops;
+		bool rook_is_white  = (rooks & occupied_white) != 0;
+		bool minor_is_white = (minor & occupied_white) != 0;
+		// Opposite sides => one side has the lone rook, the other the lone minor (drawn). Same side
+		// would be R+minor vs lone king (a win), which this guard correctly leaves un-flagged.
+		if (rook_is_white != minor_is_white)
+			return true;
 	}
 
 	// Bishop vs Pawn (where the pawn cannot promote)
@@ -5612,6 +5674,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			square_values[r] = abs(result);
 			pawn_rank_bonuses[r] = pawn_rank_bonus;
 			total += result;
+			br_pt_pawns += result;
 			//std::cout << "PAWNS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
@@ -5627,6 +5690,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			int result = evaluate_knights_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
+			br_pt_knights += result;
 			//std::cout << "KNIGHTS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
@@ -5642,6 +5706,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			int result = evaluate_bishops_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
+			br_pt_bishops += result;
 			//std::cout << "BISHOPS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
@@ -5657,6 +5722,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			int result = evaluate_rooks_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
+			br_pt_rooks += result;
 			//std::cout << "ROOKS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
@@ -5672,6 +5738,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			int result = evaluate_queens_endgame(r, white_passed_pawns, black_passed_pawns);
 			square_values[r] = abs(result);
 			total += result;
+			br_pt_queens += result;
 			//std::cout << "QUEENS: " << int(r) << " | " << result << std::endl;
 			// Clear the least significant set bit
 			bb &= bb - 1;  
@@ -5703,9 +5770,10 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 			square_values[r] = abs(blended_score);
 			total += blended_score;
-			
+			br_pt_kings += blended_score;
+
 			// Clear the least significant set bit
-			bb &= bb - 1;  
+			bb &= bb - 1;
 		}
 
 		//adjust_pressure_and_support_tables_for_pins(occupied & ~kings);

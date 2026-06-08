@@ -238,6 +238,39 @@ def recompute_tag(tag):
     _write_analysis(logdir, rows)
 
 
+def reeval_tag(tag):
+    """Refresh ONLY our eval_breakdown on already-annotated games — re-run ev_breakdown on each saved
+    FEN with the current ChessAI build, preserving the SF fields (sf_cp / sf_static_cp / sf_best / ...).
+    Use after an eval rebuild to pick up new breakdown accumulators without a full (SF) re-annotation."""
+    logdir = os.path.join(THIS_DIR, "games", tag)
+    anns = sorted(glob.glob(os.path.join(logdir, "game_*", "game.annotated.jsonl")))
+    if not anns:
+        print(f"[annotate] no annotated games under {logdir} (run a normal annotation first)", flush=True)
+        return
+    ai = _load_ai()
+    if ai is None:
+        print("[annotate] ChessAI unavailable — cannot re-eval", flush=True)
+        return
+    t0 = time.time()
+    n = 0
+    for a in anns:
+        recs = _read_jsonl(a)
+        for r in recs:
+            if r.get("type") == "move" and r.get("fen"):
+                try:
+                    r["eval_breakdown"] = ai.ev_breakdown(chess.Board(r["fen"]))
+                    n += 1
+                except Exception:
+                    r["eval_breakdown"] = None
+        with open(a, "w") as f:
+            for r in recs:
+                f.write(json.dumps(r) + "\n")
+    dt = time.time() - t0
+    print(f"[annotate] re-eval: refreshed eval_breakdown on {len(anns)} games / {n} positions "
+          f"in {dt:.0f}s ({n / dt:.0f} pos/s) — SF fields preserved" if dt > 0 else
+          "[annotate] re-eval: no positions", flush=True)
+
+
 def _log_row(row):
     print(f"[annotate] {row['game']}: {row['result']}  maxDiv {row['max_div_pawns']}p@ply"
           f"{row['max_div_ply']}  cploss W{row['white_avg_cploss']}/B{row['black_avg_cploss']}  "
@@ -251,12 +284,17 @@ def main():
     ap.add_argument("--game", help="annotate a single game.jsonl")
     ap.add_argument("--recompute", action="store_true",
                     help="with --tag: rebuild analysis.csv from saved SF cp (no Stockfish run)")
+    ap.add_argument("--reeval", action="store_true",
+                    help="with --tag: refresh ONLY our eval_breakdown on annotated games (re-run "
+                         "ev_breakdown with the current build; SF fields preserved) — use after an eval rebuild")
     ap.add_argument("--sf-path", default=None)
     ap.add_argument("--sf-depth", type=int, default=None)
     ap.add_argument("--sf-movetime", type=float, default=None, help="default 0.5s when neither set")
     args = ap.parse_args()
 
-    if args.recompute and args.tag:
+    if args.reeval and args.tag:
+        reeval_tag(args.tag)
+    elif args.recompute and args.tag:
         recompute_tag(args.tag)
     elif args.game:
         sf = args.sf_path or find_stockfish()

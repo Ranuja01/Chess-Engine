@@ -30,7 +30,8 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
 
 import chess
-from selfplay import play_game
+from selfplay import play_game, Adjudicator
+from arbiter import Arbiter, find_stockfish
 
 
 def load_openings(path):
@@ -88,6 +89,30 @@ def run(args):
     p1c = _config_with_preset(args.p1_config, args.preset)
     p2c = _config_with_preset(args.p2_config, args.preset)
 
+    # Optional in-play adjudication: ONE shared Stockfish process used only to confirm a fired
+    # heuristic gate (a fresh Adjudicator per game carries the per-game state). Off unless requested.
+    # --adjudicate = both; --adjudicate-draw / --adjudicate-win enable them independently. Default is
+    # draw-only when only --adjudicate-draw is given; wins are left to grind to mate / the -15p resign
+    # (so conversion technique + the loser's defense stay observable).
+    do_draw = args.adjudicate or args.adjudicate_draw
+    do_win = args.adjudicate or args.adjudicate_win
+    adj_arbiter = None
+    if do_draw or do_win:
+        sf = args.sf_path or find_stockfish()
+        if sf:
+            try:
+                adj_arbiter = Arbiter(sf, movetime=args.sf_movetime, depth=args.sf_depth)
+                modes = (["win>%gp" % args.win_p] if do_win else []) + \
+                        (["draw<%dcp (no-progress %dplies, low-pieces %d)" % (args.draw_cp, args.noprog_plies, args.low_pieces)] if do_draw else [])
+                print(f"[tournament] adjudication ON (SF confirm @ {args.sf_movetime}s: {', '.join(modes)})", flush=True)
+            except Exception as e:
+                print(f"[tournament] WARNING: adjudication requested but Stockfish failed ({e}); OFF", flush=True)
+                do_draw = do_win = False
+        else:
+            print("[tournament] WARNING: adjudication requested but no Stockfish found "
+                  "(set STOCKFISH_PATH or --sf-path); OFF", flush=True)
+            do_draw = do_win = False
+
     fields = ["game", "opening_idx", "p1_color", "white", "black", "result", "p1_score", "plies", "reason"]
     rows = []
     done = {}
@@ -114,10 +139,15 @@ def run(args):
         gdir = os.path.join(logdir, f"game_{g:03d}")
         white_cfg, white_lbl = (p1c, args.p1_label) if p1_white else (p2c, args.p2_label)
         black_cfg, black_lbl = (p2c, args.p2_label) if p1_white else (p1c, args.p1_label)
+        adj = (Adjudicator(adj_arbiter, draw_cp=args.draw_cp, win_p=args.win_p,
+                           noprog_plies=args.noprog_plies, low_pieces=args.low_pieces,
+                           window=args.adj_window, do_win=do_win, do_draw=do_draw)
+               if adj_arbiter is not None else None)
         try:
             res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, chess.STARTING_FEN,
                             args.max_plies, gdir, jsonl_path=os.path.join(gdir, "game.jsonl"),
-                            verbose=not args.quiet, arbiter=None, opening_moves=openings[opening_idx])
+                            verbose=not args.quiet, arbiter=None, opening_moves=openings[opening_idx],
+                            adjudicator=adj)
             result, reason, plies = res["result"], res["reason"], res["plies"]
         except Exception as e:
             result, reason, plies = "*", f"driver error: {e}", 0
@@ -131,6 +161,8 @@ def run(args):
         print(f"[tournament] game {g}: {result}  ({reason})  P1={'-' if sc is None else sc}  "
               f"[{args.p1_label} as {row['p1_color']}]", flush=True)
     sfh.close()
+    if adj_arbiter is not None:
+        adj_arbiter.close()
 
     _finalize(args, logdir, rows)
 
@@ -209,6 +241,18 @@ def main():
     ap.add_argument("--sf-path", default=None)
     ap.add_argument("--sf-depth", type=int, default=None)
     ap.add_argument("--sf-movetime", type=float, default=0.5)
+    # In-play adjudication (heuristic-gated, single-SF-confirm). Off unless a flag is passed.
+    ap.add_argument("--adjudicate", action="store_true",
+                    help="enable BOTH win and draw adjudication (shorthand for --adjudicate-draw --adjudicate-win)")
+    ap.add_argument("--adjudicate-draw", action="store_true",
+                    help="end dead-drawn positions early (recommended; wins still grind to mate/resign)")
+    ap.add_argument("--adjudicate-win", action="store_true",
+                    help="also end clearly-won positions early (off by default so conversion stays observable)")
+    ap.add_argument("--draw-cp", type=int, default=40, help="SF |cp| below this confirms a draw")
+    ap.add_argument("--win-p", type=float, default=5.0, help="engine win-margin gate in pawns (White-POV)")
+    ap.add_argument("--noprog-plies", type=int, default=40, help="halfmove-clock plies of no progress that gate a draw")
+    ap.add_argument("--low-pieces", type=int, default=12, help="piece count at/under which a flat eval gates a draw")
+    ap.add_argument("--adj-window", type=int, default=6, help="consecutive plies for the eval window / SF cooldown")
     run(ap.parse_args())
 
 

@@ -24,6 +24,7 @@ import sys
 import csv
 import json
 import glob
+import time
 import argparse
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +39,8 @@ DIV_CAP_P = 15.0     # only measure engine-vs-SF divergence where BOTH see |eval
 CPL_CAP_CP = 1500    # clamp each SF eval to +-this (centipawns) before cp-loss differencing
 
 ANALYSIS_FIELDS = ["game", "white", "black", "result", "plies", "max_div_pawns", "max_div_ply",
-                   "white_avg_cploss", "black_avg_cploss", "white_blunders", "black_blunders"]
+                   "white_avg_cploss", "black_avg_cploss", "white_blunders", "black_blunders",
+                   "mean_calib_gap", "mean_pvboost"]
 
 
 def _read_jsonl(path):
@@ -62,6 +64,8 @@ def _metrics(meta, result_rec, moves):
     max_div, max_div_ply = 0.0, None
     cploss = {"white": [0.0, 0], "black": [0.0, 0]}
     blunders = {"white": 0, "black": 0}
+    # our static eval vs SF's static (NNUE) eval, both White-POV pawns; + the piece_value_boost contribution.
+    calib_sum, calib_n, pvboost_sum, pvboost_n = 0.0, 0, 0.0, 0
     prev_cp = None
     for r in moves:
         cp = r.get("sf_cp")
@@ -82,6 +86,18 @@ def _metrics(meta, result_rec, moves):
             cploss[side][1] += 1
             if loss > BLUNDER_CP:
                 blunders[side] += 1
+        # Calibration: our static term breakdown (absolute Black-positive milli-pawns) vs SF's static eval.
+        bd = r.get("eval_breakdown")
+        if isinstance(bd, dict) and not bd.get("checkmate"):
+            our_sw = -bd.get("total", 0) / 1000.0
+            pvboost_sum += -bd.get("piece_value_boost", 0) / 1000.0
+            pvboost_n += 1
+            sfs = r.get("sf_static_cp")
+            if isinstance(sfs, (int, float)):
+                sf_sw = sfs / 100.0
+                if abs(our_sw) <= DIV_CAP_P and abs(sf_sw) <= DIV_CAP_P:
+                    calib_sum += our_sw - sf_sw
+                    calib_n += 1
         if isinstance(cp, int):
             prev_cp = cp
 
@@ -96,6 +112,8 @@ def _metrics(meta, result_rec, moves):
         "max_div_pawns": round(max_div, 2), "max_div_ply": max_div_ply,
         "white_avg_cploss": avg("white"), "black_avg_cploss": avg("black"),
         "white_blunders": blunders["white"], "black_blunders": blunders["black"],
+        "mean_calib_gap": round(calib_sum / calib_n, 2) if calib_n else "",
+        "mean_pvboost": round(pvboost_sum / pvboost_n, 2) if pvboost_n else "",
     }
 
 
@@ -106,8 +124,23 @@ def _split(recs):
     return meta, result_rec, moves
 
 
-def annotate_game(jsonl_path, arbiter):
-    """Run SF over each recorded FEN, write annotated JSONL + PGN, and return the metrics row."""
+def _load_ai():
+    """Load the C++ ChessAI engine for our static-eval term breakdown. Guarded: returns None (annotation
+    degrades to SF-only) if the .so can't be imported (e.g. headless build mismatch)."""
+    try:
+        engine_dir = os.path.dirname(THIS_DIR)  # NN Engine/  (has ChessAI*.so)
+        if engine_dir not in sys.path:
+            sys.path.insert(0, engine_dir)
+        from ChessAI import ChessAI
+        return ChessAI(None, None, chess.Board(), True)
+    except Exception as e:
+        print(f"[annotate] ChessAI unavailable ({e}) -- recording SF only, no eval_breakdown", flush=True)
+        return None
+
+
+def annotate_game(jsonl_path, arbiter, ai=None):
+    """Run SF over each recorded FEN, write annotated JSONL + PGN, and return the metrics row.
+    Also records SF's static (NNUE) eval and our static term breakdown per move for eval calibration."""
     recs = _read_jsonl(jsonl_path)
     meta, result_rec, moves = _split(recs)
     start_fen = meta.get("start_fen", chess.STARTING_FEN)
@@ -117,6 +150,15 @@ def annotate_game(jsonl_path, arbiter):
         except Exception:
             cp, best, depth = None, None, None
         r["sf_cp"], r["sf_best"], r["sf_depth"] = cp, best, depth
+        try:
+            r["sf_static_cp"] = arbiter.evaluate_static(chess.Board(r["fen"]))
+        except Exception:
+            r["sf_static_cp"] = None
+        if ai is not None:
+            try:
+                r["eval_breakdown"] = ai.ev_breakdown(chess.Board(r["fen"]))
+            except Exception:
+                r["eval_breakdown"] = None
     gdir = os.path.dirname(jsonl_path)
     with open(os.path.join(gdir, "game.annotated.jsonl"), "w") as f:
         for r in recs:
@@ -162,13 +204,25 @@ def annotate_tag(tag, depth=None, movetime=None, sf_path=None):
         return
     mt = movetime if (movetime or depth) else 0.5
     arbiter = Arbiter(sf, movetime=mt, depth=depth)
-    print(f"[annotate] {len(jsonls)} games, Stockfish {f'depth {depth}' if depth else f'{mt}s/pos'}", flush=True)
+    ai = _load_ai()
+    print(f"[annotate] {len(jsonls)} games, Stockfish {f'depth {depth}' if depth else f'{mt}s/pos'}"
+          f"{' + ChessAI eval breakdown' if ai is not None else ''}", flush=True)
     rows = []
+    t0 = time.time()
+    n_pos = 0
     try:
         for jp in jsonls:
-            rows.append(_log_row(annotate_game(jp, arbiter)))
+            row = _log_row(annotate_game(jp, arbiter, ai))
+            n_pos += row.get("plies", 0)
+            rows.append(row)
     finally:
         arbiter.close()
+    dt = time.time() - t0
+    # Measured throughput, so future overnight sizing uses real ms/pos instead of an estimate.
+    ms_pos = (dt / n_pos * 1000.0) if n_pos else 0.0
+    print(f"[annotate] timing: {len(jsonls)} games / {n_pos} positions in {dt:.0f}s "
+          f"= {ms_pos:.0f} ms/pos ({n_pos / dt:.1f} pos/s) at SF {mt}s/pos" if dt > 0 else
+          "[annotate] timing: no positions", flush=True)
     _write_analysis(logdir, rows)
 
 
@@ -211,8 +265,9 @@ def main():
             return
         mt = args.sf_movetime if (args.sf_movetime or args.sf_depth) else 0.5
         arb = Arbiter(sf, movetime=mt, depth=args.sf_depth)
+        ai = _load_ai()
         try:
-            print(json.dumps(annotate_game(args.game, arb), indent=2), flush=True)
+            print(json.dumps(annotate_game(args.game, arb, ai), indent=2), flush=True)
         finally:
             arb.close()
     elif args.tag:

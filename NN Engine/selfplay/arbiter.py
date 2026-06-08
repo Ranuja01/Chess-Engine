@@ -11,7 +11,9 @@ tools use). Scores are reported White-POV in centipawns, to line up with the dri
 """
 
 import os
+import re
 import shutil
+import subprocess
 
 import chess
 import chess.engine
@@ -52,9 +54,11 @@ class Arbiter:
     returns no score/pv (e.g. a terminal position)."""
 
     def __init__(self, path, movetime=0.3, depth=None):
+        self.path = path
         self.movetime = movetime
         self.depth = depth
         self.engine = chess.engine.SimpleEngine.popen_uci(path)
+        self._raw = None  # lazily-opened raw pipe for the `eval` (static/NNUE) command
         try:
             self.engine.configure({"Threads": 1})
         except Exception:
@@ -71,8 +75,84 @@ class Arbiter:
         best = pv[0].uci() if pv else None
         return cp, best, info.get("depth")
 
+    def evaluate_static(self, board):
+        """Stockfish's STATIC (NNUE) eval of `board` via the UCI `eval` command — White-POV centipawns.
+
+        This is the leaf eval with NO search, the apples-to-apples yardstick for our handcrafted static eval
+        (comparing our static eval to SF's SEARCH eval would conflate static miscalibration with the normal
+        static-vs-search gap). `eval` is a Stockfish extension SimpleEngine doesn't model, so it runs over a
+        dedicated raw pipe. Returns None for in-check / unparseable positions (a static eval is only meaningful
+        in a quiet position anyway)."""
+        if board.is_check():
+            return None
+        proc = self._ensure_raw()
+        if proc is None:
+            return None
+        try:
+            proc.stdin.write("position fen %s\neval\nisready\n" % board.fen())
+            proc.stdin.flush()
+        except Exception:
+            return None
+        lines = []
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            s = line.strip()
+            if s == "readyok":
+                break
+            lines.append(s)
+        return self._parse_static_cp(lines)
+
+    def _ensure_raw(self):
+        if self._raw is None:
+            try:
+                self._raw = subprocess.Popen(
+                    [self.path], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL, text=True, bufsize=1)
+            except Exception:
+                self._raw = None
+                return None
+            self._raw.stdin.write("uci\n")
+            self._raw.stdin.flush()
+            while True:
+                line = self._raw.stdout.readline()
+                if not line or line.strip() == "uciok":
+                    break
+        return self._raw
+
+    @staticmethod
+    def _parse_static_cp(lines):
+        """Pull White-POV centipawns from `eval` output. Prefer 'Final evaluation' (NNUE + SF scaling), fall
+        back to the raw 'NNUE evaluation' line. SF reports these '(white side)', so no perspective flip."""
+        final_val = nnue_val = None
+        for s in lines:
+            low = s.lower()
+            if "final evaluation" in low:
+                if "none" in low:  # "Final evaluation: none (in check)"
+                    return None
+                m = re.search(r"[-+]?\d+\.\d+", s)
+                if m:
+                    final_val = float(m.group(0))
+            elif "nnue evaluation" in low:
+                m = re.search(r"[-+]?\d+\.\d+", s)
+                if m:
+                    nnue_val = float(m.group(0))
+        val = final_val if final_val is not None else nnue_val
+        return None if val is None else int(round(val * 100))
+
     def close(self):
         try:
             self.engine.quit()
         except Exception:
             pass
+        if self._raw is not None:
+            try:
+                self._raw.stdin.write("quit\n")
+                self._raw.stdin.flush()
+                self._raw.wait(timeout=2)
+            except Exception:
+                try:
+                    self._raw.kill()
+                except Exception:
+                    pass

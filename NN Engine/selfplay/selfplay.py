@@ -182,13 +182,85 @@ def _write_crash_bundle(logdir, label, color, config, start_fen, moves, crash_fe
     return path
 
 
+class Adjudicator:
+    """Heuristic-gated, single-Stockfish-confirm game adjudication.
+
+    Cheap python-chess signals (no-progress halfmove clock, low piece count + flat eval, repetition)
+    GATE the check; only when a gate fires is ONE arbiter.evaluate() call spent to confirm. On
+    confirmation the game is flagged to end after the NEXT played move (the position gets one more
+    move), which cuts the long won-game grind to the -15p resign and the dead-drawn shuffle tails. A
+    per-window cooldown bounds Stockfish to at most one call per `window` plies. All thresholds are
+    White-POV; engine evals arrive as mover-normalised White-POV milli-pawns."""
+
+    def __init__(self, arbiter, draw_cp=40, win_p=5.0, noprog_plies=40, low_pieces=12, window=6,
+                 do_win=True, do_draw=True):
+        self.arbiter = arbiter
+        self.do_win = do_win             # adjudicate clearly-won positions (off => let wins grind to mate/resign)
+        self.do_draw = do_draw           # adjudicate dead-drawn positions
+        self.draw_cp = draw_cp            # SF |cp| below this confirms a draw
+        self.win_p = win_p               # engine win-margin gate, in pawns (White-POV)
+        self.win_confirm_cp = 300        # SF must agree the leader is up >= this (cp) to confirm decisive
+        self.flat_p = 1.0                # |engine eval| below this (pawns) counts as "flat" for the draw gate
+        self.noprog_plies = noprog_plies
+        self.low_pieces = low_pieces
+        self.window = window
+        self.evals = []                  # recent White-POV pawn evals (one per played move; None if absent)
+        self.pending = None              # (result, reason) once a gate is confirmed
+        self.pending_at = None           # len(moves) when pending was set
+        self.last_probe = -10 ** 9       # last ply an SF confirmation was spent (cooldown anchor)
+
+    def after_move(self, board, ewp, n_moves, fh):
+        """Call once per played (non-opening) move with the resulting board and the mover's White-POV
+        milli-pawn eval. Returns (result, reason) to terminate the game, or None to continue."""
+        if self.pending is not None:                      # confirmed earlier -> end one move later
+            return self.pending if n_moves > self.pending_at else None
+        self.evals.append(ewp / 1000.0 if isinstance(ewp, int) else None)
+        if self.arbiter is None or n_moves - self.last_probe < self.window:
+            return None
+        recent = [e for e in self.evals[-self.window:] if e is not None]
+        full = len(recent) >= self.window
+        side = gate = None
+        if self.do_win and full and all(e >= self.win_p for e in recent):
+            side = "white"
+        elif self.do_win and full and all(e <= -self.win_p for e in recent):
+            side = "black"
+        elif self.do_draw and board.halfmove_clock >= self.noprog_plies:
+            gate = "no-progress %d plies" % board.halfmove_clock
+        elif self.do_draw and chess.popcount(board.occupied) <= self.low_pieces and full and all(abs(e) <= self.flat_p for e in recent):
+            gate = "low material (%d) + flat eval" % chess.popcount(board.occupied)
+        elif self.do_draw and board.is_repetition(2):
+            gate = "repetition"
+        if side is None and gate is None:
+            return None
+        # A gate fired: spend exactly one Stockfish call to confirm before adjudicating.
+        self.last_probe = n_moves
+        cp, _, _ = self.arbiter.evaluate(board)
+        if cp is None:
+            return None
+        if side is not None:
+            if (side == "white" and cp >= self.win_confirm_cp) or (side == "black" and cp <= -self.win_confirm_cp):
+                self._set_pending("1-0" if side == "white" else "0-1",
+                                  "adjudicated win (%s, SF %+dcp)" % (side, cp), n_moves, "win", cp, fh)
+        elif abs(cp) < self.draw_cp:
+            self._set_pending("1/2-1/2", "adjudicated draw (%s, SF %+dcp)" % (gate, cp), n_moves, "draw", cp, fh)
+        return None
+
+    def _set_pending(self, result, reason, n_moves, kind, cp, fh):
+        self.pending = (result, reason)
+        self.pending_at = n_moves
+        if fh:
+            _write(fh, {"type": "adjudication", "ply": n_moves, "kind": kind, "reason": reason, "sf_cp": cp})
+
+
 def play_game(config_a, config_b, label_a, label_b, start_fen, max_plies, logdir,
-              jsonl_path=None, verbose=True, arbiter=None, opening_moves=None):
+              jsonl_path=None, verbose=True, arbiter=None, opening_moves=None, adjudicator=None):
     """Play one game: A is White, B is Black. Returns a dict with result + the move list (and the PGN).
     If jsonl_path is given, writes one record per move (the driver is the sole writer) live. If an
     arbiter is given, each position is scored by Stockfish (White-POV cp) between moves. If
     opening_moves is given, those UCI moves are PUSHed to both engines + the master board first (no
-    search) and the engines are forced to USE_OPENING_BOOK=0 so they THINK from the seeded position."""
+    search) and the engines are forced to USE_OPENING_BOOK=0 so they THINK from the seeded position.
+    If an adjudicator is given, it may end the game early once a heuristic gate is Stockfish-confirmed
+    (the `arbiter` observation path and the `adjudicator` confirmation path are independent)."""
     os.makedirs(logdir, exist_ok=True)
     if opening_moves:
         # Seeding implies the engines must not march their own book from the seed.
@@ -306,6 +378,11 @@ def play_game(config_a, config_b, label_a, label_b, start_fen, max_plies, logdir
                         # (SF is stored White-POV centipawns): flip to mover-POV, ×10 to milli-pawns.
                         tag += f"  SF {(sf_cp if mover.color == 'white' else -sf_cp) * 10}"
                 print(f"  {len(moves):>3}. {mover.color[0].upper()} {uci:<6} [{tag}]", flush=True)
+            if adjudicator is not None:
+                adj = adjudicator.after_move(board, ewp, len(moves), fh)
+                if adj is not None:
+                    result, reason = adj
+                    break
     finally:
         white.quit()
         black.quit()

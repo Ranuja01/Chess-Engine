@@ -297,9 +297,17 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
     if (reduce_less > 0)
         return std::min(reduce_less, Config::HISTORY_LMR_CAP);
 
-    // No positive signal: a never-cut quiet (history == 0) is reduced more.
+    // No positive signal: a never-cut quiet (history == 0) is reduced more -- UNLESS continuation
+    // history says it's a contextually-good reply to previousMove (a strong 1-ply continuation score),
+    // in which case we cancel the extra reduction (back to base, never deeper). Env-gated, default off.
     if (tier == 0)
+    {
+        if (Config::ENABLE_CONT_HIST && previousMove.from_square != previousMove.to_square &&
+            counterMoveHeuristics[cs.turn][previousMove.from_square * 64 + previousMove.to_square]
+                                 [move.from_square * 64 + move.to_square] >= Config::CONT_HIST_LMR_THRESH)
+            return 0;
         return -Config::HISTORY_LMR_MORE_CAP;
+    }
 
     return 0;
 }
@@ -426,6 +434,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::HISTORY_LMR_CAP = env_int("HISTORY_LMR_CAP", Config::HISTORY_LMR_CAP);
         Config::HISTORY_LMR_MORE_CAP = env_int("HISTORY_LMR_MORE_CAP", Config::HISTORY_LMR_MORE_CAP);
         Config::ENABLE_MATE_DRIVE_SCALE = env_flag("ENABLE_MATE_DRIVE_SCALE", Config::ENABLE_MATE_DRIVE_SCALE);
+        Config::ENABLE_ENDGAME_SCALE = env_flag("ENABLE_ENDGAME_SCALE", Config::ENABLE_ENDGAME_SCALE);
+        Config::ENABLE_CONT_HIST = env_flag("ENABLE_CONT_HIST", Config::ENABLE_CONT_HIST);
+        Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
         // Fall back to the header defaults (the blitz-validated VERIFY keeper) so the
         // built-in value is the single source of truth; an env var still overrides it
         // (e.g. VERIFY_MARGIN=0 to recover the old search for the d10 control).
@@ -499,6 +510,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " HISTORY_LMR_CAP=" << Config::HISTORY_LMR_CAP
                   << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
                   << " ENABLE_MATE_DRIVE_SCALE=" << Config::ENABLE_MATE_DRIVE_SCALE
+                  << " ENABLE_ENDGAME_SCALE=" << Config::ENABLE_ENDGAME_SCALE
+                  << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST
+                  << " CONT_HIST_LMR_THRESH=" << Config::CONT_HIST_LMR_THRESH
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " PRESET=" << active_preset

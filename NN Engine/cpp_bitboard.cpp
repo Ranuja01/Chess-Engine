@@ -5258,6 +5258,68 @@ inline uint64_t get_relevant_pin(bool probe) {
     return relevant_pins;
 }
 
+// Continuous endgame convertibility scale in [DRAW_SCALE_FLOOR, 1] — the graded companion to
+// is_practically_drawn (env-gated; see ENABLE_ENDGAME_SCALE). Damps a material/placement lead toward
+// draw when the remaining force can't realistically convert it (a bare minor, opposite-coloured
+// bishops), and pulls back toward 1 when the winning side has an advanced passed pawn (the primary
+// conversion mechanism). It is multiplied into `total`, so a balanced (~0) eval is untouched, and any
+// edge above a minor (KQ/KR/KBN vs K) keeps s=1 — genuine wins are never damped.
+constexpr double DRAW_SCALE_FLOOR = 0.25;
+
+inline double endgame_convertibility_scale(uint64_t white_passed_pawns, uint64_t black_passed_pawns){
+	int wNP = __builtin_popcountll(occupied_white & knights) * values[KNIGHT]
+	        + __builtin_popcountll(occupied_white & bishops) * values[BISHOP]
+	        + __builtin_popcountll(occupied_white & rooks)   * values[ROOK]
+	        + __builtin_popcountll(occupied_white & queens)  * values[QUEEN];
+	int bNP = __builtin_popcountll(occupied_black & knights) * values[KNIGHT]
+	        + __builtin_popcountll(occupied_black & bishops) * values[BISHOP]
+	        + __builtin_popcountll(occupied_black & rooks)   * values[ROOK]
+	        + __builtin_popcountll(occupied_black & queens)  * values[QUEEN];
+	int wP = __builtin_popcountll(occupied_white & pawns);
+	int bP = __builtin_popcountll(occupied_black & pawns);
+
+	// The materially-stronger side (whose lead we're judging); ties broken by pawn count.
+	bool white_stronger = (wNP != bNP) ? (wNP > bNP) : (wP >= bP);
+	int edge = wNP > bNP ? (wNP - bNP) : (bNP - wNP);
+	int winnerPawns = white_stronger ? wP : bP;
+	uint64_t winnerPassers = white_stronger ? white_passed_pawns : black_passed_pawns;
+	int totalPawns = wP + bP;
+
+	double s = 1.0;
+
+	// A lead of at most one minor (but a real lead, not equal material), with little/no pawns: can't
+	// mate, can't promote -> hard damp. Equal material (edge == 0) is left to the OCB rule below.
+	if (edge > 0 && edge <= values[BISHOP]){
+		if (winnerPawns == 0)
+			s = std::min(s, DRAW_SCALE_FLOOR);
+		else if (winnerPawns <= 2)
+			s = std::min(s, 0.45 + 0.18 * winnerPawns);
+	}
+
+	// Opposite-coloured bishops (one each, opposite colours, no other pieces): drawish, climbs with pawns.
+	if (wNP == values[BISHOP] && bNP == values[BISHOP] && __builtin_popcountll(bishops) == 2 &&
+	    is_white_square(__builtin_ctzll(occupied_white & bishops)) !=
+	    is_white_square(__builtin_ctzll(occupied_black & bishops)))
+		s = std::min(s, 0.35 + 0.09 * totalPawns);
+
+	// A winning passed pawn is the main conversion lever -> pull back toward 1 by its advancement.
+	if (winnerPassers){
+		int best = 0;
+		uint64_t bb = winnerPassers;
+		while (bb){
+			int rank = __builtin_ctzll(bb) >> 3;
+			int adv = white_stronger ? rank : (7 - rank);   // 0..6, 6 = one square from promotion
+			if (adv > best) best = adv;
+			bb &= bb - 1;
+		}
+		if (best >= 6) return 1.0;
+		if (best >= 5) s = std::max(s, 0.85);
+		else if (best >= 4) s = std::max(s, 0.65);
+	}
+
+	return s < DRAW_SCALE_FLOOR ? DRAW_SCALE_FLOOR : (s > 1.0 ? 1.0 : s);
+}
+
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
 
 	/*
@@ -5835,15 +5897,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		total += 200;
 	}
 	br_pairs = total - br_run; br_run = total;
+
+	// Endgame convertibility scale (env-gated, default off = byte-identical). Damp an unconvertible
+	// material/placement lead toward draw, and scale the piece-value boost below by the same factor so
+	// the material-conversion bonus is damped coherently. A balanced (~0) total is unaffected; conv_s
+	// stays 1.0 in the midgame and whenever the flag is off, so the boost expression is unchanged then.
+	double conv_s = 1.0;
+	if (Config::ENABLE_ENDGAME_SCALE && isEndGame){
+		conv_s = endgame_convertibility_scale(white_passed_pawns, black_passed_pawns);
+		total = (int)(total * conv_s);
+	}
 	//std::cout << " before boost: "<< total << std::endl;
 	if (blackPieceVal > whitePieceVal){
 		if(boost_black_for_piece_value_advantage){
-			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000);
+			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000 * conv_s);
 		}
 
 	}else if (whitePieceVal > blackPieceVal){
 		if(boost_white_for_piece_value_advantage){
-			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000);
+			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000 * conv_s);
 		}
 	}
 	br_pv_boost = total - br_run; br_run = total;

@@ -241,10 +241,23 @@ namespace Config
     inline int HISTORY_LMR_CAP = 0;         // plies to REMOVE for good quiets (reduce-less; 0 = off, the shipped arm)
     inline int HISTORY_LMR_MORE_CAP = 1;    // plies to ADD for never-cut (tier-0) quiets (reduce-more; the shipped lever)
 
+    // Continuation-aware LMR (default on): a tier-0 (never-cut) quiet with a strong 1-ply continuation
+    // score (counterMoveHeuristics) is NOT reduced-more -- a known-good reply to the previous move, so
+    // we cancel the extra reduction (never deeper than base). THRESH=2000 is the d10 node-efficiency
+    // optimum (WAC nodes -6.2% vs off, WAC 262/300, STS neutral); 4000 and 1000 both save less.
+    inline bool ENABLE_CONT_HIST = true;
+    inline int CONT_HIST_LMR_THRESH = 2000; // min continuation score to cancel the reduce-more
+
     // Eval: scale the advanced-endgame mate-drive by the winner's material margin (default off =
     // byte-identical). Unproven (no definitive self-play result); the R+N-vs-R case it targeted is now
     // handled by is_practically_drawn. Kept as a knob for the graded endgame-scaling rework.
     inline bool ENABLE_MATE_DRIVE_SCALE = false;
+
+    // Eval: continuous endgame "convertibility" scale (default on). Damps an unconvertible
+    // material/placement lead toward draw (bare minor, opposite-coloured bishops), pulled back toward 1
+    // by an advanced winning passer; mates (edge > a minor) keep s=1 (FEN spot-checks: KQK/KRK/B+3P
+    // byte-identical, OCB drawish -0.64 -> -0.34 toward SF). The graded companion to is_practically_drawn.
+    inline bool ENABLE_ENDGAME_SCALE = true;
 
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that

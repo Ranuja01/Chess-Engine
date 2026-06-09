@@ -38,7 +38,9 @@ import sys
 import csv
 import json
 import math
+import time
 import argparse
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
@@ -47,7 +49,8 @@ import chess
 from selfplay import play_game, Adjudicator
 from arbiter import Arbiter, find_stockfish
 # Reuse the tested tournament helpers so an SPRT run matches a fixed tournament exactly.
-from tournament import load_openings, schedule, p1_score, elo_from_score, _config_with_preset
+from tournament import (load_openings, schedule, p1_score, elo_from_score, _config_with_preset,
+                        _thread_arbiter, _close_arbiters, PRESET_DUR)
 
 
 def elo_to_score(elo):
@@ -78,25 +81,21 @@ def run(args):
     if not openings:
         print(f"[sprt] no openings parsed from {args.openings}", flush=True)
         return
-    games = schedule(args.max_games, len(openings), args.seed)
+    n_sched = args.max_games if not args.max_minutes else max(args.max_games, 200000)
+    games = schedule(n_sched, len(openings), args.seed)
 
     p1c = _config_with_preset(args.p1_config, args.preset)
     p2c = _config_with_preset(args.p2_config, args.preset)
 
-    # Optional in-play adjudication (one shared Stockfish, fresh per-game Adjudicator) — same wiring
-    # as tournament.py so SPRT and fixed runs adjudicate identically.
+    # Optional in-play adjudication. Verify Stockfish once; the Arbiter is created lazily PER WORKER
+    # THREAD (not reentrant) so concurrent games never share one SF process.
     do_draw = args.adjudicate or args.adjudicate_draw
     do_win = args.adjudicate or args.adjudicate_win
-    adj_arbiter = None
+    sf = None
     if do_draw or do_win:
         sf = args.sf_path or find_stockfish()
         if sf:
-            try:
-                adj_arbiter = Arbiter(sf, movetime=args.sf_movetime, depth=args.sf_depth)
-                print(f"[sprt] adjudication ON (SF confirm @ {args.sf_movetime}s)", flush=True)
-            except Exception as e:
-                print(f"[sprt] WARNING: adjudication requested but Stockfish failed ({e}); OFF", flush=True)
-                do_draw = do_win = False
+            print(f"[sprt] adjudication ON (per-thread SF confirm @ {args.sf_movetime}s)", flush=True)
         else:
             print("[sprt] WARNING: adjudication requested but no Stockfish found "
                   "(set STOCKFISH_PATH or --sf-path); OFF", flush=True)
@@ -112,21 +111,27 @@ def run(args):
     writer.writeheader()
     sfh.flush()
 
+    conc = max(1, args.concurrency)
     print(f"[sprt] {args.p1_label} vs {args.p2_label}  H0:<={args.elo0} H1:>={args.elo1} Elo  "
           f"alpha={args.alpha} beta={args.beta}  bounds=[{B:+.3f}, {A:+.3f}]  "
-          f"preset={args.preset or 'STANDARD'}  max_games={args.max_games}", flush=True)
+          f"preset={args.preset or 'STANDARD'}  concurrency={conc}  max_games={args.max_games}", flush=True)
 
-    W = L = D = void = 0
-    llr = 0.0
-    decision = "inconclusive"
-    for g, (opening_idx, p1_white) in enumerate(games):
+    def play_one(g, opening_idx, p1_white):
+        """Run one game (thread-safe: own gdir, subprocesses, SF arbiter). Returns (dict, wall_seconds);
+        the MAIN thread scores the dict into W/L/D/LLR (workers never touch shared counters)."""
+        t_game = time.monotonic()
         gdir = os.path.join(logdir, f"game_{g:03d}")
         white_cfg, white_lbl = (p1c, args.p1_label) if p1_white else (p2c, args.p2_label)
         black_cfg, black_lbl = (p2c, args.p2_label) if p1_white else (p1c, args.p1_label)
-        adj = (Adjudicator(adj_arbiter, draw_cp=args.draw_cp, win_p=args.win_p,
-                           noprog_plies=args.noprog_plies, low_pieces=args.low_pieces,
-                           window=args.adj_window, do_win=do_win, do_draw=do_draw)
-               if adj_arbiter is not None else None)
+        adj = None
+        if do_draw or do_win:
+            try:
+                adj = Adjudicator(_thread_arbiter(sf, args.sf_movetime, args.sf_depth),
+                                  draw_cp=args.draw_cp, win_p=args.win_p, noprog_plies=args.noprog_plies,
+                                  low_pieces=args.low_pieces, window=args.adj_window,
+                                  do_win=do_win, do_draw=do_draw)
+            except Exception as e:
+                print(f"[sprt] game {g}: arbiter init failed ({e}); no adjudication", flush=True)
         try:
             res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, chess.STARTING_FEN,
                             args.max_plies, gdir, jsonl_path=os.path.join(gdir, "game.jsonl"),
@@ -135,8 +140,20 @@ def run(args):
             result, reason, plies = res["result"], res["reason"], res["plies"]
         except Exception as e:
             result, reason, plies = "*", f"driver error: {e}", 0
+        return ({"g": g, "opening_idx": opening_idx, "p1_white": p1_white,
+                 "white": white_lbl, "black": black_lbl, "result": result,
+                 "reason": reason, "plies": plies, "sc": p1_score(result, p1_white)},
+                time.monotonic() - t_game)
 
-        sc = p1_score(result, p1_white)
+    W = L = D = void = 0
+    llr = 0.0
+    decision = None
+
+    def process(r):
+        """Score one finished game into W/L/D/LLR + CSV (MAIN THREAD ONLY -> no lock). Returns a
+        decision string if a bound is crossed, else None."""
+        nonlocal W, L, D, void, llr
+        sc = r["sc"]
         if sc is None:
             void += 1
         elif sc == 1.0:
@@ -145,37 +162,91 @@ def run(args):
             L += 1
         else:
             D += 1
-
         n = W + L + D
         llr = sprt_llr(W, L, D, args.elo0, args.elo1)
         score = (W + 0.5 * D) / n if n else 0.0
         elo = elo_from_score(score) if n else 0.0
-
-        writer.writerow({"game": g, "opening_idx": opening_idx,
-                         "p1_color": "white" if p1_white else "black",
-                         "white": white_lbl, "black": black_lbl, "result": result,
-                         "p1_score": sc, "plies": plies, "reason": reason,
+        writer.writerow({"game": r["g"], "opening_idx": r["opening_idx"],
+                         "p1_color": "white" if r["p1_white"] else "black",
+                         "white": r["white"], "black": r["black"], "result": r["result"],
+                         "p1_score": sc, "plies": r["plies"], "reason": r["reason"],
                          "W": W, "L": L, "D": D, "llr": round(llr, 4)})
         sfh.flush()
-
-        print(f"[sprt] game {g}: {result} ({reason})  +{W} -{L} ={D}"
+        print(f"[sprt] game {r['g']}: {r['result']} ({r['reason']})  +{W} -{L} ={D}"
               f"{f' [{void} void]' if void else ''}  "
               f"LLR={llr:+.3f} (need {B:+.2f}/{A:+.2f})  elo~{elo:+.0f}", flush=True)
-
-        # Only test the bounds once there is enough data to have a meaningful variance estimate.
         if n >= args.min_games:
             if llr >= A:
-                decision = "H1 accepted: P1 is stronger (>= elo1)"
-                break
+                return "H1 accepted: P1 is stronger (>= elo1)"
             if llr <= B:
-                decision = "H0 accepted: P1 is NOT a >= elo1 improvement"
-                break
-    else:
-        decision = "inconclusive: hit max_games without crossing a bound"
+                return "H0 accepted: P1 is NOT a >= elo1 improvement"
+        return None
 
-    sfh.close()
-    if adj_arbiter is not None:
-        adj_arbiter.close()
+    # Timed mode (--max-minutes): stop submitting once the clock can't fit another game (in addition to
+    # the SPRT bound + max_games). avg_dur = measured per-game wall time under load (preset-seeded).
+    budget = args.max_minutes * 60.0 if args.max_minutes else None
+    avg_dur = args.avg_seconds or PRESET_DUR.get((args.preset or "STANDARD").upper(), 322.0)
+    durations = []
+    t0 = time.monotonic()
+
+    def have_budget():
+        return budget is None or (time.monotonic() - t0) + avg_dur <= budget
+
+    try:
+        if conc <= 1:
+            for g, (opening_idx, p1_white) in enumerate(games):
+                if durations and not have_budget():    # always run the first game (measure a real dur)
+                    break
+                r, dur = play_one(g, opening_idx, p1_white)
+                durations.append(dur)
+                avg_dur = sum(durations) / len(durations)
+                d = process(r)
+                if d:
+                    decision = d
+                    break
+        else:
+            with ThreadPoolExecutor(max_workers=conc) as pool:
+                it = iter(list(enumerate(games)))
+                inflight = set()
+
+                def submit_next():
+                    nxt = next(it, None)
+                    if nxt is None:
+                        return False
+                    gg, (oi, pw) = nxt
+                    inflight.add(pool.submit(play_one, gg, oi, pw))
+                    return True
+
+                for _ in range(conc):                  # always prime a batch (measure before gating)
+                    if not submit_next():
+                        break
+                # On each completion: score it (main thread), then refill UNLESS a bound crossed or the
+                # time budget is spent (first crossing wins; let in-flight games drain).
+                while inflight:
+                    done_set, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for fut in done_set:
+                        r, dur = fut.result()
+                        durations.append(dur)
+                        d = process(r)
+                        if d and decision is None:
+                            decision = d
+                    avg_dur = sum(durations) / len(durations)
+                    if decision is None and have_budget():
+                        for _ in range(len(done_set)):
+                            if not submit_next():
+                                break
+        if decision is None:
+            decision = ("inconclusive: time budget reached" if budget is not None
+                        else "inconclusive: hit max_games without crossing a bound")
+    finally:
+        sfh.close()
+        _close_arbiters()
+
+    if budget is not None:
+        elapsed = time.monotonic() - t0
+        gph = (len(durations) / elapsed * 3600.0) if elapsed > 0 else 0.0
+        print(f"[sprt] timed: {len(durations)} games in {elapsed/60:.1f} min "
+              f"({gph:.0f} games/hr, avg {avg_dur:.0f}s/game)", flush=True)
 
     n = W + L + D
     score = (W + 0.5 * D) / n if n else 0.0
@@ -210,6 +281,14 @@ def main():
     ap.add_argument("--seed", type=int, default=0, help="seeds the opening order + color schedule")
     ap.add_argument("--preset", default="LIGHTNING", help="time control applied to BOTH players")
     ap.add_argument("--max-plies", type=int, default=400)
+    ap.add_argument("--concurrency", type=int, default=1,
+                    help="play N games in parallel (default 1 = sequential). ~6 on 8c/16t. "
+                         "Early-stop overshoots by <= N games as in-flight games drain.")
+    ap.add_argument("--max-minutes", type=float, default=0.0,
+                    help="extra stop: end once this wall-clock budget can't fit another game "
+                         "(alongside the SPRT bound + --max-games). 0 = off.")
+    ap.add_argument("--avg-seconds", type=float, default=0.0,
+                    help="seed the per-game wall estimate for --max-minutes (0 = preset default)")
     ap.add_argument("--tag", default="sprt")
     ap.add_argument("--quiet", action="store_true", help="suppress per-move prints")
     # SPRT parameters

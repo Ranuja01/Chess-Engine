@@ -23,8 +23,11 @@ import sys
 import csv
 import json
 import math
+import time
 import random
+import threading
 import argparse
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
@@ -32,6 +35,32 @@ sys.path.insert(0, THIS_DIR)
 import chess
 from selfplay import play_game, Adjudicator
 from arbiter import Arbiter, find_stockfish
+
+# Per-WORKER-THREAD Stockfish arbiter: chess.engine.SimpleEngine.analyse() is not reentrant, so a
+# pool-parallel run gives each thread its own SF process (created lazily on first adjudication).
+_tls = threading.local()
+_arbiters = []
+_arb_lock = threading.Lock()
+
+
+def _thread_arbiter(sf, movetime, depth):
+    a = getattr(_tls, "arb", None)
+    if a is None:
+        a = Arbiter(sf, movetime=movetime, depth=depth)
+        _tls.arb = a
+        with _arb_lock:
+            _arbiters.append(a)
+    return a
+
+
+def _close_arbiters():
+    with _arb_lock:
+        for a in _arbiters:
+            try:
+                a.close()
+            except Exception:
+                pass
+        _arbiters.clear()
 
 
 def load_openings(path):
@@ -76,6 +105,11 @@ def _config_with_preset(config, preset):
     return (f"PRESET={preset} {config}").strip() if preset else config
 
 
+# Rough per-game wall-clock by preset (seconds) — seeds the timed-mode estimate before real game
+# durations are measured; overridable via --avg-seconds.
+PRESET_DUR = {"LIGHTNING": 130.0, "BLITZ": 322.0, "STANDARD": 1320.0, "LONG_FORMAT": 1320.0}
+
+
 def run(args):
     logdir = os.path.join(THIS_DIR, "games", args.tag)
     os.makedirs(logdir, exist_ok=True)
@@ -84,30 +118,25 @@ def run(args):
     if not openings:
         print(f"[tournament] no openings parsed from {args.openings}", flush=True)
         return
-    games = schedule(args.games, len(openings), args.seed)
+    # In timed mode the game count isn't known up front; build a large schedule and stop on the clock.
+    n_sched = args.games if not args.max_minutes else max(args.games, 200000)
+    games = schedule(n_sched, len(openings), args.seed)
 
     p1c = _config_with_preset(args.p1_config, args.preset)
     p2c = _config_with_preset(args.p2_config, args.preset)
 
-    # Optional in-play adjudication: ONE shared Stockfish process used only to confirm a fired
-    # heuristic gate (a fresh Adjudicator per game carries the per-game state). Off unless requested.
-    # --adjudicate = both; --adjudicate-draw / --adjudicate-win enable them independently. Default is
-    # draw-only when only --adjudicate-draw is given; wins are left to grind to mate / the -15p resign
-    # (so conversion technique + the loser's defense stay observable).
+    # Optional in-play adjudication. Verify Stockfish ONCE up front; the Arbiter itself is created
+    # lazily PER WORKER THREAD (not reentrant) so concurrent games never share one SF process.
+    # --adjudicate = both; --adjudicate-draw / --adjudicate-win enable them independently.
     do_draw = args.adjudicate or args.adjudicate_draw
     do_win = args.adjudicate or args.adjudicate_win
-    adj_arbiter = None
+    sf = None
     if do_draw or do_win:
         sf = args.sf_path or find_stockfish()
         if sf:
-            try:
-                adj_arbiter = Arbiter(sf, movetime=args.sf_movetime, depth=args.sf_depth)
-                modes = (["win>%gp" % args.win_p] if do_win else []) + \
-                        (["draw<%dcp (no-progress %dplies, low-pieces %d)" % (args.draw_cp, args.noprog_plies, args.low_pieces)] if do_draw else [])
-                print(f"[tournament] adjudication ON (SF confirm @ {args.sf_movetime}s: {', '.join(modes)})", flush=True)
-            except Exception as e:
-                print(f"[tournament] WARNING: adjudication requested but Stockfish failed ({e}); OFF", flush=True)
-                do_draw = do_win = False
+            modes = (["win>%gp" % args.win_p] if do_win else []) + \
+                    (["draw<%dcp (no-progress %dplies, low-pieces %d)" % (args.draw_cp, args.noprog_plies, args.low_pieces)] if do_draw else [])
+            print(f"[tournament] adjudication ON (per-thread SF confirm @ {args.sf_movetime}s: {', '.join(modes)})", flush=True)
         else:
             print("[tournament] WARNING: adjudication requested but no Stockfish found "
                   "(set STOCKFISH_PATH or --sf-path); OFF", flush=True)
@@ -128,21 +157,27 @@ def run(args):
         writer.writeheader()
         sfh.flush()
 
+    conc = max(1, args.concurrency)
     print(f"[tournament] {args.p1_label} vs {args.p2_label} — {args.games} games, "
-          f"{len(openings)} openings, preset={args.preset or 'STANDARD'}, arbiter OFF (post-hoc)",
-          flush=True)
+          f"{len(openings)} openings, preset={args.preset or 'STANDARD'}, concurrency={conc}, "
+          f"arbiter {'ON' if (do_draw or do_win) else 'OFF (post-hoc)'}", flush=True)
 
-    for g, (opening_idx, p1_white) in enumerate(games):
-        if g in done:
-            print(f"[tournament] game {g}: skipped (resume)", flush=True)
-            continue
+    def play_one(g, opening_idx, p1_white):
+        """Run one game. Thread-safe: own gdir, own engine subprocesses, own SF arbiter.
+        Returns (row, wall_seconds)."""
+        t_game = time.monotonic()
         gdir = os.path.join(logdir, f"game_{g:03d}")
         white_cfg, white_lbl = (p1c, args.p1_label) if p1_white else (p2c, args.p2_label)
         black_cfg, black_lbl = (p2c, args.p2_label) if p1_white else (p1c, args.p1_label)
-        adj = (Adjudicator(adj_arbiter, draw_cp=args.draw_cp, win_p=args.win_p,
-                           noprog_plies=args.noprog_plies, low_pieces=args.low_pieces,
-                           window=args.adj_window, do_win=do_win, do_draw=do_draw)
-               if adj_arbiter is not None else None)
+        adj = None
+        if do_draw or do_win:
+            try:
+                adj = Adjudicator(_thread_arbiter(sf, args.sf_movetime, args.sf_depth),
+                                  draw_cp=args.draw_cp, win_p=args.win_p, noprog_plies=args.noprog_plies,
+                                  low_pieces=args.low_pieces, window=args.adj_window,
+                                  do_win=do_win, do_draw=do_draw)
+            except Exception as e:
+                print(f"[tournament] game {g}: arbiter init failed ({e}); no adjudication", flush=True)
         try:
             res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, chess.STARTING_FEN,
                             args.max_plies, gdir, jsonl_path=os.path.join(gdir, "game.jsonl"),
@@ -151,18 +186,80 @@ def run(args):
             result, reason, plies = res["result"], res["reason"], res["plies"]
         except Exception as e:
             result, reason, plies = "*", f"driver error: {e}", 0
-        row = {"game": g, "opening_idx": opening_idx, "p1_color": "white" if p1_white else "black",
-               "white": white_lbl, "black": black_lbl, "result": result,
-               "p1_score": p1_score(result, p1_white), "plies": plies, "reason": reason}
+        return ({"game": g, "opening_idx": opening_idx, "p1_color": "white" if p1_white else "black",
+                 "white": white_lbl, "black": black_lbl, "result": result,
+                 "p1_score": p1_score(result, p1_white), "plies": plies, "reason": reason},
+                time.monotonic() - t_game)
+
+    def record(row):
+        # Called ONLY on the main thread (sequentially, as futures complete) -> no lock needed.
         writer.writerow(row)
         sfh.flush()
         rows.append(row)
         sc = row["p1_score"]
-        print(f"[tournament] game {g}: {result}  ({reason})  P1={'-' if sc is None else sc}  "
-              f"[{args.p1_label} as {row['p1_color']}]", flush=True)
-    sfh.close()
-    if adj_arbiter is not None:
-        adj_arbiter.close()
+        print(f"[tournament] game {row['game']}: {row['result']}  ({row['reason']})  "
+              f"P1={'-' if sc is None else sc}  [{args.p1_label} as {row['p1_color']}]", flush=True)
+
+    pending = [(g, oi, pw) for g, (oi, pw) in enumerate(games) if g not in done]
+    for g in sorted(done):
+        print(f"[tournament] game {g}: skipped (resume)", flush=True)
+
+    # Timed mode (--max-minutes): play as many games as fit the wall-clock budget. `avg_dur` is the
+    # measured per-game wall time under the current concurrency load (seeded by a preset default); we
+    # start another game only while elapsed + avg_dur <= budget, then let in-flight games drain.
+    budget = args.max_minutes * 60.0 if args.max_minutes else None
+    avg_dur = args.avg_seconds or PRESET_DUR.get((args.preset or "STANDARD").upper(), 322.0)
+    durations = []
+    t0 = time.monotonic()
+
+    def have_budget():
+        return budget is None or (time.monotonic() - t0) + avg_dur <= budget
+
+    try:
+        if conc <= 1:
+            for i, (g, oi, pw) in enumerate(pending):
+                if i > 0 and not have_budget():        # always run the first game (measure a real dur)
+                    break
+                row, dur = play_one(g, oi, pw)
+                record(row)
+                durations.append(dur)
+                avg_dur = sum(durations) / len(durations)
+        else:
+            with ThreadPoolExecutor(max_workers=conc) as pool:
+                it = iter(pending)
+                inflight = set()
+
+                def submit_next():
+                    nxt = next(it, None)
+                    if nxt is None:
+                        return False
+                    gg, oi, pw = nxt
+                    inflight.add(pool.submit(play_one, gg, oi, pw))
+                    return True
+
+                for _ in range(conc):                  # always prime a batch (measure before gating)
+                    if not submit_next():
+                        break
+                while inflight:
+                    done_set, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for fut in done_set:
+                        row, dur = fut.result()
+                        record(row)
+                        durations.append(dur)
+                    avg_dur = sum(durations) / len(durations)
+                    if have_budget():                       # else stop submitting; let in-flight drain
+                        for _ in range(len(done_set)):
+                            if not submit_next():
+                                break
+    finally:
+        sfh.close()
+        _close_arbiters()
+
+    if budget is not None:
+        elapsed = time.monotonic() - t0
+        gph = (len(durations) / elapsed * 3600.0) if elapsed > 0 else 0.0
+        print(f"[tournament] timed: {len(durations)} games in {elapsed/60:.1f} min "
+              f"({gph:.0f} games/hr, avg {avg_dur:.0f}s/game)", flush=True)
 
     _finalize(args, logdir, rows)
 
@@ -234,6 +331,13 @@ def main():
     ap.add_argument("--seed", type=int, default=0, help="seeds the opening order + color schedule")
     ap.add_argument("--preset", default="LIGHTNING", help="time control applied to BOTH players")
     ap.add_argument("--max-plies", type=int, default=400)
+    ap.add_argument("--concurrency", type=int, default=1,
+                    help="play N games in parallel (default 1 = sequential). ~6 on 8c/16t.")
+    ap.add_argument("--max-minutes", type=float, default=0.0,
+                    help="timed mode: play as many games as fit this wall-clock budget, then stop "
+                         "(0 = off, use --games). Single --preset. e.g. 540 = 9h.")
+    ap.add_argument("--avg-seconds", type=float, default=0.0,
+                    help="seed the per-game wall estimate for timed mode (0 = preset default)")
     ap.add_argument("--tag", default="tourney")
     ap.add_argument("--quiet", action="store_true", help="suppress per-move prints")
     ap.add_argument("--resume", action="store_true", help="skip games already in summary.csv")

@@ -597,6 +597,15 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		0    
 	);
 
+	// Enemy king square for the quiet-check ordering bonus (computed once; only when enabled).
+	int enemy_king_sq = -1;
+	if (Config::ENABLE_CHECK_ORDER)
+	{
+		uint64_t ek = kingsMask & opposingPieces;
+		if (ek)
+			enemy_king_sq = 63 - __builtin_clzll(ek);
+	}
+
 	auto score_move = [&](size_t i) -> int {
 		uint8_t from = startPos[i];
 		uint8_t to = endPos[i];
@@ -611,14 +620,17 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			int promo_bonus = (promotions[i] - 1) * 5000;
 			int capture_base_value = 200000;
 			int move_freq_bonus = moveFrequency[turn][from][to];
+			// Capture history refines ordering WITHIN the static capture tiers; bad captures rarely
+			// accumulate it, so they stay below quiets in practice. Gated, default off = byte-identical.
+			int cap_hist = Config::ENABLE_CAPTURE_HIST ? captureHistory[turn][from][to] : 0;
 			//return 15000 + value_captured - value_attacker + promo_bonus;
 			if (value_captured >= value_attacker) {
 				// Clearly good capture, skip SEE
-				return capture_base_value + value_captured - value_attacker + promo_bonus + move_freq_bonus;
+				return capture_base_value + value_captured - value_attacker + promo_bonus + move_freq_bonus + cap_hist;
 			} else {
 				// Unclear or losing capture, run SEE
 				int see_score = see(to, turn, state);
-				return see_score < 0 ? see_score + promo_bonus + move_freq_bonus : capture_base_value + see_score + promo_bonus + move_freq_bonus;
+				return see_score < 0 ? see_score + promo_bonus + move_freq_bonus + cap_hist : capture_base_value + see_score + promo_bonus + move_freq_bonus + cap_hist;
 			}
 		}
 
@@ -628,8 +640,39 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			counterMoveBonus = 8000;
 		}
 		int promo_bonus = (promotions[i] - 1) * 5000;
+		// 2-ply continuation history: keyed by the move 2 plies back (g_searchStack[ply-2]) x this move.
+		// Gated, default off = byte-identical (the stack is neither pushed nor read when off).
+		int cont2 = 0;
+		if (Config::ENABLE_CONT_HIST_2PLY && ply >= 2)
+		{
+			Move p2 = g_searchStack[ply - 2];
+			if (p2.from_square != p2.to_square)
+				cont2 = contHist2[turn][p2.from_square * 64 + p2.to_square][from * 64 + to];
+		}
+		// Ordering bonus for a quiet move that gives a DIRECT check (the mover, landing on `to`, attacks
+		// the enemy king). Misses discovered checks. Gated, default off = byte-identical.
+		int check_bonus = 0;
+		if (Config::ENABLE_CHECK_ORDER && enemy_king_sq >= 0)
+		{
+			uint64_t fromBB = BB_SQUARES[from];
+			uint64_t occ = occupiedMask & ~fromBB;   // the mover has vacated `from`
+			uint64_t atk = 0;
+			if (knightsMask & fromBB)
+				atk = BB_KNIGHT_ATTACKS[to];
+			else if (pawnsMask & fromBB)
+				atk = BB_PAWN_ATTACKS[turn][to];
+			else if (bishopsMask & fromBB)
+				atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ];
+			else if (rooksMask & fromBB)
+				atk = BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ];
+			else if (queensMask & fromBB)
+				atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ] | BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ];
+			if (atk & BB_SQUARES[enemy_king_sq])
+				check_bonus = Config::CHECK_ORDER_BONUS;
+		}
 		return historyHeuristics[turn][from][to] + killerBonus(ply, cur)
 			   + counterMoveBonus + counterMoveHeuristics[turn][prevMove.from_square * 64 + prevMove.to_square][from * 64 + to]
+			   + cont2 + check_bonus
 			   + promo_bonus + moveFrequency[turn][from][to];
 	};
 

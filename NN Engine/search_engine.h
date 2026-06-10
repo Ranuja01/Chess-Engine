@@ -248,16 +248,23 @@ namespace Config
     inline bool ENABLE_CONT_HIST = true;
     inline int CONT_HIST_LMR_THRESH = 2000; // min continuation score to cancel the reduce-more
 
+    // Move-ordering experiments, each benched independently.
+    inline bool ENABLE_CONT_HIST_2PLY = false; // 2-ply continuation history -- d10 LOSS at equal weight (WAC -3, +7% nodes); needs down-weight (b/4) + the bonus/malus rework before it's worth anything
+    inline bool ENABLE_CAPTURE_HIST = false;   // capture-history refinement -- marginal (+0.7 STS/+1 WAC but +2.6% nodes); knob, revisit after bonus/malus
+    inline bool ENABLE_CHECK_ORDER = false;    // direct-check bonus -- on the SCALE-OFF baseline it's -6 WAC for -9.8% nodes (accuracy traded for speed; bad at fixed depth). BONUS=6000 too hot -> recalibrate lower before re-enabling
+    inline int CHECK_ORDER_BONUS = 6000;       // the flat quiet-check ordering bonus
+
     // Eval: scale the advanced-endgame mate-drive by the winner's material margin (default off =
     // byte-identical). Unproven (no definitive self-play result); the R+N-vs-R case it targeted is now
     // handled by is_practically_drawn. Kept as a knob for the graded endgame-scaling rework.
     inline bool ENABLE_MATE_DRIVE_SCALE = false;
 
-    // Eval: continuous endgame "convertibility" scale (default on). Damps an unconvertible
-    // material/placement lead toward draw (bare minor, opposite-coloured bishops), pulled back toward 1
-    // by an advanced winning passer; mates (edge > a minor) keep s=1 (FEN spot-checks: KQK/KRK/B+3P
-    // byte-identical, OCB drawish -0.64 -> -0.34 toward SF). The graded companion to is_practically_drawn.
-    inline bool ENABLE_ENDGAME_SCALE = true;
+    // Eval: continuous endgame "convertibility" scale (default OFF -- reverted). Damps an unconvertible
+    // material/placement lead toward draw (bare minor, opposite-coloured bishops). The 5 FEN spot-checks
+    // looked surgical, but a scale-ON STS bench showed it changes far more leaf evals than they implied:
+    // -3.9 STS / -3 WAC vs scale-off for only -3% nodes -- a net suite regression. Kept as a knob; redo
+    // with tighter targeting (or after the bonus/malus history rework) before re-enabling.
+    inline bool ENABLE_ENDGAME_SCALE = false;
 
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that

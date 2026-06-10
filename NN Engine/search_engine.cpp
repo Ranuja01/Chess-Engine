@@ -306,6 +306,16 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
             counterMoveHeuristics[cs.turn][previousMove.from_square * 64 + previousMove.to_square]
                                  [move.from_square * 64 + move.to_square] >= Config::CONT_HIST_LMR_THRESH)
             return 0;
+        // A strong 2-ply continuation (move 2 plies back x this move) also rescues a tier-0 quiet
+        // from reduce-more. Gated; reuses the 1-ply threshold.
+        if (Config::ENABLE_CONT_HIST_2PLY && ply >= 2)
+        {
+            Move p2 = g_searchStack[ply - 2];
+            if (p2.from_square != p2.to_square &&
+                contHist2[cs.turn][p2.from_square * 64 + p2.to_square]
+                         [move.from_square * 64 + move.to_square] >= Config::CONT_HIST_LMR_THRESH)
+                return 0;
+        }
         return -Config::HISTORY_LMR_MORE_CAP;
     }
 
@@ -437,6 +447,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_ENDGAME_SCALE = env_flag("ENABLE_ENDGAME_SCALE", Config::ENABLE_ENDGAME_SCALE);
         Config::ENABLE_CONT_HIST = env_flag("ENABLE_CONT_HIST", Config::ENABLE_CONT_HIST);
         Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
+        Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
+        Config::ENABLE_CAPTURE_HIST = env_flag("ENABLE_CAPTURE_HIST", Config::ENABLE_CAPTURE_HIST);
+        Config::ENABLE_CHECK_ORDER = env_flag("ENABLE_CHECK_ORDER", Config::ENABLE_CHECK_ORDER);
+        Config::CHECK_ORDER_BONUS = env_int("CHECK_ORDER_BONUS", Config::CHECK_ORDER_BONUS);
         // Fall back to the header defaults (the blitz-validated VERIFY keeper) so the
         // built-in value is the single source of truth; an env var still overrides it
         // (e.g. VERIFY_MARGIN=0 to recover the old search for the d10 control).
@@ -513,6 +527,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_ENDGAME_SCALE=" << Config::ENABLE_ENDGAME_SCALE
                   << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST
                   << " CONT_HIST_LMR_THRESH=" << Config::CONT_HIST_LMR_THRESH
+                  << " ENABLE_CONT_HIST_2PLY=" << Config::ENABLE_CONT_HIST_2PLY
+                  << " ENABLE_CAPTURE_HIST=" << Config::ENABLE_CAPTURE_HIST
+                  << " ENABLE_CHECK_ORDER=" << Config::ENABLE_CHECK_ORDER
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " PRESET=" << active_preset
@@ -707,6 +724,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     update_cache(static_cast<int>(state_history.size()));
     std::fill(&killerMoves[0][0], &killerMoves[0][0] + 64 * 2, Move{});
     std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
+    std::fill(&g_searchStack[0], &g_searchStack[0] + MAX_PLY, Move{});
     /* std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0); */
 
@@ -1289,6 +1307,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
+    if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
+        g_searchStack[cur_depth] = move;   // record this node's move for the 2-ply continuation key
     bool using_tt = false;
     int score = 0;
     BoardState updated_state = state_history.back();
@@ -1523,6 +1543,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
+    if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
+        g_searchStack[cur_depth] = move;   // record this node's move for the 2-ply continuation key
     bool using_tt = false;
     int score = 0;
     std::vector<int> dummy_ints;
@@ -2019,6 +2041,16 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
                     counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
+                    {
+                        Move p2 = g_searchStack[cur_depth - 2];
+                        if (p2.from_square != p2.to_square)
+                            contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    }
+                }
+                else if (Config::ENABLE_CAPTURE_HIST)
+                {
+                    captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                 }
                 return lowest_score;
             }
@@ -2102,6 +2134,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             if (!using_tt)
             {
                 Move dummyMove;
+                if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
+                    g_searchStack[cur_depth] = dummyMove;   // null move breaks the 2-ply continuation chain
                 null_move_score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true);
             }
 
@@ -2269,6 +2303,16 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
                     counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
+                    {
+                        Move p2 = g_searchStack[cur_depth - 2];
+                        if (p2.from_square != p2.to_square)
+                            contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    }
+                }
+                else if (Config::ENABLE_CAPTURE_HIST)
+                {
+                    captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                 }
 
                 return lowest_score;
@@ -2472,6 +2516,8 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if (!using_tt)
         {
             Move dummyMove;
+            if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
+                g_searchStack[cur_depth] = dummyMove;   // null move breaks the 2-ply continuation chain
             null_move_score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true);
         }
 
@@ -2665,6 +2711,16 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                 counterMoves[previousMove.from_square][previousMove.to_square] = move;
                 counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
+                {
+                    Move p2 = g_searchStack[cur_depth - 2];
+                    if (p2.from_square != p2.to_square)
+                        contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                }
+            }
+            else if (Config::ENABLE_CAPTURE_HIST)
+            {
+                captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
             }
 
             return highest_score;
@@ -3040,6 +3096,16 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                             historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
                             counterMoves[prevMove.from_square][prevMove.to_square] = move;
                             counterMoveHeuristics[current_state.turn][prevMove.from_square * 64 + prevMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth * cur_depth;
+                            if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
+                            {
+                                Move p2 = g_searchStack[cur_depth - 2];
+                                if (p2.from_square != p2.to_square)
+                                    contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth * cur_depth;
+                            }
+                        }
+                        else if (Config::ENABLE_CAPTURE_HIST)
+                        {
+                            captureHistory[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
                         }
 
                         pv_table[cur_depth][0] = move;
@@ -3194,6 +3260,10 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                 historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                 counterMoves[prevMove.from_square][prevMove.to_square] = move;
                 counterMoveHeuristics[current_state.turn][prevMove.from_square * 64 + prevMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+            }
+            else if (Config::ENABLE_CAPTURE_HIST)
+            {
+                captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
             }
 
             return lowest_score;
@@ -3799,10 +3869,18 @@ inline void increment_node_count_with_decay(int &num_iterations)
 {
     num_iterations++;
     if (num_iterations % Config::DECAY_INTERVAL == 0)
+    {
         decayHistoryHeuristics();
+        if (Config::ENABLE_CAPTURE_HIST)
+            decayCaptureHistory();
+    }
 
     if ((num_iterations % (Config::DECAY_INTERVAL * 16)) == 0)
+    {
         decayCounterMoveHeuristics();
+        if (Config::ENABLE_CONT_HIST_2PLY)
+            decayContHist2();
+    }
 }
 
 inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count)

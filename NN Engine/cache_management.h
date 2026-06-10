@@ -150,6 +150,14 @@ extern int counterMoveHeuristics[2][4096][4096];
 extern int historyHeuristics[2][64][64];
 extern int moveFrequency[2][64][64];
 
+extern int contHist2[2][4096][4096];
+extern int captureHistory[2][64][64];
+
+// Per-ply move stack (single-threaded search): g_searchStack[d] = the move played to descend from
+// depth d to d+1. A node at depth `ply` reads g_searchStack[ply-2] as the move 2 plies back (the
+// 2-ply continuation key) without threading a previousMove2 param through the search.
+extern Move g_searchStack[MAX_PLY];
+
 /*
 	Set of functions used to cache data
 */
@@ -888,6 +896,26 @@ inline void decayCounterMoveHeuristics() {
         for (int from = 0; from < 4096; ++from) {
             for (int to = 0; to < 4096; ++to) {
                 counterMoveHeuristics[side][from][to] >>= DECAY_FACTOR;
+            }
+        }
+    }
+}
+
+inline void decayContHist2() {
+    for (int side = 0; side < 2; ++side) {
+        for (int from = 0; from < 4096; ++from) {
+            for (int to = 0; to < 4096; ++to) {
+                contHist2[side][from][to] >>= DECAY_FACTOR;
+            }
+        }
+    }
+}
+
+inline void decayCaptureHistory() {
+    for (int side = 0; side < 2; ++side) {
+        for (int from = 0; from < 64; ++from) {
+            for (int to = 0; to < 64; ++to) {
+                captureHistory[side][from][to] >>= DECAY_FACTOR;
             }
         }
     }

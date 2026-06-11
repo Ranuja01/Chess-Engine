@@ -287,6 +287,18 @@ namespace Config
     // with tighter targeting (or after the bonus/malus history rework) before re-enabling.
     inline bool ENABLE_ENDGAME_SCALE = false;
 
+    // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
+    // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
+    // + activity signal: own pawns on the bishop's colour (bad bishop) traded against the bishop's current
+    // diagonal scope (mobility / forward reach into the enemy half / enemy-king-zone pressure). Default
+    // off = byte-identical (the flood-fill runs untouched). K_* are tunable weights for the sweep; the
+    // output is clamped to the same [-200, +275] mp range as the flood-fill term.
+    inline bool ENABLE_CHEAP_BISHOP_COMPLEX = false;
+    inline int CHEAP_BISHOP_BLOCK = 30;   // penalty per own pawn on the bishop's colour
+    inline int CHEAP_BISHOP_MOB   = 6;    // bonus per diagonally-attacked square (current scope)
+    inline int CHEAP_BISHOP_FWD   = 8;    // extra bonus per attacked square in the enemy half
+    inline int CHEAP_BISHOP_KING  = 12;   // extra bonus per attacked square in the enemy king zone
+
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
     // uses the "how close to alpha" signal. The default is the blitz-validated

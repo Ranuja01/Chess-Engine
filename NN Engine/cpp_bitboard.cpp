@@ -1191,7 +1191,7 @@ inline uint8_t mirror_aware_lsb(uint64_t bb, bool colour) {
                   : static_cast<uint8_t>(__builtin_ctzll(__builtin_bswap64(bb)) ^ 56);
 }
 
-inline uint64_t bishop_floodfill_fast(uint8_t start_sq, uint64_t occupied, uint64_t our_pawns, uint64_t our_pieces, std::array<int, 64>& depth_map, bool colour) {
+inline uint64_t bishop_floodfill_fast(uint8_t start_sq, uint64_t occupied, uint64_t our_pawns, uint64_t our_pieces, std::array<uint8_t, 64>& depth_map, bool colour) {
     uint64_t visited = 0ULL;
     uint64_t queue = BB_SQUARES[start_sq];
     uint64_t result = 0ULL;
@@ -1297,7 +1297,32 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 	int king_zone_count = 0;
 
 	bool is_light = is_white_square(square);
-	 
+
+	if (Config::ENABLE_CHEAP_BISHOP_COMPLEX) {
+		// Cheap popcount surrogate for the flood-fill below (see ENABLE_CHEAP_BISHOP_COMPLEX). Bad bishop =
+		// own pawns on the bishop's colour; activity = the bishop's current diagonal scope, weighted extra
+		// for squares in the enemy half and the enemy king zone. The flood-fill path has no global
+		// side-effects, so returning a value here is a clean drop-in. Clamped to the term's usual envelope.
+		uint64_t colour_mask = is_light ? LIGHT_SQUARES : DARK_SQUARES;
+		uint64_t our_pieces = colour ? occupied_white : occupied_black;
+		uint64_t far_half = colour ? (BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8)
+		                           : (BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4);
+		uint64_t enemy_king_zone = colour
+		    ? black_king_zones[__builtin_ctzll(occupied_black & kings) & 7]
+		    : white_king_zones[__builtin_ctzll(occupied_white & kings) & 7];
+
+		int block = __builtin_popcountll(pawns & our_pieces & colour_mask);
+		int mob   = __builtin_popcountll(attack_mask);
+		int fwd   = __builtin_popcountll(attack_mask & far_half);
+		int kingp = __builtin_popcountll(attack_mask & enemy_king_zone);
+
+		int raw = Config::CHEAP_BISHOP_MOB * mob
+		        + Config::CHEAP_BISHOP_FWD * fwd
+		        + Config::CHEAP_BISHOP_KING * kingp
+		        - Config::CHEAP_BISHOP_BLOCK * block;
+		return std::max(-2 * BAD_THRESHOLD, std::min(MAX_BONUS, raw));
+	}
+
 	uint64_t white_king_zone = white_king_zones[__builtin_ctzll(occupied_white&kings) & 7] & ~BB_RANK_4 & ~BB_RANK_5;
 	uint64_t black_king_zone = black_king_zones[__builtin_ctzll(occupied_black&kings) & 7] & ~BB_RANK_4 & ~BB_RANK_5;
 
@@ -1312,7 +1337,7 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 
 	base_zone |= attack_mask | BB_SQUARES[square];
 
-	std::array<int, 64> depth_map;
+	std::array<uint8_t, 64> depth_map;
 	uint64_t reachable = bishop_floodfill_fast(square, occupied, pawns & ourPieces, ourPieces, depth_map, colour);
 	uint64_t bb = base_zone & reachable;
 

@@ -20,6 +20,11 @@ eigen_path = "/usr/include/eigen3/"
 # removed os.path.join(onnx_path, "lib") from library_dirs
 # remove onnxruntime from libraries
 
+# Opt-in eval-profiling build: PROFILE_EVAL=1 compiles the __rdtsc__ per-term
+# instrumentation (fully #ifdef EVAL_PROFILE-walled). A normal build omits it
+# entirely, leaving the production binary byte-identical.
+eval_profile_args = ["-DEVAL_PROFILE", "-g"] if os.environ.get("PROFILE_EVAL") == "1" else []
+
 # Define the extension module
 extensions = [
     Extension(
@@ -36,7 +41,7 @@ extensions = [
             "-std=c++20",              # Use modern C++
 
             "-mpopcnt", "-mbmi2",      # Enable CPU bit manipulation instructions
-        ],
+        ] + eval_profile_args,
         extra_link_args=[
             "-flto",
             "-fopenmp", "-pthread"

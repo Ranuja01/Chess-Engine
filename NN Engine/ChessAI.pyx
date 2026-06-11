@@ -159,6 +159,16 @@ cdef extern from "cpp_bitboard.h":
         int pt_kings
     EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
 
+    # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
+    void eval_profile_reset()
+    void eval_profile_dump(const char* label)
+    void eval_profile_run(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, int reps)
+    int eval_profile_num_terms()
+    unsigned long long eval_profile_cycles(int term)
+    unsigned long long eval_profile_calls(int term)
+    const char* eval_profile_name(int term)
+    int eval_profile_num_exclusive()
+
     void printLayers()
     
     bint is_checkmate(uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
@@ -491,6 +501,55 @@ cdef class ChessAI:
             "pt_queens": b.pt_queens,
             "pt_kings": b.pt_kings,
         }
+
+
+    # Compile-gated eval-profiler hooks. These call the C++ entry points, which are
+    # no-ops unless the extension was built with PROFILE_EVAL=1 (-DEVAL_PROFILE). The
+    # driver evaluates one position `reps` times so the per-term __rdtsc accumulators
+    # gather signal; reset/dump bracket a phase bin. See diagnostics/eval_profile.py.
+    def reset_profile(self):
+        eval_profile_reset()
+
+    def dump_profile(self, str label):
+        eval_profile_dump(label.encode("utf-8"))
+
+    # Returns the current per-term accumulators as a list of dicts (cycles/calls/name/
+    # exclusive). Empty unless built with PROFILE_EVAL=1. Read before reset_profile().
+    def get_profile(self):
+        cdef int n = eval_profile_num_terms()
+        cdef int n_excl = eval_profile_num_exclusive()
+        cdef int i
+        cdef bytes name
+        out = []
+        for i in range(n):
+            name = eval_profile_name(i)
+            out.append({
+                "term": name.decode("utf-8"),
+                "cycles": int(eval_profile_cycles(i)),
+                "calls": int(eval_profile_calls(i)),
+                "exclusive": i < n_excl,
+            })
+        return out
+
+    def profile_eval(self, object board, int reps):
+
+        cdef uint64_t pawns = board.pawns
+        cdef uint64_t knights = board.knights
+        cdef uint64_t bishops = board.bishops
+        cdef uint64_t rooks = board.rooks
+        cdef uint64_t queens = board.queens
+        cdef uint64_t kings = board.kings
+        cdef uint64_t occupied_white = board.occupied_co[True]
+        cdef uint64_t occupied_black = board.occupied_co[False]
+        cdef uint64_t occupied = board.occupied
+        cdef int moveNum = board.ply()
+
+        # Skip terminal positions; placement_and_piece_eval assumes a non-terminal board.
+        if board.is_checkmate():
+            return
+
+        eval_profile_run(moveNum, board.turn, pawns, knights, bishops,
+                         rooks, queens, kings, occupied_white, occupied_black, occupied, reps)
 
 
     # Function for opening book moves

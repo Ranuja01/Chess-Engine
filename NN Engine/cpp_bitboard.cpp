@@ -1545,9 +1545,15 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			}				
 			bb &= bb - 1;
 		}            
-		total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_black, occupied_white);		
+		{
+			PROF_BLOCK(PROF_BISHOP_ACTIVITY);
+			total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_black, occupied_white);
+		}
 		total = std::max(total, -3850);
-		total -= get_bishop_colour_complex_score(colour, square, pieceAttackMask);
+		{
+			PROF_BLOCK(PROF_BISHOP_COLOUR);
+			total -= get_bishop_colour_complex_score(colour, square, pieceAttackMask);
+		}
 		total = std::max(total, -4000);
 	}else{
 		// First add the piece value
@@ -1679,9 +1685,15 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 			bb &= bb - 1; 
 		}			         
-		total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_white, occupied_black);		
+		{
+			PROF_BLOCK(PROF_BISHOP_ACTIVITY);
+			total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_white, occupied_black);
+		}
 		total = std::min(total, 3850);
-		total += get_bishop_colour_complex_score(colour, square, pieceAttackMask);
+		{
+			PROF_BLOCK(PROF_BISHOP_COLOUR);
+			total += get_bishop_colour_complex_score(colour, square, pieceAttackMask);
+		}
 		total = std::min(total, 4000);
 	}
 	
@@ -5457,7 +5469,10 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	if (!isEndGame){
 
 		// Update the attacking layer based on the position of the king
-		setAttackingLayer(5, isEndGame);
+		{
+			PROF_BLOCK(PROF_ATTACK_LAYER);
+			setAttackingLayer(5, isEndGame);
+		}
 		//std::cout << total << std::endl;
 		uint64_t bb = pawnsMask;
 		uint8_t r = 0;
@@ -5466,6 +5481,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			bb &= bb - 1;  
 			
+			PROF_BLOCK(PROF_PAWNS);
 			int blended_score;
 			if (phase_score <= 40) {
 				int pawn_rank_bonus = 0;
@@ -5502,7 +5518,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			
 			r = __builtin_ctzll(bb);  
 			
-			// Call the midgame knights evaluation function 
+			// Call the midgame knights evaluation function
+			PROF_BLOCK(PROF_KNIGHTS);
 			int result = evaluate_knights_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
@@ -5521,6 +5538,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
+			PROF_BLOCK(PROF_BISHOPS);
 			int result = evaluate_bishops_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
@@ -5544,6 +5562,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			total += result;
 			std::cout << "ROOKS: " << int(r) << " | " << result << std::endl; */
 
+			PROF_BLOCK(PROF_ROOKS);
 			int blended_score;
 			if (phase_score <= 40) {
 				int result_mid = evaluate_rooks_midgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
@@ -5561,7 +5580,10 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
 			}
 
-			blended_score += get_latent_rook_activity_score(r);
+			{
+				PROF_BLOCK(PROF_ROOK_ACTIVITY);
+				blended_score += get_latent_rook_activity_score(r);
+			}
 
 			if(blended_score < 0){
 				blended_score = std::max(blended_score, -5600);
@@ -5583,6 +5605,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
+			PROF_BLOCK(PROF_QUEENS);
 			int result = evaluate_queens_midgame(r, white_passed_pawns, black_passed_pawns);
 			square_values[r] = abs(result);
 			total += result;
@@ -5622,6 +5645,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			
 			// Call the midgame knights evaluation function 
 			
+			PROF_BLOCK(PROF_KINGS);
 			int blended_score;
 			if (phase_score <= 40) {
 				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
@@ -5672,13 +5696,22 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		);
 		//std::cout << total << std::endl;
 		br_pieces = total; br_run = total;
-		total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		{
+			PROF_BLOCK(PROF_CAPTURE_GAINS);
+			total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+		{
+			PROF_BLOCK(PROF_PASSED_SUPPORT);
+			total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		total += get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
+		{
+			PROF_BLOCK(PROF_LATENT_THREAT);
+			total += get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
+		}
 		br_latent = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 
@@ -5730,7 +5763,10 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			return 0;
 
 		// Update the attacking layer based on the position of the king
-		setAttackingLayer(10, isEndGame);
+		{
+			PROF_BLOCK(PROF_ATTACK_LAYER);
+			setAttackingLayer(10, isEndGame);
+		}
 		//std::cout << total << std::endl;			
 		uint64_t bb = pawnsMask;
 		uint8_t r = 0;
@@ -5739,6 +5775,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			int pawn_rank_bonus = 0;
 			// Call the midgame pawns evaluation function 
+			PROF_BLOCK(PROF_PAWNS);
 			int result = evaluate_pawns_endgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus);
 			square_values[r] = abs(result);
 			pawn_rank_bonuses[r] = pawn_rank_bonus;
@@ -5756,6 +5793,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
+			PROF_BLOCK(PROF_KNIGHTS);
 			int result = evaluate_knights_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
@@ -5772,6 +5810,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
+			PROF_BLOCK(PROF_BISHOPS);
 			int result = evaluate_bishops_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
@@ -5788,6 +5827,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
+			PROF_BLOCK(PROF_ROOKS);
 			int result = evaluate_rooks_endgame(r, white_passed_pawns, black_passed_pawns, relevant_pins);
 			square_values[r] = abs(result);
 			total += result;
@@ -5804,6 +5844,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			// Call the midgame knights evaluation function 
+			PROF_BLOCK(PROF_QUEENS);
 			int result = evaluate_queens_endgame(r, white_passed_pawns, black_passed_pawns);
 			square_values[r] = abs(result);
 			total += result;
@@ -5820,6 +5861,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			r = __builtin_ctzll(bb);  
 			
 			
+			PROF_BLOCK(PROF_KINGS);
 			int blended_score;
 			if (phase_score <= 40) {
 				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
@@ -5866,10 +5908,16 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		);
 		//std::cout << total << std::endl;
 		br_pieces = total; br_run = total;
-		total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		{
+			PROF_BLOCK(PROF_CAPTURE_GAINS);
+			total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+		{
+			PROF_BLOCK(PROF_PASSED_SUPPORT);
+			total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << " after pp: " << total << std::endl;
 
@@ -5881,7 +5929,10 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 		// Check if the position is an advanced endgame
 		if (isNearGameEnd){
-			total = advanced_endgame_eval(total, turn);
+			{
+				PROF_BLOCK(PROF_ADV_ENDGAME);
+				total = advanced_endgame_eval(total, turn);
+			}
 			br_advanced_fired = true;
 			br_advanced_total = total;
 			br_run = total;
@@ -6211,7 +6262,11 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
             continue;
 		//std::cout << std::endl;
 		//std::cout <<(int)r << std::endl;
-		int static_exchange_eval = see (r, !current_colour, state);
+		int static_exchange_eval;
+		{
+			PROF_BLOCK(PROF_SEE);
+			static_exchange_eval = see (r, !current_colour, state);
+		}
 		//std::cout << static_exchange_eval << std::endl;
 		if (static_exchange_eval >= 0) {
 
@@ -6727,6 +6782,134 @@ void update_bitmasks(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsM
 	occupied_white = occupied_whiteMask;
 	occupied_black = occupied_blackMask;
 	occupied = occupiedMask;
+}
+
+/*
+	Compile-gated eval profiler implementation. The three entry points are defined
+	unconditionally so the Cython bridge always links; their bodies are #ifdef-walled
+	and become no-ops in a production build (no EVAL_PROFILE → byte-identical binary).
+*/
+#ifdef EVAL_PROFILE
+uint64_t g_prof_cycles[NUM_PROF_TERMS];
+uint64_t g_prof_calls[NUM_PROF_TERMS];
+
+static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
+	"PAWNS", "KNIGHTS", "BISHOPS", "ROOKS", "ROOK_ACTIVITY",
+	"QUEENS", "KINGS", "ATTACK_LAYER", "CAPTURE_GAINS",
+	"PASSED_SUPPORT", "LATENT_THREAT", "ADV_ENDGAME",
+	"SEE", "BISHOP_ACTIVITY", "BISHOP_COLOUR"
+};
+
+// Terms PROF_PAWNS..PROF_ADV_ENDGAME are the top-level, mutually-exclusive call
+// sites whose cycles sum to ~the instrumented eval; the remainder (SEE, the bishop
+// helpers, and ROOK_ACTIVITY) are nested subsets and excluded from the %-share base.
+static const int PROF_NUM_EXCLUSIVE = PROF_ADV_ENDGAME + 1;
+#endif
+
+void eval_profile_reset()
+{
+#ifdef EVAL_PROFILE
+	for (int i = 0; i < NUM_PROF_TERMS; ++i) {
+		g_prof_cycles[i] = 0;
+		g_prof_calls[i] = 0;
+	}
+#endif
+}
+
+void eval_profile_dump(const char* label)
+{
+#ifdef EVAL_PROFILE
+	uint64_t base = 0;
+	for (int i = 0; i < PROF_NUM_EXCLUSIVE; ++i)
+		base += g_prof_cycles[i];
+	if (base == 0)
+		base = 1; // avoid divide-by-zero on an empty run
+
+	std::cerr << "[eval_profile] " << label << "\n";
+	std::cerr << "  term             cycles            calls       cyc/call   %share\n";
+	for (int i = 0; i < NUM_PROF_TERMS; ++i) {
+		double share = 100.0 * (double)g_prof_cycles[i] / (double)base;
+		double per_call = g_prof_calls[i] ? (double)g_prof_cycles[i] / (double)g_prof_calls[i] : 0.0;
+		const char* tag = (i < PROF_NUM_EXCLUSIVE) ? "" : "  (nested)";
+		std::cerr << "  " << PROF_TERM_NAMES[i];
+		for (int p = (int)std::strlen(PROF_TERM_NAMES[i]); p < 16; ++p) std::cerr << ' ';
+		std::cerr << g_prof_cycles[i] << "  " << g_prof_calls[i]
+		          << "  " << (uint64_t)per_call << "  " << share << "%" << tag << "\n";
+	}
+	std::cerr << "  (base = sum of the " << PROF_NUM_EXCLUSIVE << " exclusive terms)\n";
+#else
+	(void)label;
+#endif
+}
+
+void eval_profile_run(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, int reps)
+{
+#ifdef EVAL_PROFILE
+	// The rep loop sits outside every ProfScope, so only the per-term work inside
+	// placement_and_piece_eval is timed. A single volatile store after the loop
+	// defeats dead-store elimination without timing the loop's own bookkeeping.
+	int acc = 0;
+	for (int i = 0; i < reps; ++i) {
+		acc += placement_and_piece_eval(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask,
+		                                queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask);
+	}
+	volatile int sink = acc;
+	(void)sink;
+#else
+	(void)moveNum; (void)turn; (void)pawnsMask; (void)knightsMask; (void)bishopsMask; (void)rooksMask;
+	(void)queensMask; (void)kingsMask; (void)occupied_whiteMask; (void)occupied_blackMask; (void)occupiedMask; (void)reps;
+#endif
+}
+
+int eval_profile_num_terms()
+{
+#ifdef EVAL_PROFILE
+	return NUM_PROF_TERMS;
+#else
+	return 0;
+#endif
+}
+
+unsigned long long eval_profile_cycles(int term)
+{
+#ifdef EVAL_PROFILE
+	if (term < 0 || term >= NUM_PROF_TERMS) return 0;
+	return g_prof_cycles[term];
+#else
+	(void)term;
+	return 0;
+#endif
+}
+
+unsigned long long eval_profile_calls(int term)
+{
+#ifdef EVAL_PROFILE
+	if (term < 0 || term >= NUM_PROF_TERMS) return 0;
+	return g_prof_calls[term];
+#else
+	(void)term;
+	return 0;
+#endif
+}
+
+const char* eval_profile_name(int term)
+{
+#ifdef EVAL_PROFILE
+	if (term < 0 || term >= NUM_PROF_TERMS) return "";
+	return PROF_TERM_NAMES[term];
+#else
+	(void)term;
+	return "";
+#endif
+}
+
+int eval_profile_num_exclusive()
+{
+#ifdef EVAL_PROFILE
+	return PROF_NUM_EXCLUSIVE;
+#else
+	return 0;
+#endif
 }
 
 

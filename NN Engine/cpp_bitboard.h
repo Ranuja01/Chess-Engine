@@ -330,6 +330,63 @@ extern EvalBreakdown g_eval_breakdown;
 extern bool g_capture_eval_breakdown;
 EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
 
+/*
+	Compile-gated per-term eval profiler (PROFILE_EVAL=1 build only).
+
+	A generic, reusable cycle-accounting primitive: a RAII `ProfScope` brackets a
+	region with __rdtsc() on enter/exit and accumulates the delta into a per-term
+	bucket, placed via the PROF_BLOCK(term) macro. Production builds compile
+	PROF_BLOCK to a no-op and emit none of the EVAL_PROFILE symbols, so the
+	shipped binary is byte-identical. We read relative %-shares across terms, not
+	absolute nanoseconds. The enum is extensible — search terms can be appended
+	later and instrumented the same way, with no change to the framework.
+
+	The three API functions below are declared unconditionally (so the Cython
+	bridge can always call them); their bodies are #ifdef-walled and become
+	no-ops in a production build.
+*/
+void eval_profile_reset();
+void eval_profile_dump(const char* label);
+// Tight driver: evaluate one position `reps` times so the per-term accumulators
+// gather signal; the rep loop lives outside every ProfScope.
+void eval_profile_run(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, int reps);
+// Accessors so the Python harness can read the accumulators and build its own
+// per-term x per-phase table without parsing stderr. All return 0 / "" in a
+// production (non-EVAL_PROFILE) build.
+int eval_profile_num_terms();
+unsigned long long eval_profile_cycles(int term);
+unsigned long long eval_profile_calls(int term);
+const char* eval_profile_name(int term);
+int eval_profile_num_exclusive();
+
+#ifdef EVAL_PROFILE
+enum ProfTerm {
+	PROF_PAWNS, PROF_KNIGHTS, PROF_BISHOPS, PROF_ROOKS, PROF_ROOK_ACTIVITY,
+	PROF_QUEENS, PROF_KINGS, PROF_ATTACK_LAYER, PROF_CAPTURE_GAINS,
+	PROF_PASSED_SUPPORT, PROF_LATENT_THREAT, PROF_ADV_ENDGAME,
+	// Drill-only terms (nested inside the evaluators above; subsets, not exclusive).
+	PROF_SEE, PROF_BISHOP_ACTIVITY, PROF_BISHOP_COLOUR,
+	NUM_PROF_TERMS
+};
+
+extern uint64_t g_prof_cycles[NUM_PROF_TERMS];
+extern uint64_t g_prof_calls[NUM_PROF_TERMS];
+
+struct ProfScope {
+	ProfTerm term;
+	uint64_t start;
+	ProfScope(ProfTerm t) : term(t), start(__rdtsc()) {}
+	~ProfScope() {
+		g_prof_cycles[term] += __rdtsc() - start;
+		g_prof_calls[term] += 1;
+	}
+};
+
+#define PROF_BLOCK(term) ProfScope _prof_guard(term)
+#else
+#define PROF_BLOCK(term) ((void)0)
+#endif // EVAL_PROFILE
+
 inline int get_pressure_increment(uint8_t last_moved_to_square, uint64_t bb, bool turn);
 
 inline uint8_t lowest_value_attacker(uint64_t attackers, bool attackedColour);

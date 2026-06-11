@@ -281,6 +281,20 @@ static inline void lmr_profile_event(int depth_limit, int cur_depth, int move_nu
 // Coarse categorical signals only (not absolute thresholds), so it is robust to the unbounded/uneven
 // history magnitudes. The caller clamps r to [2, depth_limit] and gates the whole thing on
 // Config::ENABLE_HISTORY_LMR so the off-path stays byte-identical.
+// Non-counting static eval for the improving heuristic: probe the eval cache, else compute
+// placement_and_piece_eval directly WITHOUT incrementing the node counter (so ENABLE_IMPROVING does
+// not inflate search-node counts). Only called for non-in-check nodes, so checkmate handling is skipped.
+inline int static_eval_for_improving(std::vector<BoardState> &state_history, uint64_t zobrist)
+{
+    int cached = accessCacheNew(zobrist);
+    if (cached != 0)
+        return cached;
+    BoardState cs = state_history.back();
+    int moveNum = static_cast<int>(state_history.size());
+    return placement_and_piece_eval(moveNum, cs.turn, cs.pawns, cs.knights, cs.bishops, cs.rooks,
+                                    cs.queens, cs.kings, cs.occupied_colour[true], cs.occupied_colour[false], cs.occupied);
+}
+
 inline int history_lmr_delta(const Move &move, const Move &previousMove, const BoardState &cs, int ply)
 {
     int tier = lmr_hist_tier(historyHeuristics[cs.turn][move.from_square][move.to_square]);
@@ -451,6 +465,16 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CAPTURE_HIST = env_flag("ENABLE_CAPTURE_HIST", Config::ENABLE_CAPTURE_HIST);
         Config::ENABLE_CHECK_ORDER = env_flag("ENABLE_CHECK_ORDER", Config::ENABLE_CHECK_ORDER);
         Config::CHECK_ORDER_BONUS = env_int("CHECK_ORDER_BONUS", Config::CHECK_ORDER_BONUS);
+        Config::ENABLE_HISTORY_SATURATION = env_flag("ENABLE_HISTORY_SATURATION", Config::ENABLE_HISTORY_SATURATION);
+        Config::ENABLE_HISTORY_MALUS = env_flag("ENABLE_HISTORY_MALUS", Config::ENABLE_HISTORY_MALUS);
+        Config::ENABLE_IMPROVING = env_flag("ENABLE_IMPROVING", Config::ENABLE_IMPROVING);
+        Config::IMPROVING_EVAL_WINDOW = env_int("IMPROVING_EVAL_WINDOW", Config::IMPROVING_EVAL_WINDOW);
+        Config::MAX_HISTORY = env_int("MAX_HISTORY", Config::MAX_HISTORY);
+        Config::CONT2_GRAVITY_DIV = env_int("CONT2_GRAVITY_DIV", Config::CONT2_GRAVITY_DIV);
+        if (Config::CONT2_GRAVITY_DIV < 1) Config::CONT2_GRAVITY_DIV = 1;
+        Config::ENABLE_HISTORY_DECAY = env_flag("ENABLE_HISTORY_DECAY", Config::ENABLE_HISTORY_DECAY);
+        Config::MALUS_DIV = env_int("MALUS_DIV", Config::MALUS_DIV);
+        if (Config::MALUS_DIV < 1) Config::MALUS_DIV = 1;
         // Fall back to the header defaults (the blitz-validated VERIFY keeper) so the
         // built-in value is the single source of truth; an env var still overrides it
         // (e.g. VERIFY_MARGIN=0 to recover the old search for the d10 control).
@@ -530,6 +554,14 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_CONT_HIST_2PLY=" << Config::ENABLE_CONT_HIST_2PLY
                   << " ENABLE_CAPTURE_HIST=" << Config::ENABLE_CAPTURE_HIST
                   << " ENABLE_CHECK_ORDER=" << Config::ENABLE_CHECK_ORDER
+                  << " ENABLE_HISTORY_SATURATION=" << Config::ENABLE_HISTORY_SATURATION
+                  << " ENABLE_HISTORY_MALUS=" << Config::ENABLE_HISTORY_MALUS
+                  << " ENABLE_IMPROVING=" << Config::ENABLE_IMPROVING
+                  << " IMPROVING_EVAL_WINDOW=" << Config::IMPROVING_EVAL_WINDOW
+                  << " MAX_HISTORY=" << Config::MAX_HISTORY
+                  << " CONT2_GRAVITY_DIV=" << Config::CONT2_GRAVITY_DIV
+                  << " ENABLE_HISTORY_DECAY=" << Config::ENABLE_HISTORY_DECAY
+                  << " MALUS_DIV=" << Config::MALUS_DIV
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " PRESET=" << active_preset
@@ -725,6 +757,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     std::fill(&killerMoves[0][0], &killerMoves[0][0] + 64 * 2, Move{});
     std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
     std::fill(&g_searchStack[0], &g_searchStack[0] + MAX_PLY, Move{});
+    std::fill(&g_evalStack[0], &g_evalStack[0] + MAX_PLY, NO_STATIC_EVAL);
     /* std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0); */
 
@@ -1412,6 +1445,14 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                             hist_delta = 0; // keep the pin-defender protection; only reduce-LESS may touch pins
                         reduced_depth = std::clamp(reduced_depth + hist_delta, 2, depth_limit);
                     }
+                    if (Config::ENABLE_IMPROVING)
+                    {
+                        bool improving = true;
+                        if (cur_depth >= 2 && g_evalStack[cur_depth] != NO_STATIC_EVAL && g_evalStack[cur_depth - 2] != NO_STATIC_EVAL)
+                            improving = g_evalStack[cur_depth] < g_evalStack[cur_depth - 2]; // minimizer: a lower eval is improving for the side to move
+                        if (!improving)
+                            reduced_depth = std::clamp(reduced_depth - 1, 2, depth_limit);
+                    }
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -1649,6 +1690,14 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         if (hist_delta < 0 && is_in_relavent_pin)
                             hist_delta = 0; // keep the pin-defender protection; only reduce-LESS may touch pins
                         reduced_depth = std::clamp(reduced_depth + hist_delta, 2, depth_limit);
+                    }
+                    if (Config::ENABLE_IMPROVING)
+                    {
+                        bool improving = true;
+                        if (cur_depth >= 2 && g_evalStack[cur_depth] != NO_STATIC_EVAL && g_evalStack[cur_depth - 2] != NO_STATIC_EVAL)
+                            improving = g_evalStack[cur_depth] > g_evalStack[cur_depth - 2]; // maximizer: a higher eval is improving for the side to move
+                        if (!improving)
+                            reduced_depth = std::clamp(reduced_depth - 1, 2, depth_limit);
                     }
 
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
@@ -1951,6 +2000,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         ascending_sort(second_level_preliminary_scores, second_level_moves_list);
         out_entry.second_moves = second_level_moves_list;
         bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
+        std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
         for (size_t i = 0; i < second_level_moves_list.size(); ++i)
         {
             Move &move = second_level_moves_list[i];
@@ -1994,6 +2044,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             make_move(state_history, position_count, move, zobrist, capture_move);
             score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+            if (Config::ENABLE_HISTORY_MALUS)
+                (capture_move ? searched_captures : searched_quiets).push_back(move);
 
             unmake_move(state_history, position_count, zobrist);
             if (current_state.occupied == 10658118197365045909 && current_state.queens == 144119586122366976)
@@ -2038,19 +2090,60 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 if (!capture_move)
                 {
                     storeKillerMove(cur_depth, move);
-                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
-                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
-                    if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
+                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
+                    bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
+                    if (Config::ENABLE_HISTORY_SATURATION)
                     {
-                        Move p2 = g_searchStack[cur_depth - 2];
-                        if (p2.from_square != p2.to_square)
-                            contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                        hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
+                        hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square], b);
+                        if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square], b / Config::CONT2_GRAVITY_DIV);
+                    }
+                    else
+                    {
+                        historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
+                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                        if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                    }
+                    if (Config::ENABLE_HISTORY_MALUS)
+                    {
+                        for (const Move &q : searched_quiets)
+                        {
+                            if (q == move) continue;
+                            if (Config::ENABLE_HISTORY_SATURATION)
+                            {
+                                hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                                hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square], -b / Config::MALUS_DIV);
+                                if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                            }
+                            else
+                            {
+                                historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                                counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                                if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                            }
+                        }
                     }
                 }
                 else if (Config::ENABLE_CAPTURE_HIST)
                 {
-                    captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    if (Config::ENABLE_HISTORY_SATURATION)
+                        hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
+                    else
+                        captureHistory[current_state.turn][move.from_square][move.to_square] += b;
+                    if (Config::ENABLE_HISTORY_MALUS)
+                    {
+                        for (const Move &q : searched_captures)
+                        {
+                            if (q == move) continue;
+                            if (Config::ENABLE_HISTORY_SATURATION)
+                                hist_update(captureHistory[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                            else
+                                captureHistory[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                        }
+                    }
                 }
                 return lowest_score;
             }
@@ -2084,6 +2177,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     else
     {
         bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
+        if (Config::ENABLE_IMPROVING && cur_depth < MAX_PLY)
+            g_evalStack[cur_depth] = (!currently_in_check && (depth_limit - cur_depth) <= Config::IMPROVING_EVAL_WINDOW)
+                                         ? static_eval_for_improving(state_history, zobrist) : NO_STATIC_EVAL;
         // Null Move Pruning
         if (Config::ENABLE_NULLMOVE && cur_depth >= 3 && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
         {
@@ -2165,6 +2261,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         }
 
         std::vector<Move> moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
+        std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
 
         for (size_t i = 0; i < moves_list.size(); ++i)
         {
@@ -2207,6 +2304,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             make_move(state_history, position_count, move, zobrist, capture_move);
             score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+            if (Config::ENABLE_HISTORY_MALUS)
+                (capture_move ? searched_captures : searched_quiets).push_back(move);
 
             if (current_state.occupied == 7199354783056128661 && current_state.queens == 144119586122366976)
             {
@@ -2300,19 +2399,60 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 if (!capture_move)
                 {
                     storeKillerMove(cur_depth, move);
-                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
-                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
-                    if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
+                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
+                    bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
+                    if (Config::ENABLE_HISTORY_SATURATION)
                     {
-                        Move p2 = g_searchStack[cur_depth - 2];
-                        if (p2.from_square != p2.to_square)
-                            contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                        hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
+                        hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square], b);
+                        if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square], b / Config::CONT2_GRAVITY_DIV);
+                    }
+                    else
+                    {
+                        historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
+                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                        if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                    }
+                    if (Config::ENABLE_HISTORY_MALUS)
+                    {
+                        for (const Move &q : searched_quiets)
+                        {
+                            if (q == move) continue;
+                            if (Config::ENABLE_HISTORY_SATURATION)
+                            {
+                                hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                                hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square], -b / Config::MALUS_DIV);
+                                if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                            }
+                            else
+                            {
+                                historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                                counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                                if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                            }
+                        }
                     }
                 }
                 else if (Config::ENABLE_CAPTURE_HIST)
                 {
-                    captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    if (Config::ENABLE_HISTORY_SATURATION)
+                        hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
+                    else
+                        captureHistory[current_state.turn][move.from_square][move.to_square] += b;
+                    if (Config::ENABLE_HISTORY_MALUS)
+                    {
+                        for (const Move &q : searched_captures)
+                        {
+                            if (q == move) continue;
+                            if (Config::ENABLE_HISTORY_SATURATION)
+                                hist_update(captureHistory[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                            else
+                                captureHistory[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                        }
+                    }
                 }
 
                 return lowest_score;
@@ -2466,6 +2606,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     int best_early_eval = -9999999 + static_cast<int>(state_history.size());
     ;
     bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
+    if (Config::ENABLE_IMPROVING && cur_depth < MAX_PLY)
+        g_evalStack[cur_depth] = (!currently_in_check && (depth_limit - cur_depth) <= Config::IMPROVING_EVAL_WINDOW)
+                                     ? static_eval_for_improving(state_history, zobrist) : NO_STATIC_EVAL;
 
     // Null Move Pruning
     if (Config::ENABLE_NULLMOVE && cur_depth >= 4 && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
@@ -2541,6 +2684,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     }
 
     std::vector<Move> moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
+    std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
     /* if (create_fen(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
                                 current_state.queens, current_state.kings, current_state.occupied, current_state.occupied_colour[true],
                                 current_state.occupied_colour[false], current_state.promoted, current_state.castling_rights,
@@ -2593,6 +2737,8 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         make_move(state_history, position_count, move, zobrist, capture_move);
         score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
                                         position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+        if (Config::ENABLE_HISTORY_MALUS)
+            (capture_move ? searched_captures : searched_quiets).push_back(move);
 
         if (using_fp)
         {
@@ -2708,19 +2854,60 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             if (!capture_move)
             {
                 storeKillerMove(cur_depth, move);
-                historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
                 counterMoves[previousMove.from_square][previousMove.to_square] = move;
-                counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
-                if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
+                int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
+                bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
+                if (Config::ENABLE_HISTORY_SATURATION)
                 {
-                    Move p2 = g_searchStack[cur_depth - 2];
-                    if (p2.from_square != p2.to_square)
-                        contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
+                    hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square], b);
+                    if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square], b / Config::CONT2_GRAVITY_DIV);
+                }
+                else
+                {
+                    historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
+                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                    if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                }
+                if (Config::ENABLE_HISTORY_MALUS)
+                {
+                    for (const Move &q : searched_quiets)
+                    {
+                        if (q == move) continue;
+                        if (Config::ENABLE_HISTORY_SATURATION)
+                        {
+                            hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                            hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square], -b / Config::MALUS_DIV);
+                            if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                        }
+                        else
+                        {
+                            historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                            counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                            if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                        }
+                    }
                 }
             }
             else if (Config::ENABLE_CAPTURE_HIST)
             {
-                captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                if (Config::ENABLE_HISTORY_SATURATION)
+                    hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
+                else
+                    captureHistory[current_state.turn][move.from_square][move.to_square] += b;
+                if (Config::ENABLE_HISTORY_MALUS)
+                {
+                    for (const Move &q : searched_captures)
+                    {
+                        if (q == move) continue;
+                        if (Config::ENABLE_HISTORY_SATURATION)
+                            hist_update(captureHistory[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                        else
+                            captureHistory[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                    }
+                }
             }
 
             return highest_score;
@@ -3868,6 +4055,8 @@ inline void use_tt_entry1(TTEntry &entry, int &score, bool &using_tt, int alpha,
 inline void increment_node_count_with_decay(int &num_iterations)
 {
     num_iterations++;
+    if (!Config::ENABLE_HISTORY_DECAY)
+        return;
     if (num_iterations % Config::DECAY_INTERVAL == 0)
     {
         decayHistoryHeuristics();

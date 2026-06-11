@@ -20,6 +20,9 @@ constexpr int MIN_MATERIAL_FOR_NULL_MOVE = 15000;
 
 // Number of nodes before decay
 constexpr int DECAY_FACTOR = 1; // Divide scores by 2
+constexpr int NO_STATIC_EVAL = -1000000000; // g_evalStack sentinel: no valid static eval (in-check / outside the improving window)
+
+// History-gravity bounds (MAX_HISTORY, CONT2_GRAVITY_DIV) are env-tunable Config members below.
 
 constexpr std::array<int, 4> FUTILITY_MARGINS = {200, 450, 650, 950};
 
@@ -241,6 +244,11 @@ namespace Config
     inline int HISTORY_LMR_CAP = 0;         // plies to REMOVE for good quiets (reduce-less; 0 = off, the shipped arm)
     inline int HISTORY_LMR_MORE_CAP = 1;    // plies to ADD for never-cut (tier-0) quiets (reduce-more; the shipped lever)
 
+    // Improving heuristic: reduce one extra ply when the side-to-move's static eval is NOT rising vs
+    // 2 ply back (stagnant -> prune harder). Modulates LMR only (composes with history_lmr_delta); gated.
+    inline bool ENABLE_IMPROVING = false;
+    inline int IMPROVING_EVAL_WINDOW = 6;   // populate g_evalStack only within this many plies of the leaf (cost control)
+
     // Continuation-aware LMR (default on): a tier-0 (never-cut) quiet with a strong 1-ply continuation
     // score (counterMoveHeuristics) is NOT reduced-more -- a known-good reply to the previous move, so
     // we cancel the extra reduction (never deeper than base). THRESH=2000 is the d10 node-efficiency
@@ -253,6 +261,19 @@ namespace Config
     inline bool ENABLE_CAPTURE_HIST = false;   // capture-history refinement -- marginal (+0.7 STS/+1 WAC but +2.6% nodes); knob, revisit after bonus/malus
     inline bool ENABLE_CHECK_ORDER = false;    // direct-check bonus -- on the SCALE-OFF baseline it's -6 WAC for -9.8% nodes (accuracy traded for speed; bad at fixed depth). BONUS=6000 too hot -> recalibrate lower before re-enabling
     inline int CHECK_ORDER_BONUS = 6000;       // the flat quiet-check ordering bonus
+
+    // History gravity: replace the bonus-only `+= depth²` cutoff update with a saturating bonus/MALUS --
+    // reward the move that cut off, penalize the quiets/captures tried-and-failed before it. Applies to
+    // HH + 1-ply counter + cont2 + capture uniformly (bounds: MAX_HISTORY/CONT2_GRAVITY_DIV above).
+    // Default off = byte-identical (the existing += depth² path runs untouched).
+    // Decomposed into two orthogonal knobs: SATURATION (bounded hist_update vs simple +=) and
+    // MALUS (penalize searched-and-failed quiets/captures). gravity == SATURATION && MALUS.
+    inline bool ENABLE_HISTORY_SATURATION = false;
+    inline bool ENABLE_HISTORY_MALUS = false;
+    inline int MAX_HISTORY = 16384;     // gravity saturation bound (env-tunable for the sweep; bake the winner to constexpr for ship)
+    inline int CONT2_GRAVITY_DIV = 4;   // 2-ply gravity down-weight divisor
+    inline bool ENABLE_HISTORY_DECAY = true; // periodic >>=1 aging of history tables; off = saturation-only bounding (gravity tuning knob)
+    inline int MALUS_DIV = 1;           // gravity malus softening: malus = bonus / MALUS_DIV (1 = symmetric, current)
 
     // Eval: scale the advanced-endgame mate-drive by the winner's material margin (default off =
     // byte-identical). Unproven (no definitive self-play result); the R+N-vs-R case it targeted is now

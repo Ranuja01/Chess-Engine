@@ -98,6 +98,7 @@ alignas(64) int contHist2[2][4096][4096] = {};
 alignas(64) int captureHistory[2][64][64] = {};
 
 alignas(64) Move g_searchStack[MAX_PLY] = {};
+alignas(64) int g_evalStack[MAX_PLY] = {};
 
 
 

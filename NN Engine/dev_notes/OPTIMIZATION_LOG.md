@@ -4,6 +4,15 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## Post-speed-track strength arc (2026-06-05 → 06-11) — narrative; details in HANDOFF.md + memory
+
+The table below is the **speed track** (done: ~16.7s → ~9.2s, EBF ≈ 3.4, pruning-bound). Everything after is the **strength track**:
+- **SHIPPED (committed):** color-symmetry fix (mirror residual 0.000); endgame draw-detection (`is_practically_drawn`: R+N-vs-R/KRKN/KRKB); continuation-aware LMR `ENABLE_CONT_HIST`@`THRESH=2000` (−6.2% nodes); reduce-more history-LMR (`HISTORY_LMR_MORE_CAP=1`). Harness: concurrency 6.5×, timed mode, UHO book, paired/parallel annotate.
+- **REVERTED:** `ENABLE_ENDGAME_SCALE` (scale-on STS bench = −3.3 STS suite regression; the FEN spot-checks under-sampled it).
+- **SHELVED (gated default-off, dormant knobs, all byte-identical):** the 3 ordering features (2-ply CH / capture-hist / check-order); the gravity/malus family (decomposed into `ENABLE_HISTORY_SATURATION` + `ENABLE_HISTORY_MALUS` + `MALUS_DIV`/`MAX_HISTORY`/`CONT2_GRAVITY_DIV`/`ENABLE_HISTORY_DECAY`) — isolation matrix proved both halves hurt independently; the **improving heuristic** (`ENABLE_IMPROVING`/`IMPROVING_EVAL_WINDOW`) — lightning showed −0.18 ply (eval cost > node savings). Conclusion: **move-ordering/reduction lane is closed** (pruning-bound + eval-bound).
+- **TOOLING:** found d10 **STS had a ±30 noise floor from flaky opening-book-hit detection** → bench with `USE_OPENING_BOOK=0` (deterministic). New no-book baseline: **WAC 262 / 267,284,369 nodes / STS 1487**.
+- **NEXT = EVAL** (the double bottleneck: imprecise + slow). First step: per-term profiling across game phases (this file's BASELINE_PERF.md sibling is the perf anchor).
+
 | Item | What | Result | Verdict |
 | --- | --- | --- | --- |
 | Bug 1 | TT/eval deque dedup (correctness-neutral) | no effect on this position (no eviction at this size) | kept |

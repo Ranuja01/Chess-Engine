@@ -158,6 +158,10 @@ extern int captureHistory[2][64][64];
 // 2-ply continuation key) without threading a previousMove2 param through the search.
 extern Move g_searchStack[MAX_PLY];
 
+// Per-ply static-eval stack for the improving heuristic: g_evalStack[d] = node-entry static eval at
+// depth d (NO_STATIC_EVAL when in-check or outside the improving window). A node reads [d] vs [d-2].
+extern int g_evalStack[MAX_PLY];
+
 /*
 	Set of functions used to cache data
 */
@@ -919,6 +923,16 @@ inline void decayCaptureHistory() {
             }
         }
     }
+}
+
+// Saturating "gravity" update for the cutoff-history tables: h moves toward delta but can never exceed
+// +-MAX_HISTORY (the h*|delta|/MAX term cancels the gain near the bound). Used with +bonus on the move
+// that caused the beta cutoff and -bonus (malus) on the moves tried-and-failed before it.
+inline void hist_update(int &h, int delta) {
+    if (delta > Config::MAX_HISTORY) delta = Config::MAX_HISTORY;
+    else if (delta < -Config::MAX_HISTORY) delta = -Config::MAX_HISTORY;
+    int ad = delta < 0 ? -delta : delta;
+    h += delta - h * ad / Config::MAX_HISTORY;
 }
 
 inline void decayMoveFrequency() {

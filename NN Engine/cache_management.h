@@ -407,16 +407,17 @@ inline int accessCache(uint64_t key) {
     return 0;   
 }
 
-inline int accessCacheNew(uint64_t key) {
+inline bool accessCacheNew(uint64_t key, int& out) {
     size_t idx = key & CACHE_MASK;
     /* assert(idx < CACHE_SIZE);
     assert(idx >= 0); */
     EvalEntry &entry = evalCacheNew[idx];
 
     if (entry.valid && entry.key == key) {
-        return entry.value;  // Cache hit
+        out = entry.value;  // Cache hit -- value may legitimately be 0 (draws / dead-equal)
+        return true;
     }
-    return 0;  // Cache miss (or default value)
+    return false;  // Cache miss
 }
 
 inline void addToCacheNew(uint64_t key, int value) {

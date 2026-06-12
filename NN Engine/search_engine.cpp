@@ -286,8 +286,8 @@ static inline void lmr_profile_event(int depth_limit, int cur_depth, int move_nu
 // not inflate search-node counts). Only called for non-in-check nodes, so checkmate handling is skipped.
 inline int static_eval_for_improving(std::vector<BoardState> &state_history, uint64_t zobrist)
 {
-    int cached = accessCacheNew(zobrist);
-    if (cached != 0)
+    int cached;
+    if (accessCacheNew(zobrist, cached))
         return cached;
     BoardState cs = state_history.back();
     int moveNum = static_cast<int>(state_history.size());
@@ -4508,8 +4508,7 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 
     eval_visits++;
     // cache_result = accessCache(zobrist);
-    cache_result = accessCacheNew(zobrist);
-    if (cache_result != 0)
+    if (accessCacheNew(zobrist, cache_result))
     {
         eval_cache_hits++;
         return cache_result;

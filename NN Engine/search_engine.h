@@ -293,7 +293,7 @@ namespace Config
     // diagonal scope (mobility / forward reach into the enemy half / enemy-king-zone pressure). Default
     // off = byte-identical (the flood-fill runs untouched). K_* are tunable weights for the sweep; the
     // output is clamped to the same [-200, +275] mp range as the flood-fill term.
-    inline bool ENABLE_CHEAP_BISHOP_COMPLEX = false;
+    inline bool ENABLE_CHEAP_BISHOP_COMPLEX = true;   // default-on: ~25% cheaper midgame eval, STS +33, lightning +0.090 ply (midgame), self-play +2.7 Elo (no regression). Knob retained.
     inline int CHEAP_BISHOP_BLOCK = 30;   // penalty per own pawn on the bishop's colour
     inline int CHEAP_BISHOP_MOB   = 6;    // bonus per diagonally-attacked square (current scope)
     inline int CHEAP_BISHOP_FWD   = 8;    // extra bonus per attacked square in the enemy half
@@ -304,7 +304,7 @@ namespace Config
     // (exact x-ray reveals) and picks the least-valuable attacker by true piece type instead of the
     // stale eval-magnitude square_values[]. The original see() is wrong on ~2.16% of capture targets
     // (diagnostics/see_selfcheck.cpp). Behavioral (ordering + qsearch SEE filter + capture_gains) -> gated.
-    inline bool ENABLE_SEE_FIX = false;
+    inline bool ENABLE_SEE_FIX = true;   // default-on: corrected see() (harness-proven, fuzz see==ref 0.00%), self-play +18.2 Elo / no regression, −0.02 ply (the per-iteration attacker recompute). Knob retained.
 
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that

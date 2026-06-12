@@ -306,6 +306,14 @@ namespace Config
     // (diagnostics/see_selfcheck.cpp). Behavioral (ordering + qsearch SEE filter + capture_gains) -> gated.
     inline bool ENABLE_SEE_FIX = true;   // default-on: corrected see() (harness-proven, fuzz see==ref 0.00%), self-play +18.2 Elo / no regression, −0.02 ply (the per-iteration attacker recompute). Knob retained.
 
+    // qsearch quiet-check cost (buildNoisyMoveList). Default off = byte-identical (full board-copy +
+    // is_check per quiet move at every q-ply). QCHECK_DEPTH0: include quiet checks only at the first
+    // q-ply (qDepth==0), mainstream practice -- shrinks the q-tree. QCHECK_MASK: detect direct checks
+    // with a bitboard attack test from the destination square (reusing the ENABLE_CHECK_ORDER logic)
+    // instead of simulating the move; misses discovered checks (standard accepted tradeoff). Behavioral.
+    inline bool ENABLE_QCHECK_DEPTH0 = false;
+    inline bool ENABLE_QCHECK_MASK = false;
+
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
     // uses the "how close to alpha" signal. The default is the blitz-validated
@@ -537,6 +545,6 @@ inline void updatePV(Move move, int cur_depth);
 inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prevMove, int &num_iterations, bool is_maximizing);
 inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t zobrist, int &num_iterations);
 inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove);
-inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, Move prevMove);
+inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove);
 
 #endif // SEARCH_ENGINE_H

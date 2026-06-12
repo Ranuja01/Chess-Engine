@@ -169,6 +169,8 @@ def run(args):
         gdir = os.path.join(logdir, f"game_{g:03d}")
         white_cfg, white_lbl = (p1c, args.p1_label) if p1_white else (p2c, args.p2_label)
         black_cfg, black_lbl = (p2c, args.p2_label) if p1_white else (p1c, args.p1_label)
+        white_dir = args.p1_engine_dir if p1_white else args.p2_engine_dir
+        black_dir = args.p2_engine_dir if p1_white else args.p1_engine_dir
         adj = None
         if do_draw or do_win:
             try:
@@ -182,7 +184,7 @@ def run(args):
             res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, chess.STARTING_FEN,
                             args.max_plies, gdir, jsonl_path=os.path.join(gdir, "game.jsonl"),
                             verbose=not args.quiet, arbiter=None, opening_moves=openings[opening_idx],
-                            adjudicator=adj)
+                            adjudicator=adj, engine_dir_a=white_dir, engine_dir_b=black_dir)
             result, reason, plies = res["result"], res["reason"], res["plies"]
         except Exception as e:
             result, reason, plies = "*", f"driver error: {e}", 0
@@ -324,6 +326,10 @@ def main():
     ap = argparse.ArgumentParser(description="Player-vs-player self-play tournament.")
     ap.add_argument("--p1-config", default="", help="env knobs for player 1")
     ap.add_argument("--p2-config", default="", help="env knobs for player 2")
+    ap.add_argument("--p1-engine-dir", default=None,
+                    help=".so-vs-.so mode: directory holding player 1's ChessAI.so (default = current NN Engine/ build)")
+    ap.add_argument("--p2-engine-dir", default=None,
+                    help=".so-vs-.so mode: directory holding player 2's ChessAI.so (default = current NN Engine/ build)")
     ap.add_argument("--p1-label", default="P1")
     ap.add_argument("--p2-label", default="P2")
     ap.add_argument("--games", type=int, default=8)

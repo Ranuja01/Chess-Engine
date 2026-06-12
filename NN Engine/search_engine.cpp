@@ -465,6 +465,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHEAP_BISHOP_FWD = env_int("CHEAP_BISHOP_FWD", Config::CHEAP_BISHOP_FWD);
         Config::CHEAP_BISHOP_KING = env_int("CHEAP_BISHOP_KING", Config::CHEAP_BISHOP_KING);
         Config::ENABLE_SEE_FIX = env_flag("ENABLE_SEE_FIX", Config::ENABLE_SEE_FIX);
+        Config::ENABLE_QCHECK_DEPTH0 = env_flag("ENABLE_QCHECK_DEPTH0", Config::ENABLE_QCHECK_DEPTH0);
+        Config::ENABLE_QCHECK_MASK = env_flag("ENABLE_QCHECK_MASK", Config::ENABLE_QCHECK_MASK);
         Config::ENABLE_CONT_HIST = env_flag("ENABLE_CONT_HIST", Config::ENABLE_CONT_HIST);
         Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
@@ -561,6 +563,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CHEAP_BISHOP_FWD=" << Config::CHEAP_BISHOP_FWD
                   << " CHEAP_BISHOP_KING=" << Config::CHEAP_BISHOP_KING
                   << " ENABLE_SEE_FIX=" << Config::ENABLE_SEE_FIX
+                  << " ENABLE_QCHECK_DEPTH0=" << Config::ENABLE_QCHECK_DEPTH0
+                  << " ENABLE_QCHECK_MASK=" << Config::ENABLE_QCHECK_MASK
                   << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST
                   << " CONT_HIST_LMR_THRESH=" << Config::CONT_HIST_LMR_THRESH
                   << " ENABLE_CONT_HIST_2PLY=" << Config::ENABLE_CONT_HIST_2PLY
@@ -3638,7 +3642,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
     int best = is_maximizing ? -9999999 + moveNum : 9999999 - moveNum;
 
-    std::vector<Move> moves_list = buildNoisyMoveList(zobrist, state_history, cur_depth + qDepth, prevMove);
+    std::vector<Move> moves_list = buildNoisyMoveList(zobrist, state_history, cur_depth + qDepth, qDepth, prevMove);
 
     for (size_t i = 0; i < moves_list.size(); ++i)
     {
@@ -4355,7 +4359,7 @@ inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &sta
     return moves_list;
 }
 
-inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, Move prevMove)
+inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove)
 {
 
     std::vector<Move> noisy_moves;
@@ -4401,56 +4405,75 @@ inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardS
                 noisy_moves.push_back(moves_list[i]);
             }
         }
-        else
+        else if (!(Config::ENABLE_QCHECK_DEPTH0 && qDepth > 0))
         {
-            uint64_t pawns = current_state.pawns;
-            uint64_t knights = current_state.knights;
-            uint64_t bishops = current_state.bishops;
-            uint64_t rooks = current_state.rooks;
-            uint64_t queens = current_state.queens;
-            uint64_t kings = current_state.kings;
-
-            uint64_t occupied_white = current_state.occupied_colour[true];
-            uint64_t occupied_black = current_state.occupied_colour[false];
-            uint64_t occupied = current_state.occupied;
-
-            uint64_t promoted = current_state.promoted;
-
-            bool turn = current_state.turn;
-            uint64_t castling_rights = current_state.castling_rights;
-
-            int ep_square = current_state.ep_square;
-
-            // std::cout << "AA " << current_state.occupied << " | " << (int)startPos[i] << " | " << (int)endPos[i]<< std::endl;
-            update_state(
-                moves_list[i].to_square,
-                moves_list[i].from_square,
-                pawns,
-                knights,
-                bishops,
-                rooks,
-                queens,
-                kings,
-                occupied,
-                occupied_white,
-                occupied_black,
-                promoted,
-                castling_rights,
-                ep_square,
-                moves_list[i].promotion,
-                turn);
-            // std::cout << "BB " << current_state.occupied << " | " << (int)startPos[i] << " | " << (int)endPos[i]<< std::endl;
-            uint64_t opposingPieces = 0;
-            if (turn)
+            // Quiet move: include it only if it gives check. ENABLE_QCHECK_DEPTH0 (the guard above)
+            // drops quiet checks past the first q-ply. ENABLE_QCHECK_MASK detects a DIRECT check with a
+            // bitboard attack test from the destination square (the moving piece's attacks from `to`
+            // with `from` vacated, vs the enemy king) -- no board copy; misses discovered checks (the
+            // standard accepted tradeoff). Default off = the original simulate-and-test path.
+            bool move_is_check;
+            if (Config::ENABLE_QCHECK_MASK)
             {
-                opposingPieces = occupied_black;
+                uint64_t fromBB = BB_SQUARES[moves_list[i].from_square];
+                uint8_t to = moves_list[i].to_square;
+                uint64_t occ = current_state.occupied & ~fromBB;
+                uint8_t enemy_king = __builtin_ctzll(current_state.kings & current_state.occupied_colour[!current_state.turn]);
+                uint64_t atk = 0;
+                if (current_state.knights & fromBB)
+                    atk = BB_KNIGHT_ATTACKS[to];
+                else if (current_state.pawns & fromBB)
+                    atk = BB_PAWN_ATTACKS[current_state.turn][to];
+                else if (current_state.bishops & fromBB)
+                    atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ];
+                else if (current_state.rooks & fromBB)
+                    atk = BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ];
+                else if (current_state.queens & fromBB)
+                    atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ] | BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ];
+                move_is_check = (atk & BB_SQUARES[enemy_king]) != 0;
             }
             else
             {
-                opposingPieces = occupied_white;
+                uint64_t pawns = current_state.pawns;
+                uint64_t knights = current_state.knights;
+                uint64_t bishops = current_state.bishops;
+                uint64_t rooks = current_state.rooks;
+                uint64_t queens = current_state.queens;
+                uint64_t kings = current_state.kings;
+
+                uint64_t occupied_white = current_state.occupied_colour[true];
+                uint64_t occupied_black = current_state.occupied_colour[false];
+                uint64_t occupied = current_state.occupied;
+
+                uint64_t promoted = current_state.promoted;
+
+                bool turn = current_state.turn;
+                uint64_t castling_rights = current_state.castling_rights;
+
+                int ep_square = current_state.ep_square;
+
+                update_state(
+                    moves_list[i].to_square,
+                    moves_list[i].from_square,
+                    pawns,
+                    knights,
+                    bishops,
+                    rooks,
+                    queens,
+                    kings,
+                    occupied,
+                    occupied_white,
+                    occupied_black,
+                    promoted,
+                    castling_rights,
+                    ep_square,
+                    moves_list[i].promotion,
+                    turn);
+                uint64_t opposingPieces = turn ? occupied_black : occupied_white;
+
+                move_is_check = is_check(turn, occupied, queens | rooks, queens | bishops, kings, knights, pawns, opposingPieces);
             }
 
-            bool move_is_check = is_check(turn, occupied, queens | rooks, queens | bishops, kings, knights, pawns, opposingPieces);
             if (move_is_check)
             {
                 noisy_moves.push_back(moves_list[i]);

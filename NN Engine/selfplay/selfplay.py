@@ -41,11 +41,13 @@ def _parse_config(s):
 class EngineProc:
     """A persistent engine_server subprocess for one side, with a line-protocol wrapper."""
 
-    def __init__(self, color, config, start_fen, label, stderr_path):
+    def __init__(self, color, config, start_fen, label, stderr_path, engine_so_dir=None):
         self.color = color
         self.label = label
         env = os.environ.copy()
         env.update(_parse_config(config))
+        if engine_so_dir:
+            env["ENGINE_SO_DIR"] = engine_so_dir  # .so-vs-.so: load this build's ChessAI instead of the default
         self._stderr = open(stderr_path, "w")
         self.proc = subprocess.Popen(
             [sys.executable, "-u", _SERVER, "--color", color, "--start-fen", start_fen],
@@ -253,7 +255,8 @@ class Adjudicator:
 
 
 def play_game(config_a, config_b, label_a, label_b, start_fen, max_plies, logdir,
-              jsonl_path=None, verbose=True, arbiter=None, opening_moves=None, adjudicator=None):
+              jsonl_path=None, verbose=True, arbiter=None, opening_moves=None, adjudicator=None,
+              engine_dir_a=None, engine_dir_b=None):
     """Play one game: A is White, B is Black. Returns a dict with result + the move list (and the PGN).
     If jsonl_path is given, writes one record per move (the driver is the sole writer) live. If an
     arbiter is given, each position is scored by Stockfish (White-POV cp) between moves. If
@@ -266,8 +269,8 @@ def play_game(config_a, config_b, label_a, label_b, start_fen, max_plies, logdir
         # Seeding implies the engines must not march their own book from the seed.
         config_a = (config_a + " USE_OPENING_BOOK=0").strip()
         config_b = (config_b + " USE_OPENING_BOOK=0").strip()
-    white = EngineProc("white", config_a, start_fen, label_a, os.path.join(logdir, "white.stderr"))
-    black = EngineProc("black", config_b, start_fen, label_b, os.path.join(logdir, "black.stderr"))
+    white = EngineProc("white", config_a, start_fen, label_a, os.path.join(logdir, "white.stderr"), engine_so_dir=engine_dir_a)
+    black = EngineProc("black", config_b, start_fen, label_b, os.path.join(logdir, "black.stderr"), engine_so_dir=engine_dir_b)
     board = chess.Board(start_fen)
     moves = []
     move_records = []   # one dict per played move, reused for the JSONL line and the PGN comment

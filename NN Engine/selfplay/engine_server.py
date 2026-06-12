@@ -26,9 +26,15 @@ import tempfile
 import argparse
 from timeit import default_timer as timer
 
-# The engine .so lives one level up in NN Engine/.
+# The engine .so lives one level up in NN Engine/. For a .so-vs-.so match (two completely separate
+# builds, not env knobs), ENGINE_SO_DIR overrides which directory's ChessAI.so this server loads --
+# inserted ahead of ENGINE_DIR so its module wins. Passed via the env (not the config string) so paths
+# with spaces ("NN Engine", "old CE") are safe. Default (unset) = the current NN Engine/ build.
 ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ENGINE_DIR)
+_SO_DIR = os.environ.get("ENGINE_SO_DIR")
+if _SO_DIR:
+    sys.path.insert(0, _SO_DIR)
 
 import chess
 from ChessAI import ChessAI

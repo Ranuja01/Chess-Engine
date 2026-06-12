@@ -299,6 +299,13 @@ namespace Config
     inline int CHEAP_BISHOP_FWD   = 8;    // extra bonus per attacked square in the enemy half
     inline int CHEAP_BISHOP_KING  = 12;   // extra bonus per attacked square in the enemy king zone
 
+    // Corrected static-exchange evaluation (see() in cpp_bitboard.h). Default off = the existing
+    // (buggy) path. ON recomputes the side-to-move's attacker set from live occupancy each iteration
+    // (exact x-ray reveals) and picks the least-valuable attacker by true piece type instead of the
+    // stale eval-magnitude square_values[]. The original see() is wrong on ~2.16% of capture targets
+    // (diagnostics/see_selfcheck.cpp). Behavioral (ordering + qsearch SEE filter + capture_gains) -> gated.
+    inline bool ENABLE_SEE_FIX = false;
+
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
     // uses the "how close to alpha" signal. The default is the blitz-validated

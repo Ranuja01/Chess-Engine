@@ -1405,6 +1405,30 @@ inline int see(uint8_t to_square, bool side_to_move, const BoardState& state){
 
     gain[depth++] = piece_value_captured;
 
+    if (Config::ENABLE_SEE_FIX) {
+        // Corrected SEE (gated; the default-off path below is byte-identical). Recompute the
+        // side-to-move's attacker set from the LIVE occupancy each iteration so x-ray reveals for
+        // either side are exact (replaces the one-sided update_attackers_for_piece_removal), and pick
+        // the least-valuable attacker by true piece TYPE -- consistent with the material gains, not
+        // the stale eval-magnitude square_values[]. Mirrors the swap-list reference in
+        // diagnostics/see_selfcheck.cpp.
+        int d = 0;
+        bool s = side_to_move;
+        uint64_t occ = state.occupied;
+        while (true) {
+            uint64_t attackers = attackersMask(s, to_square, occ, (state.queens | state.rooks) & occ, (state.queens | state.bishops) & occ, state.kings & occ, state.knights & occ, state.pawns & occ, state.occupied_colour[s] & occ);
+            if (!attackers)
+                break;
+            int from_sq = get_least_valuable_attacker_static(attackers, state);
+            ++d;
+            gain[d] = get_value_at(from_sq, state) - gain[d - 1];
+            occ &= ~(1ULL << from_sq);
+            s = !s;
+        }
+        while (--d > 0)
+            gain[d - 1] = -std::max(-gain[d - 1], gain[d]);
+        return gain[0];
+    }
 
     bool stm = side_to_move;
     uint64_t occupancy = state.occupied;

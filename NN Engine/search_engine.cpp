@@ -464,6 +464,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHEAP_BISHOP_MOB = env_int("CHEAP_BISHOP_MOB", Config::CHEAP_BISHOP_MOB);
         Config::CHEAP_BISHOP_FWD = env_int("CHEAP_BISHOP_FWD", Config::CHEAP_BISHOP_FWD);
         Config::CHEAP_BISHOP_KING = env_int("CHEAP_BISHOP_KING", Config::CHEAP_BISHOP_KING);
+        Config::ENABLE_SEE_FIX = env_flag("ENABLE_SEE_FIX", Config::ENABLE_SEE_FIX);
         Config::ENABLE_CONT_HIST = env_flag("ENABLE_CONT_HIST", Config::ENABLE_CONT_HIST);
         Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
@@ -559,6 +560,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB
                   << " CHEAP_BISHOP_FWD=" << Config::CHEAP_BISHOP_FWD
                   << " CHEAP_BISHOP_KING=" << Config::CHEAP_BISHOP_KING
+                  << " ENABLE_SEE_FIX=" << Config::ENABLE_SEE_FIX
                   << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST
                   << " CONT_HIST_LMR_THRESH=" << Config::CONT_HIST_LMR_THRESH
                   << " ENABLE_CONT_HIST_2PLY=" << Config::ENABLE_CONT_HIST_2PLY

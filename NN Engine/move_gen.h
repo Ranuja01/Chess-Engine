@@ -65,7 +65,7 @@ inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vec
 		for (size_t i = 0; i < startPos.size(); i++){
 			if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
 				knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
-				
+
 				startPos_filtered.push_back(startPos[i]);
 				endPos_filtered.push_back(endPos[i]);
 				promotions_filtered.push_back(promotions[i]);
@@ -74,6 +74,40 @@ inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vec
 		}
 	}
 
+}
+
+inline bool has_any_legal_move(uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
+						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
+
+	std::vector<uint8_t> startPos;
+	std::vector<uint8_t> endPos;
+	std::vector<uint8_t> promotions;
+
+	uint64_t king_mask = kingsMask & ourPieces;
+	uint8_t king = 63 - __builtin_clzll(king_mask);
+
+	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
+	uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
+
+	if (checkers != 0){
+		generateEvasions(startPos, endPos, promotions, preliminary_castling_mask, king, checkers, from_mask, to_mask, occupiedMask, occupiedWhite,
+			             opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+	} else {
+		generatePseudoLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask,
+	 						     king_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
+							     rooksMask, queensMask, kingsMask, ep_square, turn);
+	}
+
+	// Same pseudo-legal/evasion set as generateLegalMoves, but stop at the first move that
+	// survives is_safe -- the existence answer the checkmate/stalemate callers need.
+	for (size_t i = 0; i < startPos.size(); i++){
+		if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
+			knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
+			return true;
+		}
+	}
+	return false;
 }
 
 inline void generatePseudoLegalMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,

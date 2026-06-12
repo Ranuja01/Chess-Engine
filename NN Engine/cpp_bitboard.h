@@ -410,6 +410,16 @@ void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vector<uin
 	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn);
 
+// Existence-only variant of generateLegalMoves: returns true on the FIRST legal move
+// instead of materializing the whole list, for the checkmate/stalemate tests that only
+// need "are there any legal moves". Generates the same pseudo-legal/evasion set, then
+// short-circuits the is_safe filter -- so its boolean is identical to
+// generateLegalMoves(...).size() != 0, but it skips the per-move legality check for the
+// whole tail once one legal move is found.
+bool has_any_legal_move(uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
+						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn);
+
 inline void generatePseudoLegalMoves(std::vector<uint8_t> &startPos, std::vector<uint8_t> &endPos, std::vector<uint8_t> &promotions,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 	 						  uint64_t king, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 							  uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn);
@@ -923,28 +933,15 @@ inline bool is_checkmate(uint64_t zobrist, uint64_t preliminary_castling_mask, u
 
 	if (!is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
 		return false;
-	
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
 
-	startPos.reserve(32);
-	endPos.reserve(32);
-	promotions.reserve(32);
-	
 	std::vector<Move> cached_moves = accessMoveGenCache(zobrist, preliminary_castling_mask, ep_square);
     if(cached_moves.size() != 0){
 		return false;
 	}
 
-	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
+	return !has_any_legal_move(preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
 					   rooksMask, queensMask, kingsMask, ep_square, turn);
-	//std::cout << occupiedMask <<  " | " << ourPieces <<  " | " << startPos.size() << std::endl;
-	if (startPos.size() == 0)
-		return true;
-
-	return false;
 
 }
 
@@ -953,29 +950,15 @@ inline bool is_stalemate(uint64_t zobrist, uint64_t preliminary_castling_mask, u
 
 	if (is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
 		return false;
-	
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
-
-	startPos.reserve(32);
-	endPos.reserve(32);
-	promotions.reserve(32);
 
 	std::vector<Move> cached_moves = accessMoveGenCache(zobrist, preliminary_castling_mask, ep_square);
     if(cached_moves.size() != 0){
 		return false;
 	}
 
-	generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, ~0ULL, ~0ULL,
+	return !has_any_legal_move(preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
 					   rooksMask, queensMask, kingsMask, ep_square, turn);
-
-	//std::cout << occupiedMask <<  " | " << ourPieces <<  " | " << startPos.size() << std::endl;
-	if (startPos.size() == 0)
-		return true;
-
-	return false;
 
 }
 

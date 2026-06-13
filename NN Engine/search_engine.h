@@ -314,6 +314,16 @@ namespace Config
     inline bool ENABLE_QCHECK_DEPTH0 = false;
     inline bool ENABLE_QCHECK_MASK = false;
 
+    // Phase B endgame colour-asymmetry fixes + dead-pin revival (adversarial rescan). All behavioral
+    // -> gated default-off. CAPGAIN: capture-gains pawn_rank sign in the black branch. ROOK_DBLCOUNT:
+    // endgame black-rook extra unconditional rookIncrement add (no white mirror). KNIGHT_MOB: endgame
+    // knight mobility bonus is 15 for black vs 10 for white. PIN: get_relevant_pin ANDs disjoint masks
+    // (always 0) so the feature is dead; the fix ORs them.
+    inline bool ENABLE_CAPGAIN_PAWN_FIX = false;
+    inline bool ENABLE_ROOK_DBLCOUNT_FIX = false;
+    inline bool ENABLE_KNIGHT_MOB_FIX = false;
+    inline bool ENABLE_PIN_FIX = false;
+
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
     // uses the "how close to alpha" signal. The default is the blitz-validated

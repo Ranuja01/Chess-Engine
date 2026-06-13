@@ -467,6 +467,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_SEE_FIX = env_flag("ENABLE_SEE_FIX", Config::ENABLE_SEE_FIX);
         Config::ENABLE_QCHECK_DEPTH0 = env_flag("ENABLE_QCHECK_DEPTH0", Config::ENABLE_QCHECK_DEPTH0);
         Config::ENABLE_QCHECK_MASK = env_flag("ENABLE_QCHECK_MASK", Config::ENABLE_QCHECK_MASK);
+        Config::ENABLE_CAPGAIN_PAWN_FIX = env_flag("ENABLE_CAPGAIN_PAWN_FIX", Config::ENABLE_CAPGAIN_PAWN_FIX);
+        Config::ENABLE_ROOK_DBLCOUNT_FIX = env_flag("ENABLE_ROOK_DBLCOUNT_FIX", Config::ENABLE_ROOK_DBLCOUNT_FIX);
+        Config::ENABLE_KNIGHT_MOB_FIX = env_flag("ENABLE_KNIGHT_MOB_FIX", Config::ENABLE_KNIGHT_MOB_FIX);
+        Config::ENABLE_PIN_FIX = env_flag("ENABLE_PIN_FIX", Config::ENABLE_PIN_FIX);
         Config::ENABLE_CONT_HIST = env_flag("ENABLE_CONT_HIST", Config::ENABLE_CONT_HIST);
         Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
@@ -563,6 +567,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CHEAP_BISHOP_FWD=" << Config::CHEAP_BISHOP_FWD
                   << " CHEAP_BISHOP_KING=" << Config::CHEAP_BISHOP_KING
                   << " ENABLE_SEE_FIX=" << Config::ENABLE_SEE_FIX
+                  << " ENABLE_CAPGAIN_PAWN_FIX=" << Config::ENABLE_CAPGAIN_PAWN_FIX
+                  << " ENABLE_ROOK_DBLCOUNT_FIX=" << Config::ENABLE_ROOK_DBLCOUNT_FIX
+                  << " ENABLE_KNIGHT_MOB_FIX=" << Config::ENABLE_KNIGHT_MOB_FIX
+                  << " ENABLE_PIN_FIX=" << Config::ENABLE_PIN_FIX
                   << " ENABLE_QCHECK_DEPTH0=" << Config::ENABLE_QCHECK_DEPTH0
                   << " ENABLE_QCHECK_MASK=" << Config::ENABLE_QCHECK_MASK
                   << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST

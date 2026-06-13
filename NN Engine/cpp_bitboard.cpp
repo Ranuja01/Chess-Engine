@@ -3036,7 +3036,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 
 				if (!attacked_by_lower_value_piece) {
 
-					total += 15;
+					total += (Config::ENABLE_KNIGHT_MOB_FIX ? 10 : 15);
 
 					if (!(occupied & square_mask)){
 
@@ -3611,7 +3611,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_colour){ 
 					
 						// Increment rook for attacking white pawn from behind
-						rookIncrement += (att_square / 8) * 35; 
+						rookIncrement += (Config::ENABLE_ROOK_DBLCOUNT_FIX ? 0 : (att_square / 8) * 35); 
 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
 							rookIncrement += (att_square / 8) * 75;
@@ -5251,7 +5251,7 @@ inline uint64_t get_relevant_pin(bool probe) {
         candidates |= queen_attacks_from_square;        
     } */    
 
-    bb &= candidates & bishops & knights & rooks;    
+    bb &= candidates & (Config::ENABLE_PIN_FIX ? (bishops | knights | rooks) : (bishops & knights & rooks));    
     if(probe)
         std::cout << "BITMASK:" << bb << ";"<< std::endl;
     while (bb) {
@@ -6369,7 +6369,7 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				} else {
 					int value_gained = cur_side_capture->value_gained;
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
-						value_gained += pawn_rank_bonuses[cur_side_capture->to];
+						value_gained += (Config::ENABLE_CAPGAIN_PAWN_FIX ? -pawn_rank_bonuses[cur_side_capture->to] : pawn_rank_bonuses[cur_side_capture->to]);
 					}
 					black_gains += value_gained;
 					whitePieceVal -= value_gained;

@@ -1327,14 +1327,10 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                 std::cout << "Best: " << best_move_index << std::endl;
             }
 
-            // Fail-soft: return the actual score that exceeded beta
+            // Fail-soft: return the actual score that exceeded beta. (A killer/history update on the
+            // cutoff was originally placed after this return -- dead, and near-useless at the root
+            // anyway, since root cutoffs are rare and ply-0 killers are not read in root ordering.)
             return best_score;
-
-            if (!capture_move)
-            {
-                storeKillerMove(cur_depth, move);
-                historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
-            }
         }
 
         if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)

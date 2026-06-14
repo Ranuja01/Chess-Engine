@@ -482,6 +482,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_ROOK_ENDGAME_CAP = env_flag("ENABLE_ROOK_ENDGAME_CAP", Config::ENABLE_ROOK_ENDGAME_CAP);
         Config::ROOK_ENDGAME_CAP = env_int("ROOK_ENDGAME_CAP", Config::ROOK_ENDGAME_CAP);
         Config::ENABLE_ROOK_RANKWIN_FIX = env_flag("ENABLE_ROOK_RANKWIN_FIX", Config::ENABLE_ROOK_RANKWIN_FIX);
+        Config::ENABLE_QPREC_PHASE_GATE = env_flag("ENABLE_QPREC_PHASE_GATE", Config::ENABLE_QPREC_PHASE_GATE);
+        Config::ENABLE_TT_DEPTH_FIX = env_flag("ENABLE_TT_DEPTH_FIX", Config::ENABLE_TT_DEPTH_FIX);
+        Config::NULLMOVE_CURDEPTH_MINI = env_int("NULLMOVE_CURDEPTH_MINI", Config::NULLMOVE_CURDEPTH_MINI);
+        Config::NULLMOVE_CURDEPTH_MAXI = env_int("NULLMOVE_CURDEPTH_MAXI", Config::NULLMOVE_CURDEPTH_MAXI);
         Config::ENABLE_CONT_HIST = env_flag("ENABLE_CONT_HIST", Config::ENABLE_CONT_HIST);
         Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
@@ -587,6 +591,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_ROOK_ENDGAME_CAP=" << Config::ENABLE_ROOK_ENDGAME_CAP
                   << " ROOK_ENDGAME_CAP=" << Config::ROOK_ENDGAME_CAP
                   << " ENABLE_ROOK_RANKWIN_FIX=" << Config::ENABLE_ROOK_RANKWIN_FIX
+                  << " ENABLE_QPREC_PHASE_GATE=" << Config::ENABLE_QPREC_PHASE_GATE
+                  << " ENABLE_TT_DEPTH_FIX=" << Config::ENABLE_TT_DEPTH_FIX
+                  << " NULLMOVE_CURDEPTH_MINI=" << Config::NULLMOVE_CURDEPTH_MINI
+                  << " NULLMOVE_CURDEPTH_MAXI=" << Config::NULLMOVE_CURDEPTH_MAXI
                   << " ENABLE_QCHECK_DEPTH0=" << Config::ENABLE_QCHECK_DEPTH0
                   << " ENABLE_QCHECK_MASK=" << Config::ENABLE_QCHECK_MASK
                   << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST
@@ -842,7 +850,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     {
         Config::DECAY_INTERVAL = 125000;
     }
-    use_q_precautions = true;
+    if (!Config::ENABLE_QPREC_PHASE_GATE) use_q_precautions = true;
     uint64_t zobrist = generateZobristHash(current.pawns, current.knights, current.bishops, current.rooks, current.queens, current.kings, current.occupied_colour[true], current.occupied_colour[false], current.turn);
 
     Move move(0, 0, 0);
@@ -2217,7 +2225,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             g_evalStack[cur_depth] = (!currently_in_check && (depth_limit - cur_depth) <= Config::IMPROVING_EVAL_WINDOW)
                                          ? static_eval_for_improving(state_history, zobrist) : NO_STATIC_EVAL;
         // Null Move Pruning
-        if (Config::ENABLE_NULLMOVE && cur_depth >= 3 && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
+        if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MINI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
         {
             state_history.back().turn = !state_history.back().turn;
 
@@ -2647,7 +2655,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                                      ? static_eval_for_improving(state_history, zobrist) : NO_STATIC_EVAL;
 
     // Null Move Pruning
-    if (Config::ENABLE_NULLMOVE && cur_depth >= 4 && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
+    if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MAXI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
     {
         state_history.back().turn = !state_history.back().turn;
 
@@ -3046,7 +3054,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
     // std::cout <<"BBB3" << std::endl;
     BoardState updated_state = state_history.back();
     // std::vector<Move> line(pv_table[1], pv_table[1] + pv_length[1]);
-    addToSearchEvalCache(zobrist, state_history.size(), highest_score, depth_limit, root_tt_flag(highest_score, alpha, beta), alpha, beta /* , line */, updated_state.castling_rights, updated_state.ep_square);
+    addToSearchEvalCache(zobrist, state_history.size(), highest_score, (Config::ENABLE_TT_DEPTH_FIX ? depth : depth_limit), root_tt_flag(highest_score, alpha, beta), alpha, beta /* , line */, updated_state.castling_rights, updated_state.ep_square);
     unmake_move(state_history, position_count, zobrist);
 
     if (time_up.load(std::memory_order_relaxed))
@@ -3109,7 +3117,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
         // std::cout <<"BBB5-1" << std::endl;
         updated_state = state_history.back();
         // std::vector<Move> line(pv_table[1], pv_table[1] + pv_length[1]);
-        addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit, root_tt_flag(score, alpha, beta), alpha, beta /* , line */, updated_state.castling_rights, updated_state.ep_square);
+        addToSearchEvalCache(zobrist, state_history.size(), score, (Config::ENABLE_TT_DEPTH_FIX ? depth : depth_limit), root_tt_flag(score, alpha, beta), alpha, beta /* , line */, updated_state.castling_rights, updated_state.ep_square);
 
         unmake_move(state_history, position_count, zobrist);
 

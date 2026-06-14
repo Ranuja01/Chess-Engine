@@ -344,6 +344,22 @@ namespace Config
     inline int ROOK_ENDGAME_CAP = 300;
     inline bool ENABLE_ROOK_RANKWIN_FIX = false;
 
+    // Search-side latent-bug knobs (adversarial rescan #8; bench-decided on WAC nodes/solves + STS d10).
+    // TT_DEPTH_FIX (DEFAULT-ON, the keeper): reorder_legal_moves' pre-pass searches depth_limit-1 but
+    // stored depth_limit in the TT (+1 over-trust); storing the honest depth WON the bench -- WAC +1 solve
+    // (259->260) AND -2.1% nodes (255,372,592->249,966,786), STS +33 (1517->1550). New d10 control baseline.
+    // QPREC_PHASE_GATE (default-off, kept as a documented negative): an unconditional use_q_precautions=true
+    // overrides the phase branches (meant true only for phase_score>=96), so midgame shallow leaves skip
+    // qsearch; restoring the phase logic tested WORSE (-3 WAC solves, +9.1% nodes) -> the accidental
+    // always-on is better, leave off. NULLMOVE_CURDEPTH_* (defaults 3/4 optimal): the minimizer null-moves
+    // at cur_depth>=3 and the maximizer at >=4 -- NOT a colour bug but a PARITY artifact (minimizer sits at
+    // odd cur_depths, maximizer at even), confirmed: MAXI=3 is byte-identical (no maximizer node at
+    // cur_depth 3) and MINI=4 is worse (-1 solve, +13% nodes). Knobs retained for future MAXI=2 tuning.
+    inline bool ENABLE_QPREC_PHASE_GATE = false;
+    inline bool ENABLE_TT_DEPTH_FIX = true;
+    inline int NULLMOVE_CURDEPTH_MINI = 3;
+    inline int NULLMOVE_CURDEPTH_MAXI = 4;
+
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
     // uses the "how close to alpha" signal. The default is the blitz-validated

@@ -324,6 +324,17 @@ namespace Config
     inline bool ENABLE_KNIGHT_MOB_FIX = false;
     inline bool ENABLE_PIN_FIX = false;
 
+    // Batch 1 endgame-asymmetry tail. ROOK_ENDGAME_CAP: evaluate_rooks_endgame applies rookIncrement
+    // UNCAPPED in both colour branches (reaching ~725 on a behind-passer file), unlike
+    // evaluate_rooks_midgame which clamps std::min(rookIncrement, 300) -- suspected endgame rook/material
+    // over-valuation; the fix clamps the endgame increment to ROOK_ENDGAME_CAP (magnitude fix, colour-
+    // symmetric). ROOK_RANKWIN_FIX: in evaluate_rooks_midgame the white own-pawn rank window (< 5, with
+    // the term flipping to a +75 bonus at rank 4) and the black mirror (> 4) are not true mirrors at the
+    // boundary; the fix aligns them. Both behavioral -> gated default-off.
+    inline bool ENABLE_ROOK_ENDGAME_CAP = false;
+    inline int ROOK_ENDGAME_CAP = 300;
+    inline bool ENABLE_ROOK_RANKWIN_FIX = false;
+
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
     // uses the "how close to alpha" signal. The default is the blitz-validated

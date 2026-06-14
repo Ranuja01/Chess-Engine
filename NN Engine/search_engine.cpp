@@ -291,8 +291,14 @@ inline int static_eval_for_improving(std::vector<BoardState> &state_history, uin
         return cached;
     BoardState cs = state_history.back();
     int moveNum = static_cast<int>(state_history.size());
-    return placement_and_piece_eval(moveNum, cs.turn, cs.pawns, cs.knights, cs.bishops, cs.rooks,
-                                    cs.queens, cs.kings, cs.occupied_colour[true], cs.occupied_colour[false], cs.occupied);
+    int total = placement_and_piece_eval(moveNum, cs.turn, cs.pawns, cs.knights, cs.bishops, cs.rooks,
+                                         cs.queens, cs.kings, cs.occupied_colour[true], cs.occupied_colour[false], cs.occupied);
+    // Match get_board_evaluation's Config::side_to_play flip so this (miss) path agrees in sign with
+    // the cache-hit path above, which returns the already-flipped stored value. Without this the
+    // improving comparison mixes flipped and unflipped evals when side_to_play is true.
+    if (Config::side_to_play)
+        total = -total;
+    return total;
 }
 
 inline int history_lmr_delta(const Move &move, const Move &previousMove, const BoardState &cs, int ply)
@@ -471,6 +477,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_ROOK_DBLCOUNT_FIX = env_flag("ENABLE_ROOK_DBLCOUNT_FIX", Config::ENABLE_ROOK_DBLCOUNT_FIX);
         Config::ENABLE_KNIGHT_MOB_FIX = env_flag("ENABLE_KNIGHT_MOB_FIX", Config::ENABLE_KNIGHT_MOB_FIX);
         Config::ENABLE_PIN_FIX = env_flag("ENABLE_PIN_FIX", Config::ENABLE_PIN_FIX);
+        Config::ENABLE_ROOK_ENDGAME_CAP = env_flag("ENABLE_ROOK_ENDGAME_CAP", Config::ENABLE_ROOK_ENDGAME_CAP);
+        Config::ROOK_ENDGAME_CAP = env_int("ROOK_ENDGAME_CAP", Config::ROOK_ENDGAME_CAP);
+        Config::ENABLE_ROOK_RANKWIN_FIX = env_flag("ENABLE_ROOK_RANKWIN_FIX", Config::ENABLE_ROOK_RANKWIN_FIX);
         Config::ENABLE_CONT_HIST = env_flag("ENABLE_CONT_HIST", Config::ENABLE_CONT_HIST);
         Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
@@ -571,6 +580,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_ROOK_DBLCOUNT_FIX=" << Config::ENABLE_ROOK_DBLCOUNT_FIX
                   << " ENABLE_KNIGHT_MOB_FIX=" << Config::ENABLE_KNIGHT_MOB_FIX
                   << " ENABLE_PIN_FIX=" << Config::ENABLE_PIN_FIX
+                  << " ENABLE_ROOK_ENDGAME_CAP=" << Config::ENABLE_ROOK_ENDGAME_CAP
+                  << " ROOK_ENDGAME_CAP=" << Config::ROOK_ENDGAME_CAP
+                  << " ENABLE_ROOK_RANKWIN_FIX=" << Config::ENABLE_ROOK_RANKWIN_FIX
                   << " ENABLE_QCHECK_DEPTH0=" << Config::ENABLE_QCHECK_DEPTH0
                   << " ENABLE_QCHECK_MASK=" << Config::ENABLE_QCHECK_MASK
                   << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST

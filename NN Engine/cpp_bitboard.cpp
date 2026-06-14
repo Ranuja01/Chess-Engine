@@ -2129,7 +2129,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 							rookIncrement += (7 - (att_square >> 3)) * 50;
 						}else{
 							// If the pawn is within its own (second) half, lower the rook's increment and break the loop
-							if ((att_square >> 3) > 4){
+							if ((att_square >> 3) > (Config::ENABLE_ROOK_RANKWIN_FIX ? 2 : 4)){
 								rookIncrement -= (50 + (((att_square / 8) - 4) * 125));								
 								break;
 							}
@@ -3433,7 +3433,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 		}
 		
 		// Finally use the increment
-		total -= rookIncrement;
+		total -= (Config::ENABLE_ROOK_ENDGAME_CAP ? std::min(rookIncrement, Config::ROOK_ENDGAME_CAP) : rookIncrement);
         		
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -3632,7 +3632,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 		}	
 
 		// Finally use the increment
-		total += rookIncrement;
+		total += (Config::ENABLE_ROOK_ENDGAME_CAP ? std::min(rookIncrement, Config::ROOK_ENDGAME_CAP) : rookIncrement);
 		
 		/*
 			In this section, the scores for piece attacks are acquired

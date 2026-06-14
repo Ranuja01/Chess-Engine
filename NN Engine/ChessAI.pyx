@@ -157,6 +157,9 @@ cdef extern from "cpp_bitboard.h":
         int pt_rooks
         int pt_queens
         int pt_kings
+        int ae_input
+        int ae_matedrive
+        int ae_passer
     EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
 
     # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
@@ -500,6 +503,9 @@ cdef class ChessAI:
             "pt_rooks": b.pt_rooks,
             "pt_queens": b.pt_queens,
             "pt_kings": b.pt_kings,
+            "ae_input": b.ae_input,
+            "ae_matedrive": b.ae_matedrive,
+            "ae_passer": b.ae_passer,
         }
 
 

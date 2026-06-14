@@ -319,10 +319,19 @@ namespace Config
     // endgame black-rook extra unconditional rookIncrement add (no white mirror). KNIGHT_MOB: endgame
     // knight mobility bonus is 15 for black vs 10 for white. PIN: get_relevant_pin ANDs disjoint masks
     // (always 0) so the feature is dead; the fix ORs them.
-    inline bool ENABLE_CAPGAIN_PAWN_FIX = false;
+    inline bool ENABLE_CAPGAIN_PAWN_FIX = true;
     inline bool ENABLE_ROOK_DBLCOUNT_FIX = false;
     inline bool ENABLE_KNIGHT_MOB_FIX = false;
     inline bool ENABLE_PIN_FIX = false;
+
+    // Symmetrize-UP counterparts to the KNIGHT_MOB / ROOK_DBLCOUNT colour asymmetries: instead of
+    // collapsing black DOWN to white's value (the _FIX knobs), raise WHITE up to black's higher
+    // magnitude so the term is colour-symmetric at the larger value (tests whether the magnitude, not
+    // the asymmetry, carried the eval signal). KNIGHT_MOB_SYM_UP: endgame white knight base mobility
+    // 10 -> 15. ROOK_DBLCOUNT_SYM_UP: add white's missing extra (7-rank)*35 "rook behind enemy pawn"
+    // term. Behavioral -> gated default-off.
+    inline bool ENABLE_KNIGHT_MOB_SYM_UP = false;
+    inline bool ENABLE_ROOK_DBLCOUNT_SYM_UP = false;
 
     // Batch 1 endgame-asymmetry tail. ROOK_ENDGAME_CAP: evaluate_rooks_endgame applies rookIncrement
     // UNCAPPED in both colour branches (reaching ~725 on a behind-passer file), unlike

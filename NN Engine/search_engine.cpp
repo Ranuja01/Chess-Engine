@@ -477,6 +477,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_ROOK_DBLCOUNT_FIX = env_flag("ENABLE_ROOK_DBLCOUNT_FIX", Config::ENABLE_ROOK_DBLCOUNT_FIX);
         Config::ENABLE_KNIGHT_MOB_FIX = env_flag("ENABLE_KNIGHT_MOB_FIX", Config::ENABLE_KNIGHT_MOB_FIX);
         Config::ENABLE_PIN_FIX = env_flag("ENABLE_PIN_FIX", Config::ENABLE_PIN_FIX);
+        Config::ENABLE_KNIGHT_MOB_SYM_UP = env_flag("ENABLE_KNIGHT_MOB_SYM_UP", Config::ENABLE_KNIGHT_MOB_SYM_UP);
+        Config::ENABLE_ROOK_DBLCOUNT_SYM_UP = env_flag("ENABLE_ROOK_DBLCOUNT_SYM_UP", Config::ENABLE_ROOK_DBLCOUNT_SYM_UP);
         Config::ENABLE_ROOK_ENDGAME_CAP = env_flag("ENABLE_ROOK_ENDGAME_CAP", Config::ENABLE_ROOK_ENDGAME_CAP);
         Config::ROOK_ENDGAME_CAP = env_int("ROOK_ENDGAME_CAP", Config::ROOK_ENDGAME_CAP);
         Config::ENABLE_ROOK_RANKWIN_FIX = env_flag("ENABLE_ROOK_RANKWIN_FIX", Config::ENABLE_ROOK_RANKWIN_FIX);
@@ -580,6 +582,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_ROOK_DBLCOUNT_FIX=" << Config::ENABLE_ROOK_DBLCOUNT_FIX
                   << " ENABLE_KNIGHT_MOB_FIX=" << Config::ENABLE_KNIGHT_MOB_FIX
                   << " ENABLE_PIN_FIX=" << Config::ENABLE_PIN_FIX
+                  << " ENABLE_KNIGHT_MOB_SYM_UP=" << Config::ENABLE_KNIGHT_MOB_SYM_UP
+                  << " ENABLE_ROOK_DBLCOUNT_SYM_UP=" << Config::ENABLE_ROOK_DBLCOUNT_SYM_UP
                   << " ENABLE_ROOK_ENDGAME_CAP=" << Config::ENABLE_ROOK_ENDGAME_CAP
                   << " ROOK_ENDGAME_CAP=" << Config::ROOK_ENDGAME_CAP
                   << " ENABLE_ROOK_RANKWIN_FIX=" << Config::ENABLE_ROOK_RANKWIN_FIX

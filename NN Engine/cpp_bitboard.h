@@ -325,6 +325,12 @@ struct EvalBreakdown {
 	int pt_rooks;
 	int pt_queens;
 	int pt_kings;
+	// advanced_endgame_eval decomposition (endgame REPLACE path). ae_input = additive pre-advanced total
+	// fed in; ae_matedrive = the |total|>2000 king-to-edge mate-drive delta; ae_passer = the passed-pawn
+	// king-race shepherding delta. (0 when advanced_endgame_eval did not fire.)
+	int ae_input;
+	int ae_matedrive;
+	int ae_passer;
 };
 extern EvalBreakdown g_eval_breakdown;
 extern bool g_capture_eval_breakdown;

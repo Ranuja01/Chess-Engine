@@ -254,6 +254,9 @@ std::array<int, 64> square_values = {0};
 // Diagnostic-only static-eval term attribution (see EvalBreakdown in cpp_bitboard.h). Off during search.
 EvalBreakdown g_eval_breakdown = {};
 bool g_capture_eval_breakdown = false;
+// Scratch for advanced_endgame_eval's internal deltas (published into g_eval_breakdown only when capturing).
+int g_ae_matedrive = 0;
+int g_ae_passer = 0;
 
 constexpr std::array<std::array<int, 7>, 7> support_weights = {{
     //             None  Pawn  Knight  Bishop  Rook  Queen  King
@@ -2945,7 +2948,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 
 				if (!attacked_by_lower_value_piece) {
 		
-					total -= 10;
+					total -= (Config::ENABLE_KNIGHT_MOB_SYM_UP ? 15 : 10);
 
 					if (!(occupied & square_mask)){
 
@@ -2956,10 +2959,10 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 						//uint64_t secondAttackMask = attacks_mask(colour,simulatedOccupied,r,QUEEN);
 						uint64_t bb_second = secondAttackMask;
 						while (bb_second) {
-				
-							// Get the position of the least significant set bit of the mask							
+
+							// Get the position of the least significant set bit of the mask
 							uint8_t secondary = __builtin_ctzll(bb_second);
-							
+
 							uint64_t second_sq = BB_SQUARES[secondary];
 							// If each square doesn't contain a white piece, boost the score for mobility
 							if (!(simulatedOccupied & second_sq)){
@@ -3419,7 +3422,9 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 					// Check if the pawn is black
 					}else{ 
 					
-						// Increment rook for attacking black pawn from behind						
+						// Increment rook for attacking black pawn from behind
+
+						rookIncrement += (Config::ENABLE_ROOK_DBLCOUNT_SYM_UP ? (7 - (att_square / 8)) * 35 : 0);
 
 						if (black_passed_pawns & BB_SQUARES[att_square]){
 							rookIncrement += (7 - (att_square / 8)) * 75;
@@ -4462,6 +4467,8 @@ inline int advanced_endgame_eval(int total, bool turn){
 		total = mate_drive_before + (int)((total - mate_drive_before) * drive_scale);
 	}
 	//std::cout<< "Inner " << total << std::endl;
+	if (g_capture_eval_breakdown) g_ae_matedrive = total - mate_drive_before;
+	int ae_passer_start = total;
 	// Create bitmasks for the first and second half of the board
 	uint64_t firstHalf = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
 	uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
@@ -4567,8 +4574,9 @@ inline int advanced_endgame_eval(int total, bool turn){
 		bb &= bb - 1;
 	}
 	//std::cout <<"Inner2 "<< total <<std::endl;
+	if (g_capture_eval_breakdown) g_ae_passer = total - ae_passer_start;
 	return total;
-	
+
 }
 
 
@@ -5396,6 +5404,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	int br_pieces = 0, br_capture = 0, br_passed = 0, br_latent = 0, br_central = 0;
 	int br_imbalance_white = 0, br_imbalance_black = 0, br_pairs = 0, br_pv_boost = 0;
 	int br_advanced_total = 0;
+	int br_ae_input = 0;
 	bool br_advanced_fired = false;
 	// Per-piece-type contribution to `pieces` (midgame path), for color-mirror localization.
 	int br_pt_pawns = 0, br_pt_knights = 0, br_pt_bishops = 0, br_pt_rooks = 0, br_pt_queens = 0, br_pt_kings = 0;
@@ -5954,6 +5963,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 		// Check if the position is an advanced endgame
 		if (isNearGameEnd){
+			br_ae_input = total;
 			{
 				PROF_BLOCK(PROF_ADV_ENDGAME);
 				total = advanced_endgame_eval(total, turn);
@@ -6029,6 +6039,9 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		g_eval_breakdown.pt_rooks = br_pt_rooks;
 		g_eval_breakdown.pt_queens = br_pt_queens;
 		g_eval_breakdown.pt_kings = br_pt_kings;
+		g_eval_breakdown.ae_input     = br_advanced_fired ? br_ae_input   : 0;
+		g_eval_breakdown.ae_matedrive = br_advanced_fired ? g_ae_matedrive : 0;
+		g_eval_breakdown.ae_passer    = br_advanced_fired ? g_ae_passer    : 0;
 	}
 	return total;
 }

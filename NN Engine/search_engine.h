@@ -317,12 +317,10 @@ namespace Config
     // Phase B endgame colour-asymmetry fixes + dead-pin revival (adversarial rescan). All behavioral
     // -> gated default-off. CAPGAIN: capture-gains pawn_rank sign in the black branch. ROOK_DBLCOUNT:
     // endgame black-rook extra unconditional rookIncrement add (no white mirror). KNIGHT_MOB: endgame
-    // knight mobility bonus is 15 for black vs 10 for white. PIN: get_relevant_pin ANDs disjoint masks
-    // (always 0) so the feature is dead; the fix ORs them.
+    // knight mobility bonus is 15 for black vs 10 for white.
     inline bool ENABLE_CAPGAIN_PAWN_FIX = true;
     inline bool ENABLE_ROOK_DBLCOUNT_FIX = false;
     inline bool ENABLE_KNIGHT_MOB_FIX = false;
-    inline bool ENABLE_PIN_FIX = false;
 
     // Symmetrize-UP counterparts to the KNIGHT_MOB / ROOK_DBLCOUNT colour asymmetries: instead of
     // collapsing black DOWN to white's value (the _FIX knobs), raise WHITE up to black's higher

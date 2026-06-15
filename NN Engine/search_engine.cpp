@@ -466,6 +466,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_HISTORY_LMR = env_flag("ENABLE_HISTORY_LMR", Config::ENABLE_HISTORY_LMR);
         Config::HISTORY_LMR_CAP = env_int("HISTORY_LMR_CAP", Config::HISTORY_LMR_CAP);
         Config::HISTORY_LMR_MORE_CAP = env_int("HISTORY_LMR_MORE_CAP", Config::HISTORY_LMR_MORE_CAP);
+        Config::ENABLE_LMP = env_flag("ENABLE_LMP", Config::ENABLE_LMP);
+        Config::LMP_MAX_DEPTH = env_int("LMP_MAX_DEPTH", Config::LMP_MAX_DEPTH);
+        Config::LMP_BASE = env_int("LMP_BASE", Config::LMP_BASE);
+        Config::LMP_SCALE = env_int("LMP_SCALE", Config::LMP_SCALE);
         Config::ENABLE_MATE_DRIVE_SCALE = env_flag("ENABLE_MATE_DRIVE_SCALE", Config::ENABLE_MATE_DRIVE_SCALE);
         Config::ENABLE_ENDGAME_SCALE = env_flag("ENABLE_ENDGAME_SCALE", Config::ENABLE_ENDGAME_SCALE);
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
@@ -586,6 +590,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_HISTORY_LMR=" << Config::ENABLE_HISTORY_LMR
                   << " HISTORY_LMR_CAP=" << Config::HISTORY_LMR_CAP
                   << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
+                  << " ENABLE_LMP=" << Config::ENABLE_LMP
+                  << " LMP_MAX_DEPTH=" << Config::LMP_MAX_DEPTH
+                  << " LMP_BASE=" << Config::LMP_BASE
+                  << " LMP_SCALE=" << Config::LMP_SCALE
                   << " ENABLE_MATE_DRIVE_SCALE=" << Config::ENABLE_MATE_DRIVE_SCALE
                   << " ENABLE_ENDGAME_SCALE=" << Config::ENABLE_ENDGAME_SCALE
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
@@ -1491,6 +1499,16 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
                 bool do_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
 
+                // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
+                // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
+                // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
+                if (Config::ENABLE_LMP && do_lmr)
+                {
+                    int rd = depth_limit - cur_depth;
+                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
+                        return 9999999;   // non-improving sentinel for the minimizer (never the new min, no false cutoff)
+                }
+
                 // Null window search with LMR applied inside
                 if (do_lmr)
                 {
@@ -1737,6 +1755,16 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // LMR flag can still be computed here as you do
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
                 bool do_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
+
+                // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
+                // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
+                // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
+                if (Config::ENABLE_LMP && do_lmr)
+                {
+                    int rd = depth_limit - cur_depth;
+                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
+                        return -9999999;   // non-improving sentinel for the maximizer (never the new max, no false cutoff)
+                }
 
                 // Null window search with LMR applied inside
                 if (do_lmr)

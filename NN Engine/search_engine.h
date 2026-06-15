@@ -249,6 +249,16 @@ namespace Config
     inline bool ENABLE_IMPROVING = false;
     inline int IMPROVING_EVAL_WINDOW = 6;   // populate g_evalStack only within this many plies of the leaf (cost control)
 
+    // Late-move pruning (LMP / move-count pruning): at low remaining depth, SKIP late quiet moves entirely
+    // (not just reduce them like LMR). Reuses the LMR eligibility (do_lmr) so captures, checks, promotions,
+    // killers/counter and in-check are never pruned. Prune when the move index i >= LMP_BASE + LMP_SCALE*rd*rd
+    // (rd = remaining depth = depth_limit - cur_depth) and rd <= LMP_MAX_DEPTH. Default off = byte-identical.
+    // Behavioral (changes the tree) -> bench (nodes down, WAC solves + STS held) + self-play before default-on.
+    inline bool ENABLE_LMP = false;
+    inline int LMP_MAX_DEPTH = 3;   // only LMP when remaining depth (depth_limit - cur_depth) <= this
+    inline int LMP_BASE = 3;        // base late-move count
+    inline int LMP_SCALE = 1;       // quadratic depth term in the threshold
+
     // Continuation-aware LMR (default on): a tier-0 (never-cut) quiet with a strong 1-ply continuation
     // score (counterMoveHeuristics) is NOT reduced-more -- a known-good reply to the previous move, so
     // we cancel the extra reduction (never deeper than base). THRESH=2000 is the d10 node-efficiency

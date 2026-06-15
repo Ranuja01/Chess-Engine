@@ -1,25 +1,29 @@
 # Baseline performance reference
 
-## ⭐ CURRENT control (2026-06-07, post eval color-symmetry fix)
+## ⭐ CURRENT control (2026-06-14, post search-latent-bug sprint + capgain ship + dead-pin delete)
 
-The eval color-symmetry fix (12 non-mirrored items, memory `eval-color-symmetry-fix`) is **behavioral**,
-so it voided the previous byte-identity control. Re-baselined at the shipped defaults
-(`PRESET=LONG_FORMAT MAX_DEPTH=10`, `[toggles]` VERIFY_MARGIN=6000 RR=2 CHECK_EXTENSION=3
-REPETITION_THRESHOLD=2 ASPIRATION_DELTA=500 HONEST_ROOT_TT=1):
+Shipped since the 2026-06-07 control (each behavioral, voiding the prior byte-identity each time):
+color-symmetry, **SEE fix**, A1 leaf-exit, A2a eval-cache 0-sentinel, **cheap-bishop**, history-LMR (reduce-more),
+CH-A@2000, **capgain** (default-on, commit `621e251`), **TT-depth-honesty** (`ENABLE_TT_DEPTH_FIX` default-on,
+commit `c596f44`), **dead-pin DELETED** (commit `c113875`, byte-identical). Re-baselined at shipped defaults
+(`PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0`):
 
-| Gate | Pre-fix (shipped) | **NEW control** | Notes |
-| --- | --- | --- | --- |
-| WAC d10 solved | 259/300 | **258/300** | −1 = within aspiration churn (not a regression) |
-| WAC d10 total nodes | 254,973,405 | **263,422,651** | the new **byte-identity control** for search-only changes |
-| STS300 d10 | 48.4% (1451/3000) | **50.1% (1503/3000)** | **+52 pts** — symmetry fix is mildly positional-positive |
+| Gate | **CURRENT control** | Notes |
+| --- | --- | --- |
+| WAC d10 solved | **260/300** | |
+| WAC d10 total nodes | **249,966,786** | the **byte-identity control** for search-only changes |
+| STS300 d10 | **51.7% (1550/3000)** | |
+| EBF (mean, d10) | **4.64** | min 2.74 / max 11.51; **≈ 3.4 at STANDARD d13** (EBF drops with depth). CPW/SF-optimal ≈ 2 → we're ~2× high; **the #1 depth lever** (`depth ∝ log nodes / log EBF`). |
+| first-move-cutoff | **92.1%** | ordering is near-tapped → the EBF lever is **pruning/reduction aggressiveness** (LMP/SEE-pruning/deeper-LMR), not ordering — and that's gated on cheaper eval (verify-on-fail pattern). |
 
-Repro:
+Repro (⚠️ `USE_OPENING_BOOK=0` for determinism; the CSV `nodes` col logs 0 in piped runs → sum the stderr `(nodes=`):
 ```
-PRESET=LONG_FORMAT MAX_DEPTH=10 python diagnostics/tactical_test.py wac.epd <tag>
-awk -F, 'NR>1{n+=$8} END{print n}' diagnostics/results/tactical_results_<tag>.csv   # => 263422651
-MAX_DEPTH=10 PRESET=LONG_FORMAT python diagnostics/sts_test.py sts300.epd <tag>      # => 50.1%
+PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 python diagnostics/tactical_test.py wac.epd <tag> 2>&1 | tee /tmp/w.log
+grep -oE '\(nodes=[0-9]+' /tmp/w.log | grep -oE '[0-9]+' | awk '{s+=$1} END{print s}'   # => 249966786
+grep -oE 'ebf=[0-9.]+' /tmp/w.log | grep -oE '[0-9.]+' | awk '{s+=$1;n++} END{print s/n}'  # => ~4.64 mean EBF
+MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT python diagnostics/sts_test.py sts300.epd <tag>  # => 51.7%
 ```
-A future search-only change must reproduce **263,422,651** with its flag OFF (byte-identity gate);
+A future search-only change must reproduce **249,966,786** with its flag OFF (byte-identity gate);
 behavioral changes are judged on WAC-solved (over-correction guard) + STS300 (positional gate) + self-play.
 
 ---

@@ -137,3 +137,19 @@ Driven by the phase-resolved per-term eval profiler (`diagnostics/eval_profile.p
 | **A3 — qsearch quiet-check cost** (gated, planned) | `buildNoisyMoveList` does a full board-copy + `is_check` per quiet move at every q-ply. (1) include quiet checks only at `qDepth==0`; (2) replace simulate+`is_check` with the `ENABLE_CHECK_ORDER` direct-check mask. | behavioral (changes searched check-set → move choice + nodes); expected to show at lightning. | gated `ENABLE_QCHECK_DEPTH0`/`_MASK` default-off; full bench. |
 
 **Correctness fixes in the same rescan (strength, not pure speed — Phase B/C):** SEE 2 bugs (one-sided attacker refresh + stale-`square_values` LVA pick; 2.16% of captures wrong — `see_selfcheck.cpp` is the fix gate); endgame colour asymmetries (signed `pawn_rank_bonuses` in capture-gains, knight 10/15, black-rook double-count — target the late-endgame scatter); dead `get_relevant_pin` (fix-and-measure, else delete the 8-signature plumbing = speed); improving sign-bug (invalidated the −0.18 shelving verdict → re-test). See `adversarial-rescan-2026-06-11` memory + `HANDOFF.md`.
+
+## RESCAN CORRECTNESS ARC — RESOLVED (2026-06-14); new control baseline + EBF
+
+The Phase B/C correctness items above are now all resolved (shipped / kept-off-with-data / deleted / skipped). **New d10 control baseline: WAC 260/300, 249,966,786 nodes, STS 51.7% (1550/3000)** (`MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`; supersedes the 262/267,284,369 above). **EBF mean 4.64 @ d10 (~3.4 @ STANDARD d13), first-move-cutoff 92.1%** — vs CPW/SF-optimal ~2, so ~2× high = the #1 depth lever (see `BASELINE_PERF.md`).
+
+| Item | What | Result | Verdict |
+| --- | --- | --- | --- |
+| **capgain** (#1a) | sign of `pawn_rank_bonuses` in `approximate_capture_gains`' black branch (baseline erased Black's credit for capturing advanced White pawns) | mirror-verified correct (−2.06/+2.06 vs unchanged White +2.06); self-play **neutral** (−9.3 ±33.7); causal probe: fires 17.3% but net-neutral ⇒ strength not eval-correctness-bound | **SHIPPED default-on** (`621e251`) |
+| **TT-depth** (#3) | `reorder_legal_moves` pre-pass searched `depth_limit-1` but stored `depth_limit` (+1 TT over-trust) | **WAC 259→260, −2.1% nodes, STS +33** | **SHIPPED default-on** (`ENABLE_TT_DEPTH_FIX`, `c596f44`) |
+| qprec phase-gate (#8) | restore intended `use_q_precautions` phase-gating (a stray unconditional `=true` overrode it) | tested **WORSE** (−3 solves, +9.1% nodes) — the accidental always-skip-shallow-qsearch is better | **kept OFF** (`ENABLE_QPREC_PHASE_GATE`, documented negative) |
+| null-move 3-vs-4 (#8) | min null-moves at `cur_depth>=3`, max at `>=4` | **NOT a bug — parity artifact** (min at odd cur_depths, max at even; MAXI=3 byte-identical, MINI=4 worse) | knobs kept, defaults 3/4 |
+| **dead-pin** (#2) | `get_relevant_pin` ANDed disjoint masks → inert; measure-then-delete | revive play-negative (full +9.5%n/−67 STS; mobility-only sub-test +4.9%n/−54 STS); accuracy-positive where it fires (~0.3p→SF) but **redundant with the live LMR pin-handling `relevant_pin_exists`** (verified correct, left untouched) | **DELETED, byte-identical** (`c113875`) |
+| symup (#1b/#1c) | knight/rook endgame asymmetries symmetrized UP | accuracy-NEUTRAL (~0.05p) | knobs kept default-off |
+| A2b TT draw-cache (#4) | cache `score==0` | repetition/50-move draws path-dependent → unsafe to cache by zobrist; only stalemate (rare) safe ⇒ ~no benefit | **SKIPPED** (poor ROI) |
+
+**Meta:** the eval-CORRECTNESS lane is exhausted as a strength source (capgain/symup/pin all neutral-or-redundant; even a 17%-firing mirror-correct fix moved Elo ~0). **PIVOT → eval-SPEED** (compounds: cheaper eval → affordable speculatively-prune→verify → lower EBF → more depth) **+ ordering/NPS/FMC**. EBF ~3.4–4.6 vs ~2 optimal is the exponential depth lever; ordering is near-tapped (92% FMC) so the lever is **pruning/reduction aggressiveness**, which is gated on eval-speed.

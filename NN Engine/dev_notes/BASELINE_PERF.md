@@ -1,30 +1,34 @@
 # Baseline performance reference
 
-## ⭐ CURRENT control (2026-06-14, post search-latent-bug sprint + capgain ship + dead-pin delete)
+## ⭐ CURRENT control (2026-06-15, post eval-speed bundle: rook surrogate + lossless attack-layer caches, commit `535513f`)
 
-Shipped since the 2026-06-07 control (each behavioral, voiding the prior byte-identity each time):
-color-symmetry, **SEE fix**, A1 leaf-exit, A2a eval-cache 0-sentinel, **cheap-bishop**, history-LMR (reduce-more),
-CH-A@2000, **capgain** (default-on, commit `621e251`), **TT-depth-honesty** (`ENABLE_TT_DEPTH_FIX` default-on,
-commit `c596f44`), **dead-pin DELETED** (commit `c113875`, byte-identical). Re-baselined at shipped defaults
-(`PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0`):
+Shipped since the 2026-06-07 control: color-symmetry, **SEE fix**, A1 leaf-exit, A2a eval-cache 0-sentinel,
+**cheap-bishop**, history-LMR (reduce-more), CH-A@2000, **capgain** (`621e251`), **TT-depth-honesty** (`c596f44`),
+**dead-pin DELETED** (`c113875`), and (commit `535513f`, 2026-06-15) the **eval-speed bundle default-on**:
+`ENABLE_CHEAP_ROOK_MOBILITY` + lossless `ENABLE_ATTACK_LAYER_CACHE` + `ENABLE_ATTACK_LAYER_CACHE_MIDGAME`.
+Re-baselined at shipped defaults (`PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0`):
 
 | Gate | **CURRENT control** | Notes |
 | --- | --- | --- |
-| WAC d10 solved | **260/300** | |
-| WAC d10 total nodes | **249,966,786** | the **byte-identity control** for search-only changes |
-| STS300 d10 | **51.7% (1550/3000)** | |
-| EBF (mean, d10) | **4.64** | min 2.74 / max 11.51; **≈ 3.4 at STANDARD d13** (EBF drops with depth). CPW/SF-optimal ≈ 2 → we're ~2× high; **the #1 depth lever** (`depth ∝ log nodes / log EBF`). |
-| first-move-cutoff | **92.1%** | ordering is near-tapped → the EBF lever is **pruning/reduction aggressiveness** (LMP/SEE-pruning/deeper-LMR), not ordering — and that's gated on cheaper eval (verify-on-fail pattern). |
+| WAC d10 solved | **262/300** | |
+| WAC d10 total nodes | **260,960,881** | the **byte-identity control** for search-only changes (the rook surrogate changed the tree; the two caches are lossless so don't move it) |
+| STS300 d10 | **52.3% (1568/3000)** | |
+| nps @ d10 | **~607k** | +8.6% vs the pre-bundle ~559k (eval is cheaper); −3.8% wall-clock |
+| EBF (mean, d10) | **~4.6** | CPW/SF-optimal ≈ 2 → we're ~2× high; **the #1 depth lever** (`depth ∝ log nodes / log EBF`). |
+| first-move-cutoff | **~92%** | move-1 ordering near-tapped; the EBF levers are **pruning aggressiveness (LMP + SEE-pruning, both currently ABSENT)** + secondary ordering — now affordable post-eval-speed. NEXT sprint. |
+
+Self-play: the bundle scored **+11.2 ±20.7 Elo** over baseline (1487 LIGHTNING games, positive lean, no regression).
 
 Repro (⚠️ `USE_OPENING_BOOK=0` for determinism; the CSV `nodes` col logs 0 in piped runs → sum the stderr `(nodes=`):
 ```
 PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 python diagnostics/tactical_test.py wac.epd <tag> 2>&1 | tee /tmp/w.log
-grep -oE '\(nodes=[0-9]+' /tmp/w.log | grep -oE '[0-9]+' | awk '{s+=$1} END{print s}'   # => 249966786
-grep -oE 'ebf=[0-9.]+' /tmp/w.log | grep -oE '[0-9.]+' | awk '{s+=$1;n++} END{print s/n}'  # => ~4.64 mean EBF
-MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT python diagnostics/sts_test.py sts300.epd <tag>  # => 51.7%
+grep -oE '\(nodes=[0-9]+' /tmp/w.log | grep -oE '[0-9]+' | awk '{s+=$1} END{print s}'   # => 260960881
+MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT python diagnostics/sts_test.py sts300.epd <tag>  # => 52.3%
 ```
-A future search-only change must reproduce **249,966,786** with its flag OFF (byte-identity gate);
-behavioral changes are judged on WAC-solved (over-correction guard) + STS300 (positional gate) + self-play.
+The OLD baseline (**260 / 249,966,786 / STS 51.7%**) is recoverable with `ENABLE_CHEAP_ROOK_MOBILITY=0
+ENABLE_ATTACK_LAYER_CACHE=0 ENABLE_ATTACK_LAYER_CACHE_MIDGAME=0`. A future search-only change must reproduce
+**260,960,881** with its flag OFF (byte-identity gate); behavioral changes judged on WAC-solved + STS300 + self-play.
+Bench via the vetted dispatcher: `bash selfplay/overnight_runner.sh wac <tag>` (or `wac_timed` for nps).
 
 ---
 

@@ -13,6 +13,16 @@ The table below is the **speed track** (done: ~16.7s → ~9.2s, EBF ≈ 3.4, pru
 - **TOOLING:** found d10 **STS had a ±30 noise floor from flaky opening-book-hit detection** → bench with `USE_OPENING_BOOK=0` (deterministic). New no-book baseline: **WAC 262 / 267,284,369 nodes / STS 1487**.
 - **NEXT = EVAL** (the double bottleneck: imprecise + slow). First step: per-term profiling across game phases (this file's BASELINE_PERF.md sibling is the perf anchor).
 
+## Eval-speed track (2026-06-11 → 06-15) — SHIPPED
+
+Per-term `__rdtsc` eval profiler built (`PROFILE_EVAL=1`); hottest terms made lazy/cheaper, each gated (byte-identity- or self-play-gated) then default-on:
+- **cheap-bishop** (`ENABLE_CHEAP_BISHOP_COMPLEX`, `dd8486e`): popcount surrogate for the colour-complex flood-fill (~33% of midgame eval). ~25% cheaper midgame, STS +33.
+- **rook mobility surrogate** (`ENABLE_CHEAP_ROOK_MOBILITY`, `535513f`): popcount surrogate for the per-rook mobility sub-block (drops the 5-way lower-value-attacker test + nested 2nd-order scan). +7.8% nps, WAC +2, STS +18; profiler ROOKS 34%→12% endgame.
+- **attack-layer caches** (`ENABLE_ATTACK_LAYER_CACHE` + `_MIDGAME`, `535513f`): lossless content-keyed caches of `setAttackingLayer`'s king-danger layer (endgame = pure fn of the two king squares; midgame = two independent white/black half-caches keyed over the king 2-ring `king_ring2`). EG ≈ free on WAC (pays in endgame play); MG +0.8% nps.
+- **Bundle total: +8.6% nps / −3.8% wall @d10; self-play +11.2 ±20.7 Elo (1487 games). New baseline WAC 262 / 260,960,881 / STS 52.3%.**
+- **REJECTED (gated default-off):** queen mobility surrogate (STS −66 — the don't-count-enemy-defended-squares filter is load-bearing for the queen) and knight mobility surrogate (WAC −3 / +11% node bloat — term already cheap, eval change only disrupts pruning). **Lesson: the cheap-mobility trick does NOT generalize past the rook** — it wins only when the dropped detail isn't load-bearing for that piece AND the term is expensive enough to beat the search disruption.
+- **NEXT = EBF sprint** (LMP + SEE-pruning, both ABSENT in the main search; cutoff move-index histogram diagnostic first; re-test improving now eval is cheaper). See STRENGTH_BACKLOG.
+
 | Item | What | Result | Verdict |
 | --- | --- | --- | --- |
 | Bug 1 | TT/eval deque dedup (correctness-neutral) | no effect on this position (no eviction at this size) | kept |

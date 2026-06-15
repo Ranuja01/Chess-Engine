@@ -143,6 +143,9 @@ static long g_asp_fallbacks = 0;
 // Cumulative across a run, like the aspiration counters above.
 static long g_fh_total = 0;
 static long g_fh_first = 0;
+// Beta-cutoff move-index histogram (diagnostic): buckets 0, 1, 2, 3-7, 8+. Decides whether EBF headroom
+// is in pruning (mass at 0-2) or secondary move ordering (mass at 8+). Cumulative across the run.
+static long g_cutoff_histogram[5] = {0, 0, 0, 0, 0};
 
 // ===================== LMR-miss profiler (diagnostic) =====================
 // Localizes WHERE late-move reductions drop winning moves. Side-effect-free:
@@ -1036,6 +1039,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << g_fh_first << "/" << g_fh_total << ")  ebf="
                   << ((depth_limit > 0 && num_iterations > 0) ? std::pow((double)num_iterations, 1.0 / depth_limit) : 0.0)
                   << " (nodes=" << num_iterations << " d=" << depth_limit << ")" << std::endl;
+    if (g_fh_total > 0)
+        std::cerr << "[cutoff_histogram] m0=" << g_cutoff_histogram[0] << " m1=" << g_cutoff_histogram[1]
+                  << " m2=" << g_cutoff_histogram[2] << " m3-7=" << g_cutoff_histogram[3]
+                  << " m8+=" << g_cutoff_histogram[4] << std::endl;
 
     int x1 = (move.from_square & 7) + 1;
     int y1 = (move.from_square >> 3) + 1;
@@ -2146,6 +2153,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 ++g_fh_total;
                 if (i == 0)
                     ++g_fh_first;
+                g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
                 // std::cout <<score << std::endl;
                 out_entry.second_scores = cur_second_level_preliminary_scores;
 
@@ -2455,6 +2463,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 ++g_fh_total;
                 if (i == 0)
                     ++g_fh_first;
+                g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
                 if (i != 0)
                     updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 
@@ -2910,6 +2919,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             ++g_fh_total;
             if (i == 0)
                 ++g_fh_first;
+            g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
             if (i != 0)
                 updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 

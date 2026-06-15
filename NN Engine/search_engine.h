@@ -299,6 +299,49 @@ namespace Config
     inline int CHEAP_BISHOP_FWD   = 8;    // extra bonus per attacked square in the enemy half
     inline int CHEAP_BISHOP_KING  = 12;   // extra bonus per attacked square in the enemy king zone
 
+    // Eval: replace the per-rook mobility sub-block in evaluate_rooks_{midgame,endgame} (profiled as the
+    // #1 eval hotspot, ~22% early-mid -> ~34% mid/endgame) with a cheap popcount approximation of the
+    // same mobility signal. The original, per attacked non-own-occupied square, runs a five-way
+    // lower-value-attacker test and a nested second-order scan; the surrogate popcounts the rook's
+    // attacked-but-not-own-occupied squares (weighting those in the forward zone as a proxy for the
+    // dropped second-order term). Default off = byte-identical (the per-square filter + nested loop run
+    // untouched). The output reuses the term's existing std::min envelope (225 midgame / 350 endgame).
+    inline bool ENABLE_CHEAP_ROOK_MOBILITY = true;   // default-ON: +7.8% nps, WAC +2, STS +18, self-play +11 Elo (no regression)
+    inline int CHEAP_ROOK_MOB = 15;   // bonus per non-own-occupied attacked square (matches original +15 midgame seed)
+    inline int CHEAP_ROOK_FWD = 10;   // extra bonus per attacked square in the forward zone (proxy for the dropped second-order term)
+
+    // Eval: same cheap-mobility surrogate applied to the queen evaluators. The queen folds mobility
+    // directly into total (no accumulator / no clamp) via a per-square five-way lower-value-attacker
+    // test (midgame) plus a nested second-order scan (endgame). The surrogate skips that and credits
+    // a popcount of the queen's attacked, non-own-occupied squares. Per-phase weights because the
+    // endgame original (with its nested scan) credits substantially more than the flat-+5 midgame.
+    // Default off = byte-identical. Magnitudes are seeds for the sweep.
+    inline bool ENABLE_CHEAP_QUEEN_MOBILITY = false;   // default-off = byte-identical
+    inline int CHEAP_QUEEN_MOB_MG = 5;   // per non-own-occupied attacked square, midgame (matches the original flat +5)
+    inline int CHEAP_QUEEN_MOB_EG = 8;   // per non-own-occupied attacked square, endgame (covers base + dropped nested scan)
+
+    // Eval: same cheap-mobility surrogate for the knight evaluators. The knight folds mobility into
+    // total via a per-square three-way lower-value-attacker test plus a nested second-order knight-hop
+    // scan; the surrogate skips both and credits a popcount of the knight's reachable, non-own-occupied
+    // squares (the knight attack set is small, so one weight covers both phases). Default off = byte-identical.
+    inline bool ENABLE_CHEAP_KNIGHT_MOBILITY = false;   // default-off = byte-identical
+    inline int CHEAP_KNIGHT_MOB = 12;   // per non-own-occupied attacked square (covers base + dropped nested scan)
+
+    // Eval: lossless one-entry cache for setAttackingLayer in the ENDGAME. In the endgame the per-square
+    // open-square / pawn-shield branches are skipped, so the whole king-danger layer is a pure function
+    // of the two king squares; cache the last (white_king_sq, black_king_sq) -> layer and skip the rebuild
+    // on a match. Content-keyed, so it can never go stale -> byte-identical output (the WAC node count is
+    // unchanged); the win is wall-time on the endgame leaves where this term is the hottest. Default off.
+    inline bool ENABLE_ATTACK_LAYER_CACHE = true;   // default-ON: lossless (byte-identical) endgame king-layer reuse
+
+    // Eval: lossless midgame counterpart of the attack-layer cache. The midgame king-danger layer also
+    // depends on own pieces + pawns in each king's 2-ring (the open-square / pawn-shield branches), so it
+    // is cached as two INDEPENDENT half-layers: attackingLayer[1] keyed by (white_king_sq, white pieces &
+    // ring, white pawns & ring), attackingLayer[0] by the black equivalent. Each half stays valid while
+    // that side plays away from its king -> high reuse. Content-keyed -> byte-identical; the only question
+    // is whether the per-node key cost beats the saved loop (measure nps). Default off.
+    inline bool ENABLE_ATTACK_LAYER_CACHE_MIDGAME = true;   // default-ON: lossless (byte-identical) midgame king-layer reuse, +0.8% nps
+
     // Corrected static-exchange evaluation (see() in cpp_bitboard.h). Default off = the existing
     // (buggy) path. ON recomputes the side-to-move's attacker set from live occupancy each iteration
     // (exact x-ray reveals) and picks the least-valuable attacker by true piece type instead of the

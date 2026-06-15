@@ -36,6 +36,9 @@ Code augmented from python-chess: https://github.com/niklasf/python-chess/tree/5
 // Define masks for move generation
 std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
 std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
+// 2-ring around each king square = the exact set of squares the king-zone loops in setAttackingLayer
+// read; used as the midgame attack-layer cache key (built in initialize_attack_tables).
+std::array<uint64_t, NUM_SQUARES> king_ring2;
 std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 std::vector<uint64_t> BB_DIAG_MASKS;
 std::vector<SlidingRow> BB_DIAG_ATTACKS;
@@ -309,6 +312,18 @@ void initialize_attack_tables() {
         BB_KING_ATTACKS[sq] = sliding_attacks(sq, ~0ULL, king_deltas);
 		BB_PAWN_ATTACKS[0][sq] = sliding_attacks(sq, ~0ULL, white_pawn_deltas);
         BB_PAWN_ATTACKS[1][sq] = sliding_attacks(sq, ~0ULL, black_pawn_deltas);
+    }
+
+    // Build the king 2-ring (king move squares + their neighbours) = the squares setAttackingLayer's
+    // king-zone loops touch, used as the midgame attack-layer cache key.
+    for (int sq = 0; sq < NUM_SQUARES; ++sq) {
+        uint64_t ring = BB_KING_ATTACKS[sq];
+        uint64_t inner = BB_KING_ATTACKS[sq];
+        while (inner) {
+            ring |= BB_KING_ATTACKS[__builtin_ctzll(inner)];
+            inner &= inner - 1;
+        }
+        king_ring2[sq] = ring;
     }
 	
 	// Call the function to fill up the tables for all possible queen and rook moves
@@ -956,9 +971,9 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			} else if(square_mask & black_passed_pawns){
 				total -= 100;
 			}
-			
-			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!((occupied_white & square_mask))){
+
+			// If each square doesn't contain a white piece, boost the score for mobility
+			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_white & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 
@@ -996,6 +1011,10 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 			//std::cout << (int)r << " | " << total << std::endl;								
 			bb &= bb - 1;		
+		}
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+			total -= Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_white);
 		}
 		total = std::max(total, -3750);
 	}else{
@@ -1064,14 +1083,14 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 								
 			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!((occupied_black & square_mask))){
+			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_black & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 
 				bool attacked_by_lower_value_piece = (BB_PAWN_ATTACKS[colour][r] & pawns & occupied_white) ||
 													 (BB_KNIGHT_ATTACKS[r] & knights & occupied_white) ||
 													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_white);
-				//std::cout << (int)r << " | " << attacked_by_lower_value_piece << " | " << total << std::endl;	
+				//std::cout << (int)r << " | " << attacked_by_lower_value_piece << " | " << total << std::endl;
 				if (!attacked_by_lower_value_piece) {
 
 					total += 20;
@@ -1102,6 +1121,10 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			//std::cout << (int)r << " | " << total << std::endl;	
 			bb &= bb - 1; 
 		}            
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+			total += Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_black);
+		}
 		total = std::min(total, 3750);
 	}
 	return total;
@@ -1968,8 +1991,8 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 				total -= 25;
 			}
 
-			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!((occupied_white & square_mask))){
+			// If each square doesn't contain a white piece, boost the score for mobility
+			if (!Config::ENABLE_CHEAP_ROOK_MOBILITY && !((occupied_white & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -1982,7 +2005,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
      												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_black);
 
 				if (!attacked_by_lower_value_piece) {
-		
+
 					mobility_bonus += 15;
 
 					if (!(occupied & square_mask)){
@@ -2044,6 +2067,12 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 				total -= values[xRayPieceType] >> 7;
 			}
 			bb &= bb - 1;
+		}
+		// Cheap mobility: scale popcounts of reachable non-own squares + forward zone (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_ROOK_MOBILITY){
+			uint64_t mob_sq = pieceAttackMask & ~occupied_white;
+			mobility_bonus = Config::CHEAP_ROOK_MOB * __builtin_popcountll(mob_sq)
+						   + Config::CHEAP_ROOK_FWD * __builtin_popcountll(mob_sq & (BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8));
 		}
 		total -= std::min(mobility_bonus, 225);
 		//std::cout << mobility_bonus  << std::endl;
@@ -2194,8 +2223,8 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 				total += 25;
 			}
 			
-			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!((occupied_black & square_mask))){
+			// If each square doesn't contain a black piece, boost the score for mobility
+			if (!Config::ENABLE_CHEAP_ROOK_MOBILITY && !((occupied_black & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -2272,6 +2301,12 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 			bb &= bb - 1; 
 		}			       
 	
+		// Cheap mobility: scale popcounts of reachable non-own squares + forward zone (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_ROOK_MOBILITY){
+			uint64_t mob_sq = pieceAttackMask & ~occupied_black;
+			mobility_bonus = Config::CHEAP_ROOK_MOB * __builtin_popcountll(mob_sq)
+						   + Config::CHEAP_ROOK_FWD * __builtin_popcountll(mob_sq & (BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4));
+		}
 		total += std::min(mobility_bonus, 225);
 		//std::cout << mobility_bonus  << std::endl;
 	}
@@ -2357,7 +2392,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			}
 			
 			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!(occupied_white & square_mask)){
+			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_white & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -2382,6 +2417,11 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 		*/
 			
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
+
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test)
+		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+			total -= Config::CHEAP_QUEEN_MOB_MG * __builtin_popcountll(pieceAttackMask & ~occupied_white);
+		}
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,QUEEN);
@@ -2481,7 +2521,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			
 			// If each square doesn't contain a black piece, boost the score for mobility
 						
-			if (!(occupied_black & square_mask)){
+			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_black & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -2506,6 +2546,11 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 		*/
 		
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
+
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test)
+		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+			total += Config::CHEAP_QUEEN_MOB_MG * __builtin_popcountll(pieceAttackMask & ~occupied_black);
+		}
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,QUEEN);
@@ -2899,9 +2944,14 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
-		
+
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_KNIGHT_ATTACKS[square];
+
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+			total -= Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_white);
+		}
 		
 		// Loop through the attacks mask
 		uint8_t r = 0;
@@ -2933,7 +2983,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 				
 			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!((occupied_white & square_mask))){
+			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_white & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 
@@ -2942,7 +2992,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 													 (BB_DIAG_ATTACKS[r][diag_pieces] & bishops & occupied_black);
 
 				if (!attacked_by_lower_value_piece) {
-		
+
 					total -= (Config::ENABLE_KNIGHT_MOB_SYM_UP ? 15 : 10);
 
 					if (!(occupied & square_mask)){
@@ -2987,9 +3037,14 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
-		
+
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_KNIGHT_ATTACKS[square];
+
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+			total += Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_black);
+		}
         		
 		// Loop through the attacks mask
 		uint8_t r = 0;
@@ -3021,7 +3076,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 			
 			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!((occupied_black & square_mask))){
+			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_black & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				//uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -3468,8 +3523,8 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 				total -= 25;
 			}
 			
-			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!((occupied_white & square_mask))){
+			// If each square doesn't contain a white piece, boost the score for mobility
+			if (!Config::ENABLE_CHEAP_ROOK_MOBILITY && !((occupied_white & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -3482,7 +3537,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
      												 (BB_FILE_ATTACKS[r][file_pieces] & rooks & occupied_black);
 
 				if (!attacked_by_lower_value_piece) {
-		
+
 					mobility_bonus += 5;
 
 					if (!(occupied & square_mask)){
@@ -3542,6 +3597,12 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 			bb &= bb - 1; 	
 		}
 		
+		// Cheap mobility: scale popcounts of reachable non-own squares + forward zone (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_ROOK_MOBILITY){
+			uint64_t mob_sq = pieceAttackMask & ~occupied_white;
+			mobility_bonus = Config::CHEAP_ROOK_MOB * __builtin_popcountll(mob_sq)
+						   + Config::CHEAP_ROOK_FWD * __builtin_popcountll(mob_sq & (BB_RANK_7 | BB_RANK_8));
+		}
 		total -= std::min(mobility_bonus, 350);
 		//std::cout << mobility_bonus  << std::endl;
 	// Else the piece is black (positive values for evaluation)
@@ -3667,8 +3728,8 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 				total += 25;
 			}
 			
-			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!((occupied_black & square_mask))){
+			// If each square doesn't contain a black piece, boost the score for mobility
+			if (!Config::ENABLE_CHEAP_ROOK_MOBILITY && !((occupied_black & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -3741,6 +3802,12 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 			bb &= bb - 1;  
 		}
     
+		// Cheap mobility: scale popcounts of reachable non-own squares + forward zone (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_ROOK_MOBILITY){
+			uint64_t mob_sq = pieceAttackMask & ~occupied_black;
+			mobility_bonus = Config::CHEAP_ROOK_MOB * __builtin_popcountll(mob_sq)
+						   + Config::CHEAP_ROOK_FWD * __builtin_popcountll(mob_sq & (BB_RANK_1 | BB_RANK_2));
+		}
 		total += std::min(mobility_bonus, 350);
 		//std::cout << mobility_bonus  << std::endl;
 	}
@@ -3812,7 +3879,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 			}
 			
 			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!(occupied_white & square_mask)){
+			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_white & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -3861,6 +3928,11 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 		}
 				
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
+
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+			total -= Config::CHEAP_QUEEN_MOB_EG * __builtin_popcountll(pieceAttackMask & ~occupied_white);
+		}
 
 		// Create an attack mask that consists of the attack on non-white pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,QUEEN)) & ~occupied_white;
@@ -3942,7 +4014,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 			}
 			
 			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!(occupied_black & square_mask)){
+			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_black & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -3992,6 +4064,11 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 		}
 		
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
+
+		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
+		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+			total += Config::CHEAP_QUEEN_MOB_EG * __builtin_popcountll(pieceAttackMask & ~occupied_black);
+		}
 
 		// Create an attack mask that consists of the attack on non-black pieces that would occur behind the blocking piece
 		uint64_t xRayMask = (~pieceAttackMask & attacks_mask(colour,occupiedCopy,square,QUEEN)) & ~occupied_black;
@@ -6322,8 +6399,27 @@ inline void initializePieceValues(uint64_t bb){
 
 
 
+// One-entry endgame cache for setAttackingLayer (see ENABLE_ATTACK_LAYER_CACHE). In the endgame the
+// per-square open/pawn-shield branches are skipped, so the layer is a pure function of the two king
+// squares; a (wk,bk)-keyed single entry is therefore always correct and can never go stale.
+static struct {
+	bool valid = false;
+	uint8_t wk = 0, bk = 0;
+	std::array<std::array<std::array<int, 8>, 8>, 2> table;
+} g_attack_layer_eg_cache;
+
+// Split midgame half-caches (see ENABLE_ATTACK_LAYER_CACHE_MIDGAME). The white king-loop writes only
+// attackingLayer[1] from (white king sq + white pieces/pawns in its 2-ring); the black loop only [0].
+// Caching the two halves independently lets each survive moves the other side makes away from its king.
+static struct {
+	bool valid = false;
+	uint8_t k = 0;
+	uint64_t occ = 0, pawns = 0;
+	std::array<std::array<int, 8>, 8> layer;
+} g_al_mg_white, g_al_mg_black;
+
 inline void setAttackingLayer(int increment, bool isEndGame){
-	
+
 	/*
 		Function to update the attacking layer relative to the king's positions
 		
@@ -6334,6 +6430,21 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 		A unsigned char representing the piece type
 	*/
 	
+	// Endgame layer depends only on the two king squares; reuse the cached one on a match (lossless)
+	bool use_al_cache = Config::ENABLE_ATTACK_LAYER_CACHE && isEndGame;
+	uint8_t al_wk = 0, al_bk = 0;
+	if (use_al_cache){
+		al_wk = 63 - __builtin_clzll(occupied_white & kings);
+		al_bk = 63 - __builtin_clzll(occupied_black & kings);
+		if (g_attack_layer_eg_cache.valid && g_attack_layer_eg_cache.wk == al_wk && g_attack_layer_eg_cache.bk == al_bk){
+			attackingLayer = g_attack_layer_eg_cache.table;
+			return;
+		}
+	}
+
+	// Midgame layer also depends on own pieces/pawns in each king's 2-ring; cache the two halves independently
+	bool use_mg_cache = Config::ENABLE_ATTACK_LAYER_CACHE_MIDGAME && !isEndGame;
+
 	// Set the default attacking layer
 
 	if (isEndGame){
@@ -6405,6 +6516,19 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 	// Define the x and y coordinates for each square
 	uint8_t x,y;
 	
+	// White king half-layer: reuse attackingLayer[1] if its key (king sq + white pieces/pawns in the 2-ring) matches
+	bool mg_white_hit = false;
+	uint8_t mg_wk = 0; uint64_t mg_w_occ = 0, mg_w_pawns = 0;
+	if (use_mg_cache){
+		mg_wk = 63 - __builtin_clzll(occupied_white & kings);
+		mg_w_occ = occupied_white & king_ring2[mg_wk];
+		mg_w_pawns = (occupied_white & pawns) & king_ring2[mg_wk];
+		if (g_al_mg_white.valid && g_al_mg_white.k == mg_wk && g_al_mg_white.occ == mg_w_occ && g_al_mg_white.pawns == mg_w_pawns){
+			attackingLayer[1] = g_al_mg_white.layer;
+			mg_white_hit = true;
+		}
+	}
+	if (!mg_white_hit){
 	// Loop through the squares around the white king
 	uint8_t r = 0;
 	uint64_t bb = attacks_mask(true,0ULL,63 - __builtin_clzll(occupied_white&kings),6);
@@ -6461,10 +6585,29 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 		
 		bb &= bb - 1;
 	}
-	
+		if (use_mg_cache){
+			g_al_mg_white.valid = true; g_al_mg_white.k = mg_wk;
+			g_al_mg_white.occ = mg_w_occ; g_al_mg_white.pawns = mg_w_pawns;
+			g_al_mg_white.layer = attackingLayer[1];
+		}
+	}
+
+	// Black king half-layer: reuse attackingLayer[0] if its key (king sq + black pieces/pawns in the 2-ring) matches
+	bool mg_black_hit = false;
+	uint8_t mg_bk = 0; uint64_t mg_b_occ = 0, mg_b_pawns = 0;
+	if (use_mg_cache){
+		mg_bk = 63 - __builtin_clzll(occupied_black & kings);
+		mg_b_occ = occupied_black & king_ring2[mg_bk];
+		mg_b_pawns = (occupied_black & pawns) & king_ring2[mg_bk];
+		if (g_al_mg_black.valid && g_al_mg_black.k == mg_bk && g_al_mg_black.occ == mg_b_occ && g_al_mg_black.pawns == mg_b_pawns){
+			attackingLayer[0] = g_al_mg_black.layer;
+			mg_black_hit = true;
+		}
+	}
+	if (!mg_black_hit){
 	// Loop through the squares around the black king
-	r = 0;
-	bb = attacks_mask(false,0ULL,63 - __builtin_clzll(occupied_black&kings),6);
+	uint8_t r = 0;
+	uint64_t bb = attacks_mask(false,0ULL,63 - __builtin_clzll(occupied_black&kings),6);
 	while (bb) {
 		
 		// Get the position of the least significant set bit of the mask
@@ -6516,6 +6659,20 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 			bb_inner &= bb_inner - 1;
 		}		
 		bb &= bb - 1;
+	}
+		if (use_mg_cache){
+			g_al_mg_black.valid = true; g_al_mg_black.k = mg_bk;
+			g_al_mg_black.occ = mg_b_occ; g_al_mg_black.pawns = mg_b_pawns;
+			g_al_mg_black.layer = attackingLayer[0];
+		}
+	}
+
+	// Store the freshly-computed endgame layer for the next (wk,bk)-matching call
+	if (use_al_cache){
+		g_attack_layer_eg_cache.valid = true;
+		g_attack_layer_eg_cache.wk = al_wk;
+		g_attack_layer_eg_cache.bk = al_bk;
+		g_attack_layer_eg_cache.table = attackingLayer;
 	}
 }
 

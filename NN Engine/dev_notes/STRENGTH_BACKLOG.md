@@ -4,7 +4,9 @@ Living tracking table for the pre-NNUE strength track. Source-of-truth for *queu
 **shipped** items graduate to `OPTIMIZATION_LOG.md` (STRENGTH TRACK), strategic context lives in
 `DEPTH_AND_POSITIONAL_NOTES.md`. Derived from the deep-research roadmap (memory
 `pre-nnue-strength-roadmap`) + the tournament/eval diagnostics (memory `tournament-color-bias-diagnostics`).
-Last updated: 2026-06-08.
+Last updated: **2026-06-14**.
+
+> **▶️ STATE (2026-06-14):** the adversarial-rescan correctness arc is resolved — **capgain** + **TT-depth-honesty** SHIPPED default-on, dead eval-**pin DELETED**, qprec / null-move / symup / A2b all settled (neutral or non-bugs; details in `OPTIMIZATION_LOG.md`). New control baseline **WAC 260/249,966,786, STS 51.7%**. **The eval-CORRECTNESS lane is exhausted as a strength source** (even a 17%-firing mirror-correct fix moved Elo ~0). **Priority is now eval-SPEED + the EBF levers.** Measured **EBF ~4.64 @d10 / ~3.4 @STANDARD** vs CPW-optimal ~2; ordering is near-tapped (92% FMC) ⇒ the queued **SEE-pruning / LMP / staged-or-lazy movegen / softer-null-move** rows below are the high-leverage track — pruning/reductions cut EBF *exponentially* into depth, gated on cheaper eval (the speculatively-prune→verify pattern). **Improving heuristic = SHELVED** (tested 2026-06-11: sign-fixed but deeper-not-stronger). **SEE-ignores-pins** row: the eval `get_relevant_pin` is now deleted, but that row is about SEE-in-`move_gen`, separate — still valid; note the live LMR pin-handling is `relevant_pin_exists`.
 
 Status tags: `idea` → `discussed` → `designed` → `testing` → `shipped` / `parked`.
 Discipline: env-toggle default-off (off = byte-identical) → STS300 gate + WAC over-correction guard →

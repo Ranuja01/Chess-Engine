@@ -481,6 +481,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_EXEMPT_ADV = env_int("PASSER_EXEMPT_ADV", Config::PASSER_EXEMPT_ADV);
         Config::ENABLE_MATE_DRIVE_SCALE = env_flag("ENABLE_MATE_DRIVE_SCALE", Config::ENABLE_MATE_DRIVE_SCALE);
         Config::ENABLE_ENDGAME_SCALE = env_flag("ENABLE_ENDGAME_SCALE", Config::ENABLE_ENDGAME_SCALE);
+        Config::SCALE_PASSED_PAWN = env_int("SCALE_PASSED_PAWN", Config::SCALE_PASSED_PAWN);
+        Config::SCALE_LATENT_THREAT = env_int("SCALE_LATENT_THREAT", Config::SCALE_LATENT_THREAT);
+        Config::SCALE_CENTRAL = env_int("SCALE_CENTRAL", Config::SCALE_CENTRAL);
+        Config::SCALE_CAPTURE_GAINS = env_int("SCALE_CAPTURE_GAINS", Config::SCALE_CAPTURE_GAINS);
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
         Config::CHEAP_BISHOP_BLOCK = env_int("CHEAP_BISHOP_BLOCK", Config::CHEAP_BISHOP_BLOCK);
         Config::CHEAP_BISHOP_MOB = env_int("CHEAP_BISHOP_MOB", Config::CHEAP_BISHOP_MOB);
@@ -611,6 +615,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PASSER_EXEMPT_ADV=" << Config::PASSER_EXEMPT_ADV
                   << " ENABLE_MATE_DRIVE_SCALE=" << Config::ENABLE_MATE_DRIVE_SCALE
                   << " ENABLE_ENDGAME_SCALE=" << Config::ENABLE_ENDGAME_SCALE
+                  << " SCALE_PASSED_PAWN=" << Config::SCALE_PASSED_PAWN
+                  << " SCALE_LATENT_THREAT=" << Config::SCALE_LATENT_THREAT
+                  << " SCALE_CENTRAL=" << Config::SCALE_CENTRAL
+                  << " SCALE_CAPTURE_GAINS=" << Config::SCALE_CAPTURE_GAINS
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
                   << " CHEAP_BISHOP_BLOCK=" << Config::CHEAP_BISHOP_BLOCK
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB

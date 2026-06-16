@@ -318,6 +318,15 @@ namespace Config
     // with tighter targeting (or after the bonus/malus history rework) before re-enabling.
     inline bool ENABLE_ENDGAME_SCALE = false;
 
+    // Eval: per-term linear SCALE knobs (percent; 100 = byte-identical). Damp or boost an individual
+    // positional eval term without touching material/PST, applied as total += SCALE_X * term / 100 at the
+    // term's add site. Tuned via selfplay/tune_fit.py (against SF static / game result) and gated by
+    // self-play SPRT. LATENT_THREAT and CENTRAL contribute only in the midgame path.
+    inline int SCALE_PASSED_PAWN   = 100;
+    inline int SCALE_LATENT_THREAT = 100;
+    inline int SCALE_CENTRAL       = 100;
+    inline int SCALE_CAPTURE_GAINS = 100;
+
     // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
     // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
     // + activity signal: own pawns on the bishop's colour (bad bishop) traded against the bishop's current

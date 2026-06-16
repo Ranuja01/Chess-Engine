@@ -5732,33 +5732,35 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_pieces = total; br_run = total;
 		{
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
-			total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+			total += Config::SCALE_CAPTURE_GAINS * approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses) / 100;
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		{
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
-			total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+			total += Config::SCALE_PASSED_PAWN * boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame) / 100;
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		{
 			PROF_BLOCK(PROF_LATENT_THREAT);
-			total += get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
+			total += Config::SCALE_LATENT_THREAT * get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings)) / 100;
 		}
 		br_latent = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 
 		//std::cout << phase_score << std::endl;
+		int central_add;
 		if(phase_score < 20){
-			total += std::max(std::min((central_score * 3) / 2, 400), -400);
+			central_add = std::max(std::min((central_score * 3) / 2, 400), -400);
 		} else if (phase_score < 31){
-			total += std::max(std::min(central_score, 350), -350);
+			central_add = std::max(std::min(central_score, 350), -350);
 		} else if (phase_score < 45){
-			total += std::max(std::min(central_score / 2, 300), -300);
+			central_add = std::max(std::min(central_score / 2, 300), -300);
 		} else{
-			total += std::max(std::min(central_score / 4, 300), -300);
+			central_add = std::max(std::min(central_score / 4, 300), -300);
 		}
+		total += Config::SCALE_CENTRAL * central_add / 100;
 		br_central = total - br_run; br_run = total;
 
 		if(total <= -1500){
@@ -5944,13 +5946,13 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_pieces = total; br_run = total;
 		{
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
-			total += approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+			total += Config::SCALE_CAPTURE_GAINS * approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses) / 100;
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		{
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
-			total += boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+			total += Config::SCALE_PASSED_PAWN * boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame) / 100;
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << " after pp: " << total << std::endl;

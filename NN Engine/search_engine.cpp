@@ -485,6 +485,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SCALE_LATENT_THREAT = env_int("SCALE_LATENT_THREAT", Config::SCALE_LATENT_THREAT);
         Config::SCALE_CENTRAL = env_int("SCALE_CENTRAL", Config::SCALE_CENTRAL);
         Config::SCALE_CAPTURE_GAINS = env_int("SCALE_CAPTURE_GAINS", Config::SCALE_CAPTURE_GAINS);
+        Config::PP_OPP_PAWN_PEN = env_int("PP_OPP_PAWN_PEN", Config::PP_OPP_PAWN_PEN);
+        Config::PP_BLOCKADE_PEN = env_int("PP_BLOCKADE_PEN", Config::PP_BLOCKADE_PEN);
+        Config::PP_UNBLOCKED = env_int("PP_UNBLOCKED", Config::PP_UNBLOCKED);
+        Config::PP_DIAG_SUPPORT = env_int("PP_DIAG_SUPPORT", Config::PP_DIAG_SUPPORT);
+        Config::PP_FILE_CLEAR = env_int("PP_FILE_CLEAR", Config::PP_FILE_CLEAR);
+        Config::PP_HORIZ_SUPPORT = env_int("PP_HORIZ_SUPPORT", Config::PP_HORIZ_SUPPORT);
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
         Config::CHEAP_BISHOP_BLOCK = env_int("CHEAP_BISHOP_BLOCK", Config::CHEAP_BISHOP_BLOCK);
         Config::CHEAP_BISHOP_MOB = env_int("CHEAP_BISHOP_MOB", Config::CHEAP_BISHOP_MOB);
@@ -619,6 +625,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " SCALE_LATENT_THREAT=" << Config::SCALE_LATENT_THREAT
                   << " SCALE_CENTRAL=" << Config::SCALE_CENTRAL
                   << " SCALE_CAPTURE_GAINS=" << Config::SCALE_CAPTURE_GAINS
+                  << " PP_OPP_PAWN_PEN=" << Config::PP_OPP_PAWN_PEN
+                  << " PP_BLOCKADE_PEN=" << Config::PP_BLOCKADE_PEN
+                  << " PP_UNBLOCKED=" << Config::PP_UNBLOCKED
+                  << " PP_DIAG_SUPPORT=" << Config::PP_DIAG_SUPPORT
+                  << " PP_FILE_CLEAR=" << Config::PP_FILE_CLEAR
+                  << " PP_HORIZ_SUPPORT=" << Config::PP_HORIZ_SUPPORT
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
                   << " CHEAP_BISHOP_BLOCK=" << Config::CHEAP_BISHOP_BLOCK
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB

@@ -6801,7 +6801,7 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 		}
 		
 		// Otherwise there is an opposing pawn defending the promotion path, thereby lowering the increment
-		ppIncrement -= 125;
+		ppIncrement -= Config::PP_OPP_PAWN_PEN;
 		bb &= bb - 1;
 	}
 	//if (y == 4 && x == 2){std::cout << bitmask  << " " << ppIncrement << " " << incrementCopy << std::endl;}
@@ -6822,11 +6822,11 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 			
 			// If the piece is the that of the opponent, decrement the score as it is blockaded
 			if ((infrontMask & opposingPieces)){
-				ppIncrement -= 100;
+				ppIncrement -= Config::PP_BLOCKADE_PEN;
 			}
 		// Else no blocker exists, the passed pawn is un-impeded, earning a larger boost
 		} else{
-			ppIncrement += 50;			
+			ppIncrement += Config::PP_UNBLOCKED;
 		}
 
 		// Give more of a boost if the passed pawn has supporters on either side or is defended.
@@ -6841,50 +6841,50 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 			uint64_t se = (pawnBB >> 7) & ~BB_FILE_A & pawns & occupied_white;
 			//if (y == 4 && x == 2){std::cout << sw << " " << se <<  " " << left << " " << right << std::endl;}
 			if (sw != 0){
-				ppIncrement += 75;
+				ppIncrement += Config::PP_DIAG_SUPPORT;
 				if ((left & occupied_black) == 0){
-					ppIncrement += 150;
+					ppIncrement += Config::PP_FILE_CLEAR;
 				}
 			}
 
 			if (se != 0){
-				ppIncrement += 75;
+				ppIncrement += Config::PP_DIAG_SUPPORT;
 				if ((right & occupied_black) == 0){
-					ppIncrement += 150;
+					ppIncrement += Config::PP_FILE_CLEAR;
 				}
 			}
 
 			if ((left & occupied_white) != 0){
-					ppIncrement += 225;
+					ppIncrement += Config::PP_HORIZ_SUPPORT;
 			}
 
 			if ((right & occupied_white) != 0){
-					ppIncrement += 225;
+					ppIncrement += Config::PP_HORIZ_SUPPORT;
 			}				
 		} else {
 			uint64_t nw = (pawnBB << 7) & ~BB_FILE_H & pawns & occupied_black;
 			uint64_t ne = (pawnBB << 9) & ~BB_FILE_A & pawns & occupied_black;
 			
 			if (nw != 0){
-				ppIncrement += 75;
+				ppIncrement += Config::PP_DIAG_SUPPORT;
 				if ((left & occupied_white) == 0){
-					ppIncrement += 150;
+					ppIncrement += Config::PP_FILE_CLEAR;
 				}
 			}
 
 			if (ne != 0){
-				ppIncrement += 75;
+				ppIncrement += Config::PP_DIAG_SUPPORT;
 				if ((right & occupied_white) == 0){
-					ppIncrement += 150;
+					ppIncrement += Config::PP_FILE_CLEAR;
 				}
 			}
 
 			if ((left & occupied_black) != 0){
-					ppIncrement += 225;
+					ppIncrement += Config::PP_HORIZ_SUPPORT;
 			}
 
 			if ((right & occupied_black) != 0){
-					ppIncrement += 225;
+					ppIncrement += Config::PP_HORIZ_SUPPORT;
 			}	
 		}
 	}

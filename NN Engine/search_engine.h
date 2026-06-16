@@ -327,6 +327,17 @@ namespace Config
     inline int SCALE_CENTRAL       = 100;
     inline int SCALE_CAPTURE_GAINS = 100;
 
+    // Eval: passed-pawn scoring magnitudes inside getPPIncrement (absolute increments, defaults = the
+    // original literals = byte-identical). Finer than SCALE_PASSED_PAWN — these tune the SHAPE of the
+    // passer bonus (penalty for a defended path, blockade, un-impeded run, diagonal/file/horizontal
+    // support) rather than a single multiplier. Move-match tuning targets, gated by SPRT.
+    inline int PP_OPP_PAWN_PEN  = 125;  // per enemy pawn defending the promotion path
+    inline int PP_BLOCKADE_PEN  = 100;  // enemy non-pawn blocker directly in front
+    inline int PP_UNBLOCKED     = 50;   // no blocker in front (clear run)
+    inline int PP_DIAG_SUPPORT  = 75;   // friendly pawn supporting diagonally from behind
+    inline int PP_FILE_CLEAR    = 150;  // supported AND the neighbouring file is clear of enemy pawns
+    inline int PP_HORIZ_SUPPORT = 225;  // friendly pawn alongside on the same rank
+
     // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
     // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
     // + activity signal: own pawns on the bishop's colour (bad bishop) traded against the bishop's current

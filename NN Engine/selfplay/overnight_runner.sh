@@ -68,6 +68,57 @@ case "$cmd" in
         "$PY" diagnostics/sts_test.py sts300.epd "$tag" 2>/dev/null | grep -E 'STS score' || echo "STS score: (none)"
     ;;
 
+  wac_timed_depth)
+    # TIMED (lightning) WAC: let iterative deepening run to the clock instead of a fixed depth, so a
+    # node-efficient config converts its savings into DEPTH. Reports solves + MEAN DEPTH on non-mate
+    # positions (a found mate stops deepening early, so those are excluded) + the mate-found count.
+    tag="${1:?tag required}"; shift || true
+    env "$@" PRESET=LIGHTNING MAX_DEPTH=64 USE_OPENING_BOOK=0 \
+        "$PY" diagnostics/tactical_test.py wac.epd "$tag" > "/tmp/wact_${tag}.out" 2> "/tmp/wact_${tag}.err" || true
+    echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/wact_${tag}.out" || echo "?"
+    "$PY" - "diagnostics/results/tactical_results_${tag}.csv" <<'PYEOF'
+import csv, sys
+rows = list(csv.DictReader(open(sys.argv[1])))
+def fnum(x):
+    try: return float(x)
+    except Exception: return None
+# Mate/decisive positions stop iterative deepening early -> exclude from the depth mean.
+def is_mate(r):
+    e = fnum(r.get('eval')); return e is not None and (abs(e) >= 9000000 or e <= -15000)
+scored = [r for r in rows if r.get('result') in ('PASS', 'fail')]
+have_d = [r for r in scored if fnum(r.get('depth')) is not None]
+nonmate = [r for r in have_d if not is_mate(r)]
+md = sum(fnum(r['depth']) for r in nonmate) / len(nonmate) if nonmate else 0.0
+mdall = sum(fnum(r['depth']) for r in have_d) / len(have_d) if have_d else 0.0
+print(f"MEAN_DEPTH_NONMATE: {md:.3f}  (n={len(nonmate)})")
+print(f"MEAN_DEPTH_ALL: {mdall:.3f}  (n={len(have_d)})")
+print(f"MATE_FOUND: {sum(1 for r in scored if is_mate(r))}")
+PYEOF
+    ;;
+
+  sts_timed_depth)
+    # TIMED (lightning) STS: positional move-choice at equal time + the same non-mate depth mean.
+    tag="${1:?tag required}"; shift || true
+    env "$@" PRESET=LIGHTNING MAX_DEPTH=64 USE_OPENING_BOOK=0 \
+        "$PY" diagnostics/sts_test.py sts300.epd "$tag" > "/tmp/stst_${tag}.out" 2> "/tmp/stst_${tag}.err" || true
+    grep -hE 'STS score' "/tmp/stst_${tag}.out" || echo "STS score: ?"
+    "$PY" - "diagnostics/results/sts_results_${tag}.csv" <<'PYEOF'
+import csv, sys
+rows = list(csv.DictReader(open(sys.argv[1])))
+def fnum(x):
+    try: return float(x)
+    except Exception: return None
+def is_mate(r):
+    e = fnum(r.get('eval')); return e is not None and (abs(e) >= 9000000 or e <= -15000)
+scored = [r for r in rows if r.get('score') not in (None, '')]   # drop book hits
+have_d = [r for r in scored if fnum(r.get('depth')) is not None]
+nonmate = [r for r in have_d if not is_mate(r)]
+md = sum(fnum(r['depth']) for r in nonmate) / len(nonmate) if nonmate else 0.0
+print(f"MEAN_DEPTH_NONMATE: {md:.3f}  (n={len(nonmate)})")
+print(f"MATE_FOUND: {sum(1 for r in scored if is_mate(r))}")
+PYEOF
+    ;;
+
   tournament)
     # Timed self-play A/B: baseline (no knobs) vs the qualifying speed bundle (p2cfg).
     mins="${1:?minutes required}"; shift || true

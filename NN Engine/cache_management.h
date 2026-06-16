@@ -43,7 +43,8 @@ struct EvalEntry {
 struct MoveEntry {
     uint64_t key = 0;
     std::vector<Move> moves;
-    //int num_beta_reorders = 0;
+    int last_cutoff_index = -1;   // index of the move that caused the last beta cutoff here (pre-promotion); -1 = unknown
+    int reuse_count = 0;          // cache hits since the last full lazy re-sort / cutoff refresh (staleness gauge)
     bool valid = false;
 };
 
@@ -840,6 +841,13 @@ inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, ui
         } */
         moveEntry.key = updatedKey;
         moveEntry.valid = true;
+        // Record where the cutoff move sat in the freshly generated list (a cutoff deep in the
+        // list flags a poorly-ordered node for the lazy re-sort). Gated: off = no extra find.
+        if (Config::ENABLE_LAZY_RESORT) {
+            auto it = std::find(moves.begin(), moves.end(), move);
+            moveEntry.last_cutoff_index = (it != moves.end()) ? (int)std::distance(moves.begin(), it) : -1;
+            moveEntry.reuse_count = 0;
+        }
         promoteMoveToFront(moves, move);
 
         /* int num_plies = static_cast<int>(state_history.size());
@@ -863,7 +871,13 @@ inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, ui
     if (it != moveList.end() && it != moveList.begin()) {
         std::iter_swap(it, moveList.begin());
     } */
-    
+
+    if (Config::ENABLE_LAZY_RESORT) {
+        auto it = std::find(moveEntry.moves.begin(), moveEntry.moves.end(), move);
+        moveEntry.last_cutoff_index = (it != moveEntry.moves.end()) ? (int)std::distance(moveEntry.moves.begin(), it) : -1;
+        moveEntry.reuse_count = 0;
+    }
+
     promoteMoveToFront(moveEntry.moves, move);
 }
 

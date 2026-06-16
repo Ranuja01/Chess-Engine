@@ -140,6 +140,10 @@ def run_one(fen, best):
     with _captured_stdout() as buf:
         ai = ChessAI(blackModel, whiteModel, board, board.turn)
         move = ai.alphaBetaWrapper()
+        # The engine's Evaluation/Positions lines are Python prints (ChessAI.pyx) and sit in
+        # Python's stdout buffer; flush them into the captured fd before reading, or only the
+        # C++ std::cout output (depth, flushed by std::endl) is seen and eval/nodes come back None.
+        sys.stdout.flush()
         buf.seek(0)
         out = buf.read()
     dt = timer() - t0

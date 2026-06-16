@@ -259,6 +259,16 @@ namespace Config
     inline int LMP_BASE = 3;        // base late-move count
     inline int LMP_SCALE = 1;       // quadratic depth term in the threshold
 
+    // Lazy cached-quiet re-sort: a move-gen cache hit replays an order frozen when the node was first
+    // searched, so the late quiets LMP prunes may be stale. On a hit, re-rank the quiet tail against the
+    // CURRENT history with score_quiet (move_gen.h), keeping captures + killers/counter pinned at the front.
+    // Gated on the node's last cutoff index so it only fires where ordering looks suspect (a deep cutoff).
+    // Default off = byte-identical (the cutoff index is not even recorded when off).
+    inline bool ENABLE_LAZY_RESORT = false;
+    inline int PROMOTE_TOP_K = 4;            // cheap path: bubble this many best-by-live-score quiets to the tail front
+    inline int RESORT_AFTER_REUSES = 8;      // full stable_sort of the quiet tail after this many hits without a refresh
+    inline int LAZY_RESORT_MIN_CUTOFF_IDX = 1; // only re-sort when last_cutoff_index > this (cutoff NOT in the first 2)
+
     // Continuation-aware LMR (default on): a tier-0 (never-cut) quiet with a strong 1-ply continuation
     // score (counterMoveHeuristics) is NOT reduced-more -- a known-good reply to the previous move, so
     // we cancel the extra reduction (never deeper than base). THRESH=2000 is the d10 node-efficiency

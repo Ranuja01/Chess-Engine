@@ -725,8 +725,55 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	}); */
 	for (size_t i : indices) {
 		converted_moves.push_back(Move(startPos[i],endPos[i],promotions[i]));
-	}	
+	}
 
+}
+
+/* Live ordering score for a QUIET move, mirroring the quiet branch of generateLegalMovesReordered's
+   score_move lambda above (history + killer + counter + 2-ply continuation + check + promo + freq).
+   Used by the lazy cached-tail re-sort in buildMoveListFromReordered to re-rank stale quiets against
+   the CURRENT history tables. Keep the term list in sync with that lambda. Captures are never passed
+   here (the re-sort only touches the quiet tail). enemy_king_sq is precomputed by the caller (-1 when
+   the check-ordering feature is off). */
+inline int score_quiet(uint8_t from, uint8_t to, uint8_t promo, bool turn, int ply, Move prevMove,
+					   uint64_t occupiedMask, uint64_t pawnsMask, uint64_t knightsMask,
+					   uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, int enemy_king_sq)
+{
+	Move cur(from, to, promo);
+	int counterMoveBonus = 0;
+	if (counterMoves[prevMove.from_square][prevMove.to_square] == cur)
+		counterMoveBonus = 8000;
+	int promo_bonus = (promo - 1) * 5000;
+	int cont2 = 0;
+	if (Config::ENABLE_CONT_HIST_2PLY && ply >= 2)
+	{
+		Move p2 = g_searchStack[ply - 2];
+		if (p2.from_square != p2.to_square)
+			cont2 = contHist2[turn][p2.from_square * 64 + p2.to_square][from * 64 + to];
+	}
+	int check_bonus = 0;
+	if (Config::ENABLE_CHECK_ORDER && enemy_king_sq >= 0)
+	{
+		uint64_t fromBB = BB_SQUARES[from];
+		uint64_t occ = occupiedMask & ~fromBB;   // the mover has vacated `from`
+		uint64_t atk = 0;
+		if (knightsMask & fromBB)
+			atk = BB_KNIGHT_ATTACKS[to];
+		else if (pawnsMask & fromBB)
+			atk = BB_PAWN_ATTACKS[turn][to];
+		else if (bishopsMask & fromBB)
+			atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ];
+		else if (rooksMask & fromBB)
+			atk = BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ];
+		else if (queensMask & fromBB)
+			atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ] | BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ];
+		if (atk & BB_SQUARES[enemy_king_sq])
+			check_bonus = Config::CHECK_ORDER_BONUS;
+	}
+	return historyHeuristics[turn][from][to] + killerBonus(ply, cur)
+		   + counterMoveBonus + counterMoveHeuristics[turn][prevMove.from_square * 64 + prevMove.to_square][from * 64 + to]
+		   + cont2 + check_bonus
+		   + promo_bonus + moveFrequency[turn][from][to];
 }
 
 inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,

@@ -470,6 +470,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LMP_MAX_DEPTH = env_int("LMP_MAX_DEPTH", Config::LMP_MAX_DEPTH);
         Config::LMP_BASE = env_int("LMP_BASE", Config::LMP_BASE);
         Config::LMP_SCALE = env_int("LMP_SCALE", Config::LMP_SCALE);
+        Config::ENABLE_LAZY_RESORT = env_flag("ENABLE_LAZY_RESORT", Config::ENABLE_LAZY_RESORT);
+        Config::PROMOTE_TOP_K = env_int("PROMOTE_TOP_K", Config::PROMOTE_TOP_K);
+        Config::RESORT_AFTER_REUSES = env_int("RESORT_AFTER_REUSES", Config::RESORT_AFTER_REUSES);
+        Config::LAZY_RESORT_MIN_CUTOFF_IDX = env_int("LAZY_RESORT_MIN_CUTOFF_IDX", Config::LAZY_RESORT_MIN_CUTOFF_IDX);
         Config::ENABLE_MATE_DRIVE_SCALE = env_flag("ENABLE_MATE_DRIVE_SCALE", Config::ENABLE_MATE_DRIVE_SCALE);
         Config::ENABLE_ENDGAME_SCALE = env_flag("ENABLE_ENDGAME_SCALE", Config::ENABLE_ENDGAME_SCALE);
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
@@ -594,6 +598,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " LMP_MAX_DEPTH=" << Config::LMP_MAX_DEPTH
                   << " LMP_BASE=" << Config::LMP_BASE
                   << " LMP_SCALE=" << Config::LMP_SCALE
+                  << " ENABLE_LAZY_RESORT=" << Config::ENABLE_LAZY_RESORT
+                  << " PROMOTE_TOP_K=" << Config::PROMOTE_TOP_K
+                  << " RESORT_AFTER_REUSES=" << Config::RESORT_AFTER_REUSES
+                  << " LAZY_RESORT_MIN_CUTOFF_IDX=" << Config::LAZY_RESORT_MIN_CUTOFF_IDX
                   << " ENABLE_MATE_DRIVE_SCALE=" << Config::ENABLE_MATE_DRIVE_SCALE
                   << " ENABLE_ENDGAME_SCALE=" << Config::ENABLE_ENDGAME_SCALE
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
@@ -4389,6 +4397,70 @@ inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &sta
                         }
                     }
                 }
+            }
+
+            // Lazy re-sort of the stale quiet tail (everything after the pinned captures + killers/counter).
+            // The cached order was frozen when this node was first searched; when LMP prunes the late quiets,
+            // re-rank them against the CURRENT history so genuinely-good quiets escape the pruned tail. The
+            // cheap path bubbles the top-K to the front; a full stable_sort runs periodically. Both act on the
+            // returned copy only (the cached order is left intact and refreshed by beta-cutoff promotion).
+            if (Config::ENABLE_LAZY_RESORT)
+            {
+                uint64_t mvKey = make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square);
+                MoveEntry &entry = accessMutableMoveGenCache(mvKey, current_state.castling_rights, current_state.ep_square);
+                int lci = entry.last_cutoff_index;
+                size_t quiet_start = firstNonCapture + indexIncrement;
+                bool do_topk = (lci > Config::LAZY_RESORT_MIN_CUTOFF_IDX);
+                bool do_full = (entry.reuse_count >= Config::RESORT_AFTER_REUSES) &&
+                               (lci < 0 || lci > Config::LAZY_RESORT_MIN_CUTOFF_IDX);
+                if ((do_topk || do_full) && quiet_start + 1 < cached_moves.size())
+                {
+                    int enemy_king_sq = -1;
+                    if (Config::ENABLE_CHECK_ORDER)
+                    {
+                        uint64_t ek = current_state.kings & current_state.occupied_colour[!current_state.turn];
+                        if (ek)
+                            enemy_king_sq = 63 - __builtin_clzll(ek);
+                    }
+                    size_t qn = cached_moves.size() - quiet_start;
+                    std::vector<int> qs(qn);
+                    for (size_t t = 0; t < qn; ++t)
+                    {
+                        const Move &m = cached_moves[quiet_start + t];
+                        qs[t] = score_quiet(m.from_square, m.to_square, m.promotion, current_state.turn, cur_ply, prevMove,
+                                            current_state.occupied, current_state.pawns, current_state.knights,
+                                            current_state.bishops, current_state.rooks, current_state.queens, enemy_king_sq);
+                    }
+                    if (do_full)
+                    {
+                        std::vector<size_t> ord(qn);
+                        std::iota(ord.begin(), ord.end(), 0);
+                        std::stable_sort(ord.begin(), ord.end(), [&](size_t a, size_t b) { return qs[a] > qs[b]; });
+                        std::vector<Move> reordered;
+                        reordered.reserve(qn);
+                        for (size_t t : ord)
+                            reordered.push_back(cached_moves[quiet_start + t]);
+                        std::copy(reordered.begin(), reordered.end(), cached_moves.begin() + quiet_start);
+                        entry.reuse_count = 0;
+                    }
+                    else
+                    {
+                        int K = Config::PROMOTE_TOP_K;
+                        for (int k = 0; k < K && (size_t)k < qn; ++k)
+                        {
+                            size_t best = (size_t)k;
+                            for (size_t j = (size_t)k + 1; j < qn; ++j)
+                                if (qs[j] > qs[best])
+                                    best = j;
+                            if (best != (size_t)k)
+                            {
+                                std::iter_swap(cached_moves.begin() + quiet_start + k, cached_moves.begin() + quiet_start + best);
+                                std::swap(qs[k], qs[best]);
+                            }
+                        }
+                    }
+                }
+                entry.reuse_count++;
             }
 
             /* if (cur_ply > 63) {

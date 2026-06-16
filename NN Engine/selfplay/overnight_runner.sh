@@ -14,6 +14,8 @@
 #   overnight_runner.sh build                         # clean rebuild (production)
 #   overnight_runner.sh wac  <tag> [KNOB=v ...]       # WAC d10, prints solves + node sum
 #   overnight_runner.sh sts  <tag> [KNOB=v ...]       # STS300 d10, prints score
+#   overnight_runner.sh movematch <tag> <themes|all> [KNOB=v ...]  # themed move-match scorecard
+#   overnight_runner.sh movematch_diff <base_tag> <cand_tag>       # per-theme delta + changed moves
 #   overnight_runner.sh tournament <minutes> <p2cfg>  # base vs p2cfg, timed
 #   overnight_runner.sh result                        # dump tournament.json
 #   overnight_runner.sh clock                         # HH:MM (to size --max-minutes)
@@ -119,6 +121,23 @@ print(f"MATE_FOUND: {sum(1 for r in scored if is_mate(r))}")
 PYEOF
     ;;
 
+  movematch)
+    # Themed move-match scorecard for an eval candidate. Args: <tag> <themes|all> [KNOB=v ...].
+    # Defaults precede "$@" so a candidate can override MAX_DEPTH (the delta-depth audit) or themes.
+    tag="${1:?tag required}"; shift || true
+    themes="${1:-all}"; shift || true
+    targ=(); [ "$themes" != "all" ] && targ=(--themes "$themes")
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
+        "$PY" diagnostics/movematch.py run "$tag" "${targ[@]}" 2>/dev/null \
+        | grep -E 'movematch run|^TOTAL|results ->|\([0-9]+%\)' || echo "movematch: (none)"
+    ;;
+
+  movematch_diff)
+    # Per-theme score delta + changed-move list between two movematch runs. Args: <base_tag> <cand_tag>.
+    base="${1:?base tag required}"; cand="${2:?cand tag required}"
+    "$PY" diagnostics/movematch.py diff "$base" "$cand" 2>/dev/null || echo "movematch_diff: (none)"
+    ;;
+
   tournament)
     # Timed self-play A/B: baseline (no knobs) vs the qualifying speed bundle (p2cfg).
     mins="${1:?minutes required}"; shift || true
@@ -141,7 +160,7 @@ PYEOF
     ;;
 
   ps)
-    ps -eo pid,etime,args | grep -E 'tactical_test|sts_test|tournament.py|setupAI' | grep -v grep || echo "none running"
+    ps -eo pid,etime,args | grep -E 'tactical_test|sts_test|movematch|tournament.py|setupAI' | grep -v grep || echo "none running"
     ;;
 
   *)

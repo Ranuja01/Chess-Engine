@@ -146,6 +146,9 @@ static long g_fh_first = 0;
 // Beta-cutoff move-index histogram (diagnostic): buckets 0, 1, 2, 3-7, 8+. Decides whether EBF headroom
 // is in pruning (mass at 0-2) or secondary move ordering (mass at 8+). Cumulative across the run.
 static long g_cutoff_histogram[5] = {0, 0, 0, 0, 0};
+// Passed-pawn LMP/LMR exemption fires (diagnostic): how often an otherwise-reducible advanced pawn push
+// was exempted from pruning/reduction. Cumulative across the run; printed beside the histogram.
+static long g_passer_exempt_fires = 0;
 
 // ===================== LMR-miss profiler (diagnostic) =====================
 // Localizes WHERE late-move reductions drop winning moves. Side-effect-free:
@@ -474,6 +477,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PROMOTE_TOP_K = env_int("PROMOTE_TOP_K", Config::PROMOTE_TOP_K);
         Config::RESORT_AFTER_REUSES = env_int("RESORT_AFTER_REUSES", Config::RESORT_AFTER_REUSES);
         Config::LAZY_RESORT_MIN_CUTOFF_IDX = env_int("LAZY_RESORT_MIN_CUTOFF_IDX", Config::LAZY_RESORT_MIN_CUTOFF_IDX);
+        Config::ENABLE_PASSER_PRUNE_EXEMPT = env_flag("ENABLE_PASSER_PRUNE_EXEMPT", Config::ENABLE_PASSER_PRUNE_EXEMPT);
+        Config::PASSER_EXEMPT_ADV = env_int("PASSER_EXEMPT_ADV", Config::PASSER_EXEMPT_ADV);
         Config::ENABLE_MATE_DRIVE_SCALE = env_flag("ENABLE_MATE_DRIVE_SCALE", Config::ENABLE_MATE_DRIVE_SCALE);
         Config::ENABLE_ENDGAME_SCALE = env_flag("ENABLE_ENDGAME_SCALE", Config::ENABLE_ENDGAME_SCALE);
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
@@ -602,6 +607,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PROMOTE_TOP_K=" << Config::PROMOTE_TOP_K
                   << " RESORT_AFTER_REUSES=" << Config::RESORT_AFTER_REUSES
                   << " LAZY_RESORT_MIN_CUTOFF_IDX=" << Config::LAZY_RESORT_MIN_CUTOFF_IDX
+                  << " ENABLE_PASSER_PRUNE_EXEMPT=" << Config::ENABLE_PASSER_PRUNE_EXEMPT
+                  << " PASSER_EXEMPT_ADV=" << Config::PASSER_EXEMPT_ADV
                   << " ENABLE_MATE_DRIVE_SCALE=" << Config::ENABLE_MATE_DRIVE_SCALE
                   << " ENABLE_ENDGAME_SCALE=" << Config::ENABLE_ENDGAME_SCALE
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
@@ -1059,6 +1066,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cerr << "[cutoff_histogram] m0=" << g_cutoff_histogram[0] << " m1=" << g_cutoff_histogram[1]
                   << " m2=" << g_cutoff_histogram[2] << " m3-7=" << g_cutoff_histogram[3]
                   << " m8+=" << g_cutoff_histogram[4] << std::endl;
+        std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires << std::endl;
 
     int x1 = (move.from_square & 7) + 1;
     int y1 = (move.from_square >> 3) + 1;
@@ -1505,7 +1513,24 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
             {
                 // LMR flag can still be computed here as you do
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-                bool do_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
+                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
+                // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
+                // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
+                // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
+                // LMR-reduction and VERIFY re-search gates at once. Move-level; default off = byte-identical.
+                bool passer_exempt = false;
+                if (Config::ENABLE_PASSER_PRUNE_EXEMPT && base_lmr && (updated_state.pawns & (1ULL << move.to_square)))
+                {
+                    int from_rank = move.from_square >> 3;
+                    int to_rank = move.to_square >> 3;
+                    int adv = (to_rank > from_rank) ? to_rank : (7 - to_rank); // ranks advanced toward the mover's promotion
+                    if (adv >= Config::PASSER_EXEMPT_ADV)
+                    {
+                        passer_exempt = true;
+                        g_passer_exempt_fires++;
+                    }
+                }
+                bool do_lmr = base_lmr && !passer_exempt;
 
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
@@ -1762,7 +1787,24 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
             {
                 // LMR flag can still be computed here as you do
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-                bool do_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
+                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
+                // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
+                // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
+                // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
+                // LMR-reduction and VERIFY re-search gates at once. Move-level; default off = byte-identical.
+                bool passer_exempt = false;
+                if (Config::ENABLE_PASSER_PRUNE_EXEMPT && base_lmr && (updated_state.pawns & (1ULL << move.to_square)))
+                {
+                    int from_rank = move.from_square >> 3;
+                    int to_rank = move.to_square >> 3;
+                    int adv = (to_rank > from_rank) ? to_rank : (7 - to_rank); // ranks advanced toward the mover's promotion
+                    if (adv >= Config::PASSER_EXEMPT_ADV)
+                    {
+                        passer_exempt = true;
+                        g_passer_exempt_fires++;
+                    }
+                }
+                bool do_lmr = base_lmr && !passer_exempt;
 
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing

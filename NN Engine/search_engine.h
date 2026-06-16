@@ -253,8 +253,9 @@ namespace Config
     // (not just reduce them like LMR). Reuses the LMR eligibility (do_lmr) so captures, checks, promotions,
     // killers/counter and in-check are never pruned. Prune when the move index i >= LMP_BASE + LMP_SCALE*rd*rd
     // (rd = remaining depth = depth_limit - cur_depth) and rd <= LMP_MAX_DEPTH. Default off = byte-identical.
-    // Behavioral (changes the tree) -> bench (nodes down, WAC solves + STS held) + self-play before default-on.
-    inline bool ENABLE_LMP = false;
+    // Behavioral (changes the tree). SHIPPED default-on: paired with the gentle lazy-resort below, base-vs-this
+    // self-play = +59.2 +-19.2 Elo (1729 games, LIGHTNING; +0.50 ply at equal time). env-off recovers the old tree.
+    inline bool ENABLE_LMP = true;
     inline int LMP_MAX_DEPTH = 3;   // only LMP when remaining depth (depth_limit - cur_depth) <= this
     inline int LMP_BASE = 3;        // base late-move count
     inline int LMP_SCALE = 1;       // quadratic depth term in the threshold
@@ -264,10 +265,20 @@ namespace Config
     // CURRENT history with score_quiet (move_gen.h), keeping captures + killers/counter pinned at the front.
     // Gated on the node's last cutoff index so it only fires where ordering looks suspect (a deep cutoff).
     // Default off = byte-identical (the cutoff index is not even recorded when off).
-    inline bool ENABLE_LAZY_RESORT = false;
-    inline int PROMOTE_TOP_K = 4;            // cheap path: bubble this many best-by-live-score quiets to the tail front
-    inline int RESORT_AFTER_REUSES = 8;      // full stable_sort of the quiet tail after this many hits without a refresh
-    inline int LAZY_RESORT_MIN_CUTOFF_IDX = 1; // only re-sort when last_cutoff_index > this (cutoff NOT in the first 2)
+    // SHIPPED default-on (the gentle nudge that makes aggressive LMP safe): top-K=2 promote at poorly-ordered
+    // nodes only; the periodic FULL re-sort regressed STS so it is OFF (RESORT_AFTER_REUSES set unreachably high).
+    inline bool ENABLE_LAZY_RESORT = true;
+    inline int PROMOTE_TOP_K = 2;            // cheap path: bubble this many best-by-live-score quiets to the tail front
+    inline int RESORT_AFTER_REUSES = 1000000; // full stable_sort of the quiet tail -- effectively OFF (regressed STS)
+    inline int LAZY_RESORT_MIN_CUTOFF_IDX = 2; // only re-sort when last_cutoff_index > this (cutoff NOT in the first 3)
+
+    // Passed-pawn pruning exemption: keep an ADVANCED pawn push (landing >= PASSER_EXEMPT_ADV ranks toward
+    // promotion, direction inferred from the push) OUT of LMP pruning and LMR reduction, so a slow passer
+    // march stays above the horizon -- helps BOTH seeing the opponent's passer threat (defensive) and
+    // converting our own (offensive). Move-level (only the push escapes; the rest of the node prunes
+    // normally). Default off = byte-identical.
+    inline bool ENABLE_PASSER_PRUNE_EXEMPT = false;
+    inline int PASSER_EXEMPT_ADV = 5;   // advancement of the landing square toward promotion (0-7); 5 = 6th rank (W) / 3rd (B), catches a4->a3
 
     // Continuation-aware LMR (default on): a tier-0 (never-cut) quiet with a strong 1-ply continuation
     // score (counterMoveHeuristics) is NOT reduced-more -- a known-good reply to the previous move, so

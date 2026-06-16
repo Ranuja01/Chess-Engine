@@ -10,24 +10,25 @@ Re-baselined at shipped defaults (`PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_B
 
 | Gate | **CURRENT control** | Notes |
 | --- | --- | --- |
-| WAC d10 solved | **262/300** | |
-| WAC d10 total nodes | **260,960,881** | the **byte-identity control** for search-only changes (the rook surrogate changed the tree; the two caches are lossless so don't move it) |
-| STS300 d10 | **52.3% (1568/3000)** | |
-| nps @ d10 | **~607k** | +8.6% vs the pre-bundle ~559k (eval is cheaper); −3.8% wall-clock |
-| EBF (mean, d10) | **~4.6** | CPW/SF-optimal ≈ 2 → we're ~2× high; **the #1 depth lever** (`depth ∝ log nodes / log EBF`). |
-| first-move-cutoff | **~92%** | move-1 ordering near-tapped; the EBF levers are **pruning aggressiveness (LMP + SEE-pruning, both currently ABSENT)** + secondary ordering — now affordable post-eval-speed. NEXT sprint. |
+| WAC d10 solved | **261/300** | new default (lazy+LMP on, 2026-06-16); env-off control = 262/300 |
+| WAC d10 total nodes | **134,429,469** | new default tree (−48.5% vs env-off). The **byte-identity control is the env-off 260,960,881** (`ENABLE_LMP=0 ENABLE_LAZY_RESORT=0`) — a search-only change must reproduce THAT with the lazy/LMP knobs off |
+| STS300 d10 | **52.2% (1566/3000)** | env-off = 52.3% |
+| nps @ d10 | lower raw nps | the lazy-resort/LMP per-node cost lowers raw nps vs the ~607k pre-LMP, but node EFFICIENCY (−48.5% nodes) more than pays for it → **+0.50 ply at equal time** (in-play, `summary.py`) |
+| EBF (mean, d10) | **~4.20** | down from ~4.65 (LMP prunes the late-quiet width); CPW/SF-optimal ≈ 2 → still the #1 depth lever. |
+| first-move-cutoff | **~93%** | move-1 ordering near-tapped; remaining EBF levers = more pruning (SEE-pruning still ABSENT) + eval precision. |
 
-Self-play: the bundle scored **+11.2 ±20.7 Elo** over baseline (1487 LIGHTNING games, positive lean, no regression).
+Self-play: lazy+LMP scored **+59.2 ±19.2 Elo** over base (1729 LIGHTNING games, 2026-06-16, SF18-adjudicated); +0.50 ply at equal time. (Prior eval-speed bundle: +11.2 ±20.7 Elo, 1487 games.)
 
 Repro (⚠️ `USE_OPENING_BOOK=0` for determinism; the CSV `nodes` col logs 0 in piped runs → sum the stderr `(nodes=`):
 ```
 PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 python diagnostics/tactical_test.py wac.epd <tag> 2>&1 | tee /tmp/w.log
-grep -oE '\(nodes=[0-9]+' /tmp/w.log | grep -oE '[0-9]+' | awk '{s+=$1} END{print s}'   # => 260960881
-MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT python diagnostics/sts_test.py sts300.epd <tag>  # => 52.3%
+grep -oE '\(nodes=[0-9]+' /tmp/w.log | grep -oE '[0-9]+' | awk '{s+=$1} END{print s}'   # => 134429469 (new default, lazy+LMP on)
+MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT python diagnostics/sts_test.py sts300.epd <tag>  # => 52.2% (new default)
 ```
-The OLD baseline (**260 / 249,966,786 / STS 51.7%**) is recoverable with `ENABLE_CHEAP_ROOK_MOBILITY=0
-ENABLE_ATTACK_LAYER_CACHE=0 ENABLE_ATTACK_LAYER_CACHE_MIDGAME=0`. A future search-only change must reproduce
-**260,960,881** with its flag OFF (byte-identity gate); behavioral changes judged on WAC-solved + STS300 + self-play.
+The **byte-identity control is now 262 / 260,960,881 / STS 52.3%**, recovered with `ENABLE_LMP=0 ENABLE_LAZY_RESORT=0`
+(lazy/LMP off) — a future search-only change must reproduce THAT with its own flag off. (Further `ENABLE_CHEAP_ROOK_MOBILITY=0
+ENABLE_ATTACK_LAYER_CACHE=0 ENABLE_ATTACK_LAYER_CACHE_MIDGAME=0` recovers the older pre-bundle 260 / 249,966,786 / 51.7%.)
+Behavioral changes judged on WAC-solved + STS300 + self-play.
 Bench via the vetted dispatcher: `bash selfplay/overnight_runner.sh wac <tag>` (or `wac_timed` for nps).
 
 ---

@@ -46,6 +46,9 @@ struct SlidingRow {
 // Define masks for move generation
 extern std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
 extern std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
+// Forward 3-file passed-pawn spans (see cpp_bitboard.cpp); read by the search's passed-pawn exemption.
+extern std::array<uint64_t, NUM_SQUARES> passed_span_white;
+extern std::array<uint64_t, NUM_SQUARES> passed_span_black;
 extern std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 extern std::vector<uint64_t> BB_DIAG_MASKS;
 extern std::vector<SlidingRow> BB_DIAG_ATTACKS;

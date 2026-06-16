@@ -39,6 +39,11 @@ std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
 // 2-ring around each king square = the exact set of squares the king-zone loops in setAttackingLayer
 // read; used as the midgame attack-layer cache key (built in initialize_attack_tables).
 std::array<uint64_t, NUM_SQUARES> king_ring2;
+// Forward 3-file span ahead of a pawn on each square (its own file + both neighbours, all ranks toward
+// promotion). A pawn is passed iff no enemy pawn occupies this span. Mirrors getPPIncrement's mask shape;
+// built in initialize_attack_tables and consumed by the search's passed-pawn pruning exemption.
+std::array<uint64_t, NUM_SQUARES> passed_span_white;
+std::array<uint64_t, NUM_SQUARES> passed_span_black;
 std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 std::vector<uint64_t> BB_DIAG_MASKS;
 std::vector<SlidingRow> BB_DIAG_ATTACKS;
@@ -325,7 +330,26 @@ void initialize_attack_tables() {
         }
         king_ring2[sq] = ring;
     }
-	
+
+    // Build the passed-pawn forward spans: for each square, the union over its own file and both
+    // neighbouring files of every rank strictly ahead of the pawn (toward promotion). A pawn is passed
+    // iff the enemy-pawn bitboard does not intersect this span. Shape mirrors getPPIncrement.
+    for (int sq = 0; sq < NUM_SQUARES; ++sq) {
+        int x = sq & 7;
+        int y = sq >> 3;
+        uint64_t span_white = 0;
+        uint64_t span_black = 0;
+        for (int f = x - 1; f <= x + 1; ++f) {
+            if (f < 0 || f > 7) continue;
+            // White advances toward rank 8: every rank above y. y==7 has nothing ahead (avoid the UB shift).
+            span_white |= BB_FILES[f] & (y < 7 ? ~((1ULL << ((y + 1) * 8)) - 1) : 0ULL);
+            // Black advances toward rank 1: every rank below y. y==0 yields 0 naturally.
+            span_black |= BB_FILES[f] & ((1ULL << (y * 8)) - 1);
+        }
+        passed_span_white[sq] = span_white;
+        passed_span_black[sq] = span_black;
+    }
+
 	// Call the function to fill up the tables for all possible queen and rook moves
 	attack_table({-9, -7, 7, 9},BB_DIAG_MASKS,BB_DIAG_ATTACKS);
 	attack_table({-8, 8},BB_FILE_MASKS,BB_FILE_ATTACKS);

@@ -1526,8 +1526,17 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     int adv = (to_rank > from_rank) ? to_rank : (7 - to_rank); // ranks advanced toward the mover's promotion
                     if (adv >= Config::PASSER_EXEMPT_ADV)
                     {
-                        passer_exempt = true;
-                        g_passer_exempt_fires++;
+                        // Only exempt a TRUE passed pawn: no enemy pawn in the 3-file forward span ahead of
+                        // the landing square. The rank check alone exempted every advanced push (over-fire);
+                        // the span test restricts it to pawns that actually have a clear run to promotion.
+                        bool mover_white = (to_rank > from_rank);
+                        uint64_t enemy_pawns = updated_state.pawns & updated_state.occupied_colour[!mover_white]; // [0]=black,[1]=white
+                        uint64_t span = mover_white ? passed_span_white[move.to_square] : passed_span_black[move.to_square];
+                        if ((enemy_pawns & span) == 0)
+                        {
+                            passer_exempt = true;
+                            g_passer_exempt_fires++;
+                        }
                     }
                 }
                 bool do_lmr = base_lmr && !passer_exempt;
@@ -1800,8 +1809,17 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     int adv = (to_rank > from_rank) ? to_rank : (7 - to_rank); // ranks advanced toward the mover's promotion
                     if (adv >= Config::PASSER_EXEMPT_ADV)
                     {
-                        passer_exempt = true;
-                        g_passer_exempt_fires++;
+                        // Only exempt a TRUE passed pawn: no enemy pawn in the 3-file forward span ahead of
+                        // the landing square. The rank check alone exempted every advanced push (over-fire);
+                        // the span test restricts it to pawns that actually have a clear run to promotion.
+                        bool mover_white = (to_rank > from_rank);
+                        uint64_t enemy_pawns = updated_state.pawns & updated_state.occupied_colour[!mover_white]; // [0]=black,[1]=white
+                        uint64_t span = mover_white ? passed_span_white[move.to_square] : passed_span_black[move.to_square];
+                        if ((enemy_pawns & span) == 0)
+                        {
+                            passer_exempt = true;
+                            g_passer_exempt_fires++;
+                        }
                     }
                 }
                 bool do_lmr = base_lmr && !passer_exempt;

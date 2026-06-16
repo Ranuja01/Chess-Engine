@@ -4,6 +4,9 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## Eval-tuning system (2026-06-16) — tooling, not a shipped gain
+Built the `/eval-tune` Claude skill + its instruments to tune eval by **move-match** (the proxy that tracks Elo) with a rare SPRT gate. Committed: `1113c9c` (`SCALE_*` per-term knobs, `tune_corpus.py`, `tune_fit.py`), `36cc20c` (`diagnostics/movematch.py` + dispatcher `movematch`/`movematch_diff`), skill at `.claude/skills/eval-tune/SKILL.md`. **Findings:** eval-match (matching SF static) does NOT predict strength — every fitted candidate degraded STS, and `SCALE_LATENT_THREAT=144` regressed King-Activity move-match 426→376 (caught cheaply by the proxy); scalar term-scaling is too coarse (bulk of the eval scatter is in PST). **NEXT = finer PST/term-internal knobs** to give the loop headroom. Memory [[agentic-eval-tuning-system]].
+
 ## Post-speed-track strength arc (2026-06-05 → 06-11) — narrative; details in HANDOFF.md + memory
 
 The table below is the **speed track** (done: ~16.7s → ~9.2s, EBF ≈ 3.4, pruning-bound). Everything after is the **strength track**:

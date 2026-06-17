@@ -127,7 +127,14 @@ PYEOF
     tag="${1:?tag required}"; shift || true
     themes="${1:-all}"; shift || true
     targ=(); [ "$themes" != "all" ] && targ=(--themes "$themes")
-    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
+    # Pin EVERY thread pool to 1 (OpenMP + the BLAS/TF pools keras pulls in). Without this, each process
+    # spawns stray threads and a few concurrent runs oversubscribe the physical cores -> the "fixed-depth"
+    # search drifts (non-deterministic). Fully pinned, each run is single-core and concurrent runs are
+    # byte-identical to single-process (verified: 6-wide == single-proc, +0). Bound concurrency to <= the
+    # PHYSICAL core count (nproc is hyperthreaded). Pins precede "$@" so a candidate can still override.
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
         "$PY" diagnostics/movematch.py run "$tag" "${targ[@]}" 2>/dev/null \
         | grep -E 'movematch run|^TOTAL|results ->|\([0-9]+%\)' || echo "movematch: (none)"
     ;;

@@ -1,0 +1,2 @@
+date,candidate,knobs,movematch_fullsuite_pct,movematch_notes,games,elo,elo_margin_95,verdict
+2026-06-17,cut-H,PP_HORIZ_SUPPORT=150,+1.23,"7th Rank +3.9%; isolated from blunt pp_cut bundle (which was +0.15% wash). Sweep: 150 best (+1.23), 175 +1.05, 200 -0.87 (non-monotonic).",2018,+0.7,17.8,"mechanics POC: sign agrees (proxy +1.23%, Elo +0.7) but within noise (CI -17..+18) -> sub-Elo single knob, not measurable. Need bundles for sharp proxy->Elo calibration."

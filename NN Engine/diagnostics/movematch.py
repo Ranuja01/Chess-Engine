@@ -40,11 +40,16 @@ def suite_path():
 
 
 def select_themes(positions, themes):
-    """Keep positions whose theme contains any of the comma-separated needles (case-insensitive)."""
+    """Keep positions whose theme STARTS WITH any of the comma-separated needles (case-insensitive).
+
+    Prefix (not substring) matching so a short needle like "AT" doesn't also catch "simplificATion", and
+    "Simplification" doesn't catch "Offer of Simplification" — that over-matching put themes in multiple
+    shards. Prefix still lets "Advancement" -> "Advancement of a/b/c pawns" and "Knight Outposts" -> both
+    long variants."""
     if not themes:
         return positions
     needles = [t.strip().lower() for t in themes.split(",") if t.strip()]
-    return [p for p in positions if any(n in p[3].lower() for n in needles)]
+    return [p for p in positions if any(p[3].lower().startswith(n) for n in needles)]
 
 
 def results_csv(tag):

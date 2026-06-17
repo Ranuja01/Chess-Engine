@@ -274,6 +274,7 @@ bool get_horizon_mitigation_flag();
 	Set of functions to initialize masks for move generation
 */
 void initialize_attack_tables();
+void rebuild_scaled_placement();
 void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<SlidingRow> &attack_table);
 uint64_t sliding_attacks(uint8_t square, uint64_t occupied, const std::vector<int8_t>& deltas);
 void carry_rippler(uint64_t mask, std::vector<uint64_t> &subsets);

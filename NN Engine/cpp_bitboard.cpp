@@ -116,7 +116,7 @@ alignas(64) int g_evalStack[MAX_PLY] = {};
 alignas(64) std::array<std::array<std::array<int, 8>, 8>, 2> attackingLayer;
 
 // Define heat maps for piece placement for both white and black
-alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = {{
+alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayerBase = {{
     {{ // Pawns
         {{0,20,7,7,10,15,20,0}},
         {{0,20,5,5,7,15,20,0}},
@@ -179,7 +179,7 @@ alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer
 	}}
 }};
 
-alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = {{
+alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayerBase = {{
     {{ // Pawns
 		{{ 0, 20, 15, 10,  7,  7, 20,  0 }},
 		{{ 0, 20, 15,  7,  5,  5, 20,  0 }},
@@ -243,7 +243,26 @@ alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer
 
 }};
 
-// Define array to hold the piece type 
+// Working placement layers the eval hot path reads. Rebuilt from the *Base arrays scaled by the
+// per-piece SCALE_PLACE_* knobs at init (rebuild_scaled_placement), so the hot path is a plain array
+// read with NO per-read division. Default knobs (100) reproduce the base arrays exactly (byte-identical).
+alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = whitePlacementLayerBase;
+alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = blackPlacementLayerBase;
+
+void rebuild_scaled_placement(){
+	// Index order matches whitePlacementLayer[pieceType-1]: 0=pawn,1=knight,2=bishop,3=rook,4=queen,5=king.
+	// Rook PST is dead code (never read) -> scale 100. King placement is endgame-only (SCALE_PLACE_KING_EG).
+	const int sc[6] = { Config::SCALE_PLACE_PAWN, Config::SCALE_PLACE_KNIGHT, Config::SCALE_PLACE_BISHOP,
+	                    100, Config::SCALE_PLACE_QUEEN, Config::SCALE_PLACE_KING_EG };
+	for (int p = 0; p < 6; ++p)
+		for (int x = 0; x < 8; ++x)
+			for (int y = 0; y < 8; ++y){
+				whitePlacementLayer[p][x][y] = whitePlacementLayerBase[p][x][y] * sc[p] / 100;
+				blackPlacementLayer[p][x][y] = blackPlacementLayerBase[p][x][y] * sc[p] / 100;
+			}
+}
+
+// Define array to hold the piece type
 alignas(64) std::array<uint8_t, 64> pieceTypeLookUp = {};
 
 std::array<uint64_t, 64> attack_bitmasks = {0ULL};
@@ -559,7 +578,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
         whitePieceVal += values[PAWN];
 
 		// Subtract the placement layer for the given piece at that square
-		positional_bonus += whitePlacementLayer[PAWN - 1][x][y] * Config::SCALE_PLACE_PAWN / 100;
+		positional_bonus += whitePlacementLayer[PAWN - 1][x][y];
 
 		// Subtract the score based on the attack of the opposing position and defense of white's own position
 		positional_bonus += attackingLayer[0][x][y];
@@ -570,7 +589,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
 		whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
 
-		update_global_central_scores(-((whitePlacementLayer[PAWN - 1][x][y] * Config::SCALE_PLACE_PAWN / 100) << 1), BB_SQUARES[square]);
+		update_global_central_scores(-((whitePlacementLayer[PAWN - 1][x][y]) << 1), BB_SQUARES[square]);
 		//central_score -= whitePlacementLayer[PAWN - 1][x][y] << 2;
 
 		// Lower white's score for more than one white pawn being on the same file
@@ -664,7 +683,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		blackPieceVal += values[PAWN];
 		            
 		// Add the placement layer for the given piece at that square
-		positional_bonus += blackPlacementLayer[PAWN - 1][x][y] * Config::SCALE_PLACE_PAWN / 100;
+		positional_bonus += blackPlacementLayer[PAWN - 1][x][y];
 
 		// Subtract the score based on the attack of the opposing position and defense of black's own position
 		positional_bonus += attackingLayer[1][x][y];
@@ -675,7 +694,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		blackOffensiveScore += attackingLayer[1][x][y] >> 1;
 		blackDefensiveScore += attackingLayer[0][x][y] >> 2;
 
-		update_global_central_scores(((blackPlacementLayer[PAWN - 1][x][y] * Config::SCALE_PLACE_PAWN / 100) << 1), BB_SQUARES[square]);
+		update_global_central_scores(((blackPlacementLayer[PAWN - 1][x][y]) << 1), BB_SQUARES[square]);
 		//central_score += blackPlacementLayer[PAWN - 1][x][y] << 2;
 						
 		// Lower black's score for more than one black pawn being on the same file						
@@ -817,7 +836,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 			pawn_val[count] = -values[PAWN];
 			
 			// Subtract the placement layer for the given piece at that square
-			placement_val[count] = -(whitePlacementLayer[PAWN - 1][square_file][square_rank] * Config::SCALE_PLACE_PAWN / 100);
+			placement_val[count] = -(whitePlacementLayer[PAWN - 1][square_file][square_rank]);
 						
 			// Lower white's score for more than one white pawn being on the same file
 			double_pawn_val[count] = 200 * (__builtin_popcountll(BB_FILES[square_file] & (occupied_white & pawns)) > 1);
@@ -842,7 +861,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 			pawn_val[count] = values[PAWN];
 			
 			// Subtract the placement layer for the given piece at that square
-			placement_val[count] = blackPlacementLayer[PAWN - 1][square_file][square_rank] * Config::SCALE_PLACE_PAWN / 100;
+			placement_val[count] = blackPlacementLayer[PAWN - 1][square_file][square_rank];
 						
 			// Lower black's score for more than one black pawn being on the same file		
 			double_pawn_val[count] = -200 * (__builtin_popcountll(BB_FILES[square_file] & (occupied_black & pawns)) > 1);						
@@ -939,7 +958,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
         whitePieceVal += values[KNIGHT];
 		     
 		// Subtract the placement layer for the given piece at that square
-		total -= whitePlacementLayer[KNIGHT - 1][x][y] * Config::SCALE_PLACE_KNIGHT / 100;
+		total -= whitePlacementLayer[KNIGHT - 1][x][y];
 
 		// Subtract the score based on the attack of the opposing position and defense of white's own position				
 		total -= attackingLayer[0][x][y] >> 1;   
@@ -951,7 +970,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 		whiteDefensiveScore += attackingLayer[1][x][y];
 
 		//std::cout << total << std::endl;
-		update_global_central_scores(-(whitePlacementLayer[KNIGHT - 1][x][y] * Config::SCALE_PLACE_KNIGHT / 100), BB_SQUARES[square]);
+		update_global_central_scores(-(whitePlacementLayer[KNIGHT - 1][x][y]), BB_SQUARES[square]);
 		
 		// Subtract extra value for the existence of a bishop or knight in the midgame		
 		//total -= 150;	
@@ -1047,7 +1066,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 		blackPieceVal += values[KNIGHT];
 		            
 		// Add the placement layer for the given piece at that square
-		total += blackPlacementLayer[KNIGHT - 1][x][y] * Config::SCALE_PLACE_KNIGHT / 100;
+		total += blackPlacementLayer[KNIGHT - 1][x][y];
 
 		// Subtract the score based on the attack of the opposing position and defense of black's own position
 		total += attackingLayer[1][x][y] >> 1;
@@ -1058,7 +1077,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 		blackOffensiveScore += attackingLayer[1][x][y];
 		blackDefensiveScore += attackingLayer[0][x][y];
 
-		update_global_central_scores(blackPlacementLayer[KNIGHT - 1][x][y] * Config::SCALE_PLACE_KNIGHT / 100, BB_SQUARES[square]);
+		update_global_central_scores(blackPlacementLayer[KNIGHT - 1][x][y], BB_SQUARES[square]);
 		
 		// Add extra value for the existence of a bishop or knight in the midgame
 		//total += 150;
@@ -1499,7 +1518,7 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
         whitePieceVal += values[BISHOP];
 		            
 		// Subtract the placement layer for the given piece at that square
-		total -= whitePlacementLayer[BISHOP - 1][x][y] * Config::SCALE_PLACE_BISHOP / 100;
+		total -= whitePlacementLayer[BISHOP - 1][x][y];
 
 		// Subtract the score based on the attack of the opposing position and defense of white's own position				
 		total -= attackingLayer[0][x][y] >> 1;   
@@ -1510,7 +1529,7 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 		whiteOffensiveScore += attackingLayer[0][x][y];
 		whiteDefensiveScore += attackingLayer[1][x][y];
 
-		update_global_central_scores(-(whitePlacementLayer[BISHOP - 1][x][y] * Config::SCALE_PLACE_BISHOP / 100), BB_SQUARES[square]);
+		update_global_central_scores(-(whitePlacementLayer[BISHOP - 1][x][y]), BB_SQUARES[square]);
 		
 		// Subtract extra value for the existence of a bishop or knight in the midgame            
 		//total -= 200;
@@ -1634,7 +1653,7 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 		blackPieceVal += values[BISHOP];
 		            
 		// Add the placement layer for the given piece at that square
-		total += blackPlacementLayer[BISHOP - 1][x][y] * Config::SCALE_PLACE_BISHOP / 100;
+		total += blackPlacementLayer[BISHOP - 1][x][y];
 
 		// Subtract the score based on the attack of the opposing position and defense of black's own position
 		total += attackingLayer[1][x][y] >> 1;
@@ -1645,7 +1664,7 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 		blackOffensiveScore += attackingLayer[1][x][y];
 		blackDefensiveScore += attackingLayer[0][x][y];	
 
-		update_global_central_scores(blackPlacementLayer[BISHOP - 1][x][y] * Config::SCALE_PLACE_BISHOP / 100, BB_SQUARES[square]);
+		update_global_central_scores(blackPlacementLayer[BISHOP - 1][x][y], BB_SQUARES[square]);
 		
 		// Add extra value for the existence of a bishop or knight in the midgame            
 		//total += 200;
@@ -2353,7 +2372,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
         whitePieceVal += values[QUEEN];
 		
 		// Subtract the placement layer for the given piece at that square
-		total -= whitePlacementLayer[QUEEN - 1][x][y] * Config::SCALE_PLACE_QUEEN / 100;
+		total -= whitePlacementLayer[QUEEN - 1][x][y];
 
 		// Adjust the score by bit shifting heavily so that the queen's ability to attack many squares isn't overrated
 		total -= attackingLayer[0][x][y] >> 2;				
@@ -2364,7 +2383,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 		whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
 		whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
             
-        update_global_central_scores(-(whitePlacementLayer[QUEEN - 1][x][y] * Config::SCALE_PLACE_QUEEN / 100), BB_SQUARES[square]);
+        update_global_central_scores(-(whitePlacementLayer[QUEEN - 1][x][y]), BB_SQUARES[square]);
         //if (piece_type == 6){std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << " rook increment: " << rookIncrement << std::endl;}
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -2479,7 +2498,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 		blackPieceVal += values[QUEEN];
 	
 		// Add the placement layer for the given piece at that square
-		total += blackPlacementLayer[QUEEN - 1][x][y] * Config::SCALE_PLACE_QUEEN / 100;
+		total += blackPlacementLayer[QUEEN - 1][x][y];
 
 		// Adjust the score by bit shifting heavily so that the queen's ability to attack many squares isn't overrated
 		total += attackingLayer[1][x][y] >> 2;
@@ -2490,7 +2509,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 		blackOffensiveScore += attackingLayer[1][x][y] >> 1;
 		blackDefensiveScore += attackingLayer[0][x][y] >> 2;
 
-		update_global_central_scores(blackPlacementLayer[QUEEN - 1][x][y] * Config::SCALE_PLACE_QUEEN / 100, BB_SQUARES[square]);
+		update_global_central_scores(blackPlacementLayer[QUEEN - 1][x][y], BB_SQUARES[square]);
 		
 		//if (piece_type == 6){std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << " rook increment: " << rookIncrement << std::endl;}
 		/*
@@ -4141,7 +4160,7 @@ inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, u
         whitePieceVal += values[KING];
 
 		// Add the placement layer for the given piece at that square
-		total -= whitePlacementLayer[KING - 1][x][y] * Config::SCALE_PLACE_KING_EG / 100;
+		total -= whitePlacementLayer[KING - 1][x][y];
 
 		// Acquire the attacks mask for the current piece and make a copy of the occupied mask
 		uint64_t pieceAttackMask = BB_KING_ATTACKS[square];
@@ -4183,7 +4202,7 @@ inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, u
         total += values[KING];
 		blackPieceVal += values[KING];
 
-		total += blackPlacementLayer[KING - 1][x][y] * Config::SCALE_PLACE_KING_EG / 100;
+		total += blackPlacementLayer[KING - 1][x][y];
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/

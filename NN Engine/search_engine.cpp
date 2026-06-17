@@ -491,6 +491,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PP_DIAG_SUPPORT = env_int("PP_DIAG_SUPPORT", Config::PP_DIAG_SUPPORT);
         Config::PP_FILE_CLEAR = env_int("PP_FILE_CLEAR", Config::PP_FILE_CLEAR);
         Config::PP_HORIZ_SUPPORT = env_int("PP_HORIZ_SUPPORT", Config::PP_HORIZ_SUPPORT);
+        Config::SCALE_PLACE_PAWN = env_int("SCALE_PLACE_PAWN", Config::SCALE_PLACE_PAWN);
+        Config::SCALE_PLACE_KNIGHT = env_int("SCALE_PLACE_KNIGHT", Config::SCALE_PLACE_KNIGHT);
+        Config::SCALE_PLACE_BISHOP = env_int("SCALE_PLACE_BISHOP", Config::SCALE_PLACE_BISHOP);
+        Config::SCALE_PLACE_QUEEN = env_int("SCALE_PLACE_QUEEN", Config::SCALE_PLACE_QUEEN);
+        Config::SCALE_PLACE_KING_EG = env_int("SCALE_PLACE_KING_EG", Config::SCALE_PLACE_KING_EG);
+        Config::CENTER_INNER_MULT = env_int("CENTER_INNER_MULT", Config::CENTER_INNER_MULT);
+        Config::CENTER_OUTER_MULT = env_int("CENTER_OUTER_MULT", Config::CENTER_OUTER_MULT);
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
         Config::CHEAP_BISHOP_BLOCK = env_int("CHEAP_BISHOP_BLOCK", Config::CHEAP_BISHOP_BLOCK);
         Config::CHEAP_BISHOP_MOB = env_int("CHEAP_BISHOP_MOB", Config::CHEAP_BISHOP_MOB);
@@ -631,6 +638,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PP_DIAG_SUPPORT=" << Config::PP_DIAG_SUPPORT
                   << " PP_FILE_CLEAR=" << Config::PP_FILE_CLEAR
                   << " PP_HORIZ_SUPPORT=" << Config::PP_HORIZ_SUPPORT
+                  << " SCALE_PLACE_PAWN=" << Config::SCALE_PLACE_PAWN
+                  << " SCALE_PLACE_KNIGHT=" << Config::SCALE_PLACE_KNIGHT
+                  << " SCALE_PLACE_BISHOP=" << Config::SCALE_PLACE_BISHOP
+                  << " SCALE_PLACE_QUEEN=" << Config::SCALE_PLACE_QUEEN
+                  << " SCALE_PLACE_KING_EG=" << Config::SCALE_PLACE_KING_EG
+                  << " CENTER_INNER_MULT=" << Config::CENTER_INNER_MULT
+                  << " CENTER_OUTER_MULT=" << Config::CENTER_OUTER_MULT
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
                   << " CHEAP_BISHOP_BLOCK=" << Config::CHEAP_BISHOP_BLOCK
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB

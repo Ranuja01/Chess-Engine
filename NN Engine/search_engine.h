@@ -338,6 +338,21 @@ namespace Config
     inline int PP_FILE_CLEAR    = 150;  // supported AND the neighbouring file is clear of enemy pawns
     inline int PP_HORIZ_SUPPORT = 225;  // friendly pawn alongside on the same rank
 
+    // Eval: placement (piece-square) MAGNITUDE scales (percent; 100 = byte-identical). Whole-map per-piece
+    // multiplier applied at every read of that piece's placement table — white read, black read, AND the
+    // central-score feed — so colour symmetry and the central term stay consistent. ROOK PST is dead code
+    // (never read) so has no knob; KING placement is endgame-only. Gap-tracking's #1 finding (midgame
+    // placement over-optimism) tunes these DOWNWARD. PACE move-match targets, SPRT-gated.
+    inline int SCALE_PLACE_PAWN    = 100;
+    inline int SCALE_PLACE_KNIGHT  = 100;
+    inline int SCALE_PLACE_BISHOP  = 100;
+    inline int SCALE_PLACE_QUEEN   = 100;
+    inline int SCALE_PLACE_KING_EG = 100;  // king placement is endgame-only
+    // Eval: central-occupation bonus multipliers in update_global_central_scores (percent; defaults
+    // reproduce the original inner ×2 / outer ×1.5 exactly — base * MULT / 100 == trunc(base * MULT/100)).
+    inline int CENTER_INNER_MULT = 200;  // inner center (d4/e4/d5/e5)
+    inline int CENTER_OUTER_MULT = 150;  // extended center
+
     // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
     // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
     // + activity signal: own pawns on the bishop's colour (bad bishop) traded against the bishop's current

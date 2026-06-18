@@ -353,6 +353,12 @@ namespace Config
     inline int CENTER_INNER_MULT = 200;  // inner center (d4/e4/d5/e5)
     inline int CENTER_OUTER_MULT = 150;  // extended center
 
+    // Eval: scalar positional-term magnitudes (absolute, defaults = the original literals = byte-identical).
+    // The knob IS the value (no mul/div in the hot path; sign applied at the site).
+    inline int IMBALANCE_SCALE   = 3;    // offense-vs-defense imbalance multiplier (was ×3)
+    inline int BISHOP_PAIR_BONUS = 300;  // magnitude of the bishop-pair bonus
+    inline int KNIGHT_PAIR_BONUS = 200;  // magnitude of the knight-pair bonus
+
     // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
     // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
     // + activity signal: own pawns on the bishop's colour (bad bishop) traded against the bishop's current

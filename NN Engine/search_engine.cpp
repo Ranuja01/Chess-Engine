@@ -498,6 +498,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SCALE_PLACE_KING_EG = env_int("SCALE_PLACE_KING_EG", Config::SCALE_PLACE_KING_EG);
         Config::CENTER_INNER_MULT = env_int("CENTER_INNER_MULT", Config::CENTER_INNER_MULT);
         Config::CENTER_OUTER_MULT = env_int("CENTER_OUTER_MULT", Config::CENTER_OUTER_MULT);
+        Config::IMBALANCE_SCALE = env_int("IMBALANCE_SCALE", Config::IMBALANCE_SCALE);
+        Config::BISHOP_PAIR_BONUS = env_int("BISHOP_PAIR_BONUS", Config::BISHOP_PAIR_BONUS);
+        Config::KNIGHT_PAIR_BONUS = env_int("KNIGHT_PAIR_BONUS", Config::KNIGHT_PAIR_BONUS);
         rebuild_scaled_placement();  // rebuild scaled placement working arrays once from the loaded SCALE_PLACE_* knobs (no per-read division in eval)
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
         Config::CHEAP_BISHOP_BLOCK = env_int("CHEAP_BISHOP_BLOCK", Config::CHEAP_BISHOP_BLOCK);
@@ -646,6 +649,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " SCALE_PLACE_KING_EG=" << Config::SCALE_PLACE_KING_EG
                   << " CENTER_INNER_MULT=" << Config::CENTER_INNER_MULT
                   << " CENTER_OUTER_MULT=" << Config::CENTER_OUTER_MULT
+                  << " IMBALANCE_SCALE=" << Config::IMBALANCE_SCALE
+                  << " BISHOP_PAIR_BONUS=" << Config::BISHOP_PAIR_BONUS
+                  << " KNIGHT_PAIR_BONUS=" << Config::KNIGHT_PAIR_BONUS
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
                   << " CHEAP_BISHOP_BLOCK=" << Config::CHEAP_BISHOP_BLOCK
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB

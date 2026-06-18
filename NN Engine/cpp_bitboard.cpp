@@ -5802,12 +5802,12 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		//std::cout << occupied << " black:" << blackOffensiveScore << "  white: " << whiteDefensiveScore  << " diff: " << ((blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * 3)<< std::endl;
 		//std::cout << occupied << " black:" << blackDefensiveScore << "  white: " << whiteOffensiveScore  << " diff: " << ((whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * 3) << std::endl;
 		if (whiteOffensiveScore > blackDefensiveScore){
-			total -= (whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * 3;
+			total -= (whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
 		}
 		br_imbalance_white = total - br_run; br_run = total;
 
 		if (blackOffensiveScore > whiteDefensiveScore){
-			total += (blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * 3;
+			total += (blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
 		}
 		br_imbalance_black = total - br_run; br_run = total;
 
@@ -5999,16 +5999,16 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		In this code section, boost both white and blacks score based on the existence of bishop and knight pairs
 	*/
 	if (__builtin_popcountll(occupied_white&bishops) == 2){
-		total -= 300;
+		total -= Config::BISHOP_PAIR_BONUS;
 	}
 	if (__builtin_popcountll(occupied_white&knights) == 2){
-		total -= 200;
+		total -= Config::KNIGHT_PAIR_BONUS;
 	}
 	if (__builtin_popcountll(occupied_black&bishops) == 2){
-		total += 300;
+		total += Config::BISHOP_PAIR_BONUS;
 	}
 	if (__builtin_popcountll(occupied_black&knights) == 2){
-		total += 200;
+		total += Config::KNIGHT_PAIR_BONUS;
 	}
 	br_pairs = total - br_run; br_run = total;
 

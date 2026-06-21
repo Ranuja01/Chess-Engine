@@ -512,10 +512,12 @@ namespace Config
     // SEE_EXTEND_DISABLED, a checking move is extended only if the opponent cannot win its
     // checker (static exchange on the checker's square) by more than SEE_EXTEND_MARGIN — i.e.
     // spite checks (a hanging checker) are skipped. 0 = sound checks only; positive (in piece-
-    // value units, pawn=1000) = tolerate small sacrifices. Default DISABLED = extend every
-    // check (current behavior; no see() call is made, so the default build is byte-identical).
+    // value units, pawn=1000) = tolerate small sacrifices. Default 300 is the validated keeper:
+    // extending every check is a large node adder; SEE-filtering it costs ~3 WAC / ~4.7% STS at
+    // fixed depth while cutting search ~27.5%, which converts to depth and net Elo in time-limited
+    // play. Set to SEE_EXTEND_DISABLED to restore the old extend-every-check behavior.
     inline constexpr int SEE_EXTEND_DISABLED = 1000000;
-    inline int SEE_EXTEND_MARGIN = SEE_EXTEND_DISABLED;
+    inline int SEE_EXTEND_MARGIN = 300;
 
     // Honest bound flags at the root / preliminary-ordering TT stores. Those four stores
     // (alpha_beta and reorder_legal_moves) hardcode TTFlag::EXACT, which is only correct under

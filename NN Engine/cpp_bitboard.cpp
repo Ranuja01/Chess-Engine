@@ -63,6 +63,21 @@ int blackPieceVal, whitePieceVal;
 
 
 int central_score;
+
+// Phase-0 light-eval gap probe accumulators (Config::LIGHT_GAP_PROBE). Recording only; never alters eval.
+long long g_lge_n = 0;
+long long g_lge_hist[7] = {0, 0, 0, 0, 0, 0, 0};
+long long g_lge_abs_capture = 0, g_lge_abs_passed = 0, g_lge_abs_latent = 0, g_lge_abs_adv = 0;
+
+// Phase-A SEE-frequency counter (Config::SEE_COUNT). Cumulative across a run.
+long long see_calls = 0;
+
+// SEE cache (Config::ENABLE_SEE_CACHE): per-position, keyed by [side][square], generation-validated.
+uint64_t g_see_gen = 0;
+uint64_t see_cache_gen[2][64] = {};
+int see_cache_val[2][64] = {};
+long long g_see_hits = 0, g_see_miss = 0;
+
 /*
 	Define a set of lookup tables
 */
@@ -107,6 +122,7 @@ alignas(64) int captureHistory[2][64][64] = {};
 
 alignas(64) Move g_searchStack[MAX_PLY] = {};
 alignas(64) int g_evalStack[MAX_PLY] = {};
+alignas(64) int g_captureChain[MAX_PLY] = {};
 
 
 
@@ -260,6 +276,35 @@ void rebuild_scaled_placement(){
 				whitePlacementLayer[p][x][y] = whitePlacementLayerBase[p][x][y] * sc[p] / 100;
 				blackPlacementLayer[p][x][y] = blackPlacementLayerBase[p][x][y] * sc[p] / 100;
 			}
+}
+
+// Working pawn-structure tables the eval hot path reads. Rebuilt from the *_base arrays scaled by the
+// SCALE_PAWN_* knobs at init (rebuild_scaled_pawn_tables), so the hot path is a plain array read with NO
+// per-read division. Initialised to the base values so they are byte-identical before init runs; the
+// wall/chain working arrays widen to int (a scaled value can exceed the uint8_t base range).
+std::array<int, 8>  default_midgame_pawn_rank_bonus = default_midgame_pawn_rank_bonus_base;
+std::array<int, 8>  passed_midgame_pawn_rank_bonus  = passed_midgame_pawn_rank_bonus_base;
+std::array<int, 8>  endgame_pawn_rank_bonus         = endgame_pawn_rank_bonus_base;
+std::array<int, 11> pawn_wall_file_bonus = []{
+	std::array<int, 11> a{};
+	for (size_t i = 0; i < a.size(); ++i) a[i] = pawn_wall_file_bonus_base[i];
+	return a;
+}();
+std::array<int, 8>  pawn_chain_file_bonus = []{
+	std::array<int, 8> a{};
+	for (size_t i = 0; i < a.size(); ++i) a[i] = pawn_chain_file_bonus_base[i];
+	return a;
+}();
+
+void rebuild_scaled_pawn_tables(){
+	for (size_t i = 0; i < 8; ++i){
+		default_midgame_pawn_rank_bonus[i] = default_midgame_pawn_rank_bonus_base[i] * Config::SCALE_PAWN_RANK    / 100;
+		passed_midgame_pawn_rank_bonus[i]  = passed_midgame_pawn_rank_bonus_base[i]  * Config::SCALE_PASSED_RANK   / 100;
+		endgame_pawn_rank_bonus[i]         = endgame_pawn_rank_bonus_base[i]         * Config::SCALE_ENDGAME_RANK  / 100;
+		pawn_chain_file_bonus[i]           = pawn_chain_file_bonus_base[i]           * Config::SCALE_PAWN_CHAIN     / 100;
+	}
+	for (size_t i = 0; i < 11; ++i)
+		pawn_wall_file_bonus[i] = pawn_wall_file_bonus_base[i] * Config::SCALE_PAWN_WALL / 100;
 }
 
 // Define array to hold the piece type
@@ -1216,7 +1261,7 @@ inline int get_latent_bishop_activity_score(uint64_t originalAttackMask, uint8_t
 		
 		// If each square doesn't contain a white piece, boost the score for mobility
 		if (!(ourPieces & square_mask) && (BB_PAWN_ATTACKS[colour][r] & pawns & opposingPieces)){
-			mobility_increment += 15;
+			mobility_increment += Config::BISHOP_MOB_PAWN_ATTACK;
 
 			if (bool(~opposingPieces & square_mask)){
 
@@ -1230,7 +1275,7 @@ inline int get_latent_bishop_activity_score(uint64_t originalAttackMask, uint8_t
 					
 					// If each square doesn't contain a white piece, boost the score for mobility
 					if (bool(~simulatedOccupied & (BB_SQUARES[secondary]))){
-						mobility_increment += 5;
+						mobility_increment += Config::BISHOP_MOB_SECONDARY;
 					}
 					secondAttackMask &= secondAttackMask - 1;		
 				}
@@ -1878,7 +1923,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 	int mobility_bonus = 0;
 
 	// Define the maximum increment for rook-file positioning and attack mask
-	int rookIncrement = 250;
+	int rookIncrement = Config::ROOK_OPEN_BASE;
     uint64_t rooks_mask = 0ULL;
     
 	bool colour = bool(occupied_white & (BB_SQUARES[square])); 
@@ -1903,13 +1948,13 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 
 		// Boost the score if a rook is placed on the 7th Rank
 		if (y >= 6){
-			rookIncrement += 150;
+			rookIncrement += Config::ROOK_7TH;
 		}
 
 		if (((BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied]) & (occupied_white & rooks)) != 0){
-			rookIncrement += 150;
+			rookIncrement += Config::ROOK_CONNECTED;
 		} else if (((BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied]) & (occupied_white & rooks)) != 0){
-			rookIncrement += 125;
+			rookIncrement += Config::ROOK_SEMI;
 		}
 		
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
@@ -1944,18 +1989,18 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){     
 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (att_square >> 3) * 50;
+							rookIncrement += (att_square >> 3) * Config::ROOK_PASSER_OWN;
 						}else{
 							// If the pawn is within its own (first) half, lower the rook's increment and break the loop
 							if ((att_square >> 3) < 5){
-								rookIncrement -= (50 + ((3 - (att_square >> 3)) * 125));
+								rookIncrement -= (Config::ROOK_OWN_PAWN_BASE + ((3 - (att_square >> 3)) * Config::ROOK_OWN_PAWN_RAMP));
 								break;
 							}
-						}				
-					
+						}
+
 					// If a white knight or bishop is in the way, lower the rook increment
 					} else if(temp_piece_type == 2 || temp_piece_type == 3){
-						rookIncrement -= 15;
+						rookIncrement -= Config::ROOK_MINOR_BLOCK;
 					}
 				
 				// Check if the occupied piece is black (opposite of the rook)
@@ -1965,26 +2010,26 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){
 						
 						if (black_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (7 - (att_square >> 3)) * 25;
+							rookIncrement += (7 - (att_square >> 3)) * Config::ROOK_PASSER_ENEMY;
 						}else{
 							// If the pawn is within the opponent's (second) half, lower the rook's increment
 							if ((att_square >> 3) > 4){
-								rookIncrement -= 50;
+								rookIncrement -= Config::ROOK_ENEMY_PAWN_PEN;
 							}
-						}	
+						}
 
 					// If a black knight or bishop is in the way, lower the rook increment
 					}else if(temp_piece_type == 2 || temp_piece_type == 3){
-						rookIncrement -= 15;
+						rookIncrement -= Config::ROOK_MINOR_BLOCK;
 					// If a black rook is in the way, lower the rook increment
 					}else if(temp_piece_type == 4){
-						rookIncrement -= 35;
+						rookIncrement -= Config::ROOK_ROOK_BLOCK;
 					}
 				}
 			}
 		}
 		// Finally use the rook increment
-		total -= std::min(rookIncrement, 300);
+		total -= std::min(rookIncrement, Config::ROOK_OPEN_CAP);
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -2085,10 +2130,10 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,ROOK);
 		uint64_t xRayMask = (~pieceAttackMask & unBlockedMask) & ~occupied_white;
 
-		// Boost score for semi connected rooks			
+		// Boost score for semi connected rooks
 		if ((unBlockedMask & (occupied_white & rooks)) != 0){
-			total -= 125;
-		}			
+			total -= Config::ROOK_SEMI_CONNECTED;
+		}
 
 		// Loop through the attacks mask
 		r = 0;
@@ -2135,14 +2180,14 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 		
 		// Boost the score if a rook is placed on the 2nd Rank
 		if (y <= 1){
-			rookIncrement += 150;
+			rookIncrement += Config::ROOK_7TH;
 		}
 
-		// Boost the score if rooks are connected			
+		// Boost the score if rooks are connected
 		if (((BB_RANK_ATTACKS[square][BB_RANK_MASKS[square] & occupied]) & (occupied_black & rooks)) != 0){
-			rookIncrement += 150;
+			rookIncrement += Config::ROOK_CONNECTED;
 		} else if (((BB_FILE_ATTACKS[square][BB_FILE_MASKS[square] & occupied]) & (occupied_black & rooks)) != 0){
-			rookIncrement += 125;
+			rookIncrement += Config::ROOK_SEMI;
 		}
 
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
@@ -2177,20 +2222,20 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){    
 						 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (att_square >> 3) * 25;
+							rookIncrement += (att_square >> 3) * Config::ROOK_PASSER_ENEMY;
 						}else{
 							// If the pawn is within the opponent's (first) half, lower the rook's increment
 							if ((att_square >> 3) < 5){
-								rookIncrement -= 50;
+								rookIncrement -= Config::ROOK_ENEMY_PAWN_PEN;
 							}
 						}	
 												
 					// If a white knight or bishop is in the way, lower the rook increment
 					}else if(temp_piece_type == 2 || temp_piece_type == 3){
-						rookIncrement -= 15;
+						rookIncrement -= Config::ROOK_MINOR_BLOCK;
 					// If a white rook is in the way, lower the rook increment
 					}else if(temp_piece_type == 4){
-						rookIncrement -= 35;
+						rookIncrement -= Config::ROOK_ROOK_BLOCK;
 					}
 				}else{
 					
@@ -2198,24 +2243,24 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){
 
 						if (black_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (7 - (att_square >> 3)) * 50;
+							rookIncrement += (7 - (att_square >> 3)) * Config::ROOK_PASSER_OWN;
 						}else{
 							// If the pawn is within its own (second) half, lower the rook's increment and break the loop
 							if ((att_square >> 3) > (Config::ENABLE_ROOK_RANKWIN_FIX ? 2 : 4)){
-								rookIncrement -= (50 + (((att_square / 8) - 4) * 125));								
+								rookIncrement -= (Config::ROOK_OWN_PAWN_BASE + (((att_square / 8) - 4) * Config::ROOK_OWN_PAWN_RAMP));								
 								break;
 							}
 						}
 											
 					// If a white knight or bishop is in the way, lower the rook increment
 					}else if(temp_piece_type == 2 || temp_piece_type == 3){
-						rookIncrement -= 15;
+						rookIncrement -= Config::ROOK_MINOR_BLOCK;
 					}
 				}
 			}
 		}
 		// Finally use the rook increment
-		total += std::min(rookIncrement, 300);
+		total += std::min(rookIncrement, Config::ROOK_OPEN_CAP);
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -2317,10 +2362,10 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 		uint64_t unBlockedMask = attacks_mask(colour,occupiedCopy,square,ROOK);
 		uint64_t xRayMask = (~pieceAttackMask & unBlockedMask) & ~occupied_black;
 
-		// Boost score for semi connected rooks		
+		// Boost score for semi connected rooks
 		if ((unBlockedMask & (occupied_black & rooks)) != 0){
-			total += 125;
-		}		
+			total += Config::ROOK_SEMI_CONNECTED;
+		}
 		
 		// Loop through the xray attacks mask
 		r = 0;
@@ -4285,9 +4330,11 @@ inline uint64_t latent_support_mask_right(int square, bool is_white) {
 
 inline void update_global_central_scores(int base_increment, uint64_t square_mask){
 	if (square_mask & central_squares){
-		central_score += base_increment * Config::CENTER_INNER_MULT / 100;
+		// Default path uses the exact original arithmetic (no division); the /100 runs only when the
+		// center knob is tuned off-default (and only at central-square sites — low frequency).
+		central_score += (Config::CENTER_INNER_MULT == 200) ? (base_increment * 2) : (base_increment * Config::CENTER_INNER_MULT / 100);
 	}else if(square_mask & extended_central_squares){
-		central_score += base_increment * Config::CENTER_OUTER_MULT / 100;
+		central_score += (Config::CENTER_OUTER_MULT == 150) ? ((base_increment * 3) / 2) : (base_increment * Config::CENTER_OUTER_MULT / 100);
 	}
 }
 
@@ -4486,6 +4533,66 @@ inline void adjust_pressure_and_support_tables_for_pins(uint64_t bb){
 constexpr int MATE_DRIVE_LO = 1500;
 constexpr int MATE_DRIVE_HI = 5000;
 
+// Per-passer king-race realizability, extracted from advanced_endgame_eval's passer block so it can
+// also run in the midgame (gated ENABLE_PASSER_KRACE_MG). Returns the net Black-positive delta: an
+// enemy king far from / own king near the promotion square, and an unstoppable (king-can't-catch)
+// passer, RAISE the danger; scaled by advancement (getPPIncrement) and both kings' separation. Every
+// term favours the passer's owner (no defender credit). Logic mirrors the in-AE block verbatim.
+inline int passer_realizability_delta(bool turn){
+	uint8_t whiteKingSquare = __builtin_ctzll(occupied_white & kings);
+	uint8_t blackKingSquare = __builtin_ctzll(occupied_black & kings);
+	uint64_t firstHalf  = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
+	uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
+	int blackKing_pawnSeparation = 0, whiteKing_pawnSeparation = 0, kingDist = 0, pawnDist = 0;
+	bool kingCanCatch;
+	int ppIncrement = 0, blockModifier = 0, passedBonus = 0;
+	uint64_t dummy;
+	int delta = 0;
+	uint8_t r = 0;
+	uint64_t bb = firstHalf & occupied_black & pawns;
+	while (bb) {
+		r = __builtin_ctzll(bb);
+		uint8_t file = r & 7;
+		uint8_t rank = r >> 3;
+		uint8_t promotionSquare = file;
+		blackKing_pawnSeparation = square_distance(r, blackKingSquare);
+		whiteKing_pawnSeparation = square_distance(r, whiteKingSquare);
+		ppIncrement = getPPIncrement(false, (occupied_white & pawns), 100, file, rank, occupied_white, occupied_black, dummy, dummy);
+		kingDist = square_distance(whiteKingSquare, promotionSquare);
+		pawnDist = rank;
+		kingCanCatch = (turn) ? (kingDist <= pawnDist + 1) : (kingDist <= pawnDist);
+		blockModifier = 0;
+		if (!kingCanCatch) { blockModifier = ppIncrement >> 1; }
+		else { int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist); blockModifier = -diff * (ppIncrement >> 2); }
+		passedBonus = ((((7 - rank) * (ppIncrement + blockModifier)) >> 4) * Config::PASSER_KRACE_MAG) / 100;
+		delta += (7 - blackKing_pawnSeparation) * passedBonus;
+		delta += whiteKing_pawnSeparation * passedBonus;
+		bb &= bb - 1;
+	}
+	r = 0;
+	bb = secondHalf & occupied_white & pawns;
+	while (bb) {
+		r = __builtin_ctzll(bb);
+		uint8_t file = r & 7;
+		uint8_t rank = r >> 3;
+		uint8_t promotionSquare = 56 + file;
+		blackKing_pawnSeparation = square_distance(r, blackKingSquare);
+		whiteKing_pawnSeparation = square_distance(r, whiteKingSquare);
+		ppIncrement = getPPIncrement(true, (occupied_black & pawns), 100, file, rank, occupied_black, occupied_white, dummy, dummy);
+		kingDist = square_distance(blackKingSquare, promotionSquare);
+		pawnDist = 7 - rank;
+		kingCanCatch = (!turn) ? (kingDist <= pawnDist + 1) : (kingDist <= pawnDist);
+		blockModifier = 0;
+		if (!kingCanCatch) { blockModifier = ppIncrement >> 1; }
+		else { int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist); blockModifier = -diff * (ppIncrement >> 2); }
+		passedBonus = (((rank * (ppIncrement + blockModifier)) >> 4) * Config::PASSER_KRACE_MAG) / 100;
+		delta -= blackKing_pawnSeparation * passedBonus;
+		delta -= (7 - whiteKing_pawnSeparation) * passedBonus;
+		bb &= bb - 1;
+	}
+	return delta;
+}
+
 inline int advanced_endgame_eval(int total, bool turn){
 	//std::cout << total <<std::endl;
 	// Acquire the square positions of each king
@@ -4577,6 +4684,10 @@ inline int advanced_endgame_eval(int total, bool turn){
 	//std::cout<< "Inner " << total << std::endl;
 	if (g_capture_eval_breakdown) g_ae_matedrive = total - mate_drive_before;
 	int ae_passer_start = total;
+	// When ENABLE_PASSER_KRACE_MG is on, the all-phases passer_realizability_delta() call in
+	// placement_and_piece_eval covers this (at full weight in deep endgame), so skip the in-AE copy
+	// to avoid double-counting. Default off -> this inline block runs as before (byte-identical).
+	if (!Config::ENABLE_PASSER_KRACE_MG) {
 	// Create bitmasks for the first and second half of the board
 	uint64_t firstHalf = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
 	uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
@@ -4630,7 +4741,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 			blockModifier = -diff * (ppIncrement >> 2); // the closer we are, the better
 		}
 
-		passedBonus = ((7 - rank) * (ppIncrement + blockModifier)) >> 4;
+		passedBonus = ((((7 - rank) * (ppIncrement + blockModifier)) >> 4) * Config::PASSER_KRACE_MAG) / 100;
 
 		total += (7 - blackKing_pawnSeparation) * passedBonus;
 		//std::cout << total << " | " << ppIncrement << " | " << passedBonus << " | "<< blockModifier << " | " << int(r) <<std::endl;
@@ -4673,13 +4784,14 @@ inline int advanced_endgame_eval(int total, bool turn){
 			blockModifier = -diff * (ppIncrement >> 2); // the closer we are, the better
 		}
 		
-		passedBonus = (rank * (ppIncrement + blockModifier)) >> 4;
+		passedBonus = (((rank * (ppIncrement + blockModifier)) >> 4) * Config::PASSER_KRACE_MAG) / 100;
 
 		total -= blackKing_pawnSeparation * passedBonus;
 		//std::cout << total << " | " << ppIncrement << " | " << passedBonus << " | "<< blockModifier << " | " << blackKing_pawnSeparation << " | " << int(r) <<std::endl;
 		total -= (7 - whiteKing_pawnSeparation) * passedBonus;
 		//std::cout << total <<std::endl;
 		bb &= bb - 1;
+	}
 	}
 	//std::cout <<"Inner2 "<< total <<std::endl;
 	if (g_capture_eval_breakdown) g_ae_passer = total - ae_passer_start;
@@ -4709,11 +4821,11 @@ inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king
 	int num_defended_squares_in_white_zone = 0;
 	int num_defended_squares_in_black_zone = 0;
 
-	int white_zone_attack_increment = 50;
-	int white_zone_presence_increment = 80;
+	int white_zone_attack_increment = Config::THREAT_ATTACK_MULT;
+	int white_zone_presence_increment = Config::THREAT_PRESENCE_MULT;
 
-	int black_zone_attack_increment = 50;
-	int black_zone_presence_increment = 80;
+	int black_zone_attack_increment = Config::THREAT_ATTACK_MULT;
+	int black_zone_presence_increment = Config::THREAT_PRESENCE_MULT;
 
 	uint64_t bb = white_king_zone;
 	uint8_t r = 0;
@@ -4741,15 +4853,15 @@ inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king
 			num_attackers_in_white_zone++;
 
 			if (pawns & mask) {
-				white_zone_presence_increment += 10;
+				white_zone_presence_increment += Config::THREAT_PAWN;
 			} else if (knights & mask){
-				white_zone_presence_increment += 7;
+				white_zone_presence_increment += Config::THREAT_KNIGHT;
 			} else if (bishops & mask){
-				white_zone_presence_increment += 7;
+				white_zone_presence_increment += Config::THREAT_BISHOP;
 			} else if (rooks & mask){
-				white_zone_presence_increment += 3;
+				white_zone_presence_increment += Config::THREAT_ROOK;
 			} else if (queens & mask){
-				white_zone_presence_increment += 7;
+				white_zone_presence_increment += Config::THREAT_QUEEN;
 			}
 		}
 
@@ -4804,15 +4916,15 @@ inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king
 			num_attackers_in_black_zone++;
 
 			if (pawns & mask) {
-				black_zone_presence_increment += 10;
+				black_zone_presence_increment += Config::THREAT_PAWN;
 			} else if (knights & mask){
-				black_zone_presence_increment += 7;
+				black_zone_presence_increment += Config::THREAT_KNIGHT;
 			} else if (bishops & mask){
-				black_zone_presence_increment += 7;
+				black_zone_presence_increment += Config::THREAT_BISHOP;
 			} else if (rooks & mask){
-				black_zone_presence_increment += 3;
+				black_zone_presence_increment += Config::THREAT_ROOK;
 			} else if (queens & mask){
-				black_zone_presence_increment += 7;
+				black_zone_presence_increment += Config::THREAT_QUEEN;
 			}
 
 		}else if(occupied_black & BB_SQUARES[r]){
@@ -4971,7 +5083,7 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 						//square_values[i] -= (y * 100);
 						
 					}else if(cur_mask & occupied_black){
-						black_adjustment += (y * 100) / scale;
+						{ int blk = (y * 100) / scale; if (Config::PASSER_BLOCK_ADV && y >= 5) blk -= blk * Config::PASSER_BLOCK_ADV / 100; black_adjustment += blk; }
 						//square_values[i] += (y * 125);
 						
 					} else{
@@ -5008,8 +5120,7 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 					}					
 				}
 			}
-			adjustment += white_adjustment + std::min(-pawn_rank_bonuses[r],black_adjustment); 
-			//std::cout << "ADJUSTMENT for white pp: " << white_adjustment + std::min(-pawn_rank_bonuses[r],black_adjustment) << " | " << (int)r << " | " << (int)y << std::endl;
+			adjustment += white_adjustment + (std::min(-pawn_rank_bonuses[r],black_adjustment) * Config::PASSER_ENEMY_CREDIT_PCT) / 100;
 			bb &= bb - 1;  
 		}
 	}
@@ -5036,7 +5147,7 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 					uint64_t cur_mask = BB_SQUARES[i];
 
 					if (cur_mask & occupied_white){
-						white_adjustment -= ((7 - y) * 100) / scale;
+						{ int blk = ((7 - y) * 100) / scale; if (Config::PASSER_BLOCK_ADV && y <= 2) blk -= blk * Config::PASSER_BLOCK_ADV / 100; white_adjustment -= blk; }
 						//square_values[i] += ((7 - y) * 125);					
 					}else if(cur_mask & occupied_black){
 						black_adjustment -= ((7 - y) * 75) / scale;
@@ -5073,8 +5184,7 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 					}
 				}
 			}
-			adjustment += black_adjustment + std::max(-pawn_rank_bonuses[r],white_adjustment); 
-			//std::cout << "ADJUSTMENT for black pp: " << black_adjustment + std::max(-pawn_rank_bonuses[r],white_adjustment) << " | " << (int)r << " | " << black_adjustment << " | " << -pawn_rank_bonuses[r] << " | " << white_adjustment << std::endl;
+			adjustment += black_adjustment + (std::max(-pawn_rank_bonuses[r],white_adjustment) * Config::PASSER_ENEMY_CREDIT_PCT) / 100;
 			bb &= bb - 1;  
 		}
 	}
@@ -5390,6 +5500,62 @@ inline double endgame_convertibility_scale(uint64_t white_passed_pawns, uint64_t
 	}
 
 	return s < DRAW_SCALE_FLOOR ? DRAW_SCALE_FLOOR : (s > 1.0 ? 1.0 : s);
+}
+
+// Realizability factor (over 256; 256 = full) that scales down the offense-vs-defense IMBALANCE bonus when
+// the attack is unconvertible. Composed as a SUM of cheap signal discounts; each signal's knob defaults to 0
+// so discount=0 -> R=256 -> byte-identical. Shift-based (no division); the caller gates on the knobs so an
+// all-default build never calls this. attacker_material_edge is the attacking side's (own - enemy) material.
+inline int realizability_factor(int attacker_material_edge, int phase_score){
+	int discount = 0;                                                          // in /256 units
+	int mat_def = std::max(0, Config::REALIZ_MAT_THRESH - attacker_material_edge);   // under-backed attack
+	discount += (Config::REALIZ_MAT_K   * mat_def)     >> 12;                  // pawn=1000 -> /256 units
+	discount += (Config::REALIZ_PHASE_K * phase_score) >> 7;                   // phase_score 0..128
+	return std::max(Config::REALIZ_FLOOR, 256 - discount);                     // discount>=0 -> R<=256
+}
+
+// Dynamic conditional-eval layer: a generic term-gain (over 256; 256 = neutral) that blends up to two
+// cheap detector signals onto a 256 base, clamped to [MOD_FLOOR, MOD_CEIL]. Each signal contributes
+// (knob * signal) >> shift; a zero knob contributes nothing. Integer/bitwise (no division, no float).
+// Callers gate on the relevant knob(s) so an all-default build never invokes this -> byte-identical.
+// Apply at a universal-term accumulation site as: termval = (termval * mod_gain(...)) >> 8.
+inline int mod_gain(int k1, int sig1, int sh1, int k2, int sig2, int sh2){
+	int g = 256 + ((k1 * sig1) >> sh1) + ((k2 * sig2) >> sh2);
+	if (g < Config::MOD_FLOOR) g = Config::MOD_FLOOR;
+	if (g > Config::MOD_CEIL)  g = Config::MOD_CEIL;
+	return g;
+}
+
+int cheap_eval(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask){
+
+	/*
+		Cheap static-eval surrogate: material + piece-square tables only. Skips every expensive term
+		(attack layer, per-piece mobility, capture gains, latent threat, advanced endgame) and their
+		global-state machinery, so it is far cheaper than placement_and_piece_eval. Black-positive, in
+		the same convention as the full eval BEFORE the Config::side_to_play flip (white subtracts value
+		+ placement, black adds). Used ONLY for the improving heuristic, which needs the SIGN of the eval
+		trend (rising vs 2 plies ago), not an accurate value -- so the dropped terms don't matter.
+	*/
+
+	int total = 0;
+	const uint64_t typeMasks[6] = {pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask};
+	for (int t = 0; t < 6; ++t){
+		uint64_t wb = typeMasks[t] & occupied_whiteMask;
+		while (wb){
+			uint8_t sq = __builtin_ctzll(wb);
+			wb &= wb - 1;
+			total -= values[t + 1];
+			total -= whitePlacementLayer[t][sq & 7][sq >> 3];
+		}
+		uint64_t bb = typeMasks[t] & occupied_blackMask;
+		while (bb){
+			uint8_t sq = __builtin_ctzll(bb);
+			bb &= bb - 1;
+			total += values[t + 1];
+			total += blackPlacementLayer[t][sq & 7][sq >> 3];
+		}
+	}
+	return total;
 }
 
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
@@ -5751,19 +5917,30 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_pieces = total; br_run = total;
 		{
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
-			total += Config::SCALE_CAPTURE_GAINS * approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses) / 100;
+			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+				total += (Config::SCALE_CAPTURE_GAINS == 100) ? cg : (Config::SCALE_CAPTURE_GAINS * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		{
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
-			total += Config::SCALE_PASSED_PAWN * boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame) / 100;
+			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		{
 			PROF_BLOCK(PROF_LATENT_THREAT);
-			total += Config::SCALE_LATENT_THREAT * get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings)) / 100;
+			int lt = get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
+			lt = (Config::SCALE_LATENT_THREAT == 100) ? lt : (Config::SCALE_LATENT_THREAT * lt / 100);
+			// Dynamic backing: discount the king-pressure of the side it favours when that side is DOWN
+			// material (an unbacked attack is fantasy). lt>0 favours Black (Black-positive eval). Gated.
+			if (Config::MOD_LT_BACKING){
+				int threat_side_edge = (lt >= 0) ? (blackPieceVal - whitePieceVal) : (whitePieceVal - blackPieceVal);
+				int sig = std::min(0, threat_side_edge);   // <0 = threatening side under-backed
+				lt = (lt * mod_gain(Config::MOD_LT_BACKING, sig, 12, 0, 0, 0)) >> 8;
+			}
+			total += lt;
 		}
 		br_latent = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
@@ -5779,12 +5956,12 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		} else{
 			central_add = std::max(std::min(central_score / 4, 300), -300);
 		}
-		total += Config::SCALE_CENTRAL * central_add / 100;
+		total += (Config::SCALE_CENTRAL == 100) ? central_add : (Config::SCALE_CENTRAL * central_add / 100);
 		br_central = total - br_run; br_run = total;
 
-		if(total <= -1500){
+		if(total <= -Config::PV_BOOST_TRIGGER){
 			boost_white_for_piece_value_advantage = true;
-		}else if(total >= 1500){
+		}else if(total >= Config::PV_BOOST_TRIGGER){
 			boost_black_for_piece_value_advantage = true;
 		}
 
@@ -5802,12 +5979,18 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		//std::cout << occupied << " black:" << blackOffensiveScore << "  white: " << whiteDefensiveScore  << " diff: " << ((blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * 3)<< std::endl;
 		//std::cout << occupied << " black:" << blackDefensiveScore << "  white: " << whiteOffensiveScore  << " diff: " << ((whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * 3) << std::endl;
 		if (whiteOffensiveScore > blackDefensiveScore){
-			total -= (whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
+			int imb = (whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
+			if (Config::REALIZ_MAT_K | Config::REALIZ_PHASE_K)   // all-default skips -> byte-identical
+				imb = (imb * realizability_factor(whitePieceVal - blackPieceVal, phase_score)) >> 8;
+			total -= imb;
 		}
 		br_imbalance_white = total - br_run; br_run = total;
 
 		if (blackOffensiveScore > whiteDefensiveScore){
-			total += (blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
+			int imb = (blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
+			if (Config::REALIZ_MAT_K | Config::REALIZ_PHASE_K)   // all-default skips -> byte-identical
+				imb = (imb * realizability_factor(blackPieceVal - whitePieceVal, phase_score)) >> 8;
+			total += imb;
 		}
 		br_imbalance_black = total - br_run; br_run = total;
 
@@ -5965,20 +6148,22 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_pieces = total; br_run = total;
 		{
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
-			total += Config::SCALE_CAPTURE_GAINS * approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses) / 100;
+			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+				total += (Config::SCALE_CAPTURE_GAINS == 100) ? cg : (Config::SCALE_CAPTURE_GAINS * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 		{
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
-			total += Config::SCALE_PASSED_PAWN * boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame) / 100;
+			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
+				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << " after pp: " << total << std::endl;
 
-		if(total <= -1500){
+		if(total <= -Config::PV_BOOST_TRIGGER){
 			boost_white_for_piece_value_advantage = true;
-		}else if(total >= 1500){
+		}else if(total >= Config::PV_BOOST_TRIGGER){
 			boost_black_for_piece_value_advantage = true;
 		}
 
@@ -5995,22 +6180,55 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 	}
 	
+	// Gap-P: passer king-race realizability in ALL phases (gated). Lifts the danger of an advancing
+	// passer (king-race + getPPIncrement) out of the deep-endgame-only advanced_endgame_eval gate so
+	// it fires in the midgame too, where the Tal-bot a-pawn marched unchecked. Phase-ramped: full
+	// weight in deep endgame (phase_score~128, = the old AE behavior, which is skipped when this is on)
+	// down to PASSER_KRACE_MG_PCT in the pure midgame. Default off = byte-identical.
+	if (Config::ENABLE_PASSER_KRACE_MG){
+		int krace = passer_realizability_delta(turn);
+		int kpct = Config::PASSER_KRACE_MG_PCT + (100 - Config::PASSER_KRACE_MG_PCT) * phase_score / 128;
+		total += (krace * kpct) / 100;
+	}
+
 	/*
 		In this code section, boost both white and blacks score based on the existence of bishop and knight pairs
 	*/
+	// Dynamic openness: the bishop pair is worth more in OPEN positions (few pawns). Gated -> byte-identical.
+	int pair_gain = 256;
+	if (Config::MOD_PAIR_OPEN)
+		pair_gain = mod_gain(Config::MOD_PAIR_OPEN, 12 - __builtin_popcountll(pawns), 3, 0, 0, 0);
 	if (__builtin_popcountll(occupied_white&bishops) == 2){
-		total -= Config::BISHOP_PAIR_BONUS;
+		total -= Config::MOD_PAIR_OPEN ? ((Config::BISHOP_PAIR_BONUS * pair_gain) >> 8) : Config::BISHOP_PAIR_BONUS;
 	}
 	if (__builtin_popcountll(occupied_white&knights) == 2){
 		total -= Config::KNIGHT_PAIR_BONUS;
 	}
 	if (__builtin_popcountll(occupied_black&bishops) == 2){
-		total += Config::BISHOP_PAIR_BONUS;
+		total += Config::MOD_PAIR_OPEN ? ((Config::BISHOP_PAIR_BONUS * pair_gain) >> 8) : Config::BISHOP_PAIR_BONUS;
 	}
 	if (__builtin_popcountll(occupied_black&knights) == 2){
 		total += Config::KNIGHT_PAIR_BONUS;
 	}
 	br_pairs = total - br_run; br_run = total;
+
+	// S4: placement-confidence shrinkage in LEVEL-material MIDGAME positions. Large placement claims there are
+	// over-confident / collapse-prone (level_sep.py: lost level-positions over-fire placement ~2x vs healthy).
+	// Shrink the placement snapshot (br_pieces) toward 0 in proportion to its excess over a floor. Integer/
+	// bitwise, cold tail (once per eval), gated default-off = byte-identical.
+	if (Config::MOD_PIECES_LEVEL && !isEndGame){
+		int matedge = blackPieceVal - whitePieceVal;
+		if (matedge < 0) matedge = -matedge;
+		if (matedge <= Config::MOD_PIECES_MAT_THRESH){
+			int ap = br_pieces < 0 ? -br_pieces : br_pieces;
+			int excess = ap - Config::MOD_PIECES_FLOOR;
+			if (excess > 0){
+				int cut = (Config::MOD_PIECES_LEVEL * excess) >> 8;
+				if (cut > ap) cut = ap;                       // never flip the placement sign
+				total -= (br_pieces > 0) ? cut : -cut;        // pull the placement contribution toward 0
+			}
+		}
+	}
 
 	// Endgame convertibility scale (env-gated, default off = byte-identical). Damp an unconvertible
 	// material/placement lead toward draw, and scale the piece-value boost below by the same factor so
@@ -6022,14 +6240,35 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		total = (int)(total * conv_s);
 	}
 	//std::cout << " before boost: "<< total << std::endl;
+	// Calibrated magnitude for the material-domination boost. At default (PV_BOOST_MAG=10000,
+	// PV_BOOST_PHASE_K=0) mag = 10000.0 and the boost expression is the exact original (byte-identical).
+	// When PV_BOOST_PHASE_K != 0, damp the boost harder as material thins (phase_score 0=midgame ..
+	// 128=endgame) to counter the (matDiff/leaderMat) escalation. Cold tail (once per eval), gated.
+	double mag = Config::PV_BOOST_MAG;
+	if (Config::PV_BOOST_PHASE_K){
+		int damp = (Config::PV_BOOST_MAG * Config::PV_BOOST_PHASE_K * phase_score) >> 14;
+		mag = std::max(0, Config::PV_BOOST_MAG - damp);
+	}
+	// Dynamic contextual material: condition the domination boost on convertibility context the
+	// (matDiff/leaderMat) ratio ignores -- pawn count and opposite-coloured bishops. Gated -> byte-identical.
+	int mat_gain = 256;
+	if (Config::MOD_MAT_PAWNS | Config::MOD_MAT_OPPB){
+		int wb = __builtin_popcountll(occupied_white & bishops);
+		int bb = __builtin_popcountll(occupied_black & bishops);
+		int opp_b = (wb == 1 && bb == 1 &&
+			(((occupied_white & bishops) & LIGHT_SQUARES) != 0) != (((occupied_black & bishops) & LIGHT_SQUARES) != 0)) ? 1 : 0;
+		mat_gain = mod_gain(Config::MOD_MAT_PAWNS, __builtin_popcountll(pawns) - 12, 3, Config::MOD_MAT_OPPB, opp_b, 0);
+	}
 	if (blackPieceVal > whitePieceVal){
 		if(boost_black_for_piece_value_advantage){
-			total += (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * 10000 * conv_s);
+			int boost = (int)(((blackPieceVal - whitePieceVal)/ (1.0 * blackPieceVal)) * mag * conv_s);
+			total += (Config::MOD_MAT_PAWNS | Config::MOD_MAT_OPPB) ? ((boost * mat_gain) >> 8) : boost;
 		}
 
 	}else if (whitePieceVal > blackPieceVal){
 		if(boost_white_for_piece_value_advantage){
-			total -= (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * 10000 * conv_s);
+			int boost = (int)(((whitePieceVal - blackPieceVal)/ (1.0 * whitePieceVal)) * mag * conv_s);
+			total -= (Config::MOD_MAT_PAWNS | Config::MOD_MAT_OPPB) ? ((boost * mat_gain) >> 8) : boost;
 		}
 	}
 	br_pv_boost = total - br_run; br_run = total;
@@ -6064,6 +6303,22 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		g_eval_breakdown.ae_matedrive = br_advanced_fired ? g_ae_matedrive : 0;
 		g_eval_breakdown.ae_passer    = br_advanced_fired ? g_ae_passer    : 0;
 	}
+
+	// Phase-0 light-eval gap probe: |sum of skippable tail terms| per eval, so the lazy margin/skip-rate can
+	// be sized. Recording only -- `total` is already final and is returned unchanged.
+	if (Config::LIGHT_GAP_PROBE){
+		int adv_delta = br_advanced_fired ? (br_advanced_total - br_ae_input) : 0;
+		int gap = br_capture + br_passed + br_latent + adv_delta;
+		int ag = gap < 0 ? -gap : gap;
+		int b = ag < 100 ? 0 : ag < 250 ? 1 : ag < 500 ? 2 : ag < 1000 ? 3 : ag < 2000 ? 4 : ag < 4000 ? 5 : 6;
+		g_lge_hist[b]++;
+		g_lge_n++;
+		g_lge_abs_capture += br_capture  < 0 ? -br_capture  : br_capture;
+		g_lge_abs_passed  += br_passed   < 0 ? -br_passed   : br_passed;
+		g_lge_abs_latent  += br_latent   < 0 ? -br_latent   : br_latent;
+		g_lge_abs_adv     += adv_delta   < 0 ? -adv_delta   : adv_delta;
+	}
+
 	return total;
 }
 
@@ -6463,6 +6718,19 @@ static struct {
 	std::array<std::array<int, 8>, 8> layer;
 } g_al_mg_white, g_al_mg_black;
 
+// Scale both king-zone attack maps by SCALE_ATTACK_LAYER (percent). Called at each setAttackingLayer
+// finalization point (after the raw layer is assembled or copied from cache, before the eval reads it) so
+// the ~96 attackingLayer read sites and the raw cache contents stay untouched and no per-read division is
+// added. Default 100 -> early-out (byte-identical). Both layers share the one scale to preserve eval colour
+// symmetry (the two maps swap under a colour mirror, so they must scale together).
+inline void scale_attacking_layer(){
+	if (Config::SCALE_ATTACK_LAYER == 100) return;
+	for (int i = 0; i < 2; ++i)
+		for (int x = 0; x < 8; ++x)
+			for (int y = 0; y < 8; ++y)
+				attackingLayer[i][x][y] = attackingLayer[i][x][y] * Config::SCALE_ATTACK_LAYER / 100;
+}
+
 inline void setAttackingLayer(int increment, bool isEndGame){
 
 	/*
@@ -6483,6 +6751,7 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 		al_bk = 63 - __builtin_clzll(occupied_black & kings);
 		if (g_attack_layer_eg_cache.valid && g_attack_layer_eg_cache.wk == al_wk && g_attack_layer_eg_cache.bk == al_bk){
 			attackingLayer = g_attack_layer_eg_cache.table;
+			scale_attacking_layer();
 			return;
 		}
 	}
@@ -6719,6 +6988,10 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 		g_attack_layer_eg_cache.bk = al_bk;
 		g_attack_layer_eg_cache.table = attackingLayer;
 	}
+
+	// Apply the uniform attack-layer magnitude scale last, so the caches above store the raw layer and the
+	// working layer the eval reads is scaled exactly once (no double-scale on a later cache hit).
+	scale_attacking_layer();
 }
 
 void printLayers(){
@@ -6837,8 +7110,30 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 		}
 
 		// Check if there exists a non-pawn blocker infront of the passed pawn
-		if ((infrontMask & (opposingPieces | curSidePieces))){
-			
+		if (Config::ENABLE_PASSER_BLOCKADE_QUALITY){
+			// Blockade QUALITY: only a SECURE blockade (enemy minor on the STOP square -- hard to
+			// dislodge) gets the full penalty. A rook/queen merely contesting the file ahead, or a
+			// piece not on the stop square, is NOT a blockade -- the pawn still advances and the
+			// contester is tied down -- so it gets only PASSER_CONTEST_PCT of the penalty. Fixes the
+			// false-negative where any enemy piece on the file zeroed an advancing (e.g. rook-contested)
+			// passer. Default gate off = the original branch below (byte-identical).
+			int stop_sq = colour ? ((rank + 1) * 8 + file) : ((rank - 1) * 8 + file);
+			uint64_t stopMask = BB_SQUARES[stop_sq];
+			uint64_t opp_minors = (knights | bishops) & opposingPieces;
+			if (stopMask & opposingPieces){
+				if (stopMask & opp_minors)
+					ppIncrement -= Config::PP_BLOCKADE_PEN;                                       // secure minor blockade
+				else
+					ppIncrement -= (Config::PP_BLOCKADE_PEN * Config::PASSER_CONTEST_PCT) / 100;   // major on stop sq = less secure
+			} else if (infrontMask & opposingPieces){
+				ppIncrement -= (Config::PP_BLOCKADE_PEN * Config::PASSER_CONTEST_PCT) / 100;       // file-contested ahead, not blockaded
+			} else if (infrontMask & curSidePieces){
+				// own piece in front, no enemy contest -> neither bonus nor penalty (matches original)
+			} else {
+				ppIncrement += Config::PP_UNBLOCKED;
+			}
+		} else if ((infrontMask & (opposingPieces | curSidePieces))){
+
 			// If the piece is the that of the opponent, decrement the score as it is blockaded
 			if ((infrontMask & opposingPieces)){
 				ppIncrement -= Config::PP_BLOCKADE_PEN;

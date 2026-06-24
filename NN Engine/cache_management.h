@@ -163,6 +163,13 @@ extern Move g_searchStack[MAX_PLY];
 // depth d (NO_STATIC_EVAL when in-check or outside the improving window). A node reads [d] vs [d-2].
 extern int g_evalStack[MAX_PLY];
 
+// Per-ply capture-chain density for the capture-chain LMR guard: g_captureChain[d] is a leaky counter
+// along the search path -- +1 for a capture into node d, -1 (floored at 0) for a quiet move -- so it
+// rises inside a capture-heavy sequence (back-to-back chains AND captures interspersed with the odd
+// quiet) and decays once the tactics stop. A node reads [d] to decide whether it sits deep enough
+// inside a forcing sequence to protect a quiet move from LMR.
+extern int g_captureChain[MAX_PLY];
+
 /*
 	Set of functions used to cache data
 */

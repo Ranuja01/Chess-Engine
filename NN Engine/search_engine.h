@@ -225,6 +225,7 @@ namespace Config
     inline bool ENABLE_RAZORING = true; // razoring (alpha_beta root loop)
     inline bool ENABLE_NULLMOVE = true; // null-move pruning
     inline bool NULLMOVE_PROGRESSIVE = false; // depth-scaled null-move reduction (-2 at d>=12, -3 at d>=14); off = flat -1
+    inline int NULLMOVE_EXTRA = 0;      // extra plies off the null-move search depth (more aggressive null pruning); 0 = byte-id
     inline bool ENABLE_QDELTA = true;   // delta pruning in quiescence
 
     inline bool LMR_PROFILE = false; // env-gated LMR-miss profiler (diagnostic; off = byte-identical)
@@ -234,6 +235,12 @@ namespace Config
     // recompile and the default build stays byte-identical.
     inline bool PROTECT_KILLERS = false; // don't LMR-reduce killer / counter moves
     inline bool PROTECT_PV = false;      // don't LMR-reduce at PV nodes (beta - alpha > 1)
+    // Only apply the PV/killer protection to EARLY moves (index i <= this): move 0 is already never
+    // reduced (base_lmr requires i != 0), so the value is in protecting the 2nd/3rd, where a strong
+    // move is not yet guaranteed. A killer/PV appearing deep in the list is likely stale and can be
+    // reduced. Bounds the (otherwise large) node cost of blanket protection. Default 64 = protect
+    // everywhere (the original behavior when PROTECT_* is on); PROTECT_* default off keeps this byte-id.
+    inline int PROTECT_MAX_IDX = 64;
 
     // History-aware LMR ("reduce-less"): search known-good late quiets a little less reduced (toward,
     // never beyond, full depth). Categorical signal — killer/counter membership + a coarse history
@@ -244,10 +251,34 @@ namespace Config
     inline int HISTORY_LMR_CAP = 0;         // plies to REMOVE for good quiets (reduce-less; 0 = off, the shipped arm)
     inline int HISTORY_LMR_MORE_CAP = 1;    // plies to ADD for never-cut (tier-0) quiets (reduce-more; the shipped lever)
 
+    // Capture-chain LMR guard: protect a quiet move when the move that led to this node was a capture
+    // (we're resolving a capture sequence -- a forcing line where reductions bury tactics, e.g. the
+    // Gap-T axb5 mis-reduction). Lets aggressive LMR (LMR_EXTRA / DEPTH_REDUCTION) be pushed harder
+    // safely. Default off = byte-identical.
+    //   CAPCHAIN_REDUCE_LESS == 0 -> hard skip (no reduction at all on the resolving quiet) -- strong
+    //     but node-expensive (a single capture parent disables LMR for the whole quiet subtree).
+    //   CAPCHAIN_REDUCE_LESS  > 0 -> reduce-LESS by that many plies (toward, never beyond, full depth):
+    //     keeps most of the node savings while still de-pruning the forcing line.
+    inline bool ENABLE_LMR_CAPCHAIN = false;
+    inline int CAPCHAIN_REDUCE_LESS = 0; // plies to shave off the reduction in a capture sequence (0 = hard skip)
+    inline int CAPCHAIN_RUN_THRESH = 2;  // min capture-chain density (g_captureChain) to fire the guard
+                                         // (1 = any capture in the recent line; 2+ = a multi-capture sequence)
+
     // Improving heuristic: reduce one extra ply when the side-to-move's static eval is NOT rising vs
     // 2 ply back (stagnant -> prune harder). Modulates LMR only (composes with history_lmr_delta); gated.
     inline bool ENABLE_IMPROVING = false;
     inline int IMPROVING_EVAL_WINDOW = 6;   // populate g_evalStack only within this many plies of the leaf (cost control)
+    // Improving's per-node eval was shelved as too costly (a full eval at interior nodes -> Delta-depth -0.18).
+    // The heuristic needs only the SIGN of the eval trend, so use the cheap material+PST surrogate (cheap_eval)
+    // instead of the full eval -- far cheaper, and accuracy is irrelevant to the trend. Only consulted when
+    // ENABLE_IMPROVING is on, so default has no effect on the byte-identical (improving-off) build.
+    inline bool IMPROVING_CHEAP = true;
+    // The two tunables behind the improving LMR nudge (defaults = the original strict-sign / -1-ply behavior,
+    // so an improving-on build is byte-identical at defaults). PACE sweep targets. DELTA_MARGIN widens the
+    // "still improving" band so a small (noisy, esp. with the cheap eval) eval wobble is not treated as
+    // not-improving -> fewer false extra-reductions. REDUCTION is how many extra LMR plies when not improving.
+    inline int IMPROVING_REDUCTION = 1;
+    inline int IMPROVING_DELTA_MARGIN = 0;
 
     // Late-move pruning (LMP / move-count pruning): at low remaining depth, SKIP late quiet moves entirely
     // (not just reduce them like LMR). Reuses the LMR eligibility (do_lmr) so captures, checks, promotions,
@@ -358,6 +389,143 @@ namespace Config
     inline int IMBALANCE_SCALE   = 3;    // offense-vs-defense imbalance multiplier (was ×3)
     inline int BISHOP_PAIR_BONUS = 300;  // magnitude of the bishop-pair bonus
     inline int KNIGHT_PAIR_BONUS = 200;  // magnitude of the knight-pair bonus
+
+    // Eval: rook open-file / placement magnitudes inside evaluate_rooks_midgame (absolute, defaults =
+    // the original literals = byte-identical). The knob IS the value (sign applied at the site; no hot-path
+    // division — the per-passer-rank multipliers stay constant multiplies). Each knob drives BOTH the white
+    // and the mirrored black site so colour symmetry holds. Tunes the SHAPE of the rook open-file term.
+    inline int ROOK_OPEN_BASE        = 250;  // base rookIncrement before file scan
+    inline int ROOK_OPEN_CAP         = 300;  // std::min clamp on rookIncrement
+    inline int ROOK_7TH              = 150;  // rook on the 7th (white) / 2nd (black) rank
+    inline int ROOK_CONNECTED        = 150;  // rooks connected on the rank
+    inline int ROOK_SEMI             = 125;  // rooks doubled on the file
+    inline int ROOK_PASSER_OWN       = 50;   // per-rank bonus for own passed pawn on the file
+    inline int ROOK_PASSER_ENEMY     = 25;   // per-rank bonus for enemy passed pawn on the file
+    inline int ROOK_OWN_PAWN_BASE    = 50;   // base penalty for own (non-passed) pawn blocking the file in own half
+    inline int ROOK_OWN_PAWN_RAMP    = 125;  // per-rank ramp on that own-pawn penalty
+    inline int ROOK_ENEMY_PAWN_PEN   = 50;   // penalty for enemy (non-passed) pawn blocking the file in enemy half
+    inline int ROOK_MINOR_BLOCK      = 15;   // penalty for a knight/bishop blocking the file
+    inline int ROOK_ROOK_BLOCK       = 35;   // penalty for an enemy rook blocking the file
+    inline int ROOK_SEMI_CONNECTED   = 125;  // x-ray (semi-connected) rook bonus
+
+    // Eval: pawn-structure table MAGNITUDE scales (percent; 100 = byte-identical). Whole-table multipliers
+    // baked into the working arrays once at init by rebuild_scaled_pawn_tables() (no per-read division). The
+    // rank tables drive advancement value; wall/chain drive structural cohesion. PACE move-match targets.
+    inline int SCALE_PAWN_RANK    = 100;  // default_midgame_pawn_rank_bonus (non-passed advancement)
+    inline int SCALE_PASSED_RANK  = 100;  // passed_midgame_pawn_rank_bonus (passed-pawn advancement, midgame)
+    inline int SCALE_ENDGAME_RANK = 100;  // endgame_pawn_rank_bonus (advancement, endgame)
+    inline int SCALE_PAWN_WALL    = 100;  // pawn_wall_file_bonus (pawn-shield / wall cohesion)
+    inline int SCALE_PAWN_CHAIN   = 100;  // pawn_chain_file_bonus (diagonal chain support)
+
+    // Eval: latent bishop-activity increments in get_latent_bishop_activity_score (absolute, defaults =
+    // the original literals = byte-identical; the knob IS the value, no division). Reward for a bishop's
+    // blocked-diagonal reach onto an enemy pawn and its second-order diagonal scope.
+    inline int BISHOP_MOB_PAWN_ATTACK = 15;  // reachable square that attacks an enemy pawn
+    inline int BISHOP_MOB_SECONDARY   = 5;   // per second-order diagonal square reachable after simulation
+
+    // Eval: latent king-zone threat magnitudes in get_latent_threat_score (absolute, defaults = the
+    // original literals = byte-identical; the knob IS the value). The two MULT bases are the per-excess
+    // attacked-square / attacker weights; the per-piece values are the presence-attacker increments
+    // (an enemy piece standing in our king zone). Each knob drives BOTH king zones (colour-symmetric).
+    inline int THREAT_ATTACK_MULT   = 50;  // base white/black_zone_attack_increment (per excess attacked square)
+    inline int THREAT_PRESENCE_MULT = 80;  // base white/black_zone_presence_increment (per excess attacker)
+    inline int THREAT_PAWN   = 10;  // enemy pawn in our king zone
+    inline int THREAT_KNIGHT = 7;   // enemy knight in our king zone
+    inline int THREAT_BISHOP = 7;   // enemy bishop in our king zone
+    inline int THREAT_ROOK   = 3;   // enemy rook in our king zone
+    inline int THREAT_QUEEN  = 7;   // enemy queen in our king zone
+
+    // Eval: uniform king-zone attack-layer MAGNITUDE scale (percent; 100 = byte-identical). Applied to BOTH
+    // king-zone maps equally at the source inside setAttackingLayer (after the raw layer is assembled, before
+    // the eval reads it), gated on default so the ~96 attackingLayer reads and the raw caches are untouched
+    // and zero per-read division is added. A single shared scale (not per-layer) preserves eval colour
+    // symmetry: the two layers swap under a colour mirror, so they must scale together. Tunes overall
+    // king-safety / attacking weight vs material+position.
+    inline int SCALE_ATTACK_LAYER = 100;
+
+    // Eval: REALIZABILITY modulation of the midgame offense-vs-defense IMBALANCE term (the king-zone
+    // pressure differential, a proven ~400-Elo term that is crude: a flat reward for unmatched offense
+    // with no convertibility check). A factor R (over 256, default 256 = full) scales the imbalance bonus
+    // down when the attack is *unrealizable*, composed from cheap signals the eval already has. All knobs
+    // default 0/256 -> R=256 -> byte-identical (the call site is gated so an all-default build skips it).
+    // Position-conditional (unlike the washed scalar magnitude knobs); PACE tunes the blend. No division
+    // (shift-based); colour-symmetric (same knobs drive both branches, each using its own side's material).
+    inline int REALIZ_MAT_K     = 0;    // strength of the material-backing discount (0 = off; a master gate)
+    inline int REALIZ_MAT_THRESH = 0;   // material edge (piece-value units, pawn=1000) below which under-backed
+    inline int REALIZ_PHASE_K   = 0;    // strength of the phase/density discount (0 = off; the other master gate)
+    inline int REALIZ_FLOOR     = 256;  // minimum R in /256 units (caps how far the combined discount can go)
+
+    // Eval: discount the defender's blockade over-credit for an ADVANCED enemy passed pawn in
+    // boost_pieces_for_supporting_passed_pawns. Bug (Tal loss): a single piece parked in front of a
+    // far-advanced enemy passer is credited as (near-)fully stopping it, and that credit GROWS as the pawn
+    // nears promotion -> our eval reads the passer as contained when it's decisive. This knob (percent,
+    // default 0 = off = byte-identical) reduces the "piece directly in front" stopping credit when the
+    // enemy passer is within 2 squares of promotion. Colour-symmetric. Gated on default (no hot-path div).
+    inline int PASSER_BLOCK_ADV = 0;
+
+    // Gap-P fix: scale ONLY the enemy-defender term in boost_pieces_for_supporting_passed_pawns
+    // (the std::max(-rank_bonus, white_adjustment) for a black passer / std::min(...) for a white
+    // passer = the enemy's blockade + path-control credit). Bug: that term over-credits the defender
+    // and can flip an advancing enemy passer NET pro-defender. This knob leaves the OWN-side term
+    // (own support minus self-block malus) untouched and bounds only the enemy credit. Percent;
+    // 100 = byte-identical (full credit, current behavior); lower = trim the wrong-signed duplicate
+    // (blockade still counts via getPPIncrement PP_BLOCKADE_PEN + rooks). Colour-symmetric.
+    inline int PASSER_ENEMY_CREDIT_PCT = 100;
+
+    // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
+    // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing
+    // passer's danger is seen in the midgame (the Tal-bot a-pawn march). When on, the in-AE copy is
+    // skipped (de-dup). PASSER_KRACE_MG_PCT = the midgame weight in percent; it ramps to 100 (full,
+    // = old AE behavior) at the deep-endgame phase. Default off = byte-identical.
+    inline bool ENABLE_PASSER_KRACE_MG = false;
+    inline int PASSER_KRACE_MG_PCT = 100;
+
+    // Gap-P C1: blockade-QUALITY in getPPIncrement. When on, only a secure blockade (enemy minor on the
+    // stop square) gets the full PP_BLOCKADE_PEN; a rook/queen merely contesting the file ahead gets only
+    // PASSER_CONTEST_PCT of it (the pawn still advances; the contester is tied down). Un-zeroes a
+    // rook-contested advancing passer. Default off = byte-identical.
+    inline bool ENABLE_PASSER_BLOCKADE_QUALITY = false;
+    inline int PASSER_CONTEST_PCT = 30;   // % of PP_BLOCKADE_PEN applied to a file-contest (vs a secure blockade)
+    // Gap-P C2: magnitude of the per-passer king-race realizability (passer_realizability_delta + the AE
+    // endgame block). Percent; 100 = byte-identical. The king-race is calibrated too weak for an
+    // unstoppable passer (worth ~a queen but scored ~0.4); raise to make irresistible passers decisive.
+    inline int PASSER_KRACE_MAG = 100;
+
+    // Eval: calibrate the piece_value_boost ("dominate when material ahead") term in
+    // placement_and_piece_eval. The boost = (matDiff / leaderMat) * MAG, which mechanically ESCALATES
+    // as material thins (the same rook is a larger fraction of a smaller army) -> it is the measured
+    // material-edge over-valuation (+231cp mid -> +462cp end up-a-rook). PV_BOOST_MAG replaces the 10000
+    // magnitude literal (default 10000 = byte-identical). PV_BOOST_TRIGGER replaces the +-1500 lead at
+    // which the boost engages (default 1500 = byte-identical). PV_BOOST_PHASE_K (default 0 = off, gated)
+    // damps the boost harder as material thins, targeting the mid->end escalation directly; cold tail
+    // (once per eval), so the gated path may use float, but the default path is the exact current
+    // expression. Colour-symmetric (same knobs drive both the boost_white and boost_black branches).
+    inline int PV_BOOST_MAG     = 10000; // magnitude of the material-domination boost (the (matDiff/leaderMat)*MAG term)
+    inline int PV_BOOST_TRIGGER = 1500;  // |total| lead (Black-positive units) at which the boost engages
+    inline int PV_BOOST_PHASE_K = 0;     // strength of the endgame-escalation damp (0 = off = byte-identical)
+
+    // Dynamic conditional-eval layer: detector-gated modulation of the UNIVERSAL (non-evaluate_*_*) eval
+    // terms. Each MOD_* strength knob defaults to 0 -> the term's master gate (if (k1|k2|...)) is false ->
+    // the gain multiply is skipped -> byte-identical. mod_gain() blends cheap detector signals (already
+    // computed in placement_and_piece_eval) onto a 256 base, clamped to [MOD_FLOOR, MOD_CEIL]; the term is
+    // then scaled (term*gain)>>8. Integer/bitwise. Generalizes realizability_factor to all universal terms.
+    // Active (first build): contextual material (pawn count + opposite bishops), latent-threat backing,
+    // bishop-pair openness. Phase enters as a signal where used. See dev_notes/dynamic-conditional-eval.md.
+    inline int MOD_FLOOR    = 128;   // min gain over 256 (0.5x); caps how far a term can be damped
+    inline int MOD_CEIL     = 512;   // max gain over 256 (2.0x); caps how far a term can be boosted
+    inline int MOD_MAT_PAWNS = 0;    // material boost x pawn-count (convertibility: fewer pawns -> ...)
+    inline int MOD_MAT_OPPB  = 0;    // material boost x opposite-coloured-bishops (drawishness)
+    inline int MOD_LT_BACKING = 0;   // latent-threat x material backing of the threatening side (unbacked = fantasy)
+    inline int MOD_PAIR_OPEN = 0;    // bishop-pair bonus x openness (pawn count): open positions favour the pair
+
+    // S4: placement-confidence shrinkage (the level-material plurality lever). level_sep.py showed LOST
+    // level-material positions over-fire the placement terms ~2x vs healthy ones -> large placement claims in
+    // a LEVEL position are over-confident / collapse-prone. In a level-material position, shrink the aggregate
+    // placement contribution (br_pieces, the cold-tail snapshot) toward 0 in proportion to how far |placement|
+    // exceeds a floor. Cold tail (once per eval), integer/bitwise, gated default-off = byte-identical.
+    inline int MOD_PIECES_LEVEL = 0;      // shrink strength (0 = off); cut = (K * (|pieces| - FLOOR)) >> 8
+    inline int MOD_PIECES_MAT_THRESH = 1000; // |material edge| (pawn=1000) at/below which the position is "level"
+    inline int MOD_PIECES_FLOOR = 500;    // |placement| below which no shrink (don't touch modest placement)
 
     // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
     // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
@@ -518,6 +686,36 @@ namespace Config
     // play. Set to SEE_EXTEND_DISABLED to restore the old extend-every-check behavior.
     inline constexpr int SEE_EXTEND_DISABLED = 1000000;
     inline int SEE_EXTEND_MARGIN = 300;
+
+    // Phase-0 diagnostic (default off = byte-identical): measure the "light eval" gap = the signed sum of
+    // the skippable tail terms (capture_gains + passed_support + latent_threat + advanced_endgame delta) per
+    // eval, so the lazy-eval margin/skip-rate can be sized before building the fast path. Recording only;
+    // never alters the returned eval. Accumulates into g_lge_* (cpp_bitboard), dumped at search end.
+    inline bool LIGHT_GAP_PROBE = false;
+
+    // Phase-A diagnostic (default off = byte-identical, and zero hot-path cost when off): count see() calls
+    // (g_see_calls), surfaced on the [search] line, to measure SEE frequency per node.
+    inline bool SEE_COUNT = false;
+
+    // Per-position SEE cache (default off = byte-identical). see() is pure, so cached values are identical and
+    // node counts are unchanged with it on -- it is a pure speed lever (fewer recomputed exchanges).
+    inline bool ENABLE_SEE_CACHE = false;
+
+    // qsearch SEE re-sort (default off = byte-identical): order the noisy move list as promotions, then
+    // captures by SEE-descending (reusing the value already computed by the >=0 filter), then quiet checks --
+    // for earlier stand-pat cutoffs. Currently the noisy list inherits the main sort (clearly-good captures
+    // are MVV-LVA, not SEE), so this is the change. Behavior change -> validated by qnodes/qfmc, not byte-id.
+    inline bool ENABLE_QSEE_RESORT = false;
+
+    // EBF / node-lowering knobs exposing previously-hardcoded search formulas (defaults = the original
+    // literals = byte-identical). PACE / joint-tune targets on the reliable node/STS/timed-depth proxies.
+    // LMR_EXTRA: extra plies of late-move reduction subtracted from the computed reduced depth in
+    //   reduced_search_depth (applied BEFORE the pin clamp so pin protection still holds). 0 = original.
+    //   Higher = reduce more = fewer nodes (gated by tactics holding on the proxies).
+    // HISTORY_BONUS_SCALE: percent scale on the depth^2 history/counter/cont-hist bonus `b` (move-ordering
+    //   strength -> first-move-cutoff -> EBF). 100 = original `(depth_limit-cur_depth)^2`.
+    inline int LMR_EXTRA = 0;
+    inline int HISTORY_BONUS_SCALE = 100;
 
     // Honest bound flags at the root / preliminary-ordering TT stores. Those four stores
     // (alpha_beta and reorder_legal_moves) hardcode TTFlag::EXACT, which is only correct under

@@ -149,6 +149,12 @@ static long g_cutoff_histogram[5] = {0, 0, 0, 0, 0};
 // Passed-pawn LMP/LMR exemption fires (diagnostic): how often an otherwise-reducible advanced pawn push
 // was exempted from pruning/reduction. Cumulative across the run; printed beside the histogram.
 static long g_passer_exempt_fires = 0;
+// Phase-A qsearch ordering quality (diagnostic, cumulative across a run, like g_fh_*): cutoffs in the
+// NOT-IN-CHECK qsearch loop, the fraction on the first noisy move (qfmc), and the summed cutoff move-index
+// (qcut = avg index). Low qfmc / high qcut ⇒ a SEE re-sort of the noisy list should help.
+static long g_q_fh_total = 0;
+static long g_q_fh_first = 0;
+static long g_q_cut_idx_sum = 0;
 
 // ===================== LMR-miss profiler (diagnostic) =====================
 // Localizes WHERE late-move reductions drop winning moves. Side-effect-free:
@@ -292,10 +298,21 @@ static inline void lmr_profile_event(int depth_limit, int cur_depth, int move_nu
 // not inflate search-node counts). Only called for non-in-check nodes, so checkmate handling is skipped.
 inline int static_eval_for_improving(std::vector<BoardState> &state_history, uint64_t zobrist)
 {
+    BoardState cs = state_history.back();
+    // Cheap surrogate (material + PST): improving needs only the trend SIGN, not an accurate value, so skip
+    // the full eval's expensive machinery. Does NOT touch the full eval cache -- mixing full and cheap values
+    // across the two compared plies would corrupt the trend, so the cheap path is self-contained.
+    if (Config::IMPROVING_CHEAP)
+    {
+        int total = cheap_eval(cs.pawns, cs.knights, cs.bishops, cs.rooks, cs.queens, cs.kings,
+                               cs.occupied_colour[true], cs.occupied_colour[false]);
+        if (Config::side_to_play)
+            total = -total;
+        return total;
+    }
     int cached;
     if (accessCacheNew(zobrist, cached))
         return cached;
-    BoardState cs = state_history.back();
     int moveNum = static_cast<int>(state_history.size());
     int total = placement_and_piece_eval(moveNum, cs.turn, cs.pawns, cs.knights, cs.bishops, cs.rooks,
                                          cs.queens, cs.kings, cs.occupied_colour[true], cs.occupied_colour[false], cs.occupied);
@@ -460,15 +477,20 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_RAZORING = env_flag("ENABLE_RAZORING", true);
         Config::ENABLE_NULLMOVE = env_flag("ENABLE_NULLMOVE", true);
         Config::NULLMOVE_PROGRESSIVE = env_flag("NULLMOVE_PROGRESSIVE", Config::NULLMOVE_PROGRESSIVE);
+        Config::NULLMOVE_EXTRA = env_int("NULLMOVE_EXTRA", Config::NULLMOVE_EXTRA);
         Config::ENABLE_QDELTA = env_flag("ENABLE_QDELTA", true);
         Config::LMR_PROFILE = env_flag("LMR_PROFILE", false);
         Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", false);
         Config::PROTECT_PV = env_flag("PROTECT_PV", false);
+        Config::PROTECT_MAX_IDX = env_int("PROTECT_MAX_IDX", Config::PROTECT_MAX_IDX);
         // History-aware LMR (default off = byte-identical). CAP = plies removed for good quiets;
         // MORE_CAP = plies added for never-cut quiets (0 = reduce-less only, the prior behavior).
         Config::ENABLE_HISTORY_LMR = env_flag("ENABLE_HISTORY_LMR", Config::ENABLE_HISTORY_LMR);
         Config::HISTORY_LMR_CAP = env_int("HISTORY_LMR_CAP", Config::HISTORY_LMR_CAP);
         Config::HISTORY_LMR_MORE_CAP = env_int("HISTORY_LMR_MORE_CAP", Config::HISTORY_LMR_MORE_CAP);
+        Config::ENABLE_LMR_CAPCHAIN = env_flag("ENABLE_LMR_CAPCHAIN", Config::ENABLE_LMR_CAPCHAIN);
+        Config::CAPCHAIN_REDUCE_LESS = env_int("CAPCHAIN_REDUCE_LESS", Config::CAPCHAIN_REDUCE_LESS);
+        Config::CAPCHAIN_RUN_THRESH = env_int("CAPCHAIN_RUN_THRESH", Config::CAPCHAIN_RUN_THRESH);
         Config::ENABLE_LMP = env_flag("ENABLE_LMP", Config::ENABLE_LMP);
         Config::LMP_MAX_DEPTH = env_int("LMP_MAX_DEPTH", Config::LMP_MAX_DEPTH);
         Config::LMP_BASE = env_int("LMP_BASE", Config::LMP_BASE);
@@ -501,7 +523,59 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::IMBALANCE_SCALE = env_int("IMBALANCE_SCALE", Config::IMBALANCE_SCALE);
         Config::BISHOP_PAIR_BONUS = env_int("BISHOP_PAIR_BONUS", Config::BISHOP_PAIR_BONUS);
         Config::KNIGHT_PAIR_BONUS = env_int("KNIGHT_PAIR_BONUS", Config::KNIGHT_PAIR_BONUS);
+        Config::ROOK_OPEN_BASE = env_int("ROOK_OPEN_BASE", Config::ROOK_OPEN_BASE);
+        Config::ROOK_OPEN_CAP = env_int("ROOK_OPEN_CAP", Config::ROOK_OPEN_CAP);
+        Config::ROOK_7TH = env_int("ROOK_7TH", Config::ROOK_7TH);
+        Config::ROOK_CONNECTED = env_int("ROOK_CONNECTED", Config::ROOK_CONNECTED);
+        Config::ROOK_SEMI = env_int("ROOK_SEMI", Config::ROOK_SEMI);
+        Config::ROOK_PASSER_OWN = env_int("ROOK_PASSER_OWN", Config::ROOK_PASSER_OWN);
+        Config::ROOK_PASSER_ENEMY = env_int("ROOK_PASSER_ENEMY", Config::ROOK_PASSER_ENEMY);
+        Config::ROOK_OWN_PAWN_BASE = env_int("ROOK_OWN_PAWN_BASE", Config::ROOK_OWN_PAWN_BASE);
+        Config::ROOK_OWN_PAWN_RAMP = env_int("ROOK_OWN_PAWN_RAMP", Config::ROOK_OWN_PAWN_RAMP);
+        Config::ROOK_ENEMY_PAWN_PEN = env_int("ROOK_ENEMY_PAWN_PEN", Config::ROOK_ENEMY_PAWN_PEN);
+        Config::ROOK_MINOR_BLOCK = env_int("ROOK_MINOR_BLOCK", Config::ROOK_MINOR_BLOCK);
+        Config::ROOK_ROOK_BLOCK = env_int("ROOK_ROOK_BLOCK", Config::ROOK_ROOK_BLOCK);
+        Config::ROOK_SEMI_CONNECTED = env_int("ROOK_SEMI_CONNECTED", Config::ROOK_SEMI_CONNECTED);
+        Config::SCALE_PAWN_RANK = env_int("SCALE_PAWN_RANK", Config::SCALE_PAWN_RANK);
+        Config::SCALE_PASSED_RANK = env_int("SCALE_PASSED_RANK", Config::SCALE_PASSED_RANK);
+        Config::SCALE_ENDGAME_RANK = env_int("SCALE_ENDGAME_RANK", Config::SCALE_ENDGAME_RANK);
+        Config::SCALE_PAWN_WALL = env_int("SCALE_PAWN_WALL", Config::SCALE_PAWN_WALL);
+        Config::SCALE_PAWN_CHAIN = env_int("SCALE_PAWN_CHAIN", Config::SCALE_PAWN_CHAIN);
+        Config::BISHOP_MOB_PAWN_ATTACK = env_int("BISHOP_MOB_PAWN_ATTACK", Config::BISHOP_MOB_PAWN_ATTACK);
+        Config::BISHOP_MOB_SECONDARY = env_int("BISHOP_MOB_SECONDARY", Config::BISHOP_MOB_SECONDARY);
+        Config::THREAT_ATTACK_MULT = env_int("THREAT_ATTACK_MULT", Config::THREAT_ATTACK_MULT);
+        Config::THREAT_PRESENCE_MULT = env_int("THREAT_PRESENCE_MULT", Config::THREAT_PRESENCE_MULT);
+        Config::THREAT_PAWN = env_int("THREAT_PAWN", Config::THREAT_PAWN);
+        Config::THREAT_KNIGHT = env_int("THREAT_KNIGHT", Config::THREAT_KNIGHT);
+        Config::THREAT_BISHOP = env_int("THREAT_BISHOP", Config::THREAT_BISHOP);
+        Config::THREAT_ROOK = env_int("THREAT_ROOK", Config::THREAT_ROOK);
+        Config::THREAT_QUEEN = env_int("THREAT_QUEEN", Config::THREAT_QUEEN);
+        Config::SCALE_ATTACK_LAYER = env_int("SCALE_ATTACK_LAYER", Config::SCALE_ATTACK_LAYER);
+        Config::REALIZ_MAT_K = env_int("REALIZ_MAT_K", Config::REALIZ_MAT_K);
+        Config::REALIZ_MAT_THRESH = env_int("REALIZ_MAT_THRESH", Config::REALIZ_MAT_THRESH);
+        Config::REALIZ_PHASE_K = env_int("REALIZ_PHASE_K", Config::REALIZ_PHASE_K);
+        Config::REALIZ_FLOOR = env_int("REALIZ_FLOOR", Config::REALIZ_FLOOR);
+        Config::PASSER_BLOCK_ADV = env_int("PASSER_BLOCK_ADV", Config::PASSER_BLOCK_ADV);
+        Config::PASSER_ENEMY_CREDIT_PCT = env_int("PASSER_ENEMY_CREDIT_PCT", Config::PASSER_ENEMY_CREDIT_PCT);
+        Config::ENABLE_PASSER_KRACE_MG = env_flag("ENABLE_PASSER_KRACE_MG", Config::ENABLE_PASSER_KRACE_MG);
+        Config::PASSER_KRACE_MG_PCT = env_int("PASSER_KRACE_MG_PCT", Config::PASSER_KRACE_MG_PCT);
+        Config::ENABLE_PASSER_BLOCKADE_QUALITY = env_flag("ENABLE_PASSER_BLOCKADE_QUALITY", Config::ENABLE_PASSER_BLOCKADE_QUALITY);
+        Config::PASSER_CONTEST_PCT = env_int("PASSER_CONTEST_PCT", Config::PASSER_CONTEST_PCT);
+        Config::PASSER_KRACE_MAG = env_int("PASSER_KRACE_MAG", Config::PASSER_KRACE_MAG);
+        Config::PV_BOOST_MAG = env_int("PV_BOOST_MAG", Config::PV_BOOST_MAG);
+        Config::PV_BOOST_TRIGGER = env_int("PV_BOOST_TRIGGER", Config::PV_BOOST_TRIGGER);
+        Config::PV_BOOST_PHASE_K = env_int("PV_BOOST_PHASE_K", Config::PV_BOOST_PHASE_K);
+        Config::MOD_FLOOR = env_int("MOD_FLOOR", Config::MOD_FLOOR);
+        Config::MOD_CEIL = env_int("MOD_CEIL", Config::MOD_CEIL);
+        Config::MOD_MAT_PAWNS = env_int("MOD_MAT_PAWNS", Config::MOD_MAT_PAWNS);
+        Config::MOD_MAT_OPPB = env_int("MOD_MAT_OPPB", Config::MOD_MAT_OPPB);
+        Config::MOD_LT_BACKING = env_int("MOD_LT_BACKING", Config::MOD_LT_BACKING);
+        Config::MOD_PAIR_OPEN = env_int("MOD_PAIR_OPEN", Config::MOD_PAIR_OPEN);
+        Config::MOD_PIECES_LEVEL = env_int("MOD_PIECES_LEVEL", Config::MOD_PIECES_LEVEL);
+        Config::MOD_PIECES_MAT_THRESH = env_int("MOD_PIECES_MAT_THRESH", Config::MOD_PIECES_MAT_THRESH);
+        Config::MOD_PIECES_FLOOR = env_int("MOD_PIECES_FLOOR", Config::MOD_PIECES_FLOOR);
         rebuild_scaled_placement();  // rebuild scaled placement working arrays once from the loaded SCALE_PLACE_* knobs (no per-read division in eval)
+        rebuild_scaled_pawn_tables();  // rebuild scaled pawn-structure working arrays from the loaded SCALE_PAWN_* knobs (no per-read division in eval)
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
         Config::CHEAP_BISHOP_BLOCK = env_int("CHEAP_BISHOP_BLOCK", Config::CHEAP_BISHOP_BLOCK);
         Config::CHEAP_BISHOP_MOB = env_int("CHEAP_BISHOP_MOB", Config::CHEAP_BISHOP_MOB);
@@ -542,6 +616,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_HISTORY_MALUS = env_flag("ENABLE_HISTORY_MALUS", Config::ENABLE_HISTORY_MALUS);
         Config::ENABLE_IMPROVING = env_flag("ENABLE_IMPROVING", Config::ENABLE_IMPROVING);
         Config::IMPROVING_EVAL_WINDOW = env_int("IMPROVING_EVAL_WINDOW", Config::IMPROVING_EVAL_WINDOW);
+        Config::IMPROVING_CHEAP = env_flag("IMPROVING_CHEAP", Config::IMPROVING_CHEAP);
+        Config::IMPROVING_REDUCTION = env_int("IMPROVING_REDUCTION", Config::IMPROVING_REDUCTION);
+        Config::IMPROVING_DELTA_MARGIN = env_int("IMPROVING_DELTA_MARGIN", Config::IMPROVING_DELTA_MARGIN);
         Config::MAX_HISTORY = env_int("MAX_HISTORY", Config::MAX_HISTORY);
         Config::CONT2_GRAVITY_DIV = env_int("CONT2_GRAVITY_DIV", Config::CONT2_GRAVITY_DIV);
         if (Config::CONT2_GRAVITY_DIV < 1) Config::CONT2_GRAVITY_DIV = 1;
@@ -562,6 +639,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHECK_EXTENSION = env_int("CHECK_EXTENSION", Config::CHECK_EXTENSION);
         // SEE filter on the check extension; default disabled (extend all checks).
         Config::SEE_EXTEND_MARGIN = env_int("SEE_EXTEND_MARGIN", Config::SEE_EXTEND_MARGIN);
+        Config::LIGHT_GAP_PROBE = env_flag("LIGHT_GAP_PROBE", Config::LIGHT_GAP_PROBE);
+        Config::SEE_COUNT = env_flag("SEE_COUNT", Config::SEE_COUNT);
+        Config::ENABLE_SEE_CACHE = env_flag("ENABLE_SEE_CACHE", Config::ENABLE_SEE_CACHE);
+        Config::ENABLE_QSEE_RESORT = env_flag("ENABLE_QSEE_RESORT", Config::ENABLE_QSEE_RESORT);
+        Config::LMR_EXTRA = env_int("LMR_EXTRA", Config::LMR_EXTRA);
+        Config::HISTORY_BONUS_SCALE = env_int("HISTORY_BONUS_SCALE", Config::HISTORY_BONUS_SCALE);
         // Honest root/preliminary TT bound flags (default off = hardcoded EXACT); required for
         // sound aspiration windows.
         Config::HONEST_ROOT_TT = env_flag("HONEST_ROOT_TT", Config::HONEST_ROOT_TT);
@@ -613,13 +696,18 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " RAZORING=" << Config::ENABLE_RAZORING
                   << " NULLMOVE=" << Config::ENABLE_NULLMOVE
                   << " NULLMOVE_PROGRESSIVE=" << Config::NULLMOVE_PROGRESSIVE
+                  << " NULLMOVE_EXTRA=" << Config::NULLMOVE_EXTRA
                   << " QDELTA=" << Config::ENABLE_QDELTA
                   << " LMR_PROFILE=" << Config::LMR_PROFILE
                   << " PROTECT_KILLERS=" << Config::PROTECT_KILLERS
                   << " PROTECT_PV=" << Config::PROTECT_PV
+                  << " PROTECT_MAX_IDX=" << Config::PROTECT_MAX_IDX
                   << " ENABLE_HISTORY_LMR=" << Config::ENABLE_HISTORY_LMR
                   << " HISTORY_LMR_CAP=" << Config::HISTORY_LMR_CAP
                   << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
+                  << " ENABLE_LMR_CAPCHAIN=" << Config::ENABLE_LMR_CAPCHAIN
+                  << " CAPCHAIN_REDUCE_LESS=" << Config::CAPCHAIN_REDUCE_LESS
+                  << " CAPCHAIN_RUN_THRESH=" << Config::CAPCHAIN_RUN_THRESH
                   << " ENABLE_LMP=" << Config::ENABLE_LMP
                   << " LMP_MAX_DEPTH=" << Config::LMP_MAX_DEPTH
                   << " LMP_BASE=" << Config::LMP_BASE
@@ -652,6 +740,57 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " IMBALANCE_SCALE=" << Config::IMBALANCE_SCALE
                   << " BISHOP_PAIR_BONUS=" << Config::BISHOP_PAIR_BONUS
                   << " KNIGHT_PAIR_BONUS=" << Config::KNIGHT_PAIR_BONUS
+                  << " ROOK_OPEN_BASE=" << Config::ROOK_OPEN_BASE
+                  << " ROOK_OPEN_CAP=" << Config::ROOK_OPEN_CAP
+                  << " ROOK_7TH=" << Config::ROOK_7TH
+                  << " ROOK_CONNECTED=" << Config::ROOK_CONNECTED
+                  << " ROOK_SEMI=" << Config::ROOK_SEMI
+                  << " ROOK_PASSER_OWN=" << Config::ROOK_PASSER_OWN
+                  << " ROOK_PASSER_ENEMY=" << Config::ROOK_PASSER_ENEMY
+                  << " ROOK_OWN_PAWN_BASE=" << Config::ROOK_OWN_PAWN_BASE
+                  << " ROOK_OWN_PAWN_RAMP=" << Config::ROOK_OWN_PAWN_RAMP
+                  << " ROOK_ENEMY_PAWN_PEN=" << Config::ROOK_ENEMY_PAWN_PEN
+                  << " ROOK_MINOR_BLOCK=" << Config::ROOK_MINOR_BLOCK
+                  << " ROOK_ROOK_BLOCK=" << Config::ROOK_ROOK_BLOCK
+                  << " ROOK_SEMI_CONNECTED=" << Config::ROOK_SEMI_CONNECTED
+                  << " SCALE_PAWN_RANK=" << Config::SCALE_PAWN_RANK
+                  << " SCALE_PASSED_RANK=" << Config::SCALE_PASSED_RANK
+                  << " SCALE_ENDGAME_RANK=" << Config::SCALE_ENDGAME_RANK
+                  << " SCALE_PAWN_WALL=" << Config::SCALE_PAWN_WALL
+                  << " SCALE_PAWN_CHAIN=" << Config::SCALE_PAWN_CHAIN
+                  << " BISHOP_MOB_PAWN_ATTACK=" << Config::BISHOP_MOB_PAWN_ATTACK
+                  << " BISHOP_MOB_SECONDARY=" << Config::BISHOP_MOB_SECONDARY
+                  << " THREAT_ATTACK_MULT=" << Config::THREAT_ATTACK_MULT
+                  << " THREAT_PRESENCE_MULT=" << Config::THREAT_PRESENCE_MULT
+                  << " THREAT_PAWN=" << Config::THREAT_PAWN
+                  << " THREAT_KNIGHT=" << Config::THREAT_KNIGHT
+                  << " THREAT_BISHOP=" << Config::THREAT_BISHOP
+                  << " THREAT_ROOK=" << Config::THREAT_ROOK
+                  << " THREAT_QUEEN=" << Config::THREAT_QUEEN
+                  << " SCALE_ATTACK_LAYER=" << Config::SCALE_ATTACK_LAYER
+                  << " REALIZ_MAT_K=" << Config::REALIZ_MAT_K
+                  << " REALIZ_MAT_THRESH=" << Config::REALIZ_MAT_THRESH
+                  << " REALIZ_PHASE_K=" << Config::REALIZ_PHASE_K
+                  << " REALIZ_FLOOR=" << Config::REALIZ_FLOOR
+                  << " PASSER_BLOCK_ADV=" << Config::PASSER_BLOCK_ADV
+                  << " PASSER_ENEMY_CREDIT_PCT=" << Config::PASSER_ENEMY_CREDIT_PCT
+                  << " ENABLE_PASSER_KRACE_MG=" << Config::ENABLE_PASSER_KRACE_MG
+                  << " PASSER_KRACE_MG_PCT=" << Config::PASSER_KRACE_MG_PCT
+                  << " ENABLE_PASSER_BLOCKADE_QUALITY=" << Config::ENABLE_PASSER_BLOCKADE_QUALITY
+                  << " PASSER_CONTEST_PCT=" << Config::PASSER_CONTEST_PCT
+                  << " PASSER_KRACE_MAG=" << Config::PASSER_KRACE_MAG
+                  << " PV_BOOST_MAG=" << Config::PV_BOOST_MAG
+                  << " PV_BOOST_TRIGGER=" << Config::PV_BOOST_TRIGGER
+                  << " PV_BOOST_PHASE_K=" << Config::PV_BOOST_PHASE_K
+                  << " MOD_FLOOR=" << Config::MOD_FLOOR
+                  << " MOD_CEIL=" << Config::MOD_CEIL
+                  << " MOD_MAT_PAWNS=" << Config::MOD_MAT_PAWNS
+                  << " MOD_MAT_OPPB=" << Config::MOD_MAT_OPPB
+                  << " MOD_LT_BACKING=" << Config::MOD_LT_BACKING
+                  << " MOD_PAIR_OPEN=" << Config::MOD_PAIR_OPEN
+                  << " MOD_PIECES_LEVEL=" << Config::MOD_PIECES_LEVEL
+                  << " MOD_PIECES_MAT_THRESH=" << Config::MOD_PIECES_MAT_THRESH
+                  << " MOD_PIECES_FLOOR=" << Config::MOD_PIECES_FLOOR
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
                   << " CHEAP_BISHOP_BLOCK=" << Config::CHEAP_BISHOP_BLOCK
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB
@@ -690,6 +829,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_HISTORY_SATURATION=" << Config::ENABLE_HISTORY_SATURATION
                   << " ENABLE_HISTORY_MALUS=" << Config::ENABLE_HISTORY_MALUS
                   << " ENABLE_IMPROVING=" << Config::ENABLE_IMPROVING
+                  << " IMPROVING_CHEAP=" << Config::IMPROVING_CHEAP
+                  << " IMPROVING_REDUCTION=" << Config::IMPROVING_REDUCTION
+                  << " IMPROVING_DELTA_MARGIN=" << Config::IMPROVING_DELTA_MARGIN
                   << " IMPROVING_EVAL_WINDOW=" << Config::IMPROVING_EVAL_WINDOW
                   << " MAX_HISTORY=" << Config::MAX_HISTORY
                   << " CONT2_GRAVITY_DIV=" << Config::CONT2_GRAVITY_DIV
@@ -702,6 +844,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " REPETITION_THRESHOLD=" << Config::REPETITION_THRESHOLD
                   << " CHECK_EXTENSION=" << Config::CHECK_EXTENSION
                   << " SEE_EXTEND_MARGIN=" << Config::SEE_EXTEND_MARGIN
+                  << " LIGHT_GAP_PROBE=" << Config::LIGHT_GAP_PROBE
+                  << " SEE_COUNT=" << Config::SEE_COUNT
+                  << " ENABLE_SEE_CACHE=" << Config::ENABLE_SEE_CACHE
+                  << " ENABLE_QSEE_RESORT=" << Config::ENABLE_QSEE_RESORT
+                  << " LMR_EXTRA=" << Config::LMR_EXTRA
+                  << " HISTORY_BONUS_SCALE=" << Config::HISTORY_BONUS_SCALE
                   << " HONEST_ROOT_TT=" << Config::HONEST_ROOT_TT
                   << " ASPIRATION_DELTA=" << Config::ASPIRATION_DELTA
                   << " ASPIRATION_MIN_DEPTH=" << Config::ASPIRATION_MIN_DEPTH
@@ -740,6 +888,7 @@ void set_current_state(std::vector<BoardState> &state_history, std::unordered_ma
 
 inline void make_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, Move move, uint64_t zobrist, bool capture_move)
 {
+    ++g_see_gen;   // new position -> invalidate the per-position SEE cache (O(1))
 
     BoardState current = state_history.back();
 
@@ -824,6 +973,8 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
 
 inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key)
 {
+    ++g_see_gen;   // restored position -> invalidate the per-position SEE cache (O(1))
+
     state_history.pop_back();
 
     if (--position_count[zobrist_key] == 0)
@@ -891,6 +1042,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
     std::fill(&g_searchStack[0], &g_searchStack[0] + MAX_PLY, Move{});
     std::fill(&g_evalStack[0], &g_evalStack[0] + MAX_PLY, NO_STATIC_EVAL);
+    std::fill(&g_captureChain[0], &g_captureChain[0] + MAX_PLY, 0);
     /* std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0); */
 
@@ -1102,7 +1254,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cerr << "[search] first_move_cutoff=" << (100.0 * g_fh_first / g_fh_total) << "% ("
                   << g_fh_first << "/" << g_fh_total << ")  ebf="
                   << ((depth_limit > 0 && num_iterations > 0) ? std::pow((double)num_iterations, 1.0 / depth_limit) : 0.0)
-                  << " (nodes=" << num_iterations << " d=" << depth_limit << ")" << std::endl;
+                  << " (nodes=" << num_iterations << " qnodes=" << qsearchVisits << " d=" << depth_limit << ")"
+                  << " see=" << see_calls
+                  << " seehit=" << ((g_see_hits + g_see_miss) > 0 ? (100.0 * g_see_hits / (g_see_hits + g_see_miss)) : 0.0) << "%"
+                  << " qfmc=" << (g_q_fh_total > 0 ? (100.0 * g_q_fh_first / g_q_fh_total) : 0.0)
+                  << "% (" << g_q_fh_first << "/" << g_q_fh_total << ")"
+                  << " qcut=" << (g_q_fh_total > 0 ? ((double)g_q_cut_idx_sum / g_q_fh_total) : 0.0) << std::endl;
     if (g_fh_total > 0)
         std::cerr << "[cutoff_histogram] m0=" << g_cutoff_histogram[0] << " m1=" << g_cutoff_histogram[1]
                   << " m2=" << g_cutoff_histogram[2] << " m3-7=" << g_cutoff_histogram[3]
@@ -1156,6 +1313,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     std::cout << "TT HITS: " << tt_hits << std::endl;
 
     std::cout << "Q SEARCH VISITS: " << qsearchVisits << std::endl;
+
+    if (Config::LIGHT_GAP_PROBE)
+        std::cout << "LIGHT_GAP n=" << g_lge_n
+                  << " h=" << g_lge_hist[0] << "," << g_lge_hist[1] << "," << g_lge_hist[2] << ","
+                  << g_lge_hist[3] << "," << g_lge_hist[4] << "," << g_lge_hist[5] << "," << g_lge_hist[6]
+                  << " cap=" << g_lge_abs_capture << " pas=" << g_lge_abs_passed
+                  << " lat=" << g_lge_abs_latent << " adv=" << g_lge_abs_adv << std::endl;
 
     if (Config::LMR_PROFILE)
         lmr_profile_dump();
@@ -1470,7 +1634,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     return best_score;
 }
 
-inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check, Move move, Move previousMove,
+inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check, Move move, Move previousMove, [[maybe_unused]] bool last_move_was_capture,
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
@@ -1554,7 +1718,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
             {
                 // LMR flag can still be computed here as you do
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
+                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX) && !(Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move)) && !(Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH);
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
                 // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
@@ -1585,7 +1749,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
                 // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
-                if (Config::ENABLE_LMP && do_lmr)
+                if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
                     if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
@@ -1619,10 +1783,14 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     {
                         bool improving = true;
                         if (cur_depth >= 2 && g_evalStack[cur_depth] != NO_STATIC_EVAL && g_evalStack[cur_depth - 2] != NO_STATIC_EVAL)
-                            improving = g_evalStack[cur_depth] < g_evalStack[cur_depth - 2]; // minimizer: a lower eval is improving for the side to move
+                            improving = g_evalStack[cur_depth] < g_evalStack[cur_depth - 2] + Config::IMPROVING_DELTA_MARGIN; // minimizer: a lower eval is improving for the side to move
                         if (!improving)
-                            reduced_depth = std::clamp(reduced_depth - 1, 2, depth_limit);
+                            reduced_depth = std::clamp(reduced_depth - Config::IMPROVING_REDUCTION, 2, depth_limit);
                     }
+                    // Capture-chain reduce-LESS: resolving a capture sequence -> search the quiet move
+                    // closer to full depth so a forcing line is not buried by the reduction.
+                    if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
+                        reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -1750,7 +1918,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
     return score;
 }
 
-inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check, Move move, Move previousMove,
+inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check, Move move, Move previousMove, [[maybe_unused]] bool last_move_was_capture,
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
@@ -1837,7 +2005,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
             {
                 // LMR flag can still be computed here as you do
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1)) && !(Config::PROTECT_KILLERS && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move));
+                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX) && !(Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move)) && !(Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH);
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
                 // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
@@ -1868,7 +2036,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
                 // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
-                if (Config::ENABLE_LMP && do_lmr)
+                if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
                     if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
@@ -1901,11 +2069,14 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     {
                         bool improving = true;
                         if (cur_depth >= 2 && g_evalStack[cur_depth] != NO_STATIC_EVAL && g_evalStack[cur_depth - 2] != NO_STATIC_EVAL)
-                            improving = g_evalStack[cur_depth] > g_evalStack[cur_depth - 2]; // maximizer: a higher eval is improving for the side to move
+                            improving = g_evalStack[cur_depth] > g_evalStack[cur_depth - 2] - Config::IMPROVING_DELTA_MARGIN; // maximizer: a higher eval is improving for the side to move
                         if (!improving)
-                            reduced_depth = std::clamp(reduced_depth - 1, 2, depth_limit);
+                            reduced_depth = std::clamp(reduced_depth - Config::IMPROVING_REDUCTION, 2, depth_limit);
                     }
-
+                    // Capture-chain reduce-LESS: resolving a capture sequence -> search the quiet move
+                    // closer to full depth so a forcing line is not buried by the reduction.
+                    if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
+                        reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -2068,6 +2239,10 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     }
     // pv_length[cur_depth] = 0;
     BoardState current_state = state_history.back();
+
+    // Leaky capture-chain density (for the capture-chain LMR guard): rise on a capture into this node,
+    // decay on a quiet move so a forcing sequence keeps its score across the odd quiet interruption.
+    g_captureChain[cur_depth] = last_move_was_capture ? g_captureChain[cur_depth - 1] + 1 : std::max(0, g_captureChain[cur_depth - 1] - 1);
 
     /* if (depth_limit >= 24) {
         std::cout << "EE: " << std::endl;
@@ -2248,7 +2423,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 move.promotion);
 
             make_move(state_history, position_count, move, zobrist, capture_move);
-            score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
+            score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
             if (Config::ENABLE_HISTORY_MALUS)
                 (capture_move ? searched_captures : searched_quiets).push_back(move);
@@ -2298,7 +2473,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 {
                     storeKillerMove(cur_depth, move);
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
-                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                     Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
                     bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
                     if (Config::ENABLE_HISTORY_SATURATION)
@@ -2335,7 +2510,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 }
                 else if (Config::ENABLE_CAPTURE_HIST)
                 {
-                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                     if (Config::ENABLE_HISTORY_SATURATION)
                         hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
                     else
@@ -2397,6 +2572,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             updateZobristHashForNullMove(zobrist);
 
             int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+            reduced_depth -= Config::NULLMOVE_EXTRA;
 
             if (depth_limit >= 10)
                 reduced_depth -= 1;
@@ -2509,7 +2685,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 move.promotion);
 
             make_move(state_history, position_count, move, zobrist, capture_move);
-            score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
+            score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
             if (Config::ENABLE_HISTORY_MALUS)
                 (capture_move ? searched_captures : searched_quiets).push_back(move);
@@ -2608,7 +2784,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 {
                     storeKillerMove(cur_depth, move);
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
-                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                     Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
                     bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
                     if (Config::ENABLE_HISTORY_SATURATION)
@@ -2645,7 +2821,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 }
                 else if (Config::ENABLE_CAPTURE_HIST)
                 {
-                    int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                    int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                     if (Config::ENABLE_HISTORY_SATURATION)
                         hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
                     else
@@ -2711,6 +2887,10 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 {
 
     BoardState current_state = state_history.back();
+
+    // Leaky capture-chain density (for the capture-chain LMR guard): rise on a capture into this node,
+    // decay on a quiet move so a forcing sequence keeps its score across the odd quiet interruption.
+    g_captureChain[cur_depth] = last_move_was_capture ? g_captureChain[cur_depth - 1] + 1 : std::max(0, g_captureChain[cur_depth - 1] - 1);
 
     if (time_up.load(std::memory_order_relaxed))
     {
@@ -2828,6 +3008,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         updateZobristHashForNullMove(zobrist);
 
         int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+        reduced_depth -= Config::NULLMOVE_EXTRA;
 
         if (depth_limit >= 10)
             reduced_depth -= 1;
@@ -2943,7 +3124,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             move.promotion);
 
         make_move(state_history, position_count, move, zobrist, capture_move);
-        score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
+        score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                         position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
         if (Config::ENABLE_HISTORY_MALUS)
             (capture_move ? searched_captures : searched_quiets).push_back(move);
@@ -3064,7 +3245,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             {
                 storeKillerMove(cur_depth, move);
                 counterMoves[previousMove.from_square][previousMove.to_square] = move;
-                int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                 Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
                 bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
                 if (Config::ENABLE_HISTORY_SATURATION)
@@ -3101,7 +3282,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             }
             else if (Config::ENABLE_CAPTURE_HIST)
             {
-                int b = (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                 if (Config::ENABLE_HISTORY_SATURATION)
                     hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
                 else
@@ -3340,6 +3521,9 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 {
 
     BoardState current_state = state_history.back();
+
+    // The preliminary pass has no incoming capture context; start its capture-chain density fresh.
+    g_captureChain[cur_depth] = 0;
 
     if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || current_state.halfmove_clock >= 100)
     {
@@ -3884,7 +4068,12 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
             if (best > alpha)
                 alpha = best;
             if (best >= beta)
+            {
+                ++g_q_fh_total;
+                if (i == 0) ++g_q_fh_first;
+                g_q_cut_idx_sum += (long)i;
                 return best; // beta cutoff
+            }
         }
         else
         {
@@ -3893,7 +4082,12 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
             if (best < beta)
                 beta = best;
             if (best <= alpha)
+            {
+                ++g_q_fh_total;
+                if (i == 0) ++g_q_fh_first;
+                g_q_cut_idx_sum += (long)i;
                 return best; // alpha cutoff
+            }
         }
     }
 
@@ -4373,7 +4567,7 @@ inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relav
         return base;
     }
     double move_factor = std::log2(adjusted_move);
-    int r = static_cast<int>(base - (move_factor / scale));
+    int r = static_cast<int>(base - (move_factor / scale)) - Config::LMR_EXTRA;
 
     if (is_in_relavent_pin)
     {
@@ -4622,6 +4816,10 @@ inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardS
     std::vector<Move> noisy_moves;
     noisy_moves.reserve(16);
 
+    // Parallel sort keys for the optional SEE re-sort (ENABLE_QSEE_RESORT). Only populated when enabled.
+    std::vector<int> noisy_scores;
+    if (Config::ENABLE_QSEE_RESORT) noisy_scores.reserve(16);
+
     BoardState current_state = state_history.back();
 
     std::vector<Move> moves_list;
@@ -4644,22 +4842,23 @@ inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardS
         if (moves_list[i].promotion != 1)
         {
             noisy_moves.push_back(moves_list[i]);
+            if (Config::ENABLE_QSEE_RESORT) noisy_scores.push_back(900000);
         }
         else if (capture_move)
         {
-            /* int pressure = get_pressure_at_square(current_state.turn, endPos[i]);
-            int support = get_support_at_square(current_state.turn, endPos[i]);
-
-            if (support == 0 || pressure > (support - SUPPORT_MARGIN)) {
-                noisy_moves.push_back(Move(startPos[i],endPos[i],promotions[i]));
-            } */
             if (en_passant_move)
             {
                 noisy_moves.push_back(moves_list[i]);
+                if (Config::ENABLE_QSEE_RESORT) noisy_scores.push_back(500000);
             }
-            else if (see(moves_list[i].to_square, current_state.turn, current_state) >= 0)
+            else
             {
-                noisy_moves.push_back(moves_list[i]);
+                int sv = see(moves_list[i].to_square, current_state.turn, current_state);
+                if (sv >= 0)
+                {
+                    noisy_moves.push_back(moves_list[i]);
+                    if (Config::ENABLE_QSEE_RESORT) noisy_scores.push_back(500000 + sv);
+                }
             }
         }
         else if (!(Config::ENABLE_QCHECK_DEPTH0 && qDepth > 0))
@@ -4734,9 +4933,24 @@ inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardS
             if (move_is_check)
             {
                 noisy_moves.push_back(moves_list[i]);
+                if (Config::ENABLE_QSEE_RESORT) noisy_scores.push_back(0);
             }
         }
     }
+
+    // Optional SEE re-sort: promotions, then captures by SEE-descending, then quiet checks, for earlier
+    // qsearch stand-pat cutoffs. Stable to preserve the main sort's tie-breaks within equal-score groups.
+    if (Config::ENABLE_QSEE_RESORT && noisy_moves.size() > 1)
+    {
+        std::vector<size_t> idx(noisy_moves.size());
+        for (size_t k = 0; k < idx.size(); ++k) idx[k] = k;
+        std::stable_sort(idx.begin(), idx.end(), [&](size_t a, size_t b) { return noisy_scores[a] > noisy_scores[b]; });
+        std::vector<Move> sorted;
+        sorted.reserve(noisy_moves.size());
+        for (size_t k : idx) sorted.push_back(noisy_moves[k]);
+        noisy_moves.swap(sorted);
+    }
+
     noisy_moves.shrink_to_fit();
     return noisy_moves;
 }

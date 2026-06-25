@@ -170,6 +170,16 @@ extern int g_evalStack[MAX_PLY];
 // inside a forcing sequence to protect a quiet move from LMR.
 extern int g_captureChain[MAX_PLY];
 
+// Per-ply move-list buffers (see definitions in cpp_bitboard.cpp). Indexed by the node's ply so a
+// node can hold a reference to its list across its child-search recursion without a per-node alloc.
+extern std::vector<Move> g_moveBuf[MOVE_POOL_PLIES];
+extern std::vector<Move> g_noisyBuf[MOVE_POOL_PLIES];
+extern std::vector<Move> g_moveBufFallback;
+extern std::vector<Move> g_noisyBufFallback;
+
+// Light-eval flag (see cpp_bitboard.cpp): skip the heavy dynamic eval terms for a fast stand-pat/futility eval.
+extern bool g_eval_light;
+
 /*
 	Set of functions used to cache data
 */
@@ -565,6 +575,25 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 	return dummy;  // Cache miss (or default value)
 
     /* auto it = moveGenCache.find(updatedKey);
+*/}
+
+// Snapshot the cached move list for `key` into the caller-owned buffer `out` (reusing out's existing
+// capacity), or clear `out` on a miss. The copy is synchronous -- no reference into the cache slot
+// survives the call, so later cache churn cannot touch `out`. Lets a caller reuse a per-ply buffer
+// instead of heap-allocating a fresh vector per node, while keeping the defensive snapshot semantics.
+inline void fillMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square, std::vector<Move>& out) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    size_t idx = updatedKey & CACHE_MASK;
+    MoveEntry &entry = moveGenCache[idx];
+    if (entry.valid && entry.key == updatedKey) {
+        out = entry.moves;   // snapshot copy (reuses out's capacity)
+    } else {
+        out.clear();
+    }
+}
+
+/* dead tail of the old by-value accessMoveGenCache:
+    auto it = moveGenCache.find(updatedKey);
     if (it != moveGenCache.end()) {
 		// Return the value if the key exists
         return it->second;  
@@ -573,7 +602,6 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 	// Return the default value if the key doesn't exist
     std::vector<Move> dummy;
 	return dummy;    */
-}
 
 
 /* inline std::vector<Move>& accessMutableMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
@@ -737,6 +765,7 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
 } */
 
 inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
+    PROF_BLOCK(PROF_TT_PROBE);
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 
     if (Config::TT_WAYS <= 1) {

@@ -1,14 +1,17 @@
 # Search-efficiency / EBF-lowering campaign — dev log
 
-## ▶️ NEXT-CHAT FIRST ACTION: read the running SPRT (`sprt_see300`)
-SPRT launched 2026-06-21 ~02:05: base vs `SEE_EXTEND_MARGIN=300`, lightning, 240 min, conc 4. It is the truth
-gate on the campaign's one candidate (controlled extensions). To read it:
-1. `ps` sub → is `tournament.py` still running? (WSL process; usually survives a chat switch but not guaranteed.)
-2. If DONE: `cat selfplay/games/sprt_see300/tournament.json` → W/L/D + score% + **Elo±** (P1=base). base>50% ⇒
-   SEE=300 is WORSE; base<50% ⇒ SEE=300 (cand) is BETTER.
-3. If it DIED on the chat switch: re-launch — `tournament 240 'SEE_EXTEND_MARGIN=300' 4 sprt_see300b`.
-**Verdict logic:** cand +Elo ⇒ SHIP SEE_EXTEND_MARGIN=300 (campaign win: −27.5% nodes / +0.8 ply at equal time).
-Neutral/neg ⇒ the −4.7% STS positional cost outweighed the depth gain → raise the margin or drop it.
+## ▶️ NEXT-CHAT FIRST ACTION (2026-06-25): SEARCH LANE CLOSED → EVAL-QUALITY (material-edge calibration)
+**combo1 SHIPPED default-on** (`NULLMOVE_EXTRA=2 HISTORY_LMR_SCALE=2 LMP_MAX_DEPTH=5 LMP_BASE=2`; new bench
+baseline **WAC 252 / 67,931,145 nodes / STS 1503 (50.1%)**, verified). Lossless-speed lane done (movegen
+−34% committed; rest below NPS noise — eval-bound). Search lane at peak: nothing stacks on combo1
+(combo1+improving STS 1503→1488; combo2 benoni 0/8). **NEXT = eval-QUALITY: material-edge over-valuation**
+(~+390cp up-a-rook, +231 mid→+462 end, [[material-edge-overvaluation]]). Plan
+`~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`. Levers already built (default-off):
+`PV_BOOST_PHASE_K` (endgame damp), `MOD_MAT_PAWNS/OPPB`, `ENABLE_MATE_DRIVE_SCALE`, `ENABLE_ENDGAME_SCALE`
++ `is_practically_drawn` correctness extension. **HARD GUARD (user): do NOT regress passers
+(`diagnostics/_passer_match.py passers_smoke.csv`) or trades (WAC + STS themes Recapturing/Simplification).**
+Loop: knob → eval_breakdown material-bucket over-read ↓ + guards held → SPRT (material fixes self-play-
+invisible → ship on bias-fix + no-regression).
 
 
 **Started:** 2026-06-21. **Plan:** `~/.claude/plans/handoff-for-the-vectorized-meadow.md` (search version).
@@ -179,6 +182,9 @@ Reliable reads = fixed-depth WAC nodes/STS (byte-deterministic) + SPRT; timed-ST
 - **❌ EVAL attackingLayer-hoist — TRIED & REVERTED (proven no-op).** Hoisted the repeated `attackingLayer[0/1][x][y]` reads into locals across all per-piece evaluators (14 sites: pawns/knights/bishops/rooks/queens × W/B × mid/end). Byte-id held, but the speedup was UNVERIFIABLE (per-call costs 85–430 cyc, machine noise ±15% run-to-run swamps it). **Settled definitively by ASSEMBLY DIFF: compiled cpp_bitboard.cpp to `.s` hoisted vs one-site-reverted → 0 differing lines.** The compiler already CSEs these loads because every read PRECEDES the `update_global_central_scores` call and nothing reads the array after it (no post-call reload needed). ⇒ a source-level hoist here is a TRUE no-op (identical machine code), not even a micro-win. **Reverted all 14 (byte-id 258/97,507,126).**
 - **LESSON: lossless EVAL micro-opts are doubly blocked — (1) per-call costs sit below the ±15% single-run rdtsc noise floor (only big changes like MOVEGEN's −34% read cleanly), and (2) the compiler at -Ofast already does intra-function CSE/load-hoisting, so "redundant read" patterns where all reads precede the opaque call are already optimal. A measurable lossless eval win needs PASS-LEVEL redundancy removal (eliminate a whole rescan / recompute), not load-hoisting. Verify any claimed codegen change with an `.s` diff, not the profiler.**
 - **EVAL POST-PASS study (CAPTURE_GAINS + LATENT_THREAT) — NO big lossless redundancy.** Deep map: the two functions scan DISJOINT square sets (capture_gains = all non-king pieces; latent_threat = king zones only) → can't be merged; king zones already constexpr-cached; latent_threat's `attack_bitmasks` read is NOT a redundant rescan (it needs the COMPLETE post-loop mask — single read per zone square, irreducible); the piece-type if-chains duplicated 4× are a refactor, not a speed win (predictable branches). **Only genuine find: `approximate_capture_gains` computes `attack_bitmasks[r] & enemy_occ` at the popcount AND again at `get_least_valuable_attacker`, with the opaque `see()` call BETWEEN them blocking CSE → cached in `attacker_mask` (byte-id 258/97,507,126, UNCOMMITTED). Small but a REAL win (CSE genuinely blocked, unlike attackingLayer).**
+- **make_move copy-reduction (byte-id):** `const BoardState& current = state_history.back()` (was a full ~104B struct copy) + `emplace_back(...)` in place of a named `newState` + lvalue `push_back`. Measured in the noise (MAKEUNMAKE is hash-map-bound, not copy-bound).
+- **🟰 Per-ply MOVE-BUFFER POOL (user's lead: cache retrieval copies) — SHIPPED, byte-id, NPS-NEUTRAL.** `accessMoveGenCache` returned `vector<Move>` BY VALUE = a heap alloc + copy on every cache hit (~95% of nodes). Returning a `const&` into the cache is UNSAFE (a colliding `addToMoveGenCache` reallocs the slot mid-iterate → dangling). Safe fix = the strong-engine pattern: per-ply buffers `g_moveBuf[ply]`/`g_noisyBuf[ply]` (cpp_bitboard.cpp, sized `MOVE_POOL_PLIES=128` ≥ main+qsearch ply with a bounds-guard fallback); `buildMoveListFromReordered`/`buildNoisyMoveList` snapshot the cache into the per-ply buffer (`fillMoveGenCache`, synchronous copy — no cache ref escapes) and return `vector<Move>&` to it; deep callers (minimizer/maximizer/qsearch) bind the ref. SAFE because ply is monotonic + single-threaded → a node owns `g_moveBuf[ply]`, children use deeper buffers (invariant documented at the defs). **Clean ref-vs-value isolation A/B: ~419k→~424k mean = neutral-to-≤1%, within ±15% noise.** Verdict: move-list alloc is NOT a bottleneck here (eval=68%); kept anyway (correct, safe, real-alloc-removal, right architecture, may compound later). Built incrementally, byte-id 258/97,507,126 at steps a/b/c.
+- **MEASUREMENT LESSON (recurring): every lossless micro this phase — eval hoist, make_move, capture micro, the buffer pool — lands below the ±15% single-run NPS noise floor. Only MOVEGEN's −34% read cleanly. This engine is EVAL-BOUND; lossless speed past movegen is real but unmeasurable. Band-breaker = eval-QUALITY.**
 - **PHASE H EVAL VERDICT: eval is largely EXHAUSTED for lossless speed** — the compiler at -Ofast already does the intra-function CSE/hoisting, and there's no big shareable rescan. The session's real banked win is MOVEGEN (−34% cyc/call, ~+3% NPS, verified). NEXT structural candidate = MAKEUNMAKE (~7%, ~893k calls/search — per-node `BoardState` copy is real work the compiler can't elide; reduce fields copied / make-unmake incrementally). After that, lossless is done → bank it and pivot to the parked band-breaker = eval-QUALITY (material-edge calibration). Side items: `improving` audit; `is_light` (low priority).
 
 ## 2026-06-25 — Phase G+ CLOSED: eval-speed lane exhausted; SEE-incremental SHIPPED; pivot to eval-QUALITY

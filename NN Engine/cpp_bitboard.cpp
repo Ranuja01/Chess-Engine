@@ -123,6 +123,15 @@ alignas(64) int captureHistory[2][64][64] = {};
 alignas(64) Move g_searchStack[MAX_PLY] = {};
 alignas(64) int g_evalStack[MAX_PLY] = {};
 alignas(64) int g_captureChain[MAX_PLY] = {};
+
+// Per-ply move-list buffers: a node at ply d builds its (re)ordered move list in g_moveBuf[d] and
+// its noisy/qsearch list in g_noisyBuf[d]. Children search at deeper plies (deeper buffers), so a
+// node's buffer is never overwritten while it iterates -- this replaces the per-node heap alloc with
+// reused storage. The *Fallback buffers handle a ply beyond the pool (cannot occur at real depth).
+std::vector<Move> g_moveBuf[MOVE_POOL_PLIES];
+std::vector<Move> g_noisyBuf[MOVE_POOL_PLIES];
+std::vector<Move> g_moveBufFallback;
+std::vector<Move> g_noisyBufFallback;
 // Light-eval flag: when set, placement_and_piece_eval SKIPS the heavy dynamic terms (capture_gains,
 // passed-pawn support, latent_threat, advanced_endgame) for a fast approximate eval at quiescent
 // decision sites (qsearch stand-pat / futility). Default false = full eval = byte-identical.

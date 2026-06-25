@@ -26,9 +26,8 @@ constexpr int NO_STATIC_EVAL = -1000000000; // g_evalStack sentinel: no valid st
 
 constexpr std::array<int, 4> FUTILITY_MARGINS = {200, 450, 650, 950};
 
-constexpr int MAX_QDEPTH = 10;
 constexpr int SUPPORT_MARGIN = 0;
-constexpr int DELTA_MARGIN = 1500;
+// MAX_QDEPTH / DELTA_MARGIN promoted to env-tunable Config knobs below (qsearch EBF levers).
 
 constexpr bool USE_Q_SEARCH = true;
 
@@ -225,8 +224,10 @@ namespace Config
     inline bool ENABLE_RAZORING = true; // razoring (alpha_beta root loop)
     inline bool ENABLE_NULLMOVE = true; // null-move pruning
     inline bool NULLMOVE_PROGRESSIVE = false; // depth-scaled null-move reduction (-2 at d>=12, -3 at d>=14); off = flat -1
-    inline int NULLMOVE_EXTRA = 0;      // extra plies off the null-move search depth (more aggressive null pruning); 0 = byte-id
+    inline int NULLMOVE_EXTRA = 2;      // extra plies off the null-move search depth (more aggressive null pruning); 0 = byte-id baseline, 2 = combo1
     inline bool ENABLE_QDELTA = true;   // delta pruning in quiescence
+    inline int DELTA_MARGIN = 1500;     // qsearch delta-pruning margin (lower = prune more captures); EBF lever
+    inline int MAX_QDEPTH = 10;         // qsearch depth cap (lower = shallower qsearch); EBF lever
 
     inline bool LMR_PROFILE = false; // env-gated LMR-miss profiler (diagnostic; off = byte-identical)
 
@@ -250,6 +251,10 @@ namespace Config
     inline bool ENABLE_HISTORY_LMR = true;  // master gate for the history-aware LMR adjustment
     inline int HISTORY_LMR_CAP = 0;         // plies to REMOVE for good quiets (reduce-less; 0 = off, the shipped arm)
     inline int HISTORY_LMR_MORE_CAP = 1;    // plies to ADD for never-cut (tier-0) quiets (reduce-more; the shipped lever)
+    // Depth-scaled reduce-more: for a quiet already flagged reduce-more, add (remaining_depth / SCALE) extra
+    // reduction plies (capped) -- prune low-history quiets HARDER at deeper nodes. 0 = off = byte-identical.
+    inline int HISTORY_LMR_SCALE = 2;       // divisor on remaining depth (smaller = more aggressive); 0 = off (byte-id baseline), 2 = combo1
+    inline int HISTORY_LMR_SCALE_CAP = 2;   // max extra reduction plies from the depth scaling
 
     // Capture-chain LMR guard: protect a quiet move when the move that led to this node was a capture
     // (we're resolving a capture sequence -- a forcing line where reductions bury tactics, e.g. the
@@ -287,9 +292,16 @@ namespace Config
     // Behavioral (changes the tree). SHIPPED default-on: paired with the gentle lazy-resort below, base-vs-this
     // self-play = +59.2 +-19.2 Elo (1729 games, LIGHTNING; +0.50 ply at equal time). env-off recovers the old tree.
     inline bool ENABLE_LMP = true;
-    inline int LMP_MAX_DEPTH = 3;   // only LMP when remaining depth (depth_limit - cur_depth) <= this
-    inline int LMP_BASE = 3;        // base late-move count
+    inline int LMP_MAX_DEPTH = 5;   // only LMP when remaining depth (depth_limit - cur_depth) <= this; 3 = byte-id baseline, 5 = combo1
+    inline int LMP_BASE = 2;        // base late-move count; 3 = byte-id baseline, 2 = combo1
     inline int LMP_SCALE = 1;       // quadratic depth term in the threshold
+
+    // SEE pruning (main search): at low remaining depth, skip a do_lmr-eligible quiet whose moved piece
+    // can be profitably captured by the immediate recapture (post-move see() from the opponent's side >
+    // SEE_PRUNE_MARGIN). The standard "don't search quiets that hang material" lever. Default off = byte-id.
+    inline bool ENABLE_SEE_PRUNE = false;
+    inline int SEE_PRUNE_MARGIN = 0;    // opponent recapture gain (centipawns; piece=1000) above which to prune
+    inline int SEE_PRUNE_MAX_DEPTH = 3; // only prune when remaining depth (depth_limit - cur_depth) <= this
 
     // Lazy cached-quiet re-sort: a move-gen cache hit replays an order frozen when the node was first
     // searched, so the late quiets LMP prunes may be stale. On a hit, re-rank the quiet tail against the
@@ -588,6 +600,18 @@ namespace Config
     // stale eval-magnitude square_values[]. The original see() is wrong on ~2.16% of capture targets
     // (diagnostics/see_selfcheck.cpp). Behavioral (ordering + qsearch SEE filter + capture_gains) -> gated.
     inline bool ENABLE_SEE_FIX = true;   // default-on: corrected see() (harness-proven, fuzz see==ref 0.00%), self-play +18.2 Elo / no regression, −0.02 ply (the per-iteration attacker recompute). Knob retained.
+    // Incremental-x-ray SEE: same result as ENABLE_SEE_FIX but maintains the attacker set across exchange
+    // iterations (clear the used attacker, OR in only x-ray sliders re-revealed through it) instead of a
+    // full attackersMask() recompute each step. BYTE-IDENTICAL (same SEE value -> same WAC node count);
+    // ~1.3% wall-time faster (measured); byte-id proven (on -> exact 258/97,507,126). Default-ON: free
+    // speed, identical moves, zero strength risk. env ENABLE_SEE_INCREMENTAL=0 recovers the SEE_FIX path.
+    inline bool ENABLE_SEE_INCREMENTAL = true;
+    // Per-site eval mode for the quiescent decision sites. 0=full (byte-identical), 1=cheap (material+PST
+    // surrogate `cheap_eval`), 2=light (full eval MINUS the heavy dynamic terms capture_gains/passed-
+    // support/latent_threat/adv-endgame, uncached via g_eval_light). Light bets those terms ~=0 at
+    // quiescent leaves (where qsearch stand-pat fires) -> big NPS for ~no accuracy at the leaf.
+    inline int FUTILITY_EVAL_MODE = 0;
+    inline int QSTANDPAT_EVAL_MODE = 0;
 
     // qsearch quiet-check cost (buildNoisyMoveList). Default off = byte-identical (full board-copy +
     // is_check per quiet move at every q-ply). QCHECK_DEPTH0: include quiet checks only at the first
@@ -903,7 +927,7 @@ inline void updatePV(Move move, int cur_depth);
 
 inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prevMove, int &num_iterations, bool is_maximizing);
 inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t zobrist, int &num_iterations);
-inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove);
-inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove);
+inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove);
+inline std::vector<Move>& buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove);
 
 #endif // SEARCH_ENGINE_H

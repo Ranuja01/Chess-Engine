@@ -324,6 +324,28 @@ inline int static_eval_for_improving(std::vector<BoardState> &state_history, uin
     return total;
 }
 
+// Eval-mode dispatch for the quiescent decision sites (futility, qsearch stand-pat/horizon).
+// mode 0 = full get_board_evaluation (byte-identical); 1 = cheap (material+PST surrogate); 2 = light
+// (full eval minus the heavy dynamic terms, uncached via g_eval_light). Default mode 0 everywhere.
+inline int eval_by_mode(int mode, std::vector<BoardState> &state_history, uint64_t zobrist, int &num_iterations)
+{
+    if (mode == 1)
+    {
+        BoardState cs = state_history.back();
+        int t = cheap_eval(cs.pawns, cs.knights, cs.bishops, cs.rooks, cs.queens, cs.kings,
+                           cs.occupied_colour[true], cs.occupied_colour[false]);
+        return Config::side_to_play ? -t : t;
+    }
+    if (mode == 2)
+    {
+        g_eval_light = true;
+        int t = get_board_evaluation(state_history, zobrist, num_iterations);
+        g_eval_light = false;
+        return t;
+    }
+    return get_board_evaluation(state_history, zobrist, num_iterations);
+}
+
 inline int history_lmr_delta(const Move &move, const Move &previousMove, const BoardState &cs, int ply)
 {
     int tier = lmr_hist_tier(historyHeuristics[cs.turn][move.from_square][move.to_square]);
@@ -479,6 +501,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::NULLMOVE_PROGRESSIVE = env_flag("NULLMOVE_PROGRESSIVE", Config::NULLMOVE_PROGRESSIVE);
         Config::NULLMOVE_EXTRA = env_int("NULLMOVE_EXTRA", Config::NULLMOVE_EXTRA);
         Config::ENABLE_QDELTA = env_flag("ENABLE_QDELTA", true);
+        Config::DELTA_MARGIN = env_int("DELTA_MARGIN", Config::DELTA_MARGIN);
+        Config::MAX_QDEPTH = env_int("MAX_QDEPTH", Config::MAX_QDEPTH);
         Config::LMR_PROFILE = env_flag("LMR_PROFILE", false);
         Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", false);
         Config::PROTECT_PV = env_flag("PROTECT_PV", false);
@@ -488,10 +512,15 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_HISTORY_LMR = env_flag("ENABLE_HISTORY_LMR", Config::ENABLE_HISTORY_LMR);
         Config::HISTORY_LMR_CAP = env_int("HISTORY_LMR_CAP", Config::HISTORY_LMR_CAP);
         Config::HISTORY_LMR_MORE_CAP = env_int("HISTORY_LMR_MORE_CAP", Config::HISTORY_LMR_MORE_CAP);
+        Config::HISTORY_LMR_SCALE = env_int("HISTORY_LMR_SCALE", Config::HISTORY_LMR_SCALE);
+        Config::HISTORY_LMR_SCALE_CAP = env_int("HISTORY_LMR_SCALE_CAP", Config::HISTORY_LMR_SCALE_CAP);
         Config::ENABLE_LMR_CAPCHAIN = env_flag("ENABLE_LMR_CAPCHAIN", Config::ENABLE_LMR_CAPCHAIN);
         Config::CAPCHAIN_REDUCE_LESS = env_int("CAPCHAIN_REDUCE_LESS", Config::CAPCHAIN_REDUCE_LESS);
         Config::CAPCHAIN_RUN_THRESH = env_int("CAPCHAIN_RUN_THRESH", Config::CAPCHAIN_RUN_THRESH);
         Config::ENABLE_LMP = env_flag("ENABLE_LMP", Config::ENABLE_LMP);
+        Config::ENABLE_SEE_PRUNE = env_flag("ENABLE_SEE_PRUNE", Config::ENABLE_SEE_PRUNE);
+        Config::SEE_PRUNE_MARGIN = env_int("SEE_PRUNE_MARGIN", Config::SEE_PRUNE_MARGIN);
+        Config::SEE_PRUNE_MAX_DEPTH = env_int("SEE_PRUNE_MAX_DEPTH", Config::SEE_PRUNE_MAX_DEPTH);
         Config::LMP_MAX_DEPTH = env_int("LMP_MAX_DEPTH", Config::LMP_MAX_DEPTH);
         Config::LMP_BASE = env_int("LMP_BASE", Config::LMP_BASE);
         Config::LMP_SCALE = env_int("LMP_SCALE", Config::LMP_SCALE);
@@ -592,6 +621,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_ATTACK_LAYER_CACHE = env_flag("ENABLE_ATTACK_LAYER_CACHE", Config::ENABLE_ATTACK_LAYER_CACHE);
         Config::ENABLE_ATTACK_LAYER_CACHE_MIDGAME = env_flag("ENABLE_ATTACK_LAYER_CACHE_MIDGAME", Config::ENABLE_ATTACK_LAYER_CACHE_MIDGAME);
         Config::ENABLE_SEE_FIX = env_flag("ENABLE_SEE_FIX", Config::ENABLE_SEE_FIX);
+        Config::ENABLE_SEE_INCREMENTAL = env_flag("ENABLE_SEE_INCREMENTAL", Config::ENABLE_SEE_INCREMENTAL);
+        Config::FUTILITY_EVAL_MODE = env_int("FUTILITY_EVAL_MODE", Config::FUTILITY_EVAL_MODE);
+        Config::QSTANDPAT_EVAL_MODE = env_int("QSTANDPAT_EVAL_MODE", Config::QSTANDPAT_EVAL_MODE);
         Config::ENABLE_QCHECK_DEPTH0 = env_flag("ENABLE_QCHECK_DEPTH0", Config::ENABLE_QCHECK_DEPTH0);
         Config::ENABLE_QCHECK_MASK = env_flag("ENABLE_QCHECK_MASK", Config::ENABLE_QCHECK_MASK);
         Config::ENABLE_CAPGAIN_PAWN_FIX = env_flag("ENABLE_CAPGAIN_PAWN_FIX", Config::ENABLE_CAPGAIN_PAWN_FIX);
@@ -698,6 +730,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " NULLMOVE_PROGRESSIVE=" << Config::NULLMOVE_PROGRESSIVE
                   << " NULLMOVE_EXTRA=" << Config::NULLMOVE_EXTRA
                   << " QDELTA=" << Config::ENABLE_QDELTA
+                  << " DELTA_MARGIN=" << Config::DELTA_MARGIN
+                  << " MAX_QDEPTH=" << Config::MAX_QDEPTH
                   << " LMR_PROFILE=" << Config::LMR_PROFILE
                   << " PROTECT_KILLERS=" << Config::PROTECT_KILLERS
                   << " PROTECT_PV=" << Config::PROTECT_PV
@@ -705,10 +739,15 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_HISTORY_LMR=" << Config::ENABLE_HISTORY_LMR
                   << " HISTORY_LMR_CAP=" << Config::HISTORY_LMR_CAP
                   << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
+                  << " HISTORY_LMR_SCALE=" << Config::HISTORY_LMR_SCALE
+                  << " HISTORY_LMR_SCALE_CAP=" << Config::HISTORY_LMR_SCALE_CAP
                   << " ENABLE_LMR_CAPCHAIN=" << Config::ENABLE_LMR_CAPCHAIN
                   << " CAPCHAIN_REDUCE_LESS=" << Config::CAPCHAIN_REDUCE_LESS
                   << " CAPCHAIN_RUN_THRESH=" << Config::CAPCHAIN_RUN_THRESH
                   << " ENABLE_LMP=" << Config::ENABLE_LMP
+                  << " ENABLE_SEE_PRUNE=" << Config::ENABLE_SEE_PRUNE
+                  << " SEE_PRUNE_MARGIN=" << Config::SEE_PRUNE_MARGIN
+                  << " SEE_PRUNE_MAX_DEPTH=" << Config::SEE_PRUNE_MAX_DEPTH
                   << " LMP_MAX_DEPTH=" << Config::LMP_MAX_DEPTH
                   << " LMP_BASE=" << Config::LMP_BASE
                   << " LMP_SCALE=" << Config::LMP_SCALE
@@ -807,6 +846,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_ATTACK_LAYER_CACHE=" << Config::ENABLE_ATTACK_LAYER_CACHE
                   << " ENABLE_ATTACK_LAYER_CACHE_MIDGAME=" << Config::ENABLE_ATTACK_LAYER_CACHE_MIDGAME
                   << " ENABLE_SEE_FIX=" << Config::ENABLE_SEE_FIX
+                  << " ENABLE_SEE_INCREMENTAL=" << Config::ENABLE_SEE_INCREMENTAL
+                  << " FUTILITY_EVAL_MODE=" << Config::FUTILITY_EVAL_MODE
+                  << " QSTANDPAT_EVAL_MODE=" << Config::QSTANDPAT_EVAL_MODE
                   << " ENABLE_CAPGAIN_PAWN_FIX=" << Config::ENABLE_CAPGAIN_PAWN_FIX
                   << " ENABLE_ROOK_DBLCOUNT_FIX=" << Config::ENABLE_ROOK_DBLCOUNT_FIX
                   << " ENABLE_KNIGHT_MOB_FIX=" << Config::ENABLE_KNIGHT_MOB_FIX
@@ -888,9 +930,10 @@ void set_current_state(std::vector<BoardState> &state_history, std::unordered_ma
 
 inline void make_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, Move move, uint64_t zobrist, bool capture_move)
 {
+    PROF_BLOCK(PROF_MAKEUNMAKE);
     ++g_see_gen;   // new position -> invalidate the per-position SEE cache (O(1))
 
-    BoardState current = state_history.back();
+    const BoardState& current = state_history.back();
 
     uint64_t pawns = current.pawns;
     uint64_t knights = current.knights;
@@ -950,7 +993,10 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
     // ep_square = -1;
     turn = !turn;
 
-    BoardState newState(
+    position_count[zobrist]++;
+    // Construct the new state directly in the history vector; a named temporary + push_back would
+    // copy the ~100-byte BoardState an extra time (lvalue push_back cannot elide the copy).
+    state_history.emplace_back(
         pawns,
         knights,
         bishops,
@@ -966,13 +1012,11 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
         ep_square,
         halfmove_clock,
         fullmove_number);
-
-    position_count[zobrist]++;
-    state_history.push_back(newState);
 }
 
 inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key)
 {
+    PROF_BLOCK(PROF_MAKEUNMAKE);
     ++g_see_gen;   // restored position -> invalidate the per-position SEE cache (O(1))
 
     state_history.pop_back();
@@ -1036,6 +1080,9 @@ inline void update_cache(int num_plies)
 
 MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count)
 {
+#ifdef EVAL_PROFILE
+    eval_profile_reset();   // accumulate PROF scopes across this one search, dump at the end
+#endif
 
     update_cache(static_cast<int>(state_history.size()));
     std::fill(&killerMoves[0][0], &killerMoves[0][0] + 64 * 2, Move{});
@@ -1324,6 +1371,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     if (Config::LMR_PROFILE)
         lmr_profile_dump();
 
+#ifdef EVAL_PROFILE
+    eval_profile_dump("search");   // whole-search cycle breakdown (eval terms + MOVEGEN/MAKEUNMAKE/TT_PROBE)
+#endif
     return chosenMove;
 }
 
@@ -1756,13 +1806,24 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         return 9999999;   // non-improving sentinel for the minimizer (never the new min, no false cutoff)
                 }
 
+                // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
+                // captured by the immediate recapture (post-move see() from the opponent's side). do_lmr
+                // already excludes captures/checks/promotions/killers/in-check. Default off = byte-identical.
+                if (Config::ENABLE_SEE_PRUNE && do_lmr)
+                {
+                    int rd_see = depth_limit - cur_depth;
+                    if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
+                        see(move.to_square, updated_state.turn, updated_state) > Config::SEE_PRUNE_MARGIN)
+                        return 9999999;
+                }
+
                 // Null window search with LMR applied inside
                 if (do_lmr)
                 {
                     bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
                     if (cur_depth > 1 && (depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !is_in_relavent_pin)
                     {
-                        int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
+                        int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, false);
 
                         if (Config::ENABLE_FUTILITY && (early_score - FUTILITY_MARGINS[depth_limit - cur_depth - 1] > beta))
@@ -1775,6 +1836,12 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     if (Config::ENABLE_HISTORY_LMR)
                     {
                         int hist_delta = history_lmr_delta(move, previousMove, current_state, cur_depth);
+                        // History-scaled reduce-more: a quiet history_lmr_delta already flagged for extra
+                        // reduction (tier-0, not killer/counter/cont-hist-rescued) is reduced FURTHER at
+                        // deeper nodes (more remaining depth = the cheap/safe place to prune harder),
+                        // scaled by HISTORY_LMR_SCALE (0 = off = byte-identical) and capped.
+                        if (hist_delta < 0 && Config::HISTORY_LMR_SCALE > 0)
+                            hist_delta -= std::min((depth_limit - cur_depth) / Config::HISTORY_LMR_SCALE, Config::HISTORY_LMR_SCALE_CAP);
                         if (hist_delta < 0 && is_in_relavent_pin)
                             hist_delta = 0; // keep the pin-defender protection; only reduce-LESS may touch pins
                         reduced_depth = std::clamp(reduced_depth + hist_delta, 2, depth_limit);
@@ -2043,13 +2110,24 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         return -9999999;   // non-improving sentinel for the maximizer (never the new max, no false cutoff)
                 }
 
+                // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
+                // captured by the immediate recapture (post-move see() from the opponent's side). do_lmr
+                // already excludes captures/checks/promotions/killers/in-check. Default off = byte-identical.
+                if (Config::ENABLE_SEE_PRUNE && do_lmr)
+                {
+                    int rd_see = depth_limit - cur_depth;
+                    if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
+                        see(move.to_square, updated_state.turn, updated_state) > Config::SEE_PRUNE_MARGIN)
+                        return -9999999;
+                }
+
                 // Null window search with LMR applied inside
                 if (do_lmr)
                 {
                     bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
                     if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !is_in_relavent_pin)
                     {
-                        int early_score = get_board_evaluation(state_history, zobrist, num_iterations);
+                        int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, true);
                         if (Config::ENABLE_FUTILITY && (early_score + FUTILITY_MARGINS[depth_limit - cur_depth - 1] < alpha))
                         {
@@ -2061,6 +2139,12 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     if (Config::ENABLE_HISTORY_LMR)
                     {
                         int hist_delta = history_lmr_delta(move, previousMove, current_state, cur_depth);
+                        // History-scaled reduce-more: a quiet history_lmr_delta already flagged for extra
+                        // reduction (tier-0, not killer/counter/cont-hist-rescued) is reduced FURTHER at
+                        // deeper nodes (more remaining depth = the cheap/safe place to prune harder),
+                        // scaled by HISTORY_LMR_SCALE (0 = off = byte-identical) and capped.
+                        if (hist_delta < 0 && Config::HISTORY_LMR_SCALE > 0)
+                            hist_delta -= std::min((depth_limit - cur_depth) / Config::HISTORY_LMR_SCALE, Config::HISTORY_LMR_SCALE_CAP);
                         if (hist_delta < 0 && is_in_relavent_pin)
                             hist_delta = 0; // keep the pin-defender protection; only reduce-LESS may touch pins
                         reduced_depth = std::clamp(reduced_depth + hist_delta, 2, depth_limit);
@@ -2643,7 +2727,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             }
         }
 
-        std::vector<Move> moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
+        std::vector<Move>& moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
         std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
 
         for (size_t i = 0; i < moves_list.size(); ++i)
@@ -3072,7 +3156,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         }
     }
 
-    std::vector<Move> moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
+    std::vector<Move>& moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
     std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
     /* if (create_fen(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
                                 current_state.queens, current_state.kings, current_state.occupied, current_state.occupied_colour[true],
@@ -3898,8 +3982,8 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         }
     }
 
-    if (qDepth >= MAX_QDEPTH)
-        return get_board_evaluation(state_history, zobrist, num_iterations);
+    if (qDepth >= Config::MAX_QDEPTH)
+        return eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
 
     BoardState current_state = state_history.back();
     increment_node_count_with_decay(num_iterations);
@@ -3916,7 +4000,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
     if (currently_in_check)
     {
-        std::vector<Move> moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth + qDepth, prevMove);
+        std::vector<Move>& moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth + qDepth, prevMove);
 
         if (moves_list.empty())
         {
@@ -3997,14 +4081,14 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         return best;
     }
 
-    int static_eval = get_board_evaluation(state_history, zobrist, num_iterations);
+    int static_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
     if (is_maximizing)
     {
         if (static_eval >= beta)
             return static_eval; // Fail-hard beta cutoff
         if (static_eval > alpha)
             alpha = static_eval;
-        if (Config::ENABLE_QDELTA && static_eval < alpha - DELTA_MARGIN)
+        if (Config::ENABLE_QDELTA && static_eval < alpha - Config::DELTA_MARGIN)
             return static_eval; // Optional delta pruning
     }
     else
@@ -4013,13 +4097,13 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
             return static_eval; // Fail-hard alpha cutoff
         if (static_eval < beta)
             beta = static_eval;
-        if (Config::ENABLE_QDELTA && static_eval > beta + DELTA_MARGIN)
+        if (Config::ENABLE_QDELTA && static_eval > beta + Config::DELTA_MARGIN)
             return static_eval; // Optional delta pruning
     }
 
     int best = is_maximizing ? -9999999 + moveNum : 9999999 - moveNum;
 
-    std::vector<Move> moves_list = buildNoisyMoveList(zobrist, state_history, cur_depth + qDepth, qDepth, prevMove);
+    std::vector<Move>& moves_list = buildNoisyMoveList(zobrist, state_history, cur_depth + qDepth, qDepth, prevMove);
 
     for (size_t i = 0; i < moves_list.size(); ++i)
     {
@@ -4606,7 +4690,7 @@ inline void promoteMove(std::vector<Move> &moves, const Move &move, size_t promo
     }
 }
 
-inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove)
+inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove)
 {
 
     move_gen_visits++;
@@ -4617,7 +4701,13 @@ inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &sta
     // if (zobrist != zobrist2)
     // std::cout << create_fen(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.promoted, current_state.castling_rights, current_state.ep_square, current_state.turn) << std::endl;
 
-    std::vector<Move> cached_moves = accessMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square);
+    // Per-ply working buffer: this node's move list lives here for its whole lifetime; deeper nodes
+    // use deeper buffers, so it is never overwritten while we iterate it. fillMoveGenCache takes a
+    // synchronous snapshot of the cache into it (no surviving reference into the cache slot). A ply
+    // beyond the pool (cannot happen at real depth) falls back to a shared buffer.
+    std::vector<Move>& cached_moves =
+        (cur_ply >= 0 && cur_ply < MOVE_POOL_PLIES) ? g_moveBuf[cur_ply] : g_moveBufFallback;
+    fillMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square, cached_moves);
     if (cached_moves.size() != 0)
     {
         move_gen_cache_hits++;
@@ -4784,14 +4874,12 @@ inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &sta
         return cached_moves;
     }
 
-    std::vector<Move> moves_list;
-    moves_list.reserve(64);
+    // Cache miss: fillMoveGenCache cleared cached_moves; generate into the per-ply buffer (no alloc).
+    cached_moves.reserve(64);
 
-    generateLegalMovesReordered(moves_list, current_state.castling_rights, ~0ULL, ~0ULL,
+    generateLegalMovesReordered(cached_moves, current_state.castling_rights, ~0ULL, ~0ULL,
                                 current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns, current_state.knights,
                                 current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn, cur_ply, prevMove);
-
-    moves_list.shrink_to_fit();
 
     /* int num_plies = static_cast<int>(state_history.size());
     int max_cache_size;
@@ -4806,15 +4894,19 @@ inline std::vector<Move> buildMoveListFromReordered(std::vector<BoardState> &sta
         max_cache_size = 2500000;
     } */
 
-    addToMoveGenCache(zobrist, /* max_cache_size * Config::ACTIVE->cache_size_multiplier ,*/ moves_list, current_state.castling_rights, current_state.ep_square);
-    return moves_list;
+    addToMoveGenCache(zobrist, /* max_cache_size * Config::ACTIVE->cache_size_multiplier ,*/ cached_moves, current_state.castling_rights, current_state.ep_square);
+    return cached_moves;
 }
 
-inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove)
+inline std::vector<Move>& buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove)
 {
 
-    std::vector<Move> noisy_moves;
-    noisy_moves.reserve(16);
+    // Per-ply buffers (see g_moveBuf/g_noisyBuf): the returned noisy list lives in g_noisyBuf[ply]
+    // for the caller's qsearch loop; the full list is snapshotted into g_moveBuf[ply] transiently to
+    // filter from. Deeper qsearch nodes use deeper buffers, so neither is overwritten mid-iteration.
+    bool in_pool = (cur_ply >= 0 && cur_ply < MOVE_POOL_PLIES);
+    std::vector<Move>& noisy_moves = in_pool ? g_noisyBuf[cur_ply] : g_noisyBufFallback;
+    noisy_moves.clear();
 
     // Parallel sort keys for the optional SEE re-sort (ENABLE_QSEE_RESORT). Only populated when enabled.
     std::vector<int> noisy_scores;
@@ -4822,9 +4914,8 @@ inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardS
 
     BoardState current_state = state_history.back();
 
-    std::vector<Move> moves_list;
-
-    moves_list = accessMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square);
+    std::vector<Move>& moves_list = in_pool ? g_moveBuf[cur_ply] : g_moveBufFallback;
+    fillMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square, moves_list);
     if (moves_list.size() == 0)
     {
         generateLegalMovesReordered(moves_list, current_state.castling_rights, ~0ULL, ~0ULL,
@@ -4951,7 +5042,6 @@ inline std::vector<Move> buildNoisyMoveList(uint64_t zobrist, std::vector<BoardS
         noisy_moves.swap(sorted);
     }
 
-    noisy_moves.shrink_to_fit();
     return noisy_moves;
 }
 
@@ -5002,7 +5092,7 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 
     eval_visits++;
     // cache_result = accessCache(zobrist);
-    if (accessCacheNew(zobrist, cache_result))
+    if (!g_eval_light && accessCacheNew(zobrist, cache_result))
     {
         eval_cache_hits++;
         return cache_result;
@@ -5066,6 +5156,7 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
     } */
 
     // addToCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, total);
-    addToCacheNew(zobrist, total);
+    if (!g_eval_light)
+        addToCacheNew(zobrist, total);
     return total;
 }

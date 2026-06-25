@@ -17,6 +17,9 @@
 
 constexpr int NUM_SQUARES = 64;
 constexpr int MAX_PLY = 64;
+// Per-ply move-buffer pool depth: covers the main search (< MAX_PLY) plus qsearch (MAX_QDEPTH) with
+// margin. A node's ply index into the pool is cur_depth (main) or cur_depth + qDepth (qsearch).
+constexpr int MOVE_POOL_PLIES = 128;
 
 constexpr size_t CACHE_SIZE = 1 << 23;  // example: 1M entries
 constexpr uint64_t CACHE_MASK = CACHE_SIZE - 1;

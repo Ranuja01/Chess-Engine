@@ -123,6 +123,10 @@ alignas(64) int captureHistory[2][64][64] = {};
 alignas(64) Move g_searchStack[MAX_PLY] = {};
 alignas(64) int g_evalStack[MAX_PLY] = {};
 alignas(64) int g_captureChain[MAX_PLY] = {};
+// Light-eval flag: when set, placement_and_piece_eval SKIPS the heavy dynamic terms (capture_gains,
+// passed-pawn support, latent_threat, advanced_endgame) for a fast approximate eval at quiescent
+// decision sites (qsearch stand-pat / futility). Default false = full eval = byte-identical.
+bool g_eval_light = false;
 
 
 
@@ -696,12 +700,12 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 			// Subtract the score based on the attack of the opposing position and defense of white's own position
 			positional_bonus += attackingLayer[0][x][y];
 			positional_bonus += attackingLayer[1][x][y];
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
 			whiteDefensiveScore += attackingLayer[1][x][y] >> 2;
-			
+
 			update_global_central_scores(-(attackingLayer[0][x][y] << 1), square_mask);
 
 			if (square_mask & white_passed_pawns){
@@ -804,12 +808,12 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
 			positional_bonus += attackingLayer[1][x][y];
 			positional_bonus += attackingLayer[0][x][y];
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
 			blackDefensiveScore += attackingLayer[0][x][y] >> 2;
-			
+
 			update_global_central_scores((attackingLayer[1][x][y] << 1), square_mask);
 
 			if (square_mask & black_passed_pawns){
@@ -1044,9 +1048,9 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
             x = r & 7;
 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y] >> 1;   
-			total -= attackingLayer[1][x][y] >> 1;  
-			
+			total -= attackingLayer[0][x][y] >> 1;
+			total -= attackingLayer[1][x][y] >> 1;
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y];
@@ -1156,11 +1160,11 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
 			total += attackingLayer[1][x][y] >> 1;
 			total += attackingLayer[0][x][y] >> 1;
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y];
-			blackDefensiveScore += attackingLayer[0][x][y];	
+			blackDefensiveScore += attackingLayer[0][x][y];
 
 			update_global_central_scores((attackingLayer[1][x][y] * 3) / 2, square_mask);
 
@@ -1237,9 +1241,9 @@ inline int get_latent_bishop_activity_score(uint64_t originalAttackMask, uint8_t
 					
 		if(colour){
 			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y] / 3;   
-			total -= attackingLayer[1][x][y] / 3;  
-			
+			total -= attackingLayer[0][x][y] / 3;
+			total -= attackingLayer[1][x][y] / 3;
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
@@ -1249,11 +1253,11 @@ inline int get_latent_bishop_activity_score(uint64_t originalAttackMask, uint8_t
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
 			total += attackingLayer[1][x][y] / 3;
 			total += attackingLayer[0][x][y] / 3;
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
-			blackDefensiveScore += attackingLayer[0][x][y] >> 1;	
+			blackDefensiveScore += attackingLayer[0][x][y] >> 1;
 			update_global_central_scores(attackingLayer[1][x][y], square_mask);
 		}
 		
@@ -1608,16 +1612,16 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
             x = r & 7;
 			 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y] >> 1;   
-			total -= attackingLayer[1][x][y] >> 1;  
-			
+			total -= attackingLayer[0][x][y] >> 1;
+			total -= attackingLayer[1][x][y] >> 1;
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y];
 			whiteDefensiveScore += attackingLayer[1][x][y];
 
 			update_global_central_scores(-(attackingLayer[0][x][y] * 3) / 2, square_mask);
-			
+
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 			
@@ -1746,14 +1750,14 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
 			total += attackingLayer[1][x][y] >> 1;
 			total += attackingLayer[0][x][y] >> 1;
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y];
-			blackDefensiveScore += attackingLayer[0][x][y];	
+			blackDefensiveScore += attackingLayer[0][x][y];
 
 			update_global_central_scores((attackingLayer[1][x][y] * 3) / 2, square_mask);
-				
+
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(BB_SQUARES[r]);
 
@@ -1864,10 +1868,10 @@ inline int get_latent_rook_activity_score(uint8_t square){
 		uint8_t x = r & 7;
 					
 		if(colour){
-			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y] / 3;   
-			total -= attackingLayer[1][x][y] / 3;  
-			
+			// Subtract the score based on the attack of the opposing position and defense of white's own position
+			total -= attackingLayer[0][x][y] / 3;
+			total -= attackingLayer[1][x][y] / 3;
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
@@ -1877,11 +1881,11 @@ inline int get_latent_rook_activity_score(uint8_t square){
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
 			total += attackingLayer[1][x][y] / 3;
 			total += attackingLayer[0][x][y] / 3;
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
-			blackDefensiveScore += attackingLayer[0][x][y] >> 1;	
+			blackDefensiveScore += attackingLayer[0][x][y] >> 1;
 			update_global_central_scores((attackingLayer[1][x][y]), square_mask);
 		}
 		
@@ -2060,9 +2064,9 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
             x = r & 7;
 							
 			// Subtract the score based on the attack of the opposing position and defense of white's own position				
-			total -= attackingLayer[0][x][y] >> 1;   
-			total -= attackingLayer[1][x][y] >> 2;  
-			
+			total -= attackingLayer[0][x][y] >> 1;
+			total -= attackingLayer[1][x][y] >> 2;
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y];
@@ -2294,11 +2298,11 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
 			total += attackingLayer[1][x][y] >> 1;
 			total += attackingLayer[0][x][y] >> 2;
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y];
-			blackDefensiveScore += attackingLayer[0][x][y];	
+			blackDefensiveScore += attackingLayer[0][x][y];
 
 			update_global_central_scores(attackingLayer[1][x][y], square_mask);
 
@@ -2460,9 +2464,9 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position
 			// Adjust the score by bit shifting heavily so that the queen's ability to attack many squares isn't overrated
-			total -= attackingLayer[0][x][y] >> 2;				
+			total -= attackingLayer[0][x][y] >> 2;
 			total -= attackingLayer[1][x][y] >> 3;
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			whiteOffensiveScore += attackingLayer[0][x][y] >> 1;
@@ -2590,12 +2594,12 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			// Adjust the score by bit shifting heavily so that the queen's ability to attack many squares isn't overrated
 			total += attackingLayer[1][x][y] >> 2;
 			total += attackingLayer[0][x][y] >> 3;
-			
+
 			// Similar to above, increment the absolute offensive and defensive scores
 			// Bit shift to reduce global scores
 			blackOffensiveScore += attackingLayer[1][x][y] >> 1;
-			blackDefensiveScore += attackingLayer[0][x][y] >> 2;	
-			
+			blackDefensiveScore += attackingLayer[0][x][y] >> 2;
+
 			update_global_central_scores(attackingLayer[1][x][y] >> 1, square_mask);
 			
 			// Remove pieces from the copy of the occupied mask
@@ -5915,21 +5919,21 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		);
 		//std::cout << total << std::endl;
 		br_pieces = total; br_run = total;
-		{
+		if (!g_eval_light) {
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
 				total += (Config::SCALE_CAPTURE_GAINS == 100) ? cg : (Config::SCALE_CAPTURE_GAINS * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		{
+		if (!g_eval_light) {
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
 			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		{
+		if (!g_eval_light) {
 			PROF_BLOCK(PROF_LATENT_THREAT);
 			int lt = get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
 			lt = (Config::SCALE_LATENT_THREAT == 100) ? lt : (Config::SCALE_LATENT_THREAT * lt / 100);
@@ -6146,14 +6150,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		);
 		//std::cout << total << std::endl;
 		br_pieces = total; br_run = total;
-		{
+		if (!g_eval_light) {
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
 				total += (Config::SCALE_CAPTURE_GAINS == 100) ? cg : (Config::SCALE_CAPTURE_GAINS * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		{
+		if (!g_eval_light) {
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
 			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
@@ -6168,7 +6172,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 
 		// Check if the position is an advanced endgame
-		if (isNearGameEnd){
+		if (isNearGameEnd && !g_eval_light){
 			br_ae_input = total;
 			{
 				PROF_BLOCK(PROF_ADV_ENDGAME);
@@ -6569,8 +6573,12 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 
         bool current_colour = (occupied_white & (BB_SQUARES[r])) != 0;
 
-        int attackers = __builtin_popcountll(attack_bitmasks[r] & state.occupied_colour[!current_colour]);
-        
+        // Enemy attackers of square r. Cached here because the see() call below is opaque to the
+        // optimizer (it could alias the global attack_bitmasks), which would otherwise force this
+        // mask to be recomputed for the get_least_valuable_attacker call.
+        uint64_t attacker_mask = attack_bitmasks[r] & state.occupied_colour[!current_colour];
+        int attackers = __builtin_popcountll(attacker_mask);
+
 
         if (attackers == 0)
             continue;
@@ -6584,7 +6592,7 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 		//std::cout << static_exchange_eval << std::endl;
 		if (static_exchange_eval >= 0) {
 
-			uint8_t from = get_least_valuable_attacker(attack_bitmasks[r] & state.occupied_colour[!current_colour], state);
+			uint8_t from = get_least_valuable_attacker(attacker_mask, state);
 			CaptureInfo newCapture(from, r, static_exchange_eval);
 
 			if (current_colour)
@@ -7231,7 +7239,9 @@ static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 	"PAWNS", "KNIGHTS", "BISHOPS", "ROOKS", "ROOK_ACTIVITY",
 	"QUEENS", "KINGS", "ATTACK_LAYER", "CAPTURE_GAINS",
 	"PASSED_SUPPORT", "LATENT_THREAT", "ADV_ENDGAME",
-	"SEE", "BISHOP_ACTIVITY", "BISHOP_COLOUR"
+	"SEE", "BISHOP_ACTIVITY", "BISHOP_COLOUR",
+	"MOVEGEN", "MAKEUNMAKE", "TT_PROBE",
+	"MG_GEN", "MG_SCORE", "MG_SORT"
 };
 
 // Terms PROF_PAWNS..PROF_ADV_ENDGAME are the top-level, mutually-exclusive call

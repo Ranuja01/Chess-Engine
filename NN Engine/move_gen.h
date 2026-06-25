@@ -28,20 +28,32 @@ extern std::vector<std::vector<uint64_t>> BB_RAYS;
 	Set of functions used to generate moves
 */
 
-inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+// A move paired with its ordering score, sorted in place so the final reorder needs no index
+// indirection. score is the sort key; from/to/promo carry the move payload.
+struct ScoredMove {
+	int score;
+	uint8_t from;
+	uint8_t to;
+	uint8_t promo;
+};
+
+// Move-list body with the node-invariant king square, slider blockers and checker mask supplied by
+// the caller. These depend only on the board, not on from_mask/to_mask, so the partitioned move-gen
+// (processMaskPairs invokes this once per piece-type pair) computes them once per node instead of
+// re-deriving the expensive slider_blockers / attackersMask on every call.
+inline void generateLegalMovesPre(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
-						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-    
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
+						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn,
+						uint8_t king, uint64_t blockers, uint64_t checkers){
 
-	uint64_t king_mask = kingsMask & ourPieces;
-	uint8_t king = 63 - __builtin_clzll(king_mask);
-
-    
-	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);            
-    uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
+	// Per-call scratch reused across nodes (cleared, capacity kept) to avoid a fresh allocation on
+	// every piece-type pair.
+	thread_local std::vector<uint8_t> startPos;
+	thread_local std::vector<uint8_t> endPos;
+	thread_local std::vector<uint8_t> promotions;
+	startPos.clear();
+	endPos.clear();
+	promotions.clear();
 
 	if (checkers != 0){
 		generateEvasions(startPos, endPos, promotions, preliminary_castling_mask, king, checkers, from_mask, to_mask, occupiedMask,occupiedWhite,
@@ -50,7 +62,7 @@ inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vec
 		for (size_t i = 0; i < startPos.size(); i++){
 			if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
 				knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
-				
+
 				startPos_filtered.push_back(startPos[i]);
 				endPos_filtered.push_back(endPos[i]);
 				promotions_filtered.push_back(promotions[i]);
@@ -59,7 +71,7 @@ inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vec
 		}
 	} else {
 		generatePseudoLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask,
-	 						     king_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
+	 						     kingsMask & ourPieces, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
 							     rooksMask, queensMask, kingsMask, ep_square, turn);
 
 		for (size_t i = 0; i < startPos.size(); i++){
@@ -74,6 +86,20 @@ inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vec
 		}
 	}
 
+}
+
+inline void generateLegalMoves(std::vector<uint8_t> &startPos_filtered, std::vector<uint8_t> &endPos_filtered, std::vector<uint8_t> &promotions_filtered,  uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
+	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
+						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
+
+	uint64_t king_mask = kingsMask & ourPieces;
+	uint8_t king = 63 - __builtin_clzll(king_mask);
+	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
+	uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
+
+	generateLegalMovesPre(startPos_filtered, endPos_filtered, promotions_filtered, preliminary_castling_mask, from_mask, to_mask,
+						  occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
+						  rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 }
 
 inline bool has_any_legal_move(uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
@@ -489,6 +515,7 @@ void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<
 inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove) {
+	PROF_BLOCK(PROF_MOVEGEN);
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
 	bool isEndGame;
@@ -512,14 +539,22 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		isNearGameEnd = true;
 	}
 
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
+	// Per-node scratch reused across calls (cleared, capacity retained) to avoid a fresh
+	// heap allocation every node. Single-threaded search; thread_local keeps it correct if
+	// the work is ever parallelised.
+	thread_local std::vector<uint8_t> startPos;
+	thread_local std::vector<uint8_t> endPos;
+	thread_local std::vector<uint8_t> promotions;
 
+	startPos.clear();
+	endPos.clear();
+	promotions.clear();
 	startPos.reserve(64);
 	endPos.reserve(64);
 	promotions.reserve(64);
-	
+
+	{
+	PROF_BLOCK(PROF_MG_GEN);
 	std::array<MaskPair, 12> attack_pairs = {
 		MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
 
@@ -604,14 +639,10 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 
 			};
 			processMaskPairs(quiet_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);	
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
 		}
 	}
-
-	
-
-	std::vector<size_t> indices(startPos.size());
-	std::iota(indices.begin(), indices.end(), 0); // Fill with 0..N-1
+	} // PROF_MG_GEN
 
 	BoardState state(
 		pawnsMask,
@@ -712,19 +743,25 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 
 	// Score each move once up front — score_move runs SEE for unclear captures, so
 	// calling it inside the comparator would repeat that work O(log n) times per move
-	std::vector<int> moveScores(indices.size());
-	for (size_t i = 0; i < indices.size(); ++i)
-		moveScores[i] = score_move(i);
+	thread_local std::vector<ScoredMove> scored;
+	size_t move_count = startPos.size();
+	scored.resize(move_count);
+	{
+	PROF_BLOCK(PROF_MG_SCORE);
+	for (size_t i = 0; i < move_count; ++i)
+		scored[i] = ScoredMove{ score_move(i), startPos[i], endPos[i], promotions[i] };
+	}
 
-	std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
-		return moveScores[a] > moveScores[b];
+	{
+	PROF_BLOCK(PROF_MG_SORT);
+	// stable_sort over the 0..N-1 build order matches the previous index-based reorder exactly.
+	std::stable_sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
+		return a.score > b.score;
 	});
 
-	/* std::sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
-		return score_move(a) > score_move(b);
-	}); */
-	for (size_t i : indices) {
-		converted_moves.push_back(Move(startPos[i],endPos[i],promotions[i]));
+	for (const ScoredMove& s : scored) {
+		converted_moves.push_back(Move(s.from, s.to, s.promo));
+	}
 	}
 
 }
@@ -779,6 +816,7 @@ inline int score_quiet(uint8_t from, uint8_t to, uint8_t promo, bool turn, int p
 inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove) {
+	PROF_BLOCK(PROF_MOVEGEN);
 
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
@@ -920,18 +958,24 @@ template<std::size_t N>
 void processMaskPairs(const std::array<MaskPair, N>& mask_pairs, std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask,
 	                  uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
                       uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
+    // King square, slider blockers and checker mask are invariant across the piece-type pairs of
+    // this node, so derive them once here rather than inside each generateLegalMoves call.
+    uint8_t king = 63 - __builtin_clzll(kingsMask & ourPieces);
+    uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
+    uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
+
     for (const MaskPair& pair : mask_pairs) {
         uint64_t from = pair.from_mask;
         uint64_t to = pair.to_mask;
 
         if ((from & ourPieces) == 0 || to == 0) continue;
 
-        generateLegalMoves(startPos, endPos, promotions, preliminary_castling_mask,
+        generateLegalMovesPre(startPos, endPos, promotions, preliminary_castling_mask,
                            from_mask & from & ourPieces,
                            to_mask & to,
                            occupiedMask, occupiedWhite, opposingPieces, ourPieces,
                            pawnsMask, knightsMask, bishopsMask, rooksMask,
-                           queensMask, kingsMask, ep_square, turn);
+                           queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
     }
 }
 #endif

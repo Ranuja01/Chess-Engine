@@ -70,6 +70,24 @@ extern std::array<int, 64> support_black;
 extern std::array<int, 64> square_values;
 extern std::array<uint64_t, 64> attack_bitmasks;
 
+// Phase-0 light-eval gap probe accumulators (Config::LIGHT_GAP_PROBE). |gap| histogram + per-term abs sums.
+extern long long g_lge_n;
+extern long long g_lge_hist[7];
+extern long long g_lge_abs_capture, g_lge_abs_passed, g_lge_abs_latent, g_lge_abs_adv;
+
+// Phase-A SEE-frequency counter (Config::SEE_COUNT). Cumulative across a run; gated so the default build
+// pays nothing in the hot see() path. Read alongside nodes/qnodes to get see-calls-per-node.
+extern long long see_calls;
+
+// SEE cache (Config::ENABLE_SEE_CACHE). Per-position cache keyed by [side][square], validated by a
+// generation counter bumped in make_move/unmake_move (O(1) invalidation, no zobrist threading). see() is a
+// pure function of (square, side, position), so a hit returns the identical value -> node counts stay
+// byte-identical with the cache on; only speed changes. g_see_hits/g_see_miss are gated by SEE_COUNT.
+extern uint64_t g_see_gen;
+extern uint64_t see_cache_gen[2][64];
+extern int see_cache_val[2][64];
+extern long long g_see_hits, g_see_miss;
+
 constexpr uint8_t PAWN = 1;
 constexpr uint8_t KNIGHT = 2;
 constexpr uint8_t BISHOP = 3;
@@ -112,14 +130,16 @@ constexpr std::array<uint64_t, 8> BB_RANKS = {
 // Array of piece values
 constexpr std::array<int, 7> values = {0, 1000, 3250, 3450, 5000, 10000, 12000};
 
-constexpr std::array<int, 8> default_midgame_pawn_rank_bonus = {0, 15, 30, 45, 60, 75, 90, 105};
-//constexpr std::array<int, 8> passed_midgame_pawn_rank_bonus = {0, 65, 160, 285, 440, 625, 840, 1085};
-constexpr std::array<int, 8> passed_midgame_pawn_rank_bonus = {0, 65, 160, 285, 625, 840, 1085, 1360};
+// Pawn-structure base tables (literals). The eval reads the like-named working arrays (defined in
+// cpp_bitboard.cpp), rebuilt = base * SCALE_* / 100 once at init by rebuild_scaled_pawn_tables() so the
+// hot path is a plain array read with no per-read division. Default knobs (100) reproduce the base
+// values exactly (byte-identical).
+constexpr std::array<int, 8> default_midgame_pawn_rank_bonus_base = {0, 15, 30, 45, 60, 75, 90, 105};
+constexpr std::array<int, 8> passed_midgame_pawn_rank_bonus_base = {0, 65, 160, 285, 625, 840, 1085, 1360};
 
-//constexpr std::array<int, 8> endgame_pawn_rank_bonus = {0, 90, 210, 360, 540, 750, 990, 1260};
-constexpr std::array<int, 8> endgame_pawn_rank_bonus = {0, 90, 210, 360, 750, 990, 1260, 1560};
+constexpr std::array<int, 8> endgame_pawn_rank_bonus_base = {0, 90, 210, 360, 750, 990, 1260, 1560};
 
-constexpr std::array<uint8_t, 11> pawn_wall_file_bonus = {
+constexpr std::array<uint8_t, 11> pawn_wall_file_bonus_base = {
     0,    // x - 1 invalid (x == 0)
     75,   // x == 0
     50,   // x == 1
@@ -133,7 +153,7 @@ constexpr std::array<uint8_t, 11> pawn_wall_file_bonus = {
     0     // safety pad
 };
 
-constexpr std::array<uint8_t, 8> pawn_chain_file_bonus = {
+constexpr std::array<uint8_t, 8> pawn_chain_file_bonus_base = {
     10,   // A
     15,   // B
     100,   // C
@@ -275,6 +295,7 @@ bool get_horizon_mitigation_flag();
 */
 void initialize_attack_tables();
 void rebuild_scaled_placement();
+void rebuild_scaled_pawn_tables();
 void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<SlidingRow> &attack_table);
 uint64_t sliding_attacks(uint8_t square, uint64_t occupied, const std::vector<int8_t>& deltas);
 void carry_rippler(uint64_t mask, std::vector<uint64_t> &subsets);
@@ -295,6 +316,7 @@ inline void adjust_pressure_and_support_tables_for_pins(uint64_t bb);
 inline int advanced_endgame_eval(int total, bool turn);
 inline void update_global_central_scores(int base_increment, uint64_t square_mask);
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+int cheap_eval(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black);
 
 /*
 	Diagnostic-only static-eval term attribution. When g_capture_eval_breakdown is set,
@@ -376,6 +398,12 @@ enum ProfTerm {
 	PROF_PASSED_SUPPORT, PROF_LATENT_THREAT, PROF_ADV_ENDGAME,
 	// Drill-only terms (nested inside the evaluators above; subsets, not exclusive).
 	PROF_SEE, PROF_BISHOP_ACTIVITY, PROF_BISHOP_COLOUR,
+	// Search-side scopes (NOT part of the eval %-base; their absolute cycles vs the eval-term
+	// sum give the whole-search breakdown when accumulated during a real get_engine_move search).
+	PROF_MOVEGEN, PROF_MAKEUNMAKE, PROF_TT_PROBE,
+	// Drill-only subsets of PROF_MOVEGEN: pseudo-legal generation, the scoring loop, and the
+	// sort + Move rebuild. Nested, so excluded from the %-base; their sum ~= PROF_MOVEGEN.
+	PROF_MG_GEN, PROF_MG_SCORE, PROF_MG_SORT,
 	NUM_PROF_TERMS
 };
 
@@ -1403,8 +1431,8 @@ inline void update_attackers_for_piece_removal(uint8_t to_square, uint64_t& occu
 	colour_attackers[turn] = attackersMask(turn, to_square, occupancy, (state.queens | state.rooks) & occupancy, (state.queens | state.bishops) & occupancy, state.kings & occupancy, state.knights & occupancy, state.pawns & occupancy, state.occupied_colour[turn] & occupancy);
 }
 
-inline int see(uint8_t to_square, bool side_to_move, const BoardState& state){
-	
+inline int see_impl(uint8_t to_square, bool side_to_move, const BoardState& state){
+
 	bool breaks_early = false;
     int gain[32];
     int depth = 0;
@@ -1414,6 +1442,47 @@ inline int see(uint8_t to_square, bool side_to_move, const BoardState& state){
 	//std::cout << "piece_value_captured: " << piece_value_captured << std::endl;
 
     gain[depth++] = piece_value_captured;
+
+    if (Config::ENABLE_SEE_INCREMENTAL) {
+        // Byte-identical to the ENABLE_SEE_FIX path, but maintains the attacker set incrementally:
+        // clear the used attacker each step and OR in only the x-ray sliders re-revealed through it,
+        // instead of recomputing the full attackersMask() every iteration. Removal only OPENS slider
+        // rays (never blocks) and never adds leaper (king/knight/pawn) attackers, so the maintained set
+        // equals a fresh attackersMask(occ) each step -> same least-valuable pick -> same gain[].
+        int d = 0;
+        bool s = side_to_move;
+        uint64_t occ = state.occupied;
+        uint64_t qr = state.queens | state.rooks;
+        uint64_t qb = state.queens | state.bishops;
+        // All attackers of to_square (both colours), masked to the live occupancy.
+        uint64_t att = (BB_KING_ATTACKS[to_square] & state.kings) |
+                       (BB_KNIGHT_ATTACKS[to_square] & state.knights) |
+                       (BB_RANK_ATTACKS[to_square][BB_RANK_MASKS[to_square] & occ] & qr) |
+                       (BB_FILE_ATTACKS[to_square][BB_FILE_MASKS[to_square] & occ] & qr) |
+                       (BB_DIAG_ATTACKS[to_square][BB_DIAG_MASKS[to_square] & occ] & qb) |
+                       (BB_PAWN_ATTACKS[0][to_square] & state.pawns & state.occupied_colour[true]) |
+                       (BB_PAWN_ATTACKS[1][to_square] & state.pawns & state.occupied_colour[false]);
+        att &= occ;
+        while (true) {
+            uint64_t side_att = att & state.occupied_colour[s] & occ;
+            if (!side_att)
+                break;
+            int from_sq = get_least_valuable_attacker_static(side_att, state);
+            ++d;
+            gain[d] = get_value_at(from_sq, state) - gain[d - 1];
+            occ &= ~(1ULL << from_sq);
+            att &= ~(1ULL << from_sq);
+            // Re-reveal x-ray sliders through the vacated square (leapers never change).
+            att |= ((BB_RANK_ATTACKS[to_square][BB_RANK_MASKS[to_square] & occ] |
+                     BB_FILE_ATTACKS[to_square][BB_FILE_MASKS[to_square] & occ]) & qr) |
+                   (BB_DIAG_ATTACKS[to_square][BB_DIAG_MASKS[to_square] & occ] & qb);
+            att &= occ;
+            s = !s;
+        }
+        while (--d > 0)
+            gain[d - 1] = -std::max(-gain[d - 1], gain[d]);
+        return gain[0];
+    }
 
     if (Config::ENABLE_SEE_FIX) {
         // Corrected SEE (gated; the default-off path below is byte-identical). Recompute the
@@ -1498,6 +1567,26 @@ inline int see(uint8_t to_square, bool side_to_move, const BoardState& state){
 	
 	//std::cout << depth << "SEE final gain[0]: " << gain[depth] << std::endl;
     return gain[0];
+}
+
+// Cached SEE: see() is pure, so a per-position cache (keyed by [side][square], generation-validated) returns
+// identical values -> byte-identical search with the cache on. Default (cache off) just forwards to see_impl,
+// matching the original behavior exactly. The big win is the qsearch capture_gains<->noisy-filter overlap
+// (both call see() on the same position's squares within one node).
+inline int see(uint8_t to_square, bool side_to_move, const BoardState& state){
+	if (Config::SEE_COUNT) ++see_calls;
+	if (Config::ENABLE_SEE_CACHE){
+		if (see_cache_gen[side_to_move][to_square] == g_see_gen){
+			if (Config::SEE_COUNT) ++g_see_hits;
+			return see_cache_val[side_to_move][to_square];
+		}
+		int v = see_impl(to_square, side_to_move, state);
+		see_cache_gen[side_to_move][to_square] = g_see_gen;
+		see_cache_val[side_to_move][to_square] = v;
+		if (Config::SEE_COUNT) ++g_see_miss;
+		return v;
+	}
+	return see_impl(to_square, side_to_move, state);
 }
 
 

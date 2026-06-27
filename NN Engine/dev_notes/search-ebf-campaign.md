@@ -1,5 +1,47 @@
 # Search-efficiency / EBF-lowering campaign — dev log
 
+## ▶️ 2026-06-26 (overnight) — ATTACK-UNIT KING SAFETY built → COMPLEMENT (safe-checks) is the win; TOURNAMENT running
+Built the attack-unit `king_safety_score` (cpp_bitboard.cpp, beside get_latent_threat_score), the #1
+pre-NNUE structural gap ([[king-safety-design]]). **Model:** tighter king zone (`white/black_king_ks_zone`
+= ring-1 + forward staging, NOT the loose king_ring2), enemy attacker-units via `attack_bitmasks`, mapped
+through a precomputed `ks_safety_table` with a **gentle quadratic→linear `KS_KNEE` curve** (fixes the
+"sudden blow-up" on crowded zones), components attacker-by-type / attack-count / **defender** / shield /
+open-file / **safe-checks**, phase-tapered (precomputed `ks_phase_taper`), all `KS_*` knobbed in Config.
+Gated `KING_SAFETY_MAG=0` = byte-id **WAC 252/67,931,145**; **5–24× cheaper/call than latent_threat**
+(PROF 28–134 vs 562–686 cyc). New diag tooling + dispatcher subs: `ks_static`/`ks_sweep`/`sts_sweep`/
+`ks_explain`, corpus `diagnostics/suites/kingsafety.csv`.
+
+**KEY FINDINGS (the method mattered):**
+- **Phase-convention bug** caught by the STATIC breakdown (king_safety read +0.00 in midgame): phase_score
+  is **0=opening … 128=endgame**, an Explore report had it backwards → taper/early-out were inverted →
+  [[phase-score-convention]]. Fixed.
+- **STATIC-gap (our_static vs SF NNUE) is FLAT** — can't validate this term (king danger is a small slice
+  of total eval scatter; the corpus lacks real attacks; the selective term correctly ignores proximity).
+  The proper harness is **STS in replacement mode** (OMP-pinned, book-off → deterministic).
+- **Adding king_safety ON TOP of latent_threat DOUBLE-COUNTS → STS −94.** Replacement (`SCALE_LATENT_THREAT=0`):
+  latent_threat is worth +92 STS; king_safety alone recovers +66 (1477); **+ safe-checks MATCHES it (1505).**
+- **▶️ THE WIN = COMPLEMENT: keep latent_threat ON, add king_safety SAFE-CHECKS ONLY (overlapping comps
+  zeroed) → STS 1516 = +13 vs baseline 1503** (peak at `KING_SAFETY_MAG=600 KS_SAFE_CHECK=8`). Safe-checks
+  is genuinely complementary (latent_threat counts attacked squares, never CHECKS). `KS_OPEN_FILE` is a BAD
+  signal (drop). STS response is jumpy (sc6 1488 / sc8 1516 / sc10 1471 / sc12 1516) → STS at its ceiling,
+  games decide. WAC 246 (−6 fixed-depth artifact, acceptable w/ STS up; [[fixed-depth-bench-ceiling]]).
+- **TOURNAMENT RESULT (793 decided games, lightning, 4 workers, tag `ks_compl_safecheck`): base vs
+  `KING_SAFETY_MAG=600 … KS_SAFE_CHECK=8` (latent_threat ON) = 50.1% base / 49.9% cand → Elo −0.4 ± 28.4
+  = DEAD FLAT.** The +13 STS did NOT translate to Elo — safe-checks-as-complement is self-play-neutral
+  (the jumpy STS had warned it was STS-specific). Not a regression, not a win. (±28 margin = 793 games can't
+  resolve a small effect, but the point estimate is ~0.)
+
+**▶️ MORNING — the complement (safe-checks alone) is Elo-flat. Options, in order of promise:**
+1. **Build the OTHER complementary signals** (pawn-storm, weak-squares/holes, batteries) — safe-checks alone
+   moved STS but not Elo; the full king-attack picture (storm + holes + safe-checks together) is what wins
+   games. Architecture stays "latent_threat + the signals it lacks." Re-test STS-replacement-mode + tournament.
+2. **Bigger lever — [[detector-conditioned-knobs]]** (user vision): the flat result fits the scatter-wall
+   thesis (a flat scalar weight shifts the mean, not variance). Make the king-safety blow-up CONDITIONAL on
+   detectors (material/space/attacker-defender balance) → reduces variance where a scalar can't. Design AM.
+3. Accept king-safety-as-built is Elo-neutral and PARK (cheaper latent_threat replacement available if ever
+   speed-bound, but engine is eval-bound not speed-bound). Pivot back to material-edge / other eval structure.
+Nothing shipped; all KS gated default-off, byte-id. (Uncommitted: all KS code + tooling + dispatcher subs.)
+
 ## ▶️ NEXT-CHAT FIRST ACTION (2026-06-25): SEARCH LANE CLOSED → EVAL-QUALITY (material-edge calibration)
 **combo1 SHIPPED default-on** (`NULLMOVE_EXTRA=2 HISTORY_LMR_SCALE=2 LMP_MAX_DEPTH=5 LMP_BASE=2`; new bench
 baseline **WAC 252 / 67,931,145 nodes / STS 1503 (50.1%)**, verified). Lossless-speed lane done (movegen
@@ -12,6 +54,53 @@ baseline **WAC 252 / 67,931,145 nodes / STS 1503 (50.1%)**, verified). Lossless-
 (`diagnostics/_passer_match.py passers_smoke.csv`) or trades (WAC + STS themes Recapturing/Simplification).**
 Loop: knob → eval_breakdown material-bucket over-read ↓ + guards held → SPRT (material fixes self-play-
 invisible → ship on bias-fix + no-regression).
+
+## 2026-06-25 — EVAL-QUALITY started: material-edge measured → PAWN-MAJORITY term built
+**Measured the bias (eval_breakdown on clean material-imbalance FENs, our_static vs SF_static):** the
+over-valuation is ENDGAME-only + `piece_value_boost`-driven, for MINOR/ROOK/QUEEN-up (rook-up endgame
++2.25 over, the boost IS the over-read; queen-up +10 = mate-drive, mostly benign — both sides agree
+it's winning). **BUT the decision-critical surprise: up-a-PAWN we UNDER-read by −2.39** (3v2 majority
+reads as pure material +1.22 vs SF +3.61; SF static+search agree). Code confirms: **NO pawn-majority /
+candidate-passer term exists** — value fires only once a pawn is ACTUALLY passed (`getPPIncrement`),
+so a majority that will BECOME a passer is unvalued → under-converts won pawn-up endgames. Tests: once
+an actual passer exists, our eval rewards it richly (even slightly over) — so the gap is specifically
+the not-yet-passed majority. This is a passer-strength GAP (additive, guard-safe — doesn't touch the
+actual-passer logic).
+- **BUILT `PAWN_MAJORITY_MAG_MG`/`_EG` (gated, both 0 = off = byte-id 252/67,931,145).** Wing majority
+  (queenside a-d / kingside e-h, per surplus pawn), added post-advanced-endgame-replace (line ~6292 of
+  cpp_bitboard.cpp, single return point) so it survives the REPLACE. **Phase-aware** (user req): MG
+  weight = structural/trade-down value in midgame/early-endgame, EG = late-endgame conversion, blended
+  linearly by phase_score (`unit = (MG*(128-ps) + EG*ps)/128`). env-read in update_cache. Verified:
+  MAG_EG=1000 closes the endgame majority under-read +1.22→+2.21 (control equal-pawns stays ~0; midgame
+  untouched via phase blend); **STS flat at MAG=1000 (1501 vs 1503)** — viable, no positional regression.
+- **PACE result + REDIRECT (the key eval-quality finding).** Built reusable corpus tooling
+  `gen_majority_corpus.py` + `_majority_match.py` → `suites/majorities.csv` (304 SF-labeled). Tuning
+  the 5-knob bundle = flat-to-worse. **Root cause = WRONG measurement:** `_majority_match` reads the
+  d10 SEARCH eval, which compensates and HIDES the static gap the term targets. Built `_majority_static.py`
+  (our_static via `ev_breakdown` vs corpus `sf_static`, decision window |sf|<500) + `_majority_attrib.py`
+  (per-term separation worst-vs-best |gap|). **Baseline static signed gap ≈ +3cp (ZERO — eval already
+  calibrated on real majorities); the 110cp |gap| scatter is driven by `pieces`/placement (sep +168cp),
+  `capture_gains` (+64), `piece_value_boost` (+57), pt_pawns (+35) — pawn/passer terms negligible (+4).**
+  ⇒ the majority term aimed at the wrong target (PARKED gated-off); the real DIRECTIONAL offenders are
+  `capture_gains` (SEE capture-fantasy over-read) + `piece_value_boost` (material-edge). **NEXT: PACE
+  `SCALE_CAPTURE_GAINS` + `PV_BOOST_MAG`/`PV_BOOST_PHASE_K` on the cheap STATIC-gap proxy** (seconds/cand,
+  pausable; guards held passer 85/200 / trades 1674/3000 / STS 1503 / WAC 252) → SPRT. Lesson: pick an
+  eval lever via the STATIC our-vs-SF gap + per-term attribution, not a search-eval proxy.
+- **SCALAR DAMP washed → pre-NNUE RESEARCH → KING SAFETY (the pivot).** Static-gap sweep of the
+  attributed offenders: `SCALE_CAPTURE_GAINS=0` flat (110→110), `PV_BOOST_MAG=0` best but only 110→101
+  (−9cp, and it just trades the bias sign). ⇒ the 110cp is VARIANCE, not a scalar-fixable directional
+  bias — the campaign's recurring wall (scalars shift the mean, not the variance). User: pre-NNUE SF
+  was ~3300+ with HCE, so we're missing structure/tuning, not capped. **Research (eval audit vs SF8-11
+  + Texel/CPW): ~200 Elo below pre-NNUE HCE = (1) king safety structurally CRUDE (flat increments, no
+  attack-units→non-linear-table, no shield/storm/open-files/holes/safe-checks/batteries) + (2) no Texel
+  joint weight-tuning (scalar washes).** ⇒ **APPROVED PLAN: build a proper attack-unit king-safety term**
+  ([[king-safety-design]]) — additive-pressure units²-table + shield/storm/open-files/holes/safe-checks/
+  batteries, richly knobbed for PACE/Texel, **PHASE-tapered to ~0 by endgame** (smooth, validate
+  queens-traded transitions) + **SPEED-conscious** (precomputed table, reuse attack_bitmasks, early-out
+  in deep endgame). Build `ks_explain.py` visualizer FIRST (board + attack-heat overlay + before/after).
+  Gated default-off byte-id; validate via STATIC-gap king-safety corpus + SPRT. Plan
+  `~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`. (Texel loop = the parked meta-lever
+  after king safety.)
 
 
 **Started:** 2026-06-21. **Plan:** `~/.claude/plans/handoff-for-the-vectorized-meadow.md` (search version).

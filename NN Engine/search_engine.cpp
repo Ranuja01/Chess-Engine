@@ -542,6 +542,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PP_DIAG_SUPPORT = env_int("PP_DIAG_SUPPORT", Config::PP_DIAG_SUPPORT);
         Config::PP_FILE_CLEAR = env_int("PP_FILE_CLEAR", Config::PP_FILE_CLEAR);
         Config::PP_HORIZ_SUPPORT = env_int("PP_HORIZ_SUPPORT", Config::PP_HORIZ_SUPPORT);
+        Config::PAWN_MAJORITY_MAG_MG = env_int("PAWN_MAJORITY_MAG_MG", Config::PAWN_MAJORITY_MAG_MG);
+        Config::PAWN_MAJORITY_MAG_EG = env_int("PAWN_MAJORITY_MAG_EG", Config::PAWN_MAJORITY_MAG_EG);
+        Config::PAWN_MAJORITY_ADV_K = env_int("PAWN_MAJORITY_ADV_K", Config::PAWN_MAJORITY_ADV_K);
+        Config::PAWN_MAJORITY_OUTSIDE_K = env_int("PAWN_MAJORITY_OUTSIDE_K", Config::PAWN_MAJORITY_OUTSIDE_K);
+        Config::PAWN_MAJORITY_BLOCKADE_K = env_int("PAWN_MAJORITY_BLOCKADE_K", Config::PAWN_MAJORITY_BLOCKADE_K);
         Config::SCALE_PLACE_PAWN = env_int("SCALE_PLACE_PAWN", Config::SCALE_PLACE_PAWN);
         Config::SCALE_PLACE_KNIGHT = env_int("SCALE_PLACE_KNIGHT", Config::SCALE_PLACE_KNIGHT);
         Config::SCALE_PLACE_BISHOP = env_int("SCALE_PLACE_BISHOP", Config::SCALE_PLACE_BISHOP);
@@ -580,6 +585,24 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::THREAT_ROOK = env_int("THREAT_ROOK", Config::THREAT_ROOK);
         Config::THREAT_QUEEN = env_int("THREAT_QUEEN", Config::THREAT_QUEEN);
         Config::SCALE_ATTACK_LAYER = env_int("SCALE_ATTACK_LAYER", Config::SCALE_ATTACK_LAYER);
+        Config::KING_SAFETY_MAG = env_int("KING_SAFETY_MAG", Config::KING_SAFETY_MAG);
+        Config::KS_ATT_KNIGHT = env_int("KS_ATT_KNIGHT", Config::KS_ATT_KNIGHT);
+        Config::KS_ATT_BISHOP = env_int("KS_ATT_BISHOP", Config::KS_ATT_BISHOP);
+        Config::KS_ATT_ROOK = env_int("KS_ATT_ROOK", Config::KS_ATT_ROOK);
+        Config::KS_ATT_QUEEN = env_int("KS_ATT_QUEEN", Config::KS_ATT_QUEEN);
+        Config::KS_ATTACK_COUNT = env_int("KS_ATTACK_COUNT", Config::KS_ATTACK_COUNT);
+        Config::KS_WEAK = env_int("KS_WEAK", Config::KS_WEAK);
+        Config::KS_SAFE_CHECK = env_int("KS_SAFE_CHECK", Config::KS_SAFE_CHECK);
+        Config::KS_STORM = env_int("KS_STORM", Config::KS_STORM);
+        Config::KS_OPEN_FILE = env_int("KS_OPEN_FILE", Config::KS_OPEN_FILE);
+        Config::KS_BATTERY = env_int("KS_BATTERY", Config::KS_BATTERY);
+        Config::KS_SHIELD = env_int("KS_SHIELD", Config::KS_SHIELD);
+        Config::KS_DEFENDER = env_int("KS_DEFENDER", Config::KS_DEFENDER);
+        Config::KS_DIVISOR = env_int("KS_DIVISOR", Config::KS_DIVISOR);
+        Config::KS_KNEE = env_int("KS_KNEE", Config::KS_KNEE);
+        Config::KS_CAP = env_int("KS_CAP", Config::KS_CAP);
+        Config::KS_PHASE_FULL = env_int("KS_PHASE_FULL", Config::KS_PHASE_FULL);
+        Config::KS_PHASE_ZERO = env_int("KS_PHASE_ZERO", Config::KS_PHASE_ZERO);
         Config::REALIZ_MAT_K = env_int("REALIZ_MAT_K", Config::REALIZ_MAT_K);
         Config::REALIZ_MAT_THRESH = env_int("REALIZ_MAT_THRESH", Config::REALIZ_MAT_THRESH);
         Config::REALIZ_PHASE_K = env_int("REALIZ_PHASE_K", Config::REALIZ_PHASE_K);
@@ -605,6 +628,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::MOD_PIECES_FLOOR = env_int("MOD_PIECES_FLOOR", Config::MOD_PIECES_FLOOR);
         rebuild_scaled_placement();  // rebuild scaled placement working arrays once from the loaded SCALE_PLACE_* knobs (no per-read division in eval)
         rebuild_scaled_pawn_tables();  // rebuild scaled pawn-structure working arrays from the loaded SCALE_PAWN_* knobs (no per-read division in eval)
+        rebuild_ks_tables();  // rebuild the king-safety non-linear danger table + phase-taper from the loaded KS_* knobs (no per-eval division)
         Config::ENABLE_CHEAP_BISHOP_COMPLEX = env_flag("ENABLE_CHEAP_BISHOP_COMPLEX", Config::ENABLE_CHEAP_BISHOP_COMPLEX);
         Config::CHEAP_BISHOP_BLOCK = env_int("CHEAP_BISHOP_BLOCK", Config::CHEAP_BISHOP_BLOCK);
         Config::CHEAP_BISHOP_MOB = env_int("CHEAP_BISHOP_MOB", Config::CHEAP_BISHOP_MOB);

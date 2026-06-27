@@ -149,10 +149,12 @@ def run_one(fen, best):
     dt = timer() - t0
 
     ev, depth, nodes, booked = _parse_output(out)
+    _qm = re.findall(r'Q SEARCH VISITS:\s*(\d+)', out)
+    qnodes = int(_qm[-1]) if _qm else None
     uci = move.uci() if move is not None else None
     solved = (uci in best) and not booked
     return {"uci": uci, "solved": solved, "booked": booked,
-            "eval": ev, "depth": depth, "nodes": nodes, "time": dt}
+            "eval": ev, "depth": depth, "nodes": nodes, "qnodes": qnodes, "time": dt}
 
 
 def main():

@@ -299,7 +299,7 @@ def transforms(tags, label, args):
                     silent.setdefault(mkey, []).append(rec)
 
     print("\n" + "=" * 100)
-    print(f"[3] TRANSFORMATION LEAKS  ({tag})  --  trades/simplifications landing where our static "
+    print(f"[3] TRANSFORMATION LEAKS  ({label})  --  trades/simplifications landing where our static "
           f"misprices by >={args.big_cp:.0f}cp (vs SF search)")
     _print_leaks("(b) SILENT misprice  (|loss|<%dcp -- trade is FINE per search, we mis-score the result; "
                  "positions our search steers TOWARD)" % NEAR_EQ_CP, silent, args)

@@ -4,6 +4,51 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## COLLAPSE-ELIMINATION campaign (2026-06-26/27) — bundle SHIPPED, +38.7 Elo; "STS mispredicts PLAY"
+Worst-case-Elo hole-plugging from real chess.com tal-BOT losses (self-play-invisible). Re-validated the
+parked fixes on the post-combo1 baseline (252/67,931,145/STS 1503) and shipped a 6-knob bundle as default:
+**VERIFY_MARGIN 6000→16000** (Gap-T, fixes the benoni-29 winning-capture: now plays a4b5) +
+**ENABLE_ROOK_DBLCOUNT_FIX + ENABLE_ROOK_DBLCOUNT_SYM_UP** + **ENABLE_QPREC_PHASE_GATE** +
+**PASSER_ENEMY_CREDIT_PCT=0 + ENABLE_PASSER_BLOCKADE_QUALITY** (Gap-P, fixes the french a-pawn passer-danger
+under-read: F33 +0.93→−0.32). **Tournament bundle vs shipped-Gap-T baseline = +38.7 ±27 Elo (875 games,
+SIGNIFICANT).** NEW BASELINE **WAC 252 / 70,150,573 / STS 1568 (52.3%)**; speed maintained (~162s / 432k
+nps); old byte-id (252/67,931,145) recovers with the 6 knobs reset to old defaults.
+- **▶️ KEY METHODOLOGY FINDING — fixed-depth STS MISPREDICTS PLAY for eval/search changes.** On STS the
+  bundle looked DESTRUCTIVE (gapt+rookdblsym −77..−139, "non-additive"); in TIMED games it is +38.7. The
+  "never bundle / non-additivity" scare was a FIXED-DEPTH SEARCH-HOLE ARTIFACT. Nearly parked Gap-P (the top
+  contributor) on its −106 STS. ⇒ **gate collapse/eval/search changes on the TIMED TOURNAMENT (or
+  depth-at-equal-time), NOT fixed-depth STS.** ([[fixed-depth-bench-ceiling]] far more severe than assumed.)
+  Running log: `dev_notes/collapse-campaign.md`.
+
+## SEARCH/EBF campaign (2026-06-21) — SEE_EXTEND_MARGIN=300 SHIPPED, +43.9 Elo
+Single-thread search-efficiency campaign (proxies predict strength → tuning converges). Baseline going in:
+WAC 261 / 134,429,469 / STS 52.2%.
+- **SHIPPED & committed (`5c194ae`): controlled check extensions, `SEE_EXTEND_MARGIN` default DISABLED→300.**
+  The check-extension extended ALL checks (huge node adder); SEE-filtering extends only checks sac'ing ≤300.
+  Pooled SPRT (2 runs, n=907, LIGHTNING/UHO) = **+43.9 Elo [+22.8,+65.3]**. Fixed-depth dip (−3 WAC / −4.7%
+  STS) is the expected pruning artifact; depth-at-equal-time converts it to Elo. **NEW GOLD: WAC 258/300,
+  97,507,126 nodes (−27.5%), EBF 4.20→3.83, STS 1426/3000 (47.5%)**; env-off `SEE_EXTEND_MARGIN=1000000`
+  recovers old gold byte-exact. (Frontier: SEE=0 −31.5%/−9WAC; 300 is the sweet spot. Stacks on it — VERIFY,
+  CHECK_EXT caps — all worse.)
+- **KILLED by the measure-first gate (no code shipped): lazy/"light" eval** (skip expensive eval terms at
+  qsearch stand-pat/futility). Eval-cache miss 79.4% = addressable, BUT the light-eval gap is ~85%
+  `capture_gains` (median ~1.5 pawns) → the costliest tail term can't be skipped safely → low skip-rate.
+- **SHELVED (gated default-off, byte-id): SEE cache + qsearch SEE re-sort.** Phase-A instrumentation measured
+  199M see()/6.24-per-qnode and qsearch ALREADY well-ordered (qfmc 77.2%, qcut 0.31). `ENABLE_SEE_CACHE`
+  (per-position [side][square], gen-validated) byte-identical but only 8.7% hit (see calls mostly distinct).
+  `ENABLE_QSEE_RESORT` (noisy list by SEE-desc) −7 WAC fixed-depth / timed-depth NEUTRAL.
+- **PARKED candidate: improving-cheap.** Revived the shelved improving heuristic with a standalone
+  `cheap_eval()` (material+PST, sign-only trend) — net-+ on WAC timed-depth (+3 solves/+0.106 ply, beats
+  full-eval improving). Knobs `IMPROVING_CHEAP`/`IMPROVING_REDUCTION`/`IMPROVING_DELTA_MARGIN` exposed
+  (byte-id). Default-off, needs SPRT (deeper≠stronger caution).
+- **BACKLOG: incremental-SEE rewrite (~3% search, byte-id).** `see_impl` recomputes the full attacker set each
+  exchange iter; knight/king/pawn attackers never change, only sliding x-rays. Precompute non-sliders once /
+  incremental x-ray → ~1.5–2.5×. Do the rewrite NOT the cache (cache+rewrite ≈ rewrite alone). Profiler re-run
+  (post bishop/rook surrogates): PAWNS hottest eval term 20–28%; ATTACK_LAYER already cheap (cached).
+- **▶️ NEXT:** PACE joint-tune (improving knobs + expose hardcoded formulas: `depth²` history bonus,
+  `DEPTH_REDUCTION` table, decay) on reliable proxies → overnight SPRT. Memory [[search-ebf-campaign]],
+  [[improving-heuristic-shelved]]; dev log `dev_notes/search-ebf-campaign.md` (§Session 2026-06-21).
+
 ## Eval-tuning system (2026-06-16) — tooling, not a shipped gain
 Built the `/eval-tune` Claude skill + its instruments to tune eval by **move-match** (the proxy that tracks Elo) with a rare SPRT gate. Committed: `1113c9c` (`SCALE_*` per-term knobs, `tune_corpus.py`, `tune_fit.py`), `36cc20c` (`diagnostics/movematch.py` + dispatcher `movematch`/`movematch_diff`), skill at `.claude/skills/eval-tune/SKILL.md`. **Findings:** eval-match (matching SF static) does NOT predict strength — every fitted candidate degraded STS, and `SCALE_LATENT_THREAT=144` regressed King-Activity move-match 426→376 (caught cheaply by the proxy); scalar term-scaling is too coarse (bulk of the eval scatter is in PST). **NEXT = finer PST/term-internal knobs** to give the loop headroom. Memory [[agentic-eval-tuning-system]].
 

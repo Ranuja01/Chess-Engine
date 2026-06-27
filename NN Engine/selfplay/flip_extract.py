@@ -16,10 +16,10 @@ import os, sys, json, glob, csv
 TAG = sys.argv[1] if len(sys.argv) > 1 else 'overnight_speed'
 DROP = float(sys.argv[2]) if len(sys.argv) > 2 else 3.0   # pawns
 WIN = 3                                                   # plies in the drop window
-ARM = 'fast'
+ARM = sys.argv[3] if len(sys.argv) > 3 else 'fast'        # which arm's losses to mine (match the p1/p2 label)
 THIS = os.path.dirname(os.path.abspath(__file__))
 G = os.path.join(THIS, 'games', TAG)
-OUT = os.path.join(G, 'flips.csv')
+OUT = os.path.join(G, f'flips_{ARM}.csv')
 
 
 def piece_count(fen):

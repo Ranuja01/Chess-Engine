@@ -121,6 +121,85 @@ print(f"MATE_FOUND: {sum(1 for r in scored if is_mate(r))}")
 PYEOF
     ;;
 
+  ks_static)
+    # King-safety STATIC-gap analyzer under forwarded KS_* knobs (our_static vs SF_static on the
+    # king-danger corpus). Deterministic, no SF (labels are pre-baked in the CSV). Args: <tag> [KNOB=v ...].
+    tag="${1:?tag required}"; shift || true
+    env "$@" OMP_NUM_THREADS=1 USE_OPENING_BOOK=0 \
+        "$PY" diagnostics/_kingsafety_static.py > "/tmp/ksstat_${tag}.out" 2> "/tmp/ksstat_${tag}.err" || true
+    grep -hE 'STATIC GAP|ALL |phase|att|opening|early_mid|late_mid|endgame' "/tmp/ksstat_${tag}.out" || cat "/tmp/ksstat_${tag}.err"
+    ;;
+
+  ks_sweep)
+    # King-safety static-gap GRID sweep (loops inside the dispatcher so one allowlisted call runs the
+    # whole sweep). Each line: <label> then the ALL + key midgame buckets. Edit the grid below to retune.
+    declare -a grid=(
+      "off:KING_SAFETY_MAG=0"
+      "base700:KING_SAFETY_MAG=700"
+      "knee8:KING_SAFETY_MAG=700 KS_KNEE=8"
+      "def4:KING_SAFETY_MAG=700 KS_DEFENDER=4"
+      "def4knee8:KING_SAFETY_MAG=700 KS_DEFENDER=4 KS_KNEE=8"
+      "strong:KING_SAFETY_MAG=1500 KS_DEFENDER=3 KS_KNEE=10"
+      "gentle:KING_SAFETY_MAG=1200 KS_DEFENDER=4 KS_KNEE=8 KS_ATTACK_COUNT=0"
+    )
+    for entry in "${grid[@]}"; do
+      label="${entry%%:*}"; knobs="${entry#*:}"
+      env $knobs OMP_NUM_THREADS=1 USE_OPENING_BOOK=0 \
+          "$PY" diagnostics/_kingsafety_static.py > "/tmp/kssw_${label}.out" 2>/dev/null || true
+      echo "### $label  ($knobs)"
+      grep -hE 'ALL |early_mid\|att3|early_mid\|att5|late_mid\|att4' "/tmp/kssw_${label}.out" || echo "  (no output)"
+    done
+    ;;
+
+  sts_sweep)
+    # STS GRID sweep in king_safety REPLACEMENT mode (latent_threat off) — loops inside the dispatcher so
+    # one allowlisted call runs the whole sweep. Target: match/beat baseline 1503 (= latent_threat's +92).
+    # OMP pinned for determinism. Each line: <label> STS score.
+    # Collapse-campaign Phase 1: screen the parked correctness/collapse toggles individually on STS (the
+    # positional no-regression guard) vs baseline 1503. Survivors (STS held) get folded into a Gap-T bundle.
+    declare -a grid=(
+      "baseline:"
+      "gapt:VERIFY_MARGIN=16000"
+      "b_tr:VERIFY_MARGIN=16000 ENABLE_ROOK_DBLCOUNT_FIX=1 ENABLE_ROOK_DBLCOUNT_SYM_UP=1"
+      "b_trq:VERIFY_MARGIN=16000 ENABLE_ROOK_DBLCOUNT_FIX=1 ENABLE_ROOK_DBLCOUNT_SYM_UP=1 ENABLE_QPREC_PHASE_GATE=1"
+      "b_trqk:VERIFY_MARGIN=16000 ENABLE_ROOK_DBLCOUNT_FIX=1 ENABLE_ROOK_DBLCOUNT_SYM_UP=1 ENABLE_QPREC_PHASE_GATE=1 ENABLE_KNIGHT_MOB_FIX=1"
+      "b_rq:ENABLE_ROOK_DBLCOUNT_FIX=1 ENABLE_ROOK_DBLCOUNT_SYM_UP=1 ENABLE_QPREC_PHASE_GATE=1"
+    )
+    for entry in "${grid[@]}"; do
+      label="${entry%%:*}"; knobs="${entry#*:}"
+      sc=$(env $knobs OMP_NUM_THREADS=1 MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+            "$PY" diagnostics/sts_test.py sts300.epd "stssw_${label}" 2>/dev/null | grep -hoE 'STS score: [0-9]+/[0-9]+ +\([0-9.]+%\)')
+      echo "${label}	${sc:-(none)}	[$knobs]"
+    done
+    ;;
+
+  ourmove)
+    # Our engine's move on explicit FENs, NO Stockfish (for when WSL SF-exec is flaky). Args: [KEY=VAL ...] '<fen>'...
+    envs=(); fens=()
+    for a in "$@"; do
+      if [[ "$a" == *=* ]]; then envs+=("$a"); else fens+=("$a"); fi
+    done
+    env PRESET=LONG_FORMAT MAX_DEPTH=12 USE_OPENING_BOOK=0 OMP_NUM_THREADS=1 "${envs[@]}" \
+        "$PY" -c $'import sys\nsys.path.insert(0,"diagnostics")\nfrom tactical_test import run_one\nfor f in sys.argv[1:]:\n r=run_one(f,set())\n print("mv=%-6s ev=%-8s d=%-3s %s"%(r["uci"],r["eval"],r["depth"],f))' "${fens[@]}"
+    ;;
+
+  fenvs)
+    # fen_vs_sf on EXPLICIT FENs with forwarded engine knobs (position-fix check for the collapse campaign).
+    # Args: [KEY=VAL ...] '<fen>' ['<fen>' ...]. Prints our move/eval vs SF best/cp + match flag.
+    export STOCKFISH_PATH="$SF"
+    envs=(); fens=()
+    for a in "$@"; do
+      if [[ "$a" == *=* ]]; then envs+=("$a"); else fens+=("$a"); fi
+    done
+    env PRESET=LONG_FORMAT MAX_DEPTH=12 USE_OPENING_BOOK=0 OMP_NUM_THREADS=1 "${envs[@]}" \
+        "$PY" selfplay/fen_vs_sf.py "${fens[@]}"
+    ;;
+
+  ks_explain)
+    # King-safety visualizer for a FEN (board + zone attack-heat + per-component readout). Args: '<fen>' [--side ...].
+    "$PY" diagnostics/ks_explain.py "$@"
+    ;;
+
   movematch)
     # Themed move-match scorecard for an eval candidate. Args: <tag> <themes|all> [KNOB=v ...].
     # Defaults precede "$@" so a candidate can override MAX_DEPTH (the delta-depth audit) or themes.
@@ -149,12 +228,178 @@ PYEOF
     # Timed self-play A/B: baseline (no knobs) vs the qualifying speed bundle (p2cfg).
     mins="${1:?minutes required}"; shift || true
     p2cfg="${1:-}"; shift || true
+    conc="${1:-6}"; shift || true          # optional: concurrency (default 6; lower when fewer cores are free)
+    ttag="${1:-overnight_speed}"; shift || true   # optional: output tag (default overnight_speed; set a fresh one to avoid clobbering)
     export STOCKFISH_PATH="$SF"
+    # Pin each engine to one thread (eval has OpenMP regions); at concurrency 6 default-OMP would
+    # oversubscribe the physical cores. Symmetric for both sides, so the A/B stays fair, and it matches
+    # the OMP=1 regime move-match candidates are measured under.
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
     "$PY" selfplay/tournament.py \
         --p1-label base --p1-config "" \
         --p2-label fast --p2-config "$p2cfg" \
-        --preset LIGHTNING --concurrency 6 --max-minutes "$mins" \
-        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag overnight_speed
+        --preset LIGHTNING --concurrency "$conc" --max-minutes "$mins" \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  annotate)
+    # SF-annotate every game under games/<tag>/ -> per-ply SF cp + our eval_breakdown (analysis.csv).
+    # The long parallel SF batch that feeds the term-attribution diagnostic (eval_breakdown --tag).
+    tag="${1:?tag required}"; shift || true
+    conc="${1:-4}"; shift || true              # SF workers (default 4)
+    export STOCKFISH_PATH="$SF"
+    "$PY" selfplay/annotate.py --tag "$tag" --concurrency "$conc" --sf-depth 12 "$@"
+    ;;
+
+  pattern_diag)
+    # Offline miseval-pattern miner over an ANNOTATED tag: offender clusters / fixable-bias-vs-scatter /
+    # transform leaks, by material config. No SF/engine. Args: <tag> [extra pattern_diag.py flags...].
+    tag="${1:?tag required}"; shift || true
+    "$PY" selfplay/pattern_diag.py --tag "$tag" "$@"
+    ;;
+
+  breakdown_tag)
+    # Term-attribution catalog: rank plies of an ANNOTATED tag by our-vs-SF divergence, attribute the worst
+    # over-reads to eval terms. Reads recorded sf_cp (no live SF). Args: <tag> [top=50] [min-div=2.0].
+    tag="${1:?tag required}"; shift || true
+    top="${1:-50}"; shift || true
+    mindiv="${1:-2.0}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    "$PY" diagnostics/eval_breakdown.py --tag "$tag" --top "$top" --min-div "$mindiv" "$@"
+    ;;
+
+  breakdown_fen)
+    # Per-FEN static-eval term attribution + live SF static/search. Args: [KEY=VAL ...] '<fen>' ['<fen>' ...].
+    # KEY=VAL args are forwarded as engine env knobs (e.g. PASSER_BLOCK_ADV=50); the rest are FENs.
+    export STOCKFISH_PATH="$SF"
+    envs=(); fens=()
+    for a in "$@"; do
+      if [[ "$a" == *=* ]]; then envs+=("$a"); else fens+=("$a"); fi
+    done
+    env "${envs[@]}" "$PY" diagnostics/eval_breakdown.py --fen "${fens[@]}"
+    ;;
+
+  tournament_seeded)
+    # Timed self-play A/B from a CUSTOM openings file (seeded collapse-zone playouts / seeded SPRT).
+    # Args: <minutes> "<p2 knobs>" <openings_file> [conc=4] [tag=seeded_play]
+    mins="${1:?minutes required}"; shift || true
+    p2cfg="${1:-}"; shift || true
+    openings="${1:?openings file required}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-seeded_play}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py \
+        --p1-label base --p1-config "" \
+        --p2-label cand --p2-config "$p2cfg" \
+        --preset LIGHTNING --concurrency "$conc" --max-minutes "$mins" \
+        --openings "$openings" --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  flips)
+    # Collapse-rate KPI: mine one arm's flips from a played/annotated tag. Args: <tag> <arm> [drop=3.0].
+    # Prints games / <arm>_losses / flips_found  (=> flips per game = the floor metric).
+    tag="${1:?tag required}"; shift || true
+    arm="${1:?arm required}"; shift || true
+    drop="${1:-3.0}"; shift || true
+    "$PY" selfplay/flip_extract.py "$tag" "$drop" "$arm" 2>&1 | head -2
+    ;;
+
+  move_proxy)
+    # Move-decisive proxy: fen_vs_sf base vs candidate over a FEN csv; prints SF-best match + over-read delta.
+    # Args: <csv> <n> "<cand knobs>"   (cand knobs forwarded as env to the candidate pass only).
+    csv="${1:?csv required}"; shift || true
+    n="${1:?n required}"; shift || true
+    cand="${1:-}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    env OMP_NUM_THREADS=1 PRESET=LIGHTNING USE_OPENING_BOOK=0 "$PY" selfplay/fen_vs_sf.py --csv "$csv" "$n" > /tmp/mp_base.txt 2>/dev/null
+    env OMP_NUM_THREADS=1 PRESET=LIGHTNING USE_OPENING_BOOK=0 $cand "$PY" selfplay/fen_vs_sf.py --csv "$csv" "$n" > /tmp/mp_cand.txt 2>/dev/null
+    "$PY" - <<'PYEOF'
+import re
+def parse(p):
+    d={}
+    for ln in open(p):
+        m=re.search(r'ev=\s*(-?\d+)\s+mv=(\S+)\s+d=(\d+).*cp=\s*(-?\d+)\s+best=(\S+).*?(game_\d+)',ln)
+        if m:
+            ev,mv,dp,cp,best,g=m.groups(); d[g]=dict(ev=int(ev),mv=mv,cp=int(cp),best=best)
+    return d
+b=parse('/tmp/mp_base.txt'); c=parse('/tmp/mp_cand.txt')
+keys=[k for k in b if k in c]
+if not keys:
+    print('move_proxy: no parsed rows'); raise SystemExit
+mm=lambda d: sum(1 for k in keys if d[k]['mv']==d[k]['best'])
+err=lambda d: sum(abs(d[k]['ev']/10.0-d[k]['cp']) for k in keys)/len(keys)
+plugged=sum(1 for k in keys if b[k]['mv']!=b[k]['best'] and c[k]['mv']==c[k]['best'])
+broke=sum(1 for k in keys if b[k]['mv']==b[k]['best'] and c[k]['mv']!=c[k]['best'])
+print(f'N={len(keys)}  SF-best: base {mm(b)} cand {mm(c)}  (plugged {plugged} / broke {broke})')
+print(f'over-read |our_cp-sf_cp|: base {err(b):.0f} cand {err(c):.0f} delta {err(c)-err(b):+.0f}')
+PYEOF
+    ;;
+
+  depth_probe)
+    # How many collapse positions does OUR engine SOLVE (match SF-best) as fixed depth increases?
+    # Distinguishes within-depth (tunable now) vs deeper-depth (depth lever) vs never (eval/future-sight).
+    # Args: <csv> <n>  [optional cand knobs forwarded to the engine].
+    csv="${1:?csv required}"; shift || true
+    n="${1:?n required}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    for d in 10 16 22; do
+      env OMP_NUM_THREADS=1 PRESET=LONG_FORMAT MAX_DEPTH=$d USE_OPENING_BOOK=0 "$@" \
+        "$PY" selfplay/fen_vs_sf.py --csv "$csv" "$n" 2>/dev/null \
+        | awk -v D=$d '/ours:/{t++; if(index($0," OK "))m++} END{printf "depth %s: our-move==SF-best  %d/%d\n", D, m, t+0}'
+    done
+    ;;
+
+  cploss_probe)
+    # ACPL proxy (overall move-quality inner loop): mean centipawn-loss of OUR move vs SF over general
+    # midgame positions. Lower = better general play. Args: <tag> <n> [KEY=VAL knobs...].
+    tag="${1:?tag required}"; shift || true
+    n="${1:-150}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    env OMP_NUM_THREADS=1 PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 SF_MOVETIME=0.25 "$@" \
+        "$PY" selfplay/cploss_probe.py "$tag" "$n" 2>/dev/null | grep '^cploss:'
+    ;;
+
+  runup_probe)
+    # Fast run-up collapse probe (PACE inner loop): play OUR engine vs SF a few plies from each seed, cut off
+    # on collapse/survive, report collapse-rate. Args: <seed_csv> <n> <plies> [KEY=VAL knobs...].
+    csv="${1:?csv required}"; shift || true
+    n="${1:-50}"; shift || true
+    plies="${1:-8}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    env OMP_NUM_THREADS=1 PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 SF_MOVETIME=0.15 "$@" \
+        "$PY" selfplay/runup_probe.py "$csv" "$n" "$plies" 2>/dev/null | grep '^runup:'
+    ;;
+
+  pyrun)
+    # Run a project python helper with the anaconda interpreter (analysis scripts). Args: <script.py> [args...].
+    export STOCKFISH_PATH="$SF"
+    "$PY" "$@"
+    ;;
+
+  bias_sweep)
+    # Cheap PACE perturbation sweep: reeval an annotated tag under each MOD_* setting and print the key
+    # signed-bias buckets (+1B+2P, +1R+2P) and the equal-material control. Args: <tag>. One process per
+    # setting (knobs are read once at engine init). The agent reads the pattern to pick directions.
+    tag="${1:?tag required}"; shift || true
+    for setting in \
+      'default:' \
+      'matpawns+:MOD_MAT_PAWNS=300' \
+      'matpawns-:MOD_MAT_PAWNS=-300' \
+      'matoppb-:MOD_MAT_OPPB=-600' \
+      'ltback+:MOD_LT_BACKING=400' \
+      'ltback-:MOD_LT_BACKING=-400' \
+      'pairopen+:MOD_PAIR_OPEN=400' \
+      'pairopen-:MOD_PAIR_OPEN=-400' \
+      'combo:MOD_MAT_PAWNS=300 MOD_MAT_OPPB=-400 MOD_LT_BACKING=400'; do
+      label="${setting%%:*}"; knobs="${setting#*:}"
+      env $knobs "$PY" selfplay/annotate.py --tag "$tag" --reeval >/dev/null 2>&1
+      echo -n "$label	"
+      "$PY" selfplay/pattern_diag.py --tag "$tag" 2>/dev/null \
+        | awk '/\+1B\+2P /{b=$3} /\+1R\+2P /{r=$3} /even \(d=0\)/{e=$4} END{printf "1B2P=%s 1R2P=%s even=%s\n", b, r, e}'
+    done
     ;;
 
   result)

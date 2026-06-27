@@ -381,6 +381,21 @@ namespace Config
     inline int PP_FILE_CLEAR    = 150;  // supported AND the neighbouring file is clear of enemy pawns
     inline int PP_HORIZ_SUPPORT = 225;  // friendly pawn alongside on the same rank
 
+    // Pawn-majority / candidate-passer bonus: a wing pawn majority (more pawns on the queenside or
+    // kingside than the opponent) can force a passed pawn before one exists -- the engine otherwise
+    // values pawns only once ACTUALLY passed, under-reading won pawn-up positions. Per surplus pawn.
+    // Phase-aware: _MG weights the majority in the midgame/early-endgame (a structural asset that
+    // foreshadows the endgame -- shapes trade-down decisions), _EG its value in the late endgame
+    // (active conversion); blended linearly by phase_score so the two regimes tune independently.
+    // Both 0 = off = byte-identical; PACE-tuned (/eval-tune).
+    inline int PAWN_MAJORITY_MAG_MG = 0;
+    inline int PAWN_MAJORITY_MAG_EG = 0;
+    // Modulators on the per-wing majority bonus (all 0 = flat base = neutral). Only active when the
+    // base MAG is on, so all-default stays byte-identical. PACE finds the constants jointly.
+    inline int PAWN_MAJORITY_ADV_K      = 0;  // + per (most-advanced own pawn rank x surplus): a rolling majority is worth more
+    inline int PAWN_MAJORITY_OUTSIDE_K  = 0;  // + per surplus when the majority wing is opposite the enemy king (outside passer)
+    inline int PAWN_MAJORITY_BLOCKADE_K = 0;  // - per (enemy knight/bishop x surplus): a minor can blockade the would-be passer
+
     // Eval: placement (piece-square) MAGNITUDE scales (percent; 100 = byte-identical). Whole-map per-piece
     // multiplier applied at every read of that piece's placement table — white read, black read, AND the
     // central-score feed — so colour symmetry and the central term stay consistent. ROOK PST is dead code
@@ -455,6 +470,37 @@ namespace Config
     // king-safety / attacking weight vs material+position.
     inline int SCALE_ATTACK_LAYER = 100;
 
+    // Eval: ATTACK-UNIT KING SAFETY (king_safety_score) — the canonical pre-NNUE model that replaces the
+    // crude flat-increment get_latent_threat_score. Per king, enemy pressure is accumulated as ATTACK
+    // UNITS and mapped through a PRECOMPUTED non-linear safety table (danger = clamp(units)^2 / KS_DIVISOR),
+    // so two attackers are worth far more than twice one (additive pressure). king_safety = danger(white
+    // king) - danger(black king) (Black-positive), PHASE-TAPERED to ~0 by the endgame. The master knob
+    // KING_SAFETY_MAG defaults 0 => the term is gated off at the call site => byte-identical; the component
+    // knobs only take effect once MAG > 0. Each component is additive into `units`, so any sub-knob at 0
+    // disables just that component (lets us build/tune one at a time; lets PACE/Texel tune them jointly).
+    inline int KING_SAFETY_MAG = 0;     // master percent scale (0 = off = byte-identical)
+    inline int KS_ATT_KNIGHT   = 2;     // attack units per enemy knight bearing on the king zone
+    inline int KS_ATT_BISHOP   = 2;     // per enemy bishop
+    inline int KS_ATT_ROOK     = 3;     // per enemy rook
+    inline int KS_ATT_QUEEN    = 5;     // per enemy queen
+    inline int KS_ATTACK_COUNT = 1;     // per zone square the enemy attacks (additive zone pressure)
+    inline int KS_WEAK         = 2;     // per weak zone square (enemy-attacked, not defended by a friendly pawn)
+    inline int KS_SAFE_CHECK   = 3;     // per square from which the enemy can deliver a safe check
+    inline int KS_STORM        = 1;     // per rank of enemy pawn-storm advance on the king's three files
+    inline int KS_OPEN_FILE    = 2;     // per open/semi-open file on/adjacent to the king file
+    inline int KS_BATTERY      = 3;     // per rook/queen battery (doubled on a file / Q+B diagonal) aimed at the zone
+    inline int KS_SHIELD       = 2;     // units subtracted per friendly pawn shielding the king on its three files
+    inline int KS_DEFENDER     = 2;     // units subtracted per friendly PIECE (N/B/R/Q) defending the king zone
+                                        // (the attacker-vs-defender balance detector: an attack only "blows up"
+                                        // when attackers outweigh defenders, like the old latent_threat gates)
+    inline int KS_DIVISOR      = 4;     // non-linear table denominator: danger = units^2 / KS_DIVISOR (below the knee)
+    inline int KS_KNEE         = 12;    // units up to here grow QUADRATICALLY; above, growth is LINEAR (continuous
+                                        // slope) so a crowded king zone ramps gently instead of exploding. Set >= KS_CAP
+                                        // for pure quadratic-then-clamp (the old behaviour).
+    inline int KS_CAP          = 80;    // units clamp (table is built up to KS_MAX_UNITS; KS_CAP <= that)
+    inline int KS_PHASE_FULL   = 48;    // phase_score AT/BELOW which king safety is full weight (0=full material/opening)
+    inline int KS_PHASE_ZERO   = 104;   // phase_score AT/ABOVE which king safety is ~0 (128=bare kings/deep endgame)
+
     // Eval: REALIZABILITY modulation of the midgame offense-vs-defense IMBALANCE term (the king-zone
     // pressure differential, a proven ~400-Elo term that is crude: a flat reward for unmatched offense
     // with no convertibility check). A factor R (over 256, default 256 = full) scales the imbalance bonus
@@ -482,7 +528,7 @@ namespace Config
     // (own support minus self-block malus) untouched and bounds only the enemy credit. Percent;
     // 100 = byte-identical (full credit, current behavior); lower = trim the wrong-signed duplicate
     // (blockade still counts via getPPIncrement PP_BLOCKADE_PEN + rooks). Colour-symmetric.
-    inline int PASSER_ENEMY_CREDIT_PCT = 100;
+    inline int PASSER_ENEMY_CREDIT_PCT = 0;   // SHIPPED (collapse bundle): trim the wrong-signed enemy passer credit
 
     // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
     // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing
@@ -496,7 +542,7 @@ namespace Config
     // stop square) gets the full PP_BLOCKADE_PEN; a rook/queen merely contesting the file ahead gets only
     // PASSER_CONTEST_PCT of it (the pawn still advances; the contester is tied down). Un-zeroes a
     // rook-contested advancing passer. Default off = byte-identical.
-    inline bool ENABLE_PASSER_BLOCKADE_QUALITY = false;
+    inline bool ENABLE_PASSER_BLOCKADE_QUALITY = true;   // SHIPPED (collapse bundle): rook-contest vs secure-blockade
     inline int PASSER_CONTEST_PCT = 30;   // % of PP_BLOCKADE_PEN applied to a file-contest (vs a secure blockade)
     // Gap-P C2: magnitude of the per-passer king-race realizability (passer_realizability_delta + the AE
     // endgame block). Percent; 100 = byte-identical. The king-race is calibrated too weak for an
@@ -626,7 +672,7 @@ namespace Config
     // endgame black-rook extra unconditional rookIncrement add (no white mirror). KNIGHT_MOB: endgame
     // knight mobility bonus is 15 for black vs 10 for white.
     inline bool ENABLE_CAPGAIN_PAWN_FIX = true;
-    inline bool ENABLE_ROOK_DBLCOUNT_FIX = false;
+    inline bool ENABLE_ROOK_DBLCOUNT_FIX = true;   // SHIPPED (collapse bundle, with SYM_UP)
     inline bool ENABLE_KNIGHT_MOB_FIX = false;
 
     // Symmetrize-UP counterparts to the KNIGHT_MOB / ROOK_DBLCOUNT colour asymmetries: instead of
@@ -636,7 +682,7 @@ namespace Config
     // 10 -> 15. ROOK_DBLCOUNT_SYM_UP: add white's missing extra (7-rank)*35 "rook behind enemy pawn"
     // term. Behavioral -> gated default-off.
     inline bool ENABLE_KNIGHT_MOB_SYM_UP = false;
-    inline bool ENABLE_ROOK_DBLCOUNT_SYM_UP = false;
+    inline bool ENABLE_ROOK_DBLCOUNT_SYM_UP = true;   // SHIPPED (collapse bundle): rook double-count symmetric-up
 
     // Batch 1 endgame-asymmetry tail. ROOK_ENDGAME_CAP: evaluate_rooks_endgame applies rookIncrement
     // UNCAPPED in both colour branches (reaching ~725 on a behind-passer file), unlike
@@ -660,17 +706,20 @@ namespace Config
     // at cur_depth>=3 and the maximizer at >=4 -- NOT a colour bug but a PARITY artifact (minimizer sits at
     // odd cur_depths, maximizer at even), confirmed: MAXI=3 is byte-identical (no maximizer node at
     // cur_depth 3) and MINI=4 is worse (-1 solve, +13% nodes). Knobs retained for future MAXI=2 tuning.
-    inline bool ENABLE_QPREC_PHASE_GATE = false;
+    inline bool ENABLE_QPREC_PHASE_GATE = true;   // SHIPPED (collapse bundle): restores midgame qsearch phase logic
     inline bool ENABLE_TT_DEPTH_FIX = true;
     inline int NULLMOVE_CURDEPTH_MINI = 3;
     inline int NULLMOVE_CURDEPTH_MAXI = 4;
 
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that
-    // uses the "how close to alpha" signal. The default is the blitz-validated
-    // keeper (margin 6000 with VERIFY_RESEARCH_REDUCTION 2); set 0 to disable it
-    // and recover the old byte-identical search (e.g. for the d10 isolation control).
-    inline int VERIFY_MARGIN = 6000;
+    // uses the "how close to alpha" signal. The wider 16000 margin catches the buried
+    // winning-capture line (Gap-T: the benoni-29 axb5 collapse vs tal-BOT) that
+    // history-LMR over-reduces past the old 6000 margin; it recovers the positional
+    // credit combo1's pruning traded away (STS +62) at ACPL-neutral / self-play
+    // +3.7 +/-31 (no regression). Set 6000 for the old blitz default, or 0 to disable
+    // and recover the old byte-identical search (e.g. for a d10 isolation control).
+    inline int VERIFY_MARGIN = 16000;
 
     // Graduated verification: re-search the near-miss at depth_limit - this (a
     // shallow re-look) instead of full depth, to cut the cost of a wide VERIFY_MARGIN.

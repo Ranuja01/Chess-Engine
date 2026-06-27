@@ -100,6 +100,13 @@ constexpr uint8_t KING = 6;
 
 constexpr int MAX_PHASE = 24;
 
+// Attack-unit king-safety: the danger lookup table is built up to this many units (clamp ceiling).
+// king_safety_score indexes ks_safety_table[min(units, KS_MAX_UNITS)]; Config::KS_CAP (<= this) is the
+// tunable runtime clamp. The phase-taper table ks_phase_taper[] is indexed by phase_score 0..128.
+constexpr int KS_MAX_UNITS = 128;
+extern std::array<int, KS_MAX_UNITS + 1> ks_safety_table;  // attack-units -> danger (precomputed at init)
+extern std::array<int, 129>              ks_phase_taper;   // phase_score 0..128 -> /256 fade
+
 // Define the file bitboards
 constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
 constexpr uint64_t BB_FILE_B = 0x0101010101010101ULL << 1;
@@ -299,6 +306,7 @@ bool get_horizon_mitigation_flag();
 void initialize_attack_tables();
 void rebuild_scaled_placement();
 void rebuild_scaled_pawn_tables();
+void rebuild_ks_tables();
 void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<SlidingRow> &attack_table);
 uint64_t sliding_attacks(uint8_t square, uint64_t occupied, const std::vector<int8_t>& deltas);
 void carry_rippler(uint64_t mask, std::vector<uint64_t> &subsets);
@@ -338,6 +346,7 @@ struct EvalBreakdown {
 	int capture_gains;
 	int passed_pawn_support;
 	int latent_threat;
+	int king_safety;   // attack-unit king-safety term (0 unless KING_SAFETY_MAG > 0; additive, beside latent_threat)
 	int central;
 	int imbalance_white;
 	int imbalance_black;
@@ -398,7 +407,7 @@ int eval_profile_num_exclusive();
 enum ProfTerm {
 	PROF_PAWNS, PROF_KNIGHTS, PROF_BISHOPS, PROF_ROOKS, PROF_ROOK_ACTIVITY,
 	PROF_QUEENS, PROF_KINGS, PROF_ATTACK_LAYER, PROF_CAPTURE_GAINS,
-	PROF_PASSED_SUPPORT, PROF_LATENT_THREAT, PROF_ADV_ENDGAME,
+	PROF_PASSED_SUPPORT, PROF_LATENT_THREAT, PROF_KING_SAFETY, PROF_ADV_ENDGAME,
 	// Drill-only terms (nested inside the evaluators above; subsets, not exclusive).
 	PROF_SEE, PROF_BISHOP_ACTIVITY, PROF_BISHOP_COLOUR,
 	// Search-side scopes (NOT part of the eval %-base; their absolute cycles vs the eval-term

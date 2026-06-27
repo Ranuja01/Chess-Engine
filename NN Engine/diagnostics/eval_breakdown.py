@@ -57,7 +57,7 @@ ENGINE_UNITS_PER_PAWN = 1000.0
 
 # The additive terms whose contributions to `total` are captured (material is informational, excluded).
 ADDITIVE_TERMS = [
-    "pieces", "capture_gains", "passed_pawn_support", "latent_threat", "central",
+    "pieces", "capture_gains", "passed_pawn_support", "latent_threat", "king_safety", "central",
     "imbalance_white", "imbalance_black", "pair_bonus", "piece_value_boost",
 ]
 

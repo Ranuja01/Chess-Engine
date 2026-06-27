@@ -39,6 +39,16 @@ std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
 // 2-ring around each king square = the exact set of squares the king-zone loops in setAttackingLayer
 // read; used as the midgame attack-layer cache key (built in initialize_attack_tables).
 std::array<uint64_t, NUM_SQUARES> king_ring2;
+// Pawn-shield masks for the attack-unit king-safety term: the three files (king file +/- 1) on the two
+// ranks immediately in front of the king (toward the enemy). Friendly pawns intersecting this mask are
+// the king's shield. Built in initialize_attack_tables.
+std::array<uint64_t, NUM_SQUARES> white_king_shield;
+std::array<uint64_t, NUM_SQUARES> black_king_shield;
+// King-safety attack ZONE (tighter than king_ring2 to weight real attacks near the king over distant
+// proximity): the king's square + its 8 neighbours (ring-1) plus those neighbours pushed one rank toward
+// the enemy (the forward staging squares an attack lands on). Colour-specific via the forward push.
+std::array<uint64_t, NUM_SQUARES> white_king_ks_zone;
+std::array<uint64_t, NUM_SQUARES> black_king_ks_zone;
 // Forward 3-file span ahead of a pawn on each square (its own file + both neighbours, all ranks toward
 // promotion). A pawn is passed iff no enemy pawn occupies this span. Mirrors getPPIncrement's mask shape;
 // built in initialize_attack_tables and consumed by the search's passed-pawn pruning exemption.
@@ -320,6 +330,44 @@ void rebuild_scaled_pawn_tables(){
 		pawn_wall_file_bonus[i] = pawn_wall_file_bonus_base[i] * Config::SCALE_PAWN_WALL / 100;
 }
 
+// King-safety working tables the eval hot path reads. ks_safety_table maps clamped attack-units to a
+// danger value (the non-linear "additive pressure" curve, danger = min(units,KS_CAP)^2 / KS_DIVISOR);
+// ks_phase_taper maps phase_score 0..128 to a /256 fade so king safety is at full weight in the
+// midgame and ~0 in the deep endgame. Both are rebuilt once at init from the KS_* knobs
+// (rebuild_ks_tables), so the hot path is a plain array read with NO per-eval division. Initialised
+// to zero -> king safety contributes nothing until init runs (and stays byte-identical while
+// KING_SAFETY_MAG == 0, the gated default).
+std::array<int, KS_MAX_UNITS + 1> ks_safety_table = {};
+std::array<int, 129>              ks_phase_taper  = {};
+
+void rebuild_ks_tables(){
+	const int divisor = std::max(1, Config::KS_DIVISOR);
+	const int cap     = std::clamp(Config::KS_CAP, 0, KS_MAX_UNITS);
+	const int knee    = std::clamp(Config::KS_KNEE, 1, KS_MAX_UNITS);
+	// Quadratic up to the knee, then linear (continuous slope = d/du[u^2/divisor] = 2*knee/divisor) so a
+	// crowded king zone ramps gently instead of exploding via unbounded u^2. knee>=cap => pure quadratic.
+	const int knee_val   = knee * knee / divisor;
+	const int knee_slope = (2 * knee) / divisor;
+	for (int u = 0; u <= KS_MAX_UNITS; ++u){
+		int c = std::min(u, cap);
+		ks_safety_table[u] = (c <= knee) ? (c * c / divisor)
+		                                 : (knee_val + knee_slope * (c - knee));
+	}
+	// Smooth linear taper: full weight (256) at/below KS_PHASE_FULL, zero at/above KS_PHASE_ZERO, ramped
+	// between. phase_score is 0=full material/opening .. 128=bare kings/endgame, so FULL <= ZERO; king
+	// danger is a midgame concern, so it is full in the opening/midgame and fades out toward the endgame.
+	const int full = std::clamp(Config::KS_PHASE_FULL, 0, 128);
+	const int zero = std::clamp(Config::KS_PHASE_ZERO, 0, 128);
+	for (int ps = 0; ps <= 128; ++ps){
+		int t;
+		if (ps <= full)        t = 256;
+		else if (ps >= zero)   t = 0;
+		else if (zero <= full) t = (ps <= full) ? 256 : 0;  // degenerate: hard step at FULL
+		else                   t = 256 * (zero - ps) / (zero - full);
+		ks_phase_taper[ps] = t;
+	}
+}
+
 // Define array to hold the piece type
 alignas(64) std::array<uint8_t, 64> pieceTypeLookUp = {};
 
@@ -406,6 +454,33 @@ void initialize_attack_tables() {
             inner &= inner - 1;
         }
         king_ring2[sq] = ring;
+    }
+
+    // Build the pawn-shield masks: the three files around the king on the two ranks in front of it
+    // (toward the enemy back rank). king_safety_score subtracts units for each friendly pawn here.
+    for (int sq = 0; sq < NUM_SQUARES; ++sq) {
+        int x = sq & 7;
+        int y = sq >> 3;
+        uint64_t shield_white = 0;
+        uint64_t shield_black = 0;
+        for (int f = x - 1; f <= x + 1; ++f) {
+            if (f < 0 || f > 7) continue;
+            for (int d = 1; d <= 2; ++d) {
+                int yw = y + d;  // white king shelters on the ranks above it
+                int yb = y - d;  // black king shelters on the ranks below it
+                if (yw <= 7) shield_white |= BB_SQUARES[yw * 8 + f];
+                if (yb >= 0) shield_black |= BB_SQUARES[yb * 8 + f];
+            }
+        }
+        white_king_shield[sq] = shield_white;
+        black_king_shield[sq] = shield_black;
+
+        // King-safety zone: ring-1 (king + neighbours) plus that ring pushed one rank toward the enemy.
+        uint64_t ring1 = BB_KING_ATTACKS[sq] | BB_SQUARES[sq];
+        uint64_t fwd_white = (ring1 << 8);   // toward rank 8 (white king's forward staging squares)
+        uint64_t fwd_black = (ring1 >> 8);   // toward rank 1 (black king's)
+        white_king_ks_zone[sq] = ring1 | fwd_white;
+        black_king_ks_zone[sq] = ring1 | fwd_black;
     }
 
     // Build the passed-pawn forward spans: for each square, the union over its own file and both
@@ -4814,8 +4889,114 @@ inline int advanced_endgame_eval(int total, bool turn){
 
 
 
+/*
+	Attack-unit king danger for ONE king (the side whose king is `white_king`). Accumulates enemy
+	pressure on the king's 2-ring as ATTACK UNITS, then maps them through the precomputed non-linear
+	ks_safety_table (danger = clamp(units)^2 / KS_DIVISOR) so two attackers are worth far more than
+	twice one. Reuses attack_bitmasks (per-square OR-mask of all attackers, already populated by the
+	per-piece eval loops) to derive the enemy attacker SET over the zone with no fresh attack generation.
+
+	Components (this build): attacker-set-by-type, attacked-zone-square count, defender count (subtract),
+	pawn shield (subtract), open/semi-open files near the king, and SAFE CHECKS. Storm / weak-squares /
+	batteries are added in later build steps (their KS_* knobs already exist but are not yet consumed here).
+*/
+inline int king_safety_danger(uint8_t king_square, bool white_king){
+	uint64_t zone      = white_king ? white_king_ks_zone[king_square] : black_king_ks_zone[king_square];
+	uint64_t enemy     = white_king ? occupied_black : occupied_white;
+	uint64_t own        = white_king ? occupied_white : occupied_black;
+	uint64_t own_pawns = pawns & own;
+
+	// Enemy attacker SET over the zone + own defender SET (the attacker-vs-defender balance detector) +
+	// count of zone squares the enemy attacks (additive pressure). attack_bitmasks[s] is the OR-mask of
+	// all pieces attacking s; intersect with each side to split attackers from defenders.
+	uint64_t attackers_sq = 0;
+	uint64_t defenders_sq = 0;
+	int attacked_zone_squares = 0;
+	uint64_t z = zone;
+	while (z) {
+		uint8_t s = __builtin_ctzll(z);
+		z &= z - 1;
+		uint64_t bm = attack_bitmasks[s];
+		uint64_t am = bm & enemy;  // enemy pieces attacking this zone square
+		defenders_sq |= bm & own;  // own pieces covering this zone square
+		if (am) {
+			attackers_sq |= am;
+			attacked_zone_squares++;
+		}
+	}
+	uint64_t pieces_nk = knights | bishops | rooks | queens;  // defenders counted among real pieces (not king/pawn)
+
+	int units = Config::KS_ATT_KNIGHT * __builtin_popcountll(attackers_sq & knights)
+	          + Config::KS_ATT_BISHOP * __builtin_popcountll(attackers_sq & bishops)
+	          + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
+	          + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens)
+	          + Config::KS_ATTACK_COUNT * attacked_zone_squares
+	          - Config::KS_DEFENDER * __builtin_popcountll(defenders_sq & pieces_nk);
+
+	// Pawn shield: friendly pawns in front of the king reduce danger.
+	uint64_t shield_mask = white_king ? white_king_shield[king_square] : black_king_shield[king_square];
+	units -= Config::KS_SHIELD * __builtin_popcountll(own_pawns & shield_mask);
+
+	// Open / semi-open files on and adjacent to the king file (no friendly pawn = exposed king).
+	uint8_t kf = king_square & 7;
+	int open_files = 0;
+	for (int df = -1; df <= 1; ++df) {
+		int ff = (int)kf + df;
+		if (ff < 0 || ff > 7) continue;
+		if (!(own_pawns & BB_FILES[ff])) open_files++;
+	}
+	units += Config::KS_OPEN_FILE * open_files;
+
+	// Safe checks: squares from which the enemy could deliver CHECK and not be immediately recaptured.
+	// The check-FROM squares are the king's own slider/knight attack rays (a checker sits where the king
+	// "sees" it); an enemy piece of the matching type that attacks such a square can move there to check,
+	// and it is SAFE iff our side does not defend that square. This is the strongest genuine-danger signal
+	// (it fires on real attacks, not mere proximity). attack_bitmasks gives, per square, who attacks it.
+	if (Config::KS_SAFE_CHECK) {
+		uint64_t occ = occupied;
+		uint64_t knight_from = BB_KNIGHT_ATTACKS[king_square];
+		uint64_t bishop_from = BB_DIAG_ATTACKS[king_square][BB_DIAG_MASKS[king_square] & occ];
+		uint64_t rook_from   = BB_RANK_ATTACKS[king_square][BB_RANK_MASKS[king_square] & occ]
+		                     | BB_FILE_ATTACKS[king_square][BB_FILE_MASKS[king_square] & occ];
+		uint64_t enemy_knights = enemy & knights;
+		uint64_t enemy_diag    = enemy & (bishops | queens);
+		uint64_t enemy_line    = enemy & (rooks | queens);
+		int safe_checks = 0;
+		// A checker moves ONTO the check square, so it cannot be an enemy-occupied square; it is safe iff
+		// our side does not cover it (attack_bitmasks[S] & own == 0 -> no recapture, the king included).
+		uint64_t cc = knight_from & ~enemy;
+		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
+		             if ((bm & enemy_knights) && !(bm & own)) safe_checks++; }
+		cc = bishop_from & ~enemy;
+		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
+		             if ((bm & enemy_diag) && !(bm & own)) safe_checks++; }
+		cc = rook_from & ~enemy;
+		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
+		             if ((bm & enemy_line) && !(bm & own)) safe_checks++; }
+		units += Config::KS_SAFE_CHECK * safe_checks;
+	}
+
+	if (units < 0) units = 0;
+	if (units > KS_MAX_UNITS) units = KS_MAX_UNITS;
+	return ks_safety_table[units];
+}
+
+/*
+	Attack-unit king safety for the whole position, Black-positive (matching `total`): a dangerous WHITE
+	king favours Black (+), a dangerous BLACK king favours White (-). Phase-tapered to ~0 by the deep
+	endgame via the precomputed ks_phase_taper (full weight in the midgame). Early-out in the deep
+	endgame where the taper is ~0 so the term costs nothing exactly where it does not matter.
+*/
+inline int king_safety_score(uint8_t white_king_square, uint8_t black_king_square, int phase_score){
+	if (phase_score >= Config::KS_PHASE_ZERO) return 0;  // deep-endgame early-out (high phase_score, taper ~ 0)
+	int danger_white = king_safety_danger(white_king_square, true);
+	int danger_black = king_safety_danger(black_king_square, false);
+	int ks = danger_white - danger_black;
+	return ks * ks_phase_taper[phase_score] / 256;
+}
+
 inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king_square){
-	
+
 	uint64_t white_king_zone = white_king_zones[white_king_square & 7];
 	uint64_t black_king_zone = black_king_zones[black_king_square & 7];
 
@@ -5600,7 +5781,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// Diagnostic-only term-attribution accumulators. These only ever READ `total` and write to locals/globals;
 	// they never feed back into `total`, so the search tree is byte-identical whether capture is on or off.
 	int br_run = 0;
-	int br_pieces = 0, br_capture = 0, br_passed = 0, br_latent = 0, br_central = 0;
+	int br_pieces = 0, br_capture = 0, br_passed = 0, br_latent = 0, br_central = 0, br_king_safety = 0;
 	int br_imbalance_white = 0, br_imbalance_black = 0, br_pairs = 0, br_pv_boost = 0;
 	int br_advanced_total = 0;
 	int br_ae_input = 0;
@@ -5958,6 +6139,15 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_latent = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 
+		// Attack-unit king safety (replaces the crude get_latent_threat_score once it wins). Gated on
+		// KING_SAFETY_MAG so an all-default build is byte-identical; runs beside latent_threat for now.
+		if (!g_eval_light && Config::KING_SAFETY_MAG != 0) {
+			PROF_BLOCK(PROF_KING_SAFETY);
+			int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score);
+			total += Config::KING_SAFETY_MAG * ks / 100;
+		}
+		br_king_safety = total - br_run; br_run = total;
+
 		//std::cout << phase_score << std::endl;
 		int central_add;
 		if(phase_score < 20){
@@ -6289,6 +6479,45 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	//std::cout << "AAAA: " << approximate_capture_gains1(occupied & ~kings, turn) << " occupied: " << (occupied & ~kings) << " turn: " << turn <<  std::endl;
 	//std::cout << total << " " << whiteOffensiveScore << " " << whiteDefensiveScore << " " <<  blackOffensiveScore << " " << blackDefensiveScore << " " <<std::endl;
 
+	// Pawn-majority / candidate-passer bonus. A wing pawn majority (queenside files a-d or kingside
+	// e-h) can force a passed pawn before one exists; the rest of the eval rewards a pawn only once it
+	// is ACTUALLY passed, so pawn-up positions are under-read. Per surplus pawn, with PACE-tunable
+	// modulators (advancement / outside / blockade). Added here (after the advanced-endgame replace) so
+	// it survives into the final total. base MAG = 0 = off = byte-identical (modulators then inert).
+	if (Config::PAWN_MAJORITY_MAG_MG > 0 || Config::PAWN_MAJORITY_MAG_EG > 0){
+		uint64_t wp = pawnsMask & occupied_whiteMask;
+		uint64_t bp = pawnsMask & occupied_blackMask;
+		constexpr uint64_t QUEENSIDE = BB_FILES[0] | BB_FILES[1] | BB_FILES[2] | BB_FILES[3];
+		constexpr uint64_t KINGSIDE  = BB_FILES[4] | BB_FILES[5] | BB_FILES[6] | BB_FILES[7];
+		int wq = __builtin_popcountll(wp & QUEENSIDE), bq = __builtin_popcountll(bp & QUEENSIDE);
+		int wk = __builtin_popcountll(wp & KINGSIDE),  bk = __builtin_popcountll(bp & KINGSIDE);
+		// Enemy minors can blockade the would-be passer (knight especially); contextual discount.
+		int w_blockers = __builtin_popcountll((knightsMask | bishopsMask) & occupied_blackMask);
+		int b_blockers = __builtin_popcountll((knightsMask | bishopsMask) & occupied_whiteMask);
+		// Enemy king file, for the outside-majority (passer drags the king) test. Default to centre.
+		uint64_t wkbb = kingsMask & occupied_whiteMask, bkbb = kingsMask & occupied_blackMask;
+		bool wking_qs = wkbb ? ((__builtin_ctzll(wkbb) & 7) <= 3) : false;
+		bool bking_qs = bkbb ? ((__builtin_ctzll(bkbb) & 7) <= 3) : false;
+		// Linear MG->EG blend by phase (0 = midgame .. 128 = deep endgame).
+		int unit = (Config::PAWN_MAJORITY_MAG_MG * (128 - phase_score) + Config::PAWN_MAJORITY_MAG_EG * phase_score) / 128;
+		// Advancement of a wing's spearhead pawn (0..7 from the owner's side; more = closer to promoting).
+		auto white_adv = [](uint64_t m) -> int { return m ? ((63 - __builtin_clzll(m)) >> 3) : 0; };
+		auto black_adv = [](uint64_t m) -> int { return m ? (7 - ((__builtin_ctzll(m)) >> 3)) : 0; };
+		auto wing_bonus = [&](int surplus, int lead_adv, bool outside, int blockers) -> int {
+			if (surplus <= 0 || unit <= 0) return 0;
+			int b = unit * surplus;
+			b += Config::PAWN_MAJORITY_ADV_K * lead_adv * surplus;
+			if (outside) b += Config::PAWN_MAJORITY_OUTSIDE_K * surplus;
+			b -= Config::PAWN_MAJORITY_BLOCKADE_K * blockers * surplus;
+			return b > 0 ? b : 0;
+		};
+		// total is Black-positive: a White majority is White's advantage -> subtract.
+		total -= wing_bonus(wq - bq, white_adv(wp & QUEENSIDE), !bking_qs, w_blockers);
+		total -= wing_bonus(wk - bk, white_adv(wp & KINGSIDE),   bking_qs, w_blockers);
+		total += wing_bonus(bq - wq, black_adv(bp & QUEENSIDE), !wking_qs, b_blockers);
+		total += wing_bonus(bk - wk, black_adv(bp & KINGSIDE),   wking_qs, b_blockers);
+	}
+
 	// Diagnostic-only: publish the per-term attribution (read-only w.r.t. `total`; see EvalBreakdown).
 	if (g_capture_eval_breakdown){
 		g_eval_breakdown.total = total;
@@ -6297,6 +6526,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		g_eval_breakdown.capture_gains = br_capture;
 		g_eval_breakdown.passed_pawn_support = br_passed;
 		g_eval_breakdown.latent_threat = br_latent;
+		g_eval_breakdown.king_safety = br_king_safety;
 		g_eval_breakdown.central = br_central;
 		g_eval_breakdown.imbalance_white = br_imbalance_white;
 		g_eval_breakdown.imbalance_black = br_imbalance_black;
@@ -7247,7 +7477,7 @@ uint64_t g_prof_calls[NUM_PROF_TERMS];
 static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 	"PAWNS", "KNIGHTS", "BISHOPS", "ROOKS", "ROOK_ACTIVITY",
 	"QUEENS", "KINGS", "ATTACK_LAYER", "CAPTURE_GAINS",
-	"PASSED_SUPPORT", "LATENT_THREAT", "ADV_ENDGAME",
+	"PASSED_SUPPORT", "LATENT_THREAT", "KING_SAFETY", "ADV_ENDGAME",
 	"SEE", "BISHOP_ACTIVITY", "BISHOP_COLOUR",
 	"MOVEGEN", "MAKEUNMAKE", "TT_PROBE",
 	"MG_GEN", "MG_SCORE", "MG_SORT"

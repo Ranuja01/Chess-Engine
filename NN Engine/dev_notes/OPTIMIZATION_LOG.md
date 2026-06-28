@@ -4,6 +4,37 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## Phase-2 collapse fix #1 (2026-06-27) — rook-pawn KPvK draw SHIPPED (chesscom-2200 conversion loss)
+First Phase-2 worst-case hole, mined from `selfplay/external/chesscom_2200_white.pgn` (NN-Engine=White vs a
+chess.com 2200 bot: won a pawn move 29, drew). **EVAL hole (not horizon): a drawn lone rook-pawn KPvK read
+~+4870** (`piece_value_boost`/mate-drive on a 1-pawn lead, no draw detection) — d6→d18 all +4.4..+5.0, so
+search can't fix it. Caused the half-point loss: at move 56 the engine, seeing the resulting KPvK as +4.7,
+**traded rooks (Rxf5) INTO the dead draw**. SF confirms all critical positions = 0.00 (it keeps the rook).
+**Fix:** new lone-rook-pawn KPvK case in `is_practically_drawn` (returns 0), gated `ENABLE_RP_KPK_DRAW`
+(search_engine.h), mirroring the existing KBP/KN rook-pawn blocks; rule = `defender_dist <= min(pawn_dist,
+attacker_dist)` to the promotion corner. **Validated against a full KPvK retrograde oracle (`diagnostics/
+_kpk_oracle.py`, 83,238 states): 0 false-draws (never flags a won position drawn).** Position-fix: KPvK
++4870→0, move-56 Rxf5→f8h8 (keeps rooks), benoni-29 still a4b5. **No-regression: WAC 252/70,150,573 (byte-id)
++ STS 1568 (identical)** — touches only rook-pawn KPvK, never in the suites. **SHIPPED default-on** (gate:
+self-play-invisible → tournament uninformative; ship on position-fix + no-regression per [[external-play-gaps]]).
+Baseline unchanged WAC 252/70,150,573/STS 1568. Uncommitted (default-on in tree + `_kpk_oracle.py`/
+`_chesscom_gap_fens.py` tooling). [[endgame-draw-detection]] (the is_practically_drawn family this extends).
+
+## `is_light` v2 (2026-06-27) — stand-pat lever DEAD; FUTILITY-light = clean win (testing)
+Goal: a cheaper STANDING eval to free per-node budget. **Stand-pat is the WRONG target — it's the LEAF eval
+for quiet positions** (qsearch returns it; it backs up to pick moves), so cheapening `QSTANDPAT_EVAL_MODE`
+craters positional play: mode1 (material+PST) STS@time **1266** (−235, +0.64 WAC ply), mode2 (new
+surrogate-light) STS@time **1243** (−258). Stand-pat must stay FULL. improving + null-move ALREADY use
+cheap_eval (improving SPRT-null → speed was never its problem). **FUTILITY (`FUTILITY_EVAL_MODE`, default
+0=full; a fail-high prune that only `return early_score` = semi-load-bearing) is at least SAFE (no crater)
+but its effect is bench-AMBIGUOUS: `FUTILITY_EVAL_MODE=1` standalone = WAC 253(+10)/STS@time 1511(+10), yet
+in the `evalmode_sweep` (OMP=1) = STS@time 1367 (−107) — a SIGN FLIP (timed benches are wall-clock/thread
+noisy). **KEY: BOTH proxies fail for SMALL effects (fixed STS mispredicts; timed-depth wall-clock-noisy) →
+only a TOURNAMENT resolves a small change.** ⇒ the is_light track yields little: stand-pat DEAD, safe sites
+already-cheap or too-small-to-confirm. **Built gated/byte-id 252/70,150,573 UNCOMMITTED:** `KS_LIGHT_MAG` +
+light-only cheap queen/knight mobility + light king-safety surrogate (superseded). Higher-ROI next:
+collapse-mining Phase 2 (+38.7) or king-safety graduation. [[lighteval-standpat-is-leaf]].
+
 ## COLLAPSE-ELIMINATION campaign (2026-06-26/27) — bundle SHIPPED, +38.7 Elo; "STS mispredicts PLAY"
 Worst-case-Elo hole-plugging from real chess.com tal-BOT losses (self-play-invisible). Re-validated the
 parked fixes on the post-combo1 baseline (252/67,931,145/STS 1503) and shipped a 6-knob bundle as default:

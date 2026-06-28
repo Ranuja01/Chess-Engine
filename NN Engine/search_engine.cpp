@@ -586,6 +586,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::THREAT_QUEEN = env_int("THREAT_QUEEN", Config::THREAT_QUEEN);
         Config::SCALE_ATTACK_LAYER = env_int("SCALE_ATTACK_LAYER", Config::SCALE_ATTACK_LAYER);
         Config::KING_SAFETY_MAG = env_int("KING_SAFETY_MAG", Config::KING_SAFETY_MAG);
+        Config::KS_LIGHT_MAG = env_int("KS_LIGHT_MAG", Config::KS_LIGHT_MAG);
         Config::KS_ATT_KNIGHT = env_int("KS_ATT_KNIGHT", Config::KS_ATT_KNIGHT);
         Config::KS_ATT_BISHOP = env_int("KS_ATT_BISHOP", Config::KS_ATT_BISHOP);
         Config::KS_ATT_ROOK = env_int("KS_ATT_ROOK", Config::KS_ATT_ROOK);
@@ -650,6 +651,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::QSTANDPAT_EVAL_MODE = env_int("QSTANDPAT_EVAL_MODE", Config::QSTANDPAT_EVAL_MODE);
         Config::ENABLE_QCHECK_DEPTH0 = env_flag("ENABLE_QCHECK_DEPTH0", Config::ENABLE_QCHECK_DEPTH0);
         Config::ENABLE_QCHECK_MASK = env_flag("ENABLE_QCHECK_MASK", Config::ENABLE_QCHECK_MASK);
+        Config::ENABLE_RP_KPK_DRAW = env_flag("ENABLE_RP_KPK_DRAW", Config::ENABLE_RP_KPK_DRAW);
         Config::ENABLE_CAPGAIN_PAWN_FIX = env_flag("ENABLE_CAPGAIN_PAWN_FIX", Config::ENABLE_CAPGAIN_PAWN_FIX);
         Config::ENABLE_ROOK_DBLCOUNT_FIX = env_flag("ENABLE_ROOK_DBLCOUNT_FIX", Config::ENABLE_ROOK_DBLCOUNT_FIX);
         Config::ENABLE_KNIGHT_MOB_FIX = env_flag("ENABLE_KNIGHT_MOB_FIX", Config::ENABLE_KNIGHT_MOB_FIX);
@@ -873,6 +875,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_SEE_INCREMENTAL=" << Config::ENABLE_SEE_INCREMENTAL
                   << " FUTILITY_EVAL_MODE=" << Config::FUTILITY_EVAL_MODE
                   << " QSTANDPAT_EVAL_MODE=" << Config::QSTANDPAT_EVAL_MODE
+                  << " ENABLE_RP_KPK_DRAW=" << Config::ENABLE_RP_KPK_DRAW
                   << " ENABLE_CAPGAIN_PAWN_FIX=" << Config::ENABLE_CAPGAIN_PAWN_FIX
                   << " ENABLE_ROOK_DBLCOUNT_FIX=" << Config::ENABLE_ROOK_DBLCOUNT_FIX
                   << " ENABLE_KNIGHT_MOB_FIX=" << Config::ENABLE_KNIGHT_MOB_FIX

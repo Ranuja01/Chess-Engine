@@ -1149,7 +1149,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 
 			// If each square doesn't contain a white piece, boost the score for mobility
-			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_white & square_mask))){
+			if (!(Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light) && !((occupied_white & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 
@@ -1189,7 +1189,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			bb &= bb - 1;		
 		}
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
-		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+		if ((Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light)){
 			total -= Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_white);
 		}
 		total = std::max(total, -3750);
@@ -1259,7 +1259,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 								
 			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_black & square_mask))){
+			if (!(Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light) && !((occupied_black & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 
@@ -1298,7 +1298,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 			bb &= bb - 1; 
 		}            
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
-		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+		if ((Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light)){
 			total += Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_black);
 		}
 		total = std::min(total, 3750);
@@ -2568,7 +2568,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			}
 			
 			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_white & square_mask)){
+			if (!(Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light) && !(occupied_white & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -2595,7 +2595,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test)
-		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+		if ((Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light)){
 			total -= Config::CHEAP_QUEEN_MOB_MG * __builtin_popcountll(pieceAttackMask & ~occupied_white);
 		}
 
@@ -2697,7 +2697,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			
 			// If each square doesn't contain a black piece, boost the score for mobility
 						
-			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_black & square_mask)){
+			if (!(Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light) && !(occupied_black & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -2724,7 +2724,7 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test)
-		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+		if ((Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light)){
 			total += Config::CHEAP_QUEEN_MOB_MG * __builtin_popcountll(pieceAttackMask & ~occupied_black);
 		}
 
@@ -3125,7 +3125,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 		uint64_t pieceAttackMask = BB_KNIGHT_ATTACKS[square];
 
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
-		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+		if ((Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light)){
 			total -= Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_white);
 		}
 		
@@ -3159,7 +3159,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 				
 			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_white & square_mask))){
+			if (!(Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light) && !((occupied_white & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 
@@ -3218,7 +3218,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 		uint64_t pieceAttackMask = BB_KNIGHT_ATTACKS[square];
 
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
-		if (Config::ENABLE_CHEAP_KNIGHT_MOBILITY){
+		if ((Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light)){
 			total += Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_black);
 		}
         		
@@ -3252,7 +3252,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 			}
 			
 			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!Config::ENABLE_CHEAP_KNIGHT_MOBILITY && !((occupied_black & square_mask))){
+			if (!(Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light) && !((occupied_black & square_mask))){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				//uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -4055,7 +4055,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 			}
 			
 			// If each square doesn't contain a white piece, boost the score for mobility			
-			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_white & square_mask)){
+			if (!(Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light) && !(occupied_white & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -4106,7 +4106,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
-		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+		if ((Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light)){
 			total -= Config::CHEAP_QUEEN_MOB_EG * __builtin_popcountll(pieceAttackMask & ~occupied_white);
 		}
 
@@ -4190,7 +4190,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 			}
 			
 			// If each square doesn't contain a black piece, boost the score for mobility  			
-			if (!Config::ENABLE_CHEAP_QUEEN_MOBILITY && !(occupied_black & square_mask)){
+			if (!(Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light) && !(occupied_black & square_mask)){
 
 				uint64_t diag_pieces = BB_DIAG_MASKS[r] & occupied;
 				uint64_t rank_pieces = BB_RANK_MASKS[r] & occupied;
@@ -4242,7 +4242,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 		/* handle_batteries_for_pressure_and_support_tables(square, QUEEN, pieceAttackMask, colour); */
 
 		// Cheap mobility: scale the popcount of reachable non-own squares (skips the per-square attacker test + 2nd-order scan)
-		if (Config::ENABLE_CHEAP_QUEEN_MOBILITY){
+		if ((Config::ENABLE_CHEAP_QUEEN_MOBILITY || g_eval_light)){
 			total += Config::CHEAP_QUEEN_MOB_EG * __builtin_popcountll(pieceAttackMask & ~occupied_black);
 		}
 
@@ -5433,7 +5433,38 @@ inline bool is_practically_drawn(int pieceNum) {
 
 	if (no_king_mask == 0)
 		return true;
-    
+
+	// King + lone Rook Pawn vs King — the basic rook-pawn draw, absent from the bishop/knight rook-pawn
+	// cases below. Drawn when the defending king reaches the promotion corner no later than the pawn or
+	// the attacking king (chebyshev opposition); the attacker has no room on the rook-file edge to evict
+	// it. Validated against a full KPvK retrograde oracle: no won position is flagged drawn.
+	if (Config::ENABLE_RP_KPK_DRAW &&
+		no_king_mask == pawns &&
+		__builtin_popcountll(pawns) == 1 &&
+		((pawns & BB_FILE_A) || (pawns & BB_FILE_H)))
+	{
+		bool pawn_is_white = (pawns & occupied_white);
+		int pawn_square = __builtin_ctzll(pawns);
+		int promotion_square = (pawns & BB_FILE_A) ?
+								(pawn_is_white ? 56 : 0) :
+								(pawn_is_white ? 63 : 7);
+
+		uint64_t white_king_bb = kings & occupied_white;
+		uint64_t black_king_bb = kings & occupied_black;
+		int white_king_sq = __builtin_ctzll(white_king_bb);
+		int black_king_sq = __builtin_ctzll(black_king_bb);
+
+		int attacker_king_sq = pawn_is_white ? white_king_sq : black_king_sq;
+		int defender_king_sq = pawn_is_white ? black_king_sq : white_king_sq;
+
+		int defender_dist = chebyshev_distance(defender_king_sq, promotion_square);
+		int attacker_dist = chebyshev_distance(attacker_king_sq, promotion_square);
+		int pawn_dist = chebyshev_distance(pawn_square, promotion_square);
+
+		if (defender_dist <= std::min(pawn_dist, attacker_dist))
+			return true;
+	}
+
 	// Bishop + Rook Pawn special case
 	//std::cout << "AAA" << std::endl;
 	if ((no_king_mask == (bishops | pawns)) &&
@@ -6141,10 +6172,18 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 		// Attack-unit king safety (replaces the crude get_latent_threat_score once it wins). Gated on
 		// KING_SAFETY_MAG so an all-default build is byte-identical; runs beside latent_threat for now.
-		if (!g_eval_light && Config::KING_SAFETY_MAG != 0) {
-			PROF_BLOCK(PROF_KING_SAFETY);
+		if (!g_eval_light) {
+			if (Config::KING_SAFETY_MAG != 0) {
+				PROF_BLOCK(PROF_KING_SAFETY);
+				int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score);
+				total += Config::KING_SAFETY_MAG * ks / 100;
+			}
+		} else if (Config::KS_LIGHT_MAG != 0) {
+			// Light-eval king-pressure SURROGATE: the cheap attack-unit king_safety_score stands in for the
+			// omitted latent_threat at standing evals, giving the light value a king-danger signal without the
+			// heavy term. Default KS_LIGHT_MAG = 0 => light still omits => byte-identical.
 			int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score);
-			total += Config::KING_SAFETY_MAG * ks / 100;
+			total += Config::KS_LIGHT_MAG * ks / 100;
 		}
 		br_king_safety = total - br_run; br_run = total;
 

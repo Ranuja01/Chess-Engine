@@ -31,6 +31,129 @@ book-off). ACPL on `away_standard` n=112: MEAN 122 / MEDIAN 46.5 / blunders 21 (
 
 ## Log (newest first)
 
+### 2026-06-27 — detector-conditioned PLACEMENT idea DISCONFIRMED (clean offline held-out test)
+The strategic pivot (user): make the placement/PST value a FUNCTION of cheap board-state detectors (space,
+material, pawn structure, mobility, king-pressure) and Texel-tune it, to kill the `pieces` variance that the
+term-attribution exposed. **Tested fairly + cheaply offline BEFORE any C++ build** (the "measure first" gate):
+- Tooling (all UNCOMMITTED): `diagnostics/detector_placement_proof.py` (global-gain proof over corpus.csv),
+  `diagnostics/gen_midgame_corpus.py` (curate IMPORTANT-MIDGAME: phase<64 & |SF|<250, reuse SF labels, add
+  per-piece-type `pt_*` via ev_breakdown + detectors → `tune_data/midgame_corpus.csv`, 5037 rows),
+  `diagnostics/fit_conditioned_placement.py` (rich per-piece-type × 14-detector ridge fit, train/test).
+- **RESULT (held-out gap MSE, curated midgame): per-piece FLAT scale +14.6%; per-piece CONDITIONED +10.4%
+  (WORSE); conditioning BEYOND flat = −4.9% (OVERFITS).** Global-gain version on near-equal/important-midgame
+  added only +3.3–3.5% beyond flat, and positional detectors (mobility/pawn-struct/king-pressure) added ~0.
+  **⇒ the placement variance is NOT detector-explainable by cheap hand-detectors — conditioning generalizes
+  WORSE than a plain per-piece scale. The scatter is the NNUE-shaped hole (a learned eval has low placement
+  variance because it captures square×context interactions hand-detectors can't).** Disconfirms the
+  detector-conditioned-PLACEMENT thesis ([[detector-conditioned-knobs]], [[dynamic-conditional-eval]]) for this
+  use. **The one generalizable lever = per-piece-type FLAT placement recalibration (+14.6% static, ~Texel of
+  `SCALE_PLACE_*`)** — but it's the scalar approach (MSE≠play, prior SCALE_PLACE washed; per-piece-type at these
+  magnitudes is the only untested variant → would need a PLAY/tournament gate, not MSE). Method win: a ~30-line
+  numpy held-out fit killed a multi-week C++ subproject in minutes. Real variance-killer remains NNUE-as-eval
+  (shelved). pawn=1000 / our_total Black-positive; SF_static White-POV cp; convert our→White cp = −our_total/10.
+
+### 2026-06-27 — term-attribution over collapse positions: it's `pieces` VARIANCE, not passers
+**2nd batch (20 games → 5 collapses; triage 1 EVAL / 1 PRUNING / 3 HORIZON) + term-attribution over ALL 5
+collapse decision FENs (`eval_breakdown --fen`).** Answer to "is there a recurring CONCEPT error (e.g. passers
+undervalued)?": **NO clean concept — the recurring offender is the `pieces`/placement term as VARIANCE.**
+Gaps (our_static − SF_static): +3.3 (pieces +1.13), −4.1 (ALL terms ≈0 = missing concept), +5.6 (pieces +2.93
++capture_gains), −2.3 (pieces −1.81), −10.6 (mate outlier, capture_gains). **`passed_pawn_support` = 0.00 in
+ALL five** (passers are NOT the pattern — and the campaign already fixed the passer hole that DID recur in the
+real games, Gap-P). `king_safety`/`latent_threat` ≈ 0 too. **⇒ (1) the dominant residual eval error is `pieces`
+placement scatter — too-high in over-reads, too-low in under-reads (VARIANCE, not a directional bias) = the
+known central ceiling that scalar damping WASHES → the parked Texel/conditional lever ([[material-edge-
+overvaluation]], [[dynamic-conditional-eval]]). (2) ONE under-read (gap −4.1) had ALL our terms ≈0 while SF saw
++3.7 = a MISSING CONCEPT we don't model, most likely king-safety/attack (our structurally crudest area,
+[[king-safety-design]] — though the built attack-unit term tested Elo-flat).** Honest campaign state: the
+recurring real-game point-holes (Gap-T, Gap-P, KPvK) are PLUGGED; the remaining gap is placement-variance +
+under-modeled king-safety, NOT a tidy point-hole. Next lever = the hard Texel/placement-calibration meta-lever
+or continued real-PGN point-mining (diminishing returns), NOT more LIGHTNING vs-SF batches (re-confirm the same).
+
+### 2026-06-27 — vs-SF batch mined + 3-way triaged → known scatter wall, NO new clean hole
+**16-game LIGHTNING vs-SF(2400) batch → 7 collapse points; 3-way triage (`triage_collapses.py`):**
+**5/7 HORIZON, 2/7 EVAL, 0 PRUNING.** The HORIZON ones: our DEEP move equals SF's best (g0 h3h2=sfBest,
+g4 f1g1, g7 d8b6, g9 h7g8) — the game blunder was a shallow LIGHTNING-depth miss, depth fixes it (search lane).
+The 2 EVAL ones are PURE OVER-READS where our deep move ALSO equals SF's best (g1 d8d7, g12 d3c4) — not move
+errors, just over-valuation. **g12 (the big one): our_static +7.18 vs SF_static +0.69 = +6.49 gap, driven by
+`pieces` +4.94** (placement/PST) — i.e. the KNOWN central eval ceiling ([[material-edge-overvaluation]],
+[[eval-precision-term-attribution]]): the `pieces`/placement over-valuation that every scalar damping WASHED
+(variance, not scalar-fixable; the parked Texel/conditional lever). **⇒ vs-SF-LIGHTNING re-surfaces SEARCH-depth
++ the known placement scatter, NOT new KPvK-style clean structural holes. Clean structural holes come from
+DEEPER-time real games (chesscom/tal-BOT).** Harness + triage VALIDATED and working; refined triage to classify
+EVAL directly when deepMv==sfBest (move correct ⇒ pure eval), low-prune probe only when we persist in a move SF
+dislikes. **OPERATIONAL: WSL→SF interop drops on every idle instance-restart (binfmt WSLInterop unregistered);
+robust recovery = `wsl.exe --shutdown` + the long continuous job (batch+triage) in ONE Bash call with an
+interop-ready wait loop — the busy instance holds interop; a `nohup`/foreground keepalive does NOT survive.**
+Uncommitted: `selfplay/vs_sf.py`, `diagnostics/triage_collapses.py`, `_kpk_oracle.py`, `_chesscom_gap_fens.py`.
+
+### 2026-06-27 — tal-BOT corpus re-confirmed + vs-SF collapse-mining harness BUILT
+**tal-BOT re-confirm (current default-on build):** shipped fixes HOLD — benoni-29 → a4b5, french-33 ev≈0
+(Gap-P intact). benoni 44-57 ending is GENUINELY lost (our moves match SF: bn-54 g2f3=g2f3 our −9.45 / SF
+−8.12; bn-57 g5g6=g5g6 our −10.3 / SF −5.7). Only blemish = mild over-pessimism in rook-vs-connected-passers
+(bn-57 −10.3 vs −5.7) but move-neutral → low priority. No new critical hole in the tal corpus.
+**vs-SF harness BUILT (`selfplay/vs_sf.py` + dispatcher sub `vs_sf <elo> <games> [preset] [win_thresh]`):**
+our engine (reuses `EngineProc`) vs strength-capped SF (`UCI_LimitStrength`/`UCI_Elo`, python-chess), alternating
+colors; records OUR eval trajectory and auto-flags COLLAPSES (our-POV peak ≥ win_threshold then not a win) →
+dumps the peak→drop run-up window to `games/<tag>/collapses.csv` (the corpus seed). Standalone (does NOT touch
+the committed self-play loop), lower-risk than retrofitting SF-as-player into tournament.py. Syntax/import-clean;
+UNCOMMITTED. **WSL→SF interop was DOWN (binfmt WSLInterop unregistered → 'Exec format error'); restored via
+`wsl.exe --shutdown` + keepalive re-pin** (the documented recovery).
+**SMOKE-TEST (2 games, SF elo 2400, LIGHTNING) → harness WORKS** (flagged 2/2 collapses with run-up FENs).
+**▶️ KEY METHODOLOGY FINDING — LIGHTNING vs-SF surfaces HORIZON blunders, NOT eval holes.** Diagnosed game-0
+(peak +2.17 → lost): we played **Bc3** at the game depth (d11) rating it +2.17, but SF says Bc3 LOSES
+(+1.12 → −2.98); at d16-17 OUR ENGINE AVOIDS Bc3 and plays Bd3 (SF +0.5, holds) ⇒ the blunder was a
+DEPTH/HORIZON miss, not an eval hole (depth fixes the move). The residual eval over-read is only modest
+(+1.96 vs SF +1.12 = the known broad over-optimism). **⇒ At LIGHTNING, our shallow search (d11) loses to
+SF's tactical shots = SEARCH-lane (at peak), not new fixable EVAL holes. The real eval holes (chesscom
+rook-pawn, tal-BOT) came from STANDARD-time games where the engine searched deep enough to SEE the tactics
+but MIS-EVALUATED. To mine eval holes, run vs-SF at DEEPER time (STANDARD), OR auto-triage each collapse
+eval-vs-horizon (re-search deep: move-changes=horizon-discard, eval-stays-wrong-vs-SF=eval-keep).** Harness
+deliverable DONE + validated; the strategy lever = time control / triage. NEXT: deeper-time batch or triage filter.
+
+### 2026-06-27 — ✅ Phase 2 fix #1 SHIPPED: rook-pawn KPvK draw (chesscom-2200 conversion loss)
+**Source:** `selfplay/external/chesscom_2200_white.pgn` (NN-Engine=White vs chess.com 2200 bot, won a pawn
+move 29 then drew). Extracted endgame FENs via `diagnostics/_chesscom_gap_fens.py` (replay + material tally).
+**Diagnosis — EVAL hole, not horizon:** White was +1 the whole game but the extra pawn collapsed to a lone
+**h-pawn (rook pawn)** → dead-drawn K+h-vs-K (moves 57-69). Our eval scores those KPvK draws at **~+4870..+4960**
+(`piece_value_boost`/mate-drive on a 1-pawn lead, NO draw detection); deeper search does NOT shrink it
+(d6 +4406 → d14 +5060 → d18 +4893 — every leaf reads the same wrong way). This caused the half-point loss:
+at move 56 the engine, seeing the resulting KPvK as +4.7, **traded rooks (Rxf5) INTO the dead draw**. SF
+confirms every critical position = **0.00** (move 56 SF keeps the rook `f8a8`; even move 47 = 0, so the whole
+ending was already drawn — no lost win, just the consistent over-read).
+**Oracle (`diagnostics/_kpk_oracle.py`):** full KPvK retrograde solve (KQ-vs-K promotion shortcut), rook-pawn
+files only = 83,238 states (6,526 WIN / 76,712 DRAW). Strict chebyshev-opposition rule
+`defender_dist <= min(pawn_dist, attacker_dist)` to the promotion corner = **0 false-draws** (never flags a won
+position drawn), catches 22,904 draws incl. the chesscom positions. (tempo variant catches 28,190, also 0
+false-draws — not worth a side-to-move dependency the existing rook-pawn cases don't have.)
+**Fix (gated `ENABLE_RP_KPK_DRAW`, default-off):** new lone-rook-pawn KPvK case in `is_practically_drawn`
+(cpp_bitboard.cpp, after the KvK check), mirroring the existing KBP/KN rook-pawn blocks (returns 0 before the
+material boost). search_engine.h:~356 flag + search_engine.cpp env-parse/dump.
+**Validation:** byte-id OFF = **252 / 70,150,573** (exact baseline). ON: chesscom KPvK → **ev 0** (was
++4870/+4936); move 56 → **f8h8 (keeps rooks), no longer Rxf5**; benoni-29 still **a4b5** (shipped fix holds).
+**No-regression PASS: WAC flag-on 252 / 70,150,573 (byte-identical), STS flag-on 1568/3000 (identical)** —
+the fix touches ONLY rook-pawn KPvK so it never appears in either suite. **SHIPPED default-on**
+(search_engine.h `ENABLE_RP_KPK_DRAW=true`; rebuilt, default-on WAC = 252/70,150,573, KPvK ev=0 with no
+flag). **Gate decision (user):** a self-play tournament is uninformative for a self-play-invisible fix — ship
+on verifiable position-fix + no bench regression (the established [[external-play-gaps]] validation model).
+Baseline unchanged: **WAC 252 / 70,150,573 / STS 1568**. Tooling UNCOMMITTED: `diagnostics/_chesscom_gap_fens.py`,
+`diagnostics/_kpk_oracle.py` (reusable KPvK oracle). Fix itself uncommitted (default-on in working tree).
+
+### 2026-06-27 — is_light detour CONCLUDED (dead); ▶️ Phase 2 = SF-opponent gap-mining (decided)
+**is_light eval-speed track DEAD** (between the bundle ship and now): stand-pat is the LEAF eval for quiet
+positions → cheapening craters positional STS (mode1 1266 / mode2-surrogate 1243 vs 1501); improving/null-move
+already use cheap_eval (improving SPRT-null); futility-light bench-AMBIGUOUS (+10 standalone vs −107 in-sweep
+= timed-depth is wall-clock/thread noisy). Lesson: BOTH proxies fail for small effects — hunt BIG worst-case
+fixes, not micro speedups. Built gated/byte-id/UNCOMMITTED (KS_LIGHT_MAG + light queen/knight mobility + light
+KS surrogate; superseded). [[lighteval-standpat-is-leaf]].
+**▶️ PHASE 2 SOURCE DECISION:** primary = **SF-opponent games** (our engine vs strength-targeted SF
+`UCI_LimitStrength`/`UCI_Elo` ~2200–2700 — exploits our eval holes differently than our own eval → finds
+self-play-invisible gaps; needs a small vs-SF harness extending tournament.py). Immediate (no build) =
+diagnose the existing real losses: `selfplay/external/chesscom_2200_white.pgn` (NN-Engine vs 2200 bot,
+won-pawn-then-drew-rook conversion failure) + the 3 tal-BOT in `_tal_gap_fens`. Self-play corpus mining =
+LOW yield (depth-bound). Loop: eval-or-horizon? (`fenvs`/`ourmove` at rising depth) → diagnose
+(`eval_breakdown --fen`) → targeted fix (gated) → no-regression on plugged gaps + TIMED TOURNAMENT → ship
+solo. Plan: `~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`.
+
 ### 2026-06-27 — ✅✅ BUNDLE SHIPPED (defaults flipped, UNCOMMITTED for sign-off)
 Flipped 5 knobs to default-on in search_engine.h: VERIFY_MARGIN=16000 (done earlier) + ENABLE_ROOK_DBLCOUNT_FIX
 + ENABLE_ROOK_DBLCOUNT_SYM_UP + ENABLE_QPREC_PHASE_GATE + PASSER_ENEMY_CREDIT_PCT=0 + ENABLE_PASSER_BLOCKADE_QUALITY.
@@ -46,9 +169,11 @@ artifact. (Recover old byte-id 252/67,931,145 with the 6 knobs reset to their ol
   benoni 44-57 endgame conversion not re-verified (dev doc flagged a possible SF-static realization ceiling
   there); the eval-side danger is fixed, deep-endgame technique is a separate (search) question.
 - **Speed / accuracy maintained:** tactical WAC 252 (= original), positional STS 1568 (+65), nps ~maintained.
-- **NEXT:** git-commit (user sign-off) — the bundle is 5 knob defaults in search_engine.h + the dev docs.
-  Then Phase 2: mine NEW collapse classes (gate on TIMED TOURNAMENT, not STS). New dispatcher sub `ourmove`
-  (SF-free move check).
+- **COMMITTED `4fe05fd`** ("Ship collapse-elimination bundle (+38.7 Elo) + campaign tooling"; engine +
+  dev docs + tooling; unrelated junk left untracked). Then Phase 2: mine NEW collapse classes (gate on
+  TIMED TOURNAMENT, not STS). New dispatcher sub `ourmove` (SF-free move check).
+- **NEXT ACTIVE TRACK (separate plan): `is_light` v2** cheap-surrogate light eval to unlock improving/2-ply
+  history — plan `~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`.
 
 ### 2026-06-27 — ▶️▶️ RESULT: BUNDLE IS +38.7 ±27 ELO IN PLAY — "non-additivity" was a FIXED-DEPTH ARTIFACT
 **875 games (lightning, 4w): base (shipped Gap-T) 44.5% / bundle 55.5% → bundle +38.7 ±27 Elo (SIGNIFICANT,

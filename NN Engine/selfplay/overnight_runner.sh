@@ -130,6 +130,41 @@ PYEOF
     grep -hE 'STATIC GAP|ALL |phase|att|opening|early_mid|late_mid|endgame' "/tmp/ksstat_${tag}.out" || cat "/tmp/ksstat_${tag}.err"
     ;;
 
+  evalmode_sweep)
+    # Sweep eval-mode combinations at the quiescent decision sites (QSTANDPAT_EVAL_MODE / FUTILITY_EVAL_MODE:
+    # 0=full, 1=cheap material+PST, 2=light surrogate) on sts_timed_depth = the NET positional read at equal
+    # time (a cheaper eval that buys depth shows as a HIGHER STS only if depth gain > eval coarsening).
+    # Baseline (all full) STS@time ~1501. One allowlisted call runs the whole grid.
+    declare -a grid=(
+      "base:"
+      "fut1:FUTILITY_EVAL_MODE=1"
+      "fut2:FUTILITY_EVAL_MODE=2 KS_LIGHT_MAG=120"
+      "fut2nks:FUTILITY_EVAL_MODE=2 KS_LIGHT_MAG=0"
+      "sp1:QSTANDPAT_EVAL_MODE=1"
+      "sp1fut1:QSTANDPAT_EVAL_MODE=1 FUTILITY_EVAL_MODE=1"
+    )
+    for entry in "${grid[@]}"; do
+      label="${entry%%:*}"; knobs="${entry#*:}"
+      env $knobs PRESET=LIGHTNING MAX_DEPTH=64 USE_OPENING_BOOK=0 OMP_NUM_THREADS=1 \
+          "$PY" diagnostics/sts_test.py sts300.epd "em_${label}" > "/tmp/em_${label}.out" 2>/dev/null || true
+      sc=$(grep -hoE 'STS score: [0-9]+/[0-9]+ +\([0-9.]+%\)' "/tmp/em_${label}.out")
+      dp=$("$PY" - "diagnostics/results/sts_results_em_${label}.csv" 2>/dev/null <<'PYEOF'
+import csv,sys
+try: rows=list(csv.DictReader(open(sys.argv[1])))
+except Exception: print("d?"); sys.exit()
+def f(x):
+    try: return float(x)
+    except: return None
+sc=[r for r in rows if r.get('score') not in (None,'')]
+hd=[r for r in sc if f(r.get('depth')) is not None]
+nm=[r for r in hd if not (f(r.get('eval')) is not None and (abs(f(r['eval']))>=9000000 or f(r['eval'])<=-15000))]
+print("d%.2f"%(sum(f(r['depth']) for r in nm)/len(nm)) if nm else "d?")
+PYEOF
+)
+      echo "${label}	${sc:-?}	${dp}	[$knobs]"
+    done
+    ;;
+
   ks_sweep)
     # King-safety static-gap GRID sweep (loops inside the dispatcher so one allowlisted call runs the
     # whole sweep). Each line: <label> then the ALL + key midgame buckets. Edit the grid below to retune.
@@ -371,6 +406,33 @@ PYEOF
     export STOCKFISH_PATH="$SF"
     env OMP_NUM_THREADS=1 PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 SF_MOVETIME=0.15 "$@" \
         "$PY" selfplay/runup_probe.py "$csv" "$n" "$plies" 2>/dev/null | grep '^runup:'
+    ;;
+
+  vs_sf)
+    # Collapse-mining: OUR engine vs a strength-targeted Stockfish (UCI_Elo), alternating colors; flags
+    # games where our eval peaked winning then we failed to win and dumps their run-up FENs (the corpus
+    # seed for the diagnose->fix->ship loop). Needs WSL->SF interop up. Args:
+    #   <elo> <games> [preset=LIGHTNING] [win_thresh=2000] [KEY=VAL our-engine knobs...]
+    elo="${1:-2400}"; shift || true
+    games="${1:-20}"; shift || true
+    preset="${1:-LIGHTNING}"; shift || true
+    wt="${1:-2000}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    env OMP_NUM_THREADS=1 "$@" \
+        "$PY" selfplay/vs_sf.py --sf-elo "$elo" --games "$games" --preset "$preset" \
+        --win-threshold "$wt" --openings selfplay/openings_uho.txt --quiet --tag "vssf_${elo}"
+    ;;
+
+  triage)
+    # Classify the collapse points in games/<tag>/collapses.csv as EVAL (our move/eval still wrong at
+    # deep depth = an eval hole) vs HORIZON (deeper search avoids it). Re-searches each decision FEN at
+    # MAX_DEPTH (deep) + SF compare. Args: <games_dir> [sf_time=2] [MAX_DEPTH=18].
+    gd="${1:?games_dir required}"; shift || true
+    sft="${1:-2}"; shift || true
+    md="${1:-18}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    env OMP_NUM_THREADS=1 PRESET=LONG_FORMAT MAX_DEPTH="$md" USE_OPENING_BOOK=0 "$@" \
+        "$PY" diagnostics/triage_collapses.py "$gd" "$sft"
     ;;
 
   pyrun)

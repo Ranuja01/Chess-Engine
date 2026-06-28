@@ -354,6 +354,17 @@ namespace Config
     // handled by is_practically_drawn. Kept as a knob for the graded endgame-scaling rework.
     inline bool ENABLE_MATE_DRIVE_SCALE = false;
 
+    // Eval: recognize the lone Rook-Pawn KPvK draw inside is_practically_drawn (return 0 before the
+    // material/piece_value_boost runs). The basic rook-pawn draw was absent from the existing KBP/KN
+    // rook-pawn cases, so a drawn K+rook-pawn-vs-K read ~+4.9 (the chesscom-2200 conversion loss: the
+    // engine traded rooks INTO this dead draw). Drawing rule = defender king reaches the promotion
+    // corner no later than the pawn/attacker (chebyshev opposition), validated against a full KPvK
+    // retrograde oracle (diagnostics/_kpk_oracle.py): zero won positions flagged drawn. SHIPPED
+    // default-on (2026-06-27): position-fix verified (KPvK +4870->0, the chesscom-2200 rook trade gone),
+    // byte-identical on WAC (252/70,150,573) and STS (1568) since it only touches rook-pawn KPvK. A
+    // self-play tournament is uninformative here (self-play-invisible). ENABLE_RP_KPK_DRAW=0 reverts.
+    inline bool ENABLE_RP_KPK_DRAW = true;
+
     // Eval: continuous endgame "convertibility" scale (default OFF -- reverted). Damps an unconvertible
     // material/placement lead toward draw (bare minor, opposite-coloured bishops). The 5 FEN spot-checks
     // looked surgical, but a scale-ON STS bench showed it changes far more leaf evals than they implied:
@@ -479,6 +490,7 @@ namespace Config
     // knobs only take effect once MAG > 0. Each component is additive into `units`, so any sub-knob at 0
     // disables just that component (lets us build/tune one at a time; lets PACE/Texel tune them jointly).
     inline int KING_SAFETY_MAG = 0;     // master percent scale (0 = off = byte-identical)
+    inline int KS_LIGHT_MAG    = 0;     // LIGHT-eval king-pressure surrogate scale (g_eval_light path; 0 = off = byte-id)
     inline int KS_ATT_KNIGHT   = 2;     // attack units per enemy knight bearing on the king zone
     inline int KS_ATT_BISHOP   = 2;     // per enemy bishop
     inline int KS_ATT_ROOK     = 3;     // per enemy rook

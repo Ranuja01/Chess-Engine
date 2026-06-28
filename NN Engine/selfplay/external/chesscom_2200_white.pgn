@@ -1,0 +1,10 @@
+[Event "Engine vs chess.com 2200 bot"]
+[Site "chess.com"]
+[Date "????.??.??"]
+[Round "?"]
+[White "NN-Engine"]
+[Black "chess.com 2200 bot"]
+[Result "*"]
+[Annotator "corpus: missed material-advantage conversion (won pawn early, drew the rook ending)"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 Nd4 4. Nxd4 exd4 5. O-O c6 6. Bc4 b5 7. Bb3 d6 8. c3 d3 9. Qf3 Nf6 10. Qxd3 Be7 11. Qg3 O-O 12. d3 d5 13. Re1 Be6 14. Be3 dxe4 15. dxe4 Nxe4 16. Qe5 Bd5 17. Bxd5 cxd5 18. Nd2 Bf6 19. Qf5 g6 20. Qf3 Re8 21. Rad1 b4 22. Nxe4 Rxe4 23. cxb4 Bxb2 24. Bc5 Qe8 25. Rxe4 dxe4 26. Qb3 Bg7 27. Re1 Qe5 28. Qe3 f5 29. Bxa7 Qc3 30. Bc5 Rxa2 31. Rc1 Qxe3 32. Bxe3 Rb2 33. g4 h6 34. Rc6 Kh7 35. gxf5 gxf5 36. Rb6 Kg8 37. Rb5 f4 38. Bxf4 Bd4 39. Be3 Bxe3 40. fxe3 Kf7 41. Rb6 h5 42. h4 Ke7 43. Rb7+ Ke6 44. b5 Kd6 45. Kf1 Kd5 46. b6 Kc4 47. Rd7 Rxb6 48. Rd4+ Kc3 49. Rxe4 Kd3 50. Re5 Rb2 51. Kg1 Rc2 52. Rxh5 Kxe3 53. Rf5 Ke4 54. Rf8 Rc5 55. Kg2 Rf5 56. Rxf5 Kxf5 57. Kg3 Kg6 58. Kg4 Kh7 59. h5 Kh8 60. Kf4 Kg8 61. Kf5 Kh7 62. Kg5 Kh8 63. Kh6 Kg8 64. Kg6 Kh8 65. Kg5 Kg8 66. Kf4 Kh7 67. Kf5 Kg7 68. Ke5 Kh6 69. Kf6 Kxh5 *

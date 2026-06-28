@@ -409,9 +409,10 @@ PYEOF
     ;;
 
   vs_sf)
-    # Collapse-mining: OUR engine vs a strength-targeted Stockfish (UCI_Elo), alternating colors; flags
-    # games where our eval peaked winning then we failed to win and dumps their run-up FENs (the corpus
-    # seed for the diagnose->fix->ship loop). Needs WSL->SF interop up. Args:
+    # Collapse-mining: OUR engine vs a strength-targeted Stockfish (UCI_Elo), alternating colors + draw
+    # adjudication (rule-compliant, fast tails); flags games where our eval peaked winning then we failed to
+    # win and dumps their run-up FENs (the corpus seed for the diagnose->fix->ship loop). For the overnight
+    # hole-mining at full strength use elo=0 (unlimited) or 3000. Needs WSL->SF interop up. Args:
     #   <elo> <games> [preset=LIGHTNING] [win_thresh=2000] [KEY=VAL our-engine knobs...]
     elo="${1:-2400}"; shift || true
     games="${1:-20}"; shift || true
@@ -420,7 +421,8 @@ PYEOF
     export STOCKFISH_PATH="$SF"
     env OMP_NUM_THREADS=1 "$@" \
         "$PY" selfplay/vs_sf.py --sf-elo "$elo" --games "$games" --preset "$preset" \
-        --win-threshold "$wt" --openings selfplay/openings_uho.txt --quiet --tag "vssf_${elo}"
+        --win-threshold "$wt" --openings selfplay/openings_uho.txt --adjudicate-draw --quiet \
+        --tag "vssf_${elo}"
     ;;
 
   triage)

@@ -20,6 +20,13 @@ instead of latent_threat (no double-count). **Neutral platform @`KING_SAFETY_MAG
 only — it degrades play; control-constrained static-gap safely inits the shape). DOUBLE-WIN thesis: cheaper term
 → speed + tuned positional; downstream revives eval-speed-dependent search. Plan/log:
 `~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`, `dev_notes/collapse-campaign.md`.
+**Phase B RESULT (2026-06-28): tuned `div6` (KS_DIVISOR=6) OVER-FIT — tuned on a 4-theme king-SUBSET (+73), but
+−198 on the FULL 15-theme move-match (STS −99) = discard. Untuned `swap@600` is the real candidate but MARGINAL
+(+40 full move-match, −20 STS ≈ neutral), never play-tested. The +22.7-Elo overnight tournament was on div6 and
+was small-sample noise (batch2 post-power-outage −16, pooled +6.7 flat; cross-outage TIMED-tournament confound;
+.so verified intact WAC 252/STS 1568 exact). LESSON: never tune eval knobs on a narrow theme subset (over-fits);
+tune the FULL suite with controls, gate on full move-match. NEXT: re-tune from swap@600 with control sets, else
+the COMPLEMENT (latent_threat + only KS safe-checks = clean +13 STS) or park.**
 
 ## Phase-2 collapse fix #1 (2026-06-27) — rook-pawn KPvK draw SHIPPED (chesscom-2200 conversion loss)
 First Phase-2 worst-case hole, mined from `selfplay/external/chesscom_2200_white.pgn` (NN-Engine=White vs a

@@ -31,8 +31,8 @@ sys.path.insert(0, THIS_DIR)
 
 import chess
 import chess.engine
-from selfplay import EngineProc
-from arbiter import find_stockfish
+from selfplay import EngineProc, Adjudicator
+from arbiter import find_stockfish, Arbiter
 from tournament import load_openings, schedule, _config_with_preset
 
 
@@ -44,7 +44,7 @@ def our_pov(eval_white_pov, our_is_white):
 
 
 def play_one(our_config, our_label, sf, sf_movetime, sf_depth, our_is_white, start_fen,
-             opening_moves, max_plies, gpath, verbose):
+             opening_moves, max_plies, gpath, verbose, adjudicator=None):
     """One game: our engine vs Stockfish. Returns a per-game dict with our eval trajectory + result."""
     our_color = "white" if our_is_white else "black"
     cfg = (our_config + " USE_OPENING_BOOK=0").strip() if opening_moves else our_config
@@ -89,6 +89,10 @@ def play_one(our_config, our_label, sf, sf_movetime, sf_depth, our_is_white, sta
                          "our_pov_eval": opov, "depth": (calc or {}).get("depth"), "fen": board.fen()})
                 if verbose and opov is not None:
                     print(f"  {len(moves):>3}. us  {uci:<6} {opov/1000:+.2f}", flush=True)
+                if adjudicator is not None:
+                    a = adjudicator.after_move(board, ewp, len(moves), fh)
+                    if a is not None:
+                        result, reason = a; break
             else:                                                # Stockfish move
                 res = sf.play(board, sf_limit)
                 if res.move is None:
@@ -101,6 +105,10 @@ def play_one(our_config, our_label, sf, sf_movetime, sf_depth, our_is_white, sta
                          "uci": uci, "sf": True, "fen": board.fen()})
                 if verbose:
                     print(f"  {len(moves):>3}. SF  {uci:<6}", flush=True)
+                if adjudicator is not None:
+                    a = adjudicator.after_move(board, None, len(moves), fh)  # SF move: no our-eval
+                    if a is not None:
+                        result, reason = a; break
     finally:
         try: eng.quit()
         except Exception: pass
@@ -167,6 +175,18 @@ def run(args):
     except Exception as e:
         print(f"[vs_sf] WARNING: SF configure failed ({e})", flush=True)
 
+    # Optional game adjudication via a SEPARATE Stockfish arbiter (the playing SF is busy being a player).
+    # Draw adjudication ends dead-drawn tails early (the main overnight-throughput win); win adjudication is
+    # weak here (gated on a full window of OUR evals, but SF moves contribute none) so it rarely fires.
+    arb = None
+    if args.adjudicate_draw or args.adjudicate_win:
+        try:
+            arb = Arbiter(sf_path, movetime=args.sf_arb_movetime)
+            print(f"[vs_sf] adjudication ON (separate SF arbiter @ {args.sf_arb_movetime}s; "
+                  f"draw={args.adjudicate_draw} win={args.adjudicate_win})", flush=True)
+        except Exception as e:
+            print(f"[vs_sf] WARNING: arbiter init failed ({e}); no adjudication", flush=True)
+
     coll_path = os.path.join(logdir, "collapses.csv")
     cf = open(coll_path, "w", newline="")
     cw = csv.DictWriter(cf, fieldnames=["game", "our_color", "result", "peak_ply", "peak_eval",
@@ -179,9 +199,12 @@ def run(args):
     t0 = time.monotonic()
     for g, (oi, our_white) in enumerate(sched):
         gpath = os.path.join(logdir, f"game_{g:03d}")
+        adj = (Adjudicator(arb, do_draw=args.adjudicate_draw, do_win=args.adjudicate_win)
+               if arb is not None else None)
         try:
             res = play_one(our_cfg, args.our_label, sf, args.sf_movetime, args.sf_depth, our_white,
-                           chess.STARTING_FEN, openings[oi], args.max_plies, gpath, not args.quiet)
+                           chess.STARTING_FEN, openings[oi], args.max_plies, gpath, not args.quiet,
+                           adjudicator=adj)
         except Exception as e:
             print(f"[vs_sf] game {g}: error {e}", flush=True); continue
         summ.append(res)
@@ -199,6 +222,9 @@ def run(args):
               f"as {res['our_color']} peak={'-' if peak is None else f'{peak/1000:+.1f}'}{flag}", flush=True)
     cf.close()
     sf.quit()
+    if arb is not None:
+        try: arb.close()
+        except Exception: pass
 
     dec = [s for s in summ if s["our_score"] is not None]
     sc = sum(s["our_score"] for s in dec) / len(dec) if dec else 0.0
@@ -227,6 +253,11 @@ def main():
     ap.add_argument("--tag", default="vssf")
     ap.add_argument("--sf-path", default=None)
     ap.add_argument("--quiet", action="store_true")
+    # Game adjudication (separate SF arbiter): draw ends dead-drawn tails early (overnight throughput),
+    # win ends clearly-decided games. Recommended overnight: --adjudicate-draw.
+    ap.add_argument("--adjudicate-draw", action="store_true", help="end dead-drawn positions early (SF-confirmed)")
+    ap.add_argument("--adjudicate-win", action="store_true", help="also end clearly-won positions early")
+    ap.add_argument("--sf-arb-movetime", type=float, default=0.2, help="arbiter SF seconds/confirm")
     run(ap.parse_args())
 
 

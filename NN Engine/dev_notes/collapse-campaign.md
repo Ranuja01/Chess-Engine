@@ -31,6 +31,29 @@ book-off). ACPL on `away_standard` n=112: MEAN 122 / MEDIAN 46.5 / blunders 21 (
 
 ## Log (newest first)
 
+### 2026-06-28 — King-safety Phase B: tuned div6 OVER-FIT (discard); swap@600 = the marginal real candidate
+**CORRECTED after rigorous re-check (the +22.7 was an illusion).** Move-match diagnostic (full 15-theme, all
+SAME-SESSION apples-to-apples): untuned **swap@600 = 7755 vs base 7715 (+40, balanced)** — WINS attack/king
+(AT +86, Center +85, Open Files +38, King Activity +2), modest non-king losses (Knight Outposts −47,
+Recapturing −38, Undermine −38, 7th Rank −33, Square Vacancy −32). **Tuning was the MISTAKE: `KS_DIVISOR=6`
+(div6) was tuned on a 4-theme king-SUBSET (AT/Center/Knight-Outposts/Recapturing), scored +73 there — but the
+FULL-suite move-match is 7517 = −198 vs base** (it helped the 4 tuned themes and TANKED the other 11 =
+classic over-fit). Deterministic STS (same-session, base re-run = 1568 exact): swap@600 1548 (−20), div6 1469
+(−99). **So both clean benches agree div6 is WORSE; swap@600 is marginal.** The overnight TOURNAMENT was run
+on **div6 (the over-fit config, not swap@600)**: batch1 368g pre-outage = +22.7 (small-sample noise); batch2
+259g POST-power-outage = −16; pooled 627g = **+6.7 (flat)**. The cross-outage sign-flip = TIMED-tournament
+machine-state confound (LIGHTNING depth ∝ CPU clock/load; batch2 ran on a freshly-rebooted machine). **.so
+VERIFIED intact (base WAC 252/70,150,573 + base STS 1568, both exact) — the outage reverted NOTHING.**
+**VERDICT: div6 OVER-FIT → DISCARD. swap@600 (`ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=600`, default knobs) =
+the real candidate but MARGINAL (+40 move-match = +0.27%, −20 STS ≈ neutral) — never play-tested. There was
+never a confirmed big win; +23/+73 were noise + over-fit.** **METHODOLOGY LESSON (the div6 trap): NEVER tune
+eval knobs on a narrow theme SUBSET — it over-fits, trading away the un-tuned themes. Tune against the FULL
+suite with the non-target themes held as CONTROLS, and gate EVERY candidate on the FULL-suite move-match (div6
+looked +73 on the subset but was −198 on the full).** **▶️ NEXT: re-tune FROM swap@600 with control sets
+(full-suite objective, king-themes-up subject to controls-held) → gate on full move-match + a CLEAN
+post-outage tournament. If swap@600 can't be pushed past marginal, fall back to the COMPLEMENT (keep
+latent_threat + add only KS safe-checks = prior clean +13 STS, no regression) or park the KS lever.**
+
 ### 2026-06-27 — King-safety swap Phase A: NEUTRAL platform found (swap@MAG=600 ≈ benches)
 Go-forward = replace flat `latent_threat` with the high-DOF attack-unit `king_safety_score`, then data-tune
 (plan `~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`). **Phase A (structural swap) DONE:**

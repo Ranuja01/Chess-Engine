@@ -6154,7 +6154,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
-		if (!g_eval_light) {
+		if (!g_eval_light && !Config::ENABLE_KS_REPLACE_LT) {
 			PROF_BLOCK(PROF_LATENT_THREAT);
 			int lt = get_latent_threat_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings));
 			lt = (Config::SCALE_LATENT_THREAT == 100) ? lt : (Config::SCALE_LATENT_THREAT * lt / 100);
@@ -6170,10 +6170,11 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_latent = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 
-		// Attack-unit king safety (replaces the crude get_latent_threat_score once it wins). Gated on
-		// KING_SAFETY_MAG so an all-default build is byte-identical; runs beside latent_threat for now.
+		// Attack-unit king safety. Default-off (KING_SAFETY_MAG=0, ENABLE_KS_REPLACE_LT=false) => byte-identical
+		// and runs BESIDE latent_threat. With ENABLE_KS_REPLACE_LT it REPLACES latent_threat (skipped above) and
+		// is the sole king-danger term — the structural swap (needs KING_SAFETY_MAG>0 to contribute).
 		if (!g_eval_light) {
-			if (Config::KING_SAFETY_MAG != 0) {
+			if (Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0) {
 				PROF_BLOCK(PROF_KING_SAFETY);
 				int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score);
 				total += Config::KING_SAFETY_MAG * ks / 100;

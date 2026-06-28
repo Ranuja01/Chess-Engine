@@ -31,7 +31,28 @@ book-off). ACPL on `away_standard` n=112: MEAN 122 / MEDIAN 46.5 / blunders 21 (
 
 ## Log (newest first)
 
-### 2026-06-27 — detector-conditioned PLACEMENT idea DISCONFIRMED (clean offline held-out test)
+### 2026-06-27 — King-safety swap Phase A: NEUTRAL platform found (swap@MAG=600 ≈ benches)
+Go-forward = replace flat `latent_threat` with the high-DOF attack-unit `king_safety_score`, then data-tune
+(plan `~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`). **Phase A (structural swap) DONE:**
+new gate `ENABLE_KS_REPLACE_LT` (search_engine.h, default false) — when on, SKIP the latent_threat add and
+route king danger through king_safety_score (no double-count; needs KING_SAFETY_MAG>0). cpp_bitboard.cpp:
+latent_threat gate `&& !ENABLE_KS_REPLACE_LT`; KS gate `(ENABLE_KS_REPLACE_LT || KING_SAFETY_MAG!=0)`.
+**Byte-id OFF = 252 / 70,150,573.** MAG sweep (swap on, DEFAULT KS knobs) STS: 50→1404, 100→1408, 200→1513,
+400→1522, **600→1548 (−20, ≈neutral within noise)**, 650→1458, 800→1475; **WAC@600 = 252/300** (no tactical
+regression). **⇒ the untuned rich king_safety_score MATCHES the evolved latent_threat on both benches at
+KING_SAFETY_MAG≈600** — the encouraging floor (user's point: a flat hand-set term shouldn't beat a data-tuned
+richer one with real board-condition signals; the extra DOF — safe-checks/shield/open-files/defender-balance
+— is all still at default). The MAG-sensitivity (550/600/650 = 1503/1548/1458) shows the default SHAPE wants
+tuning. **KEY (user): king_safety_score is ~5-24× CHEAPER than latent_threat → matching it at fixed depth ⇒
+potential DOUBLE win: speed (more depth at equal time, +Elo even at neutral fixed-depth strength) + positional
+(once tuned). Measuring depth-at-equal-time next.** Two-level conditioning frame (user): Level-1 = the formula
+already conditions danger on one-pass board features (LIVE, tune its weights = Phase B); Level-2 = make the
+weights themselves functions of GLOBAL detectors (offense/defense, space, mobility) — the [[detector-
+conditioned-knobs]] vision, but EVIDENCE-GATED (placement L2 overfit; king-safety is a better candidate
+because king danger genuinely IS detector-driven — cheap-proof-first AFTER L1 wins). Downstream (user): a
+cheaper+stronger eval revives the shelved eval-speed-dependent SEARCH items (improving heuristic etc. died on
+per-node eval cost — "eval work pays off twice", [[improving-heuristic-shelved]]). **All commits PUSHED to
+origin/NN-ENgine (was 63 ahead).** Phase A swap UNCOMMITTED (gated default-off).
 The strategic pivot (user): make the placement/PST value a FUNCTION of cheap board-state detectors (space,
 material, pawn structure, mobility, king-pressure) and Texel-tune it, to kill the `pieces` variance that the
 term-attribution exposed. **Tested fairly + cheaply offline BEFORE any C++ build** (the "measure first" gate):

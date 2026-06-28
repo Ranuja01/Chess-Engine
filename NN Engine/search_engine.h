@@ -490,6 +490,11 @@ namespace Config
     // knobs only take effect once MAG > 0. Each component is additive into `units`, so any sub-knob at 0
     // disables just that component (lets us build/tune one at a time; lets PACE/Texel tune them jointly).
     inline int KING_SAFETY_MAG = 0;     // master percent scale (0 = off = byte-identical)
+    // REPLACE the flat latent_threat with king_safety_score (the structural swap, not an additive run-beside).
+    // Off (default) = byte-identical: latent_threat adds as today, king_safety only if MAG>0. On = skip the
+    // latent_threat add entirely and route king danger through king_safety_score (no double-count); needs
+    // KING_SAFETY_MAG>0 to do anything. Phase A finds the neutral MAG where the swap is ~0 regression.
+    inline bool ENABLE_KS_REPLACE_LT = false;
     inline int KS_LIGHT_MAG    = 0;     // LIGHT-eval king-pressure surrogate scale (g_eval_light path; 0 = off = byte-id)
     inline int KS_ATT_KNIGHT   = 2;     // attack units per enemy knight bearing on the king zone
     inline int KS_ATT_BISHOP   = 2;     // per enemy bishop

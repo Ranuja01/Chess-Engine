@@ -4,6 +4,23 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## King-safety swap Phase A + detector-placement DISCONFIRMED (2026-06-27)
+After KPvK shipped, the campaign turned to the residual gap = `pieces`/placement VARIANCE (collapse term-
+attribution: passers=0.00, so NOT a passer hole; one under-modeled-king-safety under-read). **Detector-
+conditioned PLACEMENT tested cheaply offline (held-out fit, curated 5037-pos midgame corpus, per-piece-type ×
+14 detectors, ridge) → DISCONFIRMED: conditioning OVERFITS (−4.9% beyond a per-piece flat scale); the variance
+is NNUE-territory.** Only generalizable gain = per-piece-type FLAT placement recal (+14.6% static, but MSE≠play
+→ play-gate; Phase C). Tooling: `diagnostics/detector_placement_proof.py` / `gen_midgame_corpus.py` /
+`fit_conditioned_placement.py`. **Go-forward (user, the pre-NNUE HCE beef-up): REPLACE flat latent_threat with
+the high-DOF attack-unit `king_safety_score`, data-tune it.** **Phase A SHIPPED gated (`cff38eb`, pushed):**
+`ENABLE_KS_REPLACE_LT` (default false → byte-id 252/70,150,573) routes king danger through king_safety_score
+instead of latent_threat (no double-count). **Neutral platform @`KING_SAFETY_MAG=600` (default knobs): STS 1548
+(−20) / WAC 252 / +0.12 ply at equal time** — the untuned rich term matches the evolved flat one (the floor).
+**Phase B (next): data-tune the KS shape knobs via PACE move-match + SPRT** (Texel static-fit is diagnosis/init
+only — it degrades play; control-constrained static-gap safely inits the shape). DOUBLE-WIN thesis: cheaper term
+→ speed + tuned positional; downstream revives eval-speed-dependent search. Plan/log:
+`~/.claude/plans/handoff-lossless-speed-campaign-tranquil-rose.md`, `dev_notes/collapse-campaign.md`.
+
 ## Phase-2 collapse fix #1 (2026-06-27) — rook-pawn KPvK draw SHIPPED (chesscom-2200 conversion loss)
 First Phase-2 worst-case hole, mined from `selfplay/external/chesscom_2200_white.pgn` (NN-Engine=White vs a
 chess.com 2200 bot: won a pawn move 29, drew). **EVAL hole (not horizon): a drawn lone rook-pawn KPvK read

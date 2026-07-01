@@ -25,6 +25,7 @@ import json
 import time
 import random
 import argparse
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
@@ -34,6 +35,19 @@ import chess.engine
 from selfplay import EngineProc, Adjudicator
 from arbiter import find_stockfish, Arbiter
 from tournament import load_openings, schedule, _config_with_preset
+
+
+def _build_play_sf(sf_path, sf_elo):
+    """Open + strength-cap a fresh playing-Stockfish process. One per game (handles aren't reentrant)."""
+    sf = chess.engine.SimpleEngine.popen_uci(sf_path)
+    opts = {"Threads": 1}
+    if sf_elo:                                   # strength-cap SF to keep games competitive
+        opts.update({"UCI_LimitStrength": True, "UCI_Elo": sf_elo})
+    try:
+        sf.configure(opts)
+    except Exception as e:
+        print(f"[vs_sf] WARNING: SF configure failed ({e})", flush=True)
+    return sf
 
 
 def our_pov(eval_white_pov, our_is_white):
@@ -86,7 +100,8 @@ def play_one(our_config, our_label, sf, sf_movetime, sf_depth, our_is_white, sta
                 opov = our_pov(ewp, our_is_white)
                 traj.append((len(moves), opov, board.fen(), decision_fen, uci))
                 _wr(fh, {"ply": len(moves), "color": our_color, "uci": uci,
-                         "our_pov_eval": opov, "depth": (calc or {}).get("depth"), "fen": board.fen()})
+                         "our_pov_eval": opov, "depth": (calc or {}).get("depth"),
+                         "nodes": (calc or {}).get("nodes"), "fen": board.fen()})
                 if verbose and opov is not None:
                     print(f"  {len(moves):>3}. us  {uci:<6} {opov/1000:+.2f}", flush=True)
                 if adjudicator is not None:
@@ -94,15 +109,18 @@ def play_one(our_config, our_label, sf, sf_movetime, sf_depth, our_is_white, sta
                     if a is not None:
                         result, reason = a; break
             else:                                                # Stockfish move
-                res = sf.play(board, sf_limit)
+                res = sf.play(board, sf_limit, info=chess.engine.INFO_ALL)
                 if res.move is None:
                     result, reason = board.result(claim_draw=True), "sf-no-move"
                     break
                 uci = res.move.uci()
                 board.push(res.move); moves.append(uci)
                 eng.push(uci)
+                # Log SF's search depth + nodes per move (the search-speed TARGET: how deep / how many nodes
+                # SF reaches at this time control vs our engine reaching at the same).
                 _wr(fh, {"ply": len(moves), "color": ("black" if our_is_white else "white"),
-                         "uci": uci, "sf": True, "fen": board.fen()})
+                         "uci": uci, "sf": True, "fen": board.fen(),
+                         "depth": res.info.get("depth"), "nodes": res.info.get("nodes")})
                 if verbose:
                     print(f"  {len(moves):>3}. SF  {uci:<6}", flush=True)
                 if adjudicator is not None:
@@ -162,69 +180,105 @@ def run(args):
     sf_path = args.sf_path or find_stockfish()
     if not sf_path:
         print("[vs_sf] no Stockfish found (set STOCKFISH_PATH)", flush=True); return
+    # The OPPONENT SF (sf_path) and the ARBITER SF can differ: e.g. play vs classical SF11 (HCE yardstick)
+    # while a strong neutral SF18 adjudicates. Defaults to the same binary (back-compat).
+    arb_path = args.sf_arb_path or sf_path
 
     sched = schedule(args.games, len(openings), args.seed)
     our_cfg = _config_with_preset(args.our_config, args.preset)
 
-    sf = chess.engine.SimpleEngine.popen_uci(sf_path)
-    opts = {"Threads": 1}
-    if args.sf_elo:                              # strength-cap SF to keep games competitive
-        opts.update({"UCI_LimitStrength": True, "UCI_Elo": args.sf_elo})
-    try:
-        sf.configure(opts)
-    except Exception as e:
-        print(f"[vs_sf] WARNING: SF configure failed ({e})", flush=True)
-
-    # Optional game adjudication via a SEPARATE Stockfish arbiter (the playing SF is busy being a player).
-    # Draw adjudication ends dead-drawn tails early (the main overnight-throughput win); win adjudication is
-    # weak here (gated on a full window of OUR evals, but SF moves contribute none) so it rarely fires.
-    arb = None
-    if args.adjudicate_draw or args.adjudicate_win:
-        try:
-            arb = Arbiter(sf_path, movetime=args.sf_arb_movetime)
-            print(f"[vs_sf] adjudication ON (separate SF arbiter @ {args.sf_arb_movetime}s; "
-                  f"draw={args.adjudicate_draw} win={args.adjudicate_win})", flush=True)
-        except Exception as e:
-            print(f"[vs_sf] WARNING: arbiter init failed ({e}); no adjudication", flush=True)
+    do_adj = args.adjudicate_draw or args.adjudicate_win
+    if do_adj:
+        # Draw adjudication ends dead-drawn tails early (the main overnight-throughput win); win adjudication
+        # is weak here (gated on a full window of OUR evals, but SF moves contribute none) so it rarely fires.
+        print(f"[vs_sf] adjudication ON (per-game separate SF arbiter @ {args.sf_arb_movetime}s; "
+              f"draw={args.adjudicate_draw} win={args.adjudicate_win})", flush=True)
 
     coll_path = os.path.join(logdir, "collapses.csv")
     cf = open(coll_path, "w", newline="")
     cw = csv.DictWriter(cf, fieldnames=["game", "our_color", "result", "peak_ply", "peak_eval",
                                         "peak_move", "drop_ply", "drop_eval", "decision_fen", "drop_fen"])
     cw.writeheader()
+    conc = max(1, args.concurrency)
     print(f"[vs_sf] our={args.our_label} vs SF(elo={args.sf_elo or 'full'}) — {args.games} games, "
-          f"preset={args.preset}, win_thresh={args.win_threshold/1000:+.1f}", flush=True)
+          f"preset={args.preset}, win_thresh={args.win_threshold/1000:+.1f}, concurrency={conc}", flush=True)
 
-    summ = []
-    t0 = time.monotonic()
-    for g, (oi, our_white) in enumerate(sched):
+    def play_game_g(g, oi, our_white):
+        """Run one game. Thread-safe: own engine subprocess, own playing-SF, own arbiter SF.
+        Stockfish handles aren't reentrant, so every game opens (and closes) its own. Returns the
+        per-game result dict (with 'game' index attached); collapse detection / CSV / prints stay on
+        the main thread. Returns None on driver error."""
         gpath = os.path.join(logdir, f"game_{g:03d}")
-        adj = (Adjudicator(arb, do_draw=args.adjudicate_draw, do_win=args.adjudicate_win)
-               if arb is not None else None)
+        sf = arb = None
         try:
+            sf = _build_play_sf(sf_path, args.sf_elo)
+            adj = None
+            if do_adj:
+                try:
+                    arb = Arbiter(arb_path, movetime=args.sf_arb_movetime)
+                    adj = Adjudicator(arb, do_draw=args.adjudicate_draw, do_win=args.adjudicate_win)
+                except Exception as e:
+                    print(f"[vs_sf] game {g}: arbiter init failed ({e}); no adjudication", flush=True)
             res = play_one(our_cfg, args.our_label, sf, args.sf_movetime, args.sf_depth, our_white,
                            chess.STARTING_FEN, openings[oi], args.max_plies, gpath, not args.quiet,
                            adjudicator=adj)
+            res["game"] = g
+            return res
         except Exception as e:
-            print(f"[vs_sf] game {g}: error {e}", flush=True); continue
-        summ.append(res)
+            print(f"[vs_sf] game {g}: error {e}", flush=True)
+            return None
+        finally:
+            if sf is not None:
+                try: sf.quit()
+                except Exception: pass
+            if arb is not None:
+                try: arb.close()
+                except Exception: pass
+
+    def record(res):
+        # Print the live per-game line as each game COMPLETES (order may interleave under concurrency).
+        # The collapses.csv itself is written in strict game order AFTER the run (see below) so its
+        # content is byte-for-byte identical to the single-threaded run for the same games.
+        g = res["game"]
         coll = extract_collapse(res, args.win_threshold, args.drop_to)
-        flag = ""
-        if coll:
-            cw.writerow({"game": g, "our_color": res["our_color"], "result": res["result"],
-                         "peak_ply": coll["peak_ply"], "peak_eval": coll["peak_eval"],
-                         "peak_move": coll["peak_move"], "drop_ply": coll["drop_ply"],
-                         "drop_eval": coll["drop_eval"], "decision_fen": coll["decision_fen"],
-                         "drop_fen": coll["drop_fen"]}); cf.flush()
-            flag = f"  *** COLLAPSE peak {coll['peak_eval']/1000:+.1f} -> {res['result']}"
+        flag = (f"  *** COLLAPSE peak {coll['peak_eval']/1000:+.1f} -> {res['result']}"
+                if coll else "")
         peak = res["peak_our_eval"]
         print(f"[vs_sf] game {g}: {res['result']} ({res['reason']}) our={res['our_score']} "
               f"as {res['our_color']} peak={'-' if peak is None else f'{peak/1000:+.1f}'}{flag}", flush=True)
-    cf.close()
-    sf.quit()
-    if arb is not None:
-        try: arb.close()
-        except Exception: pass
+
+    summ = []
+    t0 = time.monotonic()
+    pending = [(g, oi, pw) for g, (oi, pw) in enumerate(sched)]
+    try:
+        if conc <= 1:
+            for g, oi, pw in pending:
+                res = play_game_g(g, oi, pw)
+                if res is not None:
+                    summ.append(res); record(res)
+        else:
+            with ThreadPoolExecutor(max_workers=conc) as pool:
+                futs = {pool.submit(play_game_g, g, oi, pw): g for g, oi, pw in pending}
+                inflight = set(futs)
+                while inflight:
+                    done_set, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    # record() (prints only) is main-thread; append is main-thread too -> no lock needed.
+                    for fut in done_set:
+                        res = fut.result()
+                        if res is not None:
+                            summ.append(res); record(res)
+        # Write collapses.csv in strict game order -> identical content regardless of completion order.
+        for res in sorted(summ, key=lambda r: r["game"]):
+            coll = extract_collapse(res, args.win_threshold, args.drop_to)
+            if coll:
+                cw.writerow({"game": res["game"], "our_color": res["our_color"], "result": res["result"],
+                             "peak_ply": coll["peak_ply"], "peak_eval": coll["peak_eval"],
+                             "peak_move": coll["peak_move"], "drop_ply": coll["drop_ply"],
+                             "drop_eval": coll["drop_eval"], "decision_fen": coll["decision_fen"],
+                             "drop_fen": coll["drop_fen"]})
+        cf.flush()
+    finally:
+        cf.close()
 
     dec = [s for s in summ if s["our_score"] is not None]
     sc = sum(s["our_score"] for s in dec) / len(dec) if dec else 0.0
@@ -246,12 +300,17 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--preset", default="LIGHTNING")
     ap.add_argument("--max-plies", type=int, default=400)
+    ap.add_argument("--concurrency", type=int, default=1,
+                    help="play N games in parallel (default 1 = sequential). Each game opens its own "
+                         "engine + playing-SF (+ arbiter SF if adjudicating); match to physical cores "
+                         "(engines are OMP_NUM_THREADS=1). ~6 on 8c/16t.")
     ap.add_argument("--win-threshold", type=int, default=2000,
                     help="our-POV milli-pawn peak above which a non-win counts as a collapse (2000 = +2.0)")
     ap.add_argument("--drop-to", type=int, default=500,
                     help="dump the run-up window from the peak until our eval falls below this (milli-pawns)")
     ap.add_argument("--tag", default="vssf")
-    ap.add_argument("--sf-path", default=None)
+    ap.add_argument("--sf-path", default=None, help="opponent SF binary (the engine we PLAY against)")
+    ap.add_argument("--sf-arb-path", default=None, help="arbiter SF binary (adjudicator); defaults to --sf-path")
     ap.add_argument("--quiet", action="store_true")
     # Game adjudication (separate SF arbiter): draw ends dead-drawn tails early (overnight throughput),
     # win ends clearly-decided games. Recommended overnight: --adjudicate-draw.

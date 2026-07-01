@@ -148,6 +148,10 @@ cdef extern from "cpp_bitboard.h":
         int imbalance_black
         int pair_bonus
         int piece_value_boost
+        int pawn_majority
+        int pawn_struct
+        int outpost
+        int mobility
         int phase_score
         int advanced_endgame_total
         bint is_endgame
@@ -161,6 +165,18 @@ cdef extern from "cpp_bitboard.h":
         int ae_input
         int ae_matedrive
         int ae_passer
+        int det_w_offense
+        int det_b_offense
+        int det_w_defense
+        int det_b_defense
+        int det_w_pieceval
+        int det_b_pieceval
+        int det_central
+        int det_pawn_count
+        int det_ks_units_w
+        int det_ks_units_b
+        int det_w_mobility
+        int det_b_mobility
     EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
 
     # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
@@ -495,6 +511,10 @@ cdef class ChessAI:
             "imbalance_black": b.imbalance_black,
             "pair_bonus": b.pair_bonus,
             "piece_value_boost": b.piece_value_boost,
+            "pawn_majority": b.pawn_majority,
+            "pawn_struct": b.pawn_struct,
+            "outpost": b.outpost,
+            "mobility": b.mobility,
             "phase_score": b.phase_score,
             "advanced_endgame_total": b.advanced_endgame_total,
             "is_endgame": b.is_endgame,
@@ -508,6 +528,18 @@ cdef class ChessAI:
             "ae_input": b.ae_input,
             "ae_matedrive": b.ae_matedrive,
             "ae_passer": b.ae_passer,
+            "det_w_offense": b.det_w_offense,
+            "det_b_offense": b.det_b_offense,
+            "det_w_defense": b.det_w_defense,
+            "det_b_defense": b.det_b_defense,
+            "det_w_pieceval": b.det_w_pieceval,
+            "det_b_pieceval": b.det_b_pieceval,
+            "det_central": b.det_central,
+            "det_pawn_count": b.det_pawn_count,
+            "det_ks_units_w": b.det_ks_units_w,
+            "det_ks_units_b": b.det_ks_units_b,
+            "det_w_mobility": b.det_w_mobility,
+            "det_b_mobility": b.det_b_mobility,
         }
 
 

@@ -352,6 +352,10 @@ struct EvalBreakdown {
 	int imbalance_black;
 	int pair_bonus;
 	int piece_value_boost;
+	int pawn_majority;   // wing pawn-majority bonus (0 unless PAWN_MAJORITY_MAG_* > 0)
+	int pawn_struct;     // isolated + backward pawn penalties (0 unless ISOLATED/BACKWARD_PAWN_PEN > 0)
+	int outpost;         // knight/bishop outpost bonus (0 unless OUTPOST_KNIGHT/BISHOP > 0)
+	int mobility;        // per-piece mobility (0 unless ENABLE_PIECE_MOBILITY)
 	int phase_score;
 	int advanced_endgame_total;
 	bool is_endgame;
@@ -369,6 +373,20 @@ struct EvalBreakdown {
 	int ae_input;
 	int ae_matedrive;
 	int ae_passer;
+	// Cheap board DETECTORS (raw values) for the agentic-PACE diagnosis: compare these across position
+	// classes (e.g. positions a change HELPED vs HURT) to find the discriminator to condition a knob on.
+	int det_w_offense;
+	int det_b_offense;
+	int det_w_defense;
+	int det_b_defense;
+	int det_w_pieceval;
+	int det_b_pieceval;
+	int det_central;
+	int det_pawn_count;
+	int det_ks_units_w;   // raw KS attack-units per king (to MEASURE the KS_FLOOR deadzone threshold)
+	int det_ks_units_b;
+	int det_w_mobility;   // squares each side attacks that are not its own (cheap mobility/control proxy)
+	int det_b_mobility;
 };
 extern EvalBreakdown g_eval_breakdown;
 extern bool g_capture_eval_breakdown;

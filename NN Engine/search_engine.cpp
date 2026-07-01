@@ -547,6 +547,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PAWN_MAJORITY_ADV_K = env_int("PAWN_MAJORITY_ADV_K", Config::PAWN_MAJORITY_ADV_K);
         Config::PAWN_MAJORITY_OUTSIDE_K = env_int("PAWN_MAJORITY_OUTSIDE_K", Config::PAWN_MAJORITY_OUTSIDE_K);
         Config::PAWN_MAJORITY_BLOCKADE_K = env_int("PAWN_MAJORITY_BLOCKADE_K", Config::PAWN_MAJORITY_BLOCKADE_K);
+        Config::ISOLATED_PAWN_PEN = env_int("ISOLATED_PAWN_PEN", Config::ISOLATED_PAWN_PEN);
+        Config::BACKWARD_PAWN_PEN = env_int("BACKWARD_PAWN_PEN", Config::BACKWARD_PAWN_PEN);
+        Config::OUTPOST_KNIGHT = env_int("OUTPOST_KNIGHT", Config::OUTPOST_KNIGHT);
+        Config::OUTPOST_BISHOP = env_int("OUTPOST_BISHOP", Config::OUTPOST_BISHOP);
         Config::SCALE_PLACE_PAWN = env_int("SCALE_PLACE_PAWN", Config::SCALE_PLACE_PAWN);
         Config::SCALE_PLACE_KNIGHT = env_int("SCALE_PLACE_KNIGHT", Config::SCALE_PLACE_KNIGHT);
         Config::SCALE_PLACE_BISHOP = env_int("SCALE_PLACE_BISHOP", Config::SCALE_PLACE_BISHOP);
@@ -598,11 +602,17 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_STORM = env_int("KS_STORM", Config::KS_STORM);
         Config::KS_OPEN_FILE = env_int("KS_OPEN_FILE", Config::KS_OPEN_FILE);
         Config::KS_BATTERY = env_int("KS_BATTERY", Config::KS_BATTERY);
+        Config::KS_ZONE2 = env_int("KS_ZONE2", Config::KS_ZONE2);
+        Config::KS_DYN = env_int("KS_DYN", Config::KS_DYN);
+        Config::KS_DYN_PIVOT = env_int("KS_DYN_PIVOT", Config::KS_DYN_PIVOT);
+        Config::KS_DYN_SHIFT = env_int("KS_DYN_SHIFT", Config::KS_DYN_SHIFT);
         Config::KS_SHIELD = env_int("KS_SHIELD", Config::KS_SHIELD);
         Config::KS_DEFENDER = env_int("KS_DEFENDER", Config::KS_DEFENDER);
+        Config::KS_INTERACT = env_int("KS_INTERACT", Config::KS_INTERACT);
         Config::KS_DIVISOR = env_int("KS_DIVISOR", Config::KS_DIVISOR);
         Config::KS_KNEE = env_int("KS_KNEE", Config::KS_KNEE);
         Config::KS_CAP = env_int("KS_CAP", Config::KS_CAP);
+        Config::KS_FLOOR = env_int("KS_FLOOR", Config::KS_FLOOR);
         Config::KS_PHASE_FULL = env_int("KS_PHASE_FULL", Config::KS_PHASE_FULL);
         Config::KS_PHASE_ZERO = env_int("KS_PHASE_ZERO", Config::KS_PHASE_ZERO);
         Config::REALIZ_MAT_K = env_int("REALIZ_MAT_K", Config::REALIZ_MAT_K);
@@ -625,9 +635,16 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::MOD_MAT_OPPB = env_int("MOD_MAT_OPPB", Config::MOD_MAT_OPPB);
         Config::MOD_LT_BACKING = env_int("MOD_LT_BACKING", Config::MOD_LT_BACKING);
         Config::MOD_PAIR_OPEN = env_int("MOD_PAIR_OPEN", Config::MOD_PAIR_OPEN);
+        Config::MOD_KS_BACKING = env_int("MOD_KS_BACKING", Config::MOD_KS_BACKING);
+        Config::MOD_KS_CONTROL = env_int("MOD_KS_CONTROL", Config::MOD_KS_CONTROL);
+        Config::MOD_PVBOOST_COMP = env_int("MOD_PVBOOST_COMP", Config::MOD_PVBOOST_COMP);
+        Config::MOD_PVBOOST_MOB = env_int("MOD_PVBOOST_MOB", Config::MOD_PVBOOST_MOB);
         Config::MOD_PIECES_LEVEL = env_int("MOD_PIECES_LEVEL", Config::MOD_PIECES_LEVEL);
         Config::MOD_PIECES_MAT_THRESH = env_int("MOD_PIECES_MAT_THRESH", Config::MOD_PIECES_MAT_THRESH);
         Config::MOD_PIECES_FLOOR = env_int("MOD_PIECES_FLOOR", Config::MOD_PIECES_FLOOR);
+        Config::MOD_PIECES_CONTROL = env_int("MOD_PIECES_CONTROL", Config::MOD_PIECES_CONTROL);
+        Config::MOD_PIECES_DEFEND = env_int("MOD_PIECES_DEFEND", Config::MOD_PIECES_DEFEND);
+        Config::MOD_PIECES_DEFEND_THRESH = env_int("MOD_PIECES_DEFEND_THRESH", Config::MOD_PIECES_DEFEND_THRESH);
         rebuild_scaled_placement();  // rebuild scaled placement working arrays once from the loaded SCALE_PLACE_* knobs (no per-read division in eval)
         rebuild_scaled_pawn_tables();  // rebuild scaled pawn-structure working arrays from the loaded SCALE_PAWN_* knobs (no per-read division in eval)
         rebuild_ks_tables();  // rebuild the king-safety non-linear danger table + phase-taper from the loaded KS_* knobs (no per-eval division)
@@ -636,6 +653,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHEAP_BISHOP_MOB = env_int("CHEAP_BISHOP_MOB", Config::CHEAP_BISHOP_MOB);
         Config::CHEAP_BISHOP_FWD = env_int("CHEAP_BISHOP_FWD", Config::CHEAP_BISHOP_FWD);
         Config::CHEAP_BISHOP_KING = env_int("CHEAP_BISHOP_KING", Config::CHEAP_BISHOP_KING);
+        Config::ENABLE_PIECE_MOBILITY = env_flag("ENABLE_PIECE_MOBILITY", Config::ENABLE_PIECE_MOBILITY);
         Config::ENABLE_CHEAP_ROOK_MOBILITY = env_flag("ENABLE_CHEAP_ROOK_MOBILITY", Config::ENABLE_CHEAP_ROOK_MOBILITY);
         Config::CHEAP_ROOK_MOB = env_int("CHEAP_ROOK_MOB", Config::CHEAP_ROOK_MOB);
         Config::CHEAP_ROOK_FWD = env_int("CHEAP_ROOK_FWD", Config::CHEAP_ROOK_FWD);
@@ -644,6 +662,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHEAP_QUEEN_MOB_EG = env_int("CHEAP_QUEEN_MOB_EG", Config::CHEAP_QUEEN_MOB_EG);
         Config::ENABLE_CHEAP_KNIGHT_MOBILITY = env_flag("ENABLE_CHEAP_KNIGHT_MOBILITY", Config::ENABLE_CHEAP_KNIGHT_MOBILITY);
         Config::CHEAP_KNIGHT_MOB = env_int("CHEAP_KNIGHT_MOB", Config::CHEAP_KNIGHT_MOB);
+        // Full per-piece mobility REPLACES the cheap rook/knight/queen surrogates (avoid double-counting mobility).
+        if (Config::ENABLE_PIECE_MOBILITY){
+            Config::ENABLE_CHEAP_ROOK_MOBILITY = false;
+            Config::ENABLE_CHEAP_QUEEN_MOBILITY = false;
+            Config::ENABLE_CHEAP_KNIGHT_MOBILITY = false;
+        }
         Config::ENABLE_ATTACK_LAYER_CACHE = env_flag("ENABLE_ATTACK_LAYER_CACHE", Config::ENABLE_ATTACK_LAYER_CACHE);
         Config::ENABLE_ATTACK_LAYER_CACHE_MIDGAME = env_flag("ENABLE_ATTACK_LAYER_CACHE_MIDGAME", Config::ENABLE_ATTACK_LAYER_CACHE_MIDGAME);
         Config::ENABLE_SEE_FIX = env_flag("ENABLE_SEE_FIX", Config::ENABLE_SEE_FIX);
@@ -854,9 +878,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " MOD_MAT_OPPB=" << Config::MOD_MAT_OPPB
                   << " MOD_LT_BACKING=" << Config::MOD_LT_BACKING
                   << " MOD_PAIR_OPEN=" << Config::MOD_PAIR_OPEN
+                  << " MOD_KS_BACKING=" << Config::MOD_KS_BACKING
+                  << " MOD_KS_CONTROL=" << Config::MOD_KS_CONTROL
                   << " MOD_PIECES_LEVEL=" << Config::MOD_PIECES_LEVEL
                   << " MOD_PIECES_MAT_THRESH=" << Config::MOD_PIECES_MAT_THRESH
                   << " MOD_PIECES_FLOOR=" << Config::MOD_PIECES_FLOOR
+                  << " MOD_PIECES_CONTROL=" << Config::MOD_PIECES_CONTROL
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
                   << " CHEAP_BISHOP_BLOCK=" << Config::CHEAP_BISHOP_BLOCK
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB

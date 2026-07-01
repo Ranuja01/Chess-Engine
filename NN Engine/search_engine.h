@@ -407,6 +407,18 @@ namespace Config
     inline int PAWN_MAJORITY_OUTSIDE_K  = 0;  // + per surplus when the majority wing is opposite the enemy king (outside passer)
     inline int PAWN_MAJORITY_BLOCKADE_K = 0;  // - per (enemy knight/bishop x surplus): a minor can blockade the would-be passer
 
+    // Pawn-structure weaknesses (Black-positive units; 0 = off = byte-identical). ISOLATED = no friendly pawn
+    // on either adjacent file. BACKWARD = adjacent friendly pawns exist but are all more advanced (none at/
+    // behind this rank) AND the stop square is attacked by an enemy pawn (can't advance safely). Texel/PACE.
+    inline int ISOLATED_PAWN_PEN = 0;
+    inline int BACKWARD_PAWN_PEN = 0;
+
+    // Minor-piece OUTPOSTS (Black-positive units; 0 = off = byte-identical). A knight/bishop in the enemy half,
+    // defended by an own pawn, that can never be attacked by an enemy pawn (no enemy pawn on an adjacent file
+    // able to advance onto it). Knight outposts usually worth more than bishop. Texel/PACE-tuned.
+    inline int OUTPOST_KNIGHT = 0;
+    inline int OUTPOST_BISHOP = 0;
+
     // Eval: placement (piece-square) MAGNITUDE scales (percent; 100 = byte-identical). Whole-map per-piece
     // multiplier applied at every read of that piece's placement table — white read, black read, AND the
     // central-score feed — so colour symmetry and the central term stay consistent. ROOK PST is dead code
@@ -506,15 +518,33 @@ namespace Config
     inline int KS_STORM        = 1;     // per rank of enemy pawn-storm advance on the king's three files
     inline int KS_OPEN_FILE    = 2;     // per open/semi-open file on/adjacent to the king file
     inline int KS_BATTERY      = 3;     // per rook/queen battery (doubled on a file / Q+B diagonal) aimed at the zone
+    inline int KS_ZONE2        = 0;     // widen the king-danger zone from ring1+one-rank to the full king_ring2
+                                        // (2-ring), so attackers staging one square further out are detected.
+                                        // 0 = narrow zone (byte-identical baseline); 1 = wide 2-ring.
+    // PER-KING DYNAMIC magnitude: scale EACH king's danger by how REAL its attack is = the CO-OCCURRENCE of
+    // its own signature detectors (attackers acting THROUGH open lines / undefended holes), not their additive
+    // sum. Computed per king, so the genuinely-attacked king scales UP (toward the crusher regime) while the
+    // safe king scales DOWN -> the netted term reflects the true asymmetry instead of cancelling. Realness =
+    // att_cnt*(open_files+weak_squares) - KS_DYN_PIVOT, fed through mod_gain (clamped 0.5x..2.0x). 0 = off (byte-id).
+    inline int KS_DYN          = 0;     // dynamic-magnitude coefficient (mod_gain k); 0 = no per-king scaling
+    inline int KS_DYN_PIVOT    = 4;     // realness level treated as neutral (1.0x); below damps, above boosts
+    inline int KS_DYN_SHIFT    = 4;     // sensitivity of the factor to realness (mod_gain right-shift)
     inline int KS_SHIELD       = 2;     // units subtracted per friendly pawn shielding the king on its three files
     inline int KS_DEFENDER     = 2;     // units subtracted per friendly PIECE (N/B/R/Q) defending the king zone
                                         // (the attacker-vs-defender balance detector: an attack only "blows up"
                                         // when attackers outweigh defenders, like the old latent_threat gates)
+    inline int KS_INTERACT     = 0;     // SUPER-LINEAR "coffin" interaction the additive units sum can't express:
+                                        // units += (KS_INTERACT * undefended_pressure * (open_files+1) * attackers) >> 4.
+                                        // Fires only when undefended pressure AND open lines AND real attackers all
+                                        // co-occur (a king that can't be defended through open lines despite shelter).
+                                        // Default 0 = byte-identical. Magnitude tuned from KS-relevant failures.
     inline int KS_DIVISOR      = 4;     // non-linear table denominator: danger = units^2 / KS_DIVISOR (below the knee)
     inline int KS_KNEE         = 12;    // units up to here grow QUADRATICALLY; above, growth is LINEAR (continuous
                                         // slope) so a crowded king zone ramps gently instead of exploding. Set >= KS_CAP
                                         // for pure quadratic-then-clamp (the old behaviour).
     inline int KS_CAP          = 80;    // units clamp (table is built up to KS_MAX_UNITS; KS_CAP <= that)
+    inline int KS_FLOOR        = 0;     // DEADZONE: attack-units below this -> ZERO danger, so TRIVIAL king-danger
+                                        // can't perturb non-king positions (the def1 passer bleed). Default 0 = byte-id.
     inline int KS_PHASE_FULL   = 48;    // phase_score AT/BELOW which king safety is full weight (0=full material/opening)
     inline int KS_PHASE_ZERO   = 104;   // phase_score AT/ABOVE which king safety is ~0 (128=bare kings/deep endgame)
 
@@ -592,6 +622,17 @@ namespace Config
     inline int MOD_MAT_OPPB  = 0;    // material boost x opposite-coloured-bishops (drawishness)
     inline int MOD_LT_BACKING = 0;   // latent-threat x material backing of the threatening side (unbacked = fantasy)
     inline int MOD_PAIR_OPEN = 0;    // bishop-pair bonus x openness (pawn count): open positions favour the pair
+    // King-safety conditioning (the king_safety_score swap term): a flat danger magnitude over/under-fires
+    // uniformly (symmetric static scatter), so make the danger a FUNCTION of whether the attacking side
+    // actually backs the attack. MOD_KS_BACKING damps an under-backed king attack (material, MOD_LT_BACKING
+    // template, damp-only). MOD_KS_CONTROL scales by the attacker's board-control edge (offensive-vs-defensive,
+    // the same signal the imbalance term reads): a space-backed attack boosts, a space-less one damps.
+    inline int MOD_KS_BACKING = 0;
+    inline int MOD_KS_CONTROL = 0;
+    inline int MOD_PVBOOST_COMP = 0;  // damp the material-domination boost x opponent offense-vs-our-defense COMPENSATION
+                                      // (a material lead is worth less under an unmatched attack; the collapse over-read)
+    inline int MOD_PVBOOST_MOB = 0;   // damp the material-domination boost x our MOBILITY edge deficit (a cramped material
+                                      // lead is illusory: collapses are +4p material but -0.8 mobility). sh=0 (small edges)
 
     // S4: placement-confidence shrinkage (the level-material plurality lever). level_sep.py showed LOST
     // level-material positions over-fire the placement terms ~2x vs healthy ones -> large placement claims in
@@ -601,6 +642,9 @@ namespace Config
     inline int MOD_PIECES_LEVEL = 0;      // shrink strength (0 = off); cut = (K * (|pieces| - FLOOR)) >> 8
     inline int MOD_PIECES_MAT_THRESH = 1000; // |material edge| (pawn=1000) at/below which the position is "level"
     inline int MOD_PIECES_FLOOR = 500;    // |placement| below which no shrink (don't touch modest placement)
+    inline int MOD_PIECES_CONTROL = 0;    // damp placement x the favoured side's offensive-vs-defensive control edge (unbacked activity over-credited; shares the KS_CONTROL detector)
+    inline int MOD_PIECES_DEFEND = 0;     // damp placement x the OPPONENT's offensive pressure on the favoured side (a side under attack can't cash a static placement edge; greed-under-attack collapse cluster)
+    inline int MOD_PIECES_DEFEND_THRESH = 0; // deadzone on net-attack: only damp when (oppOffense - favOffense) exceeds this (suppress in marginal/sharp positions where placement is load-bearing; cuts collateral)
 
     // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
     // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
@@ -621,6 +665,10 @@ namespace Config
     // attacked-but-not-own-occupied squares (weighting those in the forward zone as a proxy for the
     // dropped second-order term). Default off = byte-identical (the per-square filter + nested loop run
     // untouched). The output reuses the term's existing std::min envelope (225 midgame / 350 endgame).
+    // Proper per-piece MOBILITY: popcount(pieceAttackMask & safe mobilityArea) -> nonlinear MobilityBonus table,
+    // reusing each evaluator's already-computed attack bitboard (cheap). When ON it REPLACES the cheap rook/knight/
+    // queen surrogates (those gate on !ENABLE_PIECE_MOBILITY) to avoid double-count. Default off = byte-identical.
+    inline bool ENABLE_PIECE_MOBILITY = false;
     inline bool ENABLE_CHEAP_ROOK_MOBILITY = true;   // default-ON: +7.8% nps, WAC +2, STS +18, self-play +11 Elo (no regression)
     inline int CHEAP_ROOK_MOB = 15;   // bonus per non-own-occupied attacked square (matches original +15 midgame seed)
     inline int CHEAP_ROOK_FWD = 10;   // extra bonus per attacked square in the forward zone (proxy for the dropped second-order term)

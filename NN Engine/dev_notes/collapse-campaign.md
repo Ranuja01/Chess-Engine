@@ -9,6 +9,416 @@ backlog: [[external-play-gaps]]. **Document every angle tried here** so we never
 book-off). ACPL on `away_standard` n=112: MEAN 122 / MEDIAN 46.5 / blunders 21 (SF 0.25s). Dispatcher:
 `overnight_runner.sh {wac,sts,cploss_probe,fenvs,tournament} ...`.
 
+## 2026-06-30 (late night) — EVAL BUILD-OUT begun: 3 new gated terms shipped byte-clean (majority/pawn-struct/outpost)
+
+Rescaling mine exhausted → pivot to BUILDING the cheap terms SF11 grades that we lack ([[capture-gains-overread]]).
+Plan: `~/.claude/plans/handoff-agentic-eval-tuning-soft-tiger.md` (eval build-out). New-term → tunable pipeline
+(5 layers: `br_<term>` accumulator → `EvalBreakdown` field → `g_capture` publish → `ChessAI.pyx` dict → `tune_corpus`
+TERMS) established. All gated byte-identical (default-off); each **byte-id verified (WAC 252 / 70,150,573 exact)** +
+**functional-probe verified**:
+- **`pawn_majority`** — un-parked the existing block (6673) + `br_pawn_majority` capture. Knobs `PAWN_MAJORITY_MAG_MG/EG`+mods.
+- **`pawn_struct`** — NEW `ISOLATED_PAWN_PEN` (no friendly pawn on adjacent files) + `BACKWARD_PAWN_PEN` (adjacent pawns
+  all more advanced AND stop-square enemy-pawn-controlled). Self-contained block after majority. Probe: iso-d4 +200 / iso-d7
+  −200 / phalanx 0. Signs correct (Black-positive: White weakness +, Black −).
+- **`outpost`** — NEW `OUTPOST_KNIGHT`/`OUTPOST_BISHOP` (minor in enemy half, pawn-defended, no enemy pawn can advance to
+  attack). Probe: Ne5 −250 / Black Nd4 +250 / undefended 0 / enemy-Pd6-can-attack 0. Signs correct.
+
+Pawn-attack orientation grounded in the verified evaluator (White attacks `<<7/<<9`, Black `>>9/>>7`).
+
+**MOBILITY (item 4) — BUILT + verified.** Design revised during impl: instead of 16 fragile per-branch evaluator edits
+(white/black × mid/end × 4 pieces, mixed tab/space indent), a SINGLE self-contained block in `placement_and_piece_eval`
+loops N/B/R/Q, recomputes each attack mask via the cheap **PEXT** `SlidingRow::operator[]` (`_pext_u64` — 1 hw instr +
+load, NOT expensive), `popcount(att & safe mobilityArea)` → nonlinear `MobilityBonus_<piece>[]` table, White subtracts.
+`mobilityArea = ~((K|Q|P)&own | enemy_pawn_attacks)` computed once per side per phase-block (gated). Knob
+`ENABLE_PIECE_MOBILITY` (default off); when on it force-disables the cheap rook/knight/queen surrogates (search_engine.cpp
+init) to avoid double-count. `br_mobility` wired (Texel-able). **Verified:** byte-id off (252/70,150,573 exact) + functional
+(real-pos mob 40/18/16, draw-FENs early-return so use non-drawn positions) + colour-symmetry (mob == −mirror) + **NPS ~4.4%
+overhead** (366k→350k nps, tactics held 252) = acceptable, PEXT-reuse cheap as predicted. Tables PACE/SPSA-tuned (not Texel).
+
+**Research immortalized:** `dev_notes/sf11_eval_reference.md` (SF11 term-by-term) + `dev_notes/our_eval_reference.md`
+(LIVING map of our terms + anchors + KEEP/BUILD/RETIRE + ours↔SF11 correspondence). NEXT: regenerate corpus with the 4 new
+terms at UNIT magnitude → Texel `--scale-inv --attrib` priors + correspondence-filter → PACE (mobility tables) →
+lightning-gate each (+NPS) → bundle. `capg70` gate ~55% / LLR +0.42.
+
+## 2026-06-30 (night) — SF11-per-term Texel: capture_gains is the #1 over-read (cross-validated); retirement off the table
+
+Built the SF11-per-term Texel pipeline: `tune_corpus.py` now labels each position with **classical SF11's `eval` per-term
+table** (reused `SF11Eval` parser) + writes the `det_*` conditioning detectors + uses SF11's total for win/loss strata
+(one engine, half the cost); `tune_cond.py` = offline `mod_gain` conditioning fit; `tune_fit.py` += `--scale-inv`/`--attrib`.
+Dispatcher subs `tune_corpus`/`tune_cond`/`tune_fit`. 37,222-row `cond_corpus.csv`.
+
+**METHOD LESSON — the SF11-total confound ([[sf11-texel-scale-invariance]]):** fitting our eval to SF11's TOTAL is
+dominated by a **strength-NEUTRAL global scale** (our eval reads ~1.5x hotter, s≈0.64). A global eval multiplier changes
+NO move (argmax scale-invariant), so any fit hijacks its params to do blunt shrink (the material/imbalance/pair
+CONDITIONING cluster railed to damp and STILL lost to a plain global scale = **non-lever, dropped**). FIX = scale-invariant
+objective (each candidate gets its own best global scale) + solo per-term attribution (`--attrib`, dodges the joint fit's
+railing).
+
+**KEY FINDING — per-term hotness vs SF11 (scale-invariant, solo, control split):** **`capture_gains` = the #1 OVER-read by
+far** (solo scale→0.20, Δloss 0.0082, ~2.7x the next) and **cross-validated** — the earlier outcome-fit independently wanted
+it down (→82). #2 = **`pieces`/placement UNDER-read** (→2.49). Everything else (imbalance/pvboost/passed/KS) negligible.
+Mechanism (user): capture_gains approximates SEE/qsearch, built pre-qsearch as horizon insurance; it makes **full-piece
+swings** on static guesses → over-reads now that qsearch resolves those lines directly + more accurately (the same
+tactical-redundancy pattern as king-safety, cleanest instance).
+
+**BUT full-off craters both benches → NOT redundant, load-bearing:** fixed-d10 `SCALE_CAPTURE_GAINS=0`: WAC **252→238
+(−14)**, STS **1568→1437 (−131)**. So it earns real tactical AND positional signal → **retirement is off the table**; the
+fits meant over-*scaled*, not worthless. Lever = **reduce magnitude** (screening 70/50) or **condition it** (user's
+reliability-dampen: `capture_gains × f(defended-target / side-to-move-realizable / capture-chain-depth / counter-threat)`,
+damp-only [floor,256], keep the swing only where the static prediction is reliable + beyond q's horizon). Speed bonus if it
+can shrink: capture_gains is one of the most latency-heavy eval features → cheaper eval = more nodes. Next: bench-screen
+partial values, then **lightning SPRT** (equal-time = the only Elo verdict; captures accuracy AND the speed benefit). See
+[[capture-gains-overread]], [[fast-selfplay-eval-depth-bias]], [[fixed-depth-bench-ceiling]].
+
+## 2026-06-30 (eve) — LIGHTNING VERDICTS: KS-as-eval DEAD; fast self-play BIASED for eval; pivot to Texel
+
+The overnight `ksdyn_bundle` (KS REPLACE + prune) lost **−46.5 ±22** over 1323 self-play games. Decomposition:
+**KS-alone (REPLACE, no prune) = −48 ≈ bundle ⇒ the KS REPLACE-of-latent_threat swap is the culprit, NOT the
+prune** (prune ~neutral at equal time → parked). `ks_regress` showed the STS −26 was latent_threat REMOVAL on
+ks=0 positions, not KS over-fire.
+
+Built `fast_tourney` (fast fixed-depth self-play, lightened 0.1s adjudication): **~2435 games/hr @ d4 / ~1859 @
+d6 = ~13x lightning**, fair (base-vs-base 50.0%), rich JSONL. Ran a KS+OvD candidate SWEEP (`ks_ovd_fastrank`):
+**besideA = gentle KS BESIDE latent_threat (`KING_SAFETY_MAG=1500 KS_ZONE2=1`, no conditioning) = +31 fast-Elo**,
+all OvD/dyn conditioners (MOD_KS_CONTROL/BACKING, KS_DYN) damp it to ~+3 (KS not over-firing at gentle MAG, so
+the brakes just suppress a small useful term), ovdyn (IMBALANCE/REALIZ) −8.
+
+**THE CALIBRATION GATE killed two birds:** lightning SPRT of besideA = **~0 (50% / 83 games)** — the fast +31
+EVAPORATED. Combined with KS-alone (fast −16 → lightning −47), both KS configs shift the SAME way ⇒ **fast
+self-play systematically OVER-credits eval king-safety at shallow depth = a depth-transfer bias, not compression
+([[fast-selfplay-eval-depth-bias]]).** So fast self-play is fine for SEARCH knobs (transfer across depth) but
+UNRELIABLE for EVAL knobs. THREE eval proxies now down: move-match, ksattack, fast self-play.
+
+**Two conclusions:** (1) **KS-as-eval is NOT a lightning lever** (REPLACE −47, gentle-beside ~0) despite the
+SF11 detection gap — at our depth, latent_threat + search already cover king danger; **PARK king-safety**.
+(2) **Eval tuning is lightning-bound** — no validated cheap eval proxy exists. NEXT = re-open **Texel** properly
+(depth-agnostic `tune_corpus`/`tune_fit`, fit static eval to SF/outcome labels; depth-4 fast games = cheap
+position source since SF labels are depth-independent), gate at LIGHTNING (the 2026-06-16 "Texel degrades STS"
+rejection used STS = a biased judge), and populate `proxy_elo.csv` to test if Texel-score predicts lightning.
+Built subs: `fast_tourney`/`ks_ovd_fastrank`/`gate_besideA`. See [[ks-detection-rebuild]], [[agentic-eval-tuning-system]].
+
+## 2026-06-30 — KING-SAFETY DETECTION REBUILT + per-king DYNAMIC magnitude; bundle overnight tournament
+
+Acted on the SF11 finding below. `king_safety_danger` (cpp_bitboard.cpp) had `KS_WEAK`/`KS_STORM`/`KS_BATTERY`
+DECLARED + env-read but NEVER referenced (dead scaffolding); zone was ring1+1rank, `king_ring2` computed-but-unused.
+Trace (`diagnostics/ks_trace.py`, reuses `det_ks_units_w/b` + `ks_explain`) on the 8 worst under-fire FENs: engine
+read 0-1 units where the model reads 9-36.
+
+**Wired (gated, byte-id 252/70,150,573 held):** `KS_ZONE2` (OR in king_ring2), `KS_WEAK` (undefended attacked zone
+sq), `KS_STORM` (enemy pawn storm). `KS_BATTERY` still dead. Under-fire kings 0->9-13 units. **Per-king DYNAMIC
+magnitude `KS_DYN`** (user's "mag = f(detectors), up when it matters / down when not, BOTH sides"): each king's
+danger *= mod_gain(KS_DYN, att_cnt*(open+weak)-PIVOT, SHIFT), per-king => fixes net-cancellation. DYN=128 gentle =
+best; safe_checks-in-realness DISCONFIRMED (over-boost).
+
+**Mode REPLACE latent_threat** (beside double-counts: STS -72 vs -26). `ks_regress.py`: STS -26 is a near-wash
+REDISTRIBUTION (55 regress/53 improve), regressions are latent_threat REMOVAL on ks=0 positions NOT KS over-fire
+(control_edge doesn't separate) => static-MAG/MOD_KS_CONTROL sweeps were the wrong lever. Cross-suite: **ksattack
++70** (45.5->48.7%), STS -26, WAC -5. **Bundle w/ ORDER-prune SUPER-ADDITIVE at EQUAL TIME**: timed ksattack
+bundle 1100 > prune-alone 1060 > KS-alone 970 (fixed-depth showed opposite = prune artifact). Heavier prune
+(LMR=2/VM16k) over-prunes attack lines -> below prune-alone -> trades away KS. KS does NOT eat node savings
+(bundle 61.4M < prune-alone 63.5M; ~-12% vs baseline).
+
+**OVERNIGHT (running, tag `ksdyn_bundle`, ~580min):** self-play base vs `ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000
+KS_ZONE2=1 KS_DYN=128 LMR_EXTRA=1 VERIFY_MARGIN=12000 HISTORY_LMR_SCALE=3`. Baked subs `tonight_tourney`/`prune_screen`.
+Op notes: dispatcher prompt-free ONLY as `wsl.exe -e bash -lc "bash '<abs path>' …"` ([[dispatcher-prompt-free-wrapper]]);
+SF interop binfmt restales ([[wsl-sf-interop-binfmt]], real fix = native Linux SF). See [[ks-detection-rebuild]].
+
+## 2026-06-29 — SF11 EXTERNAL REFERENCE → KING-SAFETY DETECTION is the #1 lever (CURRENT DIRECTION)
+**The pivot:** a day of FLAT eval results, BUT we're ~300 Elo below pre-NNUE single-thread SF ⇒ big upgrades
+MUST exist; "flat" = our OBJECTIVE was blind, not the eval optimal. Built the missing yardstick = **classical
+Stockfish 11** (last pre-NNUE HCE, apples-to-apples). SF11 binary (user-supplied):
+`…/stockfish_11/stockfish-11-win/Windows/stockfish_20011801_x64_bmi2.exe`. SF18 is NNUE-only (can't be the HCE
+ref). Harness: `vs_sf11` sub (SF11 opponent FULL-strength 1-thread = fair vs our 1-thread; SF18 arbiter;
+depth+nodes both sides; `--sf-arb-path` added to vs_sf.py), `diagnostics/analyze_sf_games.py`, `eval_vs_sf11.py`.
+**META-LESSON: every internal objective is BLIND** — move-match blind to eval, self-play blind to search (EBF
+"at peak" was a same-EBF artifact). External SF11 reveals the headroom.
+**Decomposition (200 games, equal depth 12, SF18 arbiter):**
+- **EQUAL-DEPTH 3.2% → ~590 Elo gap** (search speed neutralized) ⇒ **per-node EVAL+ordering quality is the
+  DOMINANT lever** (biggest number measured). Re-centers EVAL.
+- **23x more nodes/move** (EBF 3.8 vs SF 2.0). **EBF-crush:** maxing ALL pruning only gets EBF 3.8→3.6 (−30 WAC)
+  ⇒ **can't reach SF's 2.0 by knob-tuning — STRUCTURAL** (ordering quality + LMR formula + eval-confidence).
+  Ordering fine (90.5% FMC); aggressive ordering-prune safe (−31% nodes/−5 WAC w/ VERIFY). We BEAT SF18 on WAC
+  @d10 ⇒ tactics are a STRENGTH; weakness is POSITIONAL eval. SF's low EBF is eval-ENABLED → loops to eval.
+- **#1 EVAL GAP = KING-SAFETY DETECTION.** `eval_vs_sf11.py` (our ev_breakdown vs SF11's labeled `eval` table,
+  400 STS pos): mean signed ~0, mean|gap| 1.1p (UNBIASED, high VARIANCE); variance DOMINATED by KING SAFETY —
+  **SF11 reads ±4-7p where our `king_safety_danger` reads ~0** (68/400; mean|our_KS−SF11_KS|=0.633). KS anchor ON
+  does NOT close it (|gap| 1.108→1.195) — under-fires + mis-fires ⇒ STRUCTURAL detection failure (zone too small
+  `ring1+1rank` @cpp_bitboard.cpp:480; NO pawn-storm attackers; KS_DEFENDER over-cancels; `king_ring2` @458
+  unused). Why m4000ctl was Elo-neutral + move-match couldn't tune KS. 2ndary: pieces/imbalance over-read, no
+  Mobility term.
+**DIRECTION (planned, not started):** rebuild king-danger DETECTION guided by SF11-KS (which attacks to detect,
+NOT literal fit), gated default-off, OVERFIT-GUARDED (held-out + don't regress passed/threats/STS/WAC/collapse
+corpora; balance rule = small regressions only for supreme KS win, SF11-tournament-arbitrated), gate on
+`vs_sf11 depth 12` + SPRT. PARALLEL: search ORDER-prune (LMR_EXTRA=1+VERIFY=12000+hls3, −15-31% nodes/−5 WAC,
+STS-drop=fixed-depth-artifact → timed-depth-validate) as floor tournament candidate; bundle w/ KS if both work.
+Plan: `~/.claude/plans/handoff-agentic-eval-tuning-soft-tiger.md`. See [[sf11-eval-search-diagnostic]].
+**Parked:** rook-mob (CHEAP_ROOK_MOB=32) move-match +86 but STS −176 → proxy artifact, dropped. KS_INTERACT
+flat on KS-set, gated off. Tooling built (gated/byte-id, UNCOMMITTED): vs_sf11, eval_vs_sf11.py, analyze_sf_games.py,
+search_sweep sub, KS_INTERACT/MOD_PIECES_DEFEND knobs, classify_failures.py, mine_ks_positions.py, label_collapses.py.
+
+## 2026-06-29 — AGENTIC FAILURE-CLASSIFICATION (staged-funnel pivot, day session)
+**Method shift (user-directed): automate the CHESS classification of each failure, then map failure-type ->
+involved knobs -> conditioning detector.** Not hand-picking a hypothesis; the agent buckets the failures.
+
+**Tooling built this session (persistent, in `diagnostics/`):**
+- `movematch.py` +`--epd/--limit/--sample/--seed/--offset` (seeded DISJOINT shards: Stage-1 sample=100 off=0,
+  Stage-2 sample=300 off=100, verified zero-overlap). Dispatcher subs `movematch_sample`, `funnel_cand`
+  (anchor m4000ctl BAKED in -> prompt-free), `place_probe`.
+- `label_collapses.py`: SF-labels each collapse `decision_fen` -> STS-schema EPD; merged
+  `suites/failure_corpus.epd` = 1500 STS + 63 collapse (themes Collapse2400/2700). Self-verifying.
+- `diagnose_misses.py`: HIT/MISS + HELPED/HURT detector-gap readout (det_* incl. derived openness, overextend).
+- `classify_failures.py`: per-miss dossier = played-vs-correct move + per-term STATIC-eval delta (which knob
+  over-credited the wrong move, mover-POV) + live detectors. `agg` (term histogram) + `dossier` (JSONL).
+
+**Results:**
+1. Placement levers REJECTED. `SCALE_PLACE_KING_EG` 100->150: +35 on the King Activity FULL theme (probe) but
+   held-out 300 NET **-25** (Pawn Play -41, Recapturing -29, Open Files -25; King Activity itself -2 on the
+   held-out subset) = PLACEMENT SCATTER, matches [[detector-conditioned-knobs]] disconfirmed-placement. Knight
+   Outposts: `PLACE_KNIGHT` 100/150/200 FLAT (508/508/508) = dead lever.
+2. `classify_failures agg` on 36 collapse misses: the term that SYSTEMATICALLY over-credits the wrong move is
+   **`pieces` (placement) +0.675 mean-signed / 0.857 |delta|**, dominating all else (`capture_gains` big |delta|
+   0.61 but ~0 signed = noise; `king_safety` ~0). Re-confirms placement is the static culprit.
+3. **Automated chess classification (3 fan-out agents, 36 collapses) -> 3 buckets:**
+   - **Tactical/search ~13** (passive_or_slow 8, bad_trade/SEE 4, promotion 1): agents tag "none/tactical",
+     no static detector separates -> floor partly HORIZON-bound (re-confirms prior).
+   - **Greed-under-attack ~11** (missed_defense 8, premature_attack 3, KS-lapse 2): grabbed material / pushed a
+     flank pawn while DEFENDING HEAVILY; lured by capture_gains/pieces/imbalance. Correlates with high
+     **`defense_edge`** (stm_defense - opp_defense; verified `whiteDefensiveScore` = own defensive attack-layer
+     sum, so high = under attack). <- the detector-separable cluster.
+   - **Endgame technique ~9**: high `phase_score` (101-117); placement over-credits an advanced piece/king.
+4. **Tooling gap:** `own_king_danger` (KS attack-units) reads **0 on every dossier incl. live mating attacks**
+   -> KS detector blind here; `defense_edge` is the working "under-pressure" proxy. (KS attack-unit detector
+   too sparse — future: opponent-offense-near-our-king detector.)
+
+**BUILT + TESTED — `MOD_PIECES_DEFEND` (gated, default-off, byte-id 252/70,150,573/1568):** damp the placement
+term `br_pieces` toward 0 by the NET attack on the favoured side = `oppOffense - favouredOffense` floored at 0
+(cpp_bitboard.cpp cold tail, after MOD_PIECES_CONTROL). The two-detector net-attack form is the data-derived
+refinement of a first single-signal (opp-offense-only) version that was a collapse-set WASH (270/630, helped
+defenders / hurt attackers) — the `diagnose_misses diff` HELPED/HURT dump showed `overextend`/`offense_edge` as
+the discriminator (helped low-offense defenders, hurt high-offense aggressors), so the gate was refined to fire
+only when the favoured side is net out-attacked.
+- **Collapse-set sweep (anchor 270/630):** net=32 -> 280 (+10), **net=64 -> 290 (+20, peak)**, net=128 -> 250
+  (overshoot). FIRST positive eval signal of the campaign, via the classify->attribute->build->re-guide loop.
+- **Held-out 300 (anchor 1586/3000):** pn64 = 1535 (**-51 TOTAL**) BUT **Collapse2400 +20 on UNSEEN collapses
+  (the fix GENERALIZES)**; the -51 is placement-damp COLLATERAL on midgame themes (Simplification -33, Knight
+  Outposts -28, Advancement -17, Center Control -16). Since collapses are ~6% of the suite, move-match TOTAL is
+  collateral-dominated -> **move-match CANNOT adjudicate this** (the morning-state finding, reconfirmed). NOT a
+  valid rejection.
+- **VERDICT: cluster-positive + generalizing, move-match-inconclusive -> TOURNAMENT-PENDING** (the truth gate for
+  collapse-fixes; morning-state next-step #1). Nothing shipped; knob gated default-off; UNCOMMITTED.
+- **Method result:** the user's agentic failure-classification pipeline WORKS end-to-end and produced the first
+  generalizing collapse-help — but on the `pieces`/placement term, whose collateral move-match can't weigh.
+  This is the 3rd independent confirmation that placement-magnitude conditioning trades collapse-help for
+  midgame-collateral (cf. MOD_PIECES_LEVEL/CONTROL, KING_EG scalar) -> the GATE aims true, the TERM is the wall.
+  Open: (a) tournament-gate pn64 (does the real collapse-help beat the collateral in games?); (b) re-run the
+  classify pipeline on the weak THEME misses (AT/Advancement/Open Files) to find a NON-placement culprit that
+  move-match CAN validate. Caveat: ~13/36 collapses are tactical (search's job).
+- **PACE-improve attempt (deadzone) FAILED — help & collateral are INSEPARABLE on placement.** Added
+  `MOD_PIECES_DEFEND_THRESH` (deadzone on net_attack: only damp once net_attack clears THRESH, to spare
+  sharp/marginal positions; byte-id preserved, default 0). Collapse-set mag64 sweep noisy (thresh100 260 /
+  thresh300 290 / thresh600 270 / thresh1000 240). But mag64/thresh300 on HELD-OUT 300 = **1503 (worse than
+  pn64's 1535)** and held-out Collapse2400 fell to **40 = anchor** — the deadzone REMOVED the generalizing
+  collapse-help while collateral persisted. ⇒ a net-attack deadzone cannot separate help from collateral (same
+  positions carry both). **thresh0 (pn64) is the peak; move-match PACE on this placement candidate is
+  EXHAUSTED.** 4th confirmation placement collateral is intrinsic. Move-match is structurally the wrong gate
+  for pn64 (collapses ~6% of suite). NEXT must be (a) TOURNAMENT pn64, or (b) pivot method to move-match-
+  validatable THEME misses. All knobs gated default-off, byte-id 252/70,150,573/1568, UNCOMMITTED.
+
+## 2026-06-29 — DYNAMIC CONDITIONING (user's core vision) — build #1: KS super-linear interaction
+**User directive (firm): STOP scalar tuning; build dynamic position-conditioned knobs** = each load-bearing
+magnitude is `base × f(cheap LIVE detectors)`, recomputed per position (KS mag ~2000 closed/quiet → ~10000
+open/sharp). Detectors INTERACT non-monotonically (user's "coffin": closed is NOT safe when attacker has force
++ defender can't redeploy). Magnitude/weighting comes from REAL FAILURES (collapse corpus + positional bench
+misses), not hand-set. Speed kept (only already-computed detectors). Plan: `~/.claude/plans/handoff-agentic-
+eval-tuning-soft-tiger.md` (rewritten to this).
+**Pre-check killed the naive build:** `king_safety_danger` (cpp_bitboard.cpp:4905) ALREADY models the main
+effects additively — attacker force (KS_ATT_*), defenders-in-zone (KS_DEFENDER), open files at king
+(KS_OPEN_FILE), pawn shield (KS_SHIELD), safe-checks — then ×MOD_KS_BACKING ×MOD_KS_CONTROL. A naive
+`KS × openness` multiplier would DOUBLE-COUNT. The genuinely-new gap = the additive sum can't express the
+super-linear INTERACTION (the coffin).
+**BUILT — `KS_INTERACT` (gated, default 0 = byte-id 252/70,150,573/1568):** inside king_safety_danger, after
+safe-checks, `units += (KS_INTERACT * undefended_pressure * (open_files+1) * attackers) >> 4` where
+undefended_pressure = attacked_zone_squares − defenders_in_zone; fires ONLY when all three co-occur. Detectors
+all already computed (no scan). search_engine.h KS_INTERACT=0 + env read added; smoke `diagnostics/ks_smoke.py`.
+**Smoke (anchor, phase 16): VERIFIED CORRECT** — sheltered king & open-file-but-unpressured king BOTH stay 0
+at KS_INTERACT 0 AND 96 (multiplicative gate); genuinely-attacked king: ks_units 8→56, king_safety −320→−6000
+at 96. (96 too hot — 7× units; tuned value is single-digit, set from failures.)
+**KS MOVE-MATCH AXIS PRUNED (PACE round 1, agent-prune):** mined 224 king-attack positions from real games
+(`mine_ks_positions.py` → `ksattack_corpus.epd`: divergence-ranked misreads where SF's best move attacks the
+enemy king). On that KS-RELEVANT set, KS_INTERACT is FLAT/negative: alone 1060→990/980/1080 (4/8/16); depth-12
+triage 1070 (≈flat, not shallow-search-fixed); JOINT cluster {KS_INTERACT,MOD_KS_CONTROL,KS_DEFENDER} all
+BELOW baseline (950–1020). ⇒ **move-match does NOT respond to KS tuning, isolated OR joint** — the objective is
+blind to KS (the term's value lives in lines fixed-depth move-match can't reach), AND the KSAtk "miss" bar is
+strict (our move ≠ SF's single best). So KS's ONLY gate is the TOURNAMENT (overnight). This is agentic-PACE
+working: one chess-pruned round falsified the KS-move-match axis. **Reframe (user): agentic SPSA = PACE;
+tournaments overnight-only (unattended), daytime = guided joint PACE on move-match-MEASURABLE clusters.** KS_INTERACT
+stays gated/built; ships only if the overnight tournament shows Elo. NEXT daytime = PACE on the OvD/mobility
+cluster (move-match-visible, where rook-mob already won) per the user's "co-tune OvD" insight.
+
+**(superseded plan note)** NEXT: build a KS-RELEVANT test set (STS king-attack/defense themes + collapse run-ups with mis-read king
+danger — move-match is blind to KS on the general set), tune KS_INTERACT magnitude there, then TOURNAMENT
+(truth; KS is Elo-gated not move-match-gated). Then next terms per the program (central×openness, rook-mob-
+dynamic). The scalar coord_sweep was STOPPED (off-path). See [[dynamic-conditional-eval]], [[king-safety-design]].
+
+## 2026-06-29 — MOBILITY VALUATION = first GENERALIZING lever (pivot payoff)
+**User insight that cracked it:** the placement (`pieces`) over-credit is a SYMPTOM — the real fault is
+UPSTREAM term valuation (mobility) feeding where pieces "want" to go; fix the cause, not the symptom. And
+mobility is move-match-VALIDATABLE (shifts move choice broadly), unlike the collapse-only placement fix.
+
+**Probe (CHEAP_ROOK_MOB, live default 15, ENABLE_CHEAP_ROOK_MOBILITY=1):**
+- Open Files theme (rook/bishop on open lines): 8->501, 15->506, **40->527 (+21)**, 60->502 (peak ~40).
+- **HELD-OUT 300 broad check: CHEAP_ROOK_MOB=40 = 1655/3000 (55.2%) vs anchor 1586 (52.9%) = +69 (+2.3%)
+  NET POSITIVE** — the FIRST generalizing net-positive of the whole campaign. Gain is BROAD (Offer of
+  Simplification +35, Advancement +17, Undermine +16, Bishop-v-Knight +12, AT +10, Collapse2400 +10), NOT
+  localized — Open Files itself even dropped -11 on the held-out subset. ⇒ raising rook-mobility valuation
+  improves move choice ACROSS themes = a real eval-quality correction, not theme-local scatter (contrast
+  KING_EG held-out -25, MOD_PIECES_DEFEND held-out -51). Mobility GENERALIZES because "active pieces are good"
+  is globally coherent; placement PST tweaks are position-specific.
+**Full held-out 300 curve (anchor=15 -> 1586):** 24->1595 (+9), **28->1719 (+133)**, 32->1672 (+86),
+40->1655 (+69), 56->1606 (+20). **DIRECTION ROBUST** (every value 24-56 beats anchor = rook mob under-valued)
+but **MAGNITUDE/peak is move-match NOISE** — the curve is JUMPY (24->28 swings +124 on a 4-unit change, then
+-47 to 32): fixed-depth move-match flips best-moves discretely, so the point estimates (+133/+86/+9) are NOT
+reliable. Don't over-trust any single value; the TOURNAMENT picks it (move-match ADVANCES the direction only).
+**Status: rm~28-40 ADVANCES (held-out broadly positive).** **2ND-SHARD CONFIRM (offset 400, disjoint):**
+anchor 1474 -> rm40 1503 = **+29** (Open Files +25 here). Both shards positive (shard-1 +69, shard-2 +29) =>
+direction SHARD-ROBUST (rook mob under-valued), magnitude noisy. EARNS the tournament. Tournament should test
+on the SHIPPED config (DEFAULT rook=15 vs DEFAULT+rook~28/40) NOT the m4000ctl anchor (anchor is itself
+unshipped); move-match used anchor-baked funnel only for a fixed comparison baseline.
+**EXTENSION — bishop mobility does NOT extend the lever (rook-specific).** CHEAP_BISHOP_MOB held-out 300
+(anchor=6 -> 1586): bm12 1544 (-42), bm20 1557 (-29) — both NEGATIVE. Matches [[eval-speed-bundle-shipped]]
+("cheap-mobility does not generalize past rook; queen/knight gated off"). So the lever is ROOK ONLY (rook's
+long-range value on open ranks/files is the under-weighted one). Queen/knight mobility left gated-off (prior:
+don't generalize). ⇒ the mobility investigation resolves to a SINGLE knob: CHEAP_ROOK_MOB ~28-40.
+**REMAINING GATE = TOURNAMENT** (truth; move-match can't pick the value). Run on shipped config, e.g.
+`tournament <mins> "CHEAP_ROOK_MOB=32" 6 rookmob32` (and a `=40` arm); base = default rook=15. Pick the
+Elo-best value; log proxy_elo.csv; then ship the new default in search_engine.h + re-baseline byte-id.
+
+**STACKING (coordinate-ascent on anchor+rook32, held-out 300 baseline 1672):** user strategy = keep adding
+held-out-validated knob tweaks for broad coverage. Batch results (8 probes): ONLY the rook-activity family
+moved — CHEAP_ROOK_FWD=5 (down) +9 marginal/noise; CHEAP_ROOK_FWD=20 -100, SCALE_CENTRAL 70/130 -61/-107,
+KING_SAFETY_MAG 3000/5000 -170/-87, SCALE_PASSED_PAWN 130 -72, SCALE_LATENT_THREAT no-op (disabled by
+ENABLE_KS_REPLACE_LT). ⇒ eval is near-locally-optimal except rook mobility; no long queue of free wins among
+the major knobs. Built `coord_sweep` dispatcher sub (baked ~30-knob grid, each held-out-scored on rook32,
+writes results/coord_sweep.csv; prompt-free) and launched it to systematically calibrate the REST of the
+eval scale knobs (ROOK_OPEN/7TH/CONNECTED, CAPTURE_GAINS, IMBALANCE, PAIR bonuses, THREAT_*, PAWN_RANK,
+PASSED, etc.). Survivors (positive vs 1672) need shard-2 confirm + tournament — sweep is a FILTER not accept. NOTE: CHEAP_ROOK_MOB
+is a LIVE default-on constant (not gated) — re-tuning 15->~40 is an HCE value change (not byte-id-preserving;
+it SHOULD change play). NEXT: pick peak -> full STS/WAC no-regression at the value -> EXTEND to bishop/queen/
+knight mobility (user's "mobility and whatnot"; queen/knight mob currently gated OFF — may also be under-valued)
+-> TOURNAMENT gate (truth) + log proxy_elo. The placement-conditioner (MOD_PIECES_DEFEND) stays parked; this
+mobility lever is the live track.
+
+## 2026-06-29 — MORNING STATE (autonomous overnight result)
+**Anchor stands: `m4000ctl` (ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256)**, byte-id
+252/70,150,573 (all new knobs gated-off). No new eval shipped — the cheap move-match-gated COLLAPSE track hit a
+**structural cap**, established rigorously (the night's real result):
+- The collapse over-read is in **LOAD-BEARING terms** (pieces +2.35..3.34p, capture_gains +1.39p,
+  piece_value_boost +0.74..0.94p); KS is minor (pruned). Conditioning any of them DOWN (compensation OR mobility,
+  even offense-gated) **regresses move-match with REAL general-play harm** (MOD_PVBOOST_MOB: King Activity -94 /
+  Open Files -64). They can't be cheaply separated from the term's legitimate "press when ahead" function = NNUE-
+  territory. **+ measurement gap: move-match CANNOT see the collapse-fix benefit (collapses aren't move-match
+  themes), only the collateral** -> it rejects every load-bearing-term fix. So move-match alone cannot validate
+  collapse-fixes.
+- **Mobility DOES discriminate** (collapses +4.15p material / -0.8 mobility = cramped lead) and the conditioners
+  DO reduce the over-read (efficacy probe ✓) — they just can't be weighed by move-match.
+**AWAKE next-steps (priority):** (1) SF-agreement/TOURNAMENT-validate the over-read reducers (MOD_PVBOOST_MOB
+~32) on the collapse FENs — does reducing the over-read actually help PLAY despite the move-match collateral?
+(the oracle/truth gate move-match can't be); (2) move-match-VALIDATABLE track = improve the weak THEMES
+(AKPC/AT/Advancement/Open Files/King Activity all <50%) via diagnosis-driven conditioning — what the autonomous
+loop CAN measure; (3) NNUE for the irreducible pieces/placement residual. Reusable tooling BUILT this run
+(byte-id, gated/diagnostic-only): detector dump with raw KS-units + mobility (EvalBreakdown det_*), MOD_PVBOOST_
+COMP/MOB + KS_FLOOR knobs (all default-off), `scratchpad/diagnose_corpus.py` (load-bearing-term-per-zone) +
+`diagnose_def1.py`.
+- **Final lever `imbalance <- realizability` (REALIZ_MAT_K/PHASE_K 128 & 256): NO-OP** (both byte-identical to
+  anchor, 0 moves changed) — imbalance is too small (~0.1-0.2p) to flip move-match moves = same measurement gap.
+  **Night verdict: no clean move-match-validatable eval win; the cheap move-match-gated track is exhausted for
+  these levers.** m4000ctl stands. Real progress resumes AWAKE (SF-agreement/tournament gate, which sees what
+  move-match can't).
+
+## 2026-06-29 — AUTONOMOUS overnight PACE: corpus diagnosis -> compensation-conditioning track
+Intellect-pruning diagnosis (`scratchpad/diagnose_corpus.py`, ev_breakdown over all 63 collapse decision FENs
+under m4000ctl, bucketed Qon/off x phase): the over-read (term favouring US in positions we LOST) is dominated
+by **pieces +2.35..3.34p, capture_gains +1.39p (Qon/mid, the "trade miscalc"), piece_value_boost +0.74..0.94p**
+— **king_safety is MINOR (+0.23/-0.02)** => queen-aware KS PRUNED as not the lever. Unifying chess cause = **we
+over-value being ahead and under-value the opponent's COMPENSATION/initiative** (the offense-vs-defense thesis).
+Track: **damp the "we're ahead" terms by opponent offensive compensation** (offense-vs-defense detector).
+First lever (confirmed bias x conditionable): `piece_value_boost <- compensation` (MOD_PVBOOST_COMP). pieces is
+biggest but NNUE-territory; capture_gains is 2nd (next lever). KS-knob axis already exhausted (def1/floor failed).
+- **MOD_PVBOOST_COMP REJECTED (built gated-off, byte-id; fast probe):** barely moves the over-read (Qon/mid
+  0.74->0.73, Qoff/end 0.94->0.92). WHY = the opponent's compensation is **NOT visible at the decision point**
+  (offense/defense detector low there; the attack is LATENT, materializes over later moves). So "damp ahead-terms
+  by CURRENT offense/defense" misses the collapses. Pivotal Q: does ANY cheap detector separate losing- vs
+  winning-material-up at the decision point? Testing MOBILITY next (added to the dump as a probe before wiring).
+- **MOBILITY DISCRIMINATES (built det_w/b_mobility = non-own attacked squares, byte-id):** the collapse
+  Qon/mid bucket is **our_MAT_edge +4.15p but our_MOBILITY_edge −0.8 sq** — we're up 4 pawns yet our pieces are
+  NOT more mobile = the material is CRAMPED/passive (healthy +4 mat would give a big mobility edge). This is the
+  "material without mobility" discriminator the compensation detector lacked. ⇒ build `piece_value_boost <-
+  mobility` (MOD_PVBOOST_MOB): damp the material-lead bonus when our mobility edge doesn't back the material.
+- **MOD_PVBOOST_MOB built (byte-id):** efficacy PROBE positive (Qon/mid over-read 0.74->0.54 @MOB=32, less in
+  the healthy bucket = targeted). But full-suite GATE: mob32 = -29 TOTAL with King Activity -44 / Open Files -39
+  / AKPC -65 REGRESS (gains in Simplification +58 / Pawn Play +43 / Recapturing). Mechanism: in ATTACKING
+  positions our pieces are committed -> low mobility, but that's "engaged" not "cramped" -> wrongly damps correct
+  attacks. REFINED: only damp when NOT out-attacking (leader offense edge <= 0) = the multi-detector combo
+  (mobility AND offense). Re-gating offense-gated mob32/mob48.
+- **MOD_PVBOOST_MOB REJECTED** (gate erratic + regressing: mob16 -211, mob32 -29, offense-gated mob32 -313 with
+  King Activity -94 / Open Files -64 / Offer-of-Simpl -77). NOT a measurement artifact = REAL harm: damping the
+  material-lead bonus breaks correct material-up play (when ahead, the bonus rightly drives activate/simplify/
+  press). **KEY STRUCTURAL FINDING:** the collapse over-read lives in LOAD-BEARING terms (pieces/capture_gains/
+  piece_value_boost) that can't be cheaply conditioned DOWN without big general-play collateral = NNUE-territory.
+  PLUS a measurement problem: **move-match can't see the collapse-fix BENEFIT (collapses aren't move-match
+  themes), only the collateral** -> it rejects every load-bearing-term fix. Collapse-fixes can only be WEIGHED
+  by SF-agreement on the collapse FENs (oracle) or a tournament (truth) -- both interop/awake, not the overnight
+  move-match lane. m4000ctl stands as the anchor. Last cheap shot: capture_gains (different term) then conclude.
+
+## 2026-06-28 (cont.) — AGENTIC-PACE loop demo end-to-end + detector dump BUILT
+The agentic diagnosis loop run in full, KS-knob-tuning the m4000ctl anchor (`ENABLE_KS_REPLACE_LT=1
+KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256`), and it earned its keep:
+- **Sweep** (`ks_movematch_sweep`, full 15-theme): the magnitude-cranks REGRESS (sc4 safe-check −112, div3
+  divisor −153), the LENIENCY fixes WIN (`def1` KS_DEFENDER 2→1 = **+83 best TOTAL**; sc5of3 safe-check+open-file
+  +19). Knobs INTERACT (sc4 alone −112 but sc5of3 +19; sc4def1 −54 — safe-check crank is toxic). Lesson: our KS
+  problem was LENIENCY about our own king (over-credited defenders), NOT insufficient magnitude.
+- **TOTAL lies → per-theme read is mandatory:** `movematch_diff` showed `def1 +83` REGRESSES passers
+  (Advancement −38, **Undermine −58**) — would have shipped a passer-breaker on the TOTAL. NOT clean. Held.
+- **Detector dump BUILT (reusable instrument):** detector values (`det_w/b_offense/defense`, `det_*_pieceval`,
+  `det_central`, `det_pawn_count`) added to `EvalBreakdown` (cpp_bitboard.h) → populated at the capture site →
+  `ev_breakdown` dict (ChessAI.pyx) → byte-id **252/70,150,573** (diagnostic-only). Diagnosis script
+  `scratchpad/diagnose_def1.py`: `movematch_diff` → classify HELPED(king)/HURT(passer) classes → detector gap.
+- **The discriminator (data, not guess):** on the passer positions def1 broke, the KS term is TRIVIAL
+  (**|ks|≈20 vs 169** on king positions) at **midgame phase ~31** (also more pawns 12.7 vs 10.7 = closed). def1
+  AMPLIFIES a trivial KS signal into finely-balanced pawn-play. ⇒ **FIX = `KS_FLOOR` deadzone** (suppress KS
+  below a danger floor; midgame-safe, does NOT fight `advanced_endgame_eval` king-activity which owns phase≥96).
+- **+ KS queen-awareness gap:** KS taper is pure material-phase, NOT queen-aware (only mate-drive is) → a
+  queens-on "endgame" fades KS too early while the king is still mateable. FIX = CONTINUOUS `mod_gain` scaling of
+  KS by queen-presence/danger (scale, not gate). See plan + memory [[position-conditional-eval-program]].
+- **Method decisions:** don't tournament MARGINAL changes (flat-Elo trap, limited games) — develop toward
+  SF-AGREEMENT (oracle) with move-match as the REGRESSION TRIPWIRE; tournament only a LARGE clean candidate
+  (autonomous overnight). m4000ctl = HELD ANCHOR; tonight's tournament DEFERRED.
+
+## 2026-06-28 — KS detector-conditioning + parallel vs-SF mine (m4000ctl candidate; tournament-ready)
+King-safety re-tune via the FUNNEL (cheap pain-point probe → full-suite controls → tournament; see memory
+`tuning-funnel-probe-then-controls`). Platform: swap@600 is near-INERT (term contributes ~0.05p); flat
+magnitude can't reduce the king-danger error (signed_gap≈0 = symmetric VARIANCE) and over-fires past m2000
+(static sweep). **Built detector-conditioning** `MOD_KS_BACKING` + `MOD_KS_CONTROL` (cpp_bitboard.cpp at the
+king_safety site; `mod_gain` template like MOD_LT_BACKING; backing = attacker material edge, control =
+attacker offensive-vs-defender edge = the imbalance-term signal), gated default-off → **byte-id 252 /
+70,150,573**. Static: backing pulls the att5+ "fantasy attack" overshoot back to baseline.
+- **ks_movematch_sweep (full 15-theme):** base 51.4 / flat m4000 **50.9 (−73, over-fires)** / m4000bk **52.0
+  (+78)** / m4000ctl **51.8 (+57)** / m4000bkctl 50.8 (over-damps — DON'T stack) / m2000bkctl 49.4. Net
+  +78/+57 but DISTRIBUTION is messy (offsetting swings; control regress Square Vacancy −69, Bishop-v-Knight
+  −55) — NOT a clean king signal (move-match is an unproven Elo proxy anyway; `proxy_elo.csv` still null).
+- **Pain-point probe (8 own-king collapse FENs, the decider):** **m4000ctl = LOCKED candidate** — 7/8 get
+  less over-optimistic, king themes all up (+51/+87/+4); m4000bk 6/8 + g33 switches to O-O-O. The
+  conditioning ENGAGES on the real holes (position-fix signal, independent of the noisy move-match).
+- **Tonight:** `ks_tournament <mins>` (baked m4000ctl, permission-clean) = PACE-validation + ship gate.
+- **vs_sf PARALLELIZED** (`--concurrency`, per-game SF handles; dispatcher positional conc arg) → mined
+  **42 collapses @ Elo 2400 in 33.5 min** (4×; 2400 = 37% score = "should-win" fixable zone, vs 16%@2700).
+  Zone split (stable, n=42): **own-king 31% / endgame-squander 31% / midgame-material 38%**. Endgame extremes:
+  g111 **KNNvK eval +14.4** = `is_practically_drawn` GAP (line ~5411 handles ==1 knight only) → cheap
+  correctness fix, DEFERRED (we already draw KNNvK; low-impact); g43 KBNvK +15.5 = win we can't convert
+  (B+N-mate technique/HORIZON, not eval). **Next-session campaign:** endgame-conversion + material-blow zones
+  on corpus `games/vssf_2400/`. Interop note: restore = `wsl --shutdown` then the long job as the FIRST call
+  (WSL idle-dies in the gap → cold-boot interop race; the busy process holds interop for its duration).
+
 ## Collapse corpus (the real-loss positions)
 `diagnostics/_tal_gap_fens.csv` — 3 chess.com tal-BOT (~2705) losses, engine=White, from won/equal:
 - **benoni-29** `r3r3/1b2qpbk/p2p2pp/1ppP4/P1B1P1PP/2N2Pn1/1P1Q1B2/R3R1K1 w - - 0 29` — winning-capture dodge:
@@ -30,6 +440,19 @@ book-off). ACPL on `away_standard` n=112: MEAN 122 / MEDIAN 46.5 / blunders 21 (
   ROOK_RANKWIN) — inventory + individually screen for the bundle.
 
 ## Log (newest first)
+
+### 2026-06-28 — vs-SF-2700 hole-mine: 21 collapse positions (NEW self-play-invisible corpus)
+Ran the built vs-SF harness (`vs_sf.py`, now with draw-adjudication — validated working) vs SF UCI_Elo=2700,
+50 games LIGHTNING, sequential (~52 min; NOTE vs_sf.py is SINGLE-THREADED — no concurrency, unlike tournament.py
+→ ~1 min/game). **Our score 16%** (SF-2700 @0.3s/move badly out-plays our LIGHTNING engine — a flag: our
+lightning strength is well under 2700, likely the TC, worth its own look) but **21/50 games = "our eval peaked
+≥ +2.0 then we didn't win"** → `games/vssf_2700/collapses.csv` (game,our_color,result,peak_ply,peak_eval,
+peak_move,drop_ply,drop_eval,decision_fen,drop_fen). Peaks +2.3…+7.5 (our POV). These are the self-play-INVISIBLE
+class: either real conversion failures OR eval over-reads (both valuable). **NOT yet triaged** — first action =
+`triage_collapses.py games/vssf_2700` (EVAL/PRUNING/HORIZON; needs interop) to separate eval holes (the fix
+targets) from horizon/pruning (search lane). Caveat: at 16% score many may be "lost to a stronger SF" rather
+than clean conversion-collapses → the triage + per-position eval-or-horizon (rising-depth `ourmove`/`fenvs`) is
+essential before treating any as an eval hole. New corpus UNCOMMITTED (games/ output + collapses.csv).
 
 ### 2026-06-28 — King-safety Phase B: tuned div6 OVER-FIT (discard); swap@600 = the marginal real candidate
 **CORRECTED after rigorous re-check (the +22.7 was an illusion).** Move-match diagnostic (full 15-theme, all

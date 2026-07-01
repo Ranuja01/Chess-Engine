@@ -22,6 +22,7 @@ Run (from NN Engine/):
 import os
 import csv
 import sys
+import random
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 SUITES_DIR = os.path.join(THIS_DIR, 'suites')
@@ -56,15 +57,40 @@ def results_csv(tag):
     return os.path.join(RESULTS_DIR, f"movematch_{tag}.csv")
 
 
-def cmd_run(tag, themes):
-    positions = load_sts_epd(suite_path())
+def select_sample(positions, sample, seed, holdout=False, offset=0):
+    """Deterministically carve a seeded shard (window OFFSET..OFFSET+SAMPLE) out of positions.
+
+    The staged funnel needs disjoint, fixed-size shards from one population: shuffle once with the seeded
+    RNG, then take the window [offset, offset+sample). Reusing the SAME seed with non-overlapping offsets
+    (Stage-1 sample=100 offset=0, Stage-2 sample=300 offset=100) guarantees the validation set holds no
+    position the tuning set saw. holdout=True returns the complement of that window instead."""
+    if sample is None:
+        return positions
+    order = list(range(len(positions)))
+    random.Random(seed).shuffle(order)
+    if holdout:
+        keep = order[:offset] + order[offset + sample:]
+    else:
+        keep = order[offset:offset + sample]
+    return [positions[i] for i in sorted(keep)]
+
+
+def cmd_run(tag, themes, epd=None, limit=None, sample=None, seed=0, holdout=False, offset=0):
+    src = epd if epd else suite_path()
+    positions = load_sts_epd(src)
     positions = select_themes(positions, themes)
+    positions = select_sample(positions, sample, seed, holdout, offset)
+    if limit is not None:
+        positions = positions[:limit]
     if not positions:
-        print("no positions matched (themes=%r)" % themes)
+        print("no positions matched (themes=%r epd=%r sample=%r)" % (themes, epd, sample))
         return 1
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    print("movematch run tag=%s  positions=%d  themes=%s" % (tag, len(positions), themes or "ALL"))
+    src_label = os.path.basename(src)
+    shard = ("  sample=%d/seed=%d/off=%d%s" % (sample, seed, offset, " HOLDOUT" if holdout else "")) if sample is not None else ""
+    print("movematch run tag=%s  positions=%d  themes=%s  epd=%s%s"
+          % (tag, len(positions), themes or "ALL", src_label, shard))
 
     rows = []
     total = max_total = booked = 0
@@ -157,15 +183,28 @@ def cmd_themes():
     return 0
 
 
+def _opt(args, name, cast=str):
+    """Return the value following --name in args, cast; None if absent (manual argv, matching cmd_run)."""
+    if name in args:
+        return cast(args[args.index(name) + 1])
+    return None
+
+
 def main():
     args = sys.argv[1:]
     cmd = args[0] if args else "themes"
     if cmd == "run":
         tag = args[1] if len(args) > 1 else "mm"
-        themes = None
-        if "--themes" in args:
-            themes = args[args.index("--themes") + 1]
-        return cmd_run(tag, themes)
+        themes = _opt(args, "--themes")
+        epd = _opt(args, "--epd")
+        limit = _opt(args, "--limit", int)
+        sample = _opt(args, "--sample", int)
+        seed = _opt(args, "--seed", int)
+        offset = _opt(args, "--offset", int)
+        holdout = "--holdout" in args
+        return cmd_run(tag, themes, epd=epd, limit=limit, sample=sample,
+                       seed=(0 if seed is None else seed), holdout=holdout,
+                       offset=(0 if offset is None else offset))
     if cmd == "diff":
         if len(args) < 3:
             print("usage: movematch.py diff <base_tag> <cand_tag>")
@@ -173,7 +212,8 @@ def main():
         return cmd_diff(args[1], args[2])
     if cmd == "themes":
         return cmd_themes()
-    print("usage: movematch.py {run <tag> [--themes \"A,B\"] | diff <base> <cand> | themes}")
+    print("usage: movematch.py {run <tag> [--themes \"A,B\"] [--epd P] [--limit N] "
+          "[--sample N --seed S [--offset O] [--holdout]] | diff <base> <cand> | themes}")
     return 2
 
 

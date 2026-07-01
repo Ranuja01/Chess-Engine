@@ -168,21 +168,63 @@ PYEOF
   ks_sweep)
     # King-safety static-gap GRID sweep (loops inside the dispatcher so one allowlisted call runs the
     # whole sweep). Each line: <label> then the ALL + key midgame buckets. Edit the grid below to retune.
+    # swap@600 is nearly INERT (term contributes ~0.05p) — the real lever is MAGNITUDE + curve steepness
+    # (danger = units^2/divisor, knee=12 then linear slope 2*knee/divisor). All swap rows run in REPLACEMENT
+    # mode (ENABLE_KS_REPLACE_LT=1, latent off) to match the shipping config; base_lt is the latent anchor.
     declare -a grid=(
-      "off:KING_SAFETY_MAG=0"
-      "base700:KING_SAFETY_MAG=700"
-      "knee8:KING_SAFETY_MAG=700 KS_KNEE=8"
-      "def4:KING_SAFETY_MAG=700 KS_DEFENDER=4"
-      "def4knee8:KING_SAFETY_MAG=700 KS_DEFENDER=4 KS_KNEE=8"
-      "strong:KING_SAFETY_MAG=1500 KS_DEFENDER=3 KS_KNEE=10"
-      "gentle:KING_SAFETY_MAG=1200 KS_DEFENDER=4 KS_KNEE=8 KS_ATTACK_COUNT=0"
+      "base_lt:KING_SAFETY_MAG=0"
+      "m4000:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000"
+      "m4000bk:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_BACKING=256"
+      "m4000ctl:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256"
+      "m4000bkctl:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_BACKING=256 MOD_KS_CONTROL=256"
+      "m6000bkctl:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=6000 MOD_KS_BACKING=512 MOD_KS_CONTROL=256"
     )
     for entry in "${grid[@]}"; do
       label="${entry%%:*}"; knobs="${entry#*:}"
       env $knobs OMP_NUM_THREADS=1 USE_OPENING_BOOK=0 \
           "$PY" diagnostics/_kingsafety_static.py > "/tmp/kssw_${label}.out" 2>/dev/null || true
       echo "### $label  ($knobs)"
-      grep -hE 'ALL |early_mid\|att3|early_mid\|att5|late_mid\|att4' "/tmp/kssw_${label}.out" || echo "  (no output)"
+      grep -hE 'ALL |opening\|att2|early_mid\|att3|early_mid\|att5|late_mid\|att4' "/tmp/kssw_${label}.out" || echo "  (no output)"
+    done
+    ;;
+
+  ks_movematch_sweep)
+    # King-safety move-match GRID = the PACE objective: the FULL 15-theme move-match per knob-set, looped
+    # inside the dispatcher (one allowlisted call, NO =-args on the command line -> unattended/permission-safe).
+    # Pins EVERY thread pool (OMP/BLAS/TF) for determinism exactly like the movematch sub. Writes a tagged
+    # CSV (movematch_kmm_<label>.csv) per row -> diff any two with `movematch_diff kmm_<a> kmm_<b>`.
+    # King-safety TARGET themes: King Activity / Open Files and Diagonals / 7th Rank; the other 12 are CONTROLS
+    # (must not drop). Edit the grid to retune.
+    # Strengthen-the-anchor sweep: anchor = m4000ctl (ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000
+    # MOD_KS_CONTROL=256), held fixed; vary the KS SHAPE knobs to make the term fire harder on REAL backed
+    # attacks (the own-king collapses underweight our own king). safe-checks = strongest real-danger signal;
+    # KS_DEFENDER down = stop over-crediting our own defenders; open-file up = exposed king; divisor down =
+    # steeper danger. Full-suite move-match = the no-regression control (passers/safety/positional).
+    # def1 + KS_FLOOR deadzone sweep: does the floor RECOVER the passer regression (Advancement/Undermine back
+    # to >= anchor) while KEEPING def1's king/positional gains? Bracket floor 2/3/4/6 (too high also kills real
+    # king detection). anchor + def1 are the references; movematch_diff each def1_fX vs anchor for the per-theme read.
+    # MEASURED floor (units p75 HURT=1/HELPED=13; favorable band ~4-6): confirm the two measured candidates on
+    # move-match (the search-integrated truth), against anchor + def1 references. Did the floor RECOVER passers
+    # (Advancement/Undermine toward anchor) while KEEPING def1's king gains?
+    # piece_value_boost <- mobility (MOD_PVBOOST_MOB): probe reduced the over-read in the cramped bucket. Gate =
+    # full-suite no-regression (does damping the material-lead bonus hurt any theme?). anchor = m4000ctl.
+    # offense-gated MOD_PVBOOST_MOB (only damp cramped material when NOT out-attacking) -> should recover the
+    # King-Activity/Open-Files regressions from the ungated version (mob32 was -29 with king-theme regress).
+    # Final overnight experiment: imbalance <- realizability (dormant REALIZ_* hook, Table B #1) on TOP of
+    # m4000ctl. Different term from the failed piece_value_boost levers; move-match-validatable screen.
+    declare -a grid=(
+      "anchor:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256"
+      "realiz_a:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256 REALIZ_MAT_K=128 REALIZ_PHASE_K=128"
+      "realiz_b:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256 REALIZ_MAT_K=256 REALIZ_PHASE_K=256"
+    )
+    for entry in "${grid[@]}"; do
+      label="${entry%%:*}"; knobs="${entry#*:}"
+      env $knobs MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+          OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+          VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+          "$PY" diagnostics/movematch.py run "kmm_${label}" > "/tmp/kmm_${label}.out" 2>/dev/null || true
+      sc=$(grep -hoE '^TOTAL [0-9]+/[0-9]+ +\([0-9.]+%\)' "/tmp/kmm_${label}.out")
+      echo "${label}	${sc:-(none)}	[$knobs]"
     done
     ;;
 
@@ -235,6 +277,32 @@ PYEOF
     "$PY" diagnostics/ks_explain.py "$@"
     ;;
 
+  tune_corpus)
+    # Build the SF11-per-term + detector corpus for the conditioning fit. Args: <tags> <n> <out> [--resume] [--mirror] [--per-game N].
+    # tags = comma-separated game tags. SF11 interop must be warm. Single-thread pinned (deterministic static eval);
+    # --resume appends + skips done FENs so the run is killable/resumable (hand cores back anytime).
+    tags="${1:?tags required}"; shift || true
+    n="${1:-40000}"; shift || true
+    out="${1:-selfplay/tune_data/cond_corpus.csv}"; shift || true
+    # Route KEY=VAL trailing args to ENV (eval knobs baked into the labelling engine), --flags to python.
+    knobs=(); pyargs=()
+    for a in "$@"; do if [[ "$a" == *=* ]]; then knobs+=("$a"); else pyargs+=("$a"); fi; done
+    env "${knobs[@]}" OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 USE_OPENING_BOOK=0 \
+        "$PY" selfplay/tune_corpus.py --tag "$tags" --n "$n" --out "$out" "${pyargs[@]}"
+    ;;
+
+  tune_cond)
+    # Offline detector-conditioning fit (replays mod_gain vs SF11 total). No interop. Args: [--corpus path] [--seed N].
+    "$PY" selfplay/tune_cond.py "$@"
+    ;;
+
+  tune_fit)
+    # Offline per-term flat-SCALE Texel fit (material/pieces anchor the magnitude => strength-relevant
+    # relative-blunting vs SF11). No interop. Args: passed straight through (--corpus --terms --target ...).
+    "$PY" selfplay/tune_fit.py "$@"
+    ;;
+
   movematch)
     # Themed move-match scorecard for an eval candidate. Args: <tag> <themes|all> [KNOB=v ...].
     # Defaults precede "$@" so a candidate can override MAX_DEPTH (the delta-depth audit) or themes.
@@ -253,10 +321,177 @@ PYEOF
         | grep -E 'movematch run|^TOTAL|results ->|\([0-9]+%\)' || echo "movematch: (none)"
     ;;
 
+  movematch_sample)
+    # Sampled move-match for the staged funnel. Disjoint shards come from ONE seed + non-overlapping
+    # offsets: Stage-1 (sample=100 offset=0) tunes, Stage-2 (sample=300 offset=100) validates positions
+    # it never saw. Args: <tag> <themes|all> <epd|default> <sample> <seed> [offset] [KNOB=v ...].
+    # epd "default" uses the STS suite; otherwise a path relative to NN Engine/ (the merged failure
+    # corpus). Same thread-pin discipline as movematch (determinism). Knobs in "$@" precede $PY as env.
+    tag="${1:?tag required}"; shift || true
+    themes="${1:-all}"; shift || true
+    epd="${1:-default}"; shift || true
+    sample="${1:?sample required}"; shift || true
+    seed="${1:-0}"; shift || true
+    off=()
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then off=(--offset "$1"); shift || true; fi
+    targ=(); [ "$themes" != "all" ] && targ=(--themes "$themes")
+    earg=(); [ "$epd" != "default" ] && earg=(--epd "$epd")
+    # The funnel always sits on the validated m4000ctl anchor (KS<-control). Baked as DEFAULTS here so
+    # the campaign runs prompt-free (=-knobs on the command line trip the allowlist); a candidate's own
+    # conditioner knobs come in via "$@" and, being distinct names, stack on top. The wac/sts byte-id
+    # gate is a SEPARATE sub and stays knobs-off, so this does not perturb the correctness fingerprint.
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256 \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" diagnostics/movematch.py run "$tag" "${targ[@]}" "${earg[@]}" \
+            --sample "$sample" --seed "$seed" "${off[@]}" 2>/dev/null \
+        | grep -E 'movematch run|^TOTAL|results ->|\([0-9]+%\)' || echo "movematch_sample: (none)"
+    ;;
+
   movematch_diff)
     # Per-theme score delta + changed-move list between two movematch runs. Args: <base_tag> <cand_tag>.
     base="${1:?base tag required}"; cand="${2:?cand tag required}"
     "$PY" diagnostics/movematch.py diff "$base" "$cand" 2>/dev/null || echo "movematch_diff: (none)"
+    ;;
+
+  funnel_cand)
+    # One candidate config on a shard, anchor + extra knobs, PROMPT-FREE: candidate knobs are passed as
+    # space-separated KNOB VAL positional pairs and assembled into env INSIDE the script (no =-tokens on
+    # the dispatcher command line, which would trip the allowlist). Pair with movematch_sample (no extra
+    # knobs = the anchor baseline) + movematch_diff to A/B. Same shard semantics as movematch_sample.
+    # Args: <tag> <themes|all> <epd|default> <sample> <seed> <offset> [KNOB VAL]...
+    tag="${1:?tag required}"; shift || true
+    themes="${1:-all}"; shift || true
+    epd="${1:-default}"; shift || true
+    sample="${1:?sample required}"; shift || true
+    seed="${1:-0}"; shift || true
+    offv="${1:-0}"; shift || true
+    pairs=()
+    while [ "$#" -ge 2 ]; do pairs+=("$1=$2"); shift 2; done
+    targ=(); [ "$themes" != "all" ] && targ=(--themes "$themes")
+    earg=(); [ "$epd" != "default" ] && earg=(--epd "$epd")
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256 "${pairs[@]}" \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+        "$PY" diagnostics/movematch.py run "$tag" "${targ[@]}" "${earg[@]}" \
+            --sample "$sample" --seed "$seed" --offset "$offv" 2>/dev/null \
+        | grep -E 'movematch run|^TOTAL|results ->|\([0-9]+%\)' || echo "funnel_cand: (none)"
+    ;;
+
+  coord_sweep)
+    # Coordinate-ascent calibration sweep (overnight, autonomous, CSV-logged, PROMPT-FREE). Each grid entry
+    # is one eval-scale knob at one value, scored on the held-out 300 shard (sample=300 seed=1 offset=100) ON
+    # TOP OF the current bundle (anchor m4000ctl + CHEAP_ROOK_MOB=32). The grid is baked here so no =-token
+    # ever reaches the command line. Writes "knob=val,TOTAL" to results/coord_sweep.csv; baseline (rook32
+    # alone) = 1672. A positive delta FLAGS a candidate to confirm on shard-2 + tournament (NOT an accept).
+    # Args: [tag=coord]. Sequential (one core, deterministic); ~12 min/entry.
+    out="diagnostics/results/coord_sweep.csv"
+    echo "knob,total" > "$out"
+    grid=(
+      CHEAP_ROOK_FWD=5 CHEAP_ROOK_FWD=8
+      ROOK_OPEN_BASE=200 ROOK_OPEN_BASE=300 ROOK_7TH=100 ROOK_7TH=200
+      ROOK_CONNECTED=100 ROOK_CONNECTED=200 ROOK_SEMI=175 ROOK_SEMI_CONNECTED=175
+      SCALE_CAPTURE_GAINS=70 SCALE_CAPTURE_GAINS=130
+      IMBALANCE_SCALE=2 IMBALANCE_SCALE=4
+      BISHOP_PAIR_BONUS=200 BISHOP_PAIR_BONUS=400 KNIGHT_PAIR_BONUS=300
+      THREAT_ATTACK_MULT=30 THREAT_ATTACK_MULT=70 THREAT_PRESENCE_MULT=60 THREAT_PRESENCE_MULT=100
+      SCALE_PAWN_RANK=70 SCALE_PAWN_RANK=130 SCALE_PASSED_RANK=130 SCALE_PASSED_PAWN=70
+      CHEAP_BISHOP_MOB=3 SCALE_PLACE_QUEEN=130 SCALE_PLACE_KNIGHT=130
+    )
+    for kv in "${grid[@]}"; do
+      tot=$(env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+          ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256 CHEAP_ROOK_MOB=32 "$kv" \
+          OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+          VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+          "$PY" diagnostics/movematch.py run "cs_$kv" --epd diagnostics/suites/failure_corpus.epd \
+              --sample 300 --seed 1 --offset 100 2>/dev/null \
+          | grep -oE '^TOTAL [0-9]+' | grep -oE '[0-9]+')
+      echo "$kv,${tot:-NA}" | tee -a "$out"
+    done
+    echo "coord_sweep done -> $out (baseline rook32 = 1672)"
+    ;;
+
+  search_sweep)
+    # PACE inner-loop for the SEARCH lane: deterministic, prompt-free. For each baked grid entry (a search
+    # knob at one value, ON TOP of the kept BASE bundle) run wac (solves+nodes+ebf) + sts (positional) at
+    # fixed depth 10 and append config,solved,nodes,ebf,sts to results/search_sweep.csv. DETERMINISTIC (no
+    # move-match noise) -> one run settles direction. Correctness gate = WAC SOLVED held (don't lose tactics).
+    # Edit BASE (= folded keeps) + grid each round, re-run. No build (knobs are env-read at engine init).
+    out="diagnostics/results/search_sweep.csv"
+    echo "config,solved,nodes,ebf,sts" > "$out"
+    BASE=""   # kept bundle, e.g. "NULLMOVE_EXTRA=3 HISTORY_LMR_SCALE=3" (baked, no =-args on the cmd line)
+    grid=(
+      "baseline:"
+      "nm3:NULLMOVE_EXTRA=3"
+      "hls3:HISTORY_LMR_SCALE=3"
+      "hls4:HISTORY_LMR_SCALE=4"
+      "lmpb1:LMP_BASE=1"
+      "lmpd6:LMP_MAX_DEPTH=6"
+      "lmrx1:LMR_EXTRA=1"
+      "vm12k:VERIFY_MARGIN=12000"
+      "vm8k:VERIFY_MARGIN=8000"
+      "asp400:ASPIRATION_DELTA=400"
+      "asp300:ASPIRATION_DELTA=300"
+    )
+    for entry in "${grid[@]}"; do
+      name="${entry%%:*}"; kv="${entry#*:}"
+      env $BASE $kv MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+          "$PY" diagnostics/tactical_test.py wac.epd "ss_$name" > "/tmp/ss_${name}.out" 2> "/tmp/ss_${name}.err" || true
+      solved=$(grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/ss_${name}.out" | grep -oE '^Solved [0-9]+' | grep -oE '[0-9]+' || echo "?")
+      nodes=$(grep -hoP '\(nodes=\K[0-9]+' "/tmp/ss_${name}.err" | awk '{s+=$1} END{print s+0}')
+      ebf=$(grep -hoP 'ebf=\K[0-9.]+' "/tmp/ss_${name}.err" | awk '{s+=$1;n++} END{if(n)printf "%.3f",s/n; else print "?"}')
+      sts=$(env $BASE $kv MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+          "$PY" diagnostics/sts_test.py sts300.epd "ss_$name" 2>/dev/null | grep -hoP 'STS score: \K[0-9]+' || echo "?")
+      echo "${name},${solved},${nodes},${ebf},${sts}" | tee -a "$out"
+    done
+    echo "search_sweep done -> $out (BASE='$BASE')"
+    ;;
+
+  vs_sf11)
+    # DIAGNOSTIC: our engine vs CLASSICAL Stockfish 11 (pre-NNUE HCE yardstick), SF18 the neutral arbiter.
+    # Both SF play 1-thread (fair vs our single-threaded engine). Decomposes our gap to a great HCE:
+    #   depth <N> = equal fixed depth (pure eval+ordering; nodes logged = efficiency gap; concurrency CLEAN)
+    #   time  <s> = equal per-move time (search-speed in; run LOW concurrency or read targets separately)
+    # depth+nodes are logged for BOTH sides per move (selfplay/games/<tag>/game_*/.jsonl). Prompt-free.
+    # Args: <games> <time|depth> <value> [conc=4] [tag] [KNOB=v ...(our engine; =-args prompt, omit unattended)].
+    games="${1:?games}"; shift || true
+    mode="${1:?time|depth}"; shift || true
+    val="${1:?value}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-vssf11}"; shift || true
+    SF11="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_11/stockfish-11-win/Windows/stockfish_20011801_x64_bmi2.exe"
+    export STOCKFISH_PATH="$SF"   # SF18 (arbiter)
+    if [ "$mode" = depth ]; then
+        sfarg=(--sf-depth "$val"); ourcfg="PRESET=LONG_FORMAT MAX_DEPTH=$val USE_OPENING_BOOK=0"
+    else
+        sfarg=(--sf-movetime "$val"); ourcfg="PRESET=LIGHTNING USE_OPENING_BOOK=0"
+    fi
+    env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" selfplay/vs_sf.py --our-label ours --our-config "$ourcfg" \
+        --sf-elo 0 --sf-path "$SF11" --sf-arb-path "$SF" "${sfarg[@]}" \
+        --games "$games" --concurrency "$conc" --openings selfplay/openings_uho.txt \
+        --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  place_probe)
+    # Cheap-proof-first: does bumping an EXISTING flat placement scale lift a systematically-missed
+    # positional theme, on the FULL STS theme (not the thin funnel sample)? If the flat scale can't move
+    # it, a conditioner on the same term won't either. Grid is baked (prompt-free). v=100 is the anchor
+    # control. Args: <theme> [knob=SCALE_PLACE_KING_EG]. Runs on top of the m4000ctl anchor.
+    theme="${1:?theme required}"; shift || true
+    knob="${1:-SCALE_PLACE_KING_EG}"; shift || true
+    for v in 100 150 200; do
+      echo "== $knob=$v  theme=$theme =="
+      env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+          ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256 "$knob=$v" \
+          OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+          VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+          "$PY" diagnostics/movematch.py run "probe_${knob}_${v}" --themes "$theme" 2>/dev/null \
+          | grep -E '^TOTAL' || echo "  (none)"
+    done
     ;;
 
   tournament)
@@ -276,6 +511,175 @@ PYEOF
         --p2-label fast --p2-config "$p2cfg" \
         --preset LIGHTNING --concurrency "$conc" --max-minutes "$mins" \
         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  ks_tournament)
+    # Permission-clean overnight A/B for the king-safety candidate: base (no knobs) vs m4000ctl
+    # (ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256) baked INSIDE so no =-args reach the
+    # command line (unattended-safe). The PACE-validation + ship gate for the KS swap. Run single-machine-state
+    # (one sitting, no cross-reboot batches -> the machine-state confound). Args: <minutes> [conc=4] [tag].
+    mins="${1:?minutes required}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-ks_m4000ctl}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py \
+        --p1-label base --p1-config "" \
+        --p2-label ksctl --p2-config "ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256" \
+        --preset LIGHTNING --concurrency "$conc" --max-minutes "$mins" \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  prune_screen)
+    # Permission-clean prune-optimization screen for the KS bundle (grid baked => no =-args on the command
+    # line => unattended-safe). Per variant: WAC solved + summed nodes (fixed depth = tactical/trades safety
+    # + node-cut) and TIMED ksattack (equal-time KS accuracy = the prune's real metric, not the fixed-depth
+    # artifact). KS = REPLACE/MAG4000/ZONE2/DYN128 held fixed; the prune knobs vary. p_alone (no KS) isolates
+    # the KS node cost vs the bundle. Baseline refs: WAC 252/70.15M, bundle 244/61.4M, bundle ksattack_t 1080.
+    declare -a grid=(
+      "p_alone:LMR_EXTRA=1 VERIFY_MARGIN=12000 HISTORY_LMR_SCALE=3"
+      "cur:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 KS_ZONE2=1 KS_DYN=128 LMR_EXTRA=1 VERIFY_MARGIN=12000 HISTORY_LMR_SCALE=3"
+      "lmr2:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 KS_ZONE2=1 KS_DYN=128 LMR_EXTRA=2 VERIFY_MARGIN=12000 HISTORY_LMR_SCALE=3"
+      "vm16:ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 KS_ZONE2=1 KS_DYN=128 LMR_EXTRA=1 VERIFY_MARGIN=16000 HISTORY_LMR_SCALE=4"
+    )
+    for entry in "${grid[@]}"; do
+      label="${entry%%:*}"; knobs="${entry#*:}"
+      env $knobs MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+          "$PY" diagnostics/tactical_test.py wac.epd "ps_${label}" > "/tmp/ps_${label}.out" 2> "/tmp/ps_${label}.err" || true
+      sol=$(grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/ps_${label}.out")
+      nod=$(grep -hoP '\(nodes=\K[0-9]+' "/tmp/ps_${label}.err" | awk '{s+=$1} END{print s+0}')
+      ka=$(env $knobs PRESET=LIGHTNING MAX_DEPTH=64 USE_OPENING_BOOK=0 \
+          "$PY" diagnostics/sts_test.py ksattack.epd "psk_${label}" 2>/dev/null | grep -hoE 'STS score: [0-9]+/[0-9]+ +\([0-9.]+%\)')
+      echo "${label}	WAC=${sol:-?}	nodes=${nod}	ksattack_timed=${ka:-?}"
+    done
+    ;;
+
+  tonight_tourney)
+    # Permission-clean overnight A/B for the KING-SAFETY-DETECTION + ORDER-PRUNE bundle (2026-06-29).
+    # base (shipped defaults, no knobs) vs the bundle, baked INSIDE so no =-args reach the command line
+    # (unattended-safe). Bundle = rebuilt king-danger detection (wider zone + weak-square + pawn-storm terms,
+    # REPLACE latent_threat) with the per-king DYNAMIC magnitude (KS_DYN: scale each king's danger by its
+    # attack-signature co-occurrence) + the search ORDER-prune (LMR_EXTRA/VERIFY_MARGIN/HISTORY_LMR_SCALE).
+    # The two levers are super-additive at equal time (timed ksattack bundle 1080 > KS-alone 970). Args:
+    # <minutes> [conc=4] [tag].
+    mins="${1:?minutes required}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-ks_dyn_bundle}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py \
+        --p1-label base --p1-config "" \
+        --p2-label ksdyn --p2-config "ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 KS_ZONE2=1 KS_DYN=128 LMR_EXTRA=1 VERIFY_MARGIN=12000 HISTORY_LMR_SCALE=3" \
+        --preset LIGHTNING --concurrency "$conc" --max-minutes "$mins" \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  fast_tourney)
+    # FAST shallow-FIXED-DEPTH self-play for eval-throughput experiments (the "more games to isolate eval"
+    # idea). BOTH players search to the SAME fixed MAX_DEPTH -> an equal-depth A/B where the EVAL alone decides
+    # (deterministic, eval-isolating, fast). SF adjudication LIGHTENED to --sf-movetime 0.1 so the arbiter
+    # doesn't bottleneck short games. CAVEAT: fixed depth PENALIZES the order-prune (it just searches less to
+    # depth N) -> use this for EVAL candidates ONLY; search/prune levers need equal-TIME (the `tournament` sub).
+    # Calibrate the proxy by re-running a candidate whose equal-time Elo we already know (e.g. KS-alone) and
+    # checking the sign/magnitude + CI-per-hour reproduce. Args: <minutes> <depth> <p2cfg> [conc=4] [tag].
+    mins="${1:?minutes required}"; shift || true
+    depth="${1:?depth required}"; shift || true
+    p2cfg="${1:-}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-fast}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py \
+        --p1-label base --p1-config "MAX_DEPTH=$depth" \
+        --p2-label cand --p2-config "MAX_DEPTH=$depth $p2cfg" \
+        --preset LONG_FORMAT --concurrency "$conc" --max-minutes "$mins" --sf-movetime 0.1 \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  ks_ovd_fastrank)
+    # Permission-clean Phase-1 fast-RANK of KS+OvD candidates: each config vs base at fixed depth 6 (eval-only
+    # A/B), lightened 0.1s adjudication. Grid baked => no =-args on the command line. Prints each candidate's
+    # Elo vs base. NOTE: fast-depth COMPRESSES ~3x and RANKS only -> gate winners at lightning SPRT. The
+    # hypothesis: KS BESIDE latent_threat (KING_SAFETY_MAG>0, ENABLE_KS_REPLACE_LT default-off) at a GENTLE
+    # magnitude, OvD-conditioned, beats base (vs the -47 REPLACE). Args: <minutes_per_candidate> [conc=4].
+    mins="${1:-20}"; shift || true
+    conc="${1:-4}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    declare -a grid=(
+      "besideA:KING_SAFETY_MAG=1500 KS_ZONE2=1"
+      "besideB:KING_SAFETY_MAG=1500 KS_ZONE2=1 MOD_KS_CONTROL=512"
+      "besideC:KING_SAFETY_MAG=1500 KS_ZONE2=1 MOD_KS_CONTROL=512 KS_DYN=128"
+      "besideD:KING_SAFETY_MAG=1500 KS_ZONE2=1 MOD_KS_BACKING=256"
+      "ovdyn:IMBALANCE_SCALE=4 REALIZ_MAT_K=128 REALIZ_PHASE_K=128"
+    )
+    for entry in "${grid[@]}"; do
+      label="${entry%%:*}"; cfg="${entry#*:}"
+      echo "### $label  [$cfg]"
+      "$PY" selfplay/tournament.py \
+          --p1-label base --p1-config "MAX_DEPTH=6" \
+          --p2-label "$label" --p2-config "MAX_DEPTH=6 $cfg" \
+          --preset LONG_FORMAT --concurrency "$conc" --max-minutes "$mins" --sf-movetime 0.1 \
+          --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "fr_${label}" \
+          2>&1 | grep -hE "adjudication ON|base vs ${label}:|timed:" || echo "  (no result)"
+    done
+    ;;
+
+  gate_besideA)
+    # Lightning SPRT gate for the Phase-1 winner besideA = gentle KS BESIDE latent_threat (no conditioning).
+    # THE proxy-calibration point: does fast depth-6 +31 hold at real lightning depth (vs evaporating like the
+    # ksattack +70 did)? Baked config => permission-clean. p1=candidate, p2=base; H1 = candidate >= elo1.
+    # Args: [max_games=500] [tag=sprt_besideA].
+    maxg="${1:-500}"; shift || true
+    ttag="${1:-sprt_besideA}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/sprt.py \
+        --p1-label besideA --p1-config "KING_SAFETY_MAG=1500 KS_ZONE2=1" \
+        --p2-label base --p2-config "" \
+        --preset LIGHTNING --concurrency 4 --elo0 0 --elo1 5 --max-games "$maxg" \
+        --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  gate_coupling)
+    # Lightning SPRT of the eval<->search COUPLING hypothesis (user insight 2026-06-30, [[eval-search-coupling-flat-candidates]]):
+    # does a more-accurate but lightning-FLAT eval (besideA = gentle KS beside latent_threat) make the AGGRESSIVE
+    # prune (LMR_EXTRA=2, which over-cut alone last night) SAFE -> bundle super-additive while both parts read ~0?
+    # If clearly positive, the eval's value was real and the coupling unlocked it (revives BOTH parked items).
+    # Baked => permission-clean. p1=candidate bundle, p2=base. Args: [max_games=800] [tag=sprt_coupling].
+    maxg="${1:-800}"; shift || true
+    ttag="${1:-sprt_coupling}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/sprt.py \
+        --p1-label coupling --p1-config "KING_SAFETY_MAG=1500 KS_ZONE2=1 LMR_EXTRA=2 VERIFY_MARGIN=12000 HISTORY_LMR_SCALE=3" \
+        --p2-label base --p2-config "" \
+        --preset LIGHTNING --concurrency 4 --elo0 0 --elo1 5 --max-games "$maxg" \
+        --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  gate)
+    # Generic lightning SPRT: a candidate ENV-knob config vs base. Args: '<p1cfg>' <label> [tag] [max_games] [elo1].
+    # p1cfg is a space-separated KEY=VAL string (quote it). The correct -lc wrapper passes =knobs prompt-free.
+    p1cfg="${1:?p1 config required}"; shift || true
+    lbl="${1:-cand}"; shift || true
+    ttag="${1:-sprt_${lbl}}"; shift || true
+    maxg="${1:-600}"; shift || true
+    e1="${1:-5}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/sprt.py \
+        --p1-label "$lbl" --p1-config "$p1cfg" \
+        --p2-label base --p2-config "" \
+        --preset LIGHTNING --concurrency 4 --elo0 0 --elo1 "$e1" --max-games "$maxg" \
+        --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
   annotate)
@@ -418,10 +822,11 @@ PYEOF
     games="${1:-20}"; shift || true
     preset="${1:-LIGHTNING}"; shift || true
     wt="${1:-2000}"; shift || true
+    conc=1; if [[ "${1:-}" =~ ^[0-9]+$ ]]; then conc="$1"; shift || true; fi   # optional positional: game concurrency (numeric only, else left for KEY=VAL knobs)
     export STOCKFISH_PATH="$SF"
     env OMP_NUM_THREADS=1 "$@" \
         "$PY" selfplay/vs_sf.py --sf-elo "$elo" --games "$games" --preset "$preset" \
-        --win-threshold "$wt" --openings selfplay/openings_uho.txt --adjudicate-draw --quiet \
+        --win-threshold "$wt" --concurrency "$conc" --openings selfplay/openings_uho.txt --adjudicate-draw --quiet \
         --tag "vssf_${elo}"
     ;;
 

@@ -24,7 +24,11 @@ import numpy as np
 K_PAWNS = 2.0
 DEFAULT_TERMS = ["passed_pawn_support", "latent_threat", "central", "capture_gains"]
 ALL_TERMS = ["pieces", "capture_gains", "passed_pawn_support", "latent_threat", "central",
-             "imbalance_white", "imbalance_black", "pair_bonus", "piece_value_boost"]
+             "imbalance_white", "imbalance_black", "pair_bonus", "piece_value_boost",
+             "king_safety", "material", "pawn_majority", "pawn_struct", "outpost", "mobility"]
+SF11_COLS = ["sf11_material", "sf11_imbalance", "sf11_mobility", "sf11_kingsafety", "sf11_threats",
+             "sf11_passed", "sf11_space", "sf11_pawns", "sf11_knights", "sf11_bishops",
+             "sf11_rooks", "sf11_queens", "sf11_total"]
 
 
 def sigmoid(x):
@@ -42,7 +46,11 @@ def load(path):
         "result": np.array([float(r["result_white"]) for r in rows]),
     }
     for t in ALL_TERMS:
-        data[t] = np.array([float(r[t]) for r in rows])
+        if rows and t in rows[0]:                 # older corpora lack king_safety/material columns
+            data[t] = np.array([float(r[t]) for r in rows])
+    for c in SF11_COLS:                           # SF11 per-term breakdown (blank/"----" -> 0.0)
+        if rows and c in rows[0]:
+            data[c] = np.array([float(r[c]) if r[c] not in ("", "----") else 0.0 for r in rows])
     return data
 
 
@@ -64,15 +72,40 @@ def target_sig(data, idx, mode):
     return sigmoid(data["sf_cp"][idx] / 100.0)
 
 
-def loss(data, idx, terms, scales, mode):
+# A global eval multiplier never changes move choice (argmax is scale-invariant). When --scale-inv is set,
+# each candidate gets its OWN best global scale, so the per-term fit measures only RELATIVE re-balancing
+# (strength-relevant) instead of partly absorbing a strength-neutral global magnitude mismatch vs SF11.
+SCALE_GRID = np.arange(0.40, 1.205, 0.02)
+
+
+def loss(data, idx, terms, scales, mode, scale_inv=False):
     ours = white_pawns(adjusted_total(data, idx, terms, scales))
-    return float(np.mean((sigmoid(ours) - target_sig(data, idx, mode)) ** 2))
+    tgt = target_sig(data, idx, mode)
+    if not scale_inv:
+        return float(np.mean((sigmoid(ours) - tgt) ** 2))
+    best = 1e18
+    for s in SCALE_GRID:
+        l = float(np.mean((sigmoid(s * ours) - tgt) ** 2))
+        if l < best:
+            best = l
+    return best
 
 
-def fit(data, idx, terms, mode, lo=0.2, hi=3.0):
+def best_scale(data, idx, terms, scales, mode):
+    ours = white_pawns(adjusted_total(data, idx, terms, scales))
+    tgt = target_sig(data, idx, mode)
+    bs, bl = 1.0, 1e18
+    for s in SCALE_GRID:
+        l = float(np.mean((sigmoid(s * ours) - tgt) ** 2))
+        if l < bl:
+            bl, bs = l, s
+    return bs
+
+
+def fit(data, idx, terms, mode, lo=0.2, hi=3.0, scale_inv=False):
     """Coordinate descent on the scales (bounded). Simple, dependency-light, and convex enough here."""
     scales = np.ones(len(terms))
-    best = loss(data, idx, terms, scales, mode)
+    best = loss(data, idx, terms, scales, mode, scale_inv)
     for _ in range(40):
         improved = False
         for j in range(len(terms)):
@@ -80,7 +113,7 @@ def fit(data, idx, terms, mode, lo=0.2, hi=3.0):
                 for direction in (1, -1):
                     cand = scales.copy()
                     cand[j] = min(hi, max(lo, cand[j] + direction * step))
-                    lc = loss(data, idx, terms, cand, mode)
+                    lc = loss(data, idx, terms, cand, mode, scale_inv)
                     if lc < best - 1e-9:
                         scales, best = cand, lc
                         improved = True
@@ -117,10 +150,28 @@ def main():
     ap.add_argument("--hi", type=float, default=3.0)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--control-frac", type=float, default=0.3)
+    ap.add_argument("--scale-inv", action="store_true",
+                    help="scale-invariant: give each candidate its own best global scale so the fit measures "
+                         "RELATIVE re-balancing (strength-relevant), not strength-neutral magnitude matching")
+    ap.add_argument("--attrib", action="store_true",
+                    help="per-term hotness: fit each term ALONE (scale-invariant) and rank by SF11-shape gain")
+    ap.add_argument("--pin", default="",
+                    help="comma list term=scale to BAKE into the baseline before fitting (e.g. capture_gains=0.7), "
+                         "so the remaining terms are attributed against the CALIBRATED eval, not the raw one")
+    ap.add_argument("--corr", action="store_true",
+                    help="correspondence: correlate our terms + the residual gap against SF11's per-term "
+                         "breakdown (STATIC placement vs DYNAMIC mobility/threats) to see what a term really tracks")
     args = ap.parse_args()
 
     terms = [t.strip() for t in args.terms.split(",") if t.strip()]
     data = load(args.corpus)
+    if args.pin:
+        for kv in args.pin.split(","):
+            t, v = kv.split("="); t, v = t.strip(), float(v)
+            data["our_total"] = data["our_total"] + (v - 1.0) * data[t]   # bake the pin into the baseline eval
+            if t in terms:
+                terms.remove(t)
+        print("pinned baseline: %s" % args.pin)
     n = len(data["our_total"])
     rng = np.random.default_rng(args.seed)
     perm = rng.permutation(n)
@@ -131,16 +182,66 @@ def main():
     print("corpus n=%d  train=%d  control=%d  terms=%s  target=%s  K=%.1f" % (n, len(train_idx), len(ctrl_idx), terms, mode, K_PAWNS))
 
     base = np.ones(len(terms))
-    scales, train_loss = fit(data, train_idx, terms, mode, args.lo, args.hi)
+    si = args.scale_inv
 
+    if args.corr:
+        # Correspondence: is our `pieces` under-read really PLACEMENT, or OvD/mobility in disguise? Our terms
+        # are Black-positive milli-pawns -> White-POV pawns = -v/1000; SF11 terms are already White-POV pawns.
+        wp = lambda a: -a / 1000.0
+        def corr(a, b):
+            if np.std(a) < 1e-9 or np.std(b) < 1e-9:
+                return 0.0
+            return float(np.corrcoef(a, b)[0, 1])
+        sfcols = [c for c in SF11_COLS if c in data and c != "sf11_total"]
+        # SF11 bundles: STATIC placement (per-piece + pawns + space) vs DYNAMIC (mobility + threats).
+        sf_static = sum(data[c] for c in ["sf11_pawns", "sf11_knights", "sf11_bishops", "sf11_rooks",
+                                          "sf11_queens", "sf11_space"] if c in data)
+        sf_dyn = sum(data[c] for c in ["sf11_mobility", "sf11_threats"] if c in data)
+        our_terms = {t: wp(data[t]) for t in ["pieces", "central", "latent_threat", "piece_value_boost",
+                                              "capture_gains"] if t in data}
+        our_terms["imbalance_net"] = wp(data["imbalance_black"] - data["imbalance_white"])
+        residual = data["sf11_total"] - wp(data["our_total"])   # + => SF reads higher (we UNDER-read here)
+
+        print("\ncorr(our term, SF11 term)  [%s]:" % ("capg pinned" if args.pin else "raw"))
+        print("  %-16s %8s %8s | " % ("", "STATIC", "DYNAMIC")
+              + " ".join("%6s" % c.replace("sf11_", "")[:6] for c in sfcols))
+        for name, a in our_terms.items():
+            print("  %-16s %8.2f %8.2f | " % (name, corr(a, sf_static), corr(a, sf_dyn))
+                  + " ".join("%6.2f" % corr(a, data[c]) for c in sfcols))
+        print("\ncorr(residual gap [SF - ours, + = we under-read], SF11 term):")
+        print("  %-16s %8.2f %8.2f | " % ("residual", corr(residual, sf_static), corr(residual, sf_dyn))
+              + " ".join("%6.2f" % corr(residual, data[c]) for c in sfcols))
+        print("\n  -> our `pieces` aligning with STATIC (not DYNAMIC) = genuine placement; with DYNAMIC = OvD/mobility mask")
+        return
+
+    if args.attrib:
+        # Per-term hotness: fit each term ALONE (scale-invariant), so each term's over/under-read is
+        # isolated from cross-term collinearity. scale<1 => HOT (we over-read vs SF11); >1 => COLD.
+        print("\nper-term hotness (solo scale-invariant fit vs SF11):  term  scale  control-loss base->fit")
+        rows = []
+        for t in terms:
+            sc, _ = fit(data, train_idx, [t], mode, args.lo, args.hi, True)
+            lb = loss(data, ctrl_idx, [t], np.ones(1), mode, True)
+            lf = loss(data, ctrl_idx, [t], sc, mode, True)
+            rows.append((t, float(sc[0]), lb, lf, lb - lf))
+        for t, s, lb, lf, d in sorted(rows, key=lambda r: r[4], reverse=True):
+            tag = "HOT (over-read)" if s < 0.9 else ("COLD (under-read)" if s > 1.1 else "~ok")
+            print("  %-22s %.2f   %.5f -> %.5f  (Δ%.5f)  %s" % (t, s, lb, lf, d, tag))
+        return
+
+    scales, train_loss = fit(data, train_idx, terms, mode, args.lo, args.hi, si)
+
+    if si:
+        print("[scale-invariant: best global scale base s=%.2f -> fit s=%.2f (strength-neutral, discarded)]"
+              % (best_scale(data, ctrl_idx, terms, base, mode), best_scale(data, ctrl_idx, terms, scales, mode)))
     print("\nfitted scales (percent for the engine knob):")
     for t, s in zip(terms, scales):
         flag = "  <-- EXTREME" if (s > 2.0 or s < 0.5) else ""
         print("  %-22s %.2f  -> %d%s" % (t, s, round(100 * s), flag))
 
-    print("\n%s-loss (lower=better):" % mode)
-    print("  train    base %.5f -> fit %.5f" % (loss(data, train_idx, terms, base, mode), loss(data, train_idx, terms, scales, mode)))
-    print("  control  base %.5f -> fit %.5f" % (loss(data, ctrl_idx, terms, base, mode), loss(data, ctrl_idx, terms, scales, mode)))
+    print("\n%s-loss%s (lower=better):" % (mode, " scale-inv" if si else ""))
+    print("  train    base %.5f -> fit %.5f" % (loss(data, train_idx, terms, base, mode, si), loss(data, train_idx, terms, scales, mode, si)))
+    print("  control  base %.5f -> fit %.5f" % (loss(data, ctrl_idx, terms, base, mode, si), loss(data, ctrl_idx, terms, scales, mode, si)))
 
     print("\nMAE pawns (clip +-6, lower=better):")
     print("  train    base %.3f -> fit %.3f" % (mae_pawns(data, train_idx, terms, base), mae_pawns(data, train_idx, terms, scales)))

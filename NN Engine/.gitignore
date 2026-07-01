@@ -21,3 +21,8 @@ selfplay/games/
 selfplay/crashcheck/
 diagnostics/results/
 **/__pycache__/
+
+# Generated Texel/tuning corpora (regenerable, bulky)
+selfplay/tune_data/*corpus*.csv
+selfplay/tune_data/smoke_cond.csv
+selfplay/evalscreen.csv

@@ -654,6 +654,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHEAP_BISHOP_FWD = env_int("CHEAP_BISHOP_FWD", Config::CHEAP_BISHOP_FWD);
         Config::CHEAP_BISHOP_KING = env_int("CHEAP_BISHOP_KING", Config::CHEAP_BISHOP_KING);
         Config::ENABLE_PIECE_MOBILITY = env_flag("ENABLE_PIECE_MOBILITY", Config::ENABLE_PIECE_MOBILITY);
+        Config::SCALE_MOBILITY = env_int("SCALE_MOBILITY", Config::SCALE_MOBILITY);
         Config::ENABLE_CHEAP_ROOK_MOBILITY = env_flag("ENABLE_CHEAP_ROOK_MOBILITY", Config::ENABLE_CHEAP_ROOK_MOBILITY);
         Config::CHEAP_ROOK_MOB = env_int("CHEAP_ROOK_MOB", Config::CHEAP_ROOK_MOB);
         Config::CHEAP_ROOK_FWD = env_int("CHEAP_ROOK_FWD", Config::CHEAP_ROOK_FWD);

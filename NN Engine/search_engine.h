@@ -669,6 +669,7 @@ namespace Config
     // reusing each evaluator's already-computed attack bitboard (cheap). When ON it REPLACES the cheap rook/knight/
     // queen surrogates (those gate on !ENABLE_PIECE_MOBILITY) to avoid double-count. Default off = byte-identical.
     inline bool ENABLE_PIECE_MOBILITY = false;
+    inline int SCALE_MOBILITY = 100;   // percent on the MobilityBonus tables (env-tunable magnitude; 100 = table as-is)
     inline bool ENABLE_CHEAP_ROOK_MOBILITY = true;   // default-ON: +7.8% nps, WAC +2, STS +18, self-play +11 Elo (no regression)
     inline int CHEAP_ROOK_MOB = 15;   // bonus per non-own-occupied attacked square (matches original +15 midgame seed)
     inline int CHEAP_ROOK_FWD = 10;   // extra bonus per attacked square in the forward zone (proxy for the dropped second-order term)

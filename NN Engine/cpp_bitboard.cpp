@@ -6816,6 +6816,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			else if (rooks & sq){ att = BB_RANK_ATTACKS[s][BB_RANK_MASKS[s] & occupied] | BB_FILE_ATTACKS[s][BB_FILE_MASKS[s] & occupied]; tbl = MobilityBonus_Rook; }
 			else { att = BB_DIAG_ATTACKS[s][BB_DIAG_MASKS[s] & occupied] | BB_RANK_ATTACKS[s][BB_RANK_MASKS[s] & occupied] | BB_FILE_ATTACKS[s][BB_FILE_MASKS[s] & occupied]; tbl = MobilityBonus_Queen; }
 			int b = tbl[__builtin_popcountll(att & (white ? mobilityArea_white : mobilityArea_black))];
+			if (Config::SCALE_MOBILITY != 100) b = (b * Config::SCALE_MOBILITY) / 100;
 			total += white ? -b : b;
 		}
 	}

@@ -556,6 +556,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::BACKWARD_PAWN_PEN = env_int("BACKWARD_PAWN_PEN", Config::BACKWARD_PAWN_PEN);
         Config::OUTPOST_KNIGHT = env_int("OUTPOST_KNIGHT", Config::OUTPOST_KNIGHT);
         Config::OUTPOST_BISHOP = env_int("OUTPOST_BISHOP", Config::OUTPOST_BISHOP);
+        Config::SPACE_MAG = env_int("SPACE_MAG", Config::SPACE_MAG);
+        Config::SPACE_KNIGHT_MAG = env_int("SPACE_KNIGHT_MAG", Config::SPACE_KNIGHT_MAG);
+        Config::SPACE_PHASE_MAX = env_int("SPACE_PHASE_MAX", Config::SPACE_PHASE_MAX);
         Config::SCALE_PLACE_PAWN = env_int("SCALE_PLACE_PAWN", Config::SCALE_PLACE_PAWN);
         Config::SCALE_PLACE_KNIGHT = env_int("SCALE_PLACE_KNIGHT", Config::SCALE_PLACE_KNIGHT);
         Config::SCALE_PLACE_BISHOP = env_int("SCALE_PLACE_BISHOP", Config::SCALE_PLACE_BISHOP);
@@ -579,6 +582,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ROOK_MINOR_BLOCK = env_int("ROOK_MINOR_BLOCK", Config::ROOK_MINOR_BLOCK);
         Config::ROOK_ROOK_BLOCK = env_int("ROOK_ROOK_BLOCK", Config::ROOK_ROOK_BLOCK);
         Config::ROOK_SEMI_CONNECTED = env_int("ROOK_SEMI_CONNECTED", Config::ROOK_SEMI_CONNECTED);
+        Config::ENABLE_ROOK_TENSION_COND = env_flag("ENABLE_ROOK_TENSION_COND", Config::ENABLE_ROOK_TENSION_COND);
+        Config::ROOK_COND_TENSION_LO = env_int("ROOK_COND_TENSION_LO", Config::ROOK_COND_TENSION_LO);
+        Config::ROOK_COND_TENSION_HI = env_int("ROOK_COND_TENSION_HI", Config::ROOK_COND_TENSION_HI);
+        Config::ROOK_COND_QUIET_SCALE = env_int("ROOK_COND_QUIET_SCALE", Config::ROOK_COND_QUIET_SCALE);
         Config::SCALE_PAWN_RANK = env_int("SCALE_PAWN_RANK", Config::SCALE_PAWN_RANK);
         Config::SCALE_PASSED_RANK = env_int("SCALE_PASSED_RANK", Config::SCALE_PASSED_RANK);
         Config::SCALE_ENDGAME_RANK = env_int("SCALE_ENDGAME_RANK", Config::SCALE_ENDGAME_RANK);

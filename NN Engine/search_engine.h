@@ -431,6 +431,17 @@ namespace Config
     inline int OUTPOST_KNIGHT = 0;
     inline int OUTPOST_BISHOP = 0;
 
+    // SPACE: rank-progressive control of the enemy half by PAWNS and KNIGHTS (the piece types whose advanced
+    // control is under-scored — rook/bishop forward reach is already in the cheap-mobility surrogates, centre is
+    // in central/PSQT). Credits the improving quiet advance (pawn push, knight-to-outpost) a flat PSQT misses.
+    // Milli-pawns per rank-weighted controlled square (rank5/6/7 = weight 1/2/3 for White, mirror for Black).
+    // 0 = off = byte-identical. SPACE is a MIDGAME concept — apply only while phase_score < SPACE_PHASE_MAX
+    // (low phase = midgame; see phase_score convention). Firing space in the endgame poisons endgame themes
+    // (King Activity, Recapturing) where controlled advanced squares are meaningless.
+    inline int SPACE_MAG = 0;          // PAWN enemy-half control magnitude (the clean signal)
+    inline int SPACE_KNIGHT_MAG = 0;   // KNIGHT enemy-half control magnitude (noisier; separate so it can be 0)
+    inline int SPACE_PHASE_MAX = 40;
+
     // Eval: placement (piece-square) MAGNITUDE scales (percent; 100 = byte-identical). Whole-map per-piece
     // multiplier applied at every read of that piece's placement table — white read, black read, AND the
     // central-score feed — so colour symmetry and the central term stay consistent. ROOK PST is dead code
@@ -469,6 +480,16 @@ namespace Config
     inline int ROOK_MINOR_BLOCK      = 15;   // penalty for a knight/bishop blocking the file
     inline int ROOK_ROOK_BLOCK       = 35;   // penalty for an enemy rook blocking the file
     inline int ROOK_SEMI_CONNECTED   = 125;  // x-ray (semi-connected) rook bonus
+
+    // Tension-conditioned rook-file boost (position-conditional; capg template). The midgame rook open-file/7th/
+    // connected edge is worth MORE in quiet positions and should stay at default in tactical ones (a flat boost
+    // regresses Recapturing — the Pareto trade-off found 2026-07-02). Reuses g_capg_tension: rescale the net
+    // rook-file bonus by ROOK_COND_QUIET_SCALE% when tension<=LO (quiet), sliding to 100% at tension>=HI. Off =
+    // byte-identical.
+    inline bool ENABLE_ROOK_TENSION_COND = false;
+    inline int ROOK_COND_TENSION_LO    = 0;
+    inline int ROOK_COND_TENSION_HI    = 3;
+    inline int ROOK_COND_QUIET_SCALE   = 150;  // rook-file weight (%) in fully-quiet positions
 
     // Eval: pawn-structure table MAGNITUDE scales (percent; 100 = byte-identical). Whole-table multipliers
     // baked into the working arrays once at init by rebuild_scaled_pawn_tables() (no per-read division). The

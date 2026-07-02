@@ -93,6 +93,18 @@ case "$cmd" in
         "$PY" diagnostics/sts_sf11_gap.py "$tag" "${pos[@]}"
     ;;
 
+  pvb)
+    # Played-vs-BEST per-term eval DELTA on STS failures (the decisive culprit tool — no SF, deterministic).
+    # Reads sts_results_<tag>.csv (run `sts_full <tag>` first). Non-KEY=VAL args are positional
+    # (tag, optional theme-substr, optional dump_n); KEY=VAL args route to env (our eval config — ENABLE a
+    # candidate term here to test whether it would favor the BEST move). Args: <tag> [theme] [dump_n] [KNOB=VAL ...].
+    tag="${1:?tag required}"; shift || true
+    envs=(); pos=()
+    for a in "$@"; do if [[ "$a" == *=* ]]; then envs+=("$a"); else pos+=("$a"); fi; done
+    env OMP_NUM_THREADS=1 USE_OPENING_BOOK=0 "${envs[@]}" \
+        "$PY" diagnostics/pvb_delta.py "$tag" "${pos[@]}"
+    ;;
+
   wac_timed_depth)
     # TIMED (lightning) WAC: let iterative deepening run to the clock instead of a fixed depth, so a
     # node-efficient config converts its savings into DEPTH. Reports solves + MEAN DEPTH on non-mate

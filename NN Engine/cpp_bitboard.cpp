@@ -413,6 +413,26 @@ inline int capg_conditioned_scale() {
 	return los + (his - los) * (t - lo) / (hi - lo);
 }
 
+// Net midgame rook open-file/7th/connected bonus already folded into `total` this eval (Black-positive:
+// White's rook-file edge is negative). Accumulated in evaluate_rooks_midgame; used post-capg to apply a
+// tension-conditioned rescale. Endgame uses a different rook evaluator, so this stays 0 there (midgame-only).
+int g_rook_file_bonus = 0;
+
+// Rook-file weight (percent) for THIS position. Default (ENABLE_ROOK_TENSION_COND off) = 100 -> byte-identical.
+// The rook's open-file/7th edge is worth MORE in quiet positions (no captures competing for the move) and should
+// stay at default in tactical ones (a flat boost over-rewards it in sharp positions -> regresses Recapturing).
+// Reuses the capg tension detector: slide from ROOK_COND_QUIET_SCALE (quiet, tension<=LO) down to 100 (tactical,
+// tension>=HI). Conservative: any real tension pulls back toward default.
+inline int rook_tension_scale() {
+	if (!Config::ENABLE_ROOK_TENSION_COND) return 100;
+	const int t = g_capg_tension;
+	const int lo = Config::ROOK_COND_TENSION_LO, hi = Config::ROOK_COND_TENSION_HI;
+	const int qs = Config::ROOK_COND_QUIET_SCALE;
+	if (hi <= lo || t >= hi) return (t >= hi) ? 100 : qs;
+	if (t <= lo) return qs;
+	return qs + (100 - qs) * (t - lo) / (hi - lo);
+}
+
 std::array<int, 64> square_values = {0};
 
 // Diagnostic-only static-eval term attribution (see EvalBreakdown in cpp_bitboard.h). Off during search.
@@ -2151,6 +2171,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 		}
 		// Finally use the rook increment
 		total -= std::min(rookIncrement, Config::ROOK_OPEN_CAP);
+		g_rook_file_bonus -= std::min(rookIncrement, Config::ROOK_OPEN_CAP);
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -2382,6 +2403,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 		}
 		// Finally use the rook increment
 		total += std::min(rookIncrement, Config::ROOK_OPEN_CAP);
+		g_rook_file_bonus += std::min(rookIncrement, Config::ROOK_OPEN_CAP);
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -5904,6 +5926,9 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// Define the total
 	int total = 0;
 
+	// Reset the per-eval rook-file bonus accumulator (tension-conditioned rook boost; midgame-only).
+	g_rook_file_bonus = 0;
+
 	// Diagnostic-only term-attribution accumulators. These only ever READ `total` and write to locals/globals;
 	// they never feed back into `total`, so the search tree is byte-identical whether capture is on or off.
 	int br_run = 0;
@@ -6823,6 +6848,32 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	}
 	int br_outpost = total - br_run; br_run = total;
 
+	// SPACE: rank-progressive control of the enemy half by PAWNS and KNIGHTS (the piece types whose advanced
+	// control is under-scored — rook/bishop forward reach is already in the cheap-mobility surrogates, the centre
+	// in central/PSQT). Credits the improving quiet advance (pawn push, knight-to-outpost) a flat PSQT misses;
+	// deeper control is worth more (rank weight 1/2/3). Gated: 0 => byte-identical. total is Black-positive, so
+	// White's space subtracts and Black's adds.
+	if ((Config::SPACE_MAG > 0 || Config::SPACE_KNIGHT_MAG > 0) && phase_score < Config::SPACE_PHASE_MAX){
+		uint64_t wp = pawnsMask & occupied_whiteMask;
+		uint64_t bp = pawnsMask & occupied_blackMask;
+		uint64_t wpc = ((wp & ~BB_FILE_A) << 7) | ((wp & ~BB_FILE_H) << 9);   // white pawn attacks
+		uint64_t bpc = ((bp & ~BB_FILE_A) >> 9) | ((bp & ~BB_FILE_H) >> 7);   // black pawn attacks
+		uint64_t wnc = 0, bnc = 0;
+		uint64_t t = knightsMask & occupied_whiteMask;
+		while (t){ uint8_t s = __builtin_ctzll(t); t &= t - 1; wnc |= BB_KNIGHT_ATTACKS[s]; }
+		t = knightsMask & occupied_blackMask;
+		while (t){ uint8_t s = __builtin_ctzll(t); t &= t - 1; bnc |= BB_KNIGHT_ATTACKS[s]; }
+		// Rank-weighted controlled-square counts (deeper = worth more), pawn and knight kept separate so each
+		// carries its own magnitude — the knight component is noisier than the pawn component.
+		int wp_s = __builtin_popcountll(wpc & BB_RANK_5) + __builtin_popcountll(wpc & BB_RANK_6) * 2 + __builtin_popcountll(wpc & BB_RANK_7) * 3;
+		int bp_s = __builtin_popcountll(bpc & BB_RANK_4) + __builtin_popcountll(bpc & BB_RANK_3) * 2 + __builtin_popcountll(bpc & BB_RANK_2) * 3;
+		int wn_s = __builtin_popcountll(wnc & BB_RANK_5) + __builtin_popcountll(wnc & BB_RANK_6) * 2 + __builtin_popcountll(wnc & BB_RANK_7) * 3;
+		int bn_s = __builtin_popcountll(bnc & BB_RANK_4) + __builtin_popcountll(bnc & BB_RANK_3) * 2 + __builtin_popcountll(bnc & BB_RANK_2) * 3;
+		total -= wp_s * Config::SPACE_MAG + wn_s * Config::SPACE_KNIGHT_MAG;
+		total += bp_s * Config::SPACE_MAG + bn_s * Config::SPACE_KNIGHT_MAG;
+	}
+	int br_space = total - br_run; br_run = total;
+
 	// Per-piece MOBILITY: popcount(piece attacks & the safe mobilityArea) -> nonlinear MobilityBonus, reusing the
 	// cheap PEXT attack lookups. Gated: default-off => byte-identical (and mobilityArea only computed when on).
 	// total is Black-positive: a White piece's mobility favours White (subtract), Black's adds.
@@ -6844,6 +6895,16 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	}
 	int br_mobility = total - br_run; br_run = total;
 
+	// Tension-conditioned rook-file boost: amplify the midgame rook open-file/7th/connected edge (accumulated in
+	// g_rook_file_bonus during the per-piece pass) in QUIET positions, leaving it at default in tactical ones. Uses
+	// the capg tension detector (fresh only in full eval; capg runs earlier at !g_eval_light). g_rook_file_bonus is
+	// 0 in the endgame (different rook evaluator), so this is midgame-only. Gated off => byte-identical.
+	if (!g_eval_light && Config::ENABLE_ROOK_TENSION_COND){
+		int rs = rook_tension_scale();
+		if (rs != 100) total += g_rook_file_bonus * (rs - 100) / 100;
+	}
+	int br_rook_cond = total - br_run; br_run = total;
+
 	// Diagnostic-only: publish the per-term attribution (read-only w.r.t. `total`; see EvalBreakdown).
 	if (g_capture_eval_breakdown){
 		g_eval_breakdown.total = total;
@@ -6861,7 +6922,9 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		g_eval_breakdown.pawn_majority = br_pawn_majority;
 		g_eval_breakdown.pawn_struct = br_pawn_struct;
 		g_eval_breakdown.outpost = br_outpost;
+		g_eval_breakdown.space = br_space;
 		g_eval_breakdown.mobility = br_mobility;
+		g_eval_breakdown.rook_cond = br_rook_cond;
 		g_eval_breakdown.phase_score = phase_score;
 		g_eval_breakdown.is_endgame = isEndGame;
 		g_eval_breakdown.advanced_endgame_fired = br_advanced_fired;

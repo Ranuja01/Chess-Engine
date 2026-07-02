@@ -151,7 +151,9 @@ cdef extern from "cpp_bitboard.h":
         int pawn_majority
         int pawn_struct
         int outpost
+        int space
         int mobility
+        int rook_cond
         int phase_score
         int advanced_endgame_total
         bint is_endgame
@@ -514,7 +516,9 @@ cdef class ChessAI:
             "pawn_majority": b.pawn_majority,
             "pawn_struct": b.pawn_struct,
             "outpost": b.outpost,
+            "space": b.space,
             "mobility": b.mobility,
+            "rook_cond": b.rook_cond,
             "phase_score": b.phase_score,
             "advanced_endgame_total": b.advanced_endgame_total,
             "is_endgame": b.is_endgame,

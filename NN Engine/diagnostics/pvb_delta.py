@@ -34,7 +34,7 @@ RESULTS_DIR = os.path.join(THIS_DIR, "results")
 
 # Pawn cluster first, then the interacting terms. (total = the whole eval; the rest should ~sum to it.)
 DELTA_TERMS = ["total", "pieces", "pt_pawns", "pt_knights", "pt_bishops", "pt_rooks", "pt_queens",
-               "passed_pawn_support", "pawn_majority", "pawn_struct", "central", "mobility", "outpost",
+               "passed_pawn_support", "pawn_majority", "pawn_struct", "central", "mobility", "outpost", "space", "rook_cond",
                "material", "capture_gains", "king_safety", "latent_threat", "pair_bonus", "piece_value_boost"]
 
 

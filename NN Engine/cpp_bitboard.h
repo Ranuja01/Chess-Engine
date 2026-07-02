@@ -355,7 +355,9 @@ struct EvalBreakdown {
 	int pawn_majority;   // wing pawn-majority bonus (0 unless PAWN_MAJORITY_MAG_* > 0)
 	int pawn_struct;     // isolated + backward pawn penalties (0 unless ISOLATED/BACKWARD_PAWN_PEN > 0)
 	int outpost;         // knight/bishop outpost bonus (0 unless OUTPOST_KNIGHT/BISHOP > 0)
+	int space;           // pawn+knight enemy-half control, rank-weighted (0 unless SPACE_MAG > 0)
 	int mobility;        // per-piece mobility (0 unless ENABLE_PIECE_MOBILITY)
+	int rook_cond;       // tension-conditioned rook-file rescale (0 unless ENABLE_ROOK_TENSION_COND)
 	int phase_score;
 	int advanced_endgame_total;
 	bool is_endgame;

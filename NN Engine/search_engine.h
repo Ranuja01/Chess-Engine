@@ -293,7 +293,7 @@ namespace Config
     // self-play = +59.2 +-19.2 Elo (1729 games, LIGHTNING; +0.50 ply at equal time). env-off recovers the old tree.
     inline bool ENABLE_LMP = true;
     inline int LMP_MAX_DEPTH = 5;   // only LMP when remaining depth (depth_limit - cur_depth) <= this; 3 = byte-id baseline, 5 = combo1
-    inline int LMP_BASE = 2;        // base late-move count; 3 = byte-id baseline, 2 = combo1
+    inline int LMP_BASE = 1;        // base late-move count; 3 = byte-id baseline, 2 = combo1, 1 = shipped w/ capg-cond 2026-07-02 (+39 STS on reduced capg)
     inline int LMP_SCALE = 1;       // quadratic depth term in the threshold
 
     // SEE pruning (main search): at low remaining depth, skip a do_lmr-eligible quiet whose moved piece
@@ -380,6 +380,18 @@ namespace Config
     inline int SCALE_LATENT_THREAT = 100;
     inline int SCALE_CENTRAL       = 100;
     inline int SCALE_CAPTURE_GAINS = 100;
+
+    // Position-conditioned capture_gains: slide the capg weight by tactical tension (g_capg_tension =
+    // # of viable SEE>=0 captures pending). Default OFF = flat SCALE_CAPTURE_GAINS (byte-identical).
+    // When on, capg_scale = ramp from CAPG_LO_SCALE (tension<=CAPG_TENSION_LO, quiet) to CAPG_HI_SCALE
+    // (tension>=CAPG_TENSION_HI, tactical). Conservative: keep HI small so any real tension keeps capg high.
+    // SHIPPED 2026-07-02 (condE): lightning SPRT ~+15 Elo (555-495-302, no-regression) + WAC +8 / STS +1.1% /
+    // nodes -11.5% vs base. Set ENABLE_CAPG_COND=false to revert to flat SCALE_CAPTURE_GAINS (byte-id).
+    inline bool ENABLE_CAPG_COND = true;
+    inline int CAPG_TENSION_LO = 0;    // tension at/below which capg = CAPG_LO_SCALE (quiet floor)
+    inline int CAPG_TENSION_HI = 3;    // tension at/above which capg = CAPG_HI_SCALE (tactical ceiling)
+    inline int CAPG_LO_SCALE   = 10;   // capg weight (%) in confidently-quiet positions
+    inline int CAPG_HI_SCALE   = 100;  // capg weight (%) in tactical positions
 
     // Eval: passed-pawn scoring magnitudes inside getPPIncrement (absolute increments, defaults = the
     // original literals = byte-identical). Finer than SCALE_PASSED_PAWN — these tune the SHAPE of the

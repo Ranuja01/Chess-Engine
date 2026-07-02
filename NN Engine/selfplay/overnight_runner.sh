@@ -25,7 +25,10 @@ set -uo pipefail
 
 ENGINE="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine"
 PY="/home/ranuja/anaconda3/bin/python"
-SF="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish/stockfish-windows-x86-64-avx2.exe"
+# Native-ELF Stockfish (arbiter) — execs directly under WSL with NO Windows PE-interop, so it
+# never restales and python-chess popen_uci works from assistant-launched runs (no ENOEXEC).
+# Old Windows .exe (fragile interop): /mnt/c/.../stockfish/stockfish-windows-x86-64-avx2.exe
+SF="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_18_linux/stockfish-ubuntu-x86-64-avx2"
 cd "$ENGINE" || { echo "engine dir not found"; exit 2; }
 
 cmd="${1:-}"; shift || true
@@ -68,6 +71,26 @@ case "$cmd" in
     tag="${1:?tag required}"; shift || true
     env "$@" MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
         "$PY" diagnostics/sts_test.py sts300.epd "$tag" 2>/dev/null | grep -E 'STS score' || echo "STS score: (none)"
+    ;;
+
+  sts_full)
+    # FULL 15-theme STS suite (STS1-STS15_LAN_v3.epd, ~1500 pos) with the PER-THEME breakdown -> the
+    # per-theme scoreboard for the eval-improvement loop. Slower than `sts` (5x positions). Writes
+    # diagnostics/results/sts_results_<tag>.csv. Args: <tag> [KNOBS].
+    tag="${1:?tag required}"; shift || true
+    env "$@" MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        "$PY" diagnostics/sts_test.py STS1-STS15_LAN_v3.epd "$tag" 2>/dev/null | grep -E 'STS score|%\)' || echo "STS score: (none)"
+    ;;
+
+  sts_gap)
+    # Per-theme STS-FAILURE eval-breakdown gap vs SF11 (ELF, subprocess-safe). Reads
+    # sts_results_<tag>.csv (run `sts_full <tag> ...` first). Non-KEY=VAL args are positional
+    # (tag, optional theme-substr); KEY=VAL args route to env (our eval config). Args: <tag> [theme] [KNOB=VAL ...].
+    tag="${1:?tag required}"; shift || true
+    envs=(); pos=()
+    for a in "$@"; do if [[ "$a" == *=* ]]; then envs+=("$a"); else pos+=("$a"); fi; done
+    env OMP_NUM_THREADS=1 USE_OPENING_BOOK=0 "${envs[@]}" \
+        "$PY" diagnostics/sts_sf11_gap.py "$tag" "${pos[@]}"
     ;;
 
   wac_timed_depth)
@@ -595,6 +618,28 @@ PYEOF
     "$PY" selfplay/tournament.py \
         --p1-label base --p1-config "MAX_DEPTH=$depth" \
         --p2-label cand --p2-config "MAX_DEPTH=$depth $p2cfg" \
+        --preset LONG_FORMAT --concurrency "$conc" --max-minutes "$mins" --sf-movetime 0.1 \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  fast_ab)
+    # Equal-depth A/B between TWO explicit configs (NOT vs base). For STRATEGIC-term ISOLATION vs a
+    # reference like capg70: a shared TACTICAL term on both sides CANCELS its fast-depth bias, leaving
+    # the strategic marginal value. Both sides at the SAME fixed MAX_DEPTH (eval decides), SF adjudication
+    # lightened (0.1s). Same fixed-depth caveat as fast_tourney: EVAL candidates only — search/prune
+    # levers need equal-TIME (`tournament` sub). Args: <minutes> <depth> '<p1cfg>' '<p2cfg>' [conc=4] [tag].
+    mins="${1:?minutes required}"; shift || true
+    depth="${1:?depth required}"; shift || true
+    p1cfg="${1:-}"; shift || true
+    p2cfg="${1:-}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-fast_ab}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py \
+        --p1-label A --p1-config "MAX_DEPTH=$depth $p1cfg" \
+        --p2-label B --p2-config "MAX_DEPTH=$depth $p2cfg" \
         --preset LONG_FORMAT --concurrency "$conc" --max-minutes "$mins" --sf-movetime 0.1 \
         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
     ;;

@@ -536,6 +536,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SCALE_LATENT_THREAT = env_int("SCALE_LATENT_THREAT", Config::SCALE_LATENT_THREAT);
         Config::SCALE_CENTRAL = env_int("SCALE_CENTRAL", Config::SCALE_CENTRAL);
         Config::SCALE_CAPTURE_GAINS = env_int("SCALE_CAPTURE_GAINS", Config::SCALE_CAPTURE_GAINS);
+        Config::ENABLE_CAPG_COND = env_flag("ENABLE_CAPG_COND", Config::ENABLE_CAPG_COND);
+        Config::CAPG_TENSION_LO = env_int("CAPG_TENSION_LO", Config::CAPG_TENSION_LO);
+        Config::CAPG_TENSION_HI = env_int("CAPG_TENSION_HI", Config::CAPG_TENSION_HI);
+        Config::CAPG_LO_SCALE = env_int("CAPG_LO_SCALE", Config::CAPG_LO_SCALE);
+        Config::CAPG_HI_SCALE = env_int("CAPG_HI_SCALE", Config::CAPG_HI_SCALE);
         Config::PP_OPP_PAWN_PEN = env_int("PP_OPP_PAWN_PEN", Config::PP_OPP_PAWN_PEN);
         Config::PP_BLOCKADE_PEN = env_int("PP_BLOCKADE_PEN", Config::PP_BLOCKADE_PEN);
         Config::PP_UNBLOCKED = env_int("PP_UNBLOCKED", Config::PP_UNBLOCKED);

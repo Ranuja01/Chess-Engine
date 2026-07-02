@@ -393,6 +393,26 @@ std::array<int, 64> support_black = {0};
 std::array<int, 64> num_attackers = {0};
 std::array<int, 64> num_supporters = {0};
 
+// Tactical-tension detector for capture_gains conditioning: the number of viable (SEE>=0) captures
+// approximate_capture_gains found this position = how much material is genuinely in the crossfire.
+// High => keep capg at full (real horizon work); ~0 => quiet position, capg over-fires -> dampen.
+// Set as a byproduct inside approximate_capture_gains (near-free); read at the two capg apply sites.
+int g_capg_tension = 0;
+
+// capture_gains weight (percent) for THIS position. Default (ENABLE_CAPG_COND off) = the flat
+// SCALE_CAPTURE_GAINS -> byte-identical. When on, slide from CAPG_LO_SCALE (quiet, tension<=LO) up to
+// CAPG_HI_SCALE (tactical, tension>=HI) by the viable-capture count g_capg_tension. Conservative by
+// design: HI should be small so ANY real tension keeps capg high; only confidently-quiet dampens.
+inline int capg_conditioned_scale() {
+	if (!Config::ENABLE_CAPG_COND) return Config::SCALE_CAPTURE_GAINS;
+	const int t = g_capg_tension;
+	const int lo = Config::CAPG_TENSION_LO, hi = Config::CAPG_TENSION_HI;
+	const int los = Config::CAPG_LO_SCALE, his = Config::CAPG_HI_SCALE;
+	if (hi <= lo || t >= hi) return (t >= hi) ? his : los;
+	if (t <= lo) return los;
+	return los + (his - los) * (t - lo) / (hi - lo);
+}
+
 std::array<int, 64> square_values = {0};
 
 // Diagnostic-only static-eval term attribution (see EvalBreakdown in cpp_bitboard.h). Off during search.
@@ -6225,7 +6245,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		if (!g_eval_light) {
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
-				total += (Config::SCALE_CAPTURE_GAINS == 100) ? cg : (Config::SCALE_CAPTURE_GAINS * cg / 100);
+				int cgs = capg_conditioned_scale();
+				total += (cgs == 100) ? cg : (cgs * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
@@ -6497,7 +6518,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		if (!g_eval_light) {
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
-				total += (Config::SCALE_CAPTURE_GAINS == 100) ? cg : (Config::SCALE_CAPTURE_GAINS * cg / 100);
+				int cgs = capg_conditioned_scale();
+				total += (cgs == 100) ? cg : (cgs * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
@@ -7177,11 +7199,15 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
     	return a.value_gained < b.value_gained; 
 	});
 
+	// Tactical tension = count of viable (SEE>=0) captures now pending for BOTH sides (captured before the
+	// exchange sequence below consumes the stacks). Read at the capg apply sites for conditioning.
+	g_capg_tension = (int)(white_captures.size() + black_captures.size());
+
 	bool current_turn = turn;
 	//std::cout << current_turn << std::endl;
 	uint64_t black_pieces = occupied_black;
 	uint64_t white_pieces = occupied_white;
-	
+
 	while (!white_captures.empty() || !black_captures.empty()) {
 		bool evading = false;
 

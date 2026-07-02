@@ -49,4 +49,10 @@ Also: rook activity is RICH (13 terms — `ROOK_OPEN/7TH/CONNECTED/SEMI/PASSER_*
   ([[sf11-texel-scale-invariance]]). Depth: tactical terms (capture_gains, KS) are search-redundant at depth; strategic
   terms (structure/placement/material) transfer ([[fast-selfplay-eval-depth-bias]]).
 
-See dev log `collapse-campaign.md`. Pointers: [[capture-gains-overread]], [[sf11-texel-scale-invariance]], [[ks-detection-rebuild]].
+## Per-theme STS diagnostic findings (2026-07-01, living)
+
+Method + tooling: `sts_full` (per-theme scoreboard) → `sts_gap`/`diagnostics/sts_sf11_gap.py` (our-vs-SF11 per-term on a theme's failures) → `diagnostics/pvb_delta.py` (played-vs-best per-term DELTA = the decisive culprit; aggregate signed means are noise). Scoreboard 2026-07-01 = **51.2%**; weakest: Advancement 39.7%, AKPC 40.2%, King Activity 43.1%, Open Files 43.8%.
+
+- **Advancement of a/b/c pawns (39.7%) — HARD, parked.** Best move is a flank pawn advance (b2b4/a4a5/…); we play a piece maneuver/capture. pvb_delta: culprit is **`pieces` +0.30 + `material`/`capture_gains`** (piece-activity + material grabs over-favored), **NOT** the pawn terms — `pt_pawns`/`passed_pawn_support`/`pawn_struct`/**`pawn_majority`(enabled)** all ~0 delta (reactivating pawn_majority DISCONFIRMED here). The push-value SF reads = **Space + Mobility**, a GAP we don't compute; some "misses" are legit material-winning captures (STS is thematic → true weakness < 39.7%). Fix needs a deliberate space-on-advance term or broad `pieces` dampening — not a knob-tweak. See [[eval-theme-diagnostic-loop]].
+
+See dev log `collapse-campaign.md`. Pointers: [[capture-gains-overread]], [[sf11-texel-scale-invariance]], [[ks-detection-rebuild]], [[eval-theme-diagnostic-loop]], [[eval-accuracy-payoff-is-pruning]].

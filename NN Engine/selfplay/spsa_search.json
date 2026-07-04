@@ -1,0 +1,8 @@
+[
+  {"name": "LMP_BASE", "init": 1, "min": 1, "max": 4, "scale": 4},
+  {"name": "LMP_MAX_DEPTH", "init": 5, "min": 3, "max": 7, "scale": 4},
+  {"name": "NULLMOVE_EXTRA", "init": 2, "min": 1, "max": 3, "scale": 4},
+  {"name": "HISTORY_LMR_SCALE", "init": 2, "min": 0, "max": 4, "scale": 4},
+  {"name": "LMR_EXTRA", "init": 0, "min": 0, "max": 2, "scale": 4},
+  {"name": "VERIFY_MARGIN", "init": 16000, "min": 8000, "max": 20000, "scale": 6000}
+]

@@ -139,6 +139,9 @@ struct QTTEntry {
 extern std::vector<QTTEntry> quiesceEvalCache;
 
 extern std::vector<TTEntry> searchEvalCache;
+// Hash-move table (TT-move ordering): one remembered beta-cutoff move per TT slot, same size/index as
+// searchEvalCache. Read/written only under Config::ENABLE_TT_MOVE. Default {0,0,0} = "no move".
+extern std::vector<Move> g_ttMoveTable;
 
 //extern std::vector<TTEntry> searchEvalCache;
 

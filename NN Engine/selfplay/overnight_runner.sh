@@ -739,6 +739,20 @@ PYEOF
         --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
+  spsa)
+    # SPSA search/eval-knob tuner (drives tournament.py paired A/B; ratify the winner via `gate`). Search
+    # knobs -> equal-time LIGHTNING lane; eval knobs -> fixed-depth. Args: <spec.json> <iters> <games> <lane> <tag>.
+    spec="${1:?spec.json required}"; shift || true
+    iters="${1:-40}"; shift || true
+    games="${1:-60}"; shift || true
+    lane="${1:-search}"; shift || true
+    ttag="${1:-spsa}"; shift || true
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/spsa.py --spec "$spec" --iters "$iters" --games "$games" \
+        --concurrency 6 --lane "$lane" --adj-sf "$SF" --tag "$ttag"
+    ;;
+
   annotate)
     # SF-annotate every game under games/<tag>/ -> per-ply SF cp + our eval_breakdown (analysis.csv).
     # The long parallel SF batch that feeds the term-attribution diagnostic (eval_breakdown --tag).

@@ -518,9 +518,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CAPCHAIN_REDUCE_LESS = env_int("CAPCHAIN_REDUCE_LESS", Config::CAPCHAIN_REDUCE_LESS);
         Config::CAPCHAIN_RUN_THRESH = env_int("CAPCHAIN_RUN_THRESH", Config::CAPCHAIN_RUN_THRESH);
         Config::ENABLE_LMP = env_flag("ENABLE_LMP", Config::ENABLE_LMP);
+        Config::ROOT_PRESEARCH_REDUCTION = env_int("ROOT_PRESEARCH_REDUCTION", Config::ROOT_PRESEARCH_REDUCTION);
+        Config::ENABLE_ROOT_PRESEARCH = env_flag("ENABLE_ROOT_PRESEARCH", Config::ENABLE_ROOT_PRESEARCH);
         Config::ENABLE_SEE_PRUNE = env_flag("ENABLE_SEE_PRUNE", Config::ENABLE_SEE_PRUNE);
         Config::SEE_PRUNE_MARGIN = env_int("SEE_PRUNE_MARGIN", Config::SEE_PRUNE_MARGIN);
         Config::SEE_PRUNE_MAX_DEPTH = env_int("SEE_PRUNE_MAX_DEPTH", Config::SEE_PRUNE_MAX_DEPTH);
+        Config::SEE_PRUNE_CAPTURES = env_flag("SEE_PRUNE_CAPTURES", Config::SEE_PRUNE_CAPTURES);
+        Config::SEE_PRUNE_CAPTURE_MARGIN = env_int("SEE_PRUNE_CAPTURE_MARGIN", Config::SEE_PRUNE_CAPTURE_MARGIN);
         Config::LMP_MAX_DEPTH = env_int("LMP_MAX_DEPTH", Config::LMP_MAX_DEPTH);
         Config::LMP_BASE = env_int("LMP_BASE", Config::LMP_BASE);
         Config::LMP_SCALE = env_int("LMP_SCALE", Config::LMP_SCALE);
@@ -601,6 +605,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::THREAT_ROOK = env_int("THREAT_ROOK", Config::THREAT_ROOK);
         Config::THREAT_QUEEN = env_int("THREAT_QUEEN", Config::THREAT_QUEEN);
         Config::SCALE_ATTACK_LAYER = env_int("SCALE_ATTACK_LAYER", Config::SCALE_ATTACK_LAYER);
+        Config::ATTACK_OPEN_MULT = env_int("ATTACK_OPEN_MULT", Config::ATTACK_OPEN_MULT);
         Config::KING_SAFETY_MAG = env_int("KING_SAFETY_MAG", Config::KING_SAFETY_MAG);
         Config::ENABLE_KS_REPLACE_LT = env_flag("ENABLE_KS_REPLACE_LT", Config::ENABLE_KS_REPLACE_LT);
         Config::KS_LIGHT_MAG = env_int("KS_LIGHT_MAG", Config::KS_LIGHT_MAG);
@@ -687,6 +692,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_SEE_INCREMENTAL = env_flag("ENABLE_SEE_INCREMENTAL", Config::ENABLE_SEE_INCREMENTAL);
         Config::FUTILITY_EVAL_MODE = env_int("FUTILITY_EVAL_MODE", Config::FUTILITY_EVAL_MODE);
         Config::QSTANDPAT_EVAL_MODE = env_int("QSTANDPAT_EVAL_MODE", Config::QSTANDPAT_EVAL_MODE);
+        Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
+        Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
+        Config::RFP_MIN_DEPTH = env_int("RFP_MIN_DEPTH", Config::RFP_MIN_DEPTH);
+        Config::RFP_MAX_DEPTH = env_int("RFP_MAX_DEPTH", Config::RFP_MAX_DEPTH);
+        Config::RFP_EVAL_MODE = env_int("RFP_EVAL_MODE", Config::RFP_EVAL_MODE);
+        Config::ENABLE_NULL_EVAL_GATE = env_flag("ENABLE_NULL_EVAL_GATE", Config::ENABLE_NULL_EVAL_GATE);
         Config::ENABLE_QCHECK_DEPTH0 = env_flag("ENABLE_QCHECK_DEPTH0", Config::ENABLE_QCHECK_DEPTH0);
         Config::ENABLE_QCHECK_MASK = env_flag("ENABLE_QCHECK_MASK", Config::ENABLE_QCHECK_MASK);
         Config::ENABLE_RP_KPK_DRAW = env_flag("ENABLE_RP_KPK_DRAW", Config::ENABLE_RP_KPK_DRAW);
@@ -707,6 +718,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
         Config::ENABLE_CAPTURE_HIST = env_flag("ENABLE_CAPTURE_HIST", Config::ENABLE_CAPTURE_HIST);
         Config::ENABLE_CHECK_ORDER = env_flag("ENABLE_CHECK_ORDER", Config::ENABLE_CHECK_ORDER);
+        Config::ENABLE_TT_MOVE = env_flag("ENABLE_TT_MOVE", Config::ENABLE_TT_MOVE);
         Config::CHECK_ORDER_BONUS = env_int("CHECK_ORDER_BONUS", Config::CHECK_ORDER_BONUS);
         Config::ENABLE_HISTORY_SATURATION = env_flag("ENABLE_HISTORY_SATURATION", Config::ENABLE_HISTORY_SATURATION);
         Config::ENABLE_HISTORY_MALUS = env_flag("ENABLE_HISTORY_MALUS", Config::ENABLE_HISTORY_MALUS);
@@ -1885,6 +1897,17 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         return 9999999;
                 }
 
+                // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
+                // see() from the mover's side) is skipped at low remaining depth. Captures bypass do_lmr; a
+                // checking capture (extend) is never pruned. Default off = byte-identical.
+                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend)
+                {
+                    int rd_cap = depth_limit - cur_depth;
+                    if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
+                        see(move.to_square, current_state.turn, current_state) < -Config::SEE_PRUNE_CAPTURE_MARGIN)
+                        return 9999999;
+                }
+
                 // Null window search with LMR applied inside
                 if (do_lmr)
                 {
@@ -2186,6 +2209,17 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     int rd_see = depth_limit - cur_depth;
                     if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
                         see(move.to_square, updated_state.turn, updated_state) > Config::SEE_PRUNE_MARGIN)
+                        return -9999999;
+                }
+
+                // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
+                // see() from the mover's side) is skipped at low remaining depth. Captures bypass do_lmr; a
+                // checking capture (extend) is never pruned. Default off = byte-identical.
+                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend)
+                {
+                    int rd_cap = depth_limit - cur_depth;
+                    if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
+                        see(move.to_square, current_state.turn, current_state) < -Config::SEE_PRUNE_CAPTURE_MARGIN)
                         return -9999999;
                 }
 
@@ -2714,8 +2748,24 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if (Config::ENABLE_IMPROVING && cur_depth < MAX_PLY)
             g_evalStack[cur_depth] = (!currently_in_check && (depth_limit - cur_depth) <= Config::IMPROVING_EVAL_WINDOW)
                                          ? static_eval_for_improving(state_history, zobrist) : NO_STATIC_EVAL;
+        // Node-entry static eval, shared by RFP and the null-move eval gate (computed only when needed).
+        int rfp_static_eval = NO_STATIC_EVAL;
+        bool rfp_want_eval = !currently_in_check &&
+                             ((Config::ENABLE_RFP && (beta - alpha) == 1 &&
+                               (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
+                              Config::ENABLE_NULL_EVAL_GATE);
+        if (rfp_want_eval)
+            rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+
+        // Reverse futility (static null): so far below alpha a quiet move is assumed to hold.
+        if (Config::ENABLE_RFP && rfp_static_eval != NO_STATIC_EVAL &&
+            (beta - alpha) == 1 && alpha > -9000000 && alpha < 9000000 &&
+            (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
+            rfp_static_eval + Config::RFP_MARGIN * (depth_limit - cur_depth) <= alpha)
+            return rfp_static_eval;
+
         // Null Move Pruning
-        if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MINI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
+        if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MINI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state) && (!Config::ENABLE_NULL_EVAL_GATE || rfp_static_eval <= alpha))
         {
             state_history.back().turn = !state_history.back().turn;
 
@@ -2929,6 +2979,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 if (i == 0)
                     ++g_fh_first;
                 g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
+                if (Config::ENABLE_TT_MOVE)
+                    g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK] = move;
                 if (i != 0)
                     updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 
@@ -3150,8 +3202,24 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         g_evalStack[cur_depth] = (!currently_in_check && (depth_limit - cur_depth) <= Config::IMPROVING_EVAL_WINDOW)
                                      ? static_eval_for_improving(state_history, zobrist) : NO_STATIC_EVAL;
 
+    // Node-entry static eval, shared by RFP and the null-move eval gate (computed only when needed).
+    int rfp_static_eval = NO_STATIC_EVAL;
+    bool rfp_want_eval = !currently_in_check &&
+                         ((Config::ENABLE_RFP && (beta - alpha) == 1 &&
+                           (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
+                          Config::ENABLE_NULL_EVAL_GATE);
+    if (rfp_want_eval)
+        rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+
+    // Reverse futility (static null): so far above beta a quiet move is assumed to hold.
+    if (Config::ENABLE_RFP && rfp_static_eval != NO_STATIC_EVAL &&
+        (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
+        (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
+        rfp_static_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) >= beta)
+        return rfp_static_eval;
+
     // Null Move Pruning
-    if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MAXI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state))
+    if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MAXI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state) && (!Config::ENABLE_NULL_EVAL_GATE || rfp_static_eval >= beta))
     {
         state_history.back().turn = !state_history.back().turn;
 
@@ -3390,6 +3458,8 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             if (i == 0)
                 ++g_fh_first;
             g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
+            if (Config::ENABLE_TT_MOVE)
+                g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK] = move;
             if (i != 0)
                 updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 
@@ -3506,7 +3576,13 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
 
     int score = -99999999;
     int highest_score = -99999999;
+    // Pre-search depth. Reducing it shrinks the shallow root pass, but it must stay >= 2 so pre_minimizer
+    // recurses past its leaf branch and actually generates the second-level move lists the real search consumes
+    // (a depth <= 1 pass returns an EMPTY list -> sentinel leak). Low ID iterations (depth_limit <= 2) keep the
+    // original depth_limit-1; reduction=1 is byte-identical everywhere.
     int depth = depth_limit - 1;
+    if (depth >= 2)
+        depth = std::max(2, depth_limit - Config::ROOT_PRESEARCH_REDUCTION);
     // zobrist = generateZobristHash(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.turn);
     uint64_t cur_hash = zobrist;
 
@@ -3521,6 +3597,43 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
     else
     {
         moves_list = previous_search_data.moves_list;
+    }
+
+    // Hard-off path: skip the pre_minimizer tree and reuse the previous iteration's REAL second-level data as
+    // the ordering hint. Every root move needs a RootScore with a NON-EMPTY legal second_moves list, and the
+    // scores vector must stay full-length (alpha_beta indexes second_moves per root move) — so heuristic-fill
+    // any move the previous iteration razored away (its scores vector is shorter than moves_list), and all
+    // moves on the first iteration. second_scores may be empty (ascending_sort only needs moves >= scores).
+    if (!Config::ENABLE_ROOT_PRESEARCH)
+    {
+        SearchData rd;
+        rd.moves_list = moves_list;
+        size_t reuse = previous_search_data.moves_list.empty()
+                           ? 0
+                           : std::min(previous_search_data.scores.size(), moves_list.size());
+        rd.scores.reserve(moves_list.size());
+        for (size_t i = 0; i < reuse; ++i)
+            rd.scores.push_back(previous_search_data.scores[i]);
+        for (size_t i = reuse; i < moves_list.size(); ++i)
+        {
+            Move &move = moves_list[i];
+            bool ep = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
+            bool cap = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], ep);
+            updateZobristHashForMove(zobrist, move.from_square, move.to_square, cap,
+                                     current_state.pawns, current_state.knights, current_state.bishops,
+                                     current_state.rooks, current_state.queens, current_state.kings,
+                                     current_state.occupied_colour[true], current_state.occupied_colour[false],
+                                     move.promotion);
+            make_move(state_history, position_count, move, zobrist, cap);
+            RootScore rs;
+            rs.top_score = 0;
+            rs.second_moves = buildMoveListFromReordered(state_history, zobrist, 1, move);   // copies out of g_moveBuf[1]
+            rd.scores.push_back(std::move(rs));
+            unmake_move(state_history, position_count, zobrist);
+            zobrist = cur_hash;
+        }
+        dbg_searchdata("reorder_legal_moves(no-presearch)", rd);
+        return rd;
     }
     // std::cout <<"BBB2" << std::endl;
 
@@ -4939,6 +5052,12 @@ inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &st
                 }
             } */
         }
+        if (Config::ENABLE_TT_MOVE)
+        {
+            Move ttm = g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK];
+            if (ttm.from_square != ttm.to_square)
+                promoteMoveToFront(cached_moves, ttm);
+        }
         return cached_moves;
     }
 
@@ -4963,6 +5082,12 @@ inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &st
     } */
 
     addToMoveGenCache(zobrist, /* max_cache_size * Config::ACTIVE->cache_size_multiplier ,*/ cached_moves, current_state.castling_rights, current_state.ep_square);
+    if (Config::ENABLE_TT_MOVE)
+    {
+        Move ttm = g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK];
+        if (ttm.from_square != ttm.to_square)
+            promoteMoveToFront(cached_moves, ttm);
+    }
     return cached_moves;
 }
 

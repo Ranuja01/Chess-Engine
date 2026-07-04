@@ -296,12 +296,29 @@ namespace Config
     inline int LMP_BASE = 1;        // base late-move count; 3 = byte-id baseline, 2 = combo1, 1 = shipped w/ capg-cond 2026-07-02 (+39 STS on reduced capg)
     inline int LMP_SCALE = 1;       // quadratic depth term in the threshold
 
+    // Root pre-search (reorder_legal_moves) depth = depth_limit - this. The pre-search is a full-width shallow
+    // search of the root run every iteration to order moves (and generate the 2nd-level lists). 1 = byte-id
+    // (depth_limit-1, original). Higher shrinks the pre-search toward a 1-ply pass (cheaper, weaker ordering) —
+    // tests whether the deep pre-pass earns its ~1/EBF node overhead. Clamped to depth >= 1.
+    inline int ROOT_PRESEARCH_REDUCTION = 1;
+    // Hard-off for the root pre-search: when false, skip pre_minimizer entirely and reuse the PREVIOUS
+    // iteration's real second-level move lists/scores as the ordering hint (heuristic-fill only the razored
+    // tail + first iteration). The clean "is the pre-search worth its nodes?" test. true = byte-identical.
+    inline bool ENABLE_ROOT_PRESEARCH = true;
+
     // SEE pruning (main search): at low remaining depth, skip a do_lmr-eligible quiet whose moved piece
     // can be profitably captured by the immediate recapture (post-move see() from the opponent's side >
     // SEE_PRUNE_MARGIN). The standard "don't search quiets that hang material" lever. Default off = byte-id.
     inline bool ENABLE_SEE_PRUNE = false;
     inline int SEE_PRUNE_MARGIN = 0;    // opponent recapture gain (centipawns; piece=1000) above which to prune
     inline int SEE_PRUNE_MAX_DEPTH = 3; // only prune when remaining depth (depth_limit - cur_depth) <= this
+
+    // SEE pruning of LOSING captures in the main search: at low remaining depth, skip a capture whose static
+    // exchange loses more than SEE_PRUNE_CAPTURE_MARGIN (pre-move see() from the mover's side). Captures bypass
+    // do_lmr, so this is a separate branch; a checking capture is never pruned. Shares SEE_PRUNE_MAX_DEPTH;
+    // independent of ENABLE_SEE_PRUNE (the quiet lever). Default off = byte-identical.
+    inline bool SEE_PRUNE_CAPTURES = false;
+    inline int SEE_PRUNE_CAPTURE_MARGIN = 0;  // prune a capture whose see() < -this (centipawns; piece=1000)
 
     // Lazy cached-quiet re-sort: a move-gen cache hit replays an order frozen when the node was first
     // searched, so the late quiets LMP prunes may be stale. On a hit, re-rank the quiet tail against the
@@ -335,6 +352,11 @@ namespace Config
     inline bool ENABLE_CAPTURE_HIST = false;   // capture-history refinement -- marginal (+0.7 STS/+1 WAC but +2.6% nodes); knob, revisit after bonus/malus
     inline bool ENABLE_CHECK_ORDER = false;    // direct-check bonus -- on the SCALE-OFF baseline it's -6 WAC for -9.8% nodes (accuracy traded for speed; bad at fixed depth). BONUS=6000 too hot -> recalibrate lower before re-enabling
     inline int CHECK_ORDER_BONUS = 6000;       // the flat quiet-check ordering bonus
+    // TT best-move ordering: remember each node's beta-cutoff move in a hash-move table (g_ttMoveTable) and
+    // promote it to the front of the move list on the next visit. The engine has no hash move in TTEntry; the
+    // move-gen cache promotes cutoff moves only while its own entry survives, so this is a longer-lived backup.
+    // Default off = byte-identical (no writes, no reads).
+    inline bool ENABLE_TT_MOVE = false;
 
     // History gravity: replace the bonus-only `+= depth²` cutoff update with a saturating bonus/MALUS --
     // reward the move that cut off, penalize the quiets/captures tried-and-failed before it. Applies to
@@ -525,6 +547,11 @@ namespace Config
     // symmetry: the two layers swap under a colour mirror, so they must scale together. Tunes overall
     // king-safety / attacking weight vs material+position.
     inline int SCALE_ATTACK_LAYER = 100;
+
+    // Attack fan-out SHAPE: the open-square boost multiplier inside setAttackingLayer (how much an OPEN
+    // square in the king 2-ring is amplified vs a closed one). Default 5 = byte-identical. Tunes the
+    // DISTRIBUTION of the attack fan-out (which SCALE_ATTACK_LAYER's uniform scale cannot reshape).
+    inline int ATTACK_OPEN_MULT = 5;
 
     // Eval: ATTACK-UNIT KING SAFETY (king_safety_score) — the canonical pre-NNUE model that replaces the
     // crude flat-increment get_latent_threat_score. Per king, enemy pressure is accumulated as ATTACK
@@ -757,6 +784,16 @@ namespace Config
     // quiescent leaves (where qsearch stand-pat fires) -> big NPS for ~no accuracy at the leaf.
     inline int FUTILITY_EVAL_MODE = 0;
     inline int QSTANDPAT_EVAL_MODE = 0;
+
+    // Node-entry reverse futility pruning (static null) + a null-move eval gate. Both read ONE node-entry
+    // static eval (eval_by_mode); default-off = byte-identical (see minimizer/maximizer node entry). RFP
+    // fires only at non-PV (beta-alpha==1), not-in-check, non-mate, shallow-remaining nodes.
+    inline bool ENABLE_RFP = true;      // node-entry reverse futility (static null) -- SHIPPED (+73 Elo SPRT)
+    inline int RFP_MARGIN = 1500;       // milli-pawn margin PER remaining ply (pawn=1000); shipped value
+    inline int RFP_MIN_DEPTH = 1;       // fire only when (depth_limit - cur_depth) >= RFP_MIN_DEPTH (skip leaf-adjacent rd)
+    inline int RFP_MAX_DEPTH = 6;       // fire only when (depth_limit - cur_depth) in [RFP_MIN_DEPTH, RFP_MAX_DEPTH]
+    inline int RFP_EVAL_MODE = 0;       // eval_by_mode arg for the RFP/gate eval: 0=full, 1=cheap
+    inline bool ENABLE_NULL_EVAL_GATE = false; // only attempt null move when static eval is past beta/alpha
 
     // qsearch quiet-check cost (buildNoisyMoveList). Default off = byte-identical (full board-copy +
     // is_check per quiet move at every q-ply). QCHECK_DEPTH0: include quiet checks only at the first

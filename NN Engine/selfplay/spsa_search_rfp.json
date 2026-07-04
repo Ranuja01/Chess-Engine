@@ -1,0 +1,10 @@
+[
+  {"name": "RFP_MARGIN", "init": 1500, "min": 600, "max": 3000, "scale": 1000},
+  {"name": "RFP_MAX_DEPTH", "init": 6, "min": 4, "max": 8, "scale": 4},
+  {"name": "LMP_BASE", "init": 1, "min": 1, "max": 4, "scale": 4},
+  {"name": "LMP_MAX_DEPTH", "init": 5, "min": 3, "max": 7, "scale": 4},
+  {"name": "NULLMOVE_EXTRA", "init": 2, "min": 1, "max": 3, "scale": 4},
+  {"name": "HISTORY_LMR_SCALE", "init": 2, "min": 0, "max": 4, "scale": 4},
+  {"name": "VERIFY_MARGIN", "init": 16000, "min": 8000, "max": 20000, "scale": 6000},
+  {"name": "ATTACK_OPEN_MULT", "init": 5, "min": 2, "max": 12, "scale": 4}
+]

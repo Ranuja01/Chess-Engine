@@ -126,6 +126,7 @@ std::vector<QTTEntry> quiesceEvalCache(CACHE_SIZE);
 std::deque<uint64_t> moveGenInsertionOrder; */
 
 std::vector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
+std::vector<Move> g_ttMoveTable(TT_CACHE_SIZE);
 
 alignas(64) Move killerMoves[MAX_PLY][2];
 
@@ -7489,7 +7490,7 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 	bool pawnShield = false;
 	
 	// Set the multiplier for open square boosts
-	int multiplier = 5;
+	int multiplier = Config::ATTACK_OPEN_MULT;
 	
 	// Define the x and y coordinates for each square
 	uint8_t x,y;

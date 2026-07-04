@@ -1,4 +1,7 @@
-# Collapse diagnosis — 2026-07-04 — the eval ceiling is DYNAMIC king-attack evaluation (the concrete NNUE boundary)
+# Collapse diagnosis — 2026-07-04 — the eval over-reads sharp positions (FIXABLE conditional-eval, NOT an NNUE boundary)
+
+> **⚠️ CORRECTION (end of session) — §4's "NNUE boundary" conclusion is WRONG and superseded.** SF11's **static** eval evaluates these positions correctly, so this is a **fixable static-eval calibration problem, not an NNUE necessity**. Corrected diagnosis: our static eval hands out **illusory activity credit** — SF11 per-term diff on move-15 (our vs SF, White-POV pawns): Rooks +0.89 vs +0.03 (**+0.86 over-credit**, confirmed by knob-zeroing), Pawns +1.11 vs +0.21 (**+0.90**), Threats 0 vs −0.56 (**missed**), King safety 0 vs −0.38 (**missed**) — which **overrides the material deficit**. But it is **NOT fixable by GLOBAL magnitude tuning**: the bench is **symmetric** (global changes cancel), **aggregate-invisible** (SPSA/Texel wash — as proven), and **diffuse** (zeroing rook bonuses barely moved the bench, 1416→1407). Fix = **CONDITIONAL activity-damping** (`activity × f(sharpness/material-deficit)`, the capg template), validated on a **train/held-out split** of the bench + an **aggregate no-regression SPRT**. §1-3 and §5 are correct; §4 is superseded by this banner and by memory [[collapse-eval-overread-fix]].
+
 
 Triggered by a real Tal-bot loss (engine reached d16-20 thanks to RFP+combo1, then blundered in a sharp position). Traced the blunder to a static-eval over-read, mined the failure into a 2,172-position bench, and proved that static king-safety **cannot** fix it. This is the sharpest evidence yet for exactly where HCE hits its ceiling and why NNUE is the answer.
 

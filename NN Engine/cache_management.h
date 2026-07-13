@@ -580,6 +580,16 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
     /* auto it = moveGenCache.find(updatedKey);
 */}
 
+// True iff the move-gen cache holds a non-empty move list for `key`. Lets callers that only need
+// existence (is_checkmate / is_stalemate short-circuit on a cached non-empty list) skip copying the
+// cached vector out of the slot, avoiding the by-value alloc+memcpy+free on the hot path.
+inline bool moveGenCacheHasMoves(uint64_t key, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    size_t idx = updatedKey & CACHE_MASK;
+    MoveEntry &entry = moveGenCache[idx];
+    return entry.valid && entry.key == updatedKey && !entry.moves.empty();
+}
+
 // Snapshot the cached move list for `key` into the caller-owned buffer `out` (reusing out's existing
 // capacity), or clear `out` on a miss. The copy is synchronous -- no reference into the cache slot
 // survives the call, so later cache churn cannot touch `out`. Lets a caller reuse a per-ply buffer

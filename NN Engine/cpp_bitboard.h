@@ -997,6 +997,7 @@ inline bool is_check(bool colour, uint64_t occupied, uint64_t queens_and_rooks, 
 }
 
 inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square);
+inline bool moveGenCacheHasMoves(uint64_t key, uint64_t castling_rights, int ep_square);
 
 inline bool is_checkmate(uint64_t zobrist, uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bool turn){
@@ -1004,10 +1005,8 @@ inline bool is_checkmate(uint64_t zobrist, uint64_t preliminary_castling_mask, u
 	if (!is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
 		return false;
 
-	std::vector<Move> cached_moves = accessMoveGenCache(zobrist, preliminary_castling_mask, ep_square);
-    if(cached_moves.size() != 0){
+	if (moveGenCacheHasMoves(zobrist, preliminary_castling_mask, ep_square))
 		return false;
-	}
 
 	return !has_any_legal_move(preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
@@ -1021,10 +1020,8 @@ inline bool is_stalemate(uint64_t zobrist, uint64_t preliminary_castling_mask, u
 	if (is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
 		return false;
 
-	std::vector<Move> cached_moves = accessMoveGenCache(zobrist, preliminary_castling_mask, ep_square);
-    if(cached_moves.size() != 0){
+	if (moveGenCacheHasMoves(zobrist, preliminary_castling_mask, ep_square))
 		return false;
-	}
 
 	return !has_any_legal_move(preliminary_castling_mask, ~0ULL, ~0ULL,
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,

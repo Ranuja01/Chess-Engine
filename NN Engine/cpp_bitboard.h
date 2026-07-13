@@ -429,6 +429,7 @@ enum ProfTerm {
 	PROF_PAWNS, PROF_KNIGHTS, PROF_BISHOPS, PROF_ROOKS, PROF_ROOK_ACTIVITY,
 	PROF_QUEENS, PROF_KINGS, PROF_ATTACK_LAYER, PROF_CAPTURE_GAINS,
 	PROF_PASSED_SUPPORT, PROF_LATENT_THREAT, PROF_KING_SAFETY, PROF_ADV_ENDGAME,
+	PROF_INIT_PIECE_VALUES,
 	// Drill-only terms (nested inside the evaluators above; subsets, not exclusive).
 	PROF_SEE, PROF_BISHOP_ACTIVITY, PROF_BISHOP_COLOUR,
 	// Search-side scopes (NOT part of the eval %-base; their absolute cycles vs the eval-term

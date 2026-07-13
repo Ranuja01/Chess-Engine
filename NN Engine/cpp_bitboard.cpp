@@ -54,6 +54,10 @@ std::array<uint64_t, NUM_SQUARES> black_king_ks_zone;
 // built in initialize_attack_tables and consumed by the search's passed-pawn pruning exemption.
 std::array<uint64_t, NUM_SQUARES> passed_span_white;
 std::array<uint64_t, NUM_SQUARES> passed_span_black;
+// Latent pawn-support masks (up to 3 squares on the adjacent file, in the pawn's own rearward
+// direction), indexed [is_white][square]. Pure functions of (square, colour) -> precomputed once.
+std::array<std::array<uint64_t, NUM_SQUARES>, 2> latent_support_left_table;
+std::array<std::array<uint64_t, NUM_SQUARES>, 2> latent_support_right_table;
 std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 std::vector<uint64_t> BB_DIAG_MASKS;
 std::vector<SlidingRow> BB_DIAG_ATTACKS;
@@ -560,6 +564,25 @@ void initialize_attack_tables() {
         }
         passed_span_white[sq] = span_white;
         passed_span_black[sq] = span_black;
+    }
+
+    // Precompute the latent pawn-support masks (mirrors latent_support_mask_left/right): the adjacent
+    // file's squares up to 3 ranks in the pawn's rearward direction. Indexed [is_white][square].
+    for (int c = 0; c < 2; ++c) {
+        bool is_white = (c == 1);
+        for (int sq = 0; sq < NUM_SQUARES; ++sq) {
+            int file = sq % 8;
+            int rank = sq / 8;
+            uint64_t lmask = 0ULL, rmask = 0ULL;
+            for (int dr = 1; dr <= 3; ++dr) {
+                int r = is_white ? (rank - dr) : (rank + dr);
+                if (r < 0 || r > 7) break;
+                if (file > 0) lmask |= BB_SQUARES[r * 8 + (file - 1)];
+                if (file < 7) rmask |= BB_SQUARES[r * 8 + (file + 1)];
+            }
+            latent_support_left_table[c][sq] = lmask;
+            latent_support_right_table[c][sq] = rmask;
+        }
     }
 
 	// Call the function to fill up the tables for all possible queen and rook moves
@@ -4442,39 +4465,11 @@ inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, u
 
 
 inline uint64_t latent_support_mask_left(int square, bool is_white) {
-    int file = square % 8;
-    int rank = square / 8;
-    uint64_t mask = 0ULL;
-
-    if (file > 0) {
-        for (int dr = 1; dr <= 3; ++dr) {
-            int r = is_white ? (rank - dr) : (rank + dr);
-            if (r < 0 || r > 7) break;
-
-            int sq = r * 8 + (file - 1);
-            mask |= BB_SQUARES[sq];
-        }
-    }
-
-    return mask;
+    return latent_support_left_table[is_white][square];
 }
 
 inline uint64_t latent_support_mask_right(int square, bool is_white) {
-    int file = square % 8;
-    int rank = square / 8;
-    uint64_t mask = 0ULL;
-
-    if (file < 7) {
-        for (int dr = 1; dr <= 3; ++dr) {
-            int r = is_white ? (rank - dr) : (rank + dr);
-            if (r < 0 || r > 7) break;
-
-            int sq = r * 8 + (file + 1);
-            mask |= BB_SQUARES[sq];
-        }
-    }
-
-    return mask;
+    return latent_support_right_table[is_white][square];
 }
 
 
@@ -6130,7 +6125,10 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	std::array<int, 64> pawn_rank_bonuses{};
 
 	// Call the function to initialize global piece values
-	initializePieceValues(occupied);
+	{
+		PROF_BLOCK(PROF_INIT_PIECE_VALUES);
+		initializePieceValues(occupied);
+	}
 	// If the queens are off the board, then it can be considered an endgame at a higher piece value
 	/* if (queens == 0){
 		isEndGame = pieceNum < 18;
@@ -7562,18 +7560,18 @@ inline void initializePieceValues(uint64_t bb){
 	
 	// Reset the global array as empty
 	pieceTypeLookUp = {};
-	
-	// Loop through the mask
-	uint8_t r = 0;
-	while (bb) {
-		
-		// Get the position of the least significant set bit of the mask
-		r = __builtin_ctzll(bb);		
-		
-		// Call the piece type function to populate the array
-		pieceTypeLookUp [r] = piece_type_at (r);
-		bb &= bb - 1;			
-	} 
+
+	// Scatter each piece bitboard into the mailbox directly, avoiding the per-square six-way
+	// piece_type_at branch chain. Intersect with the occupied mask so only occupied squares are
+	// written -- identical to the old occupied-loop + piece_type_at (each occupied square holds
+	// exactly one piece type, so it is written once with the same value).
+	uint64_t b;
+	b = pawns   & bb; while (b) { pieceTypeLookUp[__builtin_ctzll(b)] = 1; b &= b - 1; }
+	b = knights & bb; while (b) { pieceTypeLookUp[__builtin_ctzll(b)] = 2; b &= b - 1; }
+	b = bishops & bb; while (b) { pieceTypeLookUp[__builtin_ctzll(b)] = 3; b &= b - 1; }
+	b = rooks   & bb; while (b) { pieceTypeLookUp[__builtin_ctzll(b)] = 4; b &= b - 1; }
+	b = queens  & bb; while (b) { pieceTypeLookUp[__builtin_ctzll(b)] = 5; b &= b - 1; }
+	b = kings   & bb; while (b) { pieceTypeLookUp[__builtin_ctzll(b)] = 6; b &= b - 1; }
 }
 
 
@@ -7927,34 +7925,13 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 		In this section, acquire all the squares in front of pawn including those on either side of it
 	*/
 	
-	// If the current side is white
-    if (colour) {
-		
-        // Iterate over the three relevant files
-        for (int f = file - 1; f < file + 2; ++f) {
-            
-			// Check if the file is within bounds
-			if (f >= 0 && f <= 7) {
-				bitmask |= BB_FILES [f] & ~((1ULL << ((rank + 1) * 8)) - 1);
-				if (f == file){
-					infrontMask |= BB_FILES [f] & ~((1ULL << ((rank + 1) * 8)) - 1);
-				}
-            }
-        }
-	// Else the current side is black	
-    } else {
-        // Iterate over the three relevant files
-        for (int f = file - 1; f < file + 2; ++f) {
-			
-			// Check if the file is within bounds
-            if (f >= 0 && f <= 7) {  
-				bitmask |= BB_FILES [f] & ((1ULL << (rank * 8)) - 1);
-				if (f == file){
-					infrontMask |= BB_FILES [f] & ((1ULL << (rank * 8)) - 1);
-				}
-            }
-        }
-    }
+	// The forward span (own file + both neighbours, ranks strictly ahead) is precomputed in
+	// passed_span_white/black; the single-file forward mask is that span intersected with the pawn's
+	// own file (the neighbouring-file bits drop out). Identical to the old three-file build for every
+	// reachable pawn square (ranks 2-7), replacing the per-call file loop with two lookups.
+	uint8_t span_sq = rank * 8 + file;
+	bitmask = colour ? passed_span_white[span_sq] : passed_span_black[span_sq];
+	infrontMask = bitmask & BB_FILES[file];
 
 	// Of the squares in front of pawn, filter to only include opposing pawns
     bitmask &= opposingPawnMask;	
@@ -8110,6 +8087,7 @@ static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 	"PAWNS", "KNIGHTS", "BISHOPS", "ROOKS", "ROOK_ACTIVITY",
 	"QUEENS", "KINGS", "ATTACK_LAYER", "CAPTURE_GAINS",
 	"PASSED_SUPPORT", "LATENT_THREAT", "KING_SAFETY", "ADV_ENDGAME",
+	"INIT_PIECE_VALUES",
 	"SEE", "BISHOP_ACTIVITY", "BISHOP_COLOUR",
 	"MOVEGEN", "MAKEUNMAKE", "TT_PROBE",
 	"MG_GEN", "MG_SCORE", "MG_SORT"
@@ -8118,7 +8096,7 @@ static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 // Terms PROF_PAWNS..PROF_ADV_ENDGAME are the top-level, mutually-exclusive call
 // sites whose cycles sum to ~the instrumented eval; the remainder (SEE, the bishop
 // helpers, and ROOK_ACTIVITY) are nested subsets and excluded from the %-share base.
-static const int PROF_NUM_EXCLUSIVE = PROF_ADV_ENDGAME + 1;
+static const int PROF_NUM_EXCLUSIVE = PROF_INIT_PIECE_VALUES + 1;
 #endif
 
 void eval_profile_reset()

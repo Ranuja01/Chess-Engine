@@ -130,6 +130,59 @@ struct CheckExtensionGuard
     }
 };
 
+// Per-path count of active singular extensions. Singular does not go through CheckExtensionGuard, so
+// without its own counter a forced line of singular TT-moves could extend without bound (each singular
+// move re-arms the next); this caps the depth of a pure singular chain independently of check extensions.
+static int g_singular_extensions = 0;
+struct SingularExtensionGuard
+{
+    bool active;
+    explicit SingularExtensionGuard(bool a) : active(a)
+    {
+        if (active)
+            ++g_singular_extensions;
+    }
+    ~SingularExtensionGuard()
+    {
+        if (active)
+            --g_singular_extensions;
+    }
+};
+
+// Optimism-triggered verification (OTV) path state. Single-threaded depth-first search, so
+// file-scope counters track the current root-to-leaf path; the RAII guard keeps them balanced
+// across every return path (cf. CheckExtensionGuard). g_verify_no_reduce_until = the deepest
+// cur_depth at which reductions stay OFF inside an active verification window (-1 = inactive, so
+// the do_lmr guards are inert and the default build is byte-identical). g_verify_count = OTV
+// re-searches on the current path (the OTV_PATH_CAP budget). g_in_verify = inside a verification
+// subtree (suppresses nested OTV so a confirmed tactic re-triggering at every ply cannot loop).
+static int g_verify_no_reduce_until = -1;
+static int g_verify_count = 0;
+static bool g_in_verify = false;
+// Cumulative OTV re-searches across the process (diagnostic only; never affects search). Only bumped
+// when a verification actually fires, so it stays 0 in the default (ENABLE_OTV off) build.
+static long g_otv_fires = 0;
+struct VerifyGuard
+{
+    int prev_until;
+    bool prev_in;
+    VerifyGuard(int cur_depth, int plies)
+    {
+        prev_until = g_verify_no_reduce_until;
+        prev_in = g_in_verify;
+        g_verify_no_reduce_until = cur_depth + plies;
+        g_in_verify = true;
+        ++g_verify_count;
+        ++g_otv_fires;
+    }
+    ~VerifyGuard()
+    {
+        g_verify_no_reduce_until = prev_until;
+        g_in_verify = prev_in;
+        --g_verify_count;
+    }
+};
+
 // Aspiration-window diagnostics (cumulative across the process; printed to stderr per move when
 // ASPIRATION_DELTA > 0, so the last line of a single-process suite run = suite totals). g_asp_windows
 // counts aspirated iterations; g_asp_fails counts window failures that triggered a widen or the
@@ -805,6 +858,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_ENDGAME_SCALE = env_flag("ENABLE_ENDGAME_SCALE", Config::ENABLE_ENDGAME_SCALE);
         Config::SCALE_PASSED_PAWN = env_int("SCALE_PASSED_PAWN", Config::SCALE_PASSED_PAWN);
         Config::SCALE_LATENT_THREAT = env_int("SCALE_LATENT_THREAT", Config::SCALE_LATENT_THREAT);
+        Config::ENABLE_THREATS = env_flag("ENABLE_THREATS", Config::ENABLE_THREATS);
+        Config::SCALE_THREATS = env_int("SCALE_THREATS", Config::SCALE_THREATS);
+        Config::THREATS_STANDING_ONLY = env_flag("THREATS_STANDING_ONLY", Config::THREATS_STANDING_ONLY);
         Config::SCALE_CENTRAL = env_int("SCALE_CENTRAL", Config::SCALE_CENTRAL);
         Config::SCALE_CAPTURE_GAINS = env_int("SCALE_CAPTURE_GAINS", Config::SCALE_CAPTURE_GAINS);
         Config::ENABLE_CAPG_COND = env_flag("ENABLE_CAPG_COND", Config::ENABLE_CAPG_COND);
@@ -875,6 +931,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ATTACK_OPEN_MULT = env_int("ATTACK_OPEN_MULT", Config::ATTACK_OPEN_MULT);
         Config::KING_SAFETY_MAG = env_int("KING_SAFETY_MAG", Config::KING_SAFETY_MAG);
         Config::ENABLE_KS_REPLACE_LT = env_flag("ENABLE_KS_REPLACE_LT", Config::ENABLE_KS_REPLACE_LT);
+        Config::KS_CONSOLIDATE = env_flag("KS_CONSOLIDATE", Config::KS_CONSOLIDATE);
         Config::KS_LIGHT_MAG = env_int("KS_LIGHT_MAG", Config::KS_LIGHT_MAG);
         Config::KS_ATT_KNIGHT = env_int("KS_ATT_KNIGHT", Config::KS_ATT_KNIGHT);
         Config::KS_ATT_BISHOP = env_int("KS_ATT_BISHOP", Config::KS_ATT_BISHOP);
@@ -905,6 +962,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::REALIZ_FLOOR = env_int("REALIZ_FLOOR", Config::REALIZ_FLOOR);
         Config::PASSER_BLOCK_ADV = env_int("PASSER_BLOCK_ADV", Config::PASSER_BLOCK_ADV);
         Config::PASSER_ENEMY_CREDIT_PCT = env_int("PASSER_ENEMY_CREDIT_PCT", Config::PASSER_ENEMY_CREDIT_PCT);
+        Config::ENABLE_PASSER_DANGER = env_flag("ENABLE_PASSER_DANGER", Config::ENABLE_PASSER_DANGER);
+        Config::PASSER_DANGER_BASE1 = env_int("PASSER_DANGER_BASE1", Config::PASSER_DANGER_BASE1);
+        Config::PASSER_DANGER_BASE2 = env_int("PASSER_DANGER_BASE2", Config::PASSER_DANGER_BASE2);
+        Config::PASSER_DANGER_BASE3 = env_int("PASSER_DANGER_BASE3", Config::PASSER_DANGER_BASE3);
+        Config::PASSER_DANGER_D2 = env_int("PASSER_DANGER_D2", Config::PASSER_DANGER_D2);
+        Config::PASSER_DANGER_D4 = env_int("PASSER_DANGER_D4", Config::PASSER_DANGER_D4);
         Config::ENABLE_PASSER_KRACE_MG = env_flag("ENABLE_PASSER_KRACE_MG", Config::ENABLE_PASSER_KRACE_MG);
         Config::PASSER_KRACE_MG_PCT = env_int("PASSER_KRACE_MG_PCT", Config::PASSER_KRACE_MG_PCT);
         Config::ENABLE_PASSER_BLOCKADE_QUALITY = env_flag("ENABLE_PASSER_BLOCKADE_QUALITY", Config::ENABLE_PASSER_BLOCKADE_QUALITY);
@@ -929,6 +992,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::MOD_PIECES_CONTROL = env_int("MOD_PIECES_CONTROL", Config::MOD_PIECES_CONTROL);
         Config::MOD_PIECES_DEFEND = env_int("MOD_PIECES_DEFEND", Config::MOD_PIECES_DEFEND);
         Config::MOD_PIECES_DEFEND_THRESH = env_int("MOD_PIECES_DEFEND_THRESH", Config::MOD_PIECES_DEFEND_THRESH);
+        Config::ENABLE_NPEDGE_DAMP = env_flag("ENABLE_NPEDGE_DAMP", Config::ENABLE_NPEDGE_DAMP);
+        Config::NPEDGE_DAMP_LO = env_int("NPEDGE_DAMP_LO", Config::NPEDGE_DAMP_LO);
+        Config::NPEDGE_DAMP_HI = env_int("NPEDGE_DAMP_HI", Config::NPEDGE_DAMP_HI);
+        Config::NPEDGE_DAMP_MAX = env_int("NPEDGE_DAMP_MAX", Config::NPEDGE_DAMP_MAX);
+        Config::NPEDGE_DAMP_TQUIET = env_int("NPEDGE_DAMP_TQUIET", Config::NPEDGE_DAMP_TQUIET);
+        Config::ENABLE_MOBILITY = env_flag("ENABLE_MOBILITY", Config::ENABLE_MOBILITY);
+        Config::MOBILITY_SCALE = env_int("MOBILITY_SCALE", Config::MOBILITY_SCALE);
         rebuild_scaled_placement();  // rebuild scaled placement working arrays once from the loaded SCALE_PLACE_* knobs (no per-read division in eval)
         rebuild_scaled_pawn_tables();  // rebuild scaled pawn-structure working arrays from the loaded SCALE_PAWN_* knobs (no per-read division in eval)
         rebuild_ks_tables();  // rebuild the king-safety non-linear danger table + phase-taper from the loaded KS_* knobs (no per-eval division)
@@ -965,6 +1035,20 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::RFP_MAX_DEPTH = env_int("RFP_MAX_DEPTH", Config::RFP_MAX_DEPTH);
         Config::RFP_EVAL_MODE = env_int("RFP_EVAL_MODE", Config::RFP_EVAL_MODE);
         Config::ENABLE_NULL_EVAL_GATE = env_flag("ENABLE_NULL_EVAL_GATE", Config::ENABLE_NULL_EVAL_GATE);
+        Config::ENABLE_PROBCUT = env_flag("ENABLE_PROBCUT", Config::ENABLE_PROBCUT);
+        Config::PROBCUT_MARGIN = env_int("PROBCUT_MARGIN", Config::PROBCUT_MARGIN);
+        Config::PROBCUT_MIN_DEPTH = env_int("PROBCUT_MIN_DEPTH", Config::PROBCUT_MIN_DEPTH);
+        Config::PROBCUT_DEPTH_REDUCTION = env_int("PROBCUT_DEPTH_REDUCTION", Config::PROBCUT_DEPTH_REDUCTION);
+        Config::PROBCUT_CANDIDATES = env_int("PROBCUT_CANDIDATES", Config::PROBCUT_CANDIDATES);
+        Config::ENABLE_PROBCUT_NO_TT_STORE = env_flag("ENABLE_PROBCUT_NO_TT_STORE", Config::ENABLE_PROBCUT_NO_TT_STORE);
+        Config::ENABLE_SINGULAR = env_flag("ENABLE_SINGULAR", Config::ENABLE_SINGULAR);
+        Config::SINGULAR_MARGIN = env_int("SINGULAR_MARGIN", Config::SINGULAR_MARGIN);
+        Config::SINGULAR_MIN_DEPTH = env_int("SINGULAR_MIN_DEPTH", Config::SINGULAR_MIN_DEPTH);
+        Config::SINGULAR_MAX_EXT = env_int("SINGULAR_MAX_EXT", Config::SINGULAR_MAX_EXT);
+        Config::ENABLE_NULLMOVE_EVAL_R = env_flag("ENABLE_NULLMOVE_EVAL_R", Config::ENABLE_NULLMOVE_EVAL_R);
+        Config::NULLMOVE_R_DIV = env_int("NULLMOVE_R_DIV", Config::NULLMOVE_R_DIV);
+        if (Config::NULLMOVE_R_DIV < 1) Config::NULLMOVE_R_DIV = 1;
+        Config::NULLMOVE_R_CAP = env_int("NULLMOVE_R_CAP", Config::NULLMOVE_R_CAP);
         Config::ENABLE_QCHECK_DEPTH0 = env_flag("ENABLE_QCHECK_DEPTH0", Config::ENABLE_QCHECK_DEPTH0);
         Config::ENABLE_QCHECK_MASK = env_flag("ENABLE_QCHECK_MASK", Config::ENABLE_QCHECK_MASK);
         Config::ENABLE_RP_KPK_DRAW = env_flag("ENABLE_RP_KPK_DRAW", Config::ENABLE_RP_KPK_DRAW);
@@ -1005,9 +1089,18 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // (e.g. VERIFY_MARGIN=0 to recover the old search for the d10 control).
         Config::VERIFY_MARGIN = env_int("VERIFY_MARGIN", Config::VERIFY_MARGIN);
         Config::VERIFY_RESEARCH_REDUCTION = env_int("VERIFY_RESEARCH_REDUCTION", Config::VERIFY_RESEARCH_REDUCTION);
+        // Optimism-triggered verification (default off = byte-identical).
+        Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
+        Config::OTV_MARGIN = env_int("OTV_MARGIN", Config::OTV_MARGIN);
+        Config::OTV_PLIES = env_int("OTV_PLIES", Config::OTV_PLIES);
+        Config::OTV_PATH_CAP = env_int("OTV_PATH_CAP", Config::OTV_PATH_CAP);
+        Config::OTV_PV_ONLY = env_flag("OTV_PV_ONLY", Config::OTV_PV_ONLY);
+        Config::OTV_MIN_REMAINING = env_int("OTV_MIN_REMAINING", Config::OTV_MIN_REMAINING);
         // Iterative-deepening depth cap; default 64 is normal play (a preset governs
         // the depth reached). The cap is literal: MAX_DEPTH=10 searches to depth 10.
         Config::MAX_ITERATIVE_DEPTH = env_int("MAX_DEPTH", Config::MAX_ITERATIVE_DEPTH);
+        // Fixed-node search cap for low-variance mid-funnel self-play (0 = off, clock-bound).
+        Config::NODE_LIMIT = env_int("NODE_LIMIT", Config::NODE_LIMIT);
         // In-search repetition-draw threshold (default 2 = first repetition on the path).
         Config::REPETITION_THRESHOLD = env_int("REPETITION_THRESHOLD", Config::REPETITION_THRESHOLD);
         // Check/forcing extension depth (per-path cap); 0 = off.
@@ -1072,6 +1165,19 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " NULLMOVE=" << Config::ENABLE_NULLMOVE
                   << " NULLMOVE_PROGRESSIVE=" << Config::NULLMOVE_PROGRESSIVE
                   << " NULLMOVE_EXTRA=" << Config::NULLMOVE_EXTRA
+                  << " ENABLE_PROBCUT=" << Config::ENABLE_PROBCUT
+                  << " PROBCUT_MARGIN=" << Config::PROBCUT_MARGIN
+                  << " PROBCUT_MIN_DEPTH=" << Config::PROBCUT_MIN_DEPTH
+                  << " PROBCUT_DEPTH_REDUCTION=" << Config::PROBCUT_DEPTH_REDUCTION
+                  << " PROBCUT_CANDIDATES=" << Config::PROBCUT_CANDIDATES
+                  << " ENABLE_PROBCUT_NO_TT_STORE=" << Config::ENABLE_PROBCUT_NO_TT_STORE
+                  << " ENABLE_SINGULAR=" << Config::ENABLE_SINGULAR
+                  << " SINGULAR_MARGIN=" << Config::SINGULAR_MARGIN
+                  << " SINGULAR_MIN_DEPTH=" << Config::SINGULAR_MIN_DEPTH
+                  << " SINGULAR_MAX_EXT=" << Config::SINGULAR_MAX_EXT
+                  << " ENABLE_NULLMOVE_EVAL_R=" << Config::ENABLE_NULLMOVE_EVAL_R
+                  << " NULLMOVE_R_DIV=" << Config::NULLMOVE_R_DIV
+                  << " NULLMOVE_R_CAP=" << Config::NULLMOVE_R_CAP
                   << " QDELTA=" << Config::ENABLE_QDELTA
                   << " DELTA_MARGIN=" << Config::DELTA_MARGIN
                   << " MAX_QDEPTH=" << Config::MAX_QDEPTH
@@ -1120,6 +1226,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_ENDGAME_SCALE=" << Config::ENABLE_ENDGAME_SCALE
                   << " SCALE_PASSED_PAWN=" << Config::SCALE_PASSED_PAWN
                   << " SCALE_LATENT_THREAT=" << Config::SCALE_LATENT_THREAT
+                  << " ENABLE_THREATS=" << Config::ENABLE_THREATS
+                  << " SCALE_THREATS=" << Config::SCALE_THREATS
+                  << " THREATS_STANDING_ONLY=" << Config::THREATS_STANDING_ONLY
                   << " SCALE_CENTRAL=" << Config::SCALE_CENTRAL
                   << " SCALE_CAPTURE_GAINS=" << Config::SCALE_CAPTURE_GAINS
                   << " PP_OPP_PAWN_PEN=" << Config::PP_OPP_PAWN_PEN
@@ -1172,6 +1281,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " REALIZ_FLOOR=" << Config::REALIZ_FLOOR
                   << " PASSER_BLOCK_ADV=" << Config::PASSER_BLOCK_ADV
                   << " PASSER_ENEMY_CREDIT_PCT=" << Config::PASSER_ENEMY_CREDIT_PCT
+                  << " ENABLE_PASSER_DANGER=" << Config::ENABLE_PASSER_DANGER
+                  << " PASSER_DANGER_BASE1=" << Config::PASSER_DANGER_BASE1
+                  << " PASSER_DANGER_D2=" << Config::PASSER_DANGER_D2
+                  << " PASSER_DANGER_D4=" << Config::PASSER_DANGER_D4
                   << " ENABLE_PASSER_KRACE_MG=" << Config::ENABLE_PASSER_KRACE_MG
                   << " PASSER_KRACE_MG_PCT=" << Config::PASSER_KRACE_MG_PCT
                   << " ENABLE_PASSER_BLOCKADE_QUALITY=" << Config::ENABLE_PASSER_BLOCKADE_QUALITY
@@ -1188,10 +1301,18 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " MOD_PAIR_OPEN=" << Config::MOD_PAIR_OPEN
                   << " MOD_KS_BACKING=" << Config::MOD_KS_BACKING
                   << " MOD_KS_CONTROL=" << Config::MOD_KS_CONTROL
+                  << " KS_CONSOLIDATE=" << Config::KS_CONSOLIDATE
                   << " MOD_PIECES_LEVEL=" << Config::MOD_PIECES_LEVEL
                   << " MOD_PIECES_MAT_THRESH=" << Config::MOD_PIECES_MAT_THRESH
                   << " MOD_PIECES_FLOOR=" << Config::MOD_PIECES_FLOOR
                   << " MOD_PIECES_CONTROL=" << Config::MOD_PIECES_CONTROL
+                  << " ENABLE_NPEDGE_DAMP=" << Config::ENABLE_NPEDGE_DAMP
+                  << " NPEDGE_DAMP_LO=" << Config::NPEDGE_DAMP_LO
+                  << " NPEDGE_DAMP_HI=" << Config::NPEDGE_DAMP_HI
+                  << " NPEDGE_DAMP_MAX=" << Config::NPEDGE_DAMP_MAX
+                  << " NPEDGE_DAMP_TQUIET=" << Config::NPEDGE_DAMP_TQUIET
+                  << " ENABLE_MOBILITY=" << Config::ENABLE_MOBILITY
+                  << " MOBILITY_SCALE=" << Config::MOBILITY_SCALE
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX
                   << " CHEAP_BISHOP_BLOCK=" << Config::CHEAP_BISHOP_BLOCK
                   << " CHEAP_BISHOP_MOB=" << Config::CHEAP_BISHOP_MOB
@@ -1244,8 +1365,15 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " MALUS_DIV=" << Config::MALUS_DIV
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
+                  << " ENABLE_OTV=" << Config::ENABLE_OTV
+                  << " OTV_MARGIN=" << Config::OTV_MARGIN
+                  << " OTV_PLIES=" << Config::OTV_PLIES
+                  << " OTV_PATH_CAP=" << Config::OTV_PATH_CAP
+                  << " OTV_PV_ONLY=" << Config::OTV_PV_ONLY
+                  << " OTV_MIN_REMAINING=" << Config::OTV_MIN_REMAINING
                   << " PRESET=" << active_preset
                   << " MAX_DEPTH=" << Config::MAX_ITERATIVE_DEPTH
+                  << " NODE_LIMIT=" << Config::NODE_LIMIT
                   << " REPETITION_THRESHOLD=" << Config::REPETITION_THRESHOLD
                   << " CHECK_EXTENSION=" << Config::CHECK_EXTENSION
                   << " SEE_EXTEND_MARGIN=" << Config::SEE_EXTEND_MARGIN
@@ -1679,6 +1807,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << " m2=" << g_cutoff_histogram[2] << " m3-7=" << g_cutoff_histogram[3]
                   << " m8+=" << g_cutoff_histogram[4] << std::endl;
         std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires << std::endl;
+    if (Config::ENABLE_OTV)
+        std::cerr << "[otv] fires=" << g_otv_fires
+                  << " per_cutoff=" << (g_fh_total > 0 ? (100.0 * g_otv_fires / g_fh_total) : 0.0) << "%" << std::endl;
+    if (Config::ENABLE_SINGULAR)
+        std::cerr << "[singular] eligible=" << g_sing_eligible << " gatepass=" << g_sing_gatepass
+                  << " fire=" << g_sing_fire
+                  << " fire_per_eligible=" << (g_sing_eligible > 0 ? (100.0 * g_sing_fire / g_sing_eligible) : 0.0) << "%" << std::endl;
 
     int x1 = (move.from_square & 7) + 1;
     int y1 = (move.from_square >> 3) + 1;
@@ -2171,6 +2306,10 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     }
                 }
                 bool do_lmr = base_lmr && !passer_exempt;
+                // Inside an OTV verification window, keep reductions off for the first OTV_PLIES plies of the
+                // re-searched subtree so the buried refutation is examined at honest depth. Inert (no-op) while
+                // g_verify_no_reduce_until < 0 -- always so in the default build -> byte-identical.
+                do_lmr = do_lmr && !(g_verify_no_reduce_until >= 0 && cur_depth <= g_verify_no_reduce_until);
 
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
@@ -2502,6 +2641,10 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     }
                 }
                 bool do_lmr = base_lmr && !passer_exempt;
+                // Inside an OTV verification window, keep reductions off for the first OTV_PLIES plies of the
+                // re-searched subtree so the buried refutation is examined at honest depth. Inert (no-op) while
+                // g_verify_no_reduce_until < 0 -- always so in the default build -> byte-identical.
+                do_lmr = do_lmr && !(g_verify_no_reduce_until >= 0 && cur_depth <= g_verify_no_reduce_until);
 
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
@@ -2742,6 +2885,11 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     {
         return 0;
     }
+    else if (Config::NODE_LIMIT > 0 && num_iterations >= Config::NODE_LIMIT)
+    {
+        time_up.store(true, std::memory_order_relaxed);
+        return 0;
+    }
     else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL)
     {
         nodes_since_time_check.store(0, std::memory_order_relaxed);
@@ -2753,6 +2901,13 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     }
     // pv_length[cur_depth] = 0;
     BoardState current_state = state_history.back();
+
+    // Throwaway containers for the singular exclusion re-search — minimizer's signature takes second-level
+    // score/move lists + a RootScore by reference, which carry root bookkeeping; the exclusion search must
+    // not touch them, so it gets its own dummies.
+    std::vector<int> sing_dummy_ints;
+    std::vector<Move> sing_dummy_moves;
+    RootScore sing_dummy_entry;
 
     // Leaky capture-chain density (for the capture-chain LMR guard): rise on a capture into this node,
     // decay on a quiet move so a forcing sequence keeps its score across the odd quiet interruption.
@@ -3131,6 +3286,14 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
             if (depth_limit >= 10)
                 reduced_depth -= 1;
+            // Eval-scaled null reduction (LOW side): the further the pre-null static eval sits BELOW alpha,
+            // the more confidently the null holds -> reduce more. Only when the static eval is already valid.
+            if (Config::ENABLE_NULLMOVE_EVAL_R && rfp_static_eval != NO_STATIC_EVAL)
+            {
+                int extra_R = std::min((alpha - rfp_static_eval) / Config::NULLMOVE_R_DIV, Config::NULLMOVE_R_CAP);
+                if (extra_R > 0)
+                    reduced_depth -= extra_R;
+            }
             if (Config::NULLMOVE_PROGRESSIVE)
             {
                 // Gate on the genuine iteration depth, not the check-extension-inflated depth_limit, so the
@@ -3201,9 +3364,74 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         std::vector<Move>& moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
         std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
 
+        // OTV needs the node's OWN static eval as the phantom reference. Compute it once here, at the node
+        // position before any child move is made, when OTV is eligible and RFP/null-gate did not already.
+        // Gated on ENABLE_OTV, so the default build computes no extra eval and stays byte-identical.
+        if (Config::ENABLE_OTV && rfp_static_eval == NO_STATIC_EVAL && !g_in_verify && !currently_in_check &&
+            (!Config::OTV_PV_ONLY || (beta - alpha) > 1) &&
+            (depth_limit - cur_depth) >= Config::OTV_MIN_REMAINING)
+            rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+
+        // ProbCut: at a non-PV node with depth to spare, a shallow null-window search a margin BELOW alpha
+        // on the strong captures/promos confirms the position is losing enough to skip the full-depth search.
+        // Self-verifying (the child re-searches), so it holds despite an imperfect static eval. Minimizing
+        // side wants the score LOW -> push the window DOWN: a confirmed fail-low past alpha-PROBCUT_MARGIN
+        // means the true score is at most alpha, so we can cut here.
+        if (Config::ENABLE_PROBCUT && !g_in_verify && !currently_in_check && (beta - alpha) == 1 &&
+            (depth_limit - cur_depth) >= Config::PROBCUT_MIN_DEPTH &&
+            alpha > -9000000 && alpha < 9000000 && beta > -9000000 && beta < 9000000)
+        {
+            int probcut_alpha = alpha - Config::PROBCUT_MARGIN;
+            int probcut_tried = 0;
+            for (size_t i = 0; i < moves_list.size() && probcut_tried < Config::PROBCUT_CANDIDATES; ++i)
+            {
+                Move &move = moves_list[i];
+                bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
+                bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
+                if (!(capture_move || move.promotion != 1))
+                    continue;
+                if (see(move.to_square, current_state.turn, current_state) < 0)
+                    continue;
+                ++probcut_tried;
+
+                updateZobristHashForMove(zobrist, move.from_square, move.to_square, capture_move,
+                                         current_state.pawns, current_state.knights, current_state.bishops,
+                                         current_state.rooks, current_state.queens, current_state.kings,
+                                         current_state.occupied_colour[true], current_state.occupied_colour[false], move.promotion);
+                make_move(state_history, position_count, move, zobrist, capture_move);
+                bool prev_no_store = g_no_tt_store;
+                if (Config::ENABLE_PROBCUT_NO_TT_STORE) g_no_tt_store = true;
+                int probcut_score = maximizer(cur_depth + 1, depth_limit - Config::PROBCUT_DEPTH_REDUCTION, probcut_alpha, probcut_alpha + 1, t0,
+                                              state_history, position_count, zobrist, move,
+                                              num_iterations, capture_move, false, is_in_null_search);
+                g_no_tt_store = prev_no_store;
+                unmake_move(state_history, position_count, zobrist);
+                zobrist = cur_hash;
+
+                if (time_up.load(std::memory_order_relaxed))
+                    return 0;
+
+                if (probcut_score <= probcut_alpha && probcut_score > -9000000)
+                    return probcut_score;
+            }
+        }
+
+        // Singular node-entry probe (read-only): the TT-move to verify + its value/depth/bound. excluding =
+        // we are inside an exclusion re-search of THIS node (skip the tested move + don't re-fire singular).
+        bool excluding = Config::ENABLE_SINGULAR && (g_excluded_move[cur_depth].from_square != g_excluded_move[cur_depth].to_square);
+        Move ttMove; int ttScore = 0, ttDepth = -1; TTFlag ttFlag = TTFlag::EXACT; bool haveTT = false;
+        if (Config::ENABLE_SINGULAR && !excluding)
+        {
+            TTEntry *nodeTT = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+            if (nodeTT != nullptr) { ttMove = nodeTT->move; ttScore = nodeTT->score; ttDepth = nodeTT->depth; ttFlag = nodeTT->flag; haveTT = true; }
+            if (haveTT && ttMove.from_square != ttMove.to_square) ++g_sing_eligible;
+        }
+
         for (size_t i = 0; i < moves_list.size(); ++i)
         {
             Move &move = moves_list[i];
+            if (excluding && move == g_excluded_move[cur_depth])
+                continue;
             using_tt = false;
             using_fp = false;
             is_exact_hit = false;
@@ -3223,6 +3451,25 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             // Acquire the zobrist hash for the new position if the given move was made
             bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
 
+            // Singular extension (min side): if this is the TT-move (a fail-low UPPERBOUND) and a shallow
+            // exclusion search of the OTHER moves cannot reach ttScore + margin (stay as low), the move is
+            // uniquely good -> extend it one ply. The exclusion re-searches THIS node (same cur_depth, half
+            // depth, null window at sb) with the move skipped via g_excluded_move; child-store => no TT poison.
+            int singular_extra = 0;
+            if (Config::ENABLE_SINGULAR && !excluding && haveTT && !currently_in_check && move == ttMove &&
+                ttMove.from_square != ttMove.to_square && (depth_limit - cur_depth) >= Config::SINGULAR_MIN_DEPTH &&
+                ttDepth >= (depth_limit - cur_depth) - 3 && ttScore > -9000000 && ttScore < 9000000 &&
+                ttFlag == TTFlag::UPPERBOUND && g_singular_extensions < Config::SINGULAR_MAX_EXT)
+            {
+                ++g_sing_gatepass;
+                int rem = depth_limit - cur_depth;
+                int sb = ttScore + Config::SINGULAR_MARGIN * rem;
+                g_excluded_move[cur_depth] = move;
+                int v = minimizer(cur_depth, cur_depth + rem / 2, sb, sb + 1, t0, sing_dummy_ints, sing_dummy_moves, sing_dummy_entry, state_history, position_count, zobrist, previousMove, num_iterations, last_move_was_capture, false, is_in_null_search);
+                g_excluded_move[cur_depth] = Move();
+                if (v > sb) { ++g_sing_fire; singular_extra = 1; }
+            }
+
             // Assuming `updateZobristHashForMove` is defined elsewhere and works similarly
             updateZobristHashForMove(
                 zobrist,
@@ -3240,8 +3487,13 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 move.promotion);
 
             make_move(state_history, position_count, move, zobrist, capture_move);
-            score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
-                                            position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+            {
+                // Count this singular extension on the path for the duration of its child search so a chain
+                // of singular moves is bounded by SINGULAR_MAX_EXT.
+                SingularExtensionGuard seg(singular_extra > 0);
+                score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit + singular_extra, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
+                                                position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+            }
             if (Config::ENABLE_HISTORY_MALUS)
                 (capture_move ? searched_captures : searched_quiets).push_back(move);
 
@@ -3301,6 +3553,27 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 all_moves_pruned = false;
             }
 
+            // Optimism-triggered verification (minimizing node): this child's score is about to be trusted
+            // (become the new best / cause the cutoff) and it UNDERSHOOTS the node's own static eval by more
+            // than OTV_MARGIN -- the phantom signature here, a score too LOW = the minimizing side is
+            // over-optimistic. Re-search the child (still on the board) with reductions off for the first
+            // OTV_PLIES plies of its subtree; the existing best-score logic below then runs on the corrected
+            // score. Same callee/args as the node's normal full child search, so a fail-high hits the same
+            // full-depth re-search chain.
+            bool verified_this_move = false;
+            if (Config::ENABLE_OTV && !g_in_verify && !verified_this_move &&
+                g_verify_count < Config::OTV_PATH_CAP &&
+                rfp_static_eval != NO_STATIC_EVAL && score < lowest_score &&
+                (!Config::OTV_PV_ONLY || (beta - alpha) > 1) &&
+                (depth_limit - cur_depth) >= Config::OTV_MIN_REMAINING &&
+                (rfp_static_eval - score) > Config::OTV_MARGIN)
+            {
+                VerifyGuard vg(cur_depth, Config::OTV_PLIES);
+                score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
+                                                position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+                verified_this_move = true;
+            }
+
             unmake_move(state_history, position_count, zobrist);
 
             if (time_up.load(std::memory_order_relaxed))
@@ -3332,8 +3605,17 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 if (i == 0)
                     ++g_fh_first;
                 g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
-                if (Config::ENABLE_TT_MOVE)
-                    g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK] = move;
+                // Node-local best-move populate (singular's TT-move): stamp this node's cutoff move onto its
+                // OWN TT entry (key-verified), so singular can verify/exclude it. Move-only write — touches
+                // nothing the search reads until singular does, and the SF move-rule in tt_store preserves it
+                // against the parent's later child-keyed score store. Gated on ENABLE_SINGULAR = byte-identical.
+                // Skip while excluding so a min exclusion re-search doesn't overwrite the node's real TT-move.
+                if (Config::ENABLE_SINGULAR && !excluding)
+                {
+                    TTEntry *nodeEntry = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+                    if (nodeEntry != nullptr)
+                        nodeEntry->move = move;
+                }
                 if (i != 0)
                     updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 
@@ -3451,6 +3733,11 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
     if (time_up.load(std::memory_order_relaxed))
     {
+        return 0;
+    }
+    else if (Config::NODE_LIMIT > 0 && num_iterations >= Config::NODE_LIMIT)
+    {
+        time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
     else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL)
@@ -3585,6 +3872,14 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
         if (depth_limit >= 10)
             reduced_depth -= 1;
+        // Eval-scaled null reduction (HIGH side): the further the pre-null static eval sits ABOVE beta,
+        // the more confidently the null holds -> reduce more. Only when the static eval is already valid.
+        if (Config::ENABLE_NULLMOVE_EVAL_R && rfp_static_eval != NO_STATIC_EVAL)
+        {
+            int extra_R = std::min((rfp_static_eval - beta) / Config::NULLMOVE_R_DIV, Config::NULLMOVE_R_CAP);
+            if (extra_R > 0)
+                reduced_depth -= extra_R;
+        }
         if (Config::NULLMOVE_PROGRESSIVE)
         {
             // Gate on the genuine iteration depth, not the check-extension-inflated depth_limit (see the
@@ -3647,6 +3942,14 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
     std::vector<Move>& moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
     std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
+
+    // OTV needs the node's OWN static eval as the phantom reference. Compute it once here, at the node
+    // position before any child move is made, when OTV is eligible and RFP/null-gate did not already.
+    // Gated on ENABLE_OTV, so the default build computes no extra eval and stays byte-identical.
+    if (Config::ENABLE_OTV && rfp_static_eval == NO_STATIC_EVAL && !g_in_verify && !currently_in_check &&
+        (!Config::OTV_PV_ONLY || (beta - alpha) > 1) &&
+        (depth_limit - cur_depth) >= Config::OTV_MIN_REMAINING)
+        rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
     /* if (create_fen(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
                                 current_state.queens, current_state.kings, current_state.occupied, current_state.occupied_colour[true],
                                 current_state.occupied_colour[false], current_state.promoted, current_state.castling_rights,
@@ -3655,9 +3958,66 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
     } */
 
+    // ProbCut: at a non-PV node with depth to spare, a shallow null-window search a margin ABOVE beta on
+    // the strong captures/promos confirms the position is winning enough to skip the full-depth search.
+    // Self-verifying (the child re-searches), so it holds despite an imperfect static eval. Maximizing side
+    // wants the score HIGH -> push the window UP: a confirmed fail-high past beta+PROBCUT_MARGIN means the
+    // true score is at least beta, so we can cut here.
+    if (Config::ENABLE_PROBCUT && !g_in_verify && !currently_in_check && (beta - alpha) == 1 &&
+        (depth_limit - cur_depth) >= Config::PROBCUT_MIN_DEPTH &&
+        alpha > -9000000 && alpha < 9000000 && beta > -9000000 && beta < 9000000)
+    {
+        int probcut_beta = beta + Config::PROBCUT_MARGIN;
+        int probcut_tried = 0;
+        for (size_t i = 0; i < moves_list.size() && probcut_tried < Config::PROBCUT_CANDIDATES; ++i)
+        {
+            Move &move = moves_list[i];
+            bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
+            bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
+            if (!(capture_move || move.promotion != 1))
+                continue;
+            if (see(move.to_square, current_state.turn, current_state) < 0)
+                continue;
+            ++probcut_tried;
+
+            updateZobristHashForMove(zobrist, move.from_square, move.to_square, capture_move,
+                                     current_state.pawns, current_state.knights, current_state.bishops,
+                                     current_state.rooks, current_state.queens, current_state.kings,
+                                     current_state.occupied_colour[true], current_state.occupied_colour[false], move.promotion);
+            make_move(state_history, position_count, move, zobrist, capture_move);
+            bool prev_no_store = g_no_tt_store;
+            if (Config::ENABLE_PROBCUT_NO_TT_STORE) g_no_tt_store = true;
+            int probcut_score = minimizer(cur_depth + 1, depth_limit - Config::PROBCUT_DEPTH_REDUCTION, probcut_beta - 1, probcut_beta, t0,
+                                          dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move,
+                                          num_iterations, capture_move, false, is_in_null_search);
+            g_no_tt_store = prev_no_store;
+            unmake_move(state_history, position_count, zobrist);
+            zobrist = cur_hash;
+
+            if (time_up.load(std::memory_order_relaxed))
+                return 0;
+
+            if (probcut_score >= probcut_beta && probcut_score < 9000000)
+                return probcut_score;
+        }
+    }
+
+    // Singular node-entry probe (read-only): the TT-move to verify + its value/depth/bound. excluding = we
+    // are inside an exclusion re-search of THIS node (skip the tested move + don't re-fire singular).
+    bool excluding = Config::ENABLE_SINGULAR && (g_excluded_move[cur_depth].from_square != g_excluded_move[cur_depth].to_square);
+    Move ttMove; int ttScore = 0, ttDepth = -1; TTFlag ttFlag = TTFlag::EXACT; bool haveTT = false;
+    if (Config::ENABLE_SINGULAR && !excluding)
+    {
+        TTEntry *nodeTT = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+        if (nodeTT != nullptr) { ttMove = nodeTT->move; ttScore = nodeTT->score; ttDepth = nodeTT->depth; ttFlag = nodeTT->flag; haveTT = true; }
+        if (haveTT && ttMove.from_square != ttMove.to_square) ++g_sing_eligible;
+    }
+
     for (size_t i = 0; i < moves_list.size(); ++i)
     {
         Move &move = moves_list[i];
+        if (excluding && move == g_excluded_move[cur_depth])
+            continue;
         if (dbg_bad_move("maximizer", (int)i, move, current_state))
             continue;
         using_tt = false;
@@ -3680,6 +4040,25 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         // Acquire the zobrist hash for the new position if the given move was made
         bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
 
+        // Singular extension (max side): if this is the TT-move (a fail-high LOWERBOUND) and a shallow
+        // exclusion search of the OTHER moves cannot reach ttScore - margin, the move is uniquely good ->
+        // extend it one ply. The exclusion re-searches THIS node (same cur_depth, half depth, null window at
+        // sb) with the move skipped via g_excluded_move; our child-store architecture => no TT poison.
+        int singular_extra = 0;
+        if (Config::ENABLE_SINGULAR && !excluding && haveTT && !currently_in_check && move == ttMove &&
+            ttMove.from_square != ttMove.to_square && (depth_limit - cur_depth) >= Config::SINGULAR_MIN_DEPTH &&
+            ttDepth >= (depth_limit - cur_depth) - 3 && ttScore > -9000000 && ttScore < 9000000 &&
+            ttFlag == TTFlag::LOWERBOUND && g_singular_extensions < Config::SINGULAR_MAX_EXT)
+        {
+            ++g_sing_gatepass;
+            int rem = depth_limit - cur_depth;
+            int sb = ttScore - Config::SINGULAR_MARGIN * rem;
+            g_excluded_move[cur_depth] = move;
+            int v = maximizer(cur_depth, cur_depth + rem / 2, sb - 1, sb, t0, state_history, position_count, zobrist, previousMove, num_iterations, last_move_was_capture, false, is_in_null_search);
+            g_excluded_move[cur_depth] = Move();
+            if (v < sb) { ++g_sing_fire; singular_extra = 1; }
+        }
+
         // Assuming `updateZobristHashForMove` is defined elsewhere and works similarly
         updateZobristHashForMove(
             zobrist,
@@ -3697,8 +4076,13 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             move.promotion);
 
         make_move(state_history, position_count, move, zobrist, capture_move);
-        score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
-                                        position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+        {
+            // Count this singular extension on the path for the duration of its child search so a chain
+            // of singular moves is bounded by SINGULAR_MAX_EXT.
+            SingularExtensionGuard seg(singular_extra > 0);
+            score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit + singular_extra, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
+                                            position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+        }
         if (Config::ENABLE_HISTORY_MALUS)
             (capture_move ? searched_captures : searched_quiets).push_back(move);
 
@@ -3713,6 +4097,26 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         else
         {
             all_moves_pruned = false;
+        }
+
+        // Optimism-triggered verification (maximizing node): this child's score is about to be trusted
+        // (become the new best / cause the cutoff) and it OVERSHOOTS the node's own static eval by more than
+        // OTV_MARGIN -- the phantom signature here, a score too HIGH = the maximizing side is over-optimistic.
+        // Re-search the child (still on the board) with reductions off for the first OTV_PLIES plies of its
+        // subtree; the existing best-score logic below then runs on the corrected score. Same callee/args as
+        // the node's normal full child search, so a fail-high hits the same full-depth re-search chain.
+        bool verified_this_move = false;
+        if (Config::ENABLE_OTV && !g_in_verify && !verified_this_move &&
+            g_verify_count < Config::OTV_PATH_CAP &&
+            rfp_static_eval != NO_STATIC_EVAL && score > highest_score &&
+            (!Config::OTV_PV_ONLY || (beta - alpha) > 1) &&
+            (depth_limit - cur_depth) >= Config::OTV_MIN_REMAINING &&
+            (score - rfp_static_eval) > Config::OTV_MARGIN)
+        {
+            VerifyGuard vg(cur_depth, Config::OTV_PLIES);
+            score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
+                                            position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+            verified_this_move = true;
         }
 
         /* if(current_state.occupied == 11089329074235302805){
@@ -3811,8 +4215,14 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             if (i == 0)
                 ++g_fh_first;
             g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
-            if (Config::ENABLE_TT_MOVE)
-                g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK] = move;
+            // Node-local best-move populate (singular's TT-move) — see the minimizer cutoff for rationale.
+            // Skip while excluding so a max exclusion re-search doesn't overwrite the node's real TT-move.
+            if (Config::ENABLE_SINGULAR && !excluding)
+            {
+                TTEntry *nodeEntry = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+                if (nodeEntry != nullptr)
+                    nodeEntry->move = move;
+            }
             if (i != 0)
                 updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
 
@@ -4319,6 +4729,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
             {
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
                 bool do_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
+                // Keep reductions off inside an OTV verification window (inert while g_verify_no_reduce_until < 0).
+                do_lmr = do_lmr && !(g_verify_no_reduce_until >= 0 && cur_depth <= g_verify_no_reduce_until);
 
                 if (do_lmr)
                 {
@@ -4504,6 +4916,11 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     }
     if (time_up.load(std::memory_order_relaxed))
     {
+        return 0;
+    }
+    else if (Config::NODE_LIMIT > 0 && num_iterations >= Config::NODE_LIMIT)
+    {
+        time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
     else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL)

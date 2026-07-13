@@ -128,6 +128,10 @@ std::deque<uint64_t> moveGenInsertionOrder; */
 std::vector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
 std::vector<Move> g_ttMoveTable(TT_CACHE_SIZE);
 
+// When true, addToSearchEvalCache is a no-op: used to run a ProbCut verification subtree WITHOUT
+// polluting the shared TT (diagnostic for the +17.5-node / -83-lightning split). Default false.
+bool g_no_tt_store = false;
+
 alignas(64) Move killerMoves[MAX_PLY][2];
 
 alignas(64) Move counterMoves[64][64];
@@ -143,6 +147,8 @@ alignas(64) int contHist2[2][4096][4096] = {};
 alignas(64) int captureHistory[2][64][64] = {};
 
 alignas(64) Move g_searchStack[MAX_PLY] = {};
+alignas(64) Move g_excluded_move[MAX_PLY] = {};
+long g_sing_eligible = 0, g_sing_gatepass = 0, g_sing_fire = 0;
 alignas(64) int g_evalStack[MAX_PLY] = {};
 alignas(64) int g_captureChain[MAX_PLY] = {};
 
@@ -2875,10 +2881,10 @@ inline int evaluate_kings_midgame(uint8_t square, uint64_t white_passed_pawns, u
 				bool isPartialShielding = (isInfront && (BB_SQUARES[r + 8] & occupied_white & pawns) != 0);					
 				if (isShielding) {
 					whiteDefensiveScore += (baseIncrement << 2);
-					total -= (baseIncrement << 2) + 185;									
+					total -= (baseIncrement << 2) + (Config::KS_CONSOLIDATE ? 0 : 185);									
 				}else if(isPartialShielding){
 					whiteDefensiveScore += (baseIncrement << 1);
-					total -= (baseIncrement << 1) + 75;
+					total -= (baseIncrement << 1) + (Config::KS_CONSOLIDATE ? 0 : 75);
 				}else {
 					whiteDefensiveScore += baseIncrement;
 					total += baseIncrement >> 2;
@@ -2942,10 +2948,10 @@ inline int evaluate_kings_midgame(uint8_t square, uint64_t white_passed_pawns, u
 				bool isPartialShielding = (isInfront && (BB_SQUARES[r - 8] & occupied_black & pawns) != 0);					
 				if (isShielding) {
 					blackDefensiveScore += (baseIncrement << 2);
-					total += (baseIncrement << 2) + 185;									
+					total += (baseIncrement << 2) + (Config::KS_CONSOLIDATE ? 0 : 185);									
 				}else if(isPartialShielding){
 					blackDefensiveScore += (baseIncrement << 1);
-					total += (baseIncrement << 1) + 75;
+					total += (baseIncrement << 1) + (Config::KS_CONSOLIDATE ? 0 : 75);
 				}else {
 					blackDefensiveScore += baseIncrement;
 					total -= baseIncrement >> 2;
@@ -5113,6 +5119,63 @@ inline int king_safety_score(uint8_t white_king_square, uint8_t black_king_squar
 	return ks * ks_phase_taper[phase_score] / 256;
 }
 
+/*
+	SF11-style STATIC piece-on-piece threats (no motif finders — search does tactics). For each side, score the
+	enemy's WEAK non-pawn pieces (attacked by us and undefended / attacked more than defended / attacked by a pawn),
+	by the type of our attacker (minor / rook / king / pawn) scaled by the target's value, plus a Hanging bonus.
+	Reuses attackersMask (attackers of a square by a colour). Returns Black-positive milli-pawns: a threat BY White
+	is good for White -> subtracts; a threat BY Black adds. Raw magnitudes are SF-shaped; the SCALE knob (fit-set)
+	sets the level. This is representation our king-directed latent_threat lacks.
+*/
+// Target-value weight by piece type of the threatened piece: [_, knight, bishop, rook, queen].
+static const int THREAT_MINOR[5]   = {0, 550, 550, 850, 800};
+static const int THREAT_ROOK_TBL[5]= {0, 400, 400, 450, 850};
+static const int THREAT_HANGING[5] = {0, 500, 500, 700, 750};
+static const int THREAT_KING_VAL   = 250;
+static const int THREAT_SAFE_PAWN  = 1600;
+
+inline int threats_by(bool by_white){
+	uint64_t our       = by_white ? occupied_white : occupied_black;
+	uint64_t enemy     = by_white ? occupied_black : occupied_white;
+	uint64_t our_pawns = pawns & our;
+	uint64_t our_minor = (knights | bishops) & our;
+	uint64_t our_rooks = rooks & our;
+	uint64_t our_king  = kings & our;
+	uint64_t q_and_r   = queens | rooks;
+	uint64_t q_and_b   = queens | bishops;
+
+	int score = 0;
+	uint64_t targets = enemy & ~pawns & ~kings;   // weak-piece candidates: enemy non-pawn, non-king
+	while (targets){
+		uint8_t s = __builtin_ctzll(targets);
+		targets &= targets - 1;
+		uint64_t attackers = attackersMask(by_white, s, occupied, q_and_r, q_and_b, kings, knights, pawns, our);
+		if (!attackers) continue;
+		uint64_t defenders = attackersMask(!by_white, s, occupied, q_and_r, q_and_b, kings, knights, pawns, enemy);
+		// SF "weak" = attacked by us and NOT strongly protected by an ENEMY PAWN (a piece defended only by other
+		// pieces is still a threat target). The v1 under-defended test was far too strict — it fired on 7k
+		// positions vs SF's 33k. Excluding only pawn-defended pieces matches SF's coverage.
+		uint64_t enemy_pawns = pawns & enemy;
+		if (defenders & enemy_pawns) continue;   // strongly protected by a pawn -> not weak
+
+		bool by_pawn = (attackers & our_pawns) != 0;
+		int na = __builtin_popcountll(attackers), nd = __builtin_popcountll(defenders);
+		uint64_t sm = BB_SQUARES[s];
+		int tgt = (sm & knights) ? 1 : (sm & bishops) ? 2 : (sm & rooks) ? 3 : 4;   // queen = 4
+		if (attackers & our_minor) score += THREAT_MINOR[tgt];
+		if (attackers & our_rooks) score += THREAT_ROOK_TBL[tgt];
+		if (attackers & our_king)  score += THREAT_KING_VAL;
+		if (by_pawn)               score += THREAT_SAFE_PAWN;
+		if (!Config::THREATS_STANDING_ONLY && (nd == 0 || na > nd)) score += THREAT_HANGING[tgt];   // Hanging (volatile) = fenced out under STANDING_ONLY
+	}
+	return score;
+}
+
+// Black-positive milli-pawns (before SCALE): threats by Black (favour Black, +) minus threats by White.
+inline int get_static_threats_score(){
+	return threats_by(false) - threats_by(true);
+}
+
 inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king_square){
 
 	uint64_t white_king_zone = white_king_zones[white_king_square & 7];
@@ -5510,6 +5573,74 @@ inline int chebyshev_distance(int from_sq, int to_sq) {
     int fx = from_sq % 8, fy = from_sq / 8;
     int tx = to_sq % 8, ty = to_sq / 8;
     return std::max(abs(fx - tx), abs(fy - ty));
+}
+
+/* Midgame passer-danger (gated by Config::ENABLE_PASSER_DANGER; see search_engine.h). A passer within
+ * 3 steps of promotion is worth far more than the linear rank bonus prices it -- a supported passer two
+ * steps out with a passive defender is worth close to a rook. Priced as base[s] * realizability(R) / 256:
+ * R starts at 256 and is docked for a quality blockade on the stop square (D1), for each defender-controlled
+ * uncontested path square (D2), and credited when the defender king is too far to help (D4). Reuses the
+ * precomputed attack_bitmasks (populated by the piece evaluators that run before this), so no new attack
+ * generation. Absolute Black-positive convention: a black passer contributes +danger, a white passer
+ * -danger. Caller gates on !isEndGame && !g_eval_light. Returns 0 when the gate is off (default). */
+inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawns) {
+	// Blockade quality by the piece type on the stop square (1=P..6=K): a knight is the canonical blockader,
+	// heavy pieces are poor ones. Index 0 = empty stop square (no blockade). Fixed in v1.
+	static constexpr int BLOCK[7] = {0, 100, 140, 110, 60, 50, 100};
+	const int base[4] = {0, Config::PASSER_DANGER_BASE1, Config::PASSER_DANGER_BASE2, Config::PASSER_DANGER_BASE3};
+	int danger = 0;
+
+	// White passers promote toward rank 7; steps-to-promote s = 7 - rank.
+	uint64_t bb = white_passed_pawns;
+	while (bb) {
+		int sq = __builtin_ctzll(bb); bb &= bb - 1;
+		int s = 7 - (sq >> 3);
+		if (s < 1 || s > 3)
+			continue;
+		int stop = sq + 8;
+		int promo = 56 + (sq & 7);
+		int R = 256;
+		if (occupied & BB_SQUARES[stop]) {
+			int blk = BLOCK[pieceTypeLookUp[stop]];
+			if (attack_bitmasks[stop] & occupied_white)
+				blk >>= 1; // the defender's blocker can be captured/evicted
+			R -= blk;
+		}
+		for (int i = stop; i <= promo; i += 8)
+			if ((attack_bitmasks[i] & occupied_black) && !(attack_bitmasks[i] & occupied_white))
+				R -= Config::PASSER_DANGER_D2;
+		int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_black), promo);
+		R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
+		R = std::clamp(R, 0, 384);
+		danger -= std::min((base[s] * R) >> 8, 4000); // white passer favours White (negative)
+	}
+
+	// Black passers promote toward rank 0; steps-to-promote s = rank.
+	bb = black_passed_pawns;
+	while (bb) {
+		int sq = __builtin_ctzll(bb); bb &= bb - 1;
+		int s = sq >> 3;
+		if (s < 1 || s > 3)
+			continue;
+		int stop = sq - 8;
+		int promo = sq & 7;
+		int R = 256;
+		if (occupied & BB_SQUARES[stop]) {
+			int blk = BLOCK[pieceTypeLookUp[stop]];
+			if (attack_bitmasks[stop] & occupied_black)
+				blk >>= 1;
+			R -= blk;
+		}
+		for (int i = stop; i >= promo; i -= 8)
+			if ((attack_bitmasks[i] & occupied_white) && !(attack_bitmasks[i] & occupied_black))
+				R -= Config::PASSER_DANGER_D2;
+		int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_white), promo);
+		R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
+		R = std::clamp(R, 0, 384);
+		danger += std::min((base[s] * R) >> 8, 4000); // black passer favours Black (positive)
+	}
+
+	return danger;
 }
 
 inline bool is_practically_drawn(int pieceNum) {
@@ -5933,7 +6064,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// Diagnostic-only term-attribution accumulators. These only ever READ `total` and write to locals/globals;
 	// they never feed back into `total`, so the search tree is byte-identical whether capture is on or off.
 	int br_run = 0;
-	int br_pieces = 0, br_capture = 0, br_passed = 0, br_latent = 0, br_central = 0, br_king_safety = 0;
+	int br_pieces = 0, br_capture = 0, br_passed = 0, br_latent = 0, br_central = 0, br_king_safety = 0, br_threats = 0;
 	int br_imbalance_white = 0, br_imbalance_black = 0, br_pairs = 0, br_pv_boost = 0;
 	int br_advanced_total = 0;
 	int br_ae_input = 0;
@@ -6276,10 +6407,23 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
+
+		// SF11-style piece-on-piece static threats — runs in ALL phases (endgame immediate threats are real:
+		// +0.0010 held-out outcome, unlike the midgame-only king terms). Beside capture_gains in both the midgame
+		// and endgame branches, before the PV-boost / advanced_endgame reads of total. Default-off => byte-id.
+		if (Config::ENABLE_THREATS && !g_eval_light){
+			int th = get_static_threats_score();
+			th = (Config::SCALE_THREATS == 100) ? th : (Config::SCALE_THREATS * th / 100);
+			total += th;
+		}
+		br_threats = total - br_run; br_run = total;
+
 		if (!g_eval_light) {
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
 			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
+				if (Config::ENABLE_PASSER_DANGER && !isEndGame)
+					total += passer_danger(white_passed_pawns, black_passed_pawns);
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
@@ -6299,30 +6443,33 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_latent = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 
+		// (threats moved to the both-phase region after capture_gains — immediate threats are all-phase, unlike
+		//  the midgame-only king terms above. See the get_static_threats_score() call further down.)
+
 		// Attack-unit king safety. Default-off (KING_SAFETY_MAG=0, ENABLE_KS_REPLACE_LT=false) => byte-identical
 		// and runs BESIDE latent_threat. With ENABLE_KS_REPLACE_LT it REPLACES latent_threat (skipped above) and
 		// is the sole king-danger term — the structural swap (needs KING_SAFETY_MAG>0 to contribute).
 		if (!g_eval_light) {
-			if (Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0) {
+			bool ks_active = Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0; if (ks_active || g_capture_eval_breakdown) {
 				PROF_BLOCK(PROF_KING_SAFETY);
 				int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score);
 				// Condition the king-danger on whether the attacking side actually backs the attack, so a flat
 				// magnitude stops over-firing on space-less / under-backed "fantasy" attacks (the att5+ static
 				// overshoot). ks is Black-positive: ks>0 => White king in danger (Black attacks), ks<0 => Black
 				// king in danger (White attacks).
-				if (Config::MOD_KS_BACKING){
+				if (ks_active && Config::MOD_KS_BACKING){
 					int threat_side_edge = (ks >= 0) ? (blackPieceVal - whitePieceVal) : (whitePieceVal - blackPieceVal);
 					int sig = std::min(0, threat_side_edge);   // <0 = attacking side under-backed -> damp only
 					ks = (ks * mod_gain(Config::MOD_KS_BACKING, sig, 12, 0, 0, 0)) >> 8;
 				}
-				if (Config::MOD_KS_CONTROL){
+				if (ks_active && Config::MOD_KS_CONTROL){
 					// Attacker's board-control edge over the defender (the imbalance-term signal): a real,
 					// space-backed attack boosts the danger, a control-less one damps it (two-sided).
 					int control_edge = (ks >= 0) ? (blackOffensiveScore - std::max(whiteDefensiveScore, 0))
 					                             : (whiteOffensiveScore - std::max(blackDefensiveScore, 0));
 					ks = (ks * mod_gain(Config::MOD_KS_CONTROL, control_edge, 8, 0, 0, 0)) >> 8;
 				}
-				total += Config::KING_SAFETY_MAG * ks / 100;
+				if (ks_active) total += Config::KING_SAFETY_MAG * ks / 100;
 			}
 		} else if (Config::KS_LIGHT_MAG != 0) {
 			// Light-eval king-pressure SURROGATE: the cheap attack-unit king_safety_score stands in for the
@@ -6549,10 +6696,23 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
+
+		// SF11-style piece-on-piece static threats — runs in ALL phases (endgame immediate threats are real:
+		// +0.0010 held-out outcome, unlike the midgame-only king terms). Beside capture_gains in both the midgame
+		// and endgame branches, before the PV-boost / advanced_endgame reads of total. Default-off => byte-id.
+		if (Config::ENABLE_THREATS && !g_eval_light){
+			int th = get_static_threats_score();
+			th = (Config::SCALE_THREATS == 100) ? th : (Config::SCALE_THREATS * th / 100);
+			total += th;
+		}
+		br_threats = total - br_run; br_run = total;
+
 		if (!g_eval_light) {
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
 			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
+				if (Config::ENABLE_PASSER_DANGER && !isEndGame)
+					total += passer_danger(white_passed_pawns, black_passed_pawns);
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << " after pp: " << total << std::endl;
@@ -6659,6 +6819,59 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		int g = mod_gain(Config::MOD_PIECES_DEFEND, -net_def, 8, 0, 0, 0);
 		int adj = (br_pieces * g) >> 8;
 		total += adj - br_pieces;                             // pull the placement claim toward 0 under net attack
+	}
+
+	// Whole-board mobility imbalance (piece activity) -- the SF-style term our eval lacks. Count squares each
+	// side attacks (from the already-built attack_bitmasks, excluding own-occupied), net Black-positive. Our
+	// PST placement over-credits our pieces' squares while blind to the opponent out-activating us (validated:
+	// the post-refutation leaf over-read correlates -0.5 with our attacked-square edge). ADDITIVE (shifts the
+	// feature ratio, not a damp) and SLOW (moves with the material resolution) => volatility-safe. Default-off.
+	if (Config::ENABLE_MOBILITY){
+		int wmob = 0, bmob = 0;
+		for (int sq = 0; sq < 64; ++sq){
+			uint64_t a = attack_bitmasks[sq];
+			if (!a) continue;
+			uint64_t bit = 1ULL << sq;
+			if ((a & occupied_whiteMask) && !(bit & occupied_whiteMask)) wmob++;
+			if ((a & occupied_blackMask) && !(bit & occupied_blackMask)) bmob++;
+		}
+		total += (bmob - wmob) * Config::MOBILITY_SCALE;   // Black-positive: opponent's activity edge discounts our nominal lead
+	}
+
+	// Realizability damp on the pawn-placement credit (br_pt_pawns) when a pawn/positional lead is NOT
+	// backed by a non-pawn (piece) material edge. The fantasy-vs-real discriminator: real wins are up
+	// ~a piece (npedge large); fantasy wins are pawn-only/positional (npedge ~0) and don't convert. A
+	// clamped linear ramp (not a hard gate: npedge jumps on every trade, so a cliff would let the search
+	// game the boundary). Midgame-only -- a pure pawn endgame has npedge~0 yet converts (KPK), so the
+	// endgame draw-scale lane owns that case; gating here spares winning pawn endgames. Damp-only, cold
+	// tail (once per eval), integer/bitwise, gated default-off = byte-identical.
+	if (Config::ENABLE_NPEDGE_DAMP && !isEndGame && br_pt_pawns != 0){
+		int wnp = __builtin_popcountll(knightsMask & occupied_whiteMask) * values[KNIGHT]
+		        + __builtin_popcountll(bishopsMask & occupied_whiteMask) * values[BISHOP]
+		        + __builtin_popcountll(rooksMask   & occupied_whiteMask) * values[ROOK]
+		        + __builtin_popcountll(queensMask  & occupied_whiteMask) * values[QUEEN];
+		int bnp = __builtin_popcountll(knightsMask & occupied_blackMask) * values[KNIGHT]
+		        + __builtin_popcountll(bishopsMask & occupied_blackMask) * values[BISHOP]
+		        + __builtin_popcountll(rooksMask   & occupied_blackMask) * values[ROOK]
+		        + __builtin_popcountll(queensMask  & occupied_blackMask) * values[QUEEN];
+		// Non-pawn material edge for the side the pawn-placement claim favours (br_pt_pawns is Black-positive).
+		int npedge = (br_pt_pawns > 0) ? (bnp - wnp) : (wnp - bnp);
+		// Clamped linear ramp: 0 (fully unbacked, full damp) at/below LO, 256 (fully backed, no damp) at/above HI.
+		int fnp;
+		if (npedge <= Config::NPEDGE_DAMP_LO) fnp = 0;
+		else if (npedge >= Config::NPEDGE_DAMP_HI) fnp = 256;
+		else fnp = (256 * (npedge - Config::NPEDGE_DAMP_LO)) / (Config::NPEDGE_DAMP_HI - Config::NPEDGE_DAMP_LO);
+		int damp = (Config::NPEDGE_DAMP_MAX * (256 - fnp)) >> 8; // damp depth in /256, capped at NPEDGE_DAMP_MAX
+		// Tactical-tension gate (quiet-only): ramp the damp to zero as pending captures rise, so it fires only
+		// in quiet positions and never disturbs the search's tactical resolution (the sts-stratum leak). 0 = off.
+		if (Config::NPEDGE_DAMP_TQUIET > 0){
+			int tq = Config::NPEDGE_DAMP_TQUIET;
+			int tg = (g_capg_tension >= tq) ? 0 : (256 * (tq - g_capg_tension)) / tq; // /256, 256 at tension 0
+			damp = (damp * tg) >> 8;
+		}
+		int gain = 256 - damp;                                  // retained fraction of the pawn-placement claim
+		int scaled = (br_pt_pawns * gain) >> 8;
+		total += scaled - br_pt_pawns;                          // pull the unbacked pawn-placement claim toward 0
 	}
 
 	// Endgame convertibility scale (env-gated, default off = byte-identical). Damp an unconvertible
@@ -6914,6 +7127,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		g_eval_breakdown.capture_gains = br_capture;
 		g_eval_breakdown.passed_pawn_support = br_passed;
 		g_eval_breakdown.latent_threat = br_latent;
+		g_eval_breakdown.threats = br_threats;
 		g_eval_breakdown.king_safety = br_king_safety;
 		g_eval_breakdown.central = br_central;
 		g_eval_breakdown.imbalance_white = br_imbalance_white;

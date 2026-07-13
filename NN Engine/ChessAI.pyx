@@ -142,6 +142,7 @@ cdef extern from "cpp_bitboard.h":
         int capture_gains
         int passed_pawn_support
         int latent_threat
+        int threats
         int king_safety
         int central
         int imbalance_white
@@ -507,6 +508,7 @@ cdef class ChessAI:
             "capture_gains": b.capture_gains,
             "passed_pawn_support": b.passed_pawn_support,
             "latent_threat": b.latent_threat,
+            "threats": b.threats,
             "king_safety": b.king_safety,
             "central": b.central,
             "imbalance_white": b.imbalance_white,

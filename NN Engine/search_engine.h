@@ -457,6 +457,15 @@ namespace Config
     // self-play SPRT. LATENT_THREAT and CENTRAL contribute only in the midgame path.
     inline int SCALE_PASSED_PAWN   = 100;
     inline int SCALE_LATENT_THREAT = 100;
+
+    // SF11-style piece-on-piece STATIC threats (weak enemies attacked by minor/rook/pawn, hanging pieces) —
+    // representation our king-directed latent_threat lacks (incremental-validity +0.0014 held-out outcome).
+    // Default OFF ⇒ byte-identical. SCALE_THREATS = percent magnitude (fit-set via tune_fit, not hand-cranked).
+    inline bool ENABLE_THREATS = false;
+    inline int  SCALE_THREATS = 100;
+    // Stripped variant: drop the currently-hanging bonus (volatile + double-counts capture_gains' en-prise
+    // sim), keep only the standing underdefended-piece pressure. The leaf-visibility (stage-4) medicine.
+    inline bool THREATS_STANDING_ONLY = false;
     inline int SCALE_CENTRAL       = 100;
     inline int SCALE_CAPTURE_GAINS = 100;
 
@@ -624,6 +633,13 @@ namespace Config
     // latent_threat add entirely and route king danger through king_safety_score (no double-count); needs
     // KING_SAFETY_MAG>0 to do anything. Phase A finds the neutral MAG where the swap is ~0 regression.
     inline bool ENABLE_KS_REPLACE_LT = false;
+    // CONSOLIDATE the flat, un-realizability-conditioned pawn-shelter bonus (the +185/+75 constants in
+    // evaluate_kings_midgame) out of the `pieces` term so shelter is scored ONCE, through the realizability-
+    // conditioned KS_SHIELD inside king_safety_danger, instead of a flat placement constant. Off (default) =
+    // byte-identical: the +185/+75 add as today. On (paired with the KS term) = the flat constants are gated to 0,
+    // moving shelter credit to the conditioned KS site (no double-count). The attack-layer-derived (baseIncrement)
+    // shield credit + the O/D accumulators are untouched (the placement/pressure lens stays intact).
+    inline bool KS_CONSOLIDATE = false;
     inline int KS_LIGHT_MAG    = 0;     // LIGHT-eval king-pressure surrogate scale (g_eval_light path; 0 = off = byte-id)
     inline int KS_ATT_KNIGHT   = 2;     // attack units per enemy knight bearing on the king zone
     inline int KS_ATT_BISHOP   = 2;     // per enemy bishop
@@ -694,6 +710,20 @@ namespace Config
     // (blockade still counts via getPPIncrement PP_BLOCKADE_PEN + rooks). Colour-symmetric.
     inline int PASSER_ENEMY_CREDIT_PCT = 0;   // SHIPPED (collapse bundle): trim the wrong-signed enemy passer credit
 
+    // Midgame passer-DANGER: a passer within 3 steps of promotion is worth far more than the linear rank
+    // bonus prices it (a supported passer 2 steps out with a passive defender ~ a rook). Separate additive
+    // term (NOT spliced into boost_pieces_for_supporting_passed_pawns) = value BASE[s] x realizability(R)/256,
+    // R from cheap detectors on the precomputed attack_bitmasks (blockade quality, path control, defender-king
+    // distance). Midgame-only (endgame path has its own race logic). Black-positive: black passer -> +danger,
+    // white passer -> -danger. Default off (ENABLE_PASSER_DANGER=false) = byte-identical. Free params = the
+    // three BASE magnitudes + the D2 path-control and D4 king-distance scales (BLOCK[] fixed in v1).
+    inline bool ENABLE_PASSER_DANGER = false;
+    inline int PASSER_DANGER_BASE1 = 3500;  // steps-to-promote = 1 (millipawns, pre-realizability)
+    inline int PASSER_DANGER_BASE2 = 2200;  // steps-to-promote = 2
+    inline int PASSER_DANGER_BASE3 = 1200;  // steps-to-promote = 3
+    inline int PASSER_DANGER_D2 = 70;       // realizability penalty per defender-controlled, uncontested path square
+    inline int PASSER_DANGER_D4 = 24;       // realizability bonus per rank the defender king is too far from the promo square
+
     // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
     // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing
     // passer's danger is seen in the midgame (the Tal-bot a-pawn march). When on, the in-AE copy is
@@ -762,6 +792,30 @@ namespace Config
     inline int MOD_PIECES_CONTROL = 0;    // damp placement x the favoured side's offensive-vs-defensive control edge (unbacked activity over-credited; shares the KS_CONTROL detector)
     inline int MOD_PIECES_DEFEND = 0;     // damp placement x the OPPONENT's offensive pressure on the favoured side (a side under attack can't cash a static placement edge; greed-under-attack collapse cluster)
     inline int MOD_PIECES_DEFEND_THRESH = 0; // deadzone on net-attack: only damp when (oppOffense - favOffense) exceeds this (suppress in marginal/sharp positions where placement is load-bearing; cuts collateral)
+
+    // Realizability damp on the pawn-placement credit (br_pt_pawns) when a pawn/positional lead is NOT
+    // backed by a non-pawn (piece) material edge -- the fantasy-vs-real discriminator (real wins are up
+    // ~a piece: npedge ~+4400 engine units; fantasy wins are pawn-only: npedge ~0). Midgame-only (a pure
+    // pawn endgame has npedge~0 yet converts -> the endgame draw-scale lane owns it). Clamped linear ramp
+    // in engine units (pawn=1000), NOT a hard gate (npedge jumps on every trade -> a cliff lets the search
+    // game the boundary). Damp-only, cold tail (once per eval), integer/bitwise, gated default-off = byte-identical.
+    inline bool ENABLE_NPEDGE_DAMP = false;
+    inline int NPEDGE_DAMP_LO = 800;      // non-pawn material edge (engine units) at/below which fully unbacked (full damp)
+    inline int NPEDGE_DAMP_HI = 2500;     // non-pawn material edge at/above which fully backed (no damp; real piece-up wins spared)
+    inline int NPEDGE_DAMP_MAX = 90;      // max damp depth in /256 (90 ~= 0.35 -> floor retains ~65% of the placement claim)
+    inline int NPEDGE_DAMP_TQUIET = 0;    // tactical-tension gate: 0=off (damp fires regardless of tension). When >0,
+                                          // ramp the damp to zero as g_capg_tension rises to this value, so the damp
+                                          // only fires in QUIET positions and never disturbs tactical move-choice
+                                          // (moves_dump showed the damp helps positional strata but scatters the sts/
+                                          // tactical stratum -- gating it off under tension keeps the gain, drops the cost).
+
+    // Whole-board mobility imbalance (piece activity) -- the SF-style term our eval lacks. Our PST placement
+    // is context-blind: it credits our pieces' squares while the opponent out-activates us. Validated: our
+    // post-refutation leaf over-read correlates -0.5 with our attacked-square edge (we over-read +320cp when
+    // the opponent is more mobile vs +74cp when we are). Additive (shifts the feature ratio, not a damp) and
+    // SLOW (attacked-square count moves WITH the material resolution) => volatility-safe. Default-off = byte-identical.
+    inline bool ENABLE_MOBILITY = false;
+    inline int  MOBILITY_SCALE = 40;      // millipawns per net attacked-square edge (Black-positive); tune via the leaf screen
 
     // Eval: replace the per-bishop colour-complex flood-fill (get_bishop_colour_complex_score, profiled
     // at ~33% of the entire midgame eval) with a cheap popcount approximation of the same good/bad-bishop
@@ -852,6 +906,32 @@ namespace Config
     inline int RFP_EVAL_MODE = 0;       // eval_by_mode arg for the RFP/gate eval: 0=full, 1=cheap
     inline bool ENABLE_NULL_EVAL_GATE = false; // only attempt null move when static eval is past beta/alpha
 
+    // ProbCut: node-level, non-PV, not-in-check. At depth to spare, a strong capture whose reduced
+    // null-window search already clears an inflated bound is taken as proof the node cuts -> prune early.
+    // Self-verifying (a shallow SEARCH confirms, not the eval) -> works despite a weak eval. Default off =
+    // byte-identical. Non-negamax: max side pushes beta UP, min side pushes alpha DOWN. Margin in OUR
+    // millipawn units (pawn=1000) -- NOT SF's 189 (different scale).
+    inline bool ENABLE_PROBCUT          = false;
+    inline int  PROBCUT_MARGIN          = 2200;  // sweep ~2000-2500
+    inline int  PROBCUT_MIN_DEPTH       = 5;     // fire only when (depth_limit - cur_depth) >= this
+    inline int  PROBCUT_DEPTH_REDUCTION = 3;     // child target = depth_limit - this => child remaining = rem - 4
+    inline int  PROBCUT_CANDIDATES      = 3;     // max strong captures/promos verified per node
+    inline bool ENABLE_PROBCUT_NO_TT_STORE = false;  // diagnostic: run ProbCut verification WITHOUT writing the TT
+
+    // Singular extensions (anti-phantom): if the TT-move's value is implausibly better than every
+    // alternative (a reduced-depth exclusion search can't reach ttValue - margin), extend it. Default off =
+    // byte-identical (the node-local move-populate + the whole singular block are gated on this flag).
+    inline bool ENABLE_SINGULAR    = false;
+    inline int  SINGULAR_MARGIN    = 2;    // singularBeta = ttValue - Sign * SINGULAR_MARGIN * depth (SF11 v1)
+    inline int  SINGULAR_MIN_DEPTH = 6;    // fire only when (depth_limit - cur_depth) >= this
+    inline int  SINGULAR_MAX_EXT   = 8;    // cap on active singular extensions per root-to-leaf path
+
+    // Eval-scaled null-move reduction: reduce MORE when the static eval is far past the bound (max: eval>>beta,
+    // min: eval<<alpha). We currently have only the FLAT NULLMOVE_EXTRA. Default off = byte-identical.
+    inline bool ENABLE_NULLMOVE_EVAL_R  = false;
+    inline int  NULLMOVE_R_DIV          = 1920;  // millipawns of margin per extra ply (larger = gentler)
+    inline int  NULLMOVE_R_CAP          = 3;     // max extra plies removed
+
     // qsearch quiet-check cost (buildNoisyMoveList). Default off = byte-identical (full board-copy +
     // is_check per quiet move at every q-ply). QCHECK_DEPTH0: include quiet checks only at the first
     // q-ply (qDepth==0), mainstream practice -- shrinks the q-tree. QCHECK_MASK: detect direct checks
@@ -921,10 +1001,36 @@ namespace Config
     // the ply-cost of the deeper re-search that made margin-6000/reduction-1 regress.
     inline int VERIFY_RESEARCH_REDUCTION = 2;
 
+    // Optimism-triggered verification (OTV). When a child's backed-up score is about to be
+    // trusted (become the node's new best / cause the cutoff) AND it overshoots the node's OWN
+    // static eval by more than OTV_MARGIN (the "phantom" signature -- a buried LMR-reduced
+    // refutation the search never re-surfaced), re-search that child with reductions turned OFF
+    // for the first OTV_PLIES plies of its subtree and accept the corrected score. Default off =
+    // byte-identical (the whole mechanism is gated on ENABLE_OTV, and the reductions-off window is
+    // inert while g_verify_no_reduce_until < 0). Games-gated (node_ab / STS), never the static
+    // compass. OTV_MARGIN is in engine units (pawn = 1000). OTV_PATH_CAP bounds re-searches per
+    // root-to-leaf path (via g_verify_count). OTV_PV_ONLY restricts the trigger to full-window
+    // (PV) nodes (beta - alpha > 1). OTV_MIN_REMAINING fires only with at least this much depth
+    // left (depth_limit - cur_depth), where a reduced refutation can actually hide.
+    inline bool ENABLE_OTV = false;
+    inline int OTV_MARGIN = 1750;
+    inline int OTV_PLIES = 2;
+    inline int OTV_PATH_CAP = 3;
+    inline bool OTV_PV_ONLY = true;
+    inline int OTV_MIN_REMAINING = 4;
+
     // Exclusive upper bound on the iterative-deepening depth_limit. Default 64 is
     // the normal play cap (a time-limited preset governs the actual depth reached);
     // set the MAX_DEPTH env knob to 11 to pin the fixed-depth-10 isolation control.
     inline int MAX_ITERATIVE_DEPTH = 64;
+
+    // Fixed-node search cap for the low-variance mid-funnel self-play A/B (deterministic
+    // node budget instead of the clock -> only eval/search decisions differ between arms).
+    // 0 = off (clock-bound, the shipped behavior). When >0, the search stops after this many
+    // total nodes (main + qsearch) via the same time_up fallback as a timeout, returning the
+    // move from the deepest fully-completed iteration. Checked per node (num_iterations is a
+    // plain int), so it is exact at any budget, unlike the 200k-node TIME_CHECK_INTERVAL.
+    inline int NODE_LIMIT = 0;
 
     // Occurrence count at which an in-search repeated position is scored as a draw.
     // Default 2 treats the first repetition on the search path as a draw — the standard,

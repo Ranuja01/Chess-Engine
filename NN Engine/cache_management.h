@@ -71,8 +71,9 @@ struct TTEntry {
     int score;             // Evaluated score
     int depth;             // Depth at which this score was obtained
     TTFlag flag;           // Type of score
-    int alpha = -9999999; // NEW
-    int beta = 9999999;  // NEW
+    Move move;             // Node's best/cutoff move (singular verification); default {0,0,0} = no move
+    int alpha = -9999999; // (dead: written, never read on the live path)
+    int beta = 9999999;  // (dead)
     bool valid = false;
 
 	TTEntry() : score(0), depth(0), flag(TTFlag::EXACT) {}
@@ -139,6 +140,7 @@ struct QTTEntry {
 extern std::vector<QTTEntry> quiesceEvalCache;
 
 extern std::vector<TTEntry> searchEvalCache;
+extern bool g_no_tt_store;   // when true, addToSearchEvalCache is a no-op (ProbCut store-off diagnostic)
 // Hash-move table (TT-move ordering): one remembered beta-cutoff move per TT slot, same size/index as
 // searchEvalCache. Read/written only under Config::ENABLE_TT_MOVE. Default {0,0,0} = "no move".
 extern std::vector<Move> g_ttMoveTable;
@@ -161,6 +163,15 @@ extern int captureHistory[2][64][64];
 // depth d to d+1. A node at depth `ply` reads g_searchStack[ply-2] as the move 2 plies back (the
 // 2-ply continuation key) without threading a previousMove2 param through the search.
 extern Move g_searchStack[MAX_PLY];
+
+// Per-ply singular-exclusion move: g_excluded_move[d] = the TT-move currently being verified at depth d
+// (the singular exclusion search re-enters the node's search with this move skipped). {0,0,0}=none = not
+// excluding. Default all-none, so the move-loop skip and the pruning guards are inert until singular fires.
+extern Move g_excluded_move[MAX_PLY];
+// Singular diagnostics (default off; printed under ENABLE_SINGULAR): eligible TT-move nodes, gate passes,
+// and actual fires (extensions). The null-result confound detector — a low fire rate means TT starvation,
+// not "singular doesn't help".
+extern long g_sing_eligible, g_sing_gatepass, g_sing_fire;
 
 // Per-ply static-eval stack for the improving heuristic: g_evalStack[d] = node-entry static eval at
 // depth d (NO_STATIC_EVAL when in-check or outside the improving window). A node reads [d] vs [d-2].
@@ -404,6 +415,29 @@ inline void updateZobristHashForMove(uint64_t& hash, uint8_t fromSquare, uint8_t
 
 inline void updateZobristHashForNullMove(uint64_t& hash){
 	hash ^= zobristTurn;
+}
+
+/*
+	Pawn-only Zobrist key: a hash of just the pawn placement (both colours), reusing the same
+	zobristTable randoms as the full hash (white pawn = index 0, black pawn = index 6) so it is a
+	strict subset of it. Side-to-move is deliberately excluded — pawn structure is turn-independent,
+	so positions differing only in whose move it is share a pawn key (the point, for structure caching
+	and correction history). Cheap enough (<=16 XORs) to recompute per eval rather than maintain
+	incrementally.
+*/
+inline uint64_t generatePawnKey(uint64_t pawnsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask) {
+	uint64_t key = 0;
+	uint64_t wp = pawnsMask & occupied_whiteMask;
+	while (wp) {
+		key ^= zobristTable[0][__builtin_ctzll(wp)];
+		wp &= wp - 1;
+	}
+	uint64_t bp = pawnsMask & occupied_blackMask;
+	while (bp) {
+		key ^= zobristTable[6][__builtin_ctzll(bp)];
+		bp &= bp - 1;
+	}
+	return key;
 }
 
 inline int accessCache(uint64_t key) {
@@ -800,16 +834,29 @@ inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, in
 }
 
 
-inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int depth_used, TTFlag flag, int alpha_orig, int beta_orig, uint64_t castling_rights, int ep_square) {
-    
+inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int depth_used, TTFlag flag, int alpha_orig, int beta_orig, uint64_t castling_rights, int ep_square, Move move = Move()) {
+
+	if (g_no_tt_store)
+		return;
 	if (score >= 9000000 || score <= -9000000 || score == 0)
 		return;
 
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 
+    // Best-move field (SF rule): store a REAL move, or reset it when the slot now holds a DIFFERENT position;
+    // done independently of the depth-preferred score gate below so the deepest same-position entries still
+    // receive the node's move (else singular starves on exactly the best entries). A no-move store on the
+    // SAME key preserves the existing move (a child-keyed score store must not erase a node-local move).
+    // move stays {0,0,0}=none for every caller until the node-local accept-point stores populate it, so this
+    // is inert (byte-identical) until singular reads it.
+    bool real_move = (move.from_square != move.to_square);
+
     if (Config::TT_WAYS <= 1) {
         size_t idx = updatedKey & TT_CACHE_MASK;
         TTEntry& entry = searchEvalCache[idx];
+
+        if (real_move || (updatedKey != entry.key))
+            entry.move = move;
 
         // Take the slot on a new/colliding key, or replace a same-position entry only
         // when the new search is equal-or-deeper (depth-preferred). num_plies is unused now.
@@ -825,29 +872,32 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
         return;
     }
 
-    // N-way set-associative replacement: prefer an empty slot, then a same-position slot if the new
-    // search is equal-or-deeper (deeper existing entries are kept), otherwise evict the shallowest
-    // entry in the bucket so expensive deep entries survive collisions.
+    // N-way set-associative: pick the target slot (empty, same-position, or shallowest victim), then apply
+    // the same move + depth-preferred score rules. Non-same-position victims are always taken (cross-position
+    // eviction); same-position score is kept when the existing entry is deeper.
     size_t base = (updatedKey & (TT_CACHE_SIZE / Config::TT_WAYS - 1)) * Config::TT_WAYS;
     TTEntry* victim = nullptr;
     for (int i = 0; i < Config::TT_WAYS; ++i) {
         TTEntry& e = searchEvalCache[base + i];
         if (!e.valid) { victim = &e; break; }
-        if (e.key == updatedKey) {
-            if (e.depth <= depth_used) { victim = &e; break; }
-            return;
-        }
+        if (e.key == updatedKey) { victim = &e; break; }
         if (victim == nullptr || e.depth < victim->depth)
             victim = &e;
     }
+    TTEntry& entry = *victim;
 
-    victim->key = updatedKey;
-    victim->score = score;
-    victim->depth = depth_used;
-    victim->flag = flag;
-    victim->alpha = alpha_orig;
-    victim->beta = beta_orig;
-    victim->valid = true;
+    if (real_move || (updatedKey != entry.key))
+        entry.move = move;
+
+    if ((updatedKey != entry.key) || (entry.depth <= depth_used)) {
+        entry.key = updatedKey;
+        entry.score = score;
+        entry.depth = depth_used;
+        entry.flag = flag;
+        entry.alpha = alpha_orig;
+        entry.beta = beta_orig;
+        entry.valid = true;
+    }
 }
 
 

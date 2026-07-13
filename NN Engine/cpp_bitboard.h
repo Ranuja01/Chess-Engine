@@ -346,6 +346,7 @@ struct EvalBreakdown {
 	int capture_gains;
 	int passed_pawn_support;
 	int latent_threat;
+	int threats;   // SF11-style piece-on-piece static threats (0 unless ENABLE_THREATS; additive, beside latent_threat)
 	int king_safety;   // attack-unit king-safety term (0 unless KING_SAFETY_MAG > 0; additive, beside latent_threat)
 	int central;
 	int imbalance_white;

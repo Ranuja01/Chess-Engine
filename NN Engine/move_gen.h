@@ -555,6 +555,12 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 
 	{
 	PROF_BLOCK(PROF_MG_GEN);
+	// Slider blockers + checker mask + king square are node-invariant (identical across the attack and
+	// quiet gen passes below); compute once here and pass into every processMaskPairs call.
+	uint8_t king = 63 - __builtin_clzll(kingsMask & ourPieces);
+	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
+	uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
+
 	std::array<MaskPair, 12> attack_pairs = {
 		MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
 
@@ -580,7 +586,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	};
 
 	processMaskPairs(attack_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-					 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+					 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 	
 	/* generateLegalMoves(preliminaryStartPos, preliminaryEndPos, preliminaryPromotions, preliminary_castling_mask,
                            from_mask & ourPieces,
@@ -601,7 +607,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		};
 
 		processMaskPairs(quiet_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-						 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+						 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 
 	} else{
 		if (isNearGameEnd){
@@ -621,7 +627,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			};
 
 			processMaskPairs(quiet_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 		} else {
 			std::array<MaskPair, 4> quiet_pairs = {
 
@@ -639,7 +645,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 
 			};
 			processMaskPairs(quiet_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 		}
 	}
 	} // PROF_MG_GEN
@@ -818,7 +824,12 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove) {
 	PROF_BLOCK(PROF_MOVEGEN);
 
-	
+	// Slider blockers + checker mask + king square are node-invariant (identical across the attack and
+	// quiet gen passes below); compute once here and pass into every processMaskPairs call.
+	uint8_t king = 63 - __builtin_clzll(kingsMask & ourPieces);
+	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
+	uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
+
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
 	bool isEndGame;
 	bool isNearGameEnd;
@@ -871,7 +882,7 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 	};
 
 	processMaskPairs(attack_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-					 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+					 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 
 	if (!isEndGame){
 		std::array<MaskPair, 4> quiet_pairs = {
@@ -882,7 +893,7 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 		};
 
 		processMaskPairs(quiet_pairs, quietStartPos, quietEndPos, quietPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+								opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 
 	} else{
 		if (isNearGameEnd){
@@ -902,7 +913,7 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 			};
 
 			processMaskPairs(quiet_pairs, quietStartPos, quietEndPos, quietPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 		} else {
 			std::array<MaskPair, 4> quiet_pairs = {
 
@@ -920,7 +931,7 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 
 			};
 			processMaskPairs(quiet_pairs, quietStartPos, quietEndPos, quietPromotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);	
+							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
 		}
 	}
 
@@ -957,12 +968,9 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 template<std::size_t N>
 void processMaskPairs(const std::array<MaskPair, N>& mask_pairs, std::vector<uint8_t>& startPos, std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask,
 	                  uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-                      uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
-    // King square, slider blockers and checker mask are invariant across the piece-type pairs of
-    // this node, so derive them once here rather than inside each generateLegalMoves call.
-    uint8_t king = 63 - __builtin_clzll(kingsMask & ourPieces);
-    uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
-    uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
+                      uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, uint8_t king, uint64_t blockers, uint64_t checkers){
+    // King square, slider blockers and checker mask are invariant across the piece-type pairs of this
+    // node AND across the attack/quiet gen split, so they are computed once by the caller and passed in.
 
     for (const MaskPair& pair : mask_pairs) {
         uint64_t from = pair.from_mask;

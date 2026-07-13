@@ -194,6 +194,140 @@ namespace
     };
     LmrProfile g_lmr;
 
+    // statScore distribution profile (diagnostic only, gated on ENABLE_STATSCORE_PROFILE): a coarse
+    // histogram of the raw continuous statScore, used offline to derive our own OFFSET (median) and
+    // DIVISOR (P95 spread) for the continuous statScore-LMR channel. Bucketed linearly so percentiles
+    // are a cumulative walk; out-of-range samples clamp to the end buckets (counted separately).
+    constexpr int SS_BUCKETS = 512;
+    constexpr long SS_BUCKET_W = 1024;        // statScore units per bucket (percentile resolution)
+    constexpr long SS_HALF = SS_BUCKETS / 2;  // zero-centered: bucket b covers [(b-HALF)*W, (b-HALF+1)*W)
+    struct StatScoreProfile
+    {
+        long hist[SS_BUCKETS] = {};
+        long n = 0, clamped_lo = 0, clamped_hi = 0;
+        long long sum = 0;
+        long minv = (1L << 62), maxv = -(1L << 62);
+    };
+    StatScoreProfile g_ss;
+
+    inline void statscore_profile_record(long s)
+    {
+        g_ss.n++;
+        g_ss.sum += s;
+        if (s < g_ss.minv)
+            g_ss.minv = s;
+        if (s > g_ss.maxv)
+            g_ss.maxv = s;
+        long idx = s / SS_BUCKET_W + SS_HALF;
+        if (idx < 0)
+        {
+            g_ss.clamped_lo++;
+            idx = 0;
+        }
+        else if (idx >= SS_BUCKETS)
+        {
+            g_ss.clamped_hi++;
+            idx = SS_BUCKETS - 1;
+        }
+        g_ss.hist[idx]++;
+    }
+
+    // Lower-edge statScore value at cumulative fraction `frac` of the samples (percentile).
+    inline long statscore_percentile(double frac)
+    {
+        if (g_ss.n == 0)
+            return 0;
+        long target = (long)(frac * g_ss.n);
+        long cum = 0;
+        for (int b = 0; b < SS_BUCKETS; ++b)
+        {
+            cum += g_ss.hist[b];
+            if (cum >= target)
+                return (b - SS_HALF) * SS_BUCKET_W;
+        }
+        return (SS_BUCKETS - SS_HALF) * SS_BUCKET_W;
+    }
+
+    // Prune-shadow wrong-prune tallies (diagnostic; gated on ENABLE_PRUNE_SHADOW). "enter" = the shadow
+    // search of a pruned move would have entered the node's window (a wrong prune); "cut" = it would have
+    // caused a cutoff (a strong wrong prune). Sampler is a deterministic 1-in-SHADOW_N counter, suppressed
+    // during a shadow search (g_in_shadow) so shadows never nest.
+    struct ShadowProfile
+    {
+        long lmp_seen = 0, lmp_enter = 0, lmp_cut = 0;
+        long fut_seen = 0, fut_enter = 0, fut_cut = 0;
+        long sampler = 0;
+    };
+    ShadowProfile g_shadow;
+    bool g_in_shadow = false;
+
+    inline bool shadow_fire()
+    {
+        if (g_in_shadow || Config::SHADOW_N <= 0)
+            return false;
+        return (++g_shadow.sampler % Config::SHADOW_N) == 0;
+    }
+
+    // Record a shadow result. minimizer: entered window if shadow < beta, cutoff if shadow <= alpha.
+    // maximizer (mirror): entered if shadow > alpha, cutoff if shadow >= beta.
+    inline void shadow_record(bool is_lmp, bool minimizer, int shadow, int alpha, int beta)
+    {
+        bool entered = minimizer ? (shadow < beta) : (shadow > alpha);
+        bool cut = minimizer ? (shadow <= alpha) : (shadow >= beta);
+        if (is_lmp)
+        {
+            g_shadow.lmp_seen++;
+            if (entered) g_shadow.lmp_enter++;
+            if (cut) g_shadow.lmp_cut++;
+        }
+        else
+        {
+            g_shadow.fut_seen++;
+            if (entered) g_shadow.fut_enter++;
+            if (cut) g_shadow.fut_cut++;
+        }
+    }
+
+    // Cutoff-calibration logger (diagnostic; ENABLE_CUTCAL_LOG). At each quiet beta-cutoff the labels are
+    // known for free: the cutting quiet CUT, the tried-and-failed quiets (searched_quiets) FAILED. Bucket
+    // both by their statScore (same sum the shipped statScore-LMR reads) to build P(cut | statScore) and the
+    // 0-bucket composition -- does statScore=0 hold a large tried-and-failed population with low P(cut) that
+    // malus could separate from never-tried? That is the measure-first gate for reviving gravity/malus.
+    struct CutCalProfile { long cut[SS_BUCKETS] = {}, fail[SS_BUCKETS] = {}; long tf_cut[4] = {}, tf_fail[4] = {}; };
+    CutCalProfile g_cutcal;
+    long g_tf_count[2][64][64] = {};   // per-search tried-and-failed count per (side,from,to); reset each get_engine_move
+
+    // Decoupled cut-rate table (Config::ENABLE_QCUT): gravity-bounded signed history read ONLY by
+    // statScore-LMR, never by ordering. Reset per search. qcut_update = the standard gravity form,
+    // parameterized bound so QCUT stays independent of the ordering tables' MAX_HISTORY.
+    int g_qcut[2][64][64] = {};
+    inline void qcut_update(int &h, int delta, int bound)
+    {
+        if (delta > bound) delta = bound;
+        else if (delta < -bound) delta = -bound;
+        int ad = delta < 0 ? -delta : delta;
+        h += delta - h * ad / bound;
+    }
+
+    inline long cutcal_statscore(const Move &m, const Move &pm, const Move &p2, bool turn)
+    {
+        long s = historyHeuristics[turn][m.from_square][m.to_square];
+        if (pm.from_square != pm.to_square)
+            s += counterMoveHeuristics[turn][pm.from_square * 64 + pm.to_square][m.from_square * 64 + m.to_square];
+        if (p2.from_square != p2.to_square)
+            s += contHist2[turn][p2.from_square * 64 + p2.to_square][m.from_square * 64 + m.to_square];
+        return s;
+    }
+
+    inline void cutcal_record(long statScore, bool cut)
+    {
+        long idx = statScore / SS_BUCKET_W + SS_HALF;
+        if (idx < 0) idx = 0;
+        else if (idx >= SS_BUCKETS) idx = SS_BUCKETS - 1;
+        if (cut) g_cutcal.cut[idx]++;
+        else g_cutcal.fail[idx]++;
+    }
+
     inline int lmr_phase_bucket(const BoardState &s)
     {
         int phase = 4 * __builtin_popcountll(s.queens) + 2 * __builtin_popcountll(s.rooks) + __builtin_popcountll(s.bishops | s.knights);
@@ -348,6 +482,38 @@ inline int eval_by_mode(int mode, std::vector<BoardState> &state_history, uint64
 
 inline int history_lmr_delta(const Move &move, const Move &previousMove, const BoardState &cs, int ply)
 {
+    // Continuous statScore channel: a graded, two-sided generalization of the tiered logic below. Sum the
+    // history tables into one statScore and map it smoothly to a signed reduction delta (positive =
+    // reduce-less, negative = reduce-more). Env-gated; off = the tiered path runs unchanged (byte-identical).
+    if (Config::ENABLE_STATSCORE_LMR)
+    {
+        long statScore = (long)Config::STATSCORE_MAIN_W * historyHeuristics[cs.turn][move.from_square][move.to_square];
+        if (previousMove.from_square != previousMove.to_square)
+            statScore += (long)Config::STATSCORE_CONT1_W *
+                         counterMoveHeuristics[cs.turn][previousMove.from_square * 64 + previousMove.to_square]
+                                              [move.from_square * 64 + move.to_square];
+        if (ply >= 2)
+        {
+            Move p2 = g_searchStack[ply - 2];
+            if (p2.from_square != p2.to_square)
+                statScore += (long)Config::STATSCORE_CONT2_W *
+                             contHist2[cs.turn][p2.from_square * 64 + p2.to_square]
+                                      [move.from_square * 64 + move.to_square];
+        }
+        if (Config::ENABLE_QCUT)
+            statScore += (long)Config::QCUT_LAMBDA * g_qcut[cs.turn][move.from_square][move.to_square] / 256;
+        if (Config::ENABLE_STATSCORE_PROFILE)
+            statscore_profile_record(statScore);
+        int delta = (int)((statScore - Config::STATSCORE_OFFSET) / Config::STATSCORE_DIVISOR);
+        // Structural overlay (independent knob): a killer at this ply or the counter to the previous move
+        // gets extra reduce-less on top of the continuous delta. 0 = pure-continuous.
+        if (Config::STATSCORE_KILLER_BONUS > 0 &&
+            (killerMoves[ply][0] == move || killerMoves[ply][1] == move ||
+             counterMoves[previousMove.from_square][previousMove.to_square] == move))
+            delta += Config::STATSCORE_KILLER_BONUS;
+        return std::clamp(delta, -Config::STATSCORE_CLAMP, Config::STATSCORE_CLAMP);
+    }
+
     int tier = lmr_hist_tier(historyHeuristics[cs.turn][move.from_square][move.to_square]);
 
     int reduce_less = 0;
@@ -461,6 +627,87 @@ static void lmr_profile_dump()
     std::cerr << "=========================================\n";
 }
 
+// Dump the statScore distribution (diagnostic; gated on ENABLE_STATSCORE_PROFILE). Read the median (P50)
+// as STATSCORE_OFFSET and DIVISOR ~= round((P97.5 - P2.5)/2 / 1.5) to seed the continuous channel.
+static void statscore_profile_dump()
+{
+    std::cerr << "\n===== statScore profile =====\n";
+    std::cerr << "n=" << g_ss.n;
+    if (g_ss.n)
+    {
+        std::cerr << "  mean=" << (double)g_ss.sum / g_ss.n
+                  << "  min=" << g_ss.minv << "  max=" << g_ss.maxv
+                  << "  P2.5=" << statscore_percentile(0.025)
+                  << "  P50=" << statscore_percentile(0.5)
+                  << "  P97.5=" << statscore_percentile(0.975)
+                  << "  clamped(lo/hi)=" << g_ss.clamped_lo << "/" << g_ss.clamped_hi;
+        long p50 = statscore_percentile(0.5);
+        long spread = (statscore_percentile(0.975) - statscore_percentile(0.025)) / 2;
+        std::cerr << "\nsuggest: STATSCORE_OFFSET=" << p50
+                  << " STATSCORE_DIVISOR=" << (long)(spread / 1.5 + 0.5);
+    }
+    std::cerr << "\n=============================\n";
+}
+
+// Dump per-mechanism wrong-prune rates (diagnostic; gated on ENABLE_PRUNE_SHADOW). "enter%" = fraction of
+// sampled pruned moves that would have entered the node window; "cut%" = fraction that would have cut.
+static void shadow_profile_dump()
+{
+    std::cerr << "\n===== prune-shadow wrong-prune rates (1/" << Config::SHADOW_N << " sampled) =====\n";
+    if (g_shadow.lmp_seen)
+        std::cerr << "LMP:      sampled=" << g_shadow.lmp_seen
+                  << "  enter=" << g_shadow.lmp_enter << " (" << (100.0 * g_shadow.lmp_enter / g_shadow.lmp_seen) << "%)"
+                  << "  cut=" << g_shadow.lmp_cut << " (" << (100.0 * g_shadow.lmp_cut / g_shadow.lmp_seen) << "%)\n";
+    if (g_shadow.fut_seen)
+        std::cerr << "Futility: sampled=" << g_shadow.fut_seen
+                  << "  enter=" << g_shadow.fut_enter << " (" << (100.0 * g_shadow.fut_enter / g_shadow.fut_seen) << "%)"
+                  << "  cut=" << g_shadow.fut_cut << " (" << (100.0 * g_shadow.fut_cut / g_shadow.fut_seen) << "%)\n";
+    std::cerr << "=========================================================\n";
+}
+
+// Dump the reliability curve P(cut | statScore) + the 0-bucket composition (diagnostic; ENABLE_CUTCAL_LOG).
+// If the [0,1024) band holds a large low-P(cut) fail population, malus (which would push those repeated
+// failures negative) has calibration information the current non-negative history cannot express.
+static void cutcal_profile_dump()
+{
+    long tc = 0, tf = 0;
+    for (int b = 0; b < SS_BUCKETS; ++b) { tc += g_cutcal.cut[b]; tf += g_cutcal.fail[b]; }
+    long n = tc + tf;
+    std::cerr << "\n===== cutoff-calibration  P(cut | statScore) =====\n";
+    std::cerr << "samples=" << n << "  cut=" << tc << "  fail=" << tf
+              << "  overall_P(cut)=" << (n ? (double)tc / n : 0.0) << "\n";
+    const long thr[6] = {0, 1024, 2048, 4096, 8192, 16384};
+    long bcut[6] = {}, bfail[6] = {}, negc = 0, negf = 0;
+    for (int b = 0; b < SS_BUCKETS; ++b)
+    {
+        long edge = (long)(b - SS_HALF) * SS_BUCKET_W;
+        if (edge < 0) { negc += g_cutcal.cut[b]; negf += g_cutcal.fail[b]; continue; }
+        int band = 0;
+        for (int k = 0; k < 6; ++k) if (edge >= thr[k]) band = k;
+        bcut[band] += g_cutcal.cut[b]; bfail[band] += g_cutcal.fail[b];
+    }
+    if (negc + negf)
+        std::cerr << "  statScore<0      : n=" << (negc + negf) << "  P(cut)=" << (double)negc / (negc + negf) << "\n";
+    for (int k = 0; k < 6; ++k)
+    {
+        long bn = bcut[k] + bfail[k];
+        if (bn) std::cerr << "  statScore>=" << thr[k] << "\t: n=" << bn << "  P(cut)=" << (double)bcut[k] / bn << "\n";
+    }
+    long zc = g_cutcal.cut[SS_HALF], zf = g_cutcal.fail[SS_HALF];
+    std::cerr << "0-bucket [0,1024): cut=" << zc << " fail=" << zf
+              << "  P(cut)=" << ((zc + zf) ? (double)zc / (zc + zf) : 0.0)
+              << "   (this fail count = tried-and-failed reading ~0 = malus's target; "
+              << (tf ? 100.0 * zf / tf : 0.0) << "% of ALL fails)\n";
+    std::cerr << "0-bucket split by tried-fail count -- the malus test (does more-failed => lower P(cut)?):\n";
+    for (int t = 0; t < 4; ++t)
+    {
+        long bn = g_cutcal.tf_cut[t] + g_cutcal.tf_fail[t];
+        if (bn) std::cerr << "  tf=" << t << (t == 3 ? "+" : "") << "\t: n=" << bn
+                          << "  P(cut)=" << (double)g_cutcal.tf_cut[t] / bn << "\n";
+    }
+    std::cerr << "=================================================\n";
+}
+
 void initialize_engine(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bool turn, bool side_to_play)
 {
 
@@ -514,6 +761,26 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::HISTORY_LMR_MORE_CAP = env_int("HISTORY_LMR_MORE_CAP", Config::HISTORY_LMR_MORE_CAP);
         Config::HISTORY_LMR_SCALE = env_int("HISTORY_LMR_SCALE", Config::HISTORY_LMR_SCALE);
         Config::HISTORY_LMR_SCALE_CAP = env_int("HISTORY_LMR_SCALE_CAP", Config::HISTORY_LMR_SCALE_CAP);
+        // Continuous statScore-LMR (default off = byte-identical; the tiered path above runs unchanged).
+        Config::ENABLE_STATSCORE_LMR = env_flag("ENABLE_STATSCORE_LMR", Config::ENABLE_STATSCORE_LMR);
+        Config::STATSCORE_OFFSET = env_int("STATSCORE_OFFSET", Config::STATSCORE_OFFSET);
+        Config::STATSCORE_DIVISOR = env_int("STATSCORE_DIVISOR", Config::STATSCORE_DIVISOR);
+        if (Config::STATSCORE_DIVISOR < 1) Config::STATSCORE_DIVISOR = 1;
+        Config::STATSCORE_CLAMP = env_int("STATSCORE_CLAMP", Config::STATSCORE_CLAMP);
+        Config::STATSCORE_MAIN_W = env_int("STATSCORE_MAIN_W", Config::STATSCORE_MAIN_W);
+        Config::STATSCORE_CONT1_W = env_int("STATSCORE_CONT1_W", Config::STATSCORE_CONT1_W);
+        Config::STATSCORE_CONT2_W = env_int("STATSCORE_CONT2_W", Config::STATSCORE_CONT2_W);
+        Config::STATSCORE_KILLER_BONUS = env_int("STATSCORE_KILLER_BONUS", Config::STATSCORE_KILLER_BONUS);
+        Config::ENABLE_STATSCORE_PROFILE = env_flag("ENABLE_STATSCORE_PROFILE", Config::ENABLE_STATSCORE_PROFILE);
+        Config::ENABLE_PRUNE_SHADOW = env_flag("ENABLE_PRUNE_SHADOW", Config::ENABLE_PRUNE_SHADOW);
+        Config::SHADOW_N = env_int("SHADOW_N", Config::SHADOW_N);
+        Config::ENABLE_CUTCAL_LOG = env_flag("ENABLE_CUTCAL_LOG", Config::ENABLE_CUTCAL_LOG);
+        Config::ENABLE_QCUT = env_flag("ENABLE_QCUT", Config::ENABLE_QCUT);
+        Config::QCUT_LAMBDA = env_int("QCUT_LAMBDA", Config::QCUT_LAMBDA);
+        Config::QCUT_MAX = env_int("QCUT_MAX", Config::QCUT_MAX);
+        if (Config::QCUT_MAX < 1) Config::QCUT_MAX = 1;
+        Config::QCUT_MALUS_DIV = env_int("QCUT_MALUS_DIV", Config::QCUT_MALUS_DIV);
+        if (Config::QCUT_MALUS_DIV < 1) Config::QCUT_MALUS_DIV = 1;
         Config::ENABLE_LMR_CAPCHAIN = env_flag("ENABLE_LMR_CAPCHAIN", Config::ENABLE_LMR_CAPCHAIN);
         Config::CAPCHAIN_REDUCE_LESS = env_int("CAPCHAIN_REDUCE_LESS", Config::CAPCHAIN_REDUCE_LESS);
         Config::CAPCHAIN_RUN_THRESH = env_int("CAPCHAIN_RUN_THRESH", Config::CAPCHAIN_RUN_THRESH);
@@ -817,6 +1084,22 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
                   << " HISTORY_LMR_SCALE=" << Config::HISTORY_LMR_SCALE
                   << " HISTORY_LMR_SCALE_CAP=" << Config::HISTORY_LMR_SCALE_CAP
+                  << " ENABLE_STATSCORE_LMR=" << Config::ENABLE_STATSCORE_LMR
+                  << " STATSCORE_OFFSET=" << Config::STATSCORE_OFFSET
+                  << " STATSCORE_DIVISOR=" << Config::STATSCORE_DIVISOR
+                  << " STATSCORE_CLAMP=" << Config::STATSCORE_CLAMP
+                  << " STATSCORE_MAIN_W=" << Config::STATSCORE_MAIN_W
+                  << " STATSCORE_CONT1_W=" << Config::STATSCORE_CONT1_W
+                  << " STATSCORE_CONT2_W=" << Config::STATSCORE_CONT2_W
+                  << " STATSCORE_KILLER_BONUS=" << Config::STATSCORE_KILLER_BONUS
+                  << " ENABLE_STATSCORE_PROFILE=" << Config::ENABLE_STATSCORE_PROFILE
+                  << " ENABLE_PRUNE_SHADOW=" << Config::ENABLE_PRUNE_SHADOW
+                  << " SHADOW_N=" << Config::SHADOW_N
+                  << " ENABLE_CUTCAL_LOG=" << Config::ENABLE_CUTCAL_LOG
+                  << " ENABLE_QCUT=" << Config::ENABLE_QCUT
+                  << " QCUT_LAMBDA=" << Config::QCUT_LAMBDA
+                  << " QCUT_MAX=" << Config::QCUT_MAX
+                  << " QCUT_MALUS_DIV=" << Config::QCUT_MALUS_DIV
                   << " ENABLE_LMR_CAPCHAIN=" << Config::ENABLE_LMR_CAPCHAIN
                   << " CAPCHAIN_REDUCE_LESS=" << Config::CAPCHAIN_REDUCE_LESS
                   << " CAPCHAIN_RUN_THRESH=" << Config::CAPCHAIN_RUN_THRESH
@@ -1168,6 +1451,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     std::fill(&killerMoves[0][0], &killerMoves[0][0] + 64 * 2, Move{});
     std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
     std::fill(&g_searchStack[0], &g_searchStack[0] + MAX_PLY, Move{});
+    if (Config::ENABLE_CUTCAL_LOG)
+        std::fill(&g_tf_count[0][0][0], &g_tf_count[0][0][0] + 2 * 64 * 64, 0L);
+    if (Config::ENABLE_QCUT)
+        std::fill(&g_qcut[0][0][0], &g_qcut[0][0][0] + 2 * 64 * 64, 0);
     std::fill(&g_evalStack[0], &g_evalStack[0] + MAX_PLY, NO_STATIC_EVAL);
     std::fill(&g_captureChain[0], &g_captureChain[0] + MAX_PLY, 0);
     /* std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
@@ -1450,6 +1737,15 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
     if (Config::LMR_PROFILE)
         lmr_profile_dump();
+
+    if (Config::ENABLE_STATSCORE_PROFILE)
+        statscore_profile_dump();
+
+    if (Config::ENABLE_PRUNE_SHADOW)
+        shadow_profile_dump();
+
+    if (Config::ENABLE_CUTCAL_LOG)
+        cutcal_profile_dump();
 
 #ifdef EVAL_PROFILE
     eval_profile_dump("search");   // whole-search cycle breakdown (eval terms + MOVEGEN/MAKEUNMAKE/TT_PROBE)
@@ -1883,7 +2179,16 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 {
                     int rd = depth_limit - cur_depth;
                     if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
+                    {
+                        if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
+                        {
+                            g_in_shadow = true;
+                            int shadow = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                            g_in_shadow = false;
+                            shadow_record(true, true, shadow, alpha, beta);
+                        }
                         return 9999999;   // non-improving sentinel for the minimizer (never the new min, no false cutoff)
+                    }
                 }
 
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
@@ -1919,6 +2224,13 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
 
                         if (Config::ENABLE_FUTILITY && (early_score - FUTILITY_MARGINS[depth_limit - cur_depth - 1] > beta))
                         {
+                            if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
+                            {
+                                g_in_shadow = true;
+                                int shadow = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                                g_in_shadow = false;
+                                shadow_record(false, true, shadow, alpha, beta);
+                            }
                             using_fp = true;
                             return early_score;
                         }
@@ -2198,7 +2510,16 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 {
                     int rd = depth_limit - cur_depth;
                     if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
+                    {
+                        if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
+                        {
+                            g_in_shadow = true;
+                            int shadow = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                            g_in_shadow = false;
+                            shadow_record(true, false, shadow, alpha, beta);
+                        }
                         return -9999999;   // non-improving sentinel for the maximizer (never the new max, no false cutoff)
+                    }
                 }
 
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
@@ -2233,6 +2554,13 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, true);
                         if (Config::ENABLE_FUTILITY && (early_score + FUTILITY_MARGINS[depth_limit - cur_depth - 1] < alpha))
                         {
+                            if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
+                            {
+                                g_in_shadow = true;
+                                int shadow = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                                g_in_shadow = false;
+                                shadow_record(false, false, shadow, alpha, beta);
+                            }
                             using_fp = true;
                             return early_score;
                         }
@@ -2611,7 +2939,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             make_move(state_history, position_count, move, zobrist, capture_move);
             score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
-            if (Config::ENABLE_HISTORY_MALUS)
+            if (Config::ENABLE_HISTORY_MALUS || Config::ENABLE_CUTCAL_LOG || Config::ENABLE_QCUT)
                 (capture_move ? searched_captures : searched_quiets).push_back(move);
 
             unmake_move(state_history, position_count, zobrist);
@@ -2657,9 +2985,34 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
                 if (!capture_move)
                 {
+                    if (Config::ENABLE_CUTCAL_LOG && (depth_limit - cur_depth) >= 2)
+                    {
+                        Move p2c = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
+                        bool tn = current_state.turn;
+                        long ssc = cutcal_statscore(move, previousMove, p2c, tn);
+                        cutcal_record(ssc, true);
+                        if (ssc >= 0 && ssc < SS_BUCKET_W)
+                            g_cutcal.tf_cut[std::min(g_tf_count[tn][move.from_square][move.to_square], 3L)]++;
+                        for (const Move &q : searched_quiets)
+                        {
+                            if (q == move) continue;
+                            long ssq = cutcal_statscore(q, previousMove, p2c, tn);
+                            cutcal_record(ssq, false);
+                            if (ssq >= 0 && ssq < SS_BUCKET_W)
+                                g_cutcal.tf_fail[std::min(g_tf_count[tn][q.from_square][q.to_square], 3L)]++;
+                            g_tf_count[tn][q.from_square][q.to_square]++;
+                        }
+                    }
                     storeKillerMove(cur_depth, move);
                     counterMoves[previousMove.from_square][previousMove.to_square] = move;
                     int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
+                    if (Config::ENABLE_QCUT)
+                    {
+                        qcut_update(g_qcut[current_state.turn][move.from_square][move.to_square], b, Config::QCUT_MAX);
+                        for (const Move &q : searched_quiets)
+                            if (!(q == move))
+                                qcut_update(g_qcut[current_state.turn][q.from_square][q.to_square], -b / Config::QCUT_MALUS_DIV, Config::QCUT_MAX);
+                    }
                     Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
                     bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
                     if (Config::ENABLE_HISTORY_SATURATION)

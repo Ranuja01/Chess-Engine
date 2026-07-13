@@ -256,6 +256,63 @@ namespace Config
     inline int HISTORY_LMR_SCALE = 2;       // divisor on remaining depth (smaller = more aggressive); 0 = off (byte-id baseline), 2 = combo1
     inline int HISTORY_LMR_SCALE_CAP = 2;   // max extra reduction plies from the depth scaling
 
+    // Continuous statScore-LMR: the graded, two-sided generalization of the tiered HISTORY_LMR_CAP above.
+    // Instead of bucketing the plain history score, sum the history tables into one statScore and map it
+    // smoothly to a signed LMR delta: delta = clamp((statScore - OFFSET) / DIVISOR, -CLAMP, +CLAMP), where
+    // positive = reduce-less (search a proven quiet closer to full depth) and negative = reduce-more (prune a
+    // never-good quiet harder). One formula reallocates search budget both directions (vs the flat cap that
+    // only adds nodes). OFFSET is our OWN median (measured, NOT Stockfish's -4926); DIVISOR is tuned to our
+    // units (P95(|statScore-OFFSET|)/DIVISOR ~= 1.5 plies). Default off (ENABLE_STATSCORE_LMR=false) leaves
+    // the tiered history_lmr_delta path untouched = byte-identical. Master gate + all knobs env-tunable so
+    // the continuous channel and the structural killer/counter overlay can be swept independently on node_ab.
+    // COUPLING CAVEAT: OFFSET/DIVISOR are fit to the CURRENT history-table distribution. Any change to the
+    // history scoring (bonus formula, the 4x continuation multiplier, decay cadence, ENABLE_HISTORY_SATURATION,
+    // ENABLE_HISTORY_MALUS) shifts that distribution and INVALIDATES these constants -- re-derive them via the
+    // ENABLE_STATSCORE_PROFILE sweep + node_ab. See dev_notes/history-scoring-calibration-2026-07-07.md.
+    // Measured node_ab: peak at OFFSET=512, DIVISOR=768-1024 (~+30 Elo); KILLER_BONUS added nothing.
+    inline bool ENABLE_STATSCORE_LMR = true;  // SHIPPED 2026-07-08: +23 Elo lightning SPRT (906g) / +33 node_ab;
+                                              // replaces the tiered HISTORY_LMR_CAP path (off = tiered, byte-id 245).
+    inline int STATSCORE_OFFSET = 512;        // re-centering offset (empirical; zero-history quiet -> delta 0)
+    inline int STATSCORE_DIVISOR = 1024;      // statScore units per ply; delta +1 at >=1536, +2 at >=2560 (top ~2-3%)
+    inline int STATSCORE_CLAMP = 2;           // max |delta| plies applied to the reduction
+    inline int STATSCORE_MAIN_W = 1;          // weight on main history in the statScore sum
+    inline int STATSCORE_CONT1_W = 1;         // weight on 1-ply continuation history (counterMoveHeuristics)
+    inline int STATSCORE_CONT2_W = 1;         // weight on 2-ply continuation history (contHist2)
+    inline int STATSCORE_KILLER_BONUS = 0;    // extra reduce-less plies for a killer/counter move, layered ON
+                                              // TOP of the continuous delta (SF-style structural overlay).
+                                              // 0 = pure-continuous (clean v1); >0 = overlay
+    inline bool ENABLE_STATSCORE_PROFILE = false; // diagnostic only: accumulate the raw statScore distribution
+                                                  // (for OFFSET/DIVISOR derivation); no effect on the search
+
+    // Prune-shadow verification (diagnostic only): at every SHADOW_N-th LMP / futility skip, search the
+    // pruned move anyway (full window, full remaining depth) and record whether it WOULD have entered the
+    // node's window (a wrong prune) or even cut -- the per-mechanism wrong-prune rate we otherwise have zero
+    // visibility into (LMP/futility skip moves with no measurement, unlike LMR's fail-low profile). The
+    // shadow result is discarded (the real prune still fires), so this only ADDS observational nodes; it does
+    // not change the search decisions. Off (ENABLE_PRUNE_SHADOW=false) = byte-identical. Run it alone; the
+    // extra nodes make node counts non-comparable, so read only the wrong-prune RATES it prints.
+    inline bool ENABLE_PRUNE_SHADOW = false;
+    inline int SHADOW_N = 256; // sample 1 in N prune sites (deterministic; larger = cheaper, coarser)
+
+    // Cutoff-calibration logger (diagnostic; measure-first gate for reviving gravity/malus): at each quiet
+    // beta-cutoff, log the cutting move as CUT and the tried-and-failed quiets as FAILED, bucketed by their
+    // statScore -> reliability curve P(cut|statScore) + 0-bucket composition. Populates the searched_quiets
+    // list (like malus) so it costs a little when on; no effect on search decisions. Off = default. See
+    // dev_notes/history-scoring-calibration-2026-07-07.md.
+    inline bool ENABLE_CUTCAL_LOG = false;
+
+    // Decoupled cut-rate table (Qcut): a SEPARATE gravity-bounded signed history (+bonus on the cutting quiet,
+    // -malus on tried-and-failed quiets) read ONLY by statScore-LMR (statScore += QCUT_LAMBDA*Qcut/256), NEVER
+    // by move ordering. This is how malus escapes its 4x ORDERING-pollution failure: it feeds the scale-
+    // sensitive LMR consumer (which the count-refinement proved wants it: 0-bucket P(cut) 0.48->0.25 by
+    // tried-fail count) while the ordering history table stays clean. QCUT_LAMBDA=0 => byte-identical to the
+    // shipped statScore (a continuous dial). Reset per search. Off = default = byte-identical. ⚠️ non-zero
+    // LAMBDA shifts the statScore distribution -> re-derive OFFSET/DIVISOR (coupling caveat above).
+    inline bool ENABLE_QCUT = false;
+    inline int QCUT_LAMBDA = 256;     // read weight, fixed-point /256 (256 = weight 1); 0 = off even when enabled
+    inline int QCUT_MAX = 16384;      // gravity saturation bound (signed)
+    inline int QCUT_MALUS_DIV = 1;    // malus softening: tried-and-failed penalty = bonus / QCUT_MALUS_DIV
+
     // Capture-chain LMR guard: protect a quiet move when the move that led to this node was a capture
     // (we're resolving a capture sequence -- a forcing line where reductions bury tactics, e.g. the
     // Gap-T axb5 mis-reduction). Lets aggressive LMR (LMR_EXTRA / DEPTH_REDUCTION) be pushed harder

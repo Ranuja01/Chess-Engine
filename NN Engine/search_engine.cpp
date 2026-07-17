@@ -956,6 +956,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_FLOOR = env_int("KS_FLOOR", Config::KS_FLOOR);
         Config::KS_PHASE_FULL = env_int("KS_PHASE_FULL", Config::KS_PHASE_FULL);
         Config::KS_PHASE_ZERO = env_int("KS_PHASE_ZERO", Config::KS_PHASE_ZERO);
+        Config::KS_NO_QUEEN = env_int("KS_NO_QUEEN", Config::KS_NO_QUEEN);
+        Config::ENABLE_KS_SF_WEAK = env_flag("ENABLE_KS_SF_WEAK", Config::ENABLE_KS_SF_WEAK);
+        Config::ENABLE_KS_SF_SAFECHECK = env_flag("ENABLE_KS_SF_SAFECHECK", Config::ENABLE_KS_SF_SAFECHECK);
         Config::REALIZ_MAT_K = env_int("REALIZ_MAT_K", Config::REALIZ_MAT_K);
         Config::REALIZ_MAT_THRESH = env_int("REALIZ_MAT_THRESH", Config::REALIZ_MAT_THRESH);
         Config::REALIZ_PHASE_K = env_int("REALIZ_PHASE_K", Config::REALIZ_PHASE_K);

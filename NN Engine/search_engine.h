@@ -627,12 +627,12 @@ namespace Config
     // KING_SAFETY_MAG defaults 0 => the term is gated off at the call site => byte-identical; the component
     // knobs only take effect once MAG > 0. Each component is additive into `units`, so any sub-knob at 0
     // disables just that component (lets us build/tune one at a time; lets PACE/Texel tune them jointly).
-    inline int KING_SAFETY_MAG = 0;     // master percent scale (0 = off = byte-identical)
+    inline int KING_SAFETY_MAG = 3000;  // master percent scale (0 = off = byte-identical)
     // REPLACE the flat latent_threat with king_safety_score (the structural swap, not an additive run-beside).
     // Off (default) = byte-identical: latent_threat adds as today, king_safety only if MAG>0. On = skip the
     // latent_threat add entirely and route king danger through king_safety_score (no double-count); needs
     // KING_SAFETY_MAG>0 to do anything. Phase A finds the neutral MAG where the swap is ~0 regression.
-    inline bool ENABLE_KS_REPLACE_LT = false;
+    inline bool ENABLE_KS_REPLACE_LT = true;
     // CONSOLIDATE the flat, un-realizability-conditioned pawn-shelter bonus (the +185/+75 constants in
     // evaluate_kings_midgame) out of the `pieces` term so shelter is scored ONCE, through the realizability-
     // conditioned KS_SHIELD inside king_safety_danger, instead of a flat placement constant. Off (default) =
@@ -646,7 +646,8 @@ namespace Config
     inline int KS_ATT_ROOK     = 3;     // per enemy rook
     inline int KS_ATT_QUEEN    = 5;     // per enemy queen
     inline int KS_ATTACK_COUNT = 1;     // per zone square the enemy attacks (additive zone pressure)
-    inline int KS_WEAK         = 2;     // per weak zone square (enemy-attacked, not defended by a friendly pawn)
+    inline int KS_WEAK         = 2;     // per weak zone square. Baseline: enemy-attacked AND no own defender. With
+                                        // ENABLE_KS_SF_WEAK: enemy-attacked AND under-defended (<=1 defender, K/Q only).
     inline int KS_SAFE_CHECK   = 3;     // per square from which the enemy can deliver a safe check
     inline int KS_STORM        = 1;     // per rank of enemy pawn-storm advance on the king's three files
     inline int KS_OPEN_FILE    = 2;     // per open/semi-open file on/adjacent to the king file
@@ -663,7 +664,7 @@ namespace Config
     inline int KS_DYN_PIVOT    = 4;     // realness level treated as neutral (1.0x); below damps, above boosts
     inline int KS_DYN_SHIFT    = 4;     // sensitivity of the factor to realness (mod_gain right-shift)
     inline int KS_SHIELD       = 2;     // units subtracted per friendly pawn shielding the king on its three files
-    inline int KS_DEFENDER     = 2;     // units subtracted per friendly PIECE (N/B/R/Q) defending the king zone
+    inline int KS_DEFENDER     = 0;     // units subtracted per friendly PIECE (N/B/R/Q) defending the king zone
                                         // (the attacker-vs-defender balance detector: an attack only "blows up"
                                         // when attackers outweigh defenders, like the old latent_threat gates)
     inline int KS_INTERACT     = 0;     // SUPER-LINEAR "coffin" interaction the additive units sum can't express:
@@ -676,10 +677,19 @@ namespace Config
                                         // slope) so a crowded king zone ramps gently instead of exploding. Set >= KS_CAP
                                         // for pure quadratic-then-clamp (the old behaviour).
     inline int KS_CAP          = 80;    // units clamp (table is built up to KS_MAX_UNITS; KS_CAP <= that)
-    inline int KS_FLOOR        = 0;     // DEADZONE: attack-units below this -> ZERO danger, so TRIVIAL king-danger
+    inline int KS_FLOOR        = 13;    // DEADZONE: attack-units below this -> ZERO danger, so TRIVIAL king-danger
                                         // can't perturb non-king positions (the def1 passer bleed). Default 0 = byte-id.
     inline int KS_PHASE_FULL   = 48;    // phase_score AT/BELOW which king safety is full weight (0=full material/opening)
     inline int KS_PHASE_ZERO   = 104;   // phase_score AT/ABOVE which king safety is ~0 (128=bare kings/deep endgame)
+    // King-danger definition-alignment toward classical SF11 (all default = byte-identical). SF encodes defense
+    // IMPLICITLY (a defended square just isn't weak / a covered check isn't safe) rather than a blanket defender
+    // subtraction, and heavily discounts attacks when the attacker has no queen.
+    inline int KS_NO_QUEEN     = 6;     // units subtracted when the ENEMY of this king has NO queen (SF -873, but
+                                        // on our 0..KS_CAP unit scale = single digits). 0 = off = byte-identical.
+    inline bool ENABLE_KS_SF_WEAK = true;       // weak square = under-defended (<=1 defender, only K/Q), not "zero
+                                                // defenders". Superset of the baseline -> re-tune KS_WEAK when on.
+    inline bool ENABLE_KS_SF_SAFECHECK = true;  // safe check also counts an overwhelmed square: weak AND attacked
+                                                // twice by the enemy (not only totally-uncovered squares).
 
     // Eval: REALIZABILITY modulation of the midgame offense-vs-defense IMBALANCE term (the king-zone
     // pressure differential, a proven ~400-Elo term that is crude: a flat reward for unmatched offense

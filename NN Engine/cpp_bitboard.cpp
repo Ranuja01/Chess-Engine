@@ -4986,7 +4986,14 @@ inline int king_safety_danger(uint8_t king_square, bool white_king){
 		if (am) {
 			attackers_sq |= am;
 			attacked_zone_squares++;
-			if (!dm) weak_squares++;  // enemy-attacked, own-undefended hole next to the king
+			// Weak = enemy-attacked hole. Baseline: no own defender. SF11: UNDER-defended = at most one
+			// defender and only the king or queen (a pawn/minor/rook defender disqualifies).
+			bool weak;
+			if (Config::ENABLE_KS_SF_WEAK)
+				weak = (__builtin_popcountll(dm) <= 1) && ((dm & (knights | bishops | rooks | pawns)) == 0);
+			else
+				weak = !dm;
+			if (weak) weak_squares++;
 		}
 	}
 	uint64_t pieces_nk = knights | bishops | rooks | queens;  // defenders counted among real pieces (not king/pawn)
@@ -5048,17 +5055,24 @@ inline int king_safety_danger(uint8_t king_square, bool white_king){
 		uint64_t enemy_knights = enemy & knights;
 		uint64_t enemy_diag    = enemy & (bishops | queens);
 		uint64_t enemy_line    = enemy & (rooks | queens);
-		// A checker moves ONTO the check square, so it cannot be an enemy-occupied square; it is safe iff
-		// our side does not cover it (attack_bitmasks[S] & own == 0 -> no recapture, the king included).
+		// A checker moves ONTO the check square, so it cannot be an enemy-occupied square. Baseline: safe iff
+		// our side does not cover it (attack_bitmasks[S] & own == 0 -> no recapture, the king included). SF11
+		// also counts an OVERWHELMED square: weak (<=1 defender, K/Q only) AND attacked twice by the enemy.
+		auto check_safe = [&](uint64_t bm) -> bool {
+			uint64_t dmS = bm & own;
+			if (!Config::ENABLE_KS_SF_SAFECHECK) return dmS == 0;
+			bool weakS = (__builtin_popcountll(dmS) <= 1) && ((dmS & (knights | bishops | rooks | pawns)) == 0);
+			return dmS == 0 || (weakS && __builtin_popcountll(bm & enemy) >= 2);
+		};
 		uint64_t cc = knight_from & ~enemy;
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
-		             if ((bm & enemy_knights) && !(bm & own)) safe_checks++; }
+		             if ((bm & enemy_knights) && check_safe(bm)) safe_checks++; }
 		cc = bishop_from & ~enemy;
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
-		             if ((bm & enemy_diag) && !(bm & own)) safe_checks++; }
+		             if ((bm & enemy_diag) && check_safe(bm)) safe_checks++; }
 		cc = rook_from & ~enemy;
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
-		             if ((bm & enemy_line) && !(bm & own)) safe_checks++; }
+		             if ((bm & enemy_line) && check_safe(bm)) safe_checks++; }
 		units += Config::KS_SAFE_CHECK * safe_checks;
 	}
 
@@ -5075,6 +5089,10 @@ inline int king_safety_danger(uint8_t king_square, bool white_king){
 		if (undefended > 0 && att_cnt > 0)
 			units += (Config::KS_INTERACT * undefended * (open_files + 1) * att_cnt) >> 4;
 	}
+
+	// No-enemy-queen discount (SF11 -873 on its scale; ours is on the 0..KS_CAP unit scale, single-digit).
+	// Attacks without an enemy queen rarely mate, so drop the danger; keyed on the ENEMY's queen only.
+	if (Config::KS_NO_QUEEN && !(queens & enemy)) units -= Config::KS_NO_QUEEN;
 
 	if (units < 0) units = 0;
 	if (g_capture_eval_breakdown) { if (white_king) g_ks_units_white = units; else g_ks_units_black = units; }
@@ -5096,6 +5114,15 @@ inline int king_safety_danger(uint8_t king_square, bool white_king){
 		// ksattack gain — disconfirmed at the tuned coefficient; the gentle open+weak signal is the lever.)
 		int realness = att_cnt * (open_files + weak_squares) - Config::KS_DYN_PIVOT;
 		danger = (danger * mod_gain(Config::KS_DYN, realness, Config::KS_DYN_SHIFT, 0, 0, 0)) >> 8;
+	}
+	// Diagnostic-only component dump (default-off; only under the breakdown flag + KS_DEBUG_DUMP env). Byte-
+	// identical for production: the guard is false in the search path, so this never runs in a real game.
+	if (g_capture_eval_breakdown && std::getenv("KS_DEBUG_DUMP")) {
+		int att_pieces = __builtin_popcountll(attackers_sq & (knights | bishops | rooks | queens));
+		int def_pieces = __builtin_popcountll(defenders_sq & pieces_nk);
+		std::fprintf(stderr, "KSD %c attsq=%d weak=%d safe=%d attpc=%d defpc=%d openf=%d units=%d danger=%d\n",
+		             white_king ? 'W' : 'B', attacked_zone_squares, weak_squares, safe_checks,
+		             att_pieces, def_pieces, open_files, units, danger);
 	}
 	return danger;
 }

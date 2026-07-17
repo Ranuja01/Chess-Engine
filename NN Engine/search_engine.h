@@ -222,6 +222,15 @@ namespace Config
     inline bool ENABLE_LMR = true;      // late move reductions
     inline bool ENABLE_FUTILITY = true; // futility pruning (inside the LMR block)
     inline bool ENABLE_RAZORING = true; // razoring (alpha_beta root loop)
+    inline bool ROOT_RAZOR_CONTINUE = false; // razor individual low root moves (continue) vs abandon the rest (break);
+                                             // default false = break = byte-identical. Measures the break's safety cost
+                                             // (a good move ordered AFTER a stale-low one is skipped) at ~no speed cost
+                                             // when the list is well-sorted. Diagnostic; keep ENABLE_RAZORING (the speed) ON.
+    inline int RESIGN_THRESHOLD = -15000;   // engine resigns (returns no move) at score <= this. Default -15000 = current.
+                                             // Set very negative to measure the resign leak (games that would draw if played on).
+    inline bool ENABLE_TT_STORE_DRAW = false; // allow caching EXACT-draw (score==0) subtrees in the TT. Default false =
+                                             // current (refused -> every draw subtree re-searched). Mates still refused
+                                             // (they need mate-distance adjustment). Diagnostic: does storing draws cut nodes?
     inline bool ENABLE_NULLMOVE = true; // null-move pruning
     inline bool NULLMOVE_PROGRESSIVE = false; // depth-scaled null-move reduction (-2 at d>=12, -3 at d>=14); off = flat -1
     inline int NULLMOVE_EXTRA = 2;      // extra plies off the null-move search depth (more aggressive null pruning); 0 = byte-id baseline, 2 = combo1
@@ -352,6 +361,19 @@ namespace Config
     inline int LMP_MAX_DEPTH = 5;   // only LMP when remaining depth (depth_limit - cur_depth) <= this; 3 = byte-id baseline, 5 = combo1
     inline int LMP_BASE = 1;        // base late-move count; 3 = byte-id baseline, 2 = combo1, 1 = shipped w/ capg-cond 2026-07-02 (+39 STS on reduced capg)
     inline int LMP_SCALE = 1;       // quadratic depth term in the threshold
+
+    // History-gated pruning (Ethereal-style): read the EXISTING from×to butterfly historyHeuristics to make the
+    // move-count prune ORDERING-AWARE — no new table, no fragmentation (the threat-hist/piece-key under-fill
+    // trap). Both default off = byte-identical.
+    //  - LMP history EXEMPTION: a late quiet whose butterfly history >= LMP_HIST_EXEMPT is NOT LMP-pruned
+    //    (protects proven-good quiets from the move-count prune = the antidote to prunes eating strategic quiets).
+    //  - History PRUNING: a late quiet whose butterfly history < -HIST_PRUNE_COEF*rd is skipped at low remaining
+    //    depth (prunes ordering-condemned quiets harder = the cash-in; rd = remaining depth).
+    inline bool ENABLE_LMP_HIST_EXEMPT = false;
+    inline int LMP_HIST_EXEMPT = 4000;
+    inline bool ENABLE_HIST_PRUNE = false;
+    inline int HIST_PRUNE_COEF = 512;
+    inline int HIST_PRUNE_MAX_DEPTH = 4;
 
     // Root pre-search (reorder_legal_moves) depth = depth_limit - this. The pre-search is a full-width shallow
     // search of the root run every iteration to order moves (and generate the 2nd-level lists). 1 = byte-id
@@ -936,6 +958,63 @@ namespace Config
     inline int  SINGULAR_MIN_DEPTH = 6;    // fire only when (depth_limit - cur_depth) >= this
     inline int  SINGULAR_MAX_EXT   = 8;    // cap on active singular extensions per root-to-leaf path
 
+    // Internal Iterative Reduction (IIR): at a node with no cached ordering evidence (movegen-cache miss =
+    // first visit -> no generated/promoted move) and depth to spare, search one ply shallower; the shallow
+    // pass populates the movegen/eval caches so the real re-search enters with a good move first. Our native
+    // analog of Stockfish's "!ttMove". Off = byte-identical (the reduction is fully gated on this flag).
+    inline bool ENABLE_IIR   = false;
+    inline int  IIR_MIN_DEPTH = 6;    // fire only when (depth_limit - cur_depth) >= this
+
+    // Simplification bias (root-only; off = byte-identical). When the side to move is clearly ahead
+    // (root maximizer SIMPL_AHEAD_THRESH < best_score < mate), break EXACT score ties at the root argmax toward a
+    // move that trades a non-pawn piece (simplifies toward the win) over an equal-scoring non-simplifying
+    // move. Acts ONLY on eval-equal forks, so it never trades away a real edge (a worse simplifying move
+    // still loses the tie on score); targets the measured under-simplification (STS Offer-of-Simplification
+    // 42%) and the messy-position over-read. Not a search-tree change -- only the root argmax tie is affected.
+    inline bool ENABLE_SIMPL_BIAS  = false;
+    inline int  SIMPL_AHEAD_THRESH = 1500;  // root maximizer score (millipawns, pawn=1000) above which the bias fires
+    inline int  SIMPL_MARGIN       = 0;     // accept a simplifying move scoring within this (millipawns) BELOW the
+                                            // incumbent, not only exact ties. 0 = exact-tie only. Bounded by the
+                                            // clearly-ahead gate: we deliberately trade <=MARGIN of eval for a
+                                            // safer, simpler winning position (the eval over-reads messy lines).
+
+    // Prune-verification diagnostic (default off => byte-identical). Logs one stderr [PRUNEFIRE] record per
+    // sampled pruning fire (FEN + window + static/cheap eval) for the offline verify+discriminator harness.
+    inline bool ENABLE_PRUNE_LOG = false;
+    inline int  PRUNE_LOG_STRIDE = 20;   // log 1 in N fires to bound volume (clamped >= 1)
+
+    // Correction-history SIGNAL diagnostic (default off => byte-identical). Logs one stderr [CORRLOG] record per
+    // sampled update-eligible node (pawn key, maxbit, node-entry static eval, backed-up best score, remaining
+    // depth) for diagnostics/corrhist_signal.py, which tests offline whether a per-pawn-key correction shrinks
+    // held-out static-eval error BEFORE we build the corrhist table (Phase 0 signal gate).
+    inline bool ENABLE_CORRHIST_LOG = false;
+    inline int  CORRHIST_LOG_STRIDE = 32;   // log 1 in N eligible nodes to bound volume (clamped >= 1)
+
+    // Correction history (Phase 1). pawnCorrHist[maxbit][pawnKey] holds an integer EMA of the residual
+    // (bestScore - staticEval); the node-entry static eval is corrected by CORR_W/CORR_DIV of the entry before
+    // the RFP/null gates. Default off => byte-identical. Signal-verified in Phase 0 (pawn x maxbit).
+    inline bool ENABLE_CORR_HIST = false;
+    inline int  CORR_SHIFT = 6;     // EMA learning rate = 1 / 2^CORR_SHIFT (higher = slower/steadier)
+    inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
+    inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)
+    inline int  CORR_DIV   = 256;
+    inline bool ENABLE_CUTOFF_CLASS = false; // diagnostic: tally beta-cutoff moves by class(cap/promo/killer/counter/quiet)×rank
+
+    // Piece-type×to continuation history as a SEPARATE additive ordering term (SF-style coexistence), NOT a
+    // re-keying of counterMoveHeuristics/contHist2 (those stay from×to). Default off ⇒ term never read/written
+    // (byte-identical). On ⇒ the dense piece×to signal is summed into the quiet ordering + statScore alongside
+    // the from×to terms, keeping origin-square specificity for strategy while adding tactical generalization.
+    inline bool ENABLE_PIECE_CONTHIST = false;
+    // Right-shift applied to the pieceContHist value before it is summed into the ordering score / statScore
+    // (a cheap weight: 0 = full, 1 = half, …). Tune so the dense term refines without drowning the specific ones.
+    inline int PIECE_CONTHIST_SHIFT = 0;
+
+    // Threat-conditioned butterfly quiet history (Ethereal/Caissa style): the from×to butterfly split by whether
+    // the from/to squares are attacked by the opponent, summed into quiet ordering as an additive term. Default
+    // off = never read/written = byte-identical. SHIFT is a cheap weight (right-shift before summing).
+    inline bool ENABLE_THREAT_HIST = false;
+    inline int THREAT_HIST_SHIFT = 0;
+
     // Eval-scaled null-move reduction: reduce MORE when the static eval is far past the bound (max: eval>>beta,
     // min: eval<<alpha). We currently have only the FLAT NULLMOVE_EXTRA. Default off = byte-identical.
     inline bool ENABLE_NULLMOVE_EVAL_R  = false;
@@ -1131,6 +1210,13 @@ namespace Config
     // TT_CACHE_SIZE; the footprint is unchanged (same array, reinterpreted as TT_CACHE_SIZE/TT_WAYS
     // buckets). Default 1 = off.
     inline int TT_WAYS = 1;
+    // Software-prefetch the child node's TT slot at the end of make_move, hiding the DRAM latency of
+    // the transposition-table probe behind the remaining make/return work (the classic do_move prefetch).
+    // A pure hardware hint with no architectural effect -> byte-identical either way; the knob exists only
+    // to A/B the NPS gain on one binary (ENABLE_TT_PREFETCH=0 vs 1). Default OFF: banked neutral -- the d12
+    // NPS A/B was +0.26% (within noise) on the cold-TT depth bench; revisit under a hot-TT / timed-game
+    // instrument where the end-of-make_move prefetch has more latency to hide.
+    inline bool ENABLE_TT_PREFETCH = false;
     // Debug-only (default off = byte-identical): validate the SearchData parallel-array invariant and
     // move legality in the search, logging violations to stderr instead of crashing. Enabled with
     // CHESS_DEBUG_INVARIANTS=1 to hunt the move-ordering corruption.

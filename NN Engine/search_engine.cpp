@@ -95,6 +95,62 @@ static inline bool dbg_bad_move(const char *where, int i, const Move &move, cons
     return true;
 }
 
+// Prune-verification diagnostic (Config::ENABLE_PRUNE_LOG, default off => byte-identical). Emits one stderr
+// [PRUNEFIRE] record per sampled pruning fire for the offline verify+discriminator harness: the pruning site,
+// the alpha/beta window + remaining depth (rd), the static eval the prune returned, a cheap (material+PST)
+// eval for the eval-instability detector, and the FEN. Recording only; copies the board masks into locals
+// (create_fen takes mutable refs) so the real board state is never touched -- same guard as dbg_bad_move.
+static inline void log_prune_fire(const char *prune_id, const BoardState &st, int alpha, int beta, int rd,
+                                  int static_eval, int cheap)
+{
+    static long seen = 0;
+    if ((seen++ % std::max(1, Config::PRUNE_LOG_STRIDE)) != 0)
+        return;
+    uint64_t pawns = st.pawns, knights = st.knights, bishops = st.bishops, rooks = st.rooks,
+             queens = st.queens, kings = st.kings, occupied = st.occupied,
+             ow = st.occupied_colour[true], ob = st.occupied_colour[false], promoted = st.promoted,
+             castling = st.castling_rights;
+    int ep = st.ep_square;
+    std::cerr << "[PRUNEFIRE] id=" << prune_id << " a=" << alpha << " b=" << beta << " rd=" << rd
+              << " seval=" << static_eval << " cheap=" << cheap
+              << " fen=" << create_fen(pawns, knights, bishops, rooks, queens, kings, occupied, ow, ob,
+                                       promoted, castling, ep, st.turn)
+              << std::endl;
+}
+
+// Correction-history SIGNAL logger (Config::ENABLE_CORRHIST_LOG, default off => byte-identical). Emits one
+// stderr [CORRLOG] record per sampled update-eligible node: pawn-structure key, maxbit (1 = maximizer / root-
+// side node, 0 = minimizer), the node-entry static eval (root-relative RFP frame), the node's backed-up best
+// score (same frame), and remaining depth. staticEval and bestScore share the fixed root-relative frame, so
+// (best - seval) is the correction-history training residual with NO sign flip. Recording only.
+static inline void corrhist_log(uint64_t pawn_key, int maxbit, int static_eval, int best_score, int rd)
+{
+    static long seen = 0;
+    if ((seen++ % std::max(1, Config::CORRHIST_LOG_STRIDE)) != 0)
+        return;
+    std::cerr << "[CORRLOG] " << pawn_key << ' ' << maxbit << ' ' << static_eval << ' ' << best_score
+              << ' ' << rd << std::endl;
+}
+
+// Correction-history index for a position: pawn-structure key folded into the table (power-of-two mask).
+static inline int corrhist_idx(const BoardState &st)
+{
+    return (int)(generatePawnKey(st.pawns, st.occupied_colour[true], st.occupied_colour[false]) & (CORR_SIZE - 1));
+}
+// The signed correction (millipawns) to ADD to the node-entry static eval, in the fixed root-relative frame.
+static inline int corrhist_correction(const BoardState &st, int maxbit)
+{
+    return (pawnCorrHist[maxbit][corrhist_idx(st)] * Config::CORR_W) / Config::CORR_DIV;
+}
+// Learn: nudge the per-key EMA of the residual (bestScore - rawStaticEval) toward this node's observation.
+static inline void corrhist_update(const BoardState &st, int maxbit, int static_eval, int best_score)
+{
+    int &e = pawnCorrHist[maxbit][corrhist_idx(st)];
+    e += (best_score - static_eval - e) >> Config::CORR_SHIFT;
+    if (e > Config::CORR_MAX) e = Config::CORR_MAX;
+    else if (e < -Config::CORR_MAX) e = -Config::CORR_MAX;
+}
+
 // Bound flag for the root / preliminary-ordering TT stores. A fail-soft score is only EXACT when
 // it lands strictly inside the search window; at or past a bound it is an UPPER/LOWER bound. The
 // root stores historically hardcoded EXACT (sound only under the infinite window); this computes
@@ -199,6 +255,26 @@ static long g_fh_first = 0;
 // Beta-cutoff move-index histogram (diagnostic): buckets 0, 1, 2, 3-7, 8+. Decides whether EBF headroom
 // is in pruning (mass at 0-2) or secondary move ordering (mass at 8+). Cumulative across the run.
 static long g_cutoff_histogram[5] = {0, 0, 0, 0, 0};
+
+// Diagnostic (Config::ENABLE_CUTOFF_CLASS, default off): classify each beta-cutoff move so we can see WHAT the
+// late-rank tail cutoffs actually are (already-LMP-exempt classes = capture/promo/killer/counter, vs plain
+// quiets that tighter ordering could let a prune reach). Checks are folded into 'quiet' (a minor, conservative
+// overcount — it under-states how many exempt tail cutoffs exist, so it never over-states the LMP unlock).
+// Recording only; never alters the search.
+enum { CUTCLASS_CAPTURE = 0, CUTCLASS_PROMO, CUTCLASS_KILLER, CUTCLASS_COUNTER, CUTCLASS_QUIET, CUTCLASS_N };
+static long g_cutoff_class_hist[CUTCLASS_N][5] = {};
+static inline int cutoff_move_class(const Move &m, const BoardState &st, int ply, const Move &prev)
+{
+    if (st.occupied_colour[!st.turn] & (1ULL << m.to_square)) return CUTCLASS_CAPTURE;
+    if (m.promotion > 1) return CUTCLASS_PROMO;   // promotion==1 is the "no promotion" sentinel here
+    if (ply >= 0 && ply < MAX_PLY &&
+        ((killerMoves[ply][0].from_square == m.from_square && killerMoves[ply][0].to_square == m.to_square) ||
+         (killerMoves[ply][1].from_square == m.from_square && killerMoves[ply][1].to_square == m.to_square)))
+        return CUTCLASS_KILLER;
+    const Move &cm = counterMoves[prev.from_square][prev.to_square];
+    if (cm.from_square == m.from_square && cm.to_square == m.to_square) return CUTCLASS_COUNTER;
+    return CUTCLASS_QUIET;
+}
 // Passed-pawn LMP/LMR exemption fires (diagnostic): how often an otherwise-reducible advanced pawn push
 // was exempted from pruning/reduction. Cumulative across the run; printed beside the histogram.
 static long g_passer_exempt_fires = 0;
@@ -362,13 +438,13 @@ namespace
         h += delta - h * ad / bound;
     }
 
-    inline long cutcal_statscore(const Move &m, const Move &pm, const Move &p2, bool turn)
+    inline long cutcal_statscore(const Move &m, const Move &pm, const Move &p2, bool turn, const BoardState &st)
     {
         long s = historyHeuristics[turn][m.from_square][m.to_square];
         if (pm.from_square != pm.to_square)
-            s += counterMoveHeuristics[turn][pm.from_square * 64 + pm.to_square][m.from_square * 64 + m.to_square];
+            s += counterMoveHeuristics[turn][cont_ctx_key(pm, st)][cont_ent_key(m, st)];
         if (p2.from_square != p2.to_square)
-            s += contHist2[turn][p2.from_square * 64 + p2.to_square][m.from_square * 64 + m.to_square];
+            s += contHist2[turn][cont_ctx_key(p2, st)][cont_ent_key(m, st)];
         return s;
     }
 
@@ -543,15 +619,15 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
         long statScore = (long)Config::STATSCORE_MAIN_W * historyHeuristics[cs.turn][move.from_square][move.to_square];
         if (previousMove.from_square != previousMove.to_square)
             statScore += (long)Config::STATSCORE_CONT1_W *
-                         counterMoveHeuristics[cs.turn][previousMove.from_square * 64 + previousMove.to_square]
-                                              [move.from_square * 64 + move.to_square];
+                         counterMoveHeuristics[cs.turn][cont_ctx_key(previousMove, cs)]
+                                              [cont_ent_key(move, cs)];
         if (ply >= 2)
         {
             Move p2 = g_searchStack[ply - 2];
             if (p2.from_square != p2.to_square)
                 statScore += (long)Config::STATSCORE_CONT2_W *
-                             contHist2[cs.turn][p2.from_square * 64 + p2.to_square]
-                                      [move.from_square * 64 + move.to_square];
+                             contHist2[cs.turn][cont_ctx_key(p2, cs)]
+                                      [cont_ent_key(move, cs)];
         }
         if (Config::ENABLE_QCUT)
             statScore += (long)Config::QCUT_LAMBDA * g_qcut[cs.turn][move.from_square][move.to_square] / 256;
@@ -587,8 +663,8 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
     if (tier == 0)
     {
         if (Config::ENABLE_CONT_HIST && previousMove.from_square != previousMove.to_square &&
-            counterMoveHeuristics[cs.turn][previousMove.from_square * 64 + previousMove.to_square]
-                                 [move.from_square * 64 + move.to_square] >= Config::CONT_HIST_LMR_THRESH)
+            counterMoveHeuristics[cs.turn][cont_ctx_key(previousMove, cs)]
+                                 [cont_ent_key(move, cs)] >= Config::CONT_HIST_LMR_THRESH)
             return 0;
         // A strong 2-ply continuation (move 2 plies back x this move) also rescues a tier-0 quiet
         // from reduce-more. Gated; reuses the 1-ply threshold.
@@ -596,8 +672,8 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
         {
             Move p2 = g_searchStack[ply - 2];
             if (p2.from_square != p2.to_square &&
-                contHist2[cs.turn][p2.from_square * 64 + p2.to_square]
-                         [move.from_square * 64 + move.to_square] >= Config::CONT_HIST_LMR_THRESH)
+                contHist2[cs.turn][cont_ctx_key(p2, cs)]
+                         [cont_ent_key(move, cs)] >= Config::CONT_HIST_LMR_THRESH)
                 return 0;
         }
         return -Config::HISTORY_LMR_MORE_CAP;
@@ -797,6 +873,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_LMR = env_flag("ENABLE_LMR", true);
         Config::ENABLE_FUTILITY = env_flag("ENABLE_FUTILITY", true);
         Config::ENABLE_RAZORING = env_flag("ENABLE_RAZORING", true);
+        Config::ROOT_RAZOR_CONTINUE = env_flag("ROOT_RAZOR_CONTINUE", false);
+        Config::RESIGN_THRESHOLD = env_int("RESIGN_THRESHOLD", Config::RESIGN_THRESHOLD);
+        Config::ENABLE_TT_STORE_DRAW = env_flag("ENABLE_TT_STORE_DRAW", false);
         Config::ENABLE_NULLMOVE = env_flag("ENABLE_NULLMOVE", true);
         Config::NULLMOVE_PROGRESSIVE = env_flag("NULLMOVE_PROGRESSIVE", Config::NULLMOVE_PROGRESSIVE);
         Config::NULLMOVE_EXTRA = env_int("NULLMOVE_EXTRA", Config::NULLMOVE_EXTRA);
@@ -848,6 +927,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LMP_MAX_DEPTH = env_int("LMP_MAX_DEPTH", Config::LMP_MAX_DEPTH);
         Config::LMP_BASE = env_int("LMP_BASE", Config::LMP_BASE);
         Config::LMP_SCALE = env_int("LMP_SCALE", Config::LMP_SCALE);
+        Config::ENABLE_LMP_HIST_EXEMPT = env_flag("ENABLE_LMP_HIST_EXEMPT", Config::ENABLE_LMP_HIST_EXEMPT);
+        Config::LMP_HIST_EXEMPT = env_int("LMP_HIST_EXEMPT", Config::LMP_HIST_EXEMPT);
+        Config::ENABLE_HIST_PRUNE = env_flag("ENABLE_HIST_PRUNE", Config::ENABLE_HIST_PRUNE);
+        Config::HIST_PRUNE_COEF = env_int("HIST_PRUNE_COEF", Config::HIST_PRUNE_COEF);
+        Config::HIST_PRUNE_MAX_DEPTH = env_int("HIST_PRUNE_MAX_DEPTH", Config::HIST_PRUNE_MAX_DEPTH);
         Config::ENABLE_LAZY_RESORT = env_flag("ENABLE_LAZY_RESORT", Config::ENABLE_LAZY_RESORT);
         Config::PROMOTE_TOP_K = env_int("PROMOTE_TOP_K", Config::PROMOTE_TOP_K);
         Config::RESORT_AFTER_REUSES = env_int("RESORT_AFTER_REUSES", Config::RESORT_AFTER_REUSES);
@@ -1048,6 +1132,26 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SINGULAR_MARGIN = env_int("SINGULAR_MARGIN", Config::SINGULAR_MARGIN);
         Config::SINGULAR_MIN_DEPTH = env_int("SINGULAR_MIN_DEPTH", Config::SINGULAR_MIN_DEPTH);
         Config::SINGULAR_MAX_EXT = env_int("SINGULAR_MAX_EXT", Config::SINGULAR_MAX_EXT);
+        Config::ENABLE_IIR = env_flag("ENABLE_IIR", Config::ENABLE_IIR);
+        Config::IIR_MIN_DEPTH = env_int("IIR_MIN_DEPTH", Config::IIR_MIN_DEPTH);
+        Config::ENABLE_SIMPL_BIAS = env_flag("ENABLE_SIMPL_BIAS", Config::ENABLE_SIMPL_BIAS);
+        Config::SIMPL_AHEAD_THRESH = env_int("SIMPL_AHEAD_THRESH", Config::SIMPL_AHEAD_THRESH);
+        Config::SIMPL_MARGIN = env_int("SIMPL_MARGIN", Config::SIMPL_MARGIN);
+        Config::ENABLE_PRUNE_LOG = env_flag("ENABLE_PRUNE_LOG", Config::ENABLE_PRUNE_LOG);
+        Config::PRUNE_LOG_STRIDE = env_int("PRUNE_LOG_STRIDE", Config::PRUNE_LOG_STRIDE);
+        Config::ENABLE_CORRHIST_LOG = env_flag("ENABLE_CORRHIST_LOG", Config::ENABLE_CORRHIST_LOG);
+        Config::CORRHIST_LOG_STRIDE = env_int("CORRHIST_LOG_STRIDE", Config::CORRHIST_LOG_STRIDE);
+        Config::ENABLE_CORR_HIST = env_flag("ENABLE_CORR_HIST", Config::ENABLE_CORR_HIST);
+        Config::CORR_SHIFT = env_int("CORR_SHIFT", Config::CORR_SHIFT);
+        Config::CORR_MAX = env_int("CORR_MAX", Config::CORR_MAX);
+        Config::CORR_W = env_int("CORR_W", Config::CORR_W);
+        Config::CORR_DIV = env_int("CORR_DIV", Config::CORR_DIV);
+        if (Config::CORR_DIV < 1) Config::CORR_DIV = 1;
+        Config::ENABLE_CUTOFF_CLASS = env_flag("ENABLE_CUTOFF_CLASS", Config::ENABLE_CUTOFF_CLASS);
+        Config::ENABLE_PIECE_CONTHIST = env_flag("ENABLE_PIECE_CONTHIST", Config::ENABLE_PIECE_CONTHIST);
+        Config::PIECE_CONTHIST_SHIFT = env_int("PIECE_CONTHIST_SHIFT", Config::PIECE_CONTHIST_SHIFT);
+        Config::ENABLE_THREAT_HIST = env_flag("ENABLE_THREAT_HIST", Config::ENABLE_THREAT_HIST);
+        Config::THREAT_HIST_SHIFT = env_int("THREAT_HIST_SHIFT", Config::THREAT_HIST_SHIFT);
         Config::ENABLE_NULLMOVE_EVAL_R = env_flag("ENABLE_NULLMOVE_EVAL_R", Config::ENABLE_NULLMOVE_EVAL_R);
         Config::NULLMOVE_R_DIV = env_int("NULLMOVE_R_DIV", Config::NULLMOVE_R_DIV);
         if (Config::NULLMOVE_R_DIV < 1) Config::NULLMOVE_R_DIV = 1;
@@ -1129,6 +1233,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::TT_WAYS = env_int("TT_WAYS", Config::TT_WAYS);
         if (Config::TT_WAYS != 1 && Config::TT_WAYS != 2 && Config::TT_WAYS != 4 && Config::TT_WAYS != 8)
             Config::TT_WAYS = 1;
+        Config::ENABLE_TT_PREFETCH = env_flag("ENABLE_TT_PREFETCH", Config::ENABLE_TT_PREFETCH);
         // Debug-only: validate the SearchData parallel-array invariant + move legality and LOG (not
         // crash) on violation. Default off = byte-identical; used only to hunt the move-ordering
         // corruption (see dev_notes/CRASH_INVESTIGATION_PLAYBOOK.md).
@@ -1174,6 +1279,23 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PROBCUT_DEPTH_REDUCTION=" << Config::PROBCUT_DEPTH_REDUCTION
                   << " PROBCUT_CANDIDATES=" << Config::PROBCUT_CANDIDATES
                   << " ENABLE_PROBCUT_NO_TT_STORE=" << Config::ENABLE_PROBCUT_NO_TT_STORE
+                  << " ENABLE_IIR=" << Config::ENABLE_IIR
+                  << " IIR_MIN_DEPTH=" << Config::IIR_MIN_DEPTH
+                  << " ENABLE_SIMPL_BIAS=" << Config::ENABLE_SIMPL_BIAS
+                  << " SIMPL_AHEAD_THRESH=" << Config::SIMPL_AHEAD_THRESH
+                  << " SIMPL_MARGIN=" << Config::SIMPL_MARGIN
+                  << " ENABLE_PRUNE_LOG=" << Config::ENABLE_PRUNE_LOG
+                  << " PRUNE_LOG_STRIDE=" << Config::PRUNE_LOG_STRIDE
+                  << " ENABLE_CORRHIST_LOG=" << Config::ENABLE_CORRHIST_LOG
+                  << " CORRHIST_LOG_STRIDE=" << Config::CORRHIST_LOG_STRIDE
+                  << " ENABLE_CORR_HIST=" << Config::ENABLE_CORR_HIST
+                  << " CORR_SHIFT=" << Config::CORR_SHIFT << " CORR_MAX=" << Config::CORR_MAX
+                  << " CORR_W=" << Config::CORR_W << " CORR_DIV=" << Config::CORR_DIV
+                  << " ENABLE_CUTOFF_CLASS=" << Config::ENABLE_CUTOFF_CLASS
+                  << " ENABLE_PIECE_CONTHIST=" << Config::ENABLE_PIECE_CONTHIST
+                  << " PIECE_CONTHIST_SHIFT=" << Config::PIECE_CONTHIST_SHIFT
+                  << " ENABLE_THREAT_HIST=" << Config::ENABLE_THREAT_HIST
+                  << " THREAT_HIST_SHIFT=" << Config::THREAT_HIST_SHIFT
                   << " ENABLE_SINGULAR=" << Config::ENABLE_SINGULAR
                   << " SINGULAR_MARGIN=" << Config::SINGULAR_MARGIN
                   << " SINGULAR_MIN_DEPTH=" << Config::SINGULAR_MIN_DEPTH
@@ -1219,6 +1341,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " LMP_MAX_DEPTH=" << Config::LMP_MAX_DEPTH
                   << " LMP_BASE=" << Config::LMP_BASE
                   << " LMP_SCALE=" << Config::LMP_SCALE
+                  << " ENABLE_LMP_HIST_EXEMPT=" << Config::ENABLE_LMP_HIST_EXEMPT
+                  << " LMP_HIST_EXEMPT=" << Config::LMP_HIST_EXEMPT
+                  << " ENABLE_HIST_PRUNE=" << Config::ENABLE_HIST_PRUNE
+                  << " HIST_PRUNE_COEF=" << Config::HIST_PRUNE_COEF
+                  << " HIST_PRUNE_MAX_DEPTH=" << Config::HIST_PRUNE_MAX_DEPTH
                   << " ENABLE_LAZY_RESORT=" << Config::ENABLE_LAZY_RESORT
                   << " PROMOTE_TOP_K=" << Config::PROMOTE_TOP_K
                   << " RESORT_AFTER_REUSES=" << Config::RESORT_AFTER_REUSES
@@ -1506,6 +1633,12 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
         ep_square,
         halfmove_clock,
         fullmove_number);
+
+    // Prefetch the child node's TT slot now that its key (zobrist) and cache-key inputs (child
+    // castling_rights / ep_square, already updated above) are known, hiding the probe's DRAM latency
+    // behind the make/return work before get_score_*() reads it. Pure hint -> byte-identical.
+    if (Config::ENABLE_TT_PREFETCH)
+        prefetchSearchEvalCache(zobrist, castling_rights, ep_square);
 }
 
 inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key)
@@ -1673,7 +1806,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         int y2 = (move.to_square >> 3) + 1;
 
         // Resigns
-        if (score <= -15000)
+        if (score <= Config::RESIGN_THRESHOLD)
         {
             MoveData defaultMove(-1, -1, -1, -1, -1, score, 0);
             return defaultMove;
@@ -1809,6 +1942,15 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cerr << "[cutoff_histogram] m0=" << g_cutoff_histogram[0] << " m1=" << g_cutoff_histogram[1]
                   << " m2=" << g_cutoff_histogram[2] << " m3-7=" << g_cutoff_histogram[3]
                   << " m8+=" << g_cutoff_histogram[4] << std::endl;
+        if (Config::ENABLE_CUTOFF_CLASS) {
+            static const char *cc[] = {"cap", "promo", "killer", "counter", "quiet"};
+            std::cerr << "[cutoff_class] (m0/m1/m2/m3-7/m8+ per class)";
+            for (int c = 0; c < CUTCLASS_N; ++c)
+                std::cerr << "  " << cc[c] << "=" << g_cutoff_class_hist[c][0] << "/" << g_cutoff_class_hist[c][1]
+                          << "/" << g_cutoff_class_hist[c][2] << "/" << g_cutoff_class_hist[c][3] << "/"
+                          << g_cutoff_class_hist[c][4];
+            std::cerr << std::endl;
+        }
         std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires << std::endl;
     if (Config::ENABLE_OTV)
         std::cerr << "[otv] fires=" << g_otv_fires
@@ -2019,6 +2161,12 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     best_score = score;
     best_move_index = 0;
 
+    // Simplification-bias bookkeeping: does the current best root move trade a non-pawn piece?
+    uint64_t simpl_best_to = 1ULL << current_search_data.moves_list[0].to_square;
+    bool best_is_simpl = capture_move
+                         && (simpl_best_to & current_state.occupied_colour[!current_state.turn])
+                         && !(simpl_best_to & current_state.pawns);
+
     if (score > alpha)
         updatePV(current_search_data.moves_list[0], cur_depth);
 
@@ -2054,7 +2202,9 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
             if (Config::ENABLE_RAZORING && (score_diff > razor_threshold) && (alpha < 9000000))
             {
-                break;
+                if (Config::ROOT_RAZOR_CONTINUE)
+                    continue;   // skip only this stale-low move; keep searching later moves (safety)
+                break;          // default: abandon all remaining root moves (byte-identical)
             }
         }
 
@@ -2136,14 +2286,28 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         }
 
         // Check if the current move's score is better than the existing best move
+        uint64_t simpl_move_to = 1ULL << move.to_square;
+        bool move_is_simpl = capture_move
+                             && (simpl_move_to & current_state.occupied_colour[!current_state.turn])
+                             && !(simpl_move_to & current_state.pawns);
         if (score > best_score)
         {
             best_move = move;
             best_score = score;
             best_move_index = i;
+            best_is_simpl = move_is_simpl;
 
             if (score > alpha)
                 updatePV(move, cur_depth);
+        }
+        else if (Config::ENABLE_SIMPL_BIAS && score >= best_score - Config::SIMPL_MARGIN
+                 && best_score > Config::SIMPL_AHEAD_THRESH && best_score < 9000000   // clearly ahead, not a mate score
+                 && move_is_simpl && !best_is_simpl)
+        {
+            // Clearly ahead and this move trades a non-pawn piece at no score cost: prefer simplifying.
+            best_move = move;
+            best_move_index = i;
+            best_is_simpl = true;
         }
 
         alpha = std::max(alpha, best_score);
@@ -2320,7 +2484,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
-                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
+                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd
+                        && !(Config::ENABLE_LMP_HIST_EXEMPT && historyHeuristics[current_state.turn][move.from_square][move.to_square] >= Config::LMP_HIST_EXEMPT))
                     {
                         if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                         {
@@ -2331,6 +2496,16 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         }
                         return 9999999;   // non-improving sentinel for the minimizer (never the new min, no false cutoff)
                     }
+                }
+
+                // History pruning: skip a late quiet the ordering strongly condemns (very negative butterfly
+                // history) at low remaining depth. Reads the existing from×to table; default off = byte-identical.
+                if (Config::ENABLE_HIST_PRUNE && do_lmr)
+                {
+                    int rd_hp = depth_limit - cur_depth;
+                    if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
+                        historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
+                        return 9999999;
                 }
 
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
@@ -2655,7 +2830,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
-                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
+                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd
+                        && !(Config::ENABLE_LMP_HIST_EXEMPT && historyHeuristics[current_state.turn][move.from_square][move.to_square] >= Config::LMP_HIST_EXEMPT))
                     {
                         if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                         {
@@ -2666,6 +2842,16 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         }
                         return -9999999;   // non-improving sentinel for the maximizer (never the new max, no false cutoff)
                     }
+                }
+
+                // History pruning: skip a late quiet the ordering strongly condemns (very negative butterfly
+                // history) at low remaining depth. Reads the existing from×to table; default off = byte-identical.
+                if (Config::ENABLE_HIST_PRUNE && do_lmr)
+                {
+                    int rd_hp = depth_limit - cur_depth;
+                    if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
+                        historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
+                        return -9999999;
                 }
 
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
@@ -3137,7 +3323,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 ++g_fh_total;
                 if (i == 0)
                     ++g_fh_first;
-                g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
+                g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++; if (Config::ENABLE_CUTOFF_CLASS) g_cutoff_class_hist[cutoff_move_class(move, current_state, cur_depth, previousMove)][i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
                 // std::cout <<score << std::endl;
                 out_entry.second_scores = cur_second_level_preliminary_scores;
 
@@ -3147,14 +3333,14 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     {
                         Move p2c = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
                         bool tn = current_state.turn;
-                        long ssc = cutcal_statscore(move, previousMove, p2c, tn);
+                        long ssc = cutcal_statscore(move, previousMove, p2c, tn, current_state);
                         cutcal_record(ssc, true);
                         if (ssc >= 0 && ssc < SS_BUCKET_W)
                             g_cutcal.tf_cut[std::min(g_tf_count[tn][move.from_square][move.to_square], 3L)]++;
                         for (const Move &q : searched_quiets)
                         {
                             if (q == move) continue;
-                            long ssq = cutcal_statscore(q, previousMove, p2c, tn);
+                            long ssq = cutcal_statscore(q, previousMove, p2c, tn, current_state);
                             cutcal_record(ssq, false);
                             if (ssq >= 0 && ssq < SS_BUCKET_W)
                                 g_cutcal.tf_fail[std::min(g_tf_count[tn][q.from_square][q.to_square], 3L)]++;
@@ -3176,15 +3362,18 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     if (Config::ENABLE_HISTORY_SATURATION)
                     {
                         hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
-                        hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square], b);
-                        if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square], b / Config::CONT2_GRAVITY_DIV);
+                        hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)], b);
+                        if (p2v) hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)], b / Config::CONT2_GRAVITY_DIV);
+                        if (Config::ENABLE_PIECE_CONTHIST) hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)], b);
                     }
                     else
                     {
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
-                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * b;
-                        if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                        counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                        if (p2v) contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                        if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)] += 4 * b;
                     }
+                    threat_hist_on_cutoff(current_state, move, searched_quiets, b, Config::ENABLE_HISTORY_SATURATION, Config::MALUS_DIV, Config::ENABLE_HISTORY_MALUS);
                     if (Config::ENABLE_HISTORY_MALUS)
                     {
                         for (const Move &q : searched_quiets)
@@ -3193,14 +3382,16 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                             if (Config::ENABLE_HISTORY_SATURATION)
                             {
                                 hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
-                                hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square], -b / Config::MALUS_DIV);
-                                if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                                hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
+                                if (p2v) hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                                if (Config::ENABLE_PIECE_CONTHIST) hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
                             }
                             else
                             {
                                 historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
-                                counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
-                                if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                                counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                if (p2v) contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
                             }
                         }
                     }
@@ -3266,14 +3457,25 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                                (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
                               Config::ENABLE_NULL_EVAL_GATE);
         if (rfp_want_eval)
+        {
             rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+            if (Config::ENABLE_CORR_HIST)
+                rfp_static_eval += corrhist_correction(current_state, 0);
+        }
 
         // Reverse futility (static null): so far below alpha a quiet move is assumed to hold.
         if (Config::ENABLE_RFP && rfp_static_eval != NO_STATIC_EVAL &&
             (beta - alpha) == 1 && alpha > -9000000 && alpha < 9000000 &&
             (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
             rfp_static_eval + Config::RFP_MARGIN * (depth_limit - cur_depth) <= alpha)
+        {
+            if (Config::ENABLE_PRUNE_LOG)
+                log_prune_fire("RFP_MIN", current_state, alpha, beta, depth_limit - cur_depth, rfp_static_eval,
+                               cheap_eval(current_state.pawns, current_state.knights, current_state.bishops,
+                                          current_state.rooks, current_state.queens, current_state.kings,
+                                          current_state.occupied_colour[true], current_state.occupied_colour[false]));
             return rfp_static_eval;
+        }
 
         // Null Move Pruning
         if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MINI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state) && (!Config::ENABLE_NULL_EVAL_GATE || rfp_static_eval <= alpha))
@@ -3363,6 +3565,14 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 return null_move_score; // fail-high cutoff
             }
         }
+
+        // IIR: reduce this node's search depth by 1 when it has no cached ordering evidence (movegen-cache
+        // miss = first visit) and depth to spare, so the shallow pass seeds a good first move for the
+        // re-search. Off => byte-identical.
+        if (Config::ENABLE_IIR && !currently_in_check
+            && (depth_limit - cur_depth) >= Config::IIR_MIN_DEPTH
+            && !moveGenCacheHasMoves(zobrist, current_state.castling_rights, current_state.ep_square))
+            depth_limit -= 1;
 
         std::vector<Move>& moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
         std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
@@ -3607,7 +3817,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 ++g_fh_total;
                 if (i == 0)
                     ++g_fh_first;
-                g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
+                g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++; if (Config::ENABLE_CUTOFF_CLASS) g_cutoff_class_hist[cutoff_move_class(move, current_state, cur_depth, previousMove)][i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
                 // Node-local best-move populate (singular's TT-move): stamp this node's cutoff move onto its
                 // OWN TT entry (key-verified), so singular can verify/exclude it. Move-only write — touches
                 // nothing the search reads until singular does, and the SF move-rule in tt_store preserves it
@@ -3632,15 +3842,18 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     if (Config::ENABLE_HISTORY_SATURATION)
                     {
                         hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
-                        hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square], b);
-                        if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square], b / Config::CONT2_GRAVITY_DIV);
+                        hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)], b);
+                        if (p2v) hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)], b / Config::CONT2_GRAVITY_DIV);
+                        if (Config::ENABLE_PIECE_CONTHIST) hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)], b);
                     }
                     else
                     {
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
-                        counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * b;
-                        if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                        counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                        if (p2v) contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                        if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)] += 4 * b;
                     }
+                    threat_hist_on_cutoff(current_state, move, searched_quiets, b, Config::ENABLE_HISTORY_SATURATION, Config::MALUS_DIV, Config::ENABLE_HISTORY_MALUS);
                     if (Config::ENABLE_HISTORY_MALUS)
                     {
                         for (const Move &q : searched_quiets)
@@ -3649,14 +3862,16 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                             if (Config::ENABLE_HISTORY_SATURATION)
                             {
                                 hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
-                                hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square], -b / Config::MALUS_DIV);
-                                if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                                hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
+                                if (p2v) hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                                if (Config::ENABLE_PIECE_CONTHIST) hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
                             }
                             else
                             {
                                 historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
-                                counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
-                                if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                                counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                if (p2v) contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
                             }
                         }
                     }
@@ -3719,6 +3934,16 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     if (!capture_move)
     {
         historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
+        if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG) && std::abs(lowest_score) < 9000000 &&
+            !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
+        {
+            int se = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+            if (Config::ENABLE_CORR_HIST)
+                corrhist_update(current_state, 0, se, lowest_score);
+            if (Config::ENABLE_CORRHIST_LOG)
+                corrhist_log(generatePawnKey(current_state.pawns, current_state.occupied_colour[true], current_state.occupied_colour[false]),
+                             0, se, lowest_score, depth_limit - cur_depth);
+        }
     }
 
     return lowest_score;
@@ -3852,14 +4077,25 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                            (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
                           Config::ENABLE_NULL_EVAL_GATE);
     if (rfp_want_eval)
+    {
         rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+        if (Config::ENABLE_CORR_HIST)
+            rfp_static_eval += corrhist_correction(current_state, 1);
+    }
 
     // Reverse futility (static null): so far above beta a quiet move is assumed to hold.
     if (Config::ENABLE_RFP && rfp_static_eval != NO_STATIC_EVAL &&
         (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
         (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
         rfp_static_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) >= beta)
+    {
+        if (Config::ENABLE_PRUNE_LOG)
+            log_prune_fire("RFP_MAX", current_state, alpha, beta, depth_limit - cur_depth, rfp_static_eval,
+                           cheap_eval(current_state.pawns, current_state.knights, current_state.bishops,
+                                      current_state.rooks, current_state.queens, current_state.kings,
+                                      current_state.occupied_colour[true], current_state.occupied_colour[false]));
         return rfp_static_eval;
+    }
 
     // Null Move Pruning
     if (Config::ENABLE_NULLMOVE && cur_depth >= Config::NULLMOVE_CURDEPTH_MAXI && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move && !currently_in_check && !isUnsafeForNullMovePruning(current_state) && (!Config::ENABLE_NULL_EVAL_GATE || rfp_static_eval >= beta))
@@ -3942,6 +4178,14 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             return null_move_score; // fail-high cutoff
         }
     }
+
+    // IIR: reduce this node's search depth by 1 when it has no cached ordering evidence (movegen-cache
+    // miss = first visit) and depth to spare, so the shallow pass seeds a good first move for the
+    // re-search. Off => byte-identical.
+    if (Config::ENABLE_IIR && !currently_in_check
+        && (depth_limit - cur_depth) >= Config::IIR_MIN_DEPTH
+        && !moveGenCacheHasMoves(zobrist, current_state.castling_rights, current_state.ep_square))
+        depth_limit -= 1;
 
     std::vector<Move>& moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
     std::vector<Move> searched_quiets, searched_captures;   // history-gravity malus lists (empty = no cost when gravity off)
@@ -4217,7 +4461,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             ++g_fh_total;
             if (i == 0)
                 ++g_fh_first;
-            g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
+            g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++; if (Config::ENABLE_CUTOFF_CLASS) g_cutoff_class_hist[cutoff_move_class(move, current_state, cur_depth, previousMove)][i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
             // Node-local best-move populate (singular's TT-move) — see the minimizer cutoff for rationale.
             // Skip while excluding so a max exclusion re-search doesn't overwrite the node's real TT-move.
             if (Config::ENABLE_SINGULAR && !excluding)
@@ -4239,15 +4483,18 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 if (Config::ENABLE_HISTORY_SATURATION)
                 {
                     hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
-                    hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square], b);
-                    if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square], b / Config::CONT2_GRAVITY_DIV);
+                    hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)], b);
+                    if (p2v) hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)], b / Config::CONT2_GRAVITY_DIV);
+                    if (Config::ENABLE_PIECE_CONTHIST) hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)], b);
                 }
                 else
                 {
                     historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
-                    counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][move.from_square * 64 + move.to_square] += 4 * b;
-                    if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += 4 * b;
+                    counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                    if (p2v) contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                    if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)] += 4 * b;
                 }
+                threat_hist_on_cutoff(current_state, move, searched_quiets, b, Config::ENABLE_HISTORY_SATURATION, Config::MALUS_DIV, Config::ENABLE_HISTORY_MALUS);
                 if (Config::ENABLE_HISTORY_MALUS)
                 {
                     for (const Move &q : searched_quiets)
@@ -4256,14 +4503,16 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                         if (Config::ENABLE_HISTORY_SATURATION)
                         {
                             hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
-                            hist_update(counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square], -b / Config::MALUS_DIV);
-                            if (p2v) hist_update(contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                            hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
+                            if (p2v) hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                            if (Config::ENABLE_PIECE_CONTHIST) hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
                         }
                         else
                         {
                             historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
-                            counterMoveHeuristics[current_state.turn][previousMove.from_square * 64 + previousMove.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
-                            if (p2v) contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][q.from_square * 64 + q.to_square] -= 4 * b / Config::MALUS_DIV;
+                            counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                            if (p2v) contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                            if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
                         }
                     }
                 }
@@ -4325,6 +4574,16 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     if (!capture_move)
     {
         historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
+        if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG) && std::abs(highest_score) < 9000000 &&
+            !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
+        {
+            int se = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+            if (Config::ENABLE_CORR_HIST)
+                corrhist_update(current_state, 1, se, highest_score);
+            if (Config::ENABLE_CORRHIST_LOG)
+                corrhist_log(generatePawnKey(current_state.pawns, current_state.occupied_colour[true], current_state.occupied_colour[false]),
+                             1, se, highest_score, depth_limit - cur_depth);
+        }
     }
 
     return highest_score;
@@ -4705,13 +4964,15 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                         if(!capture_move){
                             storeKillerMove(cur_depth, move);
                             historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                            if (Config::ENABLE_THREAT_HIST) threat_hist_update(current_state.turn, node_threats_of(current_state), move.from_square, move.to_square, cur_depth * cur_depth, false);
                             counterMoves[prevMove.from_square][prevMove.to_square] = move;
-                            counterMoveHeuristics[current_state.turn][prevMove.from_square * 64 + prevMove.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth * cur_depth;
+                            counterMoveHeuristics[current_state.turn][cont_ctx_key(prevMove, current_state)][cont_ent_key(move, current_state)] += cur_depth * cur_depth * cur_depth;
+                            if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(prevMove, current_state)][pcont_ent_key(move, current_state)] += cur_depth * cur_depth * cur_depth;
                             if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
                             {
                                 Move p2 = g_searchStack[cur_depth - 2];
                                 if (p2.from_square != p2.to_square)
-                                    contHist2[current_state.turn][p2.from_square * 64 + p2.to_square][move.from_square * 64 + move.to_square] += cur_depth * cur_depth * cur_depth;
+                                    contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += cur_depth * cur_depth * cur_depth;
                             }
                         }
                         else if (Config::ENABLE_CAPTURE_HIST)
@@ -4871,8 +5132,10 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
             {
                 storeKillerMove(cur_depth, move);
                 historyHeuristics[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                if (Config::ENABLE_THREAT_HIST) threat_hist_update(current_state.turn, node_threats_of(current_state), move.from_square, move.to_square, (depth_limit - cur_depth) * (depth_limit - cur_depth), false);
                 counterMoves[prevMove.from_square][prevMove.to_square] = move;
-                counterMoveHeuristics[current_state.turn][prevMove.from_square * 64 + prevMove.to_square][move.from_square * 64 + move.to_square] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                counterMoveHeuristics[current_state.turn][cont_ctx_key(prevMove, current_state)][cont_ent_key(move, current_state)] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(prevMove, current_state)][pcont_ent_key(move, current_state)] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
             }
             else if (Config::ENABLE_CAPTURE_HIST)
             {
@@ -5510,6 +5773,10 @@ inline void increment_node_count_with_decay(int &num_iterations)
         decayCounterMoveHeuristics();
         if (Config::ENABLE_CONT_HIST_2PLY)
             decayContHist2();
+        if (Config::ENABLE_PIECE_CONTHIST)
+            decayPieceContHist();
+        if (Config::ENABLE_THREAT_HIST)
+            decayThreatHist();
     }
 }
 
@@ -5761,6 +6028,14 @@ inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &st
                         if (ek)
                             enemy_king_sq = 63 - __builtin_clzll(ek);
                     }
+                    uint64_t node_threats = 0;
+                    if (Config::ENABLE_THREAT_HIST)
+                    {
+                        uint64_t opp = current_state.occupied_colour[!current_state.turn];
+                        node_threats = opponent_threats(!current_state.turn, current_state.pawns & opp, current_state.knights & opp,
+                                                        current_state.bishops & opp, current_state.rooks & opp, current_state.queens & opp,
+                                                        current_state.kings & opp, current_state.occupied);
+                    }
                     size_t qn = cached_moves.size() - quiet_start;
                     std::vector<int> qs(qn);
                     for (size_t t = 0; t < qn; ++t)
@@ -5768,7 +6043,7 @@ inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &st
                         const Move &m = cached_moves[quiet_start + t];
                         qs[t] = score_quiet(m.from_square, m.to_square, m.promotion, current_state.turn, cur_ply, prevMove,
                                             current_state.occupied, current_state.pawns, current_state.knights,
-                                            current_state.bishops, current_state.rooks, current_state.queens, enemy_king_sq);
+                                            current_state.bishops, current_state.rooks, current_state.queens, enemy_king_sq, node_threats);
                     }
                     if (do_full)
                     {

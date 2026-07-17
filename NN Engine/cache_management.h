@@ -157,6 +157,99 @@ extern int historyHeuristics[2][64][64];
 extern int moveFrequency[2][64][64];
 
 extern int contHist2[2][4096][4096];
+
+// Correction history: a per-pawn-structure online de-biaser of the static eval. Keyed [maxbit][pawnKey & mask]
+// where maxbit = 1 at maximizer (root-side) nodes, 0 at minimizer nodes (the eval frame is root-relative, so
+// the maxbit distinguishes the two). Each entry holds an EMA of the residual (searchBestScore - staticEval) in
+// the same root-relative frame; the correction is added to the node-entry static eval before RFP/null gates.
+// Gated by Config::ENABLE_CORR_HIST (off = never read or written = byte-identical). Phase-0 signal-verified
+// (pawn x maxbit, NET +3-4% held-out on quiet positions). See dev_notes/corrhist-feasibility-plan-2026-07-15.md.
+constexpr int CORR_SIZE = 16384;   // power of two -> index by & (CORR_SIZE-1)
+extern int pawnCorrHist[2][CORR_SIZE];
+
+// Piece-type×to continuation history (SF-style). This is a SEPARATE additive ordering term that COEXISTS
+// with the from×to counterMoveHeuristics/contHist2 above — it is NOT a re-keying of them. The dense piece×to
+// abstraction generalizes across transposing (mostly tactical) lines that share "which piece lands where",
+// while the from×to tables retain the origin-square specificity that strategic maneuvering needs. Indexed
+// [side][ctx][ent] where ctx = piece_at(prevMove.to)*64 + prevMove.to and ent = piece_at(move.from)*64 +
+// move.to (piece index 1..6, so both fit in [512]). Gated by Config::ENABLE_PIECE_CONTHIST (off = never read
+// or written = byte-identical). See dev_notes/search-ordering-pruning-map-2026-07-14.md (Step 2).
+constexpr int PCONT_DIM = 512;
+extern int pieceContHist[2][PCONT_DIM][PCONT_DIM];
+
+// Threat-conditioned butterfly quiet history (Ethereal/Caissa style): the from×to butterfly split 4 ways by
+// whether the from-square and to-square are attacked by the opponent (a "threats" bitboard computed once per
+// node). Keeps origin-square specificity (unlike a piece×to re-key) while learning "does this quiet work when
+// escaping / stepping into an attacked square" separately. Additive ordering term, gated ENABLE_THREAT_HIST
+// (off = never read/written = byte-identical). Index [side][threat_from][threat_to][from][to].
+extern int threatHist[2][2][2][64][64];
+
+// Continuation-history keying helpers. These are UNCONDITIONALLY from×to (byte-identical to the historical
+// inline `X.from_square*64 + X.to_square`); they key counterMoveHeuristics/contHist2. The piece×to term uses
+// the separate pcont_* helpers below.
+inline int piece_type_at(const BoardState &st, uint8_t sq)
+{
+    uint64_t b = 1ULL << sq;
+    if (st.pawns & b)   return 1;
+    if (st.knights & b) return 2;
+    if (st.bishops & b) return 3;
+    if (st.rooks & b)   return 4;
+    if (st.queens & b)  return 5;
+    if (st.kings & b)   return 6;
+    return 0;
+}
+inline int cont_ent_key(const Move &m, const BoardState &)   // current move → entry index (from×to)
+{
+    return m.from_square * 64 + m.to_square;
+}
+inline int cont_ctx_key(const Move &prev, const BoardState &) // previous/2-ply move → context index (from×to)
+{
+    return prev.from_square * 64 + prev.to_square;
+}
+// piece×to keys for the coexisting pieceContHist term (BoardState available at the search cutoff sites).
+inline int pcont_ent_key(const Move &m, const BoardState &st)   // current move → piece×to entry
+{
+    return piece_type_at(st, m.from_square) * 64 + m.to_square;
+}
+inline int pcont_ctx_key(const Move &prev, const BoardState &st) // previous/2-ply move → piece×to context
+{
+    return piece_type_at(st, prev.to_square) * 64 + prev.to_square;
+}
+// Mask-based variants for move ordering (move_gen.h), where only the raw piece bitboards are in scope (no
+// BoardState). Piece keys are computed identically to the BoardState helpers so an ordering READ lands on the
+// same pieceContHist index the search WRITE used for the same position.
+inline int piece_type_at_bb(uint8_t sq, uint64_t pawnsM, uint64_t knightsM, uint64_t bishopsM,
+                            uint64_t rooksM, uint64_t queensM, uint64_t kingsM)
+{
+    uint64_t b = 1ULL << sq;
+    if (pawnsM & b)   return 1;
+    if (knightsM & b) return 2;
+    if (bishopsM & b) return 3;
+    if (rooksM & b)   return 4;
+    if (queensM & b)  return 5;
+    if (kingsM & b)   return 6;
+    return 0;
+}
+inline int pcont_ent_key_bb(uint8_t from, uint8_t to, uint64_t pawnsM, uint64_t knightsM, uint64_t bishopsM,
+                            uint64_t rooksM, uint64_t queensM, uint64_t kingsM)
+{
+    return piece_type_at_bb(from, pawnsM, knightsM, bishopsM, rooksM, queensM, kingsM) * 64 + to;
+}
+inline int pcont_ctx_key_bb(const Move &prev, uint64_t pawnsM, uint64_t knightsM, uint64_t bishopsM,
+                            uint64_t rooksM, uint64_t queensM, uint64_t kingsM)
+{
+    return piece_type_at_bb(prev.to_square, pawnsM, knightsM, bishopsM, rooksM, queensM, kingsM) * 64 + prev.to_square;
+}
+// from×to keys for counterMoveHeuristics/contHist2 in the ordering path (mask args unused; present for a
+// uniform call shape with the pcont_* variants). Unconditionally from×to = byte-identical to the inline form.
+inline int cont_ent_key_bb(uint8_t from, uint8_t to, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)
+{
+    return from * 64 + to;
+}
+inline int cont_ctx_key_bb(const Move &prev, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)
+{
+    return prev.from_square * 64 + prev.to_square;
+}
 extern int captureHistory[2][64][64];
 
 // Per-ply move stack (single-threaded search): g_searchStack[d] = the move played to descend from
@@ -792,7 +885,7 @@ inline void addToQCache(uint64_t key, int score, TTFlag flag, uint64_t castling_
 
 inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int depth_used, TTFlag flag, int alpha_orig, int beta_orig, uint64_t castling_rights, int ep_square) {	
 
-	if (score >= 9000000 || score <= -9000000 || score == 0)
+	if (score >= 9000000 || score <= -9000000 || (score == 0 && !Config::ENABLE_TT_STORE_DRAW))
 		return;
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     
@@ -833,12 +926,23 @@ inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, in
     return nullptr;
 }
 
+// Software-prefetch the TT slot that accessSearchEvalCache(key, castling_rights, ep_square) will read,
+// so a caller that knows a position a few instructions before probing it can hide the DRAM latency.
+// The index math mirrors accessSearchEvalCache exactly (kept co-located so the two cannot drift).
+inline void prefetchSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    size_t idx = (Config::TT_WAYS <= 1)
+        ? (updatedKey & TT_CACHE_MASK)
+        : (updatedKey & (TT_CACHE_SIZE / Config::TT_WAYS - 1)) * Config::TT_WAYS;
+    __builtin_prefetch(&searchEvalCache[idx], 0, 1);
+}
+
 
 inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int depth_used, TTFlag flag, int alpha_orig, int beta_orig, uint64_t castling_rights, int ep_square, Move move = Move()) {
 
 	if (g_no_tt_store)
 		return;
-	if (score >= 9000000 || score <= -9000000 || score == 0)
+	if (score >= 9000000 || score <= -9000000 || (score == 0 && !Config::ENABLE_TT_STORE_DRAW))
 		return;
 
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
@@ -1027,6 +1131,25 @@ inline void decayContHist2() {
             }
         }
     }
+}
+
+inline void decayPieceContHist() {
+    for (int side = 0; side < 2; ++side) {
+        for (int ctx = 0; ctx < PCONT_DIM; ++ctx) {
+            for (int ent = 0; ent < PCONT_DIM; ++ent) {
+                pieceContHist[side][ctx][ent] >>= DECAY_FACTOR;
+            }
+        }
+    }
+}
+
+inline void decayThreatHist() {
+    for (int side = 0; side < 2; ++side)
+        for (int tf = 0; tf < 2; ++tf)
+            for (int tt = 0; tt < 2; ++tt)
+                for (int from = 0; from < 64; ++from)
+                    for (int to = 0; to < 64; ++to)
+                        threatHist[side][tf][tt][from][to] >>= DECAY_FACTOR;
 }
 
 inline void decayCaptureHistory() {

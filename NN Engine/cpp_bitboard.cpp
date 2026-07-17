@@ -148,6 +148,12 @@ alignas(64) int moveFrequency[2][64][64] = {};
 
 alignas(64) int contHist2[2][4096][4096] = {};
 
+alignas(64) int pieceContHist[2][PCONT_DIM][PCONT_DIM] = {};
+
+alignas(64) int threatHist[2][2][2][64][64] = {};
+
+alignas(64) int pawnCorrHist[2][CORR_SIZE] = {};
+
 alignas(64) int captureHistory[2][64][64] = {};
 
 alignas(64) Move g_searchStack[MAX_PLY] = {};

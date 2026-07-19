@@ -670,7 +670,18 @@ namespace Config
     inline int KS_ATTACK_COUNT = 1;     // per zone square the enemy attacks (additive zone pressure)
     inline int KS_WEAK         = 2;     // per weak zone square. Baseline: enemy-attacked AND no own defender. With
                                         // ENABLE_KS_SF_WEAK: enemy-attacked AND under-defended (<=1 defender, K/Q only).
-    inline int KS_SAFE_CHECK   = 3;     // per square from which the enemy can deliver a safe check
+    inline int KS_SAFE_CHECK   = 3;     // per safe-check square vs the ENEMY (offensive) king. Default 3.
+    inline int KS_SAFE_CHECK_DEF = 5;   // per safe-check square vs the SIDE-TO-MOVE's OWN (defensive) king. Boosts
+                                        // DEFENSIVE safe-check sensitivity (lifts a real counter-attack on our king
+                                        // over the KS_FLOOR deadzone) WITHOUT over-crediting our own attacks (which
+                                        // hurt WAC). Categorical game gate: KS-attack collapse class -23% at flat
+                                        // total (600g SF@2400). Set to KS_SAFE_CHECK (3) to restore prior symmetric.
+    inline int KS_DEF_MAG      = 100;   // percent multiplier on the SIDE-TO-MOVE king's FINAL danger ("carry
+                                        // our-king danger harder"): our king-danger magnitude is ~10x under SF11's
+                                        // (SF weights a safe check 635-1080 units, quadratic), so a real counter-
+                                        // attack doesn't offset our capgains-hot material. 100 = byte-identical;
+                                        // >100 scales up the defensive side only (offense stays put -- attackingLayer
+                                        // already covers it). Games-tuned; conditional (0-danger kings unaffected).
     inline int KS_STORM        = 1;     // per rank of enemy pawn-storm advance on the king's three files
     inline int KS_OPEN_FILE    = 2;     // per open/semi-open file on/adjacent to the king file
     inline int KS_BATTERY      = 3;     // per rook/queen battery (doubled on a file / Q+B diagonal) aimed at the zone

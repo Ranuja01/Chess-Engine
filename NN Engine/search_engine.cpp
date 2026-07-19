@@ -1024,6 +1024,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_ATTACK_COUNT = env_int("KS_ATTACK_COUNT", Config::KS_ATTACK_COUNT);
         Config::KS_WEAK = env_int("KS_WEAK", Config::KS_WEAK);
         Config::KS_SAFE_CHECK = env_int("KS_SAFE_CHECK", Config::KS_SAFE_CHECK);
+        Config::KS_SAFE_CHECK_DEF = env_int("KS_SAFE_CHECK_DEF", Config::KS_SAFE_CHECK_DEF);
+        Config::KS_DEF_MAG = env_int("KS_DEF_MAG", Config::KS_DEF_MAG);
         Config::KS_STORM = env_int("KS_STORM", Config::KS_STORM);
         Config::KS_OPEN_FILE = env_int("KS_OPEN_FILE", Config::KS_OPEN_FILE);
         Config::KS_BATTERY = env_int("KS_BATTERY", Config::KS_BATTERY);

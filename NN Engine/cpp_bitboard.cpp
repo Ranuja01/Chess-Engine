@@ -4965,7 +4965,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 	danger by its attack-signature co-occurrence. Battery (KS_BATTERY) is the one declared knob still unwired.
 */
 inline int mod_gain(int k1, int sig1, int sh1, int k2, int sig2, int sh2);  // defined below; used for KS_DYN
-inline int king_safety_danger(uint8_t king_square, bool white_king){
+inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensive){
 	uint64_t zone      = white_king ? white_king_ks_zone[king_square] : black_king_ks_zone[king_square];
 	uint64_t enemy     = white_king ? occupied_black : occupied_white;
 	uint64_t own        = white_king ? occupied_white : occupied_black;
@@ -5052,7 +5052,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king){
 	// and it is SAFE iff our side does not defend that square. This is the strongest genuine-danger signal
 	// (it fires on real attacks, not mere proximity). attack_bitmasks gives, per square, who attacks it.
 	int safe_checks = 0;  // hoisted to function scope so the per-king dynamic factor can read it (below)
-	if (Config::KS_SAFE_CHECK) {
+	if (Config::KS_SAFE_CHECK || Config::KS_SAFE_CHECK_DEF) {
 		uint64_t occ = occupied;
 		uint64_t knight_from = BB_KNIGHT_ATTACKS[king_square];
 		uint64_t bishop_from = BB_DIAG_ATTACKS[king_square][BB_DIAG_MASKS[king_square] & occ];
@@ -5079,7 +5079,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king){
 		cc = rook_from & ~enemy;
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
 		             if ((bm & enemy_line) && check_safe(bm)) safe_checks++; }
-		units += Config::KS_SAFE_CHECK * safe_checks;
+		units += (defensive ? Config::KS_SAFE_CHECK_DEF : Config::KS_SAFE_CHECK) * safe_checks;
 	}
 
 	// Super-linear "coffin" interaction: the units above sum undefended pressure, open lines and attacker
@@ -5139,10 +5139,16 @@ inline int king_safety_danger(uint8_t king_square, bool white_king){
 	endgame via the precomputed ks_phase_taper (full weight in the midgame). Early-out in the deep
 	endgame where the taper is ~0 so the term costs nothing exactly where it does not matter.
 */
-inline int king_safety_score(uint8_t white_king_square, uint8_t black_king_square, int phase_score){
+inline int king_safety_score(uint8_t white_king_square, uint8_t black_king_square, int phase_score, bool turn){
 	if (phase_score >= Config::KS_PHASE_ZERO) return 0;  // deep-endgame early-out (high phase_score, taper ~ 0)
-	int danger_white = king_safety_danger(white_king_square, true);
-	int danger_black = king_safety_danger(black_king_square, false);
+	// The side-to-move's OWN king is the "defensive" one (the over-confident/collapsing side we want cautious).
+	int danger_white = king_safety_danger(white_king_square, true, turn);
+	int danger_black = king_safety_danger(black_king_square, false, !turn);
+	// Carry the side-to-move king's danger harder (counter our capgains-hot material). 100 = byte-identical.
+	if (Config::KS_DEF_MAG != 100) {
+		if (turn) danger_white = danger_white * Config::KS_DEF_MAG / 100;
+		else      danger_black = danger_black * Config::KS_DEF_MAG / 100;
+	}
 	int ks = danger_white - danger_black;
 	return ks * ks_phase_taper[phase_score] / 256;
 }
@@ -6483,7 +6489,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		if (!g_eval_light) {
 			bool ks_active = Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0; if (ks_active || g_capture_eval_breakdown) {
 				PROF_BLOCK(PROF_KING_SAFETY);
-				int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score);
+				int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score, turn);
 				// Condition the king-danger on whether the attacking side actually backs the attack, so a flat
 				// magnitude stops over-firing on space-less / under-backed "fantasy" attacks (the att5+ static
 				// overshoot). ks is Black-positive: ks>0 => White king in danger (Black attacks), ks<0 => Black
@@ -6506,7 +6512,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			// Light-eval king-pressure SURROGATE: the cheap attack-unit king_safety_score stands in for the
 			// omitted latent_threat at standing evals, giving the light value a king-danger signal without the
 			// heavy term. Default KS_LIGHT_MAG = 0 => light still omits => byte-identical.
-			int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score);
+			int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score, turn);
 			total += Config::KS_LIGHT_MAG * ks / 100;
 		}
 		br_king_safety = total - br_run; br_run = total;

@@ -4406,10 +4406,12 @@ inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, u
 			y = r >> 3;
             x = r & 7;
 
-			if (square_mask & white_passed_pawns){
-				total -= 150;
-			} else if(square_mask & black_passed_pawns){
-				total -= 125;
+			if (!Config::ENABLE_PASSER_V2) {  // v2: king-vs-passer owned solely by passer_realizability_delta (pillar 2)
+				if (square_mask & white_passed_pawns){
+					total -= 150;
+				} else if(square_mask & black_passed_pawns){
+					total -= 125;
+				}
 			}
 			
 			// Subtract the score based on the attack of the opposing position and defense of white's own position
@@ -4452,10 +4454,12 @@ inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, u
 			y = r >> 3;
             x = r & 7;
 
-			if (square_mask & black_passed_pawns){
-				total += 150;
-			} else if(square_mask & white_passed_pawns){
-				total += 125;
+			if (!Config::ENABLE_PASSER_V2) {  // v2: king-vs-passer owned solely by passer_realizability_delta (pillar 2)
+				if (square_mask & black_passed_pawns){
+					total += 150;
+				} else if(square_mask & white_passed_pawns){
+					total += 125;
+				}
 			}
 			
 			// Subtract the score based on the attack of the opposing position and defense of black's own position
@@ -4838,7 +4842,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 	// When ENABLE_PASSER_KRACE_MG is on, the all-phases passer_realizability_delta() call in
 	// placement_and_piece_eval covers this (at full weight in deep endgame), so skip the in-AE copy
 	// to avoid double-counting. Default off -> this inline block runs as before (byte-identical).
-	if (!Config::ENABLE_PASSER_KRACE_MG) {
+	if (!Config::ENABLE_PASSER_KRACE_MG && !Config::ENABLE_PASSER_V2) {
 	// Create bitmasks for the first and second half of the board
 	uint64_t firstHalf = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
 	uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
@@ -5080,6 +5084,27 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
 		             if ((bm & enemy_line) && check_safe(bm)) safe_checks++; }
 		units += (defensive ? Config::KS_SAFE_CHECK_DEF : Config::KS_SAFE_CHECK) * safe_checks;
+	}
+
+	// Latent king-AIM (Front A): an enemy slider ALIGNED with the king through EXACTLY ONE blocker reads ZERO
+	// in the line-of-sight zone scan above (its obstruction sits outside the narrow zone; attack_bitmasks never
+	// x-rays). Reuse the empty-board king rays (index 0, as slider_blockers does) to get the enemy sliders on
+	// the king's lines, then betweenPieces to keep only the single-blocker (discovered/latent) case. Iterates
+	// only the 0-3 aligned sliders -- no new per-piece loop. Weighted per aiming-piece type, scaled DOWN vs a
+	// direct attacker (aim is latent). Default off (ENABLE_KS_AIM) = byte-identical.
+	if (Config::ENABLE_KS_AIM) {
+		uint64_t qr = enemy & (queens | rooks);
+		uint64_t qb = enemy & (queens | bishops);
+		uint64_t aligned = (BB_RANK_ATTACKS[king_square][0] & qr)
+		                 | (BB_FILE_ATTACKS[king_square][0] & qr)
+		                 | (BB_DIAG_ATTACKS[king_square][0] & qb);
+		while (aligned) {
+			uint8_t s = __builtin_ctzll(aligned); aligned &= aligned - 1;
+			if (__builtin_popcountll(betweenPieces(king_square, s) & occupied) == 1)
+				units += (BB_SQUARES[s] & queens) ? Config::KS_AIM_QUEEN
+				       : (BB_SQUARES[s] & rooks)  ? Config::KS_AIM_ROOK
+				       :                            Config::KS_AIM_BISHOP;
+		}
 	}
 
 	// Super-linear "coffin" interaction: the units above sum undefended pressure, open lines and attacker
@@ -5644,7 +5669,8 @@ inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawn
 			if ((attack_bitmasks[i] & occupied_black) && !(attack_bitmasks[i] & occupied_white))
 				R -= Config::PASSER_DANGER_D2;
 		int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_black), promo);
-		R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
+		if (!Config::ENABLE_PASSER_V2)  // v2: king dimension owned solely by passer_realizability_delta (pillar 2)
+			R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
 		R = std::clamp(R, 0, 384);
 		danger -= std::min((base[s] * R) >> 8, 4000); // white passer favours White (negative)
 	}
@@ -5669,7 +5695,8 @@ inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawn
 			if ((attack_bitmasks[i] & occupied_white) && !(attack_bitmasks[i] & occupied_black))
 				R -= Config::PASSER_DANGER_D2;
 		int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_white), promo);
-		R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
+		if (!Config::ENABLE_PASSER_V2)  // v2: king dimension owned solely by passer_realizability_delta (pillar 2)
+			R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
 		R = std::clamp(R, 0, 384);
 		danger += std::min((base[s] * R) >> 8, 4000); // black passer favours Black (positive)
 	}
@@ -6099,7 +6126,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// they never feed back into `total`, so the search tree is byte-identical whether capture is on or off.
 	int br_run = 0;
 	int br_pieces = 0, br_capture = 0, br_passed = 0, br_latent = 0, br_central = 0, br_king_safety = 0, br_threats = 0;
-	int br_imbalance_white = 0, br_imbalance_black = 0, br_pairs = 0, br_pv_boost = 0;
+	int br_imbalance_white = 0, br_imbalance_black = 0, br_pairs = 0, br_pv_boost = 0, br_kaufman = 0;
 	int br_advanced_total = 0;
 	int br_ae_input = 0;
 	bool br_advanced_fired = false;
@@ -6459,7 +6486,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
 			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
-				if (Config::ENABLE_PASSER_DANGER && !isEndGame)
+				if ((Config::ENABLE_PASSER_DANGER && !isEndGame) || Config::ENABLE_PASSER_V2)
 					total += passer_danger(white_passed_pawns, black_passed_pawns);
 		}
 		br_passed = total - br_run; br_run = total;
@@ -6748,7 +6775,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			PROF_BLOCK(PROF_PASSED_SUPPORT);
 			int pp = boost_pieces_for_supporting_passed_pawns(white_passed_pawns, black_passed_pawns, pawn_rank_bonuses, isEndGame);
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
-				if (Config::ENABLE_PASSER_DANGER && !isEndGame)
+				if ((Config::ENABLE_PASSER_DANGER && !isEndGame) || Config::ENABLE_PASSER_V2)
 					total += passer_danger(white_passed_pawns, black_passed_pawns);
 		}
 		br_passed = total - br_run; br_run = total;
@@ -6778,7 +6805,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// it fires in the midgame too, where the Tal-bot a-pawn marched unchecked. Phase-ramped: full
 	// weight in deep endgame (phase_score~128, = the old AE behavior, which is skipped when this is on)
 	// down to PASSER_KRACE_MG_PCT in the pure midgame. Default off = byte-identical.
-	if (Config::ENABLE_PASSER_KRACE_MG){
+	if (Config::ENABLE_PASSER_KRACE_MG || Config::ENABLE_PASSER_V2){
 		int krace = passer_realizability_delta(turn);
 		int kpct = Config::PASSER_KRACE_MG_PCT + (100 - Config::PASSER_KRACE_MG_PCT) * phase_score / 128;
 		total += (krace * kpct) / 100;
@@ -6788,22 +6815,63 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		In this code section, boost both white and blacks score based on the existence of bishop and knight pairs
 	*/
 	// Dynamic openness: the bishop pair is worth more in OPEN positions (few pawns). Gated -> byte-identical.
-	int pair_gain = 256;
-	if (Config::MOD_PAIR_OPEN)
-		pair_gain = mod_gain(Config::MOD_PAIR_OPEN, 12 - __builtin_popcountll(pawns), 3, 0, 0, 0);
-	if (__builtin_popcountll(occupied_white&bishops) == 2){
-		total -= Config::MOD_PAIR_OPEN ? ((Config::BISHOP_PAIR_BONUS * pair_gain) >> 8) : Config::BISHOP_PAIR_BONUS;
-	}
-	if (__builtin_popcountll(occupied_white&knights) == 2){
-		total -= Config::KNIGHT_PAIR_BONUS;
-	}
-	if (__builtin_popcountll(occupied_black&bishops) == 2){
-		total += Config::MOD_PAIR_OPEN ? ((Config::BISHOP_PAIR_BONUS * pair_gain) >> 8) : Config::BISHOP_PAIR_BONUS;
-	}
-	if (__builtin_popcountll(occupied_black&knights) == 2){
-		total += Config::KNIGHT_PAIR_BONUS;
+	// Kaufman imbalance (below) owns bishop-pair + knight-redundancy; skip the flat pair bonuses when it is on.
+	if (!Config::ENABLE_KAUFMAN_IMBALANCE) {
+		int pair_gain = 256;
+		if (Config::MOD_PAIR_OPEN)
+			pair_gain = mod_gain(Config::MOD_PAIR_OPEN, 12 - __builtin_popcountll(pawns), 3, 0, 0, 0);
+		if (__builtin_popcountll(occupied_white&bishops) == 2){
+			total -= Config::MOD_PAIR_OPEN ? ((Config::BISHOP_PAIR_BONUS * pair_gain) >> 8) : Config::BISHOP_PAIR_BONUS;
+		}
+		if (__builtin_popcountll(occupied_white&knights) == 2){
+			total -= Config::KNIGHT_PAIR_BONUS;
+		}
+		if (__builtin_popcountll(occupied_black&bishops) == 2){
+			total += Config::MOD_PAIR_OPEN ? ((Config::BISHOP_PAIR_BONUS * pair_gain) >> 8) : Config::BISHOP_PAIR_BONUS;
+		}
+		if (__builtin_popcountll(occupied_black&knights) == 2){
+			total += Config::KNIGHT_PAIR_BONUS;
+		}
 	}
 	br_pairs = total - br_run; br_run = total;
+
+	// Kaufman quadratic material-imbalance (public model; coefficients fit from our data, kaufman_fit.py 800 50).
+	// A single scalar re-pricing material by the whole piece census. Counts index: 0=bishop-pair pseudo-piece,
+	// 1=P 2=N 3=B 4=R 5=Q. scalar (White-POV, milli-pawn) = sum over pt2<=pt1 of OURS*(cw1*cw2 - cb1*cb2) +
+	// THEIRS*(cw1*cb2 - cb1*cw2); total is Black-positive so subtract. Gated default-off = byte-identical.
+	if (Config::ENABLE_KAUFMAN_IMBALANCE) {
+		static constexpr int KAUFMAN_OURS[6][6] = {
+			{    26,     0,     0,     0,     0,     0 },  // PAIR
+			{    -3,    13,     0,     0,     0,     0 },  // P
+			{     4,   178,   -28,     0,     0,     0 },  // N
+			{    53,  -106,   162,    29,     0,     0 },  // B
+			{    11,   -80,  -108,    98,   -90,     0 },  // R
+			{   -23,   163,   131,   152,    -3,    38 },  // Q
+		};
+		static constexpr int KAUFMAN_THEIRS[6][6] = {
+			{     0,     0,     0,     0,     0,     0 },  // PAIR
+			{   -89,     0,     0,     0,     0,     0 },  // P
+			{    54,  -104,     0,     0,     0,     0 },  // N
+			{   -47,     7,   120,     0,     0,     0 },  // B
+			{   -29,   226,   -81,  -102,     0,     0 },  // R
+			{    39,   120,   -11,   -88,   113,     0 },  // Q
+		};
+		int cw[6], cb[6];
+		cw[0] = (__builtin_popcountll(occupied_white & bishops) >= 2);
+		cb[0] = (__builtin_popcountll(occupied_black & bishops) >= 2);
+		cw[1] = __builtin_popcountll(occupied_white & pawns);   cb[1] = __builtin_popcountll(occupied_black & pawns);
+		cw[2] = __builtin_popcountll(occupied_white & knights); cb[2] = __builtin_popcountll(occupied_black & knights);
+		cw[3] = __builtin_popcountll(occupied_white & bishops); cb[3] = __builtin_popcountll(occupied_black & bishops);
+		cw[4] = __builtin_popcountll(occupied_white & rooks);   cb[4] = __builtin_popcountll(occupied_black & rooks);
+		cw[5] = __builtin_popcountll(occupied_white & queens);  cb[5] = __builtin_popcountll(occupied_black & queens);
+		long kauf = 0;
+		for (int pt1 = 0; pt1 < 6; ++pt1)
+			for (int pt2 = 0; pt2 <= pt1; ++pt2)
+				kauf += (long)KAUFMAN_OURS[pt1][pt2]   * (cw[pt1]*cw[pt2] - cb[pt1]*cb[pt2])
+				      + (long)KAUFMAN_THEIRS[pt1][pt2] * (cw[pt1]*cb[pt2] - cb[pt1]*cw[pt2]);
+		total -= (int)(kauf * Config::KAUFMAN_SCALE / 100);   // White-POV milli-pawn -> Black-positive total
+		br_kaufman = total - br_run; br_run = total;
+	}
 
 	// S4: placement-confidence shrinkage in LEVEL-material MIDGAME positions. Large placement claims there are
 	// over-confident / collapse-prone (level_sep.py: lost level-positions over-fire placement ~2x vs healthy).
@@ -6882,7 +6950,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// game the boundary). Midgame-only -- a pure pawn endgame has npedge~0 yet converts (KPK), so the
 	// endgame draw-scale lane owns that case; gating here spares winning pawn endgames. Damp-only, cold
 	// tail (once per eval), integer/bitwise, gated default-off = byte-identical.
-	if (Config::ENABLE_NPEDGE_DAMP && !isEndGame && br_pt_pawns != 0){
+	if (((Config::ENABLE_NPEDGE_DAMP && !isEndGame) || (Config::ENABLE_NPEDGE_DAMP_EG && isEndGame)) && br_pt_pawns != 0){
 		int wnp = __builtin_popcountll(knightsMask & occupied_whiteMask) * values[KNIGHT]
 		        + __builtin_popcountll(bishopsMask & occupied_whiteMask) * values[BISHOP]
 		        + __builtin_popcountll(rooksMask   & occupied_whiteMask) * values[ROOK]
@@ -6893,6 +6961,10 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		        + __builtin_popcountll(queensMask  & occupied_blackMask) * values[QUEEN];
 		// Non-pawn material edge for the side the pawn-placement claim favours (br_pt_pawns is Black-positive).
 		int npedge = (br_pt_pawns > 0) ? (bnp - wnp) : (wnp - bnp);
+		// Endgame guard: the DEFENDER (side without the pawn-placement claim) must still hold real piece material,
+		// else this is a pure pawn endgame that converts (KPK) and must not be damped. Midgame path is unguarded.
+		int defender_np = (br_pt_pawns > 0) ? wnp : bnp;
+		bool eg_pawn_endgame = isEndGame && defender_np < Config::NPEDGE_EG_PIECE_FLOOR;
 		// Clamped linear ramp: 0 (fully unbacked, full damp) at/below LO, 256 (fully backed, no damp) at/above HI.
 		int fnp;
 		if (npedge <= Config::NPEDGE_DAMP_LO) fnp = 0;
@@ -6908,7 +6980,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 		int gain = 256 - damp;                                  // retained fraction of the pawn-placement claim
 		int scaled = (br_pt_pawns * gain) >> 8;
-		total += scaled - br_pt_pawns;                          // pull the unbacked pawn-placement claim toward 0
+		if (!eg_pawn_endgame)
+			total += scaled - br_pt_pawns;                      // pull the unbacked pawn-placement claim toward 0
 	}
 
 	// Endgame convertibility scale (env-gated, default off = byte-identical). Damp an unconvertible
@@ -7471,6 +7544,18 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 	CaptureStack white_captures;
 	CaptureStack black_captures;
 
+	// Absolute-pin awareness (gated): a piece that is the sole blocker between an enemy slider and its own
+	// king may only capture ALONG the pin ray. slider_blockers gives that per-side pinned mask once (loops
+	// over snipers only), so the gather below can drop an illegal off-ray pinned capture SEE would count.
+	uint64_t blockers_white = 0, blockers_black = 0;
+	uint8_t white_king = 0, black_king = 0;
+	if (Config::ENABLE_CAPG_PIN) {
+		white_king = __builtin_ctzll(kings & occupied_white);
+		black_king = __builtin_ctzll(kings & occupied_black);
+		blockers_white = slider_blockers(white_king, queens | rooks, queens | bishops, occupied_black, occupied_white, occupied);
+		blockers_black = slider_blockers(black_king, queens | rooks, queens | bishops, occupied_white, occupied_black, occupied);
+	}
+
     while (bb) {
         uint8_t r = __builtin_ctzll(bb);
         bb &= bb - 1;
@@ -7497,6 +7582,20 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 		if (static_exchange_eval >= 0) {
 
 			uint8_t from = get_least_valuable_attacker(attacker_mask, state);
+
+			bool attacker_white = !current_colour;                 // attacker is the opposite colour to r
+
+			// Drop the capture when its attacker is absolutely pinned and the target is off the pin ray:
+			// SEE would count this illegal move (e.g. a pinned bishop "winning" the enemy queen).
+			if (Config::ENABLE_CAPG_PIN) {
+				uint64_t bl = attacker_white ? blockers_white : blockers_black;
+				if ((bl >> from) & 1ULL) {
+					uint8_t k = attacker_white ? white_king : black_king;
+					if (!(BB_RAYS[k][from] & BB_SQUARES[r]))
+						continue;
+				}
+			}
+
 			CaptureInfo newCapture(from, r, static_exchange_eval);
 
 			if (current_colour)
@@ -7517,6 +7616,19 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 	// Tactical tension = count of viable (SEE>=0) captures now pending for BOTH sides (captured before the
 	// exchange sequence below consumes the stacks). Read at the capg apply sites for conditioning.
 	g_capg_tension = (int)(white_captures.size() + black_captures.size());
+
+	// Diagnostic-only capture-sequence dump (default-off; only under the breakdown flag + CAPG_DEBUG_DUMP env).
+	// Byte-identical for production: the guard is false in the search path, so this never runs in a real game.
+	// Prints every PENDING SEE>=0 capture each side gathered (independent per square) so we can see the
+	// multi-square over-resolution the exchange loop below sums into one score.
+	if (g_capture_eval_breakdown && std::getenv("CAPG_DEBUG_DUMP")) {
+		for (const CaptureInfo& c : white_captures)
+			std::fprintf(stderr, "CAPG W from=%d(%d) to=%d(%d) val=%d\n",
+			             (int)c.from, (int)pieceTypeLookUp[c.from], (int)c.to, (int)pieceTypeLookUp[c.to], c.value_gained);
+		for (const CaptureInfo& c : black_captures)
+			std::fprintf(stderr, "CAPG B from=%d(%d) to=%d(%d) val=%d\n",
+			             (int)c.from, (int)pieceTypeLookUp[c.from], (int)c.to, (int)pieceTypeLookUp[c.to], c.value_gained);
+	}
 
 	bool current_turn = turn;
 	//std::cout << current_turn << std::endl;
@@ -7542,9 +7654,14 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				apply_basic_capture(cur_side_capture->from, cur_side_capture->to, white_pieces_copy, black_pieces_copy, current_turn);
 				CaptureInfo* opp_side_capture = find_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy, !current_turn);
 				
-				if (opp_side_capture != nullptr && opp_side_capture->value_gained > cur_side_capture->value_gained && can_evade(opp_side_capture->to, current_turn)){								
+				if (opp_side_capture != nullptr && opp_side_capture->value_gained > cur_side_capture->value_gained && can_evade(opp_side_capture->to, current_turn)){
 					evading = true;
-					find_and_pop_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy, current_turn);															
+					find_and_pop_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy, current_turn);
+					// The evasion spends this side's tempo (it moves the threatened piece instead of capturing),
+					// so it does NOT also get to complete its own pending capture "for free" -- the opponent gets
+					// the reply to defend that target. Forfeit the pending capture too. Gated => byte-identical off.
+					if (Config::ENABLE_CAPG_TEMPO)
+						find_and_pop_last_viable_capture(own_captures, white_pieces, black_pieces, current_turn);
 				}
 				
 			} else {
@@ -7565,7 +7682,9 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				if (current_turn){
 					int value_gained = cur_side_capture->value_gained;
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
-						value_gained += pawn_rank_bonuses[cur_side_capture->to];
+						int prb = pawn_rank_bonuses[cur_side_capture->to];
+						if (Config::ENABLE_PASSER_V2) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
+						value_gained += prb;
 					}
 					white_gains += value_gained;
 					blackPieceVal -= value_gained;
@@ -7574,7 +7693,9 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				} else {
 					int value_gained = cur_side_capture->value_gained;
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
-						value_gained += (Config::ENABLE_CAPGAIN_PAWN_FIX ? -pawn_rank_bonuses[cur_side_capture->to] : pawn_rank_bonuses[cur_side_capture->to]);
+						int prb = pawn_rank_bonuses[cur_side_capture->to];
+						if (Config::ENABLE_PASSER_V2) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
+						value_gained += (Config::ENABLE_CAPGAIN_PAWN_FIX ? -prb : prb);
 					}
 					black_gains += value_gained;
 					whitePieceVal -= value_gained;
@@ -7585,6 +7706,9 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 		// Flip the turn
 		current_turn = !current_turn;
 	}
+	if (g_capture_eval_breakdown && std::getenv("CAPG_DEBUG_DUMP"))
+		std::fprintf(stderr, "CAPG TOTALS black_gains=%d white_gains=%d net(B-W)=%d\n",
+		             black_gains, white_gains, black_gains - white_gains);
     return black_gains - white_gains;
 }
 

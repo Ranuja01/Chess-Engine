@@ -503,6 +503,17 @@ namespace Config
     inline int CAPG_LO_SCALE   = 10;   // capg weight (%) in confidently-quiet positions
     inline int CAPG_HI_SCALE   = 100;  // capg weight (%) in tactical positions
 
+    // Eval: capture-gains legality/tempo awareness. approximate_capture_gains folds a full-magnitude,
+    // pin-blind, tempo-blind SEE exchange into the static material/capture_gains terms, so it over-credits
+    // illegal or unrealizable captures (the material-collapse over-read). Both default off => byte-identical.
+    //  - ENABLE_CAPG_PIN: drop a gathered capture whose chosen attacker is ABSOLUTELY PINNED and the target
+    //    is OFF the pin ray (an illegal capture SEE would otherwise count, e.g. a pinned bishop "winning" the
+    //    enemy queen). Uses slider_blockers per king + BB_RAYS; targets the initial-capturer phantom.
+    //  - ENABLE_CAPG_TEMPO: drop a credited capture whose attacker is itself attacked and cannot both survive
+    //    and keep the threat (the opponent captures/forces it first). Targets the attacker-hanging tempo case.
+    inline bool ENABLE_CAPG_PIN   = false;
+    inline bool ENABLE_CAPG_TEMPO = false;
+
     // Eval: passed-pawn scoring magnitudes inside getPPIncrement (absolute increments, defaults = the
     // original literals = byte-identical). Finer than SCALE_PASSED_PAWN — these tune the SHAPE of the
     // passer bonus (penalty for a defended path, blockade, un-impeded run, diagonal/file/horizontal
@@ -572,6 +583,15 @@ namespace Config
     inline int IMBALANCE_SCALE   = 3;    // offense-vs-defense imbalance multiplier (was ×3)
     inline int BISHOP_PAIR_BONUS = 300;  // magnitude of the bishop-pair bonus
     inline int KNIGHT_PAIR_BONUS = 200;  // magnitude of the knight-pair bonus
+
+    // Kaufman quadratic material-imbalance term (public Kaufman 1999 MODEL; coefficients FIT from OUR data by
+    // ridge regression of the SF11-eval residual onto piece-count products -- diagnostics/kaufman_fit.py, NOT
+    // copied from SF). A once-per-eval scalar that re-prices material by the whole piece census (bishop pair,
+    // knight-loves-pawns, rook redundancy, pawns-vs-minor). When on, the flat BISHOP/KNIGHT_PAIR_BONUS block is
+    // SKIPPED (Kaufman owns material-combo -- no double-count). Default off = byte-identical. KAUFMAN_SCALE =
+    // post-fit global trim (%). Our offense/defense "imbalance" term is a different axis, left untouched.
+    inline bool ENABLE_KAUFMAN_IMBALANCE = false;
+    inline int  KAUFMAN_SCALE = 100;
 
     // Eval: rook open-file / placement magnitudes inside evaluate_rooks_midgame (absolute, defaults =
     // the original literals = byte-identical). The knob IS the value (sign applied at the site; no hot-path
@@ -667,6 +687,17 @@ namespace Config
     inline int KS_ATT_BISHOP   = 2;     // per enemy bishop
     inline int KS_ATT_ROOK     = 3;     // per enemy rook
     inline int KS_ATT_QUEEN    = 5;     // per enemy queen
+    // Latent king-AIM detection (Front A): our line-of-sight attacker scan reads ZERO for an enemy slider
+    // whose only obstruction sits OUTSIDE the narrow king zone (occupancy-limited attack_bitmasks never x-ray).
+    // This catches an enemy slider ALIGNED with the king through EXACTLY ONE blocker (the discovered/latent
+    // line) -- reuses the empty-board king rays (as slider_blockers does) + betweenPieces, iterating only the
+    // 0-3 sliders on the king's lines (no new per-piece loop). Our own obstruction-graded concept (heir to
+    // latent_threat), not SF's queen-only x-ray. Default off (ENABLE_KS_AIM=false) = byte-identical. Weights
+    // are per aiming-piece type, tuned DOWN vs a direct attacker (aim is latent, not yet delivered).
+    inline bool ENABLE_KS_AIM  = false;
+    inline int KS_AIM_BISHOP   = 1;     // aim units per enemy bishop aligned through one blocker
+    inline int KS_AIM_ROOK     = 2;     // per enemy rook
+    inline int KS_AIM_QUEEN    = 3;     // per enemy queen
     inline int KS_ATTACK_COUNT = 1;     // per zone square the enemy attacks (additive zone pressure)
     inline int KS_WEAK         = 2;     // per weak zone square. Baseline: enemy-attacked AND no own defender. With
                                         // ENABLE_KS_SF_WEAK: enemy-attacked AND under-defended (<=1 defender, K/Q only).
@@ -775,6 +806,21 @@ namespace Config
     inline bool ENABLE_PASSER_KRACE_MG = false;
     inline int PASSER_KRACE_MG_PCT = 100;
 
+    // Passed-pawn realizability redesign (v2) master gate. Consolidates the scattered passer conditioning
+    // into two complementary post-loop pillars and removes the double-mentions, so a passer is priced once by
+    // its realizability instead of credited flat across ~9 channels. When true it: (1) fires passer_danger in
+    // BOTH phases (blockade + path-attack pillar), (2) zeroes passer_danger's D4 king term (the king dimension
+    // is owned solely by pillar 2), (3) fires passer_realizability_delta as the sole king-race authority (the
+    // in-AE deep-eg copy auto-skips), (4) drops evaluate_kings_endgame's king-attacks-passer credit (folded
+    // into pillar 2), (5) drops the inline own/enemy-symmetric +-100 piece-proximity re-credits, (6) feeds the
+    // CLAMPED rank bonus to approximate_capture_gains. Default false = byte-identical. The pillars' own
+    // magnitudes stay tunable via the existing PASSER_DANGER_* / PASSER_KRACE_* knobs (sweep with this on).
+    inline bool ENABLE_PASSER_V2 = false;
+    // Bound applied to a captured pawn's rank bonus when it is folded into approximate_capture_gains under v2
+    // (the inline midgame pt_pawns contribution is clamped to +-275; capgains reads the UNCLAMPED array, so a
+    // deep passer inflates the captured-pawn value far past what the board credits). Matches the inline clamp.
+    inline int CAPG_PAWN_RANK_CLAMP = 275;
+
     // Gap-P C1: blockade-QUALITY in getPPIncrement. When on, only a secure blockade (enemy minor on the
     // stop square) gets the full PP_BLOCKADE_PEN; a rook/queen merely contesting the file ahead gets only
     // PASSER_CONTEST_PCT of it (the pawn still advances; the contester is tied down). Un-zeroes a
@@ -851,6 +897,16 @@ namespace Config
                                           // only fires in QUIET positions and never disturbs tactical move-choice
                                           // (moves_dump showed the damp helps positional strata but scatters the sts/
                                           // tactical stratum -- gating it off under tension keeps the gain, drops the cost).
+    // Endgame extension of the npedge damp. The over-read class is ENDGAME slight-imbalance positions where we
+    // are "up pawns" but the opponent's piece(s) actually compensate (advanced pawns over-valued vs, e.g., a
+    // bishop). The base damp is midgame-only because a PURE pawn endgame (KPK) has npedge~0 yet converts, so
+    // damping there would wrongly deflate winning pawn endgames. Guard: in the endgame only damp when the
+    // DEFENDER (side without the pawn-placement claim) still has real piece material (>= NPEDGE_EG_PIECE_FLOOR),
+    // i.e. there is a piece to over-value our pawns against -- pure pawn endgames are spared. Reuses the same
+    // LO/HI/MAX/TQUIET ramp. Default off = byte-identical.
+    inline bool ENABLE_NPEDGE_DAMP_EG = false;
+    inline int NPEDGE_EG_PIECE_FLOOR = 3250;  // defender non-pawn material (engine units) required to damp in the
+                                              // endgame (~one minor). Below this it is a pawn endgame -> no damp.
 
     // Whole-board mobility imbalance (piece activity) -- the SF-style term our eval lacks. Our PST placement
     // is context-blind: it credits our pieces' squares while the opponent out-activates us. Validated: our

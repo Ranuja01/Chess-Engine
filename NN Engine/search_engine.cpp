@@ -952,6 +952,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CAPG_TENSION_HI = env_int("CAPG_TENSION_HI", Config::CAPG_TENSION_HI);
         Config::CAPG_LO_SCALE = env_int("CAPG_LO_SCALE", Config::CAPG_LO_SCALE);
         Config::CAPG_HI_SCALE = env_int("CAPG_HI_SCALE", Config::CAPG_HI_SCALE);
+        Config::ENABLE_CAPG_PIN = env_flag("ENABLE_CAPG_PIN", Config::ENABLE_CAPG_PIN);
+        Config::ENABLE_CAPG_TEMPO = env_flag("ENABLE_CAPG_TEMPO", Config::ENABLE_CAPG_TEMPO);
         Config::PP_OPP_PAWN_PEN = env_int("PP_OPP_PAWN_PEN", Config::PP_OPP_PAWN_PEN);
         Config::PP_BLOCKADE_PEN = env_int("PP_BLOCKADE_PEN", Config::PP_BLOCKADE_PEN);
         Config::PP_UNBLOCKED = env_int("PP_UNBLOCKED", Config::PP_UNBLOCKED);
@@ -1025,6 +1027,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_WEAK = env_int("KS_WEAK", Config::KS_WEAK);
         Config::KS_SAFE_CHECK = env_int("KS_SAFE_CHECK", Config::KS_SAFE_CHECK);
         Config::KS_SAFE_CHECK_DEF = env_int("KS_SAFE_CHECK_DEF", Config::KS_SAFE_CHECK_DEF);
+        Config::ENABLE_KS_AIM = env_flag("ENABLE_KS_AIM", Config::ENABLE_KS_AIM);
+        Config::KS_AIM_BISHOP = env_int("KS_AIM_BISHOP", Config::KS_AIM_BISHOP);
+        Config::KS_AIM_ROOK = env_int("KS_AIM_ROOK", Config::KS_AIM_ROOK);
+        Config::KS_AIM_QUEEN = env_int("KS_AIM_QUEEN", Config::KS_AIM_QUEEN);
         Config::KS_DEF_MAG = env_int("KS_DEF_MAG", Config::KS_DEF_MAG);
         Config::KS_STORM = env_int("KS_STORM", Config::KS_STORM);
         Config::KS_OPEN_FILE = env_int("KS_OPEN_FILE", Config::KS_OPEN_FILE);
@@ -1059,6 +1065,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_DANGER_D4 = env_int("PASSER_DANGER_D4", Config::PASSER_DANGER_D4);
         Config::ENABLE_PASSER_KRACE_MG = env_flag("ENABLE_PASSER_KRACE_MG", Config::ENABLE_PASSER_KRACE_MG);
         Config::PASSER_KRACE_MG_PCT = env_int("PASSER_KRACE_MG_PCT", Config::PASSER_KRACE_MG_PCT);
+        Config::ENABLE_PASSER_V2 = env_flag("ENABLE_PASSER_V2", Config::ENABLE_PASSER_V2);
+        Config::CAPG_PAWN_RANK_CLAMP = env_int("CAPG_PAWN_RANK_CLAMP", Config::CAPG_PAWN_RANK_CLAMP);
+        Config::ENABLE_KAUFMAN_IMBALANCE = env_flag("ENABLE_KAUFMAN_IMBALANCE", Config::ENABLE_KAUFMAN_IMBALANCE);
+        Config::KAUFMAN_SCALE = env_int("KAUFMAN_SCALE", Config::KAUFMAN_SCALE);
         Config::ENABLE_PASSER_BLOCKADE_QUALITY = env_flag("ENABLE_PASSER_BLOCKADE_QUALITY", Config::ENABLE_PASSER_BLOCKADE_QUALITY);
         Config::PASSER_CONTEST_PCT = env_int("PASSER_CONTEST_PCT", Config::PASSER_CONTEST_PCT);
         Config::PASSER_KRACE_MAG = env_int("PASSER_KRACE_MAG", Config::PASSER_KRACE_MAG);
@@ -1086,6 +1096,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::NPEDGE_DAMP_HI = env_int("NPEDGE_DAMP_HI", Config::NPEDGE_DAMP_HI);
         Config::NPEDGE_DAMP_MAX = env_int("NPEDGE_DAMP_MAX", Config::NPEDGE_DAMP_MAX);
         Config::NPEDGE_DAMP_TQUIET = env_int("NPEDGE_DAMP_TQUIET", Config::NPEDGE_DAMP_TQUIET);
+        Config::ENABLE_NPEDGE_DAMP_EG = env_flag("ENABLE_NPEDGE_DAMP_EG", Config::ENABLE_NPEDGE_DAMP_EG);
+        Config::NPEDGE_EG_PIECE_FLOOR = env_int("NPEDGE_EG_PIECE_FLOOR", Config::NPEDGE_EG_PIECE_FLOOR);
         Config::ENABLE_MOBILITY = env_flag("ENABLE_MOBILITY", Config::ENABLE_MOBILITY);
         Config::MOBILITY_SCALE = env_int("MOBILITY_SCALE", Config::MOBILITY_SCALE);
         rebuild_scaled_placement();  // rebuild scaled placement working arrays once from the loaded SCALE_PLACE_* knobs (no per-read division in eval)
@@ -1419,6 +1431,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PASSER_DANGER_D4=" << Config::PASSER_DANGER_D4
                   << " ENABLE_PASSER_KRACE_MG=" << Config::ENABLE_PASSER_KRACE_MG
                   << " PASSER_KRACE_MG_PCT=" << Config::PASSER_KRACE_MG_PCT
+                  << " ENABLE_PASSER_V2=" << Config::ENABLE_PASSER_V2
+                  << " ENABLE_KAUFMAN_IMBALANCE=" << Config::ENABLE_KAUFMAN_IMBALANCE
+                  << " KAUFMAN_SCALE=" << Config::KAUFMAN_SCALE
+                  << " ENABLE_KS_AIM=" << Config::ENABLE_KS_AIM
+                  << " KS_AIM_BISHOP=" << Config::KS_AIM_BISHOP
+                  << " KS_AIM_ROOK=" << Config::KS_AIM_ROOK
+                  << " KS_AIM_QUEEN=" << Config::KS_AIM_QUEEN
                   << " ENABLE_PASSER_BLOCKADE_QUALITY=" << Config::ENABLE_PASSER_BLOCKADE_QUALITY
                   << " PASSER_CONTEST_PCT=" << Config::PASSER_CONTEST_PCT
                   << " PASSER_KRACE_MAG=" << Config::PASSER_KRACE_MAG
@@ -1443,6 +1462,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " NPEDGE_DAMP_HI=" << Config::NPEDGE_DAMP_HI
                   << " NPEDGE_DAMP_MAX=" << Config::NPEDGE_DAMP_MAX
                   << " NPEDGE_DAMP_TQUIET=" << Config::NPEDGE_DAMP_TQUIET
+                  << " ENABLE_NPEDGE_DAMP_EG=" << Config::ENABLE_NPEDGE_DAMP_EG
+                  << " NPEDGE_EG_PIECE_FLOOR=" << Config::NPEDGE_EG_PIECE_FLOOR
                   << " ENABLE_MOBILITY=" << Config::ENABLE_MOBILITY
                   << " MOBILITY_SCALE=" << Config::MOBILITY_SCALE
                   << " ENABLE_CHEAP_BISHOP_COMPLEX=" << Config::ENABLE_CHEAP_BISHOP_COMPLEX

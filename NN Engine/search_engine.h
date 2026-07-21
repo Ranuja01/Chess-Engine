@@ -590,7 +590,7 @@ namespace Config
     // knight-loves-pawns, rook redundancy, pawns-vs-minor). When on, the flat BISHOP/KNIGHT_PAIR_BONUS block is
     // SKIPPED (Kaufman owns material-combo -- no double-count). Default off = byte-identical. KAUFMAN_SCALE =
     // post-fit global trim (%). Our offense/defense "imbalance" term is a different axis, left untouched.
-    inline bool ENABLE_KAUFMAN_IMBALANCE = false;
+    inline bool ENABLE_KAUFMAN_IMBALANCE = true;
     inline int  KAUFMAN_SCALE = 100;
 
     // Eval: rook open-file / placement magnitudes inside evaluate_rooks_midgame (absolute, defaults =

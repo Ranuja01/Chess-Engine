@@ -80,10 +80,10 @@ int blackPieceVal, whitePieceVal;
 // to its own return (blended by the mid/end dispatch). Nonlinear (diminishing returns), milli-pawn units,
 // PACE/SPSA-tuned. Default-off => tables never read => byte-identical.
 uint64_t mobilityArea_white, mobilityArea_black;
-static const int MobilityBonus_Knight[9]  = {-50,-25,-5,10,22,32,40,46,50};
-static const int MobilityBonus_Bishop[14] = {-40,-18,0,12,22,30,37,43,48,52,55,58,60,62};
-static const int MobilityBonus_Rook[15]   = {-40,-20,-4,6,14,20,26,31,35,38,41,44,46,48,50};
-static const int MobilityBonus_Queen[28]  = {-20,-14,-8,-3,2,7,11,15,18,21,24,27,29,31,33,35,
+static constexpr int MobilityBonus_Knight[9]  = {-50,-25,-5,10,22,32,40,46,50};
+static constexpr int MobilityBonus_Bishop[14] = {-40,-18,0,12,22,30,37,43,48,52,55,58,60,62};
+static constexpr int MobilityBonus_Rook[15]   = {-40,-20,-4,6,14,20,26,31,35,38,41,44,46,48,50};
+static constexpr int MobilityBonus_Queen[28]  = {-20,-14,-8,-3,2,7,11,15,18,21,24,27,29,31,33,35,
                                              37,39,41,43,45,47,49,51,53,55,57,59};
 
 
@@ -451,6 +451,19 @@ inline int rook_tension_scale() {
 }
 
 std::array<int, 64> square_values = {0};
+
+// Under ENABLE_PASSER_V3 the midgame passed-pawn rank bonus is not added inside the pawn loop (where
+// attack_bitmasks is still incomplete); its unweighted value is stashed here per passer square and priced
+// once post-loop, gated by the board-driven realizability R. Reset to 0 each eval; a 0 entry means "no
+// deferred passer bonus for this square". Only ever written under the V3 gate, so V3-off is byte-identical.
+std::array<int, 64> g_passer_mid_deferred = {0};
+// Endgame twin of g_passer_mid_deferred (the endgame passed rank bonus, ppIncrement>=300 branch). Priced once
+// post-loop × R so a higher endgame magnitude reaches realizable passers but not stopped ones. Reset per eval.
+std::array<int, 64> g_passer_end_deferred = {0};
+
+// The ONE priced value per passer square, exported by evaluate_passers() (ENABLE_PASSER_V3). Read by
+// approximate_capture_gains so capture-ordering and eval agree on the same pawn's worth. Reset per eval.
+std::array<int, 64> priced_passer = {0};
 
 // Diagnostic-only static-eval term attribution (see EvalBreakdown in cpp_bitboard.h). Off during search.
 EvalBreakdown g_eval_breakdown = {};
@@ -824,7 +837,12 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		int rank = y;
 		//total -= ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));
 		pawn_rank_bonus = -(((default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement < 100)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 100)));
-		total += std::max(pawn_rank_bonus,-275);
+		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 100) {
+			// Defer the passer bonus: priced once post-loop, gated by board realizability (full attack_bitmasks).
+			g_passer_mid_deferred[square] = pawn_rank_bonus;
+		} else {
+			total += Config::ENABLE_PASSER_V3 ? pawn_rank_bonus : std::max(pawn_rank_bonus,-275);
+		}
 		
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
@@ -881,9 +899,9 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 
 			update_global_central_scores(-(attackingLayer[0][x][y] << 1), square_mask);
 
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 100;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 100;
 			}
 
@@ -929,7 +947,12 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		//total += ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));		
 		
 		pawn_rank_bonus = ((default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement < 100)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 100));
-		total += std::min(pawn_rank_bonus,275);
+		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 100) {
+			// Defer the passer bonus: priced once post-loop, gated by board realizability (full attack_bitmasks).
+			g_passer_mid_deferred[square] = pawn_rank_bonus;
+		} else {
+			total += Config::ENABLE_PASSER_V3 ? pawn_rank_bonus : std::min(pawn_rank_bonus,275);
+		}
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 		*/
@@ -989,9 +1012,9 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 
 			update_global_central_scores((attackingLayer[1][x][y] << 1), square_mask);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 100;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 100;
 			}
 			//central_score += attackingLayer[1][x][y] << 2;
@@ -1231,9 +1254,9 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 
 			update_global_central_scores(-(attackingLayer[0][x][y] * 3) / 2, square_mask);
 
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 100;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 100;
 			}
 
@@ -1341,9 +1364,9 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 
 			update_global_central_scores((attackingLayer[1][x][y] * 3) / 2, square_mask);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 100;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 100;
 			}
 								
@@ -1798,9 +1821,9 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 			
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 100;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 100;
 			}
 
@@ -1934,9 +1957,9 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(BB_SQUARES[r]);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 100;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 100;
 			}
 			
@@ -2166,7 +2189,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){     
 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (att_square >> 3) * Config::ROOK_PASSER_OWN;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (att_square >> 3) * Config::ROOK_PASSER_OWN;
 						}else{
 							// If the pawn is within its own (first) half, lower the rook's increment and break the loop
 							if ((att_square >> 3) < 5){
@@ -2187,7 +2210,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){
 						
 						if (black_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (7 - (att_square >> 3)) * Config::ROOK_PASSER_ENEMY;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (7 - (att_square >> 3)) * Config::ROOK_PASSER_ENEMY;
 						}else{
 							// If the pawn is within the opponent's (second) half, lower the rook's increment
 							if ((att_square >> 3) > 4){
@@ -2251,9 +2274,9 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 			
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 25;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 25;
 			}
 
@@ -2400,7 +2423,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){    
 						 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (att_square >> 3) * Config::ROOK_PASSER_ENEMY;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (att_square >> 3) * Config::ROOK_PASSER_ENEMY;
 						}else{
 							// If the pawn is within the opponent's (first) half, lower the rook's increment
 							if ((att_square >> 3) < 5){
@@ -2421,7 +2444,7 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 					if (temp_piece_type == 1){
 
 						if (black_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (7 - (att_square >> 3)) * Config::ROOK_PASSER_OWN;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (7 - (att_square >> 3)) * Config::ROOK_PASSER_OWN;
 						}else{
 							// If the pawn is within its own (second) half, lower the rook's increment and break the loop
 							if ((att_square >> 3) > (Config::ENABLE_ROOK_RANKWIN_FIX ? 2 : 4)){
@@ -2484,9 +2507,9 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 25;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 25;
 			}
 			
@@ -2652,9 +2675,9 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			// Remove pieces from the copy of the occupied mask
 			occupiedCopy &= ~(square_mask);
 
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 25;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 25;
 			}
 			
@@ -2780,9 +2803,9 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
 			// Remove pieces from the copy of the occupied mask
 			occupiedCopy &= ~(BB_SQUARES[r]);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 25;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 25;
 			}
 			
@@ -3037,7 +3060,12 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		int rank = y;		
 		
 		pawn_rank_bonus = -((3 * default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 300)) + ((endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2)) * (ppIncrement >= 300)));
-		total += pawn_rank_bonus;
+		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 300) {
+			// Defer the endgame passer bonus: priced once post-loop, gated by board realizability R.
+			g_passer_end_deferred[square] = pawn_rank_bonus;
+		} else {
+			total += pawn_rank_bonus;
+		}
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
 		*/
@@ -3087,9 +3115,9 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
             total -= attackingLayer[0][x][y];
 			total -= attackingLayer[1][x][y] >> 1;	
 			
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 200;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 100;
 			}			
 			
@@ -3122,7 +3150,12 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		int rank = 7 - y;
 				
 		pawn_rank_bonus = (3 * default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 300)) + ((endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2)) * (ppIncrement >= 300));
-		total += pawn_rank_bonus;
+		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 300) {
+			// Defer the endgame passer bonus: priced once post-loop, gated by board realizability R.
+			g_passer_end_deferred[square] = pawn_rank_bonus;
+		} else {
+			total += pawn_rank_bonus;
+		}
 		
 		/*
 			This section acquires the squares to the left and right of a given pawn, accounting for wrap arounds
@@ -3170,9 +3203,9 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
             total += attackingLayer[1][x][y];
 			total += attackingLayer[0][x][y] >> 1;
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 200;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 100;
 			}
 			
@@ -3243,9 +3276,9 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
             total -= attackingLayer[0][x][y];
 			total -= attackingLayer[1][x][y] >> 1;			
 
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 150;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 100;
 			}
 				
@@ -3336,9 +3369,9 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
             total += attackingLayer[1][x][y];
 			total += attackingLayer[0][x][y] >> 1;
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 150;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 100;
 			}
 			
@@ -3444,9 +3477,9 @@ inline int evaluate_bishops_endgame(uint8_t square, uint64_t white_passed_pawns,
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(BB_SQUARES[r]);
 
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 150;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 100;
 			}
 			
@@ -3567,9 +3600,9 @@ inline int evaluate_bishops_endgame(uint8_t square, uint64_t white_passed_pawns,
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 150;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 100;
 			}
 			
@@ -3704,7 +3737,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 					// Check if the pawn is white 
 					if (temp_colour){ 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (att_square / 8) * 75;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (att_square / 8) * 75;
 						}else{
 							// Increment rook for supporting the white pawn
 							rookIncrement += (att_square / 8) * 35; 
@@ -3713,7 +3746,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 					// Check if the pawn is black
 					}else{
 						if (black_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (7 - (att_square / 8)) * 75;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (7 - (att_square / 8)) * 75;
 						}else{
 							// Increment rook for blockading black pawn  
 							rookIncrement += (7 - (att_square / 8)) * 50; 
@@ -3738,7 +3771,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 						rookIncrement += (Config::ENABLE_ROOK_DBLCOUNT_SYM_UP ? (7 - (att_square / 8)) * 35 : 0);
 
 						if (black_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (7 - (att_square / 8)) * 75;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (7 - (att_square / 8)) * 75;
 						}else{							
 							rookIncrement += (7 - (att_square / 8)) * 35; 
 						}
@@ -3784,9 +3817,9 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 50;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 25;
 			}
 			
@@ -3910,7 +3943,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 					// If the pawn is white
 					if (temp_colour){ 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (att_square / 8) * 75;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (att_square / 8) * 75;
 						}else{
 							// Increment rook for blockading white pawn
 							rookIncrement += (att_square / 8) * 50;      
@@ -3918,7 +3951,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 					// If the pawn is black
 					}else{
 						if (black_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (7 - (att_square / 8)) * 75;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (7 - (att_square / 8)) * 75;
 						}else{
 							// Increment rook for supporting the black pawn
 							rookIncrement += (7 - (att_square / 8)) * 35; 
@@ -3935,7 +3968,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 						rookIncrement += (Config::ENABLE_ROOK_DBLCOUNT_FIX ? 0 : (att_square / 8) * 35); 
 
 						if (white_passed_pawns & BB_SQUARES[att_square]){
-							rookIncrement += (att_square / 8) * 75;
+							if (!Config::ENABLE_PASSER_V3) rookIncrement += (att_square / 8) * 75;
 						}else{							
 							rookIncrement += (att_square / 8) * 35;      
 						}	
@@ -3989,9 +4022,9 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 50;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 25;
 			}
 			
@@ -4139,9 +4172,9 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 
-			if (square_mask & white_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total -= 100;
-			} else if(square_mask & black_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total -= 50;
 			}
 			
@@ -4274,9 +4307,9 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 			// Remove the piece from the occupied mask copy
 			occupiedCopy &= ~(square_mask);
 
-			if (square_mask & black_passed_pawns){
+			if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 				total += 100;
-			} else if(square_mask & white_passed_pawns){
+			} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 				total += 50;
 			}
 			
@@ -4407,9 +4440,9 @@ inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, u
             x = r & 7;
 
 			if (!Config::ENABLE_PASSER_V2) {  // v2: king-vs-passer owned solely by passer_realizability_delta (pillar 2)
-				if (square_mask & white_passed_pawns){
+				if (!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 					total -= 150;
-				} else if(square_mask & black_passed_pawns){
+				} else if(!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 					total -= 125;
 				}
 			}
@@ -4455,9 +4488,9 @@ inline int evaluate_kings_endgame(uint8_t square, uint64_t white_passed_pawns, u
             x = r & 7;
 
 			if (!Config::ENABLE_PASSER_V2) {  // v2: king-vs-passer owned solely by passer_realizability_delta (pillar 2)
-				if (square_mask & black_passed_pawns){
+				if (!Config::ENABLE_PASSER_V3 && (square_mask & black_passed_pawns)){
 					total += 150;
-				} else if(square_mask & white_passed_pawns){
+				} else if(!Config::ENABLE_PASSER_V3 && (square_mask & white_passed_pawns)){
 					total += 125;
 				}
 			}
@@ -4748,6 +4781,39 @@ inline int passer_realizability_delta(bool turn){
 	return delta;
 }
 
+/* One passer's king-race magnitude, owner-oriented POSITIVE (the amount favouring the passer's owner). Same
+ * math as passer_realizability_delta but for a single passer square, so evaluate_passers() can add it
+ * soft-gated by R (× max(R, R_FLOOR) / 256) rather than as an ungated aggregate. The caller applies the
+ * Black-positive sign. */
+inline int passer_king_race_one(int sq, bool white, bool turn) {
+	uint8_t whiteKingSquare = __builtin_ctzll(occupied_white & kings);
+	uint8_t blackKingSquare = __builtin_ctzll(occupied_black & kings);
+	uint8_t file = sq & 7;
+	uint8_t rank = sq >> 3;
+	int bkSep = square_distance(sq, blackKingSquare);
+	int wkSep = square_distance(sq, whiteKingSquare);
+	uint64_t dummy;
+	if (!white) {
+		int ppIncrement = getPPIncrement(false, (occupied_white & pawns), 100, file, rank, occupied_white, occupied_black, dummy, dummy);
+		int kingDist = square_distance(whiteKingSquare, file); // black promotes on rank 0; promo square = file
+		int pawnDist = rank;
+		bool kingCanCatch = (turn) ? (kingDist <= pawnDist + 1) : (kingDist <= pawnDist);
+		int blockModifier = kingCanCatch ? -((turn ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist)) * (ppIncrement >> 2))
+		                                 : (ppIncrement >> 1);
+		int passedBonus = ((((7 - rank) * (ppIncrement + blockModifier)) >> 4) * Config::PASSER_KRACE_MAG) / 100;
+		return (7 - bkSep) * passedBonus + wkSep * passedBonus;
+	} else {
+		int ppIncrement = getPPIncrement(true, (occupied_black & pawns), 100, file, rank, occupied_black, occupied_white, dummy, dummy);
+		int kingDist = square_distance(blackKingSquare, 56 + file); // white promotes on rank 7
+		int pawnDist = 7 - rank;
+		bool kingCanCatch = (!turn) ? (kingDist <= pawnDist + 1) : (kingDist <= pawnDist);
+		int blockModifier = kingCanCatch ? -((turn ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist)) * (ppIncrement >> 2))
+		                                 : (ppIncrement >> 1);
+		int passedBonus = (((rank * (ppIncrement + blockModifier)) >> 4) * Config::PASSER_KRACE_MAG) / 100;
+		return bkSep * passedBonus + (7 - wkSep) * passedBonus;
+	}
+}
+
 inline int advanced_endgame_eval(int total, bool turn){
 	//std::cout << total <<std::endl;
 	// Acquire the square positions of each king
@@ -4842,7 +4908,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 	// When ENABLE_PASSER_KRACE_MG is on, the all-phases passer_realizability_delta() call in
 	// placement_and_piece_eval covers this (at full weight in deep endgame), so skip the in-AE copy
 	// to avoid double-counting. Default off -> this inline block runs as before (byte-identical).
-	if (!Config::ENABLE_PASSER_KRACE_MG && !Config::ENABLE_PASSER_V2) {
+	if (!Config::ENABLE_PASSER_KRACE_MG && !Config::ENABLE_PASSER_V2 && !Config::ENABLE_PASSER_V3) {
 	// Create bitmasks for the first and second half of the board
 	uint64_t firstHalf = BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4;
 	uint64_t secondHalf = BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8;
@@ -4985,6 +5051,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	uint64_t defenders_sq = 0;
 	int attacked_zone_squares = 0;
 	int weak_squares = 0;
+	int overload_sum = 0;   // per-square sum of max(0, #attackers - #defenders): the discriminative breakthrough signal
 	uint64_t z = zone;
 	while (z) {
 		uint8_t s = __builtin_ctzll(z);
@@ -4996,6 +5063,8 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		if (am) {
 			attackers_sq |= am;
 			attacked_zone_squares++;
+			int ov = __builtin_popcountll(am) - __builtin_popcountll(dm);   // attackers minus defenders on this sq
+			if (ov > 0) overload_sum += ov;
 			// Weak = enemy-attacked hole. Baseline: no own defender. SF11: UNDER-defended = at most one
 			// defender and only the king or queen (a pawn/minor/rook defender disqualifies).
 			bool weak;
@@ -5004,6 +5073,16 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			else
 				weak = !dm;
 			if (weak) weak_squares++;
+			// Diagnostic per-square trace (gated; byte-identical for production): shows why weak fires or not.
+			if (g_capture_eval_breakdown && std::getenv("KS_TRACE"))
+				std::fprintf(stderr, "  ZS[%c] sq=%d attby=N%dB%dR%dQ%d  ndef=%d defN%dB%dR%dP%dK%dQ%d  weak=%d\n",
+					white_king ? 'W' : 'B', (int)s,
+					(int)__builtin_popcountll(am & knights), (int)__builtin_popcountll(am & bishops),
+					(int)__builtin_popcountll(am & rooks), (int)__builtin_popcountll(am & queens),
+					(int)__builtin_popcountll(dm),
+					(int)__builtin_popcountll(dm & knights), (int)__builtin_popcountll(dm & bishops),
+					(int)__builtin_popcountll(dm & rooks), (int)__builtin_popcountll(dm & pawns),
+					(int)__builtin_popcountll(dm & kings), (int)__builtin_popcountll(dm & queens), (int)weak);
 		}
 	}
 	uint64_t pieces_nk = knights | bishops | rooks | queens;  // defenders counted among real pieces (not king/pawn)
@@ -5014,6 +5093,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	          + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens)
 	          + Config::KS_ATTACK_COUNT * attacked_zone_squares
 	          + Config::KS_WEAK * weak_squares
+	          + Config::KS_OVERLOAD * overload_sum   // per-square breakthrough (attackers-defenders); default 0 = byte-id
 	          - Config::KS_DEFENDER * __builtin_popcountll(defenders_sq & pieces_nk);
 
 	// Pawn shield: friendly pawns in front of the king reduce danger.
@@ -5125,8 +5205,28 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	// Attacks without an enemy queen rarely mate, so drop the danger; keyed on the ENEMY's queen only.
 	if (Config::KS_NO_QUEEN && !(queens & enemy)) units -= Config::KS_NO_QUEEN;
 
+	// Optional SF-style coordination product: super-linear in the number/weight of COORDINATING attackers
+	// (a group is far more than the sum of its parts). Default KS_ATT_PRODUCT=0 => no contribution => byte-id.
+	if (Config::KS_ATT_PRODUCT) {
+		int att_pieces = __builtin_popcountll(attackers_sq & pieces_nk);
+		int att_wsum = Config::KS_ATT_KNIGHT * __builtin_popcountll(attackers_sq & knights)
+		             + Config::KS_ATT_BISHOP * __builtin_popcountll(attackers_sq & bishops)
+		             + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
+		             + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens);
+		units += (Config::KS_ATT_PRODUCT * att_pieces * att_wsum) >> 4;
+	}
+
 	if (units < 0) units = 0;
 	if (g_capture_eval_breakdown) { if (white_king) g_ks_units_white = units; else g_ks_units_black = units; }
+	// Attacker-count DISCRIMINATION gate (Ethereal-style): a lone piece near the king is not danger — require a
+	// coordinating group of >= KS_MIN_ATTACKERS enemy pieces (the bar drops by one when the enemy has a queen,
+	// which alone still threatens). This is the discriminator that lets KS_FLOOR come down without waking calm
+	// positions (0-1 attackers -> 0 danger). Default KS_MIN_ATTACKERS=0 => gate off => byte-identical.
+	if (Config::KS_MIN_ATTACKERS > 0) {
+		int att_pieces = __builtin_popcountll(attackers_sq & pieces_nk);
+		int min_att = (queens & enemy) ? std::max(1, Config::KS_MIN_ATTACKERS - 1) : Config::KS_MIN_ATTACKERS;
+		if (att_pieces < min_att) return 0;
+	}
 	// Deadzone: trivial king-danger (units below the floor) contributes ZERO, so a barely-present "attack"
 	// can't perturb non-king positions (the def1 passer bleed). Gated; default KS_FLOOR=0 => byte-identical.
 	if (units < Config::KS_FLOOR) return 0;
@@ -5187,11 +5287,11 @@ inline int king_safety_score(uint8_t white_king_square, uint8_t black_king_squar
 	sets the level. This is representation our king-directed latent_threat lacks.
 */
 // Target-value weight by piece type of the threatened piece: [_, knight, bishop, rook, queen].
-static const int THREAT_MINOR[5]   = {0, 550, 550, 850, 800};
-static const int THREAT_ROOK_TBL[5]= {0, 400, 400, 450, 850};
-static const int THREAT_HANGING[5] = {0, 500, 500, 700, 750};
-static const int THREAT_KING_VAL   = 250;
-static const int THREAT_SAFE_PAWN  = 1600;
+static constexpr int THREAT_MINOR[5]   = {0, 550, 550, 850, 800};
+static constexpr int THREAT_ROOK_TBL[5]= {0, 400, 400, 450, 850};
+static constexpr int THREAT_HANGING[5] = {0, 500, 500, 700, 750};
+static constexpr int THREAT_KING_VAL   = 250;
+static constexpr int THREAT_SAFE_PAWN  = 1600;
 
 inline int threats_by(bool by_white){
 	uint64_t our       = by_white ? occupied_white : occupied_black;
@@ -5481,6 +5581,22 @@ std::cout << "white_increment: " << white_increment << std::endl; */
 		}
 	}
 
+	if (Config::ENABLE_KS_DEBUG) {
+		std::cout << "[KSDBG] attack-on-BLACK-king: att=" << num_attackers_in_black_zone
+		          << " def=" << num_defenders_in_black_zone
+		          << " att_sq=" << num_attacked_squares_in_black_zone
+		          << " def_sq=" << num_defended_squares_in_black_zone
+		          << " => white_inc=" << white_increment << "\n";
+		std::cout << "[KSDBG] attack-on-WHITE-king: att=" << num_attackers_in_white_zone
+		          << " def=" << num_defenders_in_white_zone
+		          << " att_sq=" << num_attacked_squares_in_white_zone
+		          << " def_sq=" << num_defended_squares_in_white_zone
+		          << " => black_inc=" << black_increment << "\n";
+		std::cout << "[KSDBG] MOD signals: matEdge(W-B)=" << (whitePieceVal - blackPieceVal)
+		          << " offW=" << whiteOffensiveScore << " defW=" << whiteDefensiveScore
+		          << " offB=" << blackOffensiveScore << " defB=" << blackDefensiveScore
+		          << " | NET ks(b-w)=" << (black_increment - white_increment) << "\n";
+	}
 
 	return black_increment - white_increment;
 }
@@ -5642,10 +5758,100 @@ inline int chebyshev_distance(int from_sq, int to_sq) {
  * precomputed attack_bitmasks (populated by the piece evaluators that run before this), so no new attack
  * generation. Absolute Black-positive convention: a black passer contributes +danger, a white passer
  * -danger. Caller gates on !isEndGame && !g_eval_light. Returns 0 when the gate is off (default). */
-inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawns) {
+/* Per-pawn passer realizability R for the passer at `sq` (`white` = the passer's colour). R starts at 256
+ * (fully realizable) and is docked for a quality blockade on the stop square, for each defender-controlled
+ * uncontested square along the promotion path, and credited when the defender king is too far to help. Reads
+ * the fully-populated attack_bitmasks, so it is only meaningful AFTER all piece evaluators have run (i.e. from
+ * the post-loop passes). Returns R in [0, 384]. Shared by passer_danger (near-promotion base pricing) and the
+ * ENABLE_PASSER_V3 midgame rank-bonus gate, so both channels price the same board-driven realizability. */
+inline int passer_realizability_R(int sq, bool white) {
 	// Blockade quality by the piece type on the stop square (1=P..6=K): a knight is the canonical blockader,
-	// heavy pieces are poor ones. Index 0 = empty stop square (no blockade). Fixed in v1.
+	// heavy pieces are poor ones. Index 0 = empty stop square (no blockade).
 	static constexpr int BLOCK[7] = {0, 100, 140, 110, 60, 50, 100};
+	int R = 256;
+	int file = sq & 7;
+	if (white) {
+		int s = 7 - (sq >> 3);
+		int stop = sq + 8;
+		int promo = 56 + (sq & 7);
+		if (stop <= 63 && (occupied & BB_SQUARES[stop])) {
+			int blk = BLOCK[pieceTypeLookUp[stop]];
+			if (attack_bitmasks[stop] & occupied_white)
+				blk >>= 1; // the defender's blocker can be captured/evicted
+			R -= blk;
+		}
+		if (Config::ENABLE_PASSER_V3) {
+			// GRADED path safety: net (enemy attackers - own defenders) per path square, stop square weighted
+			// worst. Uses our attacker/defender COUNTS (popcount of attack_bitmasks) — SF's binary k made continuous.
+			for (int i = stop; i <= promo; i += 8) {
+				int contest = std::clamp(__builtin_popcountll(attack_bitmasks[i] & occupied_black)
+				                       - __builtin_popcountll(attack_bitmasks[i] & occupied_white), 0, 3);
+				R -= (i == stop ? Config::PASSER_CONTEST_STOP : Config::PASSER_CONTEST_PATH) * contest;
+			}
+			// REAR-FILE control: the first heavy piece behind the passer on its file (clear line). Enemy R/Q
+			// holds the passer (dock); own R/Q supports the push (credit).
+			for (int rr = (sq >> 3) - 1; rr >= 0; --rr) {
+				int rsq = rr * 8 + file;
+				if (occupied & BB_SQUARES[rsq]) {
+					int pt = pieceTypeLookUp[rsq];
+					if (pt == 4 || pt == 5)
+						R += (BB_SQUARES[rsq] & occupied_black) ? -Config::PASSER_REAR_ENEMY : Config::PASSER_REAR_OWN;
+					break;
+				}
+			}
+			// KING PROXIMITY to the stop square (enemy-king-far dominates; own-king-near helps).
+			int ekDist = std::min(chebyshev_distance(__builtin_ctzll(kings & occupied_black), stop), 5);
+			int okDist = std::min(chebyshev_distance(__builtin_ctzll(kings & occupied_white), stop), 5);
+			R += Config::PASSER_KING_FAR * ekDist - Config::PASSER_KING_HELP * okDist;
+		} else {
+			for (int i = stop; i <= promo; i += 8)
+				if ((attack_bitmasks[i] & occupied_black) && !(attack_bitmasks[i] & occupied_white))
+					R -= Config::PASSER_DANGER_D2;
+			int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_black), promo);
+			if (!Config::ENABLE_PASSER_V2)  // king dimension owned solely by passer_realizability_delta
+				R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
+		}
+	} else {
+		int s = sq >> 3;
+		int stop = sq - 8;
+		int promo = sq & 7;
+		if (stop >= 0 && (occupied & BB_SQUARES[stop])) {
+			int blk = BLOCK[pieceTypeLookUp[stop]];
+			if (attack_bitmasks[stop] & occupied_black)
+				blk >>= 1;
+			R -= blk;
+		}
+		if (Config::ENABLE_PASSER_V3) {
+			for (int i = stop; i >= promo; i -= 8) {
+				int contest = std::clamp(__builtin_popcountll(attack_bitmasks[i] & occupied_white)
+				                       - __builtin_popcountll(attack_bitmasks[i] & occupied_black), 0, 3);
+				R -= (i == stop ? Config::PASSER_CONTEST_STOP : Config::PASSER_CONTEST_PATH) * contest;
+			}
+			for (int rr = (sq >> 3) + 1; rr <= 7; ++rr) {
+				int rsq = rr * 8 + file;
+				if (occupied & BB_SQUARES[rsq]) {
+					int pt = pieceTypeLookUp[rsq];
+					if (pt == 4 || pt == 5)
+						R += (BB_SQUARES[rsq] & occupied_white) ? -Config::PASSER_REAR_ENEMY : Config::PASSER_REAR_OWN;
+					break;
+				}
+			}
+			int ekDist = std::min(chebyshev_distance(__builtin_ctzll(kings & occupied_white), stop), 5);
+			int okDist = std::min(chebyshev_distance(__builtin_ctzll(kings & occupied_black), stop), 5);
+			R += Config::PASSER_KING_FAR * ekDist - Config::PASSER_KING_HELP * okDist;
+		} else {
+			for (int i = stop; i >= promo; i -= 8)
+				if ((attack_bitmasks[i] & occupied_white) && !(attack_bitmasks[i] & occupied_black))
+					R -= Config::PASSER_DANGER_D2;
+			int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_white), promo);
+			if (!Config::ENABLE_PASSER_V2)  // king dimension owned solely by passer_realizability_delta
+				R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
+		}
+	}
+	return std::clamp(R, 0, 384);
+}
+
+inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawns) {
 	const int base[4] = {0, Config::PASSER_DANGER_BASE1, Config::PASSER_DANGER_BASE2, Config::PASSER_DANGER_BASE3};
 	int danger = 0;
 
@@ -5656,22 +5862,7 @@ inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawn
 		int s = 7 - (sq >> 3);
 		if (s < 1 || s > 3)
 			continue;
-		int stop = sq + 8;
-		int promo = 56 + (sq & 7);
-		int R = 256;
-		if (occupied & BB_SQUARES[stop]) {
-			int blk = BLOCK[pieceTypeLookUp[stop]];
-			if (attack_bitmasks[stop] & occupied_white)
-				blk >>= 1; // the defender's blocker can be captured/evicted
-			R -= blk;
-		}
-		for (int i = stop; i <= promo; i += 8)
-			if ((attack_bitmasks[i] & occupied_black) && !(attack_bitmasks[i] & occupied_white))
-				R -= Config::PASSER_DANGER_D2;
-		int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_black), promo);
-		if (!Config::ENABLE_PASSER_V2)  // v2: king dimension owned solely by passer_realizability_delta (pillar 2)
-			R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
-		R = std::clamp(R, 0, 384);
+		int R = passer_realizability_R(sq, true);
 		danger -= std::min((base[s] * R) >> 8, 4000); // white passer favours White (negative)
 	}
 
@@ -5682,26 +5873,41 @@ inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawn
 		int s = sq >> 3;
 		if (s < 1 || s > 3)
 			continue;
-		int stop = sq - 8;
-		int promo = sq & 7;
-		int R = 256;
-		if (occupied & BB_SQUARES[stop]) {
-			int blk = BLOCK[pieceTypeLookUp[stop]];
-			if (attack_bitmasks[stop] & occupied_black)
-				blk >>= 1;
-			R -= blk;
-		}
-		for (int i = stop; i >= promo; i -= 8)
-			if ((attack_bitmasks[i] & occupied_white) && !(attack_bitmasks[i] & occupied_black))
-				R -= Config::PASSER_DANGER_D2;
-		int dK = chebyshev_distance(__builtin_ctzll(kings & occupied_white), promo);
-		if (!Config::ENABLE_PASSER_V2)  // v2: king dimension owned solely by passer_realizability_delta (pillar 2)
-			R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
-		R = std::clamp(R, 0, 384);
+		int R = passer_realizability_R(sq, false);
 		danger += std::min((base[s] * R) >> 8, 4000); // black passer favours Black (positive)
 	}
 
 	return danger;
+}
+
+/* Centralized passed-pawn valuation (ENABLE_PASSER_V3). One home for the passer's worth: base rank magnitude,
+ * phase-blended (eg >> mg like SF/Ethereal), gated multiplicatively by the per-pawn board realizability R
+ * (path-safety + blockade + — folded in later — rear-file control and king-proximity). Runs post-loop so
+ * attack_bitmasks + the passed bitboards are complete. Exports each passer's priced value into priced_passer[]
+ * (the single source of truth capgains reads). Absolute Black-positive: a white passer contributes NEGATIVE,
+ * a black passer POSITIVE. Returns the aggregate. Additive king-race / support terms are added in later,
+ * themselves R-gated so nothing leaks past a dead (R~0) passer. */
+inline int evaluate_passers(uint64_t white_passed_pawns, uint64_t black_passed_pawns, int phase_score, bool turn) {
+	int agg = 0;
+	uint64_t bb = white_passed_pawns | black_passed_pawns;
+	while (bb) {
+		int sq = __builtin_ctzll(bb); bb &= bb - 1;
+		bool white = BB_SQUARES[sq] & occupied_white;
+		// Advancement rank 0..7 toward promotion (white promotes at rank 7, black at rank 0).
+		int rank = white ? (sq >> 3) : (7 - (sq >> 3));
+		// Base magnitude: blend the midgame and endgame passer rank tables by phase (0=open .. 128=deep eg).
+		int mag = ((passed_midgame_pawn_rank_bonus[rank] * (128 - phase_score)
+		         + endgame_pawn_rank_bonus[rank] * phase_score) / 128) * Config::PASSER_MAG_SCALE / 100;
+		// Per-pawn realizability, upside kept conservative to start (over-valuation is the historical failure).
+		int R = std::min(passer_realizability_R(sq, white), Config::PASSER_R_CAP);
+		int val = mag * R / 256;
+		// King-race, added SOFT-GATED by R so it cannot leak past a stopped passer but a mostly-realizable one
+		// still gets it (fable's operator fix). Owner-oriented positive magnitude; sign applied below.
+		val += passer_king_race_one(sq, white, turn) * std::max(R, Config::PASSER_R_FLOOR) / 256;
+		priced_passer[sq] = val;
+		agg += white ? -val : val;
+	}
+	return agg;
 }
 
 inline bool is_practically_drawn(int pieceNum) {
@@ -6160,6 +6366,11 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// Initialize piece attack arrays
 	attack_bitmasks.fill(0ULL);
 
+	// Reset the ENABLE_PASSER_V3 deferred-passer stashes (priced post-loop, once attack_bitmasks is complete).
+	g_passer_mid_deferred.fill(0);
+	g_passer_end_deferred.fill(0);
+	priced_passer.fill(0);
+
 	uint64_t white_passed_pawns = 0;
 	uint64_t black_passed_pawns = 0;
 
@@ -6488,6 +6699,9 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
 				if ((Config::ENABLE_PASSER_DANGER && !isEndGame) || Config::ENABLE_PASSER_V2)
 					total += passer_danger(white_passed_pawns, black_passed_pawns);
+				// Centralized passer valuation (owns rank magnitude × R + its own phase blend).
+				if (Config::ENABLE_PASSER_V3)
+					total += evaluate_passers(white_passed_pawns, black_passed_pawns, phase_score, turn);
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
@@ -6777,6 +6991,9 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 				total += (Config::SCALE_PASSED_PAWN == 100) ? pp : (Config::SCALE_PASSED_PAWN * pp / 100);
 				if ((Config::ENABLE_PASSER_DANGER && !isEndGame) || Config::ENABLE_PASSER_V2)
 					total += passer_danger(white_passed_pawns, black_passed_pawns);
+				// Centralized passer valuation (same function as the midgame branch; phase blend inside).
+				if (Config::ENABLE_PASSER_V3)
+					total += evaluate_passers(white_passed_pawns, black_passed_pawns, phase_score, turn);
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << " after pp: " << total << std::endl;
@@ -6805,6 +7022,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// it fires in the midgame too, where the Tal-bot a-pawn marched unchecked. Phase-ramped: full
 	// weight in deep endgame (phase_score~128, = the old AE behavior, which is skipped when this is on)
 	// down to PASSER_KRACE_MG_PCT in the pure midgame. Default off = byte-identical.
+	// Under V3 the king-race is priced per-passer, soft-gated by R, inside evaluate_passers() — so the aggregate
+	// delta must NOT also fire (V3 removed from this guard to avoid double-counting).
 	if (Config::ENABLE_PASSER_KRACE_MG || Config::ENABLE_PASSER_V2){
 		int krace = passer_realizability_delta(turn);
 		int kpct = Config::PASSER_KRACE_MG_PCT + (100 - Config::PASSER_KRACE_MG_PCT) * phase_score / 128;
@@ -7683,7 +7902,7 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 					int value_gained = cur_side_capture->value_gained;
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
 						int prb = pawn_rank_bonuses[cur_side_capture->to];
-						if (Config::ENABLE_PASSER_V2) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
+						if (Config::ENABLE_PASSER_V2 || Config::ENABLE_PASSER_V3) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
 						value_gained += prb;
 					}
 					white_gains += value_gained;
@@ -7694,7 +7913,7 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 					int value_gained = cur_side_capture->value_gained;
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
 						int prb = pawn_rank_bonuses[cur_side_capture->to];
-						if (Config::ENABLE_PASSER_V2) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
+						if (Config::ENABLE_PASSER_V2 || Config::ENABLE_PASSER_V3) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
 						value_gained += (Config::ENABLE_CAPGAIN_PAWN_FIX ? -prb : prb);
 					}
 					black_gains += value_gained;
@@ -8121,10 +8340,15 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 		return 0;	
 	// Otherwise check if the increment does not suffer a decrement, this suggests the pawn is a passed pawn
 	} else if (ppIncrement == incrementCopy){
-		
-		if (colour){			
+
+		// A REAR doubled pawn (a friendly pawn stands ahead on its own file) can never promote, so it is not a
+		// passer: skip the passed flag and route it to the default (non-passed) rank table. Gated; default off.
+		if (Config::ENABLE_PASSER_V3 && (infrontMask & pawns & (colour ? occupied_white : occupied_black)))
+			return 0;
+
+		if (colour){
 			white_passed_pawns |= BB_SQUARES[y * 8 + x];
-		}else{			
+		}else{
 			black_passed_pawns |= BB_SQUARES[y * 8 + x];
 		}
 
@@ -8259,7 +8483,7 @@ static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 // Terms PROF_PAWNS..PROF_ADV_ENDGAME are the top-level, mutually-exclusive call
 // sites whose cycles sum to ~the instrumented eval; the remainder (SEE, the bishop
 // helpers, and ROOK_ACTIVITY) are nested subsets and excluded from the %-share base.
-static const int PROF_NUM_EXCLUSIVE = PROF_INIT_PIECE_VALUES + 1;
+static constexpr intPROF_NUM_EXCLUSIVE = PROF_INIT_PIECE_VALUES + 1;
 #endif
 
 void eval_profile_reset()

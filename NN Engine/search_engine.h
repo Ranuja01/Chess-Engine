@@ -682,6 +682,7 @@ namespace Config
     // moving shelter credit to the conditioned KS site (no double-count). The attack-layer-derived (baseIncrement)
     // shield credit + the O/D accumulators are untouched (the placement/pressure lens stays intact).
     inline bool KS_CONSOLIDATE = false;
+    inline bool ENABLE_KS_DEBUG = false; // DIAGNOSTIC: dump king_safety_score zone sub-parts + MOD signals per eval. Off = byte-id.
     inline int KS_LIGHT_MAG    = 0;     // LIGHT-eval king-pressure surrogate scale (g_eval_light path; 0 = off = byte-id)
     inline int KS_ATT_KNIGHT   = 2;     // attack units per enemy knight bearing on the king zone
     inline int KS_ATT_BISHOP   = 2;     // per enemy bishop
@@ -699,6 +700,20 @@ namespace Config
     inline int KS_AIM_ROOK     = 2;     // per enemy rook
     inline int KS_AIM_QUEEN    = 3;     // per enemy queen
     inline int KS_ATTACK_COUNT = 1;     // per zone square the enemy attacks (additive zone pressure)
+    // Ethereal-style DISCRIMINATION gate: king danger is scored only when at least this many ENEMY PIECES
+    // (N/B/R/Q) attack the king zone (a single piece near the king is not danger; a coordinated group is). When
+    // the enemy has a queen the threshold drops by one (a lone queen still threatens). 0 = gate OFF = byte-
+    // identical. This is what lets KS_FLOOR come down without waking calm positions (0-1 attackers -> 0 danger).
+    inline int KS_MIN_ATTACKERS = 0;
+    // Optional SF-style attacker COORDINATION product added to units: KS_ATT_PRODUCT * attackerCount *
+    // attackerWeightSum >> 4 (super-linear in the number of coordinating attackers). 0 = OFF = byte-identical.
+    // Default off; the gate above is the LEADING (gentler, N^2) discriminator. Kept as a fit-testable variant.
+    inline int KS_ATT_PRODUCT  = 0;
+    // Per-zone-square OVERLOAD (the DISCRIMINATIVE coordination signal the blanket product lacked): sum over zone
+    // squares of max(0, #enemy-attackers - #own-defenders). A breakthrough square (e.g. attacked by N+R+Q,
+    // defended by 1 pawn = +2) fires; a properly-defended king (attackers <= defenders everywhere) stays ~0.
+    // Subtracts defenders per-square, so it does NOT over-fire on safe-but-crowded kings. 0 = OFF = byte-identical.
+    inline int KS_OVERLOAD     = 0;
     inline int KS_WEAK         = 2;     // per weak zone square. Baseline: enemy-attacked AND no own defender. With
                                         // ENABLE_KS_SF_WEAK: enemy-attacked AND under-defended (<=1 defender, K/Q only).
     inline int KS_SAFE_CHECK   = 3;     // per safe-check square vs the ENEMY (offensive) king. Default 3.
@@ -798,6 +813,25 @@ namespace Config
     inline int PASSER_DANGER_D2 = 70;       // realizability penalty per defender-controlled, uncontested path square
     inline int PASSER_DANGER_D4 = 24;       // realizability bonus per rank the defender king is too far from the promo square
 
+    // ENABLE_PASSER_V3 composite-realizability terms folded into passer_realizability_R (R units, 256=neutral):
+    // graded path contest (net attacker-defender counts, SF's binary k made continuous via our attack_bitmasks
+    // counts), rear-file rook/queen control (SF's unsafeSquares rear logic), and king-proximity to the stop
+    // square (SF's kingProximity, enemy-king-far dominates). Default values are SF-referenced starting points.
+    inline int PASSER_CONTEST_STOP = 90;    // R dock per net (enemy att - own def) attacker on the STOP square
+    inline int PASSER_CONTEST_PATH = 40;    // R dock per net attacker on a deeper promotion-path square
+    inline int PASSER_REAR_ENEMY  = 128;    // R dock when an enemy rook/queen is behind the passer (first on the clear file)
+    inline int PASSER_REAR_OWN    = 48;     // R credit when an own rook/queen is behind the passer (Tarrasch)
+    inline int PASSER_KING_FAR    = 16;     // R credit per step the enemy king is from the stop square (dist capped 5)
+    inline int PASSER_KING_HELP   = 6;      // R dock per step the own king is from the stop square (dist capped 5)
+    inline int PASSER_MAG_SCALE   = 100;    // passer-specific scale on the base rank magnitude inside evaluate_passers()
+                                            // (percent). Independent of the global SCALE_ENDGAME_RANK so tuning the passer
+                                            // magnitude does not disturb non-passer endgame pawns.
+    inline int PASSER_R_CAP       = 320;    // upside cap on R (256=neutral). Raising it only lifts the MOST realizable
+                                            // passers (R>256) = a selective under-fire lever that never touches stopped guards.
+    inline int PASSER_R_FLOOR     = 64;     // soft floor for R when scaling the additive king-race term (so a fully
+                                            // stopped passer, R~0, still can't leak unbounded king-race, but a mostly-
+                                            // stopped one is heavily damped): king_race * max(R, R_FLOOR) / 256
+
     // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
     // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing
     // passer's danger is seen in the midgame (the Tal-bot a-pawn march). When on, the in-AE copy is
@@ -820,6 +854,13 @@ namespace Config
     // (the inline midgame pt_pawns contribution is clamped to +-275; capgains reads the UNCLAMPED array, so a
     // deep passer inflates the captured-pawn value far past what the board credits). Matches the inline clamp.
     inline int CAPG_PAWN_RANK_CLAMP = 275;
+
+    // Passer redesign (V3): a FRESH, COMPLETE consolidation intended to supersede V2 (a strict superset).
+    // Landed incrementally under this one gate. Round 1a: a REAR doubled pawn (a friendly pawn ahead on its
+    // own file) can never promote, so it is no longer mis-flagged as a passed pawn (getPPIncrement). Later
+    // rounds add the board-driven R-gate on the rank bonus, disable the smeared per-piece credits, and hook the
+    // midgame king-race. Default false = byte-identical.
+    inline bool ENABLE_PASSER_V3 = false;
 
     // Gap-P C1: blockade-QUALITY in getPPIncrement. When on, only a secure blockade (enemy minor on the
     // stop square) gets the full PP_BLOCKADE_PEN; a rook/queen merely contesting the file ahead gets only

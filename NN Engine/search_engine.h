@@ -511,7 +511,7 @@ namespace Config
     //    enemy queen). Uses slider_blockers per king + BB_RAYS; targets the initial-capturer phantom.
     //  - ENABLE_CAPG_TEMPO: drop a credited capture whose attacker is itself attacked and cannot both survive
     //    and keep the threat (the opponent captures/forces it first). Targets the attacker-hanging tempo case.
-    inline bool ENABLE_CAPG_PIN   = false;
+    inline bool ENABLE_CAPG_PIN   = true;
     inline bool ENABLE_CAPG_TEMPO = false;
 
     // Eval: passed-pawn scoring magnitudes inside getPPIncrement (absolute increments, defaults = the

@@ -353,6 +353,7 @@ struct EvalBreakdown {
 	int imbalance_black;
 	int pair_bonus;
 	int piece_value_boost;
+	int kaufman_imbalance;  // Kaufman quadratic material-imbalance re-pricing (0 unless ENABLE_KAUFMAN_IMBALANCE)
 	int pawn_majority;   // wing pawn-majority bonus (0 unless PAWN_MAJORITY_MAG_* > 0)
 	int pawn_struct;     // isolated + backward pawn penalties (0 unless ISOLATED/BACKWARD_PAWN_PEN > 0)
 	int outpost;         // knight/bishop outpost bonus (0 unless OUTPOST_KNIGHT/BISHOP > 0)

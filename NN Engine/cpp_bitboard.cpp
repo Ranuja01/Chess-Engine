@@ -2933,10 +2933,10 @@ inline int evaluate_kings_midgame(uint8_t square, uint64_t white_passed_pawns, u
 				bool isPartialShielding = (isInfront && (BB_SQUARES[r + 8] & occupied_white & pawns) != 0);					
 				if (isShielding) {
 					whiteDefensiveScore += (baseIncrement << 2);
-					total -= (baseIncrement << 2) + (Config::KS_CONSOLIDATE ? 0 : 185);									
+					total -= (baseIncrement << 2) + (Config::ENABLE_KS_V2 ? (Config::KS_SHELTER_FULL * Config::KS_SHELTER_MAG / 100) : (Config::KS_CONSOLIDATE ? 0 : 185));
 				}else if(isPartialShielding){
 					whiteDefensiveScore += (baseIncrement << 1);
-					total -= (baseIncrement << 1) + (Config::KS_CONSOLIDATE ? 0 : 75);
+					total -= (baseIncrement << 1) + (Config::ENABLE_KS_V2 ? (Config::KS_SHELTER_PARTIAL * Config::KS_SHELTER_MAG / 100) : (Config::KS_CONSOLIDATE ? 0 : 75));
 				}else {
 					whiteDefensiveScore += baseIncrement;
 					total += baseIncrement >> 2;
@@ -3000,10 +3000,10 @@ inline int evaluate_kings_midgame(uint8_t square, uint64_t white_passed_pawns, u
 				bool isPartialShielding = (isInfront && (BB_SQUARES[r - 8] & occupied_black & pawns) != 0);					
 				if (isShielding) {
 					blackDefensiveScore += (baseIncrement << 2);
-					total += (baseIncrement << 2) + (Config::KS_CONSOLIDATE ? 0 : 185);									
+					total += (baseIncrement << 2) + (Config::ENABLE_KS_V2 ? (Config::KS_SHELTER_FULL * Config::KS_SHELTER_MAG / 100) : (Config::KS_CONSOLIDATE ? 0 : 185));									
 				}else if(isPartialShielding){
 					blackDefensiveScore += (baseIncrement << 1);
-					total += (baseIncrement << 1) + (Config::KS_CONSOLIDATE ? 0 : 75);
+					total += (baseIncrement << 1) + (Config::ENABLE_KS_V2 ? (Config::KS_SHELTER_PARTIAL * Config::KS_SHELTER_MAG / 100) : (Config::KS_CONSOLIDATE ? 0 : 75));
 				}else {
 					blackDefensiveScore += baseIncrement;
 					total -= baseIncrement >> 2;
@@ -5279,6 +5279,45 @@ inline int king_safety_score(uint8_t white_king_square, uint8_t black_king_squar
 }
 
 /*
+	Consolidated king-safety HOME. Owns the whole "oncoming-storm" king-danger budget: the tapered unit-KS
+	danger (king_safety_score) conditioned by the material-backing / control modulators, plus (under
+	ENABLE_KS_V2) the re-homed pawn-shelter credit that otherwise lives as flat constants in
+	evaluate_kings_midgame. Returns the Black-positive contribution to add into `total`. Reads the file-scope
+	piece-value and offensive/defensive accumulators directly. This is a pure extraction of the former inline
+	KS block; with ENABLE_KS_V2 off and the new shelter knobs at their identity values it is byte-identical.
+	The placement lens (attackingLayer) and the long-term OvD lens are untouched here by design.
+*/
+inline int evaluate_king_safety(uint8_t white_king_square, uint8_t black_king_square, int phase_score, bool turn){
+	int ks = king_safety_score(white_king_square, black_king_square, phase_score, turn);
+	// Condition the king-danger on whether the attacking side actually backs the attack, so a flat magnitude
+	// stops over-firing on under-backed "fantasy" attacks. ks is Black-positive: ks>0 => White king in danger.
+	if (Config::MOD_KS_BACKING){
+		int threat_side_edge = (ks >= 0) ? (blackPieceVal - whitePieceVal) : (whitePieceVal - blackPieceVal);
+		int sig = std::min(0, threat_side_edge);   // <0 = attacking side under-backed -> damp only
+		ks = (ks * mod_gain(Config::MOD_KS_BACKING, sig, 12, 0, 0, 0)) >> 8;
+	}
+	if (Config::MOD_KS_CONTROL){
+		// Attacker's board-control edge over the defender (the imbalance-term signal): a real, space-backed
+		// attack boosts the danger, a control-less one damps it (two-sided).
+		int control_edge = (ks >= 0) ? (blackOffensiveScore - std::max(whiteDefensiveScore, 0))
+		                             : (whiteOffensiveScore - std::max(blackDefensiveScore, 0));
+		ks = (ks * mod_gain(Config::MOD_KS_CONTROL, control_edge, 8, 0, 0, 0)) >> 8;
+	}
+	// Whole-budget realizability gate: damp the consolidated king-danger by the attacking side's material
+	// backing, with its OWN floor so it can cut BELOW the shared MOD_FLOOR (0.5x) that MOD_KS_BACKING saturates
+	// at -- the lever to fully control the fantasy over-read. Damp-only, default off (byte-identical).
+	if (Config::MOD_KS_REALIZ){
+		int threat_side_edge = (ks >= 0) ? (blackPieceVal - whitePieceVal) : (whitePieceVal - blackPieceVal);
+		int sig = std::min(0, threat_side_edge);   // <0 = attacking side under-backed
+		int g = 256 + ((Config::MOD_KS_REALIZ * sig) >> 12);
+		if (g < Config::KS_REALIZ_FLOOR) g = Config::KS_REALIZ_FLOOR;
+		if (g > 256) g = 256;                       // damp-only (never boost)
+		ks = (ks * g) >> 8;
+	}
+	return Config::KING_SAFETY_MAG * ks / 100;
+}
+
+/*
 	SF11-style STATIC piece-on-piece threats (no motif finders — search does tactics). For each side, score the
 	enemy's WEAK non-pawn pieces (attacked by us and undefended / attacked more than defended / attacked by a pawn),
 	by the type of our attacker (minor / rook / king / pawn) scaled by the target's value, plus a Hanging bonus.
@@ -6730,24 +6769,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		if (!g_eval_light) {
 			bool ks_active = Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0; if (ks_active || g_capture_eval_breakdown) {
 				PROF_BLOCK(PROF_KING_SAFETY);
-				int ks = king_safety_score(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score, turn);
-				// Condition the king-danger on whether the attacking side actually backs the attack, so a flat
-				// magnitude stops over-firing on space-less / under-backed "fantasy" attacks (the att5+ static
-				// overshoot). ks is Black-positive: ks>0 => White king in danger (Black attacks), ks<0 => Black
-				// king in danger (White attacks).
-				if (ks_active && Config::MOD_KS_BACKING){
-					int threat_side_edge = (ks >= 0) ? (blackPieceVal - whitePieceVal) : (whitePieceVal - blackPieceVal);
-					int sig = std::min(0, threat_side_edge);   // <0 = attacking side under-backed -> damp only
-					ks = (ks * mod_gain(Config::MOD_KS_BACKING, sig, 12, 0, 0, 0)) >> 8;
-				}
-				if (ks_active && Config::MOD_KS_CONTROL){
-					// Attacker's board-control edge over the defender (the imbalance-term signal): a real,
-					// space-backed attack boosts the danger, a control-less one damps it (two-sided).
-					int control_edge = (ks >= 0) ? (blackOffensiveScore - std::max(whiteDefensiveScore, 0))
-					                             : (whiteOffensiveScore - std::max(blackDefensiveScore, 0));
-					ks = (ks * mod_gain(Config::MOD_KS_CONTROL, control_edge, 8, 0, 0, 0)) >> 8;
-				}
-				if (ks_active) total += Config::KING_SAFETY_MAG * ks / 100;
+				int ks_contrib = evaluate_king_safety(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score, turn);
+				if (ks_active) total += ks_contrib;
 			}
 		} else if (Config::KS_LIGHT_MAG != 0) {
 			// Light-eval king-pressure SURROGATE: the cheap attack-unit king_safety_score stands in for the
@@ -7463,6 +7486,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		g_eval_breakdown.imbalance_black = br_imbalance_black;
 		g_eval_breakdown.pair_bonus = br_pairs;
 		g_eval_breakdown.piece_value_boost = br_pv_boost;
+		g_eval_breakdown.kaufman_imbalance = br_kaufman;
 		g_eval_breakdown.pawn_majority = br_pawn_majority;
 		g_eval_breakdown.pawn_struct = br_pawn_struct;
 		g_eval_breakdown.outpost = br_outpost;

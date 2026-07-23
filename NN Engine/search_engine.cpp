@@ -1018,6 +1018,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KING_SAFETY_MAG = env_int("KING_SAFETY_MAG", Config::KING_SAFETY_MAG);
         Config::ENABLE_KS_REPLACE_LT = env_flag("ENABLE_KS_REPLACE_LT", Config::ENABLE_KS_REPLACE_LT);
         Config::KS_CONSOLIDATE = env_flag("KS_CONSOLIDATE", Config::KS_CONSOLIDATE);
+        Config::ENABLE_KS_V2 = env_flag("ENABLE_KS_V2", Config::ENABLE_KS_V2);
+        Config::KS_SHELTER_FULL = env_int("KS_SHELTER_FULL", Config::KS_SHELTER_FULL);
+        Config::KS_SHELTER_PARTIAL = env_int("KS_SHELTER_PARTIAL", Config::KS_SHELTER_PARTIAL);
+        Config::KS_SHELTER_MAG = env_int("KS_SHELTER_MAG", Config::KS_SHELTER_MAG);
         Config::KS_LIGHT_MAG = env_int("KS_LIGHT_MAG", Config::KS_LIGHT_MAG);
         Config::KS_ATT_KNIGHT = env_int("KS_ATT_KNIGHT", Config::KS_ATT_KNIGHT);
         Config::KS_ATT_BISHOP = env_int("KS_ATT_BISHOP", Config::KS_ATT_BISHOP);
@@ -1097,6 +1101,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::MOD_PAIR_OPEN = env_int("MOD_PAIR_OPEN", Config::MOD_PAIR_OPEN);
         Config::MOD_KS_BACKING = env_int("MOD_KS_BACKING", Config::MOD_KS_BACKING);
         Config::MOD_KS_CONTROL = env_int("MOD_KS_CONTROL", Config::MOD_KS_CONTROL);
+        Config::MOD_KS_REALIZ = env_int("MOD_KS_REALIZ", Config::MOD_KS_REALIZ);
+        Config::KS_REALIZ_FLOOR = env_int("KS_REALIZ_FLOOR", Config::KS_REALIZ_FLOOR);
         Config::MOD_PVBOOST_COMP = env_int("MOD_PVBOOST_COMP", Config::MOD_PVBOOST_COMP);
         Config::MOD_PVBOOST_MOB = env_int("MOD_PVBOOST_MOB", Config::MOD_PVBOOST_MOB);
         Config::MOD_PIECES_LEVEL = env_int("MOD_PIECES_LEVEL", Config::MOD_PIECES_LEVEL);
@@ -1479,7 +1485,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " MOD_PAIR_OPEN=" << Config::MOD_PAIR_OPEN
                   << " MOD_KS_BACKING=" << Config::MOD_KS_BACKING
                   << " MOD_KS_CONTROL=" << Config::MOD_KS_CONTROL
+                  << " MOD_KS_REALIZ=" << Config::MOD_KS_REALIZ
+                  << " KS_REALIZ_FLOOR=" << Config::KS_REALIZ_FLOOR
                   << " KS_CONSOLIDATE=" << Config::KS_CONSOLIDATE
+                  << " ENABLE_KS_V2=" << Config::ENABLE_KS_V2
+                  << " KS_SHELTER_FULL=" << Config::KS_SHELTER_FULL
+                  << " KS_SHELTER_PARTIAL=" << Config::KS_SHELTER_PARTIAL
+                  << " KS_SHELTER_MAG=" << Config::KS_SHELTER_MAG
                   << " MOD_PIECES_LEVEL=" << Config::MOD_PIECES_LEVEL
                   << " MOD_PIECES_MAT_THRESH=" << Config::MOD_PIECES_MAT_THRESH
                   << " MOD_PIECES_FLOOR=" << Config::MOD_PIECES_FLOOR

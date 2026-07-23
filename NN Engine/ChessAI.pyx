@@ -149,6 +149,7 @@ cdef extern from "cpp_bitboard.h":
         int imbalance_black
         int pair_bonus
         int piece_value_boost
+        int kaufman_imbalance
         int pawn_majority
         int pawn_struct
         int outpost
@@ -515,6 +516,7 @@ cdef class ChessAI:
             "imbalance_black": b.imbalance_black,
             "pair_bonus": b.pair_bonus,
             "piece_value_boost": b.piece_value_boost,
+            "kaufman_imbalance": b.kaufman_imbalance,
             "pawn_majority": b.pawn_majority,
             "pawn_struct": b.pawn_struct,
             "outpost": b.outpost,

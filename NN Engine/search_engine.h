@@ -682,6 +682,16 @@ namespace Config
     // moving shelter credit to the conditioned KS site (no double-count). The attack-layer-derived (baseIncrement)
     // shield credit + the O/D accumulators are untouched (the placement/pressure lens stays intact).
     inline bool KS_CONSOLIDATE = false;
+    // Consolidated king-safety HOME master gate (supersedes KS_CONSOLIDATE). Off (default) = byte-identical:
+    // the flat 185/75 shelter constants add as today and the realizability gate is inert. On = the shelter
+    // constants become the tunable KS_SHELTER_* terms (identity at 185/75/100) and MOD_KS_REALIZ may damp the
+    // whole unit-KS danger budget. The unit-KS budget already lives in ONE term (king_safety_score, wrapped by
+    // evaluate_king_safety); this gate makes the surrounding shelter credit tunable + adds the whole-budget gate.
+    // The attackingLayer placement lens and the long-term OvD lens are untouched (scope: gate the storm lens only).
+    inline bool ENABLE_KS_V2 = false;
+    inline int  KS_SHELTER_FULL    = 185;  // tunable full-shield shelter bonus (replaces the flat 185 under KS_V2)
+    inline int  KS_SHELTER_PARTIAL = 75;   // tunable partial-shield shelter bonus (replaces the flat 75 under KS_V2)
+    inline int  KS_SHELTER_MAG     = 100;  // percent scale on the re-homed shelter terms (100 = identity)
     inline bool ENABLE_KS_DEBUG = false; // DIAGNOSTIC: dump king_safety_score zone sub-parts + MOD signals per eval. Off = byte-id.
     inline int KS_LIGHT_MAG    = 0;     // LIGHT-eval king-pressure surrogate scale (g_eval_light path; 0 = off = byte-id)
     inline int KS_ATT_KNIGHT   = 2;     // attack units per enemy knight bearing on the king zone
@@ -906,6 +916,14 @@ namespace Config
     // the same signal the imbalance term reads): a space-backed attack boosts, a space-less one damps.
     inline int MOD_KS_BACKING = 0;
     inline int MOD_KS_CONTROL = 0;
+    // Whole-budget realizability gate for the consolidated KS home (evaluate_king_safety). Same material-backing
+    // signal as MOD_KS_BACKING (damp-only when the attacking side is under-backed) but with its OWN floor so it
+    // can damp the phantom attack BELOW the shared MOD_FLOOR=128 (0.5x) that MOD_KS_BACKING saturates at -- the
+    // step-0 probe showed MOD_KS_BACKING bottoms out at ~halving the budget and cannot fully fix the fantasy
+    // over-read. MOD_KS_REALIZ=0 (default) => not applied => byte-identical. Acts on the netted ks, so it damps
+    // the whole unit-KS danger budget the home now owns.
+    inline int MOD_KS_REALIZ = 0;      // strength of the whole-budget material-backing damp (0 = off = byte-id)
+    inline int KS_REALIZ_FLOOR = 128;  // min gain over 256 for MOD_KS_REALIZ (tunable below 128 for harder damp)
     inline int MOD_PVBOOST_COMP = 0;  // damp the material-domination boost x opponent offense-vs-our-defense COMPENSATION
                                       // (a material lead is worth less under an unmatched attack; the collapse over-read)
     inline int MOD_PVBOOST_MOB = 0;   // damp the material-domination boost x our MOBILITY edge deficit (a cramped material

@@ -222,10 +222,23 @@ namespace Config
     inline bool ENABLE_LMR = true;      // late move reductions
     inline bool ENABLE_FUTILITY = true; // futility pruning (inside the LMR block)
     inline bool ENABLE_RAZORING = true; // razoring (alpha_beta root loop)
-    inline bool ROOT_RAZOR_CONTINUE = false; // razor individual low root moves (continue) vs abandon the rest (break);
-                                             // default false = break = byte-identical. Measures the break's safety cost
-                                             // (a good move ordered AFTER a stale-low one is skipped) at ~no speed cost
-                                             // when the list is well-sorted. Diagnostic; keep ENABLE_RAZORING (the speed) ON.
+    inline bool ROOT_RAZOR_CONTINUE = false; // razor individual low root moves (continue) vs abandon the rest (break).
+                                             // PROVABLY INERT: the root list is sorted score-descending before the loop,
+                                             // so the razor condition is monotone in the move index -- once it trips it
+                                             // holds for every later move, and continue skips the same set as break.
+                                             // Verified byte-identical (WAC d10 248/44,038,704). The real lever is the
+                                             // threshold below, not the skip mode.
+
+    // Root razoring threshold: a root move whose PREVIOUS-iteration score is more than the threshold below
+    // alpha is abandoned. The threshold decays with depth (RAZOR_DECAY_PCT per ply beyond 4) down to a floor,
+    // and widens at runtime whenever alpha jumps past the front move's stale score. These are absolute
+    // millipawn margins, so they are coupled to eval magnitude -- they were calibrated before the de-king
+    // change shrank attack-position evals. Defaults reproduce the previous hardcoded values exactly.
+    inline int RAZOR_BASE_FIRST = 750;  // base on the first iteration (no previous root list)
+    inline int RAZOR_FLOOR_FIRST = 200; // floor on the first iteration
+    inline int RAZOR_BASE = 300;        // base once a previous root list exists
+    inline int RAZOR_FLOOR = 100;       // floor once a previous root list exists
+    inline int RAZOR_DECAY_PCT = 75;    // per-ply decay beyond depth 4, in percent
     inline int RESIGN_THRESHOLD = -15000;   // engine resigns (returns no move) at score <= this. Default -15000 = current.
                                              // Set very negative to measure the resign leak (games that would draw if played on).
     inline bool ENABLE_TT_STORE_DRAW = false; // allow caching EXACT-draw (score==0) subtrees in the TT. Default false =
@@ -502,6 +515,9 @@ namespace Config
     inline int CAPG_TENSION_HI = 3;    // tension at/above which capg = CAPG_HI_SCALE (tactical ceiling)
     inline int CAPG_LO_SCALE   = 10;   // capg weight (%) in confidently-quiet positions
     inline int CAPG_HI_SCALE   = 100;  // capg weight (%) in tactical positions
+    inline bool ENABLE_CAPG_REALIZ = false; // discount the pre-booked capgains material when the gaining side can't
+                                       // convert it, via the imbalance term's realizability_factor(material_edge,phase).
+                                       // Off => byte-id; on with REALIZ_* still 0 => identity (needs REALIZ_MAT_K etc).
 
     // Eval: capture-gains legality/tempo awareness. approximate_capture_gains folds a full-magnitude,
     // pin-blind, tempo-blind SEE exchange into the static material/capture_gains terms, so it over-credits
@@ -727,6 +743,14 @@ namespace Config
     inline int KS_WEAK         = 2;     // per weak zone square. Baseline: enemy-attacked AND no own defender. With
                                         // ENABLE_KS_SF_WEAK: enemy-attacked AND under-defended (<=1 defender, K/Q only).
     inline int KS_SAFE_CHECK   = 3;     // per safe-check square vs the ENEMY (offensive) king. Default 3.
+    inline bool ENABLE_KS_CHECK_V2 = false;  // per-type safe-check weighting (replaces the flat KS_SAFE_CHECK*count).
+                                        // Off => byte-identical flat behavior. On: units += per-type weights below.
+    inline int KS_CHK_QUEEN    = 14;    // per queen safe-check (used only when ENABLE_KS_CHECK_V2): sized so a LONE
+    inline int KS_CHK_ROOK     = 14;    // queen/rook safe-check clears KS_FLOOR (13) on its own merit (real danger,
+    inline int KS_CHK_BISHOP   = 7;     // not calm-king noise) -- the floor stays; targeting is emergent, branchless.
+    inline int KS_CHK_KNIGHT   = 9;
+    inline int KS_CHK_MULTI    = 0;     // graded bump when a check TYPE has a SECOND safe square (SF15's
+                                        // more_than_one level); saturates there. Per type, not per square. 0 = off.
     inline int KS_SAFE_CHECK_DEF = 5;   // per safe-check square vs the SIDE-TO-MOVE's OWN (defensive) king. Boosts
                                         // DEFENSIVE safe-check sensitivity (lifts a real counter-attack on our king
                                         // over the KS_FLOOR deadzone) WITHOUT over-crediting our own attacks (which
@@ -744,6 +768,25 @@ namespace Config
     inline int KS_ZONE2        = 0;     // widen the king-danger zone from ring1+one-rank to the full king_ring2
                                         // (2-ring), so attackers staging one square further out are detected.
                                         // 0 = narrow zone (byte-identical baseline); 1 = wide 2-ring.
+    inline bool ENABLE_KS_ZONE_CLAMP = false;  // build the king-danger ring around a clamped center (file B..G,
+                                        // rank 2..7) so a corner/edge king gets a full 9-square ring and sees the
+                                        // attackers a raw corner ring misses. Off => raw ring = byte-identical.
+    inline int KS_ZONE_NORM    = 0;     // Ethereal-style density normalization: scale the attacked-square COUNT to
+                                        // a KS_ZONE_NORM-square reference ring (count * KS_ZONE_NORM / popcount(zone))
+                                        // so a larger zone isn't charged more for size alone. 0 = off = byte-id; 9 typ.
+    inline int KS_ZONE_ATTACK_PCT = 100; // scale the KING-DIRECTED boost in setAttackingLayer (king-ring + open-hole
+                                        // credit) independently of the base central heatmap. That boost was counted
+                                        // THREE times -- into `pieces` via positional_bonus, into OvD via the
+                                        // offensive/defensive scores, and again by the dedicated king-safety term.
+                                        // Halving it removes the duplication without losing the long-term
+                                        // aimed-piece signal (0 = full de-king REGRESSES: STS 1538 vs 1647 at 50).
+                                        // 3-seed 200g SF@2400: score 40.1%->47.5% (up all 3 seeds), POSITIONAL
+                                        // collapses -22% (down all 3 seeds), STS 1555->1647, WAC 247->248.
+                                        // 100 restores the pre-ship identity path (byte-id 247/39,971,153).
+    inline int KS_CLAMP_SHELTER = 8;    // ENABLE_KS_ZONE_CLAMP fires only when own-pawn count in the king's ring-1
+                                        // is <= this. 8 = ring is never that full => always clamp (default). Lower
+                                        // it to shelter-gate the clamp (a hand-gate on shelter DID NOT help the
+                                        // wrongsign on the corpus -- kept tunable for the fit, not defaulted on).
     // PER-KING DYNAMIC magnitude: scale EACH king's danger by how REAL its attack is = the CO-OCCURRENCE of
     // its own signature detectors (attackers acting THROUGH open lines / undefended holes), not their additive
     // sum. Computed per king, so the genuinely-attacked king scales UP (toward the crusher regime) while the
@@ -841,6 +884,9 @@ namespace Config
     inline int PASSER_R_FLOOR     = 64;     // soft floor for R when scaling the additive king-race term (so a fully
                                             // stopped passer, R~0, still can't leak unbounded king-race, but a mostly-
                                             // stopped one is heavily damped): king_race * max(R, R_FLOOR) / 256
+    inline int PASSER_RFLOOR_R5   = 0;      // floor-first for ADVANCED passers (SF/Ethereal keep the rank table
+    inline int PASSER_RFLOOR_R6   = 0;      // unconditional): min R for a passer on the 6th (R5) / 7th (R6) rank,
+                                            // so a near-promotion pawn stays dangerous even when contested. 0 = byte-id.
 
     // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
     // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing
@@ -1053,6 +1099,14 @@ namespace Config
     // quiescent leaves (where qsearch stand-pat fires) -> big NPS for ~no accuracy at the leaf.
     inline int FUTILITY_EVAL_MODE = 0;
     inline int QSTANDPAT_EVAL_MODE = 0;
+    // Per-CAPTURE qsearch futility (SF-style) replacing the node-level delta prune. The node-level form
+    // ("if stand-pat is DELTA_MARGIN below alpha, return without searching ANY capture") is unsound by up to
+    // a queen -- it discards a hanging piece. SF instead credits the VICTIM first:
+    //     futilityValue = static_eval + margin + value(captured);  if (futilityValue <= alpha) skip THIS move
+    // so the margin sits ON TOP of what the capture wins. Ours only survived because stand-pat pre-banks the
+    // pending capture material via approximate_capture_gains -- i.e. capture-gains masks this hole.
+    // On => node-level delta is bypassed and the per-move test is used instead. Off => byte-identical.
+    inline bool ENABLE_QDELTA_PERMOVE = false;
 
     // Node-entry reverse futility pruning (static null) + a null-move eval gate. Both read ONE node-entry
     // static eval (eval_by_mode); default-off = byte-identical (see minimizer/maximizer node entry). RFP

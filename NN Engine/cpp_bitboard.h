@@ -433,6 +433,11 @@ enum ProfTerm {
 	PROF_INIT_PIECE_VALUES,
 	// Drill-only terms (nested inside the evaluators above; subsets, not exclusive).
 	PROF_SEE, PROF_BISHOP_ACTIVITY, PROF_BISHOP_COLOUR,
+	// Drill-only subsets of PROF_PAWNS: the pawn-STRUCTURE analysis (passed-span building in
+	// getPPIncrement — the part a pawn-structure cache could memoize) vs the per-pawn attack loop
+	// (attackingLayer lookups + attack_bitmasks writes — king-dependent, must stay per-node).
+	// Their split sizes the prize for a pawn-hash eval cache before building one.
+	PROF_PAWN_PPINC, PROF_PAWN_ATKLOOP,
 	// Search-side scopes (NOT part of the eval %-base; their absolute cycles vs the eval-term
 	// sum give the whole-search breakdown when accumulated during a real get_engine_move search).
 	PROF_MOVEGEN, PROF_MAKEUNMAKE, PROF_TT_PROBE,

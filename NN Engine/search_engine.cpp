@@ -874,6 +874,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_FUTILITY = env_flag("ENABLE_FUTILITY", true);
         Config::ENABLE_RAZORING = env_flag("ENABLE_RAZORING", true);
         Config::ROOT_RAZOR_CONTINUE = env_flag("ROOT_RAZOR_CONTINUE", false);
+        Config::RAZOR_BASE_FIRST = env_int("RAZOR_BASE_FIRST", Config::RAZOR_BASE_FIRST);
+        Config::RAZOR_FLOOR_FIRST = env_int("RAZOR_FLOOR_FIRST", Config::RAZOR_FLOOR_FIRST);
+        Config::RAZOR_BASE = env_int("RAZOR_BASE", Config::RAZOR_BASE);
+        Config::RAZOR_FLOOR = env_int("RAZOR_FLOOR", Config::RAZOR_FLOOR);
+        Config::RAZOR_DECAY_PCT = env_int("RAZOR_DECAY_PCT", Config::RAZOR_DECAY_PCT);
         Config::RESIGN_THRESHOLD = env_int("RESIGN_THRESHOLD", Config::RESIGN_THRESHOLD);
         Config::ENABLE_TT_STORE_DRAW = env_flag("ENABLE_TT_STORE_DRAW", false);
         Config::ENABLE_NULLMOVE = env_flag("ENABLE_NULLMOVE", true);
@@ -952,6 +957,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CAPG_TENSION_HI = env_int("CAPG_TENSION_HI", Config::CAPG_TENSION_HI);
         Config::CAPG_LO_SCALE = env_int("CAPG_LO_SCALE", Config::CAPG_LO_SCALE);
         Config::CAPG_HI_SCALE = env_int("CAPG_HI_SCALE", Config::CAPG_HI_SCALE);
+        Config::ENABLE_CAPG_REALIZ = env_flag("ENABLE_CAPG_REALIZ", Config::ENABLE_CAPG_REALIZ);
         Config::ENABLE_CAPG_PIN = env_flag("ENABLE_CAPG_PIN", Config::ENABLE_CAPG_PIN);
         Config::ENABLE_CAPG_TEMPO = env_flag("ENABLE_CAPG_TEMPO", Config::ENABLE_CAPG_TEMPO);
         Config::PP_OPP_PAWN_PEN = env_int("PP_OPP_PAWN_PEN", Config::PP_OPP_PAWN_PEN);
@@ -1034,6 +1040,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_WEAK = env_int("KS_WEAK", Config::KS_WEAK);
         Config::KS_SAFE_CHECK = env_int("KS_SAFE_CHECK", Config::KS_SAFE_CHECK);
         Config::KS_SAFE_CHECK_DEF = env_int("KS_SAFE_CHECK_DEF", Config::KS_SAFE_CHECK_DEF);
+        Config::ENABLE_KS_CHECK_V2 = env_flag("ENABLE_KS_CHECK_V2", Config::ENABLE_KS_CHECK_V2);
+        Config::KS_CHK_QUEEN = env_int("KS_CHK_QUEEN", Config::KS_CHK_QUEEN);
+        Config::KS_CHK_ROOK = env_int("KS_CHK_ROOK", Config::KS_CHK_ROOK);
+        Config::KS_CHK_BISHOP = env_int("KS_CHK_BISHOP", Config::KS_CHK_BISHOP);
+        Config::KS_CHK_KNIGHT = env_int("KS_CHK_KNIGHT", Config::KS_CHK_KNIGHT);
+        Config::KS_CHK_MULTI = env_int("KS_CHK_MULTI", Config::KS_CHK_MULTI);
         Config::ENABLE_KS_AIM = env_flag("ENABLE_KS_AIM", Config::ENABLE_KS_AIM);
         Config::KS_AIM_BISHOP = env_int("KS_AIM_BISHOP", Config::KS_AIM_BISHOP);
         Config::KS_AIM_ROOK = env_int("KS_AIM_ROOK", Config::KS_AIM_ROOK);
@@ -1043,6 +1055,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_OPEN_FILE = env_int("KS_OPEN_FILE", Config::KS_OPEN_FILE);
         Config::KS_BATTERY = env_int("KS_BATTERY", Config::KS_BATTERY);
         Config::KS_ZONE2 = env_int("KS_ZONE2", Config::KS_ZONE2);
+        Config::ENABLE_KS_ZONE_CLAMP = env_flag("ENABLE_KS_ZONE_CLAMP", Config::ENABLE_KS_ZONE_CLAMP);
+        Config::KS_ZONE_NORM = env_int("KS_ZONE_NORM", Config::KS_ZONE_NORM);
+        Config::KS_ZONE_ATTACK_PCT = env_int("KS_ZONE_ATTACK_PCT", Config::KS_ZONE_ATTACK_PCT);
+        Config::KS_CLAMP_SHELTER = env_int("KS_CLAMP_SHELTER", Config::KS_CLAMP_SHELTER);
         Config::KS_DYN = env_int("KS_DYN", Config::KS_DYN);
         Config::KS_DYN_PIVOT = env_int("KS_DYN_PIVOT", Config::KS_DYN_PIVOT);
         Config::KS_DYN_SHIFT = env_int("KS_DYN_SHIFT", Config::KS_DYN_SHIFT);
@@ -1079,6 +1095,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_MAG_SCALE = env_int("PASSER_MAG_SCALE", Config::PASSER_MAG_SCALE);
         Config::PASSER_R_CAP = env_int("PASSER_R_CAP", Config::PASSER_R_CAP);
         Config::PASSER_R_FLOOR = env_int("PASSER_R_FLOOR", Config::PASSER_R_FLOOR);
+        Config::PASSER_RFLOOR_R5 = env_int("PASSER_RFLOOR_R5", Config::PASSER_RFLOOR_R5);
+        Config::PASSER_RFLOOR_R6 = env_int("PASSER_RFLOOR_R6", Config::PASSER_RFLOOR_R6);
         Config::ENABLE_KS_DEBUG = env_flag("ENABLE_KS_DEBUG", Config::ENABLE_KS_DEBUG);
         Config::ENABLE_PASSER_KRACE_MG = env_flag("ENABLE_PASSER_KRACE_MG", Config::ENABLE_PASSER_KRACE_MG);
         Config::PASSER_KRACE_MG_PCT = env_int("PASSER_KRACE_MG_PCT", Config::PASSER_KRACE_MG_PCT);
@@ -1150,6 +1168,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_SEE_INCREMENTAL = env_flag("ENABLE_SEE_INCREMENTAL", Config::ENABLE_SEE_INCREMENTAL);
         Config::FUTILITY_EVAL_MODE = env_int("FUTILITY_EVAL_MODE", Config::FUTILITY_EVAL_MODE);
         Config::QSTANDPAT_EVAL_MODE = env_int("QSTANDPAT_EVAL_MODE", Config::QSTANDPAT_EVAL_MODE);
+        Config::ENABLE_QDELTA_PERMOVE = env_flag("ENABLE_QDELTA_PERMOVE", Config::ENABLE_QDELTA_PERMOVE);
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
         Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
         Config::RFP_MIN_DEPTH = env_int("RFP_MIN_DEPTH", Config::RFP_MIN_DEPTH);
@@ -1304,6 +1323,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         std::cerr << "[toggles] LMR=" << Config::ENABLE_LMR
                   << " FUTILITY=" << Config::ENABLE_FUTILITY
                   << " RAZORING=" << Config::ENABLE_RAZORING
+                  << " ROOT_RAZOR_CONTINUE=" << Config::ROOT_RAZOR_CONTINUE
+                  << " RAZOR_BASE=" << Config::RAZOR_BASE
+                  << " RAZOR_FLOOR=" << Config::RAZOR_FLOOR
+                  << " RAZOR_DECAY_PCT=" << Config::RAZOR_DECAY_PCT
                   << " NULLMOVE=" << Config::ENABLE_NULLMOVE
                   << " NULLMOVE_PROGRESSIVE=" << Config::NULLMOVE_PROGRESSIVE
                   << " NULLMOVE_EXTRA=" << Config::NULLMOVE_EXTRA
@@ -2123,11 +2146,11 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     int razor_threshold;
     if (previous_search_data.moves_list.empty())
     {
-        razor_threshold = std::max(static_cast<int>(750 * std::pow(0.75, depth_limit - 4)), 200);
+        razor_threshold = std::max(static_cast<int>(Config::RAZOR_BASE_FIRST * std::pow(Config::RAZOR_DECAY_PCT / 100.0, depth_limit - 4)), Config::RAZOR_FLOOR_FIRST);
     }
     else
     {
-        razor_threshold = std::max(static_cast<int>(300 * std::pow(0.75, depth_limit - 4)), 100);
+        razor_threshold = std::max(static_cast<int>(Config::RAZOR_BASE * std::pow(Config::RAZOR_DECAY_PCT / 100.0, depth_limit - 4)), Config::RAZOR_FLOOR);
     }
     // std::cout << "BBB" << std::endl;
 
@@ -5367,7 +5390,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
             return static_eval; // Fail-hard beta cutoff
         if (static_eval > alpha)
             alpha = static_eval;
-        if (Config::ENABLE_QDELTA && static_eval < alpha - Config::DELTA_MARGIN)
+        if (Config::ENABLE_QDELTA && !Config::ENABLE_QDELTA_PERMOVE && static_eval < alpha - Config::DELTA_MARGIN)
             return static_eval; // Optional delta pruning
     }
     else
@@ -5376,7 +5399,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
             return static_eval; // Fail-hard alpha cutoff
         if (static_eval < beta)
             beta = static_eval;
-        if (Config::ENABLE_QDELTA && static_eval > beta + Config::DELTA_MARGIN)
+        if (Config::ENABLE_QDELTA && !Config::ENABLE_QDELTA_PERMOVE && static_eval > beta + Config::DELTA_MARGIN)
             return static_eval; // Optional delta pruning
     }
 
@@ -5392,6 +5415,22 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
         // Acquire the zobrist hash for the new position if the given move was made
         bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
+
+        // Per-capture futility: skip a capture only when even WINNING THE VICTIM cannot reach the bound, so
+        // the margin sits ON TOP of the captured value instead of replacing it. Placed before the zobrist
+        // update so a skip leaves the hash untouched. Promotions and en-passant are exempt (their swing is not
+        // the value standing on the destination square); in-check nodes never reach here (handled above).
+        if (Config::ENABLE_QDELTA_PERMOVE && Config::ENABLE_QDELTA && capture_move && !en_passant_move && move.promotion == 0)
+        {
+            int victim = get_value_at(move.to_square, current_state);
+            if (is_maximizing) {
+                if (static_eval + Config::DELTA_MARGIN + victim <= alpha)
+                    continue;
+            } else {
+                if (static_eval - Config::DELTA_MARGIN - victim >= beta)
+                    continue;
+            }
+        }
 
         // Assuming `updateZobristHashForMove` is defined elsewhere and works similarly
         updateZobristHashForMove(

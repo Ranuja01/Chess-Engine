@@ -49,6 +49,12 @@ std::array<uint64_t, NUM_SQUARES> black_king_shield;
 // the enemy (the forward staging squares an attack lands on). Colour-specific via the forward push.
 std::array<uint64_t, NUM_SQUARES> white_king_ks_zone;
 std::array<uint64_t, NUM_SQUARES> black_king_ks_zone;
+// Clamped variants (ENABLE_KS_ZONE_CLAMP): the ring is built around a king-square whose file/rank are pulled
+// in one from the board edge (SF-style clamp file B..G, rank 2..7), so a corner/edge king gets a FULL 9-square
+// ring instead of the geometrically-tiny raw one -- it then sees attackers a cornered king really faces
+// (Bb5->f1, Ne5->f3) that the raw ring misses. Selected by the gate; raw tables remain the default.
+std::array<uint64_t, NUM_SQUARES> white_king_ks_zone_clamped;
+std::array<uint64_t, NUM_SQUARES> black_king_ks_zone_clamped;
 // Forward 3-file span ahead of a pawn on each square (its own file + both neighbours, all ranks toward
 // promotion). A pawn is passed iff no enemy pawn occupies this span. Mirrors getPPIncrement's mask shape;
 // built in initialize_attack_tables and consumed by the search's passed-pawn pruning exemption.
@@ -430,6 +436,29 @@ inline int capg_conditioned_scale() {
 	return los + (his - los) * (t - lo) / (hi - lo);
 }
 
+// Diagnostic-only lazy-capgains probe (env CAPG_LAZY_PROBE). approximate_capture_gains is the most expensive
+// term per call (~766 cycles vs 126 for a pawn), yet capg_conditioned_scale already damps its result to
+// CAPG_LO_SCALE% in quiet positions -- i.e. we pay full price for a number we then throw most of away. This
+// records the tension distribution and the resulting |capture_gains| so we can size how often the simulation
+// could be SKIPPED before building anything. Read-only: never alters eval or the returned score.
+static long long g_capgp_calls = 0, g_capgp_bucket[6] = {0}, g_capgp_small[6] = {0};
+inline void capg_lazy_probe(int cg)
+{
+	static const bool on = std::getenv("CAPG_LAZY_PROBE") != nullptr;
+	if (!on) return;
+	int b = g_capg_tension > 4 ? 5 : (g_capg_tension < 0 ? 0 : g_capg_tension);
+	++g_capgp_calls; ++g_capgp_bucket[b];
+	if (std::abs(cg) < 50) ++g_capgp_small[b];      // "worth ~nothing": under a twentieth of a pawn
+	if ((g_capgp_calls % 250000) == 0) {
+		std::fprintf(stderr, "[CAPGP] calls=%lld", g_capgp_calls);
+		for (int i = 0; i < 6; ++i)
+			std::fprintf(stderr, "  t%d=%.1f%%(tiny %.0f%%)", i,
+			             100.0 * g_capgp_bucket[i] / g_capgp_calls,
+			             g_capgp_bucket[i] ? 100.0 * g_capgp_small[i] / g_capgp_bucket[i] : 0.0);
+		std::fprintf(stderr, "\n");
+	}
+}
+
 // Net midgame rook open-file/7th/connected bonus already folded into `total` this eval (Black-positive:
 // White's rook-file edge is negative). Accumulated in evaluate_rooks_midgame; used post-capg to apply a
 // tension-conditioned rescale. Endgame uses a different rook evaluator, so this stays 0 there (midgame-only).
@@ -564,6 +593,15 @@ void initialize_attack_tables() {
         uint64_t fwd_black = (ring1 >> 8);   // toward rank 1 (black king's)
         white_king_ks_zone[sq] = ring1 | fwd_white;
         black_king_ks_zone[sq] = ring1 | fwd_black;
+
+        // Clamped-center variant: pull the ring center in one from each edge so a corner/edge king still gets a
+        // full 9-square ring (SF clamps file to B..G, rank to 2..7).
+        int cf = std::clamp(sq & 7, 1, 6);
+        int cr = std::clamp(sq >> 3, 1, 6);
+        uint8_t csq = (uint8_t)(cr * 8 + cf);
+        uint64_t cring1 = BB_KING_ATTACKS[csq] | BB_SQUARES[csq];
+        white_king_ks_zone_clamped[sq] = cring1 | (cring1 << 8);
+        black_king_ks_zone_clamped[sq] = cring1 | (cring1 >> 8);
     }
 
     // Build the passed-pawn forward spans: for each square, the union over its own file and both
@@ -831,7 +869,8 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		total += 125 * (__builtin_popcountll(BB_FILES[x] & (occupied_white & pawns)) > 1);
 		
 		// Call the function to acquire an extra boost for passed and semi passed pawns
-		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns);
+		{ PROF_BLOCK(PROF_PAWN_PPINC);
+		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns); }
 		ppIncrement = std::min(ppIncrement, 400); // cap runaway boosts
 
 		int rank = y;
@@ -940,7 +979,8 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		// Lower black's score for more than one black pawn being on the same file						
 		total -= 125 * (__builtin_popcountll(BB_FILES[x] & (occupied_black & pawns)) > 1);
 		
-		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns);
+		{ PROF_BLOCK(PROF_PAWN_PPINC);
+		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns); }
 		ppIncrement = std::min(ppIncrement, 400); // cap runaway boosts
 		
 		int rank = 7 - y;
@@ -3054,7 +3094,8 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		// Call the function to acquire an extra pawn squared based on the position of opposing pawns
 		// Only consider this if the pawn is above the 3rd rank
 		
-		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns);
+		{ PROF_BLOCK(PROF_PAWN_PPINC);
+		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns); }
 		ppIncrement = std::min(ppIncrement, 600); // cap runaway boosts
 
 		int rank = y;		
@@ -3144,7 +3185,8 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		
 		// Call the function to acquire an extra pawn squared based on the position of opposing pawns
 		// Only consider this if the pawn is below the 6th rank
-		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns);
+		{ PROF_BLOCK(PROF_PAWN_PPINC);
+		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns); }
 		ppIncrement = std::min(ppIncrement, 600); // cap runaway boosts
 
 		int rank = 7 - y;
@@ -5036,7 +5078,16 @@ inline int advanced_endgame_eval(int total, bool turn){
 */
 inline int mod_gain(int k1, int sig1, int sh1, int k2, int sig2, int sh2);  // defined below; used for KS_DYN
 inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensive){
-	uint64_t zone      = white_king ? white_king_ks_zone[king_square] : black_king_ks_zone[king_square];
+	// Clamp the ring center in from the edge (C) only for an UNDER-sheltered king: a well-castled king with its
+	// own pawns still in the ring is genuinely safe and the wider clamped ring would wake false danger (sign
+	// flips). Gate on the own-pawn count in the raw ring-1 <= KS_CLAMP_SHELTER, so exposed corners (FEN-1 h1)
+	// clamp while a 2-3 pawn shelter does not.
+	uint64_t own_here  = white_king ? occupied_white : occupied_black;
+	bool use_clamp = Config::ENABLE_KS_ZONE_CLAMP
+	              && __builtin_popcountll(pawns & own_here & BB_KING_ATTACKS[king_square]) <= Config::KS_CLAMP_SHELTER;
+	uint64_t zone      = use_clamp
+	                   ? (white_king ? white_king_ks_zone_clamped[king_square] : black_king_ks_zone_clamped[king_square])
+	                   : (white_king ? white_king_ks_zone[king_square]         : black_king_ks_zone[king_square]);
 	uint64_t enemy     = white_king ? occupied_black : occupied_white;
 	uint64_t own        = white_king ? occupied_white : occupied_black;
 	uint64_t own_pawns = pawns & own;
@@ -5052,6 +5103,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	int attacked_zone_squares = 0;
 	int weak_squares = 0;
 	int overload_sum = 0;   // per-square sum of max(0, #attackers - #defenders): the discriminative breakthrough signal
+	int breakthrough_sq = 0;  // DIAGNOSTIC: count of zone squares where attackers > defenders (per-square breakthrough)
 	uint64_t z = zone;
 	while (z) {
 		uint8_t s = __builtin_ctzll(z);
@@ -5064,7 +5116,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			attackers_sq |= am;
 			attacked_zone_squares++;
 			int ov = __builtin_popcountll(am) - __builtin_popcountll(dm);   // attackers minus defenders on this sq
-			if (ov > 0) overload_sum += ov;
+			if (ov > 0) { overload_sum += ov; breakthrough_sq++; }
 			// Weak = enemy-attacked hole. Baseline: no own defender. SF11: UNDER-defended = at most one
 			// defender and only the king or queen (a pawn/minor/rook defender disqualifies).
 			bool weak;
@@ -5087,11 +5139,21 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	}
 	uint64_t pieces_nk = knights | bishops | rooks | queens;  // defenders counted among real pieces (not king/pawn)
 
+	// Optional density normalization (Ethereal-style, KS_ZONE_NORM): scale the raw attacked-square COUNT to a
+	// fixed-size reference ring (KS_ZONE_NORM squares) so a king with a geometrically larger zone (e.g. the
+	// clamped corner ring) is not charged more merely for having more squares to be attacked. Default 0 = off
+	// = raw count = byte-identical.
+	int attack_count_units = Config::KS_ATTACK_COUNT * attacked_zone_squares;
+	if (Config::KS_ZONE_NORM) {
+		int zsz = __builtin_popcountll(zone);
+		if (zsz > 0) attack_count_units = attack_count_units * Config::KS_ZONE_NORM / zsz;
+	}
+
 	int units = Config::KS_ATT_KNIGHT * __builtin_popcountll(attackers_sq & knights)
 	          + Config::KS_ATT_BISHOP * __builtin_popcountll(attackers_sq & bishops)
 	          + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
 	          + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens)
-	          + Config::KS_ATTACK_COUNT * attacked_zone_squares
+	          + attack_count_units
 	          + Config::KS_WEAK * weak_squares
 	          + Config::KS_OVERLOAD * overload_sum   // per-square breakthrough (attackers-defenders); default 0 = byte-id
 	          - Config::KS_DEFENDER * __builtin_popcountll(defenders_sq & pieces_nk);
@@ -5136,6 +5198,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	// and it is SAFE iff our side does not defend that square. This is the strongest genuine-danger signal
 	// (it fires on real attacks, not mere proximity). attack_bitmasks gives, per square, who attacks it.
 	int safe_checks = 0;  // hoisted to function scope so the per-king dynamic factor can read it (below)
+	int sc_q = 0, sc_r = 0, sc_b = 0, sc_n = 0;  // per-type safe-check counts (per-type weighting, KS_CHECK_V2)
 	if (Config::KS_SAFE_CHECK || Config::KS_SAFE_CHECK_DEF) {
 		uint64_t occ = occupied;
 		uint64_t knight_from = BB_KNIGHT_ATTACKS[king_square];
@@ -5154,16 +5217,37 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			bool weakS = (__builtin_popcountll(dmS) <= 1) && ((dmS & (knights | bishops | rooks | pawns)) == 0);
 			return dmS == 0 || (weakS && __builtin_popcountll(bm & enemy) >= 2);
 		};
+		bool sc_trace = g_capture_eval_breakdown && std::getenv("KS_SAFECHK_TRACE");
+		auto sc_dump = [&](char ty, uint8_t S, uint64_t bm){ if (sc_trace) std::fprintf(stderr,
+			"SCHK %c type=%c sq=%d def=%d att=%d\n", white_king?'W':'B', ty, (int)S,
+			(int)__builtin_popcountll(bm & own), (int)__builtin_popcountll(bm & enemy)); };
+		// A check square lies on EITHER the king's diagonal OR its rank/file, never both, so a queen matched in
+		// the diag/line scan is counted exactly once (its distinct diagonal and orthogonal check squares are
+		// separate S). Split the queen out for its own weight; bishops/rooks keep theirs.
 		uint64_t cc = knight_from & ~enemy;
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
-		             if ((bm & enemy_knights) && check_safe(bm)) safe_checks++; }
+		             if ((bm & enemy_knights) && check_safe(bm)) { safe_checks++; sc_n++; sc_dump('N',S,bm); } }
 		cc = bishop_from & ~enemy;
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
-		             if ((bm & enemy_diag) && check_safe(bm)) safe_checks++; }
+		             if ((bm & enemy_diag) && check_safe(bm)) { safe_checks++;
+		                 if (bm & enemy & queens) sc_q++; else sc_b++; sc_dump('B',S,bm); } }
 		cc = rook_from & ~enemy;
 		while (cc) { uint8_t S = __builtin_ctzll(cc); cc &= cc - 1; uint64_t bm = attack_bitmasks[S];
-		             if ((bm & enemy_line) && check_safe(bm)) safe_checks++; }
-		units += (defensive ? Config::KS_SAFE_CHECK_DEF : Config::KS_SAFE_CHECK) * safe_checks;
+		             if ((bm & enemy_line) && check_safe(bm)) { safe_checks++;
+		                 if (bm & enemy & queens) sc_q++; else sc_r++; sc_dump('R',S,bm); } }
+		// Per-type SATURATED weighting (SF15 SafeCheck[pt][more_than_one]): each check TYPE contributes its
+		// weight ONCE (a lone queen/rook safe-check is genuine danger, sized to clear KS_FLOOR on its own merit
+		// -- the floor stays; targeting is emergent from the weights, no branch), plus a single graded bump when
+		// that type has a SECOND safe square; further squares add nothing. Counting once per type avoids the
+		// per-square stacking that over-charges multi-check positions (the phantom over-read).
+		if (Config::ENABLE_KS_CHECK_V2) {
+			int base = Config::KS_CHK_QUEEN * (sc_q > 0) + Config::KS_CHK_ROOK * (sc_r > 0)
+			         + Config::KS_CHK_BISHOP * (sc_b > 0) + Config::KS_CHK_KNIGHT * (sc_n > 0);
+			int multi = Config::KS_CHK_MULTI * ((sc_q > 1) + (sc_r > 1) + (sc_b > 1) + (sc_n > 1));
+			units += base + multi;
+		} else {
+			units += (defensive ? Config::KS_SAFE_CHECK_DEF : Config::KS_SAFE_CHECK) * safe_checks;
+		}
 	}
 
 	// Latent king-AIM (Front A): an enemy slider ALIGNED with the king through EXACTLY ONE blocker reads ZERO
@@ -5251,9 +5335,9 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	if (g_capture_eval_breakdown && std::getenv("KS_DEBUG_DUMP")) {
 		int att_pieces = __builtin_popcountll(attackers_sq & (knights | bishops | rooks | queens));
 		int def_pieces = __builtin_popcountll(defenders_sq & pieces_nk);
-		std::fprintf(stderr, "KSD %c attsq=%d weak=%d safe=%d attpc=%d defpc=%d openf=%d units=%d danger=%d\n",
+		std::fprintf(stderr, "KSD %c attsq=%d weak=%d safe=%d attpc=%d defpc=%d openf=%d bkru=%d over=%d units=%d danger=%d\n",
 		             white_king ? 'W' : 'B', attacked_zone_squares, weak_squares, safe_checks,
-		             att_pieces, def_pieces, open_files, units, danger);
+		             att_pieces, def_pieces, open_files, breakthrough_sq, overload_sum, units, danger);
 	}
 	return danger;
 }
@@ -5939,6 +6023,14 @@ inline int evaluate_passers(uint64_t white_passed_pawns, uint64_t black_passed_p
 		         + endgame_pawn_rank_bonus[rank] * phase_score) / 128) * Config::PASSER_MAG_SCALE / 100;
 		// Per-pawn realizability, upside kept conservative to start (over-valuation is the historical failure).
 		int R = std::min(passer_realizability_R(sq, white), Config::PASSER_R_CAP);
+		// Floor-first for ADVANCED passers: SF11/SF15/Ethereal grant the rank table UNCONDITIONALLY (realizability
+		// is additive upside, never a total discount) -- a pawn one step from promotion stays dangerous even when
+		// contested. Our multiplicative R can drop to ~0, blinding us to enemy runners. Keep a rank-rising floor:
+		// index 6 = 7th rank (most advanced), 5 = 6th. Default 0 = byte-identical.
+		if (rank >= 5) {
+			int rf = (rank >= 6) ? Config::PASSER_RFLOOR_R6 : Config::PASSER_RFLOOR_R5;
+			if (R < rf) R = rf;
+		}
 		int val = mag * R / 256;
 		// King-race, added SOFT-GATED by R so it cannot leak past a stopped passer but a mostly-realizable one
 		// still gets it (fable's operator fix). Owner-oriented positive magnitude; sign applied below.
@@ -6713,10 +6805,20 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		);
 		//std::cout << total << std::endl;
 		br_pieces = total; br_run = total;
-		if (!g_eval_light) {
+		// A zero-weighted capture-gains term contributes nothing, so skip the (most expensive per call in the
+		// whole eval) simulation entirely rather than computing a number that is then multiplied by zero.
+		// Byte-identical at any nonzero SCALE_CAPTURE_GAINS; SCALE=0 also drops its piece-value side effect.
+		if (!g_eval_light && Config::SCALE_CAPTURE_GAINS != 0) {
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+			capg_lazy_probe(cg);
 				int cgs = capg_conditioned_scale();
+				// Realizability: discount the pre-booked capture material when the GAINING side can't convert it
+				// (under-backed / wrong phase), reusing the imbalance term's realizability_factor. cg is Black-
+				// positive, so cg>=0 favours Black. Gated + REALIZ_* default 0 => factor 256 => byte-identical.
+				if (Config::ENABLE_CAPG_REALIZ)
+					cgs = cgs * realizability_factor((cg >= 0) ? (blackPieceVal - whitePieceVal)
+					                                           : (whitePieceVal - blackPieceVal), phase_score) / 256;
 				total += (cgs == 100) ? cg : (cgs * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
@@ -6989,10 +7091,20 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		);
 		//std::cout << total << std::endl;
 		br_pieces = total; br_run = total;
-		if (!g_eval_light) {
+		// A zero-weighted capture-gains term contributes nothing, so skip the (most expensive per call in the
+		// whole eval) simulation entirely rather than computing a number that is then multiplied by zero.
+		// Byte-identical at any nonzero SCALE_CAPTURE_GAINS; SCALE=0 also drops its piece-value side effect.
+		if (!g_eval_light && Config::SCALE_CAPTURE_GAINS != 0) {
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
+			capg_lazy_probe(cg);
 				int cgs = capg_conditioned_scale();
+				// Realizability: discount the pre-booked capture material when the GAINING side can't convert it
+				// (under-backed / wrong phase), reusing the imbalance term's realizability_factor. cg is Black-
+				// positive, so cg>=0 favours Black. Gated + REALIZ_* default 0 => factor 256 => byte-identical.
+				if (Config::ENABLE_CAPG_REALIZ)
+					cgs = cgs * realizability_factor((cg >= 0) ? (blackPieceVal - whitePieceVal)
+					                                           : (whitePieceVal - blackPieceVal), phase_score) / 256;
 				total += (cgs == 100) ? cg : (cgs * cg / 100);
 		}
 		br_capture = total - br_run; br_run = total;
@@ -8109,6 +8221,12 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 	
 	// Set the multiplier for open square boosts
 	int multiplier = Config::ATTACK_OPEN_MULT;
+
+	// Scale the KING-DIRECTED boost (the king-ring/open-hole credit added below) independently of the base
+	// central heatmap: now that the dedicated KS term owns the oncoming-storm king attack, this king-zone slice
+	// of the attack layer double-counts (it also feeds OvD via the offensive/defensive scores). 100 = identity
+	// (byte-id); lower reduces the king-zone stacking; 0 = de-king (attack layer = pure central/placement).
+	int kinc = (increment * Config::KS_ZONE_ATTACK_PCT) / 100;
 	
 	// Define the x and y coordinates for each square
 	uint8_t x,y;
@@ -8125,7 +8243,7 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 			mg_white_hit = true;
 		}
 	}
-	if (!mg_white_hit){
+	if (!mg_white_hit && Config::KS_ZONE_ATTACK_PCT > 0){   // fully de-kinged (PCT=0) -> skip the loop (speed)
 	// Loop through the squares around the white king
 	uint8_t r = 0;
 	uint64_t bb = attacks_mask(true,0ULL,63 - __builtin_clzll(occupied_white&kings),6);
@@ -8139,17 +8257,17 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 		x = r & 7;
 		
 		// Increment the area around the king
-        attackingLayer[1][x][y] += increment;
+        attackingLayer[1][x][y] += kinc;
 		
 		// If the square is open around the king, boost the score further
         squareOpen = false;
 		pawnShield = false;
 		if (!isEndGame){
 			if ((occupied_white & (BB_SQUARES[r])) == 0){
-				attackingLayer[1][x][y] += increment * multiplier;
+				attackingLayer[1][x][y] += kinc * multiplier;
 				squareOpen = true;
 			} else if ((occupied_white & pawns & (BB_SQUARES[r])) != 0){
-				attackingLayer[1][x][y] -= increment >> 1;
+				attackingLayer[1][x][y] -= kinc >> 1;
 				pawnShield = true;
 			}
 		}
@@ -8167,14 +8285,14 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 			x = r_inner & 7;
 			
 			// Increment the given square
-			attackingLayer[1][x][y] += increment;
+			attackingLayer[1][x][y] += kinc;
 			
 			// If the square is open around the king, boost the score further
 			if (!isEndGame){
 				if (squareOpen && (occupied_white & (BB_SQUARES[r_inner])) == 0){					
-					attackingLayer[1][x][y] += increment * multiplier;					
+					attackingLayer[1][x][y] += kinc * multiplier;					
 				} else if (pawnShield){
-					attackingLayer[1][x][y] -= increment >> 1;
+					attackingLayer[1][x][y] -= kinc >> 1;
 				}				
 			}
 			bb_inner &= bb_inner - 1;
@@ -8201,7 +8319,7 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 			mg_black_hit = true;
 		}
 	}
-	if (!mg_black_hit){
+	if (!mg_black_hit && Config::KS_ZONE_ATTACK_PCT > 0){   // fully de-kinged (PCT=0) -> skip the loop (speed)
 	// Loop through the squares around the black king
 	uint8_t r = 0;
 	uint64_t bb = attacks_mask(false,0ULL,63 - __builtin_clzll(occupied_black&kings),6);
@@ -8215,17 +8333,17 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 		x = r & 7;
 		
 		// Increment the area around the king
-        attackingLayer[0][x][y] += increment;
+        attackingLayer[0][x][y] += kinc;
 		
 		// If the square is open around the king, boost the score further
         squareOpen = false;
 		pawnShield = false;
 		if (!isEndGame){
 			if ((occupied_black & (BB_SQUARES[r])) == 0){
-				attackingLayer[0][x][y] += increment * multiplier;
+				attackingLayer[0][x][y] += kinc * multiplier;
 				squareOpen = true;
 			} else if ((occupied_black & pawns & (BB_SQUARES[r])) != 0){
-				attackingLayer[0][x][y] -= increment >> 1;
+				attackingLayer[0][x][y] -= kinc >> 1;
 				pawnShield = true;
 			}
 		}		
@@ -8242,15 +8360,15 @@ inline void setAttackingLayer(int increment, bool isEndGame){
 			x = r_inner & 7;
 			
 			// Increment the given square
-			attackingLayer[0][x][y] += increment;
+			attackingLayer[0][x][y] += kinc;
 			
 			// If the square is open around the king, boost the score further
 						
 			if (!isEndGame){
 				if (squareOpen && (occupied_black & (BB_SQUARES[r_inner])) == 0){					
-					attackingLayer[0][x][y] += increment * multiplier;					
+					attackingLayer[0][x][y] += kinc * multiplier;					
 				} else if (pawnShield){
-					attackingLayer[0][x][y] -= increment >> 1;
+					attackingLayer[0][x][y] -= kinc >> 1;
 				}				
 			}			
 			bb_inner &= bb_inner - 1;
@@ -8500,6 +8618,7 @@ static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 	"PASSED_SUPPORT", "LATENT_THREAT", "KING_SAFETY", "ADV_ENDGAME",
 	"INIT_PIECE_VALUES",
 	"SEE", "BISHOP_ACTIVITY", "BISHOP_COLOUR",
+	"PAWN_PPINC", "PAWN_ATKLOOP",
 	"MOVEGEN", "MAKEUNMAKE", "TT_PROBE",
 	"MG_GEN", "MG_SCORE", "MG_SORT"
 };
@@ -8507,7 +8626,7 @@ static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 // Terms PROF_PAWNS..PROF_ADV_ENDGAME are the top-level, mutually-exclusive call
 // sites whose cycles sum to ~the instrumented eval; the remainder (SEE, the bishop
 // helpers, and ROOK_ACTIVITY) are nested subsets and excluded from the %-share base.
-static constexpr intPROF_NUM_EXCLUSIVE = PROF_INIT_PIECE_VALUES + 1;
+static constexpr int PROF_NUM_EXCLUSIVE = PROF_INIT_PIECE_VALUES + 1;
 #endif
 
 void eval_profile_reset()

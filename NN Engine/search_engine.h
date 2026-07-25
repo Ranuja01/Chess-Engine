@@ -774,7 +774,7 @@ namespace Config
     inline int KS_ZONE_NORM    = 0;     // Ethereal-style density normalization: scale the attacked-square COUNT to
                                         // a KS_ZONE_NORM-square reference ring (count * KS_ZONE_NORM / popcount(zone))
                                         // so a larger zone isn't charged more for size alone. 0 = off = byte-id; 9 typ.
-    inline int KS_ZONE_ATTACK_PCT = 100; // scale the KING-DIRECTED boost in setAttackingLayer (king-ring + open-hole
+    inline int KS_ZONE_ATTACK_PCT = 50; // scale the KING-DIRECTED boost in setAttackingLayer (king-ring + open-hole
                                         // credit) independently of the base central heatmap. That boost was counted
                                         // THREE times -- into `pieces` via positional_bonus, into OvD via the
                                         // offensive/defensive scores, and again by the dedicated king-safety term.

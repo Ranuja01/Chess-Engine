@@ -253,6 +253,30 @@ namespace Config
 
     inline bool LMR_PROFILE = false; // env-gated LMR-miss profiler (diagnostic; off = byte-identical)
 
+    // Remaining-depth floor for LMR. reduced_search_depth returns an ABSOLUTE target depth derived from
+    // the ITERATION depth (DEPTH_REDUCTION[depth_limit]) and the move number -- it never reads cur_depth,
+    // so the reduction is a constant number of plies regardless of how deep the node sits. Near the root
+    // that leaves a real search; deep in the tree, where only 1-2 plies remain, the same constant wipes
+    // the child out entirely and it drops straight to qsearch. The prune-shadow LMR measurement shows the
+    // damage exactly there: wrong-reduction is ~1% at L1-L5 but 4.1% at L6 and 6.2% at L8.
+    // This keeps at least LMR_REM_FLOOR_PCT percent of the child's remaining depth. 0 = off = byte-identical.
+    inline int LMR_REM_FLOOR_PCT = 0;
+
+    // Minimum remaining depth for LMR to fire at all. A percentage floor cannot help where the damage
+    // actually is: at remaining depth 1 the floor rounds to zero and the child still drops to qsearch.
+    // SF gates LMR on a minimum depth and its log(remaining) reduction collapses toward zero down there.
+    // Below this many remaining plies the move is searched unreduced. 0 = off = byte-identical.
+    inline int LMR_MIN_REM = 0;
+
+    // Margin for the PER-MOVE qsearch futility test (ENABLE_QDELTA_PERMOVE). It must be its own knob:
+    // the node-level prune asks "is static_eval below alpha by more than DELTA_MARGIN", while the
+    // per-move test asks "is static_eval below alpha by more than the margin PLUS the victim's value".
+    // Reusing DELTA_MARGIN (1500) therefore demands a >=2500 gap to skip even a pawn capture and >=11500
+    // for a queen -- which is why the per-move prune never fired. SF's equivalent margin is ~0.6 pawn
+    // (SF11 futilityBase = bestValue + 128 with its own scale), i.e. far smaller than ours.
+    // 0 = fall back to DELTA_MARGIN (previous behaviour).
+    inline int QDELTA_PERMOVE_MARGIN = 1500;
+
     // Sound-LMR exemptions (default OFF = current behavior). Stop reducing the
     // moves most likely to be the critical misses; env-gated so the A/B needs no
     // recompile and the default build stays byte-identical.

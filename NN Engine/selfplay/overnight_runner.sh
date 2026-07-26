@@ -41,6 +41,14 @@ case "$cmd" in
     "$PY" setupAI.py build_ext --inplace 2>&1 | tail -n 5
     ;;
 
+  build_profile)
+    # NON-production profiler build (PROFILE_EVAL=1 => -DEVAL_PROFILE). Enables the PROF_BLOCK cycle
+    # counters; the resulting .so is NOT byte-id 247. ALWAYS run `build` afterwards to restore production.
+    touch cpp_bitboard.cpp cpp_bitboard.h search_engine.cpp search_engine.h ChessAI.pyx
+    rm -rf build ChessAI.cpp ChessAI.*.so
+    PROFILE_EVAL=1 "$PY" setupAI.py build_ext --inplace 2>&1 | tail -n 5
+    ;;
+
   wac)
     # Fixed-depth tactical bench. Deterministic (book off). Prints solves + summed node count.
     tag="${1:?tag required}"; shift || true
@@ -50,6 +58,9 @@ case "$cmd" in
     echo -n "NODES: ";  grep -hoP '\(nodes=\K[0-9]+' "/tmp/wac_${tag}.err" | awk '{s+=$1} END{print s+0}'
     echo -n "EBF: ";    grep -hoP 'ebf=\K[0-9.]+' "/tmp/wac_${tag}.err" | awk '{s+=$1;n++} END{if(n)printf "%.3f\n",s/n; else print "?"}'
     echo -n "HIST: ";   grep -hoE '\[cutoff_histogram\] .*' "/tmp/wac_${tag}.err" | tail -1 || echo "(none)"
+    echo -n "SING: ";   { grep -hoE '\[singular\] .*' "/tmp/wac_${tag}.err" || true; } \
+        | awk '{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="eligible")e+=a[2];if(a[1]=="gatepass")g+=a[2];if(a[1]=="fire")f+=a[2]}} END{if(e+g+f>0)printf "eligible=%d gatepass=%d fire=%d fire/elig=%.2f%%\n",e,g,f,(e>0?100.0*f/e:0); else print "(off)"}'
+    true
     ;;
 
   wac_timed)
@@ -71,6 +82,22 @@ case "$cmd" in
     tag="${1:?tag required}"; shift || true
     env "$@" MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
         "$PY" diagnostics/sts_test.py sts300.epd "$tag" 2>/dev/null | grep -E 'STS score' || echo "STS score: (none)"
+    ;;
+
+  sts_coupling)
+    # Single-core coupling COMPASS (diagnostic, proxy — games decide): fixed-depth STS for base vs KS across
+    # RFP_MARGIN. RFP prunes on the full eval (KS included), so if relaxing RFP lifts KS's positional score MORE
+    # than it lifts base (the KS x RFP interaction), that is evidence RFP (tuned to the old eval) is suppressing
+    # KS's value = the eval<->search coupling. Baked grid => permission-clean, sequential => single-core.
+    KS='KS_CONSOLIDATE=1 ENABLE_KS_REPLACE_LT=1 KS_ZONE2=1 KS_DYN=128 KING_SAFETY_MAG=1200'
+    for r in 1500 2200 3000; do
+      echo -n "base RFP=$r : "
+      env RFP_MARGIN=$r MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        "$PY" diagnostics/sts_test.py sts300.epd base_rfp$r 2>/dev/null | grep -E 'STS score' || echo "(none)"
+      echo -n "ks   RFP=$r : "
+      env $KS RFP_MARGIN=$r MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        "$PY" diagnostics/sts_test.py sts300.epd ks_rfp$r 2>/dev/null | grep -E 'STS score' || echo "(none)"
+    done
     ;;
 
   sts_full)
@@ -656,6 +683,78 @@ PYEOF
         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
+  node_ab)
+    # Fixed-NODE paired A/B — the LOW-VARIANCE mid-funnel gate (Fable pivot 2026-07-04). Both sides stop
+    # each move at NODE_LIMIT nodes (deterministic: only eval/search DECISIONS differ between arms, clock
+    # jitter removed). LONG_FORMAT preset (TIME_LIMIT 600s / MOVE_TIMES 120s) so the node cap binds before
+    # time/depth for any reasonable budget. VALID for NPS-NEUTRAL changes (the outcome-Texel eval retune);
+    # a change that alters eval COST is blind here and still needs a time gate (`tournament`/`gate`).
+    # CALIBRATE against a known-Elo change before trusting it. Args: <minutes> <nodes> '<p1cfg>' '<p2cfg>' [conc=4] [tag].
+    mins="${1:?minutes required}"; shift || true
+    nodes="${1:?nodes required}"; shift || true
+    p1cfg="${1:-}"; shift || true
+    p2cfg="${1:-}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-node_ab}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py \
+        --p1-label A --p1-config "NODE_LIMIT=$nodes MAX_DEPTH=64 $p1cfg" \
+        --p2-label B --p2-config "NODE_LIMIT=$nodes MAX_DEPTH=64 $p2cfg" \
+        --preset LONG_FORMAT --concurrency "$conc" --max-minutes "$mins" --sf-movetime 0.1 \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  ks_nab_battery)
+    # Overnight KS conversion battery: each candidate vs base at a DEEP fixed-node budget (jitter-free, deterministic,
+    # conservative for KS since equal-node ignores the +3.2% speed win). Maps decision-quality across MAG x RFP at
+    # fair depth before spending a slow blitz. Baked grid => permission-clean. Args: [mins_each=40] [nodes=250000] [conc=4].
+    mins="${1:-40}"; shift || true
+    nodes="${1:-250000}"; shift || true
+    conc="${1:-4}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    KS='KS_CONSOLIDATE=1 ENABLE_KS_REPLACE_LT=1 KS_ZONE2=1 KS_DYN=128'
+    declare -a grid=(
+      "ks1000:KING_SAFETY_MAG=1000"
+      "ks1500:KING_SAFETY_MAG=1500"
+      "ks2000:KING_SAFETY_MAG=2000"
+      "ks1000rfp2200:KING_SAFETY_MAG=1000 RFP_MARGIN=2200"
+      "ks1000rfp1000:KING_SAFETY_MAG=1000 RFP_MARGIN=1000"
+    )
+    for entry in "${grid[@]}"; do
+      label="${entry%%:*}"; cfg="${entry#*:}"
+      echo "########## $label  [$KS $cfg]  nodes=$nodes mins=$mins"
+      "$PY" selfplay/tournament.py \
+          --p1-label "$label" --p1-config "NODE_LIMIT=$nodes MAX_DEPTH=64 $KS $cfg" \
+          --p2-label base --p2-config "NODE_LIMIT=$nodes MAX_DEPTH=64" \
+          --preset LONG_FORMAT --concurrency "$conc" --max-minutes "$mins" --sf-movetime 0.1 \
+          --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "nab_$label" 2>&1 \
+        | grep -hiE "vs base|elo|timed|adjudication ON|games" || echo "  (no result line)"
+    done
+    echo "########## BATTERY DONE"
+    ;;
+
+  gate_blitz)
+    # Same as `gate` but BLITZ preset (KS's fair venue; rewards the speed win + gives depth for KS to pay off).
+    # Args: '<p1cfg>' <label> [tag] [max_games=400] [elo1=0].
+    p1cfg="${1:?p1 config required}"; shift || true
+    lbl="${1:-cand}"; shift || true
+    ttag="${1:-sprt_${lbl}}"; shift || true
+    maxg="${1:-400}"; shift || true
+    e1="${1:-0}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/sprt.py \
+        --p1-label "$lbl" --p1-config "$p1cfg" \
+        --p2-label base --p2-config "" \
+        --preset BLITZ --concurrency 4 --elo0 -3 --elo1 "$e1" --max-games "$maxg" \
+        --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
   ks_ovd_fastrank)
     # Permission-clean Phase-1 fast-RANK of KS+OvD candidates: each config vs base at fixed depth 6 (eval-only
     # A/B), lightened 0.1s adjudication. Grid baked => no =-args on the command line. Prints each candidate's
@@ -722,20 +821,22 @@ PYEOF
     ;;
 
   gate)
-    # Generic lightning SPRT: a candidate ENV-knob config vs base. Args: '<p1cfg>' <label> [tag] [max_games] [elo1].
+    # Generic lightning SPRT: a candidate ENV-knob config vs base. Args: '<p1cfg>' <label> [tag] [max_games] [elo1] [conc=4].
     # p1cfg is a space-separated KEY=VAL string (quote it). The correct -lc wrapper passes =knobs prompt-free.
+    # conc: default 4; use 3 when a parallel project holds cores (avoids the keras-worker OOM crash).
     p1cfg="${1:?p1 config required}"; shift || true
     lbl="${1:-cand}"; shift || true
     ttag="${1:-sprt_${lbl}}"; shift || true
     maxg="${1:-600}"; shift || true
     e1="${1:-5}"; shift || true
+    gconc="${1:-4}"; shift || true
     export STOCKFISH_PATH="$SF"
     export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
            VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
     "$PY" selfplay/sprt.py \
         --p1-label "$lbl" --p1-config "$p1cfg" \
         --p2-label base --p2-config "" \
-        --preset LIGHTNING --concurrency 4 --elo0 0 --elo1 "$e1" --max-games "$maxg" \
+        --preset LIGHTNING --concurrency "$gconc" --elo0 0 --elo1 "$e1" --max-games "$maxg" \
         --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
@@ -750,7 +851,18 @@ PYEOF
     export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
            VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
     "$PY" selfplay/spsa.py --spec "$spec" --iters "$iters" --games "$games" \
-        --concurrency 6 --lane "$lane" --adj-sf "$SF" --tag "$ttag"
+        --concurrency 4 --lane "$lane" --adj-sf "$SF" --tag "$ttag"
+    ;;
+
+  bench_gate)
+    # Collapse-bench STATIC gate under forwarded eval knobs: sign-flips vs SF on the over-read bench.
+    # Args: <tag> [bench_csv] [KNOB=v ...]. bench_csv is relative to NN Engine/ (default
+    # diagnostics/overread_bench.csv; pass the _train/_holdout split for the anti-overfit protocol).
+    tag="${1:?tag required}"; shift || true
+    bench=""
+    if [[ -n "${1:-}" && "${1}" != *=* ]]; then bench="$1"; shift || true; fi
+    env "$@" OMP_NUM_THREADS=1 USE_OPENING_BOOK=0 \
+        "$PY" diagnostics/bench_gate.py "/tmp/bg_${tag}.csv" ${bench:+"$bench"}
     ;;
 
   annotate)
@@ -872,6 +984,39 @@ PYEOF
         "$PY" selfplay/cploss_probe.py "$tag" "$n" 2>/dev/null | grep '^cploss:'
     ;;
 
+  cploss_frozen)
+    # WDL-cploss compass (holistic co-tune inner loop): mean win%-loss of OUR move vs SF18 over the FROZEN
+    # stratified corpus (diagnostics/cploss_frozen.py). Deterministic: fixed engine depth + fixed SF judge
+    # depth + env-latched knobs; SF-best evals cached (config-independent). Lower = better move-choice.
+    # Args: [our_depth=10] [judge_depth=12] [limit=0] [KEY=VAL knobs...].
+    od="${1:-10}"; shift || true
+    jd="${1:-12}"; shift || true
+    lim="${1:-0}"; shift || true
+    sh="${1:-all}"; shift || true          # all|train|holdout
+    export STOCKFISH_PATH="$SF"
+    env PRESET=LONG_FORMAT MAX_DEPTH="$od" USE_OPENING_BOOK=0 "$@" \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+        "$PY" diagnostics/cploss_frozen.py --depth "$jd" --limit "$lim" --shard "$sh"
+    ;;
+
+  moves_dump)
+    # Move-flip diagnostic dump: per-position {fen,stratum,uci,loss} for the CURRENT env-latched config over the
+    # frozen cploss corpus (diagnostics/moves_dump.py). Run twice (default vs winner knobs) then diff with
+    # move_flip_report.py. Same depths + shared SF cache as cploss_frozen so numbers line up.
+    # Args: <tag> [our_depth=10] [judge_depth=12] [limit=0] [shard=all] [KEY=VAL knobs...].
+    tag="${1:?tag required}"; shift || true
+    od="${1:-10}"; shift || true
+    jd="${1:-12}"; shift || true
+    lim="${1:-0}"; shift || true
+    sh="${1:-all}"; shift || true          # all|train|holdout
+    export STOCKFISH_PATH="$SF"
+    env PRESET=LONG_FORMAT MAX_DEPTH="$od" USE_OPENING_BOOK=0 "$@" \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+        "$PY" diagnostics/moves_dump.py --tag "$tag" --depth "$jd" --limit "$lim" --shard "$sh"
+    ;;
+
   runup_probe)
     # Fast run-up collapse probe (PACE inner loop): play OUR engine vs SF a few plies from each seed, cut off
     # on collapse/survive, report collapse-rate. Args: <seed_csv> <n> <plies> [KEY=VAL knobs...].
@@ -899,6 +1044,61 @@ PYEOF
         "$PY" selfplay/vs_sf.py --sf-elo "$elo" --games "$games" --preset "$preset" \
         --win-threshold "$wt" --concurrency "$conc" --openings selfplay/openings_uho.txt --adjudicate-draw --quiet \
         --tag "vssf_${elo}"
+    ;;
+
+  vs_sf1)
+    # Data-gen vs classical SF 1.1 JA (2008, weak ABSOLUTE rung): OUR engine vs SF1.1, SF18 the arbiter. Collapses
+    # vs a WEAK engine = the purest eval-hole signal (no "SF is just better" confound) + winning-conversion data +
+    # a humble absolute benchmark. SF1.1 exposes no UCI_Elo => full strength. Collapse-mining on (win-threshold).
+    #   depth <N> = equal fixed depth (pure eval+ordering; nodes logged BOTH sides = search-efficiency gap; conc CLEAN)
+    #   time  <s> = equal per-move time (real play; SF1@Ns vs our LIGHTNING)
+    #   nodes <N> = fixed-node BOTH sides (our NODE_LIMIT=OUR_NODES vs SF go nodes=N) = DETERMINISTIC calibrated
+    #               gauntlet: sweep N until we score ~45-55% -> that N is our absolute anchor. Machine-independent.
+    # Args: <games> <time|depth|nodes> <value> [conc=4] [tag=vssf1] [KEY=VAL our-engine knobs...].
+    games="${1:?games}"; shift || true
+    mode="${1:?time|depth|nodes}"; shift || true
+    val="${1:?value}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-vssf1}"; shift || true
+    SF1="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_1/stockfish-1.1_ja/16-9/stockfish11_win32_ja.exe"
+    export STOCKFISH_PATH="$SF"   # SF18 (arbiter)
+    if [ "$mode" = depth ]; then
+        sfarg=(--sf-depth "$val"); ourcfg="PRESET=LONG_FORMAT MAX_DEPTH=$val USE_OPENING_BOOK=0"
+    elif [ "$mode" = nodes ]; then
+        sfarg=(--sf-nodes "$val"); ourcfg="PRESET=LONG_FORMAT MAX_DEPTH=64 NODE_LIMIT=${OUR_NODES:-250000} USE_OPENING_BOOK=0"
+    else
+        sfarg=(--sf-movetime "$val"); ourcfg="PRESET=LIGHTNING USE_OPENING_BOOK=0"
+    fi
+    env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" selfplay/vs_sf.py --our-label ours --our-config "$ourcfg" \
+        --sf-elo 0 --sf-path "$SF1" --sf-arb-path "$SF" "${sfarg[@]}" \
+        --games "$games" --concurrency "$conc" --win-threshold 2000 \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
+  gauntlet)
+    # Calibrated DETERMINISTIC external gauntlet: OUR engine (NODE_LIMIT=OUR_NODES, default 250000) vs
+    # native-ELF SF18 at a FIXED node budget (--sf-nodes). SF18 = reliable (no Windows-.exe binfmt flakiness)
+    # and its NNUE eval is maximally different from ours => blind-spot-immune adjudication venue + our first
+    # ABSOLUTE progress axis. Sweep <sfnodes> until we score ~45-55% = the anchor. Paired UHO, SF18 arbiter.
+    # Args: <games> <sfnodes> [conc=3] [tag=gauntlet] [KEY=VAL our-engine knobs...].
+    games="${1:?games}"; shift || true
+    sfn="${1:?sf-nodes}"; shift || true
+    conc="${1:-3}"; shift || true
+    ttag="${1:-gauntlet}"; shift || true
+    # Optional numeric seed (openings/color assignment) right after the tag; KEY=VAL knobs have '=' so a
+    # pure-number next arg is unambiguously the seed. Vary it to check a result isn't seed-0-specific.
+    gseed=0
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then gseed="$1"; shift || true; fi
+    export STOCKFISH_PATH="$SF"   # SF18 (arbiter)
+    env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" selfplay/vs_sf.py --our-label ours \
+        --our-config "PRESET=LONG_FORMAT MAX_DEPTH=64 NODE_LIMIT=${OUR_NODES:-250000} USE_OPENING_BOOK=0" \
+        --sf-elo 0 --sf-path "$SF" --sf-arb-path "$SF" --sf-nodes "$sfn" \
+        --games "$games" --concurrency "$conc" --seed "$gseed" \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
   triage)

@@ -278,6 +278,10 @@ static inline int cutoff_move_class(const Move &m, const BoardState &st, int ply
 // Passed-pawn LMP/LMR exemption fires (diagnostic): how often an otherwise-reducible advanced pawn push
 // was exempted from pruning/reduction. Cumulative across the run; printed beside the histogram.
 static long g_passer_exempt_fires = 0;
+// Per-move qsearch futility fire count. Its predecessor was believed inert with no counter to prove it;
+// never claim a prune's behaviour again without one.
+static long g_qdelta_permove_fires = 0;
+static long g_qdelta_permove_seen = 0;   // block REACHED (capture, non-ep, non-promo)
 // Phase-A qsearch ordering quality (diagnostic, cumulative across a run, like g_fh_*): cutoffs in the
 // NOT-IN-CHECK qsearch loop, the fraction on the first noisy move (qfmc), and the summed cutoff move-index
 // (qcut = avg index). Low qfmc / high qcut ⇒ a SEE re-sort of the noisy list should help.
@@ -381,10 +385,21 @@ namespace
     // search of a pruned move would have entered the node's window (a wrong prune); "cut" = it would have
     // caused a cutoff (a strong wrong prune). Sampler is a deterministic 1-in-SHADOW_N counter, suppressed
     // during a shadow search (g_in_shadow) so shadows never nest.
+    static constexpr int SHADOW_LVL = 16;   // tree-level buckets for the LMR shadow breakdown
+
     struct ShadowProfile
     {
         long lmp_seen = 0, lmp_enter = 0, lmp_cut = 0;
         long fut_seen = 0, fut_enter = 0, fut_cut = 0;
+        // LMR shadows: a move the search REDUCED and then DROPPED (no re-search) is re-run at full
+        // depth and full window. "wrong" = the full-depth result would have improved this node's
+        // bound, i.e. the reduction buried a move that mattered. Unlike the LMR-miss profiler (which
+        // only reports that a reduced move failed to improve the bound -- the normal case for a late
+        // move) this is an actual correctness measure.
+        // [0] = maximizer node, [1] = minimizer node -- the wrong-rate spikes at some levels but not
+        // their neighbours, so the two node types are tracked apart.
+        long lmr_seen = 0, lmr_wrong = 0;
+        long lmr_seen_lvl[2][SHADOW_LVL] = {{0}}, lmr_wrong_lvl[2][SHADOW_LVL] = {{0}};
         long sampler = 0;
     };
     ShadowProfile g_shadow;
@@ -414,6 +429,23 @@ namespace
             g_shadow.fut_seen++;
             if (entered) g_shadow.fut_enter++;
             if (cut) g_shadow.fut_cut++;
+        }
+    }
+
+    // Record one LMR shadow: `full` is the full-depth, full-window value of a move the search reduced
+    // and then dropped. Same bound sense as shadow_record -- the reduction was WRONG when the honest
+    // search would have improved the node's bound.
+    inline void lmr_shadow_record(bool minimizer, int full, int alpha, int beta, int cur_depth)
+    {
+        bool wrong = minimizer ? (full < beta) : (full > alpha);
+        int lvl = cur_depth < SHADOW_LVL ? (cur_depth < 0 ? 0 : cur_depth) : SHADOW_LVL - 1;
+        int side = minimizer ? 1 : 0;
+        g_shadow.lmr_seen++;
+        g_shadow.lmr_seen_lvl[side][lvl]++;
+        if (wrong)
+        {
+            g_shadow.lmr_wrong++;
+            g_shadow.lmr_wrong_lvl[side][lvl]++;
         }
     }
 
@@ -486,7 +518,8 @@ namespace
 // reduced scout fails low (dropped) records where/how-close/which-kind.
 static inline void lmr_profile_event(int depth_limit, int cur_depth, int move_number,
                                      int alpha, int beta, int score, int reduced_depth,
-                                     const Move &move, const BoardState &cs, const Move &prevMove)
+                                     const Move &move, const BoardState &cs, const Move &prevMove,
+                                     bool at_minimizer)
 {
     int lvl = cur_depth < LP_LVL ? cur_depth : LP_LVL - 1;
     int mv = move_number < LP_MV ? move_number : LP_MV - 1;
@@ -506,13 +539,20 @@ static inline void lmr_profile_event(int depth_limit, int cur_depth, int move_nu
     if (research)
         return; // verified at full depth — not a drop
 
-    if (score >= beta)
+    // The drop/cutoff sense is side-dependent (this engine is non-negamax, with separate
+    // minimizer/maximizer). At a MIN node the bound tightened is beta, so score <= alpha
+    // drives beta <= alpha = a beta CUTOFF (harmless); the move that merely fails to improve
+    // the min is the one at score >= beta. At a MAX node the senses are the other way round.
+    // Scoring both sides with the maximizer test counted min-node cutoffs as drops and made
+    // the by-level drop-rate alternate ~95%/~8% purely as an artifact.
+    bool cutoff = at_minimizer ? (score <= alpha) : (score >= beta);
+    if (cutoff)
     {
         g_lmr.failhigh++; // a cutoff, harmless
         return;
     }
 
-    // score <= alpha: fail-low DROP — the case where a win can be lost.
+    // The reduced move did not improve this node's bound: the DROP case, where a win can be lost.
     g_lmr.faillow++;
     g_lmr.low_lvl_mv[lvl][mv]++;
     g_lmr.low_it_lvl[it][lvl]++;
@@ -791,6 +831,23 @@ static void shadow_profile_dump()
         std::cerr << "Futility: sampled=" << g_shadow.fut_seen
                   << "  enter=" << g_shadow.fut_enter << " (" << (100.0 * g_shadow.fut_enter / g_shadow.fut_seen) << "%)"
                   << "  cut=" << g_shadow.fut_cut << " (" << (100.0 * g_shadow.fut_cut / g_shadow.fut_seen) << "%)\n";
+    if (g_shadow.lmr_seen)
+    {
+        std::cerr << "LMR-drop: sampled=" << g_shadow.lmr_seen
+                  << "  wrong=" << g_shadow.lmr_wrong
+                  << " (" << (100.0 * g_shadow.lmr_wrong / g_shadow.lmr_seen) << "%)\n";
+        std::cerr << "  by tree-level (cur_depth) x node type: level  MAX(sampled wrong rate%)  MIN(sampled wrong rate%)\n";
+        for (int l = 0; l < SHADOW_LVL; ++l)
+        {
+            long smax = g_shadow.lmr_seen_lvl[0][l], wmax = g_shadow.lmr_wrong_lvl[0][l];
+            long smin = g_shadow.lmr_seen_lvl[1][l], wmin = g_shadow.lmr_wrong_lvl[1][l];
+            if (!smax && !smin)
+                continue;
+            std::cerr << "    L" << l << ":  max " << smax << " " << wmax << " "
+                      << (smax ? 100.0 * wmax / smax : 0.0) << "%   min " << smin << " " << wmin << " "
+                      << (smin ? 100.0 * wmin / smin : 0.0) << "%\n";
+        }
+    }
     std::cerr << "=========================================================\n";
 }
 
@@ -888,6 +945,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::DELTA_MARGIN = env_int("DELTA_MARGIN", Config::DELTA_MARGIN);
         Config::MAX_QDEPTH = env_int("MAX_QDEPTH", Config::MAX_QDEPTH);
         Config::LMR_PROFILE = env_flag("LMR_PROFILE", false);
+        Config::LMR_REM_FLOOR_PCT = env_int("LMR_REM_FLOOR_PCT", Config::LMR_REM_FLOOR_PCT);
+        Config::LMR_MIN_REM = env_int("LMR_MIN_REM", Config::LMR_MIN_REM);
         Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", false);
         Config::PROTECT_PV = env_flag("PROTECT_PV", false);
         Config::PROTECT_MAX_IDX = env_int("PROTECT_MAX_IDX", Config::PROTECT_MAX_IDX);
@@ -1168,6 +1227,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_SEE_INCREMENTAL = env_flag("ENABLE_SEE_INCREMENTAL", Config::ENABLE_SEE_INCREMENTAL);
         Config::FUTILITY_EVAL_MODE = env_int("FUTILITY_EVAL_MODE", Config::FUTILITY_EVAL_MODE);
         Config::QSTANDPAT_EVAL_MODE = env_int("QSTANDPAT_EVAL_MODE", Config::QSTANDPAT_EVAL_MODE);
+        Config::QDELTA_PERMOVE_MARGIN = env_int("QDELTA_PERMOVE_MARGIN", Config::QDELTA_PERMOVE_MARGIN);
         Config::ENABLE_QDELTA_PERMOVE = env_flag("ENABLE_QDELTA_PERMOVE", Config::ENABLE_QDELTA_PERMOVE);
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
         Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
@@ -2036,7 +2096,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                           << g_cutoff_class_hist[c][4];
             std::cerr << std::endl;
         }
-        std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires << std::endl;
+        std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires
+                  << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires << std::endl;
     if (Config::ENABLE_OTV)
         std::cerr << "[otv] fires=" << g_otv_fires
                   << " per_cutoff=" << (g_fh_total > 0 ? (100.0 * g_otv_fires / g_fh_total) : 0.0) << "%" << std::endl;
@@ -2663,6 +2724,22 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     // closer to full depth so a forcing line is not buried by the reduction.
                     if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
                         reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
+                    // Where only a ply or two remains, a constant ply-reduction truncates the child
+                    // straight into qsearch; search it honestly instead (see LMR_MIN_REM).
+                    if (Config::LMR_MIN_REM > 0 && (depth_limit - cur_depth - 1) < Config::LMR_MIN_REM)
+                        reduced_depth = depth_limit;
+                    // Keep a share of the child's remaining depth so a constant ply-reduction cannot
+                    // truncate a deep node straight into qsearch (see LMR_REM_FLOOR_PCT).
+                    if (Config::LMR_REM_FLOOR_PCT > 0)
+                    {
+                        int rem = depth_limit - cur_depth - 1;
+                        if (rem > 0)
+                        {
+                            int floor_depth = cur_depth + 1 + (rem * Config::LMR_REM_FLOOR_PCT) / 100;
+                            if (reduced_depth < floor_depth)
+                                reduced_depth = std::min(floor_depth, depth_limit);
+                        }
+                    }
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -2682,7 +2759,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     {
                         score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (Config::LMR_PROFILE)
-                            lmr_profile_event(depth_limit, cur_depth, i, alpha, beta, score, reduced_depth, move, current_state, previousMove);
+                            lmr_profile_event(depth_limit, cur_depth, i, alpha, beta, score, reduced_depth, move, current_state, previousMove, true);
                         if (cur_depth < reduced_depth - 1)
                         {
                             TTFlag flag;
@@ -2779,6 +2856,16 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                             addToSearchEvalCache(zobrist, state_history.size(), score, research_depth - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                         }
                     }
+                }
+                else if (Config::ENABLE_PRUNE_SHADOW && do_lmr && shadow_fire())
+                {
+                    // This move was REDUCED and then accepted without any verification re-search.
+                    // Re-run it honestly (full depth, full window) and record whether the reduction
+                    // buried a move that would have improved this node's bound.
+                    g_in_shadow = true;
+                    int full = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                    g_in_shadow = false;
+                    lmr_shadow_record(true, full, alpha, beta, cur_depth);
                 }
             }
         }
@@ -3008,6 +3095,22 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     // closer to full depth so a forcing line is not buried by the reduction.
                     if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
                         reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
+                    // Where only a ply or two remains, a constant ply-reduction truncates the child
+                    // straight into qsearch; search it honestly instead (see LMR_MIN_REM).
+                    if (Config::LMR_MIN_REM > 0 && (depth_limit - cur_depth - 1) < Config::LMR_MIN_REM)
+                        reduced_depth = depth_limit;
+                    // Keep a share of the child's remaining depth so a constant ply-reduction cannot
+                    // truncate a deep node straight into qsearch (see LMR_REM_FLOOR_PCT).
+                    if (Config::LMR_REM_FLOOR_PCT > 0)
+                    {
+                        int rem = depth_limit - cur_depth - 1;
+                        if (rem > 0)
+                        {
+                            int floor_depth = cur_depth + 1 + (rem * Config::LMR_REM_FLOOR_PCT) / 100;
+                            if (reduced_depth < floor_depth)
+                                reduced_depth = std::min(floor_depth, depth_limit);
+                        }
+                    }
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -3028,7 +3131,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
 
                         score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (Config::LMR_PROFILE)
-                            lmr_profile_event(depth_limit, cur_depth, i, alpha, beta, score, reduced_depth, move, current_state, previousMove);
+                            lmr_profile_event(depth_limit, cur_depth, i, alpha, beta, score, reduced_depth, move, current_state, previousMove, false);
                         if (cur_depth < reduced_depth - 1)
                         {
                             TTFlag flag;
@@ -3125,6 +3228,16 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                             addToSearchEvalCache(zobrist, state_history.size(), score, research_depth - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                         }
                     }
+                }
+                else if (Config::ENABLE_PRUNE_SHADOW && do_lmr && shadow_fire())
+                {
+                    // Mirror of the minimizer's LMR shadow: a reduced move accepted without a
+                    // verification re-search is re-run at full depth/full window to see whether the
+                    // reduction buried a move that would have improved this node's bound.
+                    g_in_shadow = true;
+                    int full = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                    g_in_shadow = false;
+                    lmr_shadow_record(false, full, alpha, beta, cur_depth);
                 }
             }
         }
@@ -5420,15 +5533,25 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         // the margin sits ON TOP of the captured value instead of replacing it. Placed before the zobrist
         // update so a skip leaves the hash untouched. Promotions and en-passant are exempt (their swing is not
         // the value standing on the destination square); in-check nodes never reach here (handled above).
-        if (Config::ENABLE_QDELTA_PERMOVE && Config::ENABLE_QDELTA && capture_move && !en_passant_move && move.promotion == 0)
+        // move.promotion == 1 means "not a promotion" (move_gen.h pushes 1 for every non-promotion and
+        // 2..5 for the real thing) -- testing against 0 here made this block unreachable.
+        if (Config::ENABLE_QDELTA_PERMOVE && Config::ENABLE_QDELTA && capture_move && !en_passant_move && move.promotion <= 1)
         {
             int victim = get_value_at(move.to_square, current_state);
+            int pm_margin = Config::QDELTA_PERMOVE_MARGIN > 0 ? Config::QDELTA_PERMOVE_MARGIN : Config::DELTA_MARGIN;
+            ++g_qdelta_permove_seen;
             if (is_maximizing) {
-                if (static_eval + Config::DELTA_MARGIN + victim <= alpha)
+                if (static_eval + pm_margin + victim <= alpha)
+                {
+                    ++g_qdelta_permove_fires;
                     continue;
+                }
             } else {
-                if (static_eval - Config::DELTA_MARGIN - victim >= beta)
+                if (static_eval - pm_margin - victim >= beta)
+                {
+                    ++g_qdelta_permove_fires;
                     continue;
+                }
             }
         }
 

@@ -1130,7 +1130,7 @@ namespace Config
     // so the margin sits ON TOP of what the capture wins. Ours only survived because stand-pat pre-banks the
     // pending capture material via approximate_capture_gains -- i.e. capture-gains masks this hole.
     // On => node-level delta is bypassed and the per-move test is used instead. Off => byte-identical.
-    inline bool ENABLE_QDELTA_PERMOVE = false;
+    inline bool ENABLE_QDELTA_PERMOVE = true;
 
     // Node-entry reverse futility pruning (static null) + a null-move eval gate. Both read ONE node-entry
     // static eval (eval_by_mode); default-off = byte-identical (see minimizer/maximizer node entry). RFP

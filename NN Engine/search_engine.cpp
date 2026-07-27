@@ -282,6 +282,22 @@ static long g_passer_exempt_fires = 0;
 // never claim a prune's behaviour again without one.
 static long g_qdelta_permove_fires = 0;
 static long g_qdelta_permove_seen = 0;   // block REACHED (capture, non-ep, non-promo)
+// Quiet moves dropped from the noisy list past the first q-ply under ENABLE_QCHECK_DEPTH0. The flag was
+// read as inert from a byte-identical fingerprint alone; this makes the branch's reachability observable.
+static long g_qcheck_d0_skipped = 0;
+// TT-move ordering promotions actually performed. The predecessor read a table with no write site and was
+// mistaken for a tested feature; this counter is what distinguishes "ran and did nothing" from "never ran".
+static long g_tt_move_promotions = 0;
+// Quiet checks actually admitted to the qsearch noisy list, at any q-ply, and those rejected by the
+// safety filter. The pair gives the filter's selectivity directly.
+static long g_q_quiet_checks_added = 0;
+static long g_q_quiet_checks_unsafe = 0;
+// Checks found by the full detector that the mask arm would have missed -- i.e. discoveries. Proves the
+// capability increment is real instead of assuming the fuller test found something.
+static long g_q_discovered_checks = 0;
+// Direct checks the mask arm found but the full detector did NOT. Must stay at zero: the mask sees a strict
+// subset of what the full test sees, so any hit here is a defect in moveGivesCheckFast.
+static long g_q_checks_missed = 0;
 // Phase-A qsearch ordering quality (diagnostic, cumulative across a run, like g_fh_*): cutoffs in the
 // NOT-IN-CHECK qsearch loop, the fraction on the first noisy move (qfmc), and the summed cutoff move-index
 // (qcut = avg index). Low qfmc / high qcut ⇒ a SEE re-sort of the noisy list should help.
@@ -1234,6 +1250,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::RFP_MIN_DEPTH = env_int("RFP_MIN_DEPTH", Config::RFP_MIN_DEPTH);
         Config::RFP_MAX_DEPTH = env_int("RFP_MAX_DEPTH", Config::RFP_MAX_DEPTH);
         Config::RFP_EVAL_MODE = env_int("RFP_EVAL_MODE", Config::RFP_EVAL_MODE);
+        Config::RFP_RETURN_BLEND = env_int("RFP_RETURN_BLEND", Config::RFP_RETURN_BLEND);
         Config::ENABLE_NULL_EVAL_GATE = env_flag("ENABLE_NULL_EVAL_GATE", Config::ENABLE_NULL_EVAL_GATE);
         Config::ENABLE_PROBCUT = env_flag("ENABLE_PROBCUT", Config::ENABLE_PROBCUT);
         Config::PROBCUT_MARGIN = env_int("PROBCUT_MARGIN", Config::PROBCUT_MARGIN);
@@ -1270,6 +1287,16 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         if (Config::NULLMOVE_R_DIV < 1) Config::NULLMOVE_R_DIV = 1;
         Config::NULLMOVE_R_CAP = env_int("NULLMOVE_R_CAP", Config::NULLMOVE_R_CAP);
         Config::ENABLE_QCHECK_DEPTH0 = env_flag("ENABLE_QCHECK_DEPTH0", Config::ENABLE_QCHECK_DEPTH0);
+        Config::ENABLE_QCHECK_SAFE = env_flag("ENABLE_QCHECK_SAFE", Config::ENABLE_QCHECK_SAFE);
+        Config::QCHECK_SAFE_LEVEL = env_int("QCHECK_SAFE_LEVEL", Config::QCHECK_SAFE_LEVEL);
+        Config::ENABLE_QCHECK_FULL = env_flag("ENABLE_QCHECK_FULL", Config::ENABLE_QCHECK_FULL);
+        Config::ENABLE_QCHECK_MASK_COMPARE = env_flag("ENABLE_QCHECK_MASK_COMPARE", Config::ENABLE_QCHECK_MASK_COMPARE);
+        Config::ENABLE_STATIC_ORDER = env_flag("ENABLE_STATIC_ORDER", Config::ENABLE_STATIC_ORDER);
+        Config::STATIC_ORDER_MODE = env_int("STATIC_ORDER_MODE", Config::STATIC_ORDER_MODE);
+        Config::STATIC_ORDER_WEIGHT = env_int("STATIC_ORDER_WEIGHT", Config::STATIC_ORDER_WEIGHT);
+        Config::STATIC_ORDER_HIST_MAX = env_int("STATIC_ORDER_HIST_MAX", Config::STATIC_ORDER_HIST_MAX);
+        Config::STATIC_ORDER_PIECES = env_int("STATIC_ORDER_PIECES", Config::STATIC_ORDER_PIECES);
+        Config::STATIC_ORDER_KING_EG_ONLY = env_flag("STATIC_ORDER_KING_EG_ONLY", Config::STATIC_ORDER_KING_EG_ONLY);
         Config::ENABLE_QCHECK_MASK = env_flag("ENABLE_QCHECK_MASK", Config::ENABLE_QCHECK_MASK);
         Config::ENABLE_RP_KPK_DRAW = env_flag("ENABLE_RP_KPK_DRAW", Config::ENABLE_RP_KPK_DRAW);
         Config::ENABLE_CAPGAIN_PAWN_FIX = env_flag("ENABLE_CAPGAIN_PAWN_FIX", Config::ENABLE_CAPGAIN_PAWN_FIX);
@@ -1290,6 +1317,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CAPTURE_HIST = env_flag("ENABLE_CAPTURE_HIST", Config::ENABLE_CAPTURE_HIST);
         Config::ENABLE_CHECK_ORDER = env_flag("ENABLE_CHECK_ORDER", Config::ENABLE_CHECK_ORDER);
         Config::ENABLE_TT_MOVE = env_flag("ENABLE_TT_MOVE", Config::ENABLE_TT_MOVE);
+        Config::TT_MOVE_POLICY = env_int("TT_MOVE_POLICY", Config::TT_MOVE_POLICY);
         Config::CHECK_ORDER_BONUS = env_int("CHECK_ORDER_BONUS", Config::CHECK_ORDER_BONUS);
         Config::ENABLE_HISTORY_SATURATION = env_flag("ENABLE_HISTORY_SATURATION", Config::ENABLE_HISTORY_SATURATION);
         Config::ENABLE_HISTORY_MALUS = env_flag("ENABLE_HISTORY_MALUS", Config::ENABLE_HISTORY_MALUS);
@@ -1622,6 +1650,18 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " NULLMOVE_CURDEPTH_MAXI=" << Config::NULLMOVE_CURDEPTH_MAXI
                   << " ENABLE_QCHECK_DEPTH0=" << Config::ENABLE_QCHECK_DEPTH0
                   << " ENABLE_QCHECK_MASK=" << Config::ENABLE_QCHECK_MASK
+                  << " ENABLE_QCHECK_SAFE=" << Config::ENABLE_QCHECK_SAFE
+                  << " QCHECK_SAFE_LEVEL=" << Config::QCHECK_SAFE_LEVEL
+                  << " ENABLE_QCHECK_FULL=" << Config::ENABLE_QCHECK_FULL
+                  << " ENABLE_QCHECK_MASK_COMPARE=" << Config::ENABLE_QCHECK_MASK_COMPARE
+                  << " ENABLE_STATIC_ORDER=" << Config::ENABLE_STATIC_ORDER
+                  << " STATIC_ORDER_MODE=" << Config::STATIC_ORDER_MODE
+                  << " STATIC_ORDER_WEIGHT=" << Config::STATIC_ORDER_WEIGHT
+                  << " STATIC_ORDER_HIST_MAX=" << Config::STATIC_ORDER_HIST_MAX
+                  << " STATIC_ORDER_PIECES=" << Config::STATIC_ORDER_PIECES
+                  << " STATIC_ORDER_KING_EG_ONLY=" << Config::STATIC_ORDER_KING_EG_ONLY
+                  << " ENABLE_TT_MOVE=" << Config::ENABLE_TT_MOVE
+                  << " TT_MOVE_POLICY=" << Config::TT_MOVE_POLICY
                   << " ENABLE_CONT_HIST=" << Config::ENABLE_CONT_HIST
                   << " CONT_HIST_LMR_THRESH=" << Config::CONT_HIST_LMR_THRESH
                   << " ENABLE_CONT_HIST_2PLY=" << Config::ENABLE_CONT_HIST_2PLY
@@ -2098,6 +2138,19 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         }
         std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires
                   << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires << std::endl;
+    std::cerr << "[qcheck] quiet_checks_added=" << g_q_quiet_checks_added
+              << " unsafe_rejected=" << g_q_quiet_checks_unsafe
+              << " discovered=" << g_q_discovered_checks
+              << " missed=" << g_q_checks_missed
+              << " d0_quiets_skipped=" << g_qcheck_d0_skipped << std::endl;
+    if (Config::ENABLE_STATIC_ORDER)
+        std::cerr << "[static_order] eligible=" << g_static_order_eligible
+                  << " fires=" << g_static_order_fires
+                  << " fire_pct=" << (g_static_order_eligible > 0 ? (100.0 * g_static_order_fires / g_static_order_eligible) : 0.0)
+                  << "%" << std::endl;
+    if (Config::ENABLE_TT_MOVE)
+        std::cerr << "[tt_move] policy=" << Config::TT_MOVE_POLICY
+                  << " promotions=" << g_tt_move_promotions << std::endl;
     if (Config::ENABLE_OTV)
         std::cerr << "[otv] fires=" << g_otv_fires
                   << " per_cutoff=" << (g_fh_total > 0 ? (100.0 * g_otv_fires / g_fh_total) : 0.0) << "%" << std::endl;
@@ -3672,6 +3725,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                                cheap_eval(current_state.pawns, current_state.knights, current_state.bishops,
                                           current_state.rooks, current_state.queens, current_state.kings,
                                           current_state.occupied_colour[true], current_state.occupied_colour[false]));
+            // Pull the returned score toward the bound rather than trusting the unverified static eval (SF16+).
+            if (Config::RFP_RETURN_BLEND > 0)
+                return (Config::RFP_RETURN_BLEND * alpha + (100 - Config::RFP_RETURN_BLEND) * rfp_static_eval) / 100;
             return rfp_static_eval;
         }
 
@@ -4018,10 +4074,12 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++; if (Config::ENABLE_CUTOFF_CLASS) g_cutoff_class_hist[cutoff_move_class(move, current_state, cur_depth, previousMove)][i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
                 // Node-local best-move populate (singular's TT-move): stamp this node's cutoff move onto its
                 // OWN TT entry (key-verified), so singular can verify/exclude it. Move-only write — touches
-                // nothing the search reads until singular does, and the SF move-rule in tt_store preserves it
-                // against the parent's later child-keyed score store. Gated on ENABLE_SINGULAR = byte-identical.
+                // nothing the search reads until singular or TT-move ordering does, and the SF move-rule in
+                // tt_store preserves it against the parent's later child-keyed score store. ENABLE_TT_MOVE
+                // shares the store because it is the only other consumer of this field; with both flags off
+                // the write never happens = byte-identical.
                 // Skip while excluding so a min exclusion re-search doesn't overwrite the node's real TT-move.
-                if (Config::ENABLE_SINGULAR && !excluding)
+                if ((Config::ENABLE_SINGULAR || Config::ENABLE_TT_MOVE) && !excluding)
                 {
                     TTEntry *nodeEntry = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
                     if (nodeEntry != nullptr)
@@ -4292,6 +4350,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                            cheap_eval(current_state.pawns, current_state.knights, current_state.bishops,
                                       current_state.rooks, current_state.queens, current_state.kings,
                                       current_state.occupied_colour[true], current_state.occupied_colour[false]));
+        // Pull the returned score toward the bound rather than trusting the unverified static eval (SF16+).
+        if (Config::RFP_RETURN_BLEND > 0)
+            return (Config::RFP_RETURN_BLEND * beta + (100 - Config::RFP_RETURN_BLEND) * rfp_static_eval) / 100;
         return rfp_static_eval;
     }
 
@@ -4662,7 +4723,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++; if (Config::ENABLE_CUTOFF_CLASS) g_cutoff_class_hist[cutoff_move_class(move, current_state, cur_depth, previousMove)][i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
             // Node-local best-move populate (singular's TT-move) — see the minimizer cutoff for rationale.
             // Skip while excluding so a max exclusion re-search doesn't overwrite the node's real TT-move.
-            if (Config::ENABLE_SINGULAR && !excluding)
+            if ((Config::ENABLE_SINGULAR || Config::ENABLE_TT_MOVE) && !excluding)
             {
                 TTEntry *nodeEntry = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
                 if (nodeEntry != nullptr)
@@ -6135,6 +6196,48 @@ inline void promoteMove(std::vector<Move> &moves, const Move &move, size_t promo
     }
 }
 
+/*
+    Promotes a transposition-table cutoff move within the QUIET region of an already-ordered move list.
+
+    The list arrives captures-first (SEE/MVV-ordered) with quiets after. A TT move that is itself a capture
+    is deliberately left where it is: hoisting it ahead of better-scoring captures is the shape the
+    2026-07-03 ordering audit identified as the reason the original TT-move experiment failed. A quiet TT
+    move moves to the front of the quiet region -- ahead of the killer/counter promotions, behind every
+    capture.
+
+    Parameters:
+        moves         - ordered move list, modified in place
+        move          - the TT cutoff move (callers skip the default {0,0,0} "no move")
+        current_state - the board state the list was generated from, for capture detection
+    Returns: true when the move was found and repositioned.
+*/
+inline bool promoteMoveWithinQuiets(std::vector<Move> &moves, const Move &move, const BoardState &current_state)
+{
+    auto it = std::find(moves.begin(), moves.end(), move);
+    if (it == moves.end())
+        return false;
+
+    size_t quiet_start = moves.size();
+    for (size_t i = 0; i < moves.size(); ++i)
+    {
+        if (!is_capture(moves[i].from_square, moves[i].to_square, current_state.occupied_colour[!current_state.turn], is_en_passant(moves[i].from_square, moves[i].to_square, current_state.ep_square, current_state.occupied, current_state.pawns)))
+        {
+            quiet_start = i;
+            break;
+        }
+    }
+
+    // Below quiet_start the move is a capture (leave it); at quiet_start it already leads the quiets.
+    size_t foundIndex = std::distance(moves.begin(), it);
+    if (foundIndex <= quiet_start)
+        return false;
+
+    Move temp = *it;
+    moves.erase(it);
+    moves.insert(moves.begin() + quiet_start, temp);
+    return true;
+}
+
 inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove)
 {
 
@@ -6326,9 +6429,20 @@ inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &st
         }
         if (Config::ENABLE_TT_MOVE)
         {
-            Move ttm = g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK];
-            if (ttm.from_square != ttm.to_square)
-                promoteMoveToFront(cached_moves, ttm);
+            // Reads TTEntry::move, where the cutoff move has actually lived since the 07-08 store rework.
+            // The former source, g_ttMoveTable, has no write site anywhere in the engine -- every lookup
+            // returned the default {0,0,0}, which is why enabling this flag was byte-identical.
+            TTEntry *tte = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+            if (tte != nullptr && tte->move.from_square != tte->move.to_square)
+            {
+                if (Config::TT_MOVE_POLICY == Config::TT_MOVE_POLICY_FRONT)
+                {
+                    promoteMoveToFront(cached_moves, tte->move);
+                    ++g_tt_move_promotions;
+                }
+                else if (promoteMoveWithinQuiets(cached_moves, tte->move, current_state))
+                    ++g_tt_move_promotions;
+            }
         }
         return cached_moves;
     }
@@ -6356,11 +6470,122 @@ inline std::vector<Move>& buildMoveListFromReordered(std::vector<BoardState> &st
     addToMoveGenCache(zobrist, /* max_cache_size * Config::ACTIVE->cache_size_multiplier ,*/ cached_moves, current_state.castling_rights, current_state.ep_square);
     if (Config::ENABLE_TT_MOVE)
     {
-        Move ttm = g_ttMoveTable[make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square) & TT_CACHE_MASK];
-        if (ttm.from_square != ttm.to_square)
-            promoteMoveToFront(cached_moves, ttm);
+        TTEntry *tte = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+        if (tte != nullptr && tte->move.from_square != tte->move.to_square)
+        {
+            if (Config::TT_MOVE_POLICY == Config::TT_MOVE_POLICY_FRONT)
+            {
+                promoteMoveToFront(cached_moves, tte->move);
+                ++g_tt_move_promotions;
+            }
+            else if (promoteMoveWithinQuiets(cached_moves, tte->move, current_state))
+                ++g_tt_move_promotions;
+        }
     }
     return cached_moves;
+}
+
+/*
+    Decides whether a quiet checking move is worth searching in qsearch.
+
+    Qsearch already admits captures only when see() >= 0; quiet checks are the one noisy category taken
+    unconditionally, and most of the junk ones simply hang the checking piece -- the opponent captures and the
+    line dies after we have paid to search it. see() cannot be reused here: it is keyed on the SQUARE and
+    starts from get_value_at(to_square), which is zero for a quiet destination, so it does not know which piece
+    is being moved. This applies the same intent with bitboard tests and no board copy, keeping the
+    ENABLE_QCHECK_MASK path's advantage over the simulate path.
+
+    A check is rejected when the destination is attacked by an enemy pawn (any non-pawn mover loses material
+    outright), or when it is attacked at all and we do not defend it.
+
+    Parameters:
+        current_state - board state the move is generated from
+        m             - the quiet checking move under consideration
+    Returns: true when the check looks materially survivable and should be searched.
+*/
+inline bool quietCheckIsSafe(const BoardState &current_state, const Move &m)
+{
+    uint64_t from_bb = BB_SQUARES[m.from_square];
+    uint8_t to = m.to_square;
+    // Vacate the origin so a slider behind the mover is seen correctly through the square it leaves.
+    uint64_t occ = current_state.occupied & ~from_bb;
+    uint64_t enemy = current_state.occupied_colour[!current_state.turn] & occ;
+    uint64_t own = current_state.occupied_colour[current_state.turn] & occ;
+
+    // A pawn of the side to move standing on `to` would attack the same squares an enemy pawn attacks it
+    // from, so the reverse mask locates the enemy pawns bearing on the destination.
+    uint64_t enemy_pawn_attackers = BB_PAWN_ATTACKS[current_state.turn][to] & current_state.pawns & enemy;
+    if (enemy_pawn_attackers != 0 && (current_state.pawns & from_bb) == 0)
+        return false;
+
+    // Level 1 stops here. The attacked-and-undefended rule below rejects checks the opponent can simply
+    // take, but a check that hangs its piece is frequently a sacrifice and therefore the whole point of the
+    // line -- at level 2 it costs more in solved tactics than it saves in nodes.
+    if (Config::QCHECK_SAFE_LEVEL < Config::QCHECK_SAFE_UNDEFENDED)
+        return true;
+
+    uint64_t queens_and_rooks = (current_state.queens | current_state.rooks) & occ;
+    uint64_t queens_and_bishops = (current_state.queens | current_state.bishops) & occ;
+    uint64_t enemy_attackers = attackersMask(!current_state.turn, to, occ, queens_and_rooks, queens_and_bishops,
+                                             current_state.kings & occ, current_state.knights & occ,
+                                             current_state.pawns & occ, enemy);
+    if (enemy_attackers == 0)
+        return true;
+
+    uint64_t own_defenders = attackersMask(current_state.turn, to, occ, queens_and_rooks, queens_and_bishops,
+                                           current_state.kings & occ, current_state.knights & occ,
+                                           current_state.pawns & occ, own);
+    return own_defenders != 0;
+}
+
+/*
+    Reports whether a quiet move gives check, including DISCOVERED checks, without copying the board.
+
+    ENABLE_QCHECK_MASK tests only the moving piece's attacks from its destination, so it is structurally
+    blind to a discovery -- moving a piece off a ray and letting a slider behind it give check. The simulate
+    path would catch those, but only once its own defect is fixed (update_state takes `turn` BY VALUE, so the
+    caller's copy never flips and is_check ends up asking whether the MOVER is in check), and it pays a full
+    board update per quiet move.
+
+    This rebuilds only the moving piece's type mask with the bit relocated from->to and asks who attacks the
+    enemy king under that occupancy, which answers both cases in one query at close to mask cost.
+
+    ⚠️ Castling is NOT covered: a quiet king move that castles delivers check with the ROOK, and only the
+    king's from/to are modelled here. The mask path shares this gap; it is a known exclusion, not a silent
+    one, and it is rare enough not to justify the extra branch in the hot loop.
+
+    Parameters:
+        current_state - board state the move is generated from
+        m             - the quiet move under consideration
+    Returns: true when the move leaves the enemy king attacked.
+*/
+inline bool moveGivesCheckFast(const BoardState &current_state, const Move &m)
+{
+    uint64_t from_bb = BB_SQUARES[m.from_square];
+    uint64_t to_bb = BB_SQUARES[m.to_square];
+    uint64_t moved = from_bb | to_bb;
+    uint64_t occ = (current_state.occupied & ~from_bb) | to_bb;
+
+    uint8_t enemy_king = __builtin_ctzll(current_state.kings & current_state.occupied_colour[!current_state.turn]);
+
+    // Relocate the mover inside whichever type mask holds it; the others pass through untouched.
+    uint64_t pawns = current_state.pawns;
+    uint64_t knights = current_state.knights;
+    uint64_t bishops = current_state.bishops;
+    uint64_t rooks = current_state.rooks;
+    uint64_t queens = current_state.queens;
+    uint64_t kings = current_state.kings;
+    if (pawns & from_bb) pawns ^= moved;
+    else if (knights & from_bb) knights ^= moved;
+    else if (bishops & from_bb) bishops ^= moved;
+    else if (rooks & from_bb) rooks ^= moved;
+    else if (queens & from_bb) queens ^= moved;
+    else kings ^= moved;
+
+    uint64_t movers = (current_state.occupied_colour[current_state.turn] & ~from_bb) | to_bb;
+
+    return attackersMask(current_state.turn, enemy_king, occ, (queens | rooks) & occ, (queens | bishops) & occ,
+                         kings & occ, knights & occ, pawns & occ, movers & occ) != 0;
 }
 
 inline std::vector<Move>& buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove)
@@ -6417,7 +6642,13 @@ inline std::vector<Move>& buildNoisyMoveList(uint64_t zobrist, std::vector<Board
                 }
             }
         }
-        else if (!(Config::ENABLE_QCHECK_DEPTH0 && qDepth > 0))
+        else if (Config::ENABLE_QCHECK_DEPTH0 && qDepth > 0)
+        {
+            // Quiet move dropped past the first q-ply. Counted so the guard's reachability is provable
+            // rather than inferred from an output fingerprint: a zero here means the branch never runs.
+            ++g_qcheck_d0_skipped;
+        }
+        else
         {
             // Quiet move: include it only if it gives check. ENABLE_QCHECK_DEPTH0 (the guard above)
             // drops quiet checks past the first q-ply. ENABLE_QCHECK_MASK detects a DIRECT check with a
@@ -6425,7 +6656,38 @@ inline std::vector<Move>& buildNoisyMoveList(uint64_t zobrist, std::vector<Board
             // with `from` vacated, vs the enemy king) -- no board copy; misses discovered checks (the
             // standard accepted tradeoff). Default off = the original simulate-and-test path.
             bool move_is_check;
-            if (Config::ENABLE_QCHECK_MASK)
+            if (Config::ENABLE_QCHECK_FULL)
+            {
+                // Direct AND discovered checks, no board copy. Counted against what the mask arm would have
+                // found so the capability increment is observable rather than assumed.
+                move_is_check = moveGivesCheckFast(current_state, moves_list[i]);
+                if (Config::ENABLE_QCHECK_MASK_COMPARE)
+                {
+                    uint64_t from_bb = BB_SQUARES[moves_list[i].from_square];
+                    uint8_t to = moves_list[i].to_square;
+                    uint64_t occ_nomove = current_state.occupied & ~from_bb;
+                    uint8_t ek = __builtin_ctzll(current_state.kings & current_state.occupied_colour[!current_state.turn]);
+                    uint64_t atk = 0;
+                    if (current_state.knights & from_bb)
+                        atk = BB_KNIGHT_ATTACKS[to];
+                    else if (current_state.pawns & from_bb)
+                        atk = BB_PAWN_ATTACKS[current_state.turn][to];
+                    else if (current_state.bishops & from_bb)
+                        atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ_nomove];
+                    else if (current_state.rooks & from_bb)
+                        atk = BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ_nomove] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ_nomove];
+                    else if (current_state.queens & from_bb)
+                        atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ_nomove] | BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ_nomove] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ_nomove];
+                    // Both directions. A non-zero missed count means the full detector is WRONG, not merely
+                    // different -- the mask arm is a strict subset (direct checks) and must never win.
+                    bool mask_says_check = (atk & BB_SQUARES[ek]) != 0;
+                    if (move_is_check && !mask_says_check)
+                        ++g_q_discovered_checks;
+                    else if (!move_is_check && mask_says_check)
+                        ++g_q_checks_missed;
+                }
+            }
+            else if (Config::ENABLE_QCHECK_MASK)
             {
                 uint64_t fromBB = BB_SQUARES[moves_list[i].from_square];
                 uint8_t to = moves_list[i].to_square;
@@ -6486,8 +6748,15 @@ inline std::vector<Move>& buildNoisyMoveList(uint64_t zobrist, std::vector<Board
                 move_is_check = is_check(turn, occupied, queens | rooks, queens | bishops, kings, knights, pawns, opposingPieces);
             }
 
-            if (move_is_check)
+            if (move_is_check && Config::ENABLE_QCHECK_SAFE && !quietCheckIsSafe(current_state, moves_list[i]))
             {
+                ++g_q_quiet_checks_unsafe;
+            }
+            else if (move_is_check)
+            {
+                // Quiet checks entering qsearch. Counted on the rare (taken) branch only: if this stays at
+                // zero the noisy list is captures-only and ENABLE_QCHECK_DEPTH0 can have nothing to drop.
+                ++g_q_quiet_checks_added;
                 noisy_moves.push_back(moves_list[i]);
                 if (Config::ENABLE_QSEE_RESORT) noisy_scores.push_back(0);
             }

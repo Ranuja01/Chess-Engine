@@ -319,6 +319,11 @@ alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer
 // Working placement layers the eval hot path reads. Rebuilt from the *Base arrays scaled by the
 // per-piece SCALE_PLACE_* knobs at init (rebuild_scaled_placement), so the hot path is a plain array
 // read with NO per-read division. Default knobs (100) reproduce the base arrays exactly (byte-identical).
+// Static-ordering tiebreaker instrumentation (declared in move_gen.h).
+long g_static_order_eligible = 0;
+long g_static_order_fires = 0;
+
+// Declared extern in move_gen.h so move ordering can score quiets from the same tables the eval uses.
 alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer = whitePlacementLayerBase;
 alignas(64) std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer = blackPlacementLayerBase;
 

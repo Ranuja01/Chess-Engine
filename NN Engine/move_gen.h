@@ -24,6 +24,74 @@ extern std::vector<uint64_t> BB_RANK_MASKS;
 extern std::vector<SlidingRow> BB_RANK_ATTACKS;
 extern std::vector<std::vector<uint64_t>> BB_RAYS;
 
+// Static-ordering instrumentation: how often the placement tiebreaker was CONSULTED for a quiet (the
+// history-thin population it targets) and how often it actually returned a non-zero score. A neutral bench
+// result is uninterpretable without these -- "the signal is useless" and "the signal never gets to speak"
+// look identical from the outside. Defined in cpp_bitboard.cpp.
+extern long g_static_order_eligible;
+extern long g_static_order_fires;
+
+// Runtime (SCALE_PLACE_*-scaled) placement tables, defined in cpp_bitboard.cpp and previously file-local
+// there. Declared here so move ordering can score a quiet by the SAME table the eval uses -- an ordering
+// tiebreaker built on different numbers than the eval would rank moves the search then disagrees with.
+extern std::array<std::array<std::array<int, 8>, 8>, 6> whitePlacementLayer;
+extern std::array<std::array<std::array<int, 8>, 8>, 6> blackPlacementLayer;
+
+/*
+    Static placement score for a QUIET move, used to break ties among moves the history tables have never
+    seen. Quiets with no history all score identically today, so their relative order is whatever move
+    generation happened to produce -- and LMP/LMR then prune and reduce by that arbitrary index.
+
+    Indexing mirrors the eval exactly: [pieceType-1][file][rank] with file = sq & 7, rank = sq >> 3.
+    There is ONE placement table per colour (no separate midgame/endgame set), so no phase blend is needed.
+
+    Parameters:
+        turn        - side to move; selects the white or black table
+        from, to    - the move's origin and destination squares
+        *Mask       - piece bitboards, used to identify the mover's type (king falls out by elimination)
+    Returns: the scaled placement term, sign-oriented so that a HIGHER score is a better move for `turn`.
+*/
+inline int staticPlacementScore(bool turn, uint8_t from, uint8_t to,
+								uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
+								uint64_t rooksMask, uint64_t queensMask)
+{
+	uint64_t from_bb = BB_SQUARES[from];
+	int pt;
+	if (pawnsMask & from_bb)        pt = 0;
+	else if (knightsMask & from_bb) pt = 1;
+	else if (bishopsMask & from_bb) pt = 2;
+	else if (rooksMask & from_bb)   pt = 3;
+	else if (queensMask & from_bb)  pt = 4;
+	else                            pt = 5;
+
+	// Only score piece types whose table the EVAL actually reads. The rook PST is dead code there, and the
+	// king PST is endgame-only (see rebuild_scaled_placement) -- ordering either by these tables ranks moves
+	// on numbers the evaluation ignores or contradicts.
+	if (!(Config::STATIC_ORDER_PIECES & (1 << pt)))
+		return 0;
+
+	if (pt == 5 && Config::STATIC_ORDER_KING_EG_ONLY)
+	{
+		// Same phase formula move generation already uses; computed here only for king moves so the
+		// common case pays nothing.
+		int phase = 4 * __builtin_popcountll(queensMask)
+				  + 2 * __builtin_popcountll(rooksMask)
+				  + __builtin_popcountll(bishopsMask | knightsMask);
+		int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE;
+		if (phase_score <= 62)
+			return 0;
+	}
+
+	const std::array<std::array<std::array<int, 8>, 8>, 6> &layer =
+		turn ? whitePlacementLayer : blackPlacementLayer;
+
+	int dest = layer[pt][to & 7][to >> 3];
+	int raw = (Config::STATIC_ORDER_MODE == Config::STATIC_ORDER_DEST)
+				  ? dest
+				  : dest - layer[pt][from & 7][from >> 3];
+	return raw * Config::STATIC_ORDER_WEIGHT / 100;
+}
+
 // Union of all squares attacked by the given side's pieces (the "threats" bitboard for threat-conditioned
 // quiet history). Computed once per node from the raw piece bitboards; the SAME helper is used at the ordering
 // read (move_gen) and the history-write (search_engine) sites so both index threatHist identically. `oppColor`
@@ -810,7 +878,14 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		if (Config::ENABLE_PIECE_CONTHIST)
 			pcont = pieceContHist[turn][pcont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][pcont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)] >> Config::PIECE_CONTHIST_SHIFT;
 		int bh = Config::ENABLE_THREAT_HIST ? threat_hist_term(turn, node_threats, from, to) : historyHeuristics[turn][from][to];
-		return bh + killerBonus(ply, cur)
+		int static_tb = 0;
+		if (Config::ENABLE_STATIC_ORDER && (bh <= Config::STATIC_ORDER_HIST_MAX) && (bh >= -Config::STATIC_ORDER_HIST_MAX))
+		{
+			++g_static_order_eligible;
+			static_tb = staticPlacementScore(turn, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask);
+			if (static_tb != 0) ++g_static_order_fires;
+		}
+		return bh + static_tb + killerBonus(ply, cur)
 			   + counterMoveBonus + counterMoveHeuristics[turn][cont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][cont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)]
 			   + cont2 + check_bonus + pcont
 			   + promo_bonus + moveFrequency[turn][from][to];
@@ -889,7 +964,14 @@ inline int score_quiet(uint8_t from, uint8_t to, uint8_t promo, bool turn, int p
 	if (Config::ENABLE_PIECE_CONTHIST)
 		pcont = pieceContHist[turn][pcont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][pcont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)] >> Config::PIECE_CONTHIST_SHIFT;
 	int bh = Config::ENABLE_THREAT_HIST ? threat_hist_term(turn, node_threats, from, to) : historyHeuristics[turn][from][to];
-	return bh + killerBonus(ply, cur)
+	int static_tb = 0;
+	if (Config::ENABLE_STATIC_ORDER && (bh <= Config::STATIC_ORDER_HIST_MAX) && (bh >= -Config::STATIC_ORDER_HIST_MAX))
+	{
+		++g_static_order_eligible;
+		static_tb = staticPlacementScore(turn, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask);
+		if (static_tb != 0) ++g_static_order_fires;
+	}
+	return bh + static_tb + killerBonus(ply, cur)
 		   + counterMoveBonus + counterMoveHeuristics[turn][cont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][cont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)]
 		   + cont2 + check_bonus + pcont
 		   + promo_bonus + moveFrequency[turn][from][to];

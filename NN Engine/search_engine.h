@@ -468,11 +468,17 @@ namespace Config
     inline bool ENABLE_CAPTURE_HIST = false;   // capture-history refinement -- marginal (+0.7 STS/+1 WAC but +2.6% nodes); knob, revisit after bonus/malus
     inline bool ENABLE_CHECK_ORDER = false;    // direct-check bonus -- on the SCALE-OFF baseline it's -6 WAC for -9.8% nodes (accuracy traded for speed; bad at fixed depth). BONUS=6000 too hot -> recalibrate lower before re-enabling
     inline int CHECK_ORDER_BONUS = 6000;       // the flat quiet-check ordering bonus
-    // TT best-move ordering: remember each node's beta-cutoff move in a hash-move table (g_ttMoveTable) and
-    // promote it to the front of the move list on the next visit. The engine has no hash move in TTEntry; the
-    // move-gen cache promotes cutoff moves only while its own entry survives, so this is a longer-lived backup.
-    // Default off = byte-identical (no writes, no reads).
+    // TT best-move ordering: promote the transposition table's remembered cutoff move (TTEntry::move) when a
+    // position is revisited. It formerly read g_ttMoveTable, which has no write site anywhere in the engine --
+    // every lookup returned the default {0,0,0}, so the flag was byte-identical rather than tested.
+    // Default off = byte-identical (the TT is never consulted for ordering).
     inline bool ENABLE_TT_MOVE = false;
+    // Promotion policy. QUIETS moves the TT move to the head of the quiet region and leaves the SEE/MVV
+    // capture order untouched; FRONT hoists it over everything, which is the shape the 2026-07-03 ordering
+    // audit blamed for the original experiment's failure (kept so the two can be measured against each other).
+    constexpr int TT_MOVE_POLICY_QUIETS = 1;
+    constexpr int TT_MOVE_POLICY_FRONT = 2;
+    inline int TT_MOVE_POLICY = TT_MOVE_POLICY_QUIETS;
 
     // History gravity: replace the bonus-only `+= depth²` cutoff update with a saturating bonus/MALUS --
     // reward the move that cut off, penalize the quiets/captures tried-and-failed before it. Applies to
@@ -1140,6 +1146,15 @@ namespace Config
     inline int RFP_MIN_DEPTH = 1;       // fire only when (depth_limit - cur_depth) >= RFP_MIN_DEPTH (skip leaf-adjacent rd)
     inline int RFP_MAX_DEPTH = 6;       // fire only when (depth_limit - cur_depth) in [RFP_MIN_DEPTH, RFP_MAX_DEPTH]
     inline int RFP_EVAL_MODE = 0;       // eval_by_mode arg for the RFP/gate eval: 0=full, 1=cheap
+    // What RFP RETURNS when it fires. We return the raw static eval; SF stopped doing that after SF15 and
+    // now returns a value pulled toward the bound it cut against -- SF16 `(eval+beta)/2`, SF17
+    // `beta + (eval-beta)/3`, SF18 `(2*beta+eval)/3` (doc: dev_notes/sf-pruning-schedules-comparison.md §1.5).
+    // The rationale is to not fully trust a static eval that was never verified by search, which applies at
+    // least as strongly to our slower/less accurate eval as to SF's.
+    // Percent of the BOUND (alpha on the min side, beta on the max side) mixed into the returned score:
+    //   0  = return the raw eval (identity, byte-identical)
+    //   50 = SF16's (eval+bound)/2      67 = SF18's (2*bound+eval)/3
+    inline int RFP_RETURN_BLEND = 0;
     inline bool ENABLE_NULL_EVAL_GATE = false; // only attempt null move when static eval is past beta/alpha
 
     // ProbCut: node-level, non-PV, not-in-check. At depth to spare, a strong capture whose reduced
@@ -1231,6 +1246,47 @@ namespace Config
     // with a bitboard attack test from the destination square (reusing the ENABLE_CHECK_ORDER logic)
     // instead of simulating the move; misses discovered checks (standard accepted tradeoff). Behavioral.
     inline bool ENABLE_QCHECK_DEPTH0 = false;
+    // Reject quiet checks that hang the checking piece (destination attacked by an enemy pawn with a
+    // non-pawn mover, or attacked and undefended). Captures in qsearch are already gated on see() >= 0;
+    // this applies the same standard to the one noisy category that was admitted unconditionally.
+    // Default off = byte-identical (every check that passes detection is still searched).
+    inline bool ENABLE_QCHECK_SAFE = false;
+    // Strictness of that filter. PAWN rejects only checks an enemy pawn attacks (a pawn-takes-piece
+    // refutation is rarely a real sacrifice); UNDEFENDED additionally rejects checks that are attacked and
+    // undefended -- measured at 248 solves / 40.4M nodes vs 253 / 49.3M unfiltered, i.e. it discards the
+    // sacrificial checks the feature exists to find.
+    constexpr int QCHECK_SAFE_PAWN = 1;
+    constexpr int QCHECK_SAFE_UNDEFENDED = 2;
+    inline int QCHECK_SAFE_LEVEL = QCHECK_SAFE_UNDEFENDED;
+    // Full quiet-check detection: direct AND discovered, via relocated piece masks and one attackersMask
+    // query, with no board copy. Takes precedence over ENABLE_QCHECK_MASK (which sees only direct checks)
+    // and over the simulate path (whose is_check tests the wrong side). Castling checks by the rook are a
+    // known exclusion. Default off = byte-identical.
+    inline bool ENABLE_QCHECK_FULL = false;
+    // Diagnostic: while ENABLE_QCHECK_FULL runs, count the checks the mask arm would have missed.
+    inline bool ENABLE_QCHECK_MASK_COMPARE = false;
+
+    // Static placement ordering (L0): break ties among quiets the history tables have never seen, using the
+    // eval's own placement layer. Quiets with zero history currently score identically, so their order is
+    // whatever move generation produced -- and LMP/LMR prune and reduce by that arbitrary index, which is
+    // also where wrong reductions cluster. Applied ONLY where |history| <= STATIC_ORDER_HIST_MAX so every
+    // move that already has a real score is untouched and the change stays measurable.
+    // Default off = byte-identical.
+    inline bool ENABLE_STATIC_ORDER = false;
+    // DELTA = destination minus origin (the eval's own view of the move's positional change);
+    // DEST = destination only (rewards reaching good squares, ignores what was given up).
+    constexpr int STATIC_ORDER_DELTA = 0;
+    constexpr int STATIC_ORDER_DEST = 1;
+    inline int STATIC_ORDER_MODE = STATIC_ORDER_DELTA;
+    inline int STATIC_ORDER_WEIGHT = 100;      // percent scaling of the placement term
+    inline int STATIC_ORDER_HIST_MAX = 0;      // apply only when |history| is at or below this
+    // Bitmask of piece types to score, bit = pieceType-1 (0=pawn,1=knight,2=bishop,3=rook,4=queen,5=king).
+    // Rook is EXCLUDED by default: its PST is dead code in the eval, so ordering by it ranks moves on numbers
+    // the evaluation never reads. 55 = all except rook.
+    inline int STATIC_ORDER_PIECES = 55;
+    // King placement is endgame-only in the eval; scoring king quiets by that table in the midgame inverts
+    // the safety/centralisation tradeoff. Gate it to phase_score > 62, matching move generation's threshold.
+    inline bool STATIC_ORDER_KING_EG_ONLY = true;
     inline bool ENABLE_QCHECK_MASK = false;
 
     // Phase B endgame colour-asymmetry fixes + dead-pin revival (adversarial rescan). All behavioral

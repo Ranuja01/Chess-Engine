@@ -1266,6 +1266,17 @@ namespace Config
     // Diagnostic: while ENABLE_QCHECK_FULL runs, count the checks the mask arm would have missed.
     inline bool ENABLE_QCHECK_MASK_COMPARE = false;
 
+    // Node-exit TT store. Every existing store happens in the PARENT's frame (keyed on the child's zobrist),
+    // so a node's best move is out of scope at its store site and TTEntry::move can only ever be filled on a
+    // REVISIT that happens to reach a beta cutoff -- 36 times per 300-position bench. Singular extension
+    // needs that move at node entry, so it is structurally starved rather than merely ineffective.
+    // When on, minimizer/maximizer additionally store their OWN result with their own best move.
+    // Default off = byte-identical (no extra store, no extra probe).
+    inline bool ENABLE_NODE_TT = false;
+    // Log cumulative nodes at the end of each iterative-deepening iteration, so the REAL per-iteration
+    // branching factor can be recovered by differencing. Diagnostic only (a stderr line; search untouched).
+    inline bool ENABLE_ITER_LOG = false;
+
     // Static placement ordering (L0): break ties among quiets the history tables have never seen, using the
     // eval's own placement layer. Quiets with zero history currently score identically, so their order is
     // whatever move generation produced -- and LMP/LMR prune and reduce by that arbitrary index, which is

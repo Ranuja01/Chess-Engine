@@ -298,6 +298,14 @@ static long g_q_discovered_checks = 0;
 // Direct checks the mask arm found but the full detector did NOT. Must stay at zero: the mask sees a strict
 // subset of what the full test sees, so any hit here is a defect in moveGivesCheckFast.
 static long g_q_checks_missed = 0;
+// Node-exit TT stores actually performed (ENABLE_NODE_TT). The point of the feature is to fill
+// TTEntry::move on a node's FIRST visit, so this must be large where the old cutoff-site write was 36.
+static long g_node_tt_stores = 0;
+// Nodes spent inside the root pre-search (reorder_legal_moves), cumulative. Against the total and the
+// qsearch count this splits our per-depth node cost into main search / qsearch / pre-search, which is the
+// question the SF depth race raised: we need ~62x SF's nodes for the same nominal depth, and ~18x of that
+// is already present at shallow depth, so it is a fixed overhead rather than a growth-rate problem.
+static long g_presearch_nodes = 0;
 // Phase-A qsearch ordering quality (diagnostic, cumulative across a run, like g_fh_*): cutoffs in the
 // NOT-IN-CHECK qsearch loop, the fraction on the first noisy move (qfmc), and the summed cutoff move-index
 // (qcut = avg index). Low qfmc / high qcut ⇒ a SEE re-sort of the noisy list should help.
@@ -1291,6 +1299,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::QCHECK_SAFE_LEVEL = env_int("QCHECK_SAFE_LEVEL", Config::QCHECK_SAFE_LEVEL);
         Config::ENABLE_QCHECK_FULL = env_flag("ENABLE_QCHECK_FULL", Config::ENABLE_QCHECK_FULL);
         Config::ENABLE_QCHECK_MASK_COMPARE = env_flag("ENABLE_QCHECK_MASK_COMPARE", Config::ENABLE_QCHECK_MASK_COMPARE);
+        Config::ENABLE_NODE_TT = env_flag("ENABLE_NODE_TT", Config::ENABLE_NODE_TT);
+        Config::ENABLE_ITER_LOG = env_flag("ENABLE_ITER_LOG", Config::ENABLE_ITER_LOG);
         Config::ENABLE_STATIC_ORDER = env_flag("ENABLE_STATIC_ORDER", Config::ENABLE_STATIC_ORDER);
         Config::STATIC_ORDER_MODE = env_int("STATIC_ORDER_MODE", Config::STATIC_ORDER_MODE);
         Config::STATIC_ORDER_WEIGHT = env_int("STATIC_ORDER_WEIGHT", Config::STATIC_ORDER_WEIGHT);
@@ -1654,6 +1664,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " QCHECK_SAFE_LEVEL=" << Config::QCHECK_SAFE_LEVEL
                   << " ENABLE_QCHECK_FULL=" << Config::ENABLE_QCHECK_FULL
                   << " ENABLE_QCHECK_MASK_COMPARE=" << Config::ENABLE_QCHECK_MASK_COMPARE
+                  << " ENABLE_NODE_TT=" << Config::ENABLE_NODE_TT
                   << " ENABLE_STATIC_ORDER=" << Config::ENABLE_STATIC_ORDER
                   << " STATIC_ORDER_MODE=" << Config::STATIC_ORDER_MODE
                   << " STATIC_ORDER_WEIGHT=" << Config::STATIC_ORDER_WEIGHT
@@ -2099,6 +2110,14 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
         elapsed = std::chrono::duration<double>(Clock::now() - t0).count();
         std::cout << "ELAPSED: " << elapsed << std::endl;
+
+        // Per-iteration cumulative node count. The headline "ebf" figure is
+        // pow(cumulative_nodes, 1/depth_limit) over a counter that also absorbs the pre-search, aspiration
+        // re-searches, qsearch and TT-hit bookkeeping, with depth_limit taken at loop exit -- so it is not
+        // nodes(d)/nodes(d-1) and is not comparable to the figures other engines publish. Differencing this
+        // line across iterations recovers the real per-iteration growth.
+        if (Config::ENABLE_ITER_LOG)
+            std::cerr << "[iter] d=" << depth_limit << " cum_nodes=" << num_iterations << std::endl;
     }
 
     // Commit the last fully-searched iteration's choice, never a move from an iteration
@@ -2143,6 +2162,11 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " discovered=" << g_q_discovered_checks
               << " missed=" << g_q_checks_missed
               << " d0_quiets_skipped=" << g_qcheck_d0_skipped << std::endl;
+    std::cerr << "[node_split] total=" << num_iterations
+              << " qnodes=" << qsearchVisits
+              << " presearch=" << g_presearch_nodes << std::endl;
+    if (Config::ENABLE_NODE_TT)
+        std::cerr << "[node_tt] stores=" << g_node_tt_stores << std::endl;
     if (Config::ENABLE_STATIC_ORDER)
         std::cerr << "[static_order] eligible=" << g_static_order_eligible
                   << " fires=" << g_static_order_fires
@@ -2245,7 +2269,12 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0);
 
+    // Cost of the root pre-search, measured rather than estimated: the node counter is shared, so the
+    // difference across the call is exactly what reorder_legal_moves spent. Charged on every aspiration
+    // widening too, since alpha_beta is re-entered for each.
+    int presearch_nodes_before = num_iterations;
     SearchData current_search_data = reorder_legal_moves(alpha, beta, depth_limit, t0, zobrist, previous_search_data, state_history, position_count, num_iterations);
+    g_presearch_nodes += (long)(num_iterations - presearch_nodes_before);
 
     std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0);
@@ -2559,6 +2588,47 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         return best_score;
     }
     return best_score;
+}
+
+/*
+    Stores THIS node's own search result, including its best move, under its own key.
+
+    Every other store in the engine runs in the PARENT's frame -- keyed on the child's zobrist, with depth
+    `depth_limit - cur_depth` measured from the parent. That is why TTEntry::move cannot be filled on a first
+    visit: at the parent's store site the child's best move is out of scope. Singular extension probes for
+    exactly that move at node entry, so it is starved by construction rather than by tuning.
+
+    ⚠️ Depth deliberately reproduces the parent-frame convention (the node's own remaining PLUS ONE) instead
+    of the node's own remaining. Probes compare against that same parent-frame expression, so a store using
+    the node's own frame would sit one short and would SILENTLY never produce a hit.
+
+    Skipped while a singular exclusion search is running at this ply, so the re-search cannot overwrite the
+    node's real entry -- the same rule the existing cutoff-site move write already applies.
+
+    Parameters:
+        zobrist, current_state - this node's position
+        score                  - the value being returned
+        cur_depth, depth_limit - this node's own frame
+        alpha_orig, beta_orig  - the node's entry window, for the bound flag
+        best_move              - the move being credited; a null move is not stored
+*/
+inline void store_node_tt(uint64_t zobrist, const BoardState &current_state, std::vector<BoardState> &state_history,
+                          int score, int cur_depth, int depth_limit, int alpha_orig, int beta_orig, const Move &best_move)
+{
+    if (!Config::ENABLE_NODE_TT)
+        return;
+    if (best_move.from_square == best_move.to_square)
+        return;
+    if (cur_depth >= 0 && cur_depth < MAX_PLY &&
+        g_excluded_move[cur_depth].from_square != g_excluded_move[cur_depth].to_square)
+        return;
+
+    TTFlag flag = (score <= alpha_orig) ? TTFlag::UPPERBOUND
+                : (score >= beta_orig)  ? TTFlag::LOWERBOUND
+                                        : TTFlag::EXACT;
+    ++g_node_tt_stores;
+    addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth + 1, flag,
+                         alpha_orig, beta_orig, current_state.castling_rights, current_state.ep_square, best_move);
 }
 
 inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check, Move move, Move previousMove, [[maybe_unused]] bool last_move_was_capture,
@@ -4152,6 +4222,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     }
                 }
 
+                store_node_tt(zobrist, current_state, state_history, lowest_score, cur_depth, depth_limit, alpha_orig, beta_orig, best_move);
                 return lowest_score;
             }
         }
@@ -4202,6 +4273,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         }
     }
 
+    store_node_tt(zobrist, current_state, state_history, lowest_score, cur_depth, depth_limit, alpha_orig, beta_orig, best_move);
     return lowest_score;
 }
 
@@ -4796,6 +4868,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 }
             }
 
+            store_node_tt(zobrist, current_state, state_history, highest_score, cur_depth, depth_limit, alpha_orig, beta_orig, best_move);
             return highest_score;
         }
     }
@@ -4845,6 +4918,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         }
     }
 
+    store_node_tt(zobrist, current_state, state_history, highest_score, cur_depth, depth_limit, alpha_orig, beta_orig, best_move);
     return highest_score;
 }
 

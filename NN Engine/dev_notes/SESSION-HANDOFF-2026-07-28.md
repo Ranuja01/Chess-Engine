@@ -1,5 +1,69 @@
 # Session handoff — overnight 2026-07-27/28
 
+---
+# ★ PART 2 (2026-07-28 evening): the node-cost investigation
+
+## The headline: our time-to-depth gap is NODE COUNT, not eval speed
+`diagnostics/depth_race_vs_sf.py` — identical FENs, both engines, one process per depth (our Config knobs
+latch at extension init, so varying MAX_DEPTH inside one process silently measures the same depth ten times;
+an earlier version of the script did exactly that and the flat node counts were the tell).
+
+| d | our nodes | SF nodes | node × | our ms | SF ms | time × | nps × |
+|---|---|---|---|---|---|---|---|
+| 5 | 5,530 | 382 | 14.5 | 36.8 | 1.0 | 36.8 | 2.5 |
+| 8 | 41,715 | 774 | 53.9 | 139.2 | 1.0 | 139.2 | 2.6 |
+| **10** | **133,090** | **2,160** | **61.6** | 481.7 | 3.0 | 160.6 | **2.6** |
+
+**61.6 × 2.6 ≈ 160 — the decomposition closes.** Node count dominates; per-node cost is only 2.6×.
+⇒ **The earlier claim "the gap is essentially all evaluation cost" is WRONG.**
+Per-ply growth is close to SF's (ours 1.72, SF 1.50); we start **17.6× higher at shallow depth**.
+**It is a fixed-overhead problem, not a growth-rate problem.**
+⚠️ SF times sit at timer resolution (1.0 ms) below d9 — the NODE ratios are the trustworthy column.
+⚠️ SF18 is NNUE, so its NPS is *lower* than an HCE's would be: the 2.6× per-node gap flatters us.
+
+## REAL EBF ≈ 1.7/ply — the printed 3.934 is an artifact
+`ENABLE_ITER_LOG` + `diagnostics/iter_ebf.py` (median per-iteration node ratios, WAC):
+single-ply ratios alternate (odd-even effect), so use the 2-ply geometric mean → **≈1.7/ply**.
+See memory `ebf-metric-is-not-comparable`. **Every EBF-based conclusion before this is void**, including
+"EBF is dominated by the pre-search". ⚠️ Low EBF does NOT mean the search is healthy — see the node race.
+
+## Node composition (`[node_split]`, before/after delta on the shared counter)
+| component | nodes | share |
+|---|---|---|
+| **root pre-search** | **16,051,978** | **41.3%** |
+| qsearch | 11,804,531 | 30.4% |
+| total | 38,840,709 | — |
+⚠️ qnodes and presearch OVERLAP (qsearch inside the pre-search counts in both); the pre-search figure is the
+solid one. It also re-runs on every aspiration widening.
+
+## Results this session
+| config | verdict |
+|---|---|
+| `LMR_EXTRA=2` | **≈ −55 Elo** (243 games, interval excludes 0) ⇒ NO-GO. Also **disconfirms "we are under-reduced"** |
+| `MAX_QDEPTH` 8/6/4 | **DOMINATED** — fewer solves AND *more* nodes (245/39.1M, 246/39.4M, 245/40.1M vs 249/38.8M). Noisier leaves cost the main search more than qsearch saves. Not a trade; closed, no games |
+| `ENABLE_NODE_TT` | Built. byte-id exact. **stores=3,240,958 vs the old cutoff path's 36** ⇒ the defect model was right. Alone: 246 solves / +2.8% nodes |
+| `ENABLE_SINGULAR` + node-TT | eligible **49.6M → 159.3M (3.2×)** but **fire only +11.6%** (2.13M → 2.38M), fire/elig 4.30% → 1.49%, +9.9% nodes. Mechanism confirmed, payoff thin. Possible cause: `SINGULAR_MIN_DEPTH=6` was tuned when entries came only from deep revisits |
+| **`ENABLE_NODE_TT=1 ENABLE_SINGULAR=1` (GAMES)** | ☠️ **≈ −28 Elo** — SPRT `sprt_nodett_sing`, **+407 −503 =288 over 1198 games**, LLR −1.999 (ran to the 1200 cap, never hit the −2.94 bound). Margin ±23 ⇒ interval excludes zero. **NO-GO.** Consistent with the mechanism: ~10% more nodes bought a 12% increase in extensions. Our tightest measurement of the session |
+
+## ★ SEARCH LANE LEDGER — 0 for 13 on 2026-07-28
+quiet checks **−42** · check filters **dominated** · discovered checks **−6 solves** · capgains-redundancy
+**disconfirmed** · PST ordering **null** · `LMR_EXTRA=2` **−55** · `MAX_QDEPTH` 8/6/4 **dominated** ·
+`ENABLE_IMPROVING` **−5 solves** · `ENABLE_TT_MOVE` **redundant** (moveGenCache promotion already does it) ·
+`ENABLE_NODE_TT`+singular **−28**. **Zero Elo from search.**
+Against: **5 eval ships = +83.4 Elo**, and ~18pp of CLASSICAL headroom at equal depth (NNUE worth only 2.7pp
+over SF15-classical). ⇒ **Recommendation: next real work goes to EVAL.** Bank the pre-search prefix-share
+number via the three byte-identical Stage-0 counters, then leave search alone.
+| `ENABLE_IMPROVING=1` | −5 solves, node-neutral ⇒ clean negative (as wired; the SF11 futility-MARGIN port is untested) |
+
+## ⚠️ `ROOT_PRESEARCH_REDUCTION` is NOT a valid experiment
+The pre-search's output **overrides** previous-iteration data. Reducing its depth produces data *shallower*
+than what the previous iteration already has, while keeping it in charge — so the dial strictly degrades the
+ordering source rather than trading accuracy for nodes. Any reduction must come AFTER a quality-aware merge.
+Plan: `dev_notes/presearch-replacement-plan-2026-07-28.md` (design only, nothing built).
+
+---
+
+
 ## ★ THE HEADLINE: qsearch has NEVER searched a quiet check
 
 `buildNoisyMoveList`'s quiet-check test is broken, and the cause is a signature:

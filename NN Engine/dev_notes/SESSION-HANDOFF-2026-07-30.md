@@ -119,6 +119,38 @@ observations come from the same knob, so understand it before trusting either.
    shipped q-cache fix upward. **Lowest-effort item on the board.**
 4. ☠️ **Aggression × guard Pair B — DONE, thesis FALSIFIED** (above). The lane is closed.
 
+## ⚖️⚖️ THE EXCHANGE RATE — the owner's reframing, and it supersedes my earlier framing
+★ **At d10 SF18 solves LESS tactically than us but is 24pp better positionally** (STS 54.9% vs 79.3%; our
+WAC 254/300 = **84.7%, at ceiling**). ⇒ Every search arm this session **spent the resource we are POOR in
+(positional) to buy the one we are RICH in (tactical/nodes)**. That is why 0-for-7 all priced against.
+▶️ **WEIGHT STS FAR ABOVE WAC.** The runner prints SOLVED first and I mis-called `ENABLE_STATIC_ORDER` a
+failure because of it (−3 WAC, but **+8 STS**).
+☠️ **PRICING CORRECTION — use the REAL EBF 1.7, not the printed 3.82** ([ebf-metric-is-not-comparable]):
+`ply = ln(1+saving)/ln(1.7)`, STS ≈ 54/ply ⇒ 12.9% nodes = 0.23 ply ≈ **12 STS**; **halving the tree buys
+only ~1.3 ply.** Earlier "off by 15-25×" figures are really **7-10×** — conclusions hold, margin overstated.
+★ **Pruning is BLOCKED BEHIND EVAL, not dead** (owner: *"they do perform hyper aggressive pruning compared
+to us"*). SF prunes harder, uses **61.6× fewer nodes at d10**, and still judges 24pp better ⇒ **ours is too
+TIMID**, and fixing that costs STS **because the eval cannot support it**. SF's aggression is a
+**consequence** of a trustworthy eval. **Eval and pruning move together; eval first.**
+
+## `ENABLE_STATIC_ORDER` × aggression — ordering mildly POSITIVE, aggression stays negative
+The feature was **already built and gated off**, scoped exactly right (`STATIC_ORDER_HIST_MAX=0` = apply
+only where history is SILENT = the **TAIL**, which is where pruning safety is decided).
+
+| arm | WAC | nodes | **STS** |
+|---|---|---|---|
+| baseline | 254 | 35,982,407 | **1629** |
+| `ENABLE_STATIC_ORDER=1` | 251 | **−1.6%** | **1637 (+8)** ✅ only non-negative arm of the session |
+| `LMR_EXTRA=2` | 248 | −12.9% | **1567 (−62)** |
+| corner (both) | 244 | −15.1% | — |
+
+☠️ **`LMR_EXTRA=2`'s −55 Elo was NOT stale** — still −62 STS under gravcap vs ~12 STS of node value, and
+−62 tracks the original −55 almost exactly ⇒ **gravcap's ordering gain did not buy the right to reduce
+harder.** ☠️ The corner is **purely additive** ⇒ no interaction.
+▶️ **Thesis NOT fully tested:** `LMR_EXTRA` is a **blunt GLOBAL** reduction increase. Ordering-buys-pruning
+properly applies to **INDEX-KEYED** pruning (LMP), where better tail ordering changes what sits at index 12.
+**Backlog.**
+
 ## ⚖️ THE STRATEGIC READ — go to EVAL
 Search went **0-for-7 in this session** (remdepth, corrhist-qsearch, RFP cap, LMP cap, capchain,
 protect-killers, + two retracted leads). **Every single arm** traded a few % nodes for 25-170 STS —

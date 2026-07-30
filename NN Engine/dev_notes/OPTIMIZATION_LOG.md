@@ -4,6 +4,65 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚖️ THE EXCHANGE RATE — why the search lane keeps losing (2026-07-30, owner's reframing)
+
+★★ **Owner's observation: at d10 SF18 solves LESS tactically than us but is 24pp better positionally**
+(STS ours 54.9% vs SF18 79.3%; our WAC is 254/300 = **84.7%, near ceiling**). ⇒ **Every search arm this
+session was spending the resource we are POOR in (positional) to buy the one we are RICH in
+(tactical/nodes).** That, not bad luck, is why 0-for-7 all priced 5-10× against.
+▶️ **WEIGHT STS FAR ABOVE WAC when judging anything.** WAC deltas of ±3-6 are near-meaningless at ceiling;
+STS deltas of 25+ are where strength actually lives. (I led with solves all session because the runner
+prints them first, and mis-called `ENABLE_STATIC_ORDER` because of it — see below.)
+
+☠️ **PRICING CORRECTION — I had been using the WRONG branching factor.** Ply-equivalents must use the
+**real ~1.7/ply** ([ebf-metric-is-not-comparable]), not the **3.82** the bench prints, which that note
+explicitly flags as not comparable. Corrected: `ply = ln(1 + saving) / ln(1.7)`, and STS ≈ 54/ply.
+
+| node saving | ply | STS-equivalent |
+|---|---|---|
+| 3.32% (`RFP_MAX_DEPTH=8`) | 0.06 | ~3 |
+| 12.9% (`LMR_EXTRA=2`) | 0.23 | **~12** |
+| 50% (halving the tree) | 1.30 | ~70 |
+
+⇒ Node savings are worth **~2.5× more** than I claimed; the "off by 15-25×" figures quoted earlier are
+really **7-10×**. Every conclusion holds, the margin was overstated. ★ **Even HALVING the tree buys ~1.3
+ply.** Node-saving is a weak lever for us at any magnitude we can reach.
+
+★ **But pruning is BLOCKED, not dead** (owner: *"they do perform hyper aggressive pruning compared to us"*).
+SF prunes far harder, uses **61.6× fewer nodes at d10**, and still judges 24pp better. Our pruning is too
+**timid**, not too aggressive — and every attempt to fix that costs STS **because the eval cannot support
+it**. Causal chain: **weak eval → pruning untrustworthy → 61× more nodes → which buy no judgment.**
+⇒ SF's aggression is a **consequence** of a trustworthy eval, not a portable design choice. Eval and
+pruning aggression are a pair, and **eval must go first.**
+
+## `ENABLE_STATIC_ORDER` + aggression — ordering is mildly POSITIVE, aggression stays negative (2026-07-30)
+
+Testing the owner's thesis that **move-ordering improvements should enable stronger pruning** (LMP/LMR key
+on move INDEX, so what makes late-move pruning safe is that the tail is genuinely bad — an ordering
+property, not an eval one). ★ The feature was **already built and gated off**, scoped exactly right:
+`STATIC_ORDER_HIST_MAX = 0` = apply only where history is SILENT, i.e. in the **tail**, which is where
+pruning safety is decided (`fmc-headroom-ordering-not-bottleneck`: FMC measures the HEAD).
+
+| arm | WAC | nodes | **STS** |
+|---|---|---|---|
+| baseline | 254 | 35,982,407 | **1629** |
+| `ENABLE_STATIC_ORDER=1` | 251 | **−1.6%** | **1637 (+8)** |
+| `LMR_EXTRA=2` | 248 | **−12.9%** | **1567 (−62)** |
+| corner (both) | 244 | −15.1% | — |
+
+✅ **Static order alone is the only NON-NEGATIVE arm of the session: +8 STS at negative node cost.**
+⚠️ I first dismissed it because it lost 3 WAC solves — **the wrong metric**, per the reframing above.
+Small and not clearly gateable alone, but real and free.
+☠️ **`LMR_EXTRA=2`'s −55 Elo was NOT stale.** Under gravcap it costs **−62 STS** against ~12 STS of node
+value, and −62 tracks the original −55 Elo almost exactly ⇒ **gravcap's ordering gain did not buy the right
+to reduce harder.**
+☠️ The corner is **purely additive** (−3 + −6 = −9 WAC observed −10; −1.6% + −12.9% = −14.5% observed
+−15.1%) ⇒ **no interaction**; ordering did not rescue aggression.
+▶️ **The thesis is not fully tested though:** `LMR_EXTRA` is a **blunt GLOBAL** reduction increase, applied
+even to moves history ranks confidently. The ordering-buys-pruning argument properly applies to
+**INDEX-KEYED** pruning (LMP), where better tail ordering directly changes what sits at index 12. **Untested
+— backlog.**
+
 ## Aggression × guard **Pair B — THESIS FALSIFIED, LANE CLOSED** (2026-07-30)
 
 `[lmr_guards]` counters added first (`pv_saves` / `killer_saves` / `capchain_skips` / `capchain_less`),

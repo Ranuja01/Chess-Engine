@@ -367,6 +367,12 @@ static long g_lmr_remdepth_ply_delta = 0; // signed sum of (new base - legacy ba
 static long g_corrhist_q_seen = 0;  // stand-pat evals the correction was applied to
 static long g_corrhist_q_flips = 0; // of those, where it moved the cutoff decision across its bound
 
+// Quiescence-cache store hygiene. These count values the search never produced being offered to a cache
+// that has no age field and is never cleared, so a bad entry outlives the move that created it.
+static long g_qcache_unsound_seen = 0;  // stores that were a timeout/node-limit abort or a repetition draw
+static long g_qcache_abort_stores = 0;  // of those, aborts (qSearch returned a bare 0)
+static long g_qcache_draw_stores = 0;   // of those, path-dependent repetition draws
+
 // Root-table coverage: how many entries the table carried, and how many of those held a score a search
 // actually proved. verified/slots is the headline mechanism number -- ~34% on the push_back path (only
 // searched moves get an entry), and expected near 100% once the table is pre-sized and kept.
@@ -1461,6 +1467,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CORR_HIST = env_flag("ENABLE_CORR_HIST", Config::ENABLE_CORR_HIST);
         Config::ENABLE_CORRHIST_QSEARCH = env_flag("ENABLE_CORRHIST_QSEARCH", Config::ENABLE_CORRHIST_QSEARCH);
         Config::DISABLE_QCACHE = env_flag("DISABLE_QCACHE", Config::DISABLE_QCACHE);
+        Config::QCACHE_SOUND_STORE = env_flag("QCACHE_SOUND_STORE", Config::QCACHE_SOUND_STORE);
         Config::CORR_SHIFT = env_int("CORR_SHIFT", Config::CORR_SHIFT);
         Config::CORR_MAX = env_int("CORR_MAX", Config::CORR_MAX);
         Config::CORR_W = env_int("CORR_W", Config::CORR_W);
@@ -2402,6 +2409,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " flips=" << g_corrhist_q_flips
               << " flip_pct=" << (g_corrhist_q_seen > 0 ? (100.0 * g_corrhist_q_flips / g_corrhist_q_seen) : 0.0) << "%"
               << std::endl;
+    std::cerr << "[qcache_hygiene] unsound_seen=" << g_qcache_unsound_seen
+              << " abort_stores=" << g_qcache_abort_stores
+              << " draw_stores=" << g_qcache_draw_stores << std::endl;
     std::cerr << "[root_table] slots=" << g_root_table_slots
               << " has_real=" << g_root_table_has_real
               << " evidence_pct=" << (g_root_table_slots > 0 ? (100.0 * g_root_table_has_real / g_root_table_slots) : 0.0)
@@ -7605,7 +7615,21 @@ inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint
     else
         flag = TTFlag::EXACT;
 
-    if (!Config::DISABLE_QCACHE)
+    // A fabricated abort value or a path-dependent draw must not be cached as an evaluation of the
+    // position (see QCACHE_SOUND_STORE). Counted unconditionally so the size of the leak is visible in
+    // the default build, where only the store itself is gated.
+    bool aborted = time_up.load(std::memory_order_relaxed);
+    bool path_draw = is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD);
+    if (aborted || path_draw)
+    {
+        ++g_qcache_unsound_seen;
+        if (aborted)
+            ++g_qcache_abort_stores;
+        if (path_draw)
+            ++g_qcache_draw_stores;
+    }
+
+    if (!Config::DISABLE_QCACHE && !(Config::QCACHE_SOUND_STORE && (aborted || path_draw)))
         addToQCache(zobrist, result, flag, current_state.castling_rights, current_state.ep_square);
 
     return result;

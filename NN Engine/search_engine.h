@@ -1360,6 +1360,16 @@ namespace Config
     // artifact. Turning this on isolates the correction's own value at a large cost in nodes; it is not
     // shippable. Default off = byte-identical.
     inline bool DISABLE_QCACHE = false;
+
+    // Refuse to store a quiescence result the search never actually produced. qSearch returns a bare 0 on
+    // three paths that are not evaluations: a timeout abort, a node-limit abort, and a repetition draw --
+    // and the last is a property of the PATH, not of the position. get_q_search_eval caches whatever comes
+    // back, tags it by comparison against the window, and the q-cache has no generation or age field and is
+    // never cleared, so a 0 stored during one move's timeout unwind is served as a real evaluation for the
+    // rest of the game. The main TT already refuses draws for this reason (ENABLE_TT_STORE_DRAW); the
+    // q-cache does not. Fixed-depth benches barely reach the timeout paths, so no bench we own can see this.
+    // Default off = byte-identical.
+    inline bool QCACHE_SOUND_STORE = false;
     inline int  CORR_SHIFT = 6;     // EMA learning rate = 1 / 2^CORR_SHIFT (higher = slower/steadier)
     inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
     inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)

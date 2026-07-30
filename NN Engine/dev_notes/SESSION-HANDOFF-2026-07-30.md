@@ -1,4 +1,80 @@
-# Session handoff — 2026-07-29 (overnight + morning + evening build)
+# Session handoff — 2026-07-29 → 07-30 (overnight campaign + the gravcap ship)
+
+---
+
+# 🏆 OUTCOME — `gravcap` SHIPPED, +33.0 Elo (2026-07-30)
+
+**Everything below this section is the road that led here; this is the current state.**
+
+## Committed on `NN-ENgine`
+| commit | what | fingerprint |
+|---|---|---|
+| **`6e26ffd`** | gated root-table + pruning infrastructure, all knobs default-off | **byte-identical** 249 / 38,840,709 / EBF 3.934 / STS 1662 |
+| **`5a8655e`** | gravcap shipped as default | 🚨 **NEW BASELINE 254 / 35,982,407 / EBF 3.820 / STS 1629** |
+
+🚨 **The old `249 / 38,840,709 / EBF 3.934 / STS 1662` is RETIRED and now MISLEADING** — it reproduces only
+with gravity + capture-history forced OFF. Check every future build against **254 / 35,982,407 / 3.820 /
+1629**. NPS unchanged (~468k, median-of-3), so the −7.4% nodes is not a speed artifact.
+
+## The win
+```
+ENABLE_HISTORY_SATURATION=1 ENABLE_HISTORY_MALUS=1 ENABLE_CAPTURE_HIST=1 \
+STATSCORE_OFFSET=0 STATSCORE_DIVISOR=683
+```
+**+506 −392 =305 over 1203 games = 54.74% ⇒ +33.0 Elo, 95% CI [+16.1, +50.1]** (`gate`, LIGHTNING, conc 4,
+tag `sprt_gravcap`). First search-lane win since qdelta.
+
+★ **Malus is a PRECONDITION, not a feature.** Without it history accumulates only bonuses, saturates, and
+stops discriminating — which is why every history CONSUMER previously measured null or inert (capture
+history "marginal", `ENABLE_HIST_PRUNE` literally inert, malus alone +10.9 ±36.6). ⚠️ The five values are
+**one atomic unit**: the statScore constants are re-derived from the post-gravity distribution, and keeping
+the old 512/1024 under gravity costs **−90 STS**.
+
+## ☠️ How it was nearly thrown away — the durable lesson
+| stage | verdict | reality |
+|---|---|---|
+| WAC / STS | +2 solves, −29 STS ⇒ "flat" | blind to it |
+| cploss tail screen, 1 run/side | "**+58% blunders — cancel the SPRT**" | **noise** |
+| baseline replicated ×4 | `rate>10%` = 5.3 / 4.9 / 6.7 / 6.5% | instrument can't resolve <2pp |
+| 1203 games | **+33.0 ±17 Elo** | ✅ |
+
+**Every bench either missed this or argued against it. Only games found it.** ⚠️ Also: the SPRT's LLR sat at
++2.06/2.944 while the point estimate was already +33 — at `elo1=5` the LLR crawls regardless of true
+strength. **Score the PGNs; set `elo1` 20-30 for a large expected effect.**
+
+## ✅ PHASE 1 PAIR A — RESULT (2026-07-30)
+Fire counters added (`[prune_pair]`: `lmp_fires` / `lmp_exempt_saves` / `hist_prune_fires`) **before** the
+2×2, which is what made it interpretable. Baseline `lmp_fires = 19,970,133`.
+
+★ **`ENABLE_HIST_PRUNE` is no longer inert.** It prunes on *very negative* butterfly history; bonus-only
+history never goes negative, so the condition was **unsatisfiable** — the mechanical reason for the old
+null. With malus: 4,794 fires at stock `COEF=512`, 78,744 at 128, 262,696 at 64/d6.
+
+★★ **The guard DOES rescue over-aggression** — coef64/d6 alone **247 / +1.0% nodes**; + guard@1000
+**250 / −1.2%**; guard + coef64/**d8** **251 / −3.3%** (best node result of the sweep). Aggression can be
+pushed FURTHER once something catches what it breaks. ⚠️ **Interaction, not addition:** each half's
+individually-best value combined (guard@1000 + coef128) was **worse than either alone** (247 / +2.9%).
+
+☠️ **But the threshold surface is CHAOTIC — no value is selectable.** `LMP_HIST_EXEMPT` 4000/1500/1000/250
+⇒ nodes **−0.8% / +4.3% / −2.8% / +6.3%**, i.e. 1500 is worse than BOTH neighbours, while
+`lmp_exempt_saves` rises monotonically. The mechanism scales smoothly; the outcome does not.
+⚠️ **Not measurement noise** — fixed-depth node counts are deterministic and will reproduce exactly. Only
+the **DIRECTION** survives; no point on the curve does.
+
+## ☠️ CORRECTED — the pre-search-off penalty
+The earlier "+24.5%" compared gravity-on-p-off against gravity-**OFF**-p-on (mixed baselines). Like-for-like,
+same config with the pre-search on vs off: **54.7% (pre-gravity) → 30.7% (gravcap) → 27.8% (+guards).**
+Removal still costs **8.5M nodes AND 10-14 solves** (that solve loss is *outside* the noise band).
+⇒ **Not reachable by accumulating small ordering wins:** ~24 points came from ONE structural change
+(malus); a whole guard sweep bought ~3.
+
+## ▶️ NEXT LANE (plan approved): aggression × guard PAIRS
+Guards here have only ever been tested at **baseline** aggression, where they cannot pay — a guard that
+prevents prunes which were fine just adds nodes and measures null by construction. Meanwhile the one
+aggression test without a guard (`LMR_EXTRA=2`) cost −55 Elo. **Both diagonals tested; never the corner.**
+All guards already exist default-off. **Pair A: `ENABLE_HIST_PRUNE` × `ENABLE_LMP_HIST_EXEMPT`** — gate on
+**fire counters** before spending games. Then the structural fix: `reduced_search_depth` keys on ITERATION
+depth, not the node's REMAINING depth (measured damage: wrong-reduction 1% at L1-L5 → 6.2% at L8).
 
 ---
 

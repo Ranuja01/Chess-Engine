@@ -346,6 +346,14 @@ static long g_root_lmr_researches = 0;
 // Counts the branch that ACTS, so g_root_lmr_reduced must fall by exactly this when the knob is enabled.
 static long g_root_lmr_exempt = 0;
 
+// Aggression x guard pair instrumentation (Pair A). A guard is only testable where it actually fires:
+// a correct guard over an EMPTY guarded set measures null by construction, which is how the root-LMR
+// best-move exemption wasted a build. g_lmp_exempt_saves is the decisive one -- it counts moves the
+// move-count prune WOULD have discarded and the history exemption rescued.
+static long g_lmp_fires = 0;           // LMP actually pruned a late quiet
+static long g_lmp_exempt_saves = 0;    // LMP would have pruned, but LMP_HIST_EXEMPT rescued the move
+static long g_hist_prune_fires = 0;    // history pruning discarded an ordering-condemned quiet
+
 // Root-table coverage: how many entries the table carried, and how many of those held a score a search
 // actually proved. verified/slots is the headline mechanism number -- ~34% on the push_back path (only
 // searched moves get an entry), and expected near 100% once the table is pre-sized and kept.
@@ -2362,6 +2370,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " pct=" << (g_razor_audit_iters > 0 ? (100.0 * g_razor_cut_winner / g_razor_audit_iters) : 0.0) << "%"
               << " avg_depth_past_razor=" << (g_razor_cut_winner > 0 ? (1.0 * g_razor_cut_depth_sum / g_razor_cut_winner) : 0.0)
               << std::endl;
+    std::cerr << "[prune_pair] lmp_fires=" << g_lmp_fires
+              << " lmp_exempt_saves=" << g_lmp_exempt_saves
+              << " exempt_pct=" << ((g_lmp_fires + g_lmp_exempt_saves) > 0
+                                        ? (100.0 * g_lmp_exempt_saves / (g_lmp_fires + g_lmp_exempt_saves))
+                                        : 0.0)
+              << " hist_prune_fires=" << g_hist_prune_fires << std::endl;
     std::cerr << "[root_table] slots=" << g_root_table_slots
               << " has_real=" << g_root_table_has_real
               << " evidence_pct=" << (g_root_table_slots > 0 ? (100.0 * g_root_table_has_real / g_root_table_slots) : 0.0)
@@ -3176,9 +3190,18 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
-                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd
-                        && !(Config::ENABLE_LMP_HIST_EXEMPT && historyHeuristics[current_state.turn][move.from_square][move.to_square] >= Config::LMP_HIST_EXEMPT))
+                    bool lmp_reached = rd >= 1 && rd <= Config::LMP_MAX_DEPTH
+                                       && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd;
+                    bool lmp_exempt = Config::ENABLE_LMP_HIST_EXEMPT
+                                      && historyHeuristics[current_state.turn][move.from_square][move.to_square]
+                                             >= Config::LMP_HIST_EXEMPT;
+                    // Count the guard where it ACTS: a move the move-count prune would have discarded and
+                    // the history exemption rescued. If this stays 0 the pair is untestable.
+                    if (lmp_reached && lmp_exempt)
+                        ++g_lmp_exempt_saves;
+                    if (lmp_reached && !lmp_exempt)
                     {
+                        ++g_lmp_fires;
                         if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                         {
                             g_in_shadow = true;
@@ -3197,7 +3220,10 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     int rd_hp = depth_limit - cur_depth;
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
+                    {
+                        ++g_hist_prune_fires;
                         return 9999999;
+                    }
                 }
 
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
@@ -3548,9 +3574,18 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
-                    if (rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd
-                        && !(Config::ENABLE_LMP_HIST_EXEMPT && historyHeuristics[current_state.turn][move.from_square][move.to_square] >= Config::LMP_HIST_EXEMPT))
+                    bool lmp_reached = rd >= 1 && rd <= Config::LMP_MAX_DEPTH
+                                       && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd;
+                    bool lmp_exempt = Config::ENABLE_LMP_HIST_EXEMPT
+                                      && historyHeuristics[current_state.turn][move.from_square][move.to_square]
+                                             >= Config::LMP_HIST_EXEMPT;
+                    // Count the guard where it ACTS: a move the move-count prune would have discarded and
+                    // the history exemption rescued. If this stays 0 the pair is untestable.
+                    if (lmp_reached && lmp_exempt)
+                        ++g_lmp_exempt_saves;
+                    if (lmp_reached && !lmp_exempt)
                     {
+                        ++g_lmp_fires;
                         if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                         {
                             g_in_shadow = true;
@@ -3569,7 +3604,10 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     int rd_hp = depth_limit - cur_depth;
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
+                    {
+                        ++g_hist_prune_fires;
                         return -9999999;
+                    }
                 }
 
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably

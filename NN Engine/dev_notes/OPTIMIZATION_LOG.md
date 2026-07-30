@@ -4,6 +4,55 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## `gravcap` — history gravity + capture history + recalibrated statScore — **SHIPPED, +33.0 Elo** (2026-07-30)
+
+Commits `6e26ffd` (gated infrastructure, byte-identical) then `5a8655e` (defaults flipped).
+**+506 −392 =305 over 1203 games = 54.74% ⇒ +33.0 Elo, 95% CI [+16.1, +50.1]** (`gate`, LIGHTNING, conc 4,
+tag `sprt_gravcap`). First search-lane win since the per-move qsearch futility fix.
+
+```
+ENABLE_HISTORY_SATURATION  false -> true      # saturating h += delta - h*|delta|/MAX_HISTORY
+ENABLE_HISTORY_MALUS       false -> true      # penalize quiets/captures tried-and-failed before the cutoff
+ENABLE_CAPTURE_HIST        false -> true
+STATSCORE_OFFSET           512   -> 0         # re-derived from the POST-gravity distribution
+STATSCORE_DIVISOR          1024  -> 683
+```
+
+★ **Malus is a PRECONDITION, not a feature.** Without it history accumulates only bonuses, saturates and
+stops discriminating — which is why every history CONSUMER had measured null or inert: capture history read
+"marginal" (+0.7 STS/+1 WAC), `ENABLE_HIST_PRUNE` was literally inert (it prunes on *negative* history,
+which a bonus-only table never produces), and malus alone scored +10.9 ±36.6. The whole machinery was built
+and wired at every cutoff site, gated off, for weeks — this was a measurement failure, not a missing feature.
+
+⚠️ The five values are **one atomic unit**: keeping the old 512/1024 constants under gravity costs **−90 STS**,
+because they grade QUIET moves and gravity changes the scale of every table statScore reads.
+
+**BASELINE CHANGE — old fingerprint RETIRED:**
+
+| | pre-gravcap | **post-gravcap (current)** |
+|---|---|---|
+| WAC | 249/300 | **254/300** |
+| nodes | 38,840,709 | **35,982,407** (−7.4%) |
+| EBF | 3.934 | **3.820** |
+| STS | 1662/3000 | **1629/3000** |
+
+NPS unchanged (467k → 468k, median-of-3), so the node cut is not a speed artifact; fixed-time depth
++0.10–0.16 ply. The pre-gravcap engine remains reachable and **verified reproducible** via
+`ENABLE_HISTORY_SATURATION=0 ENABLE_HISTORY_MALUS=0 ENABLE_CAPTURE_HIST=0 STATSCORE_OFFSET=512 STATSCORE_DIVISOR=1024`.
+
+### ☠️ Measurement post-mortem — every bench missed it or argued against it
+| stage | said | truth |
+|---|---|---|
+| WAC / STS | +2 solves, −29 STS ⇒ "flat" | blind to it |
+| cploss tail screen, **1 run per side** | "+58% blunders — **cancel the SPRT**" | **noise** |
+| same screen, baseline replicated ×4 | `rate>10%` = 5.3 / 4.9 / 6.7 / 6.5% | cannot resolve <2pp |
+| 1203 games | **+33.0 ±17 Elo** | ✅ |
+
+**Only games found it**, and it was nearly discarded twice. Two durable rules came out of this:
+**replicate the control in the same batch before believing any delta**, and **`elo1=5` makes SPRT LLR crawl
+regardless of true strength** — this run sat at LLR +2.06/2.944 while the point estimate was already +33, so
+score the PGNs directly and use `elo1` 20-30 when a large effect is expected.
+
 ## King-safety swap Phase A + detector-placement DISCONFIRMED (2026-06-27)
 After KPvK shipped, the campaign turned to the residual gap = `pieces`/placement VARIANCE (collapse term-
 attribution: passers=0.00, so NOT a passer hole; one under-modeled-king-safety under-read). **Detector-
@@ -279,3 +328,342 @@ The Phase B/C correctness items above are now all resolved (shipped / kept-off-w
 | A2b TT draw-cache (#4) | cache `score==0` | repetition/50-move draws path-dependent → unsafe to cache by zobrist; only stalemate (rare) safe ⇒ ~no benefit | **SKIPPED** (poor ROI) |
 
 **Meta:** the eval-CORRECTNESS lane is exhausted as a strength source (capgain/symup/pin all neutral-or-redundant; even a 17%-firing mirror-correct fix moved Elo ~0). **PIVOT → eval-SPEED** (compounds: cheaper eval → affordable speculatively-prune→verify → lower EBF → more depth) **+ ordering/NPS/FMC**. EBF ~3.4–4.6 vs ~2 optimal is the exponential depth lever; ordering is near-tapped (92% FMC) so the lever is **pruning/reduction aggressiveness**, which is gated on eval-speed.
+
+## BYTE-ID NPS LANE — MINED OUT (~+12% cumulative, all committed 2026-07-13)
+
+Lane 2 (make the SAME byte-identical eval/movegen faster → depth → fewer collapses; regression-immune since decisions unchanged). All shipped, each gated by `wac byteid_check` = **247/41,479,610** + median-of-3 `depth_nps_bench.py` (bench is ±5% noisy → medians):
+
+| Item | What | Result | Verdict |
+|---|---|---|---|
+| **movegen no-copy probe** (`7192005`) | `is_checkmate/is_stalemate` copied a `vector<Move>` by value just to test `.size()!=0`; replaced with `moveGenCacheHasMoves` (no-copy) | **+6.7% NPS**, byte-id 247 | SHIPPED |
+| **statScore-LMR** (`bd19bd5`) | committed the previously-uncommitted shipped continuous statScore-LMR (defined byte-id 247) | +23 Elo lightning SPRT / +33 node_ab | SHIPPED (the one real strength ship this session) |
+| scaffolding (`1082835`) | committed the gated default-off eval+search infra (threats/mobility/npedge/singular/probcut/otv/pawnKey) | byte-identical | SHIPPED |
+| **PAWNS tables + mailbox scatter** (`de80343`) | getPPIncrement span-loop → `passed_span` tables (existed unused); latent_support loop → `[is_white][sq]` table; `initializePieceValues` → branchless scatter | **~+3% NPS median**, byte-id 247 | SHIPPED |
+| **movegen blockers/checkers hoist** (`3adcee3`) | `processMaskPairs` recomputed king/`slider_blockers`/`attackersMask` 2×/gen-miss node; hoisted to once/gen | **+2.2% NPS median**, byte-id 247 | SHIPPED |
+| TT-prefetch in make_move | `ENABLE_TT_PREFETCH` + `prefetchSearchEvalCache` | +0.26% (noise) | BANKED default-off, uncommitted |
+| pieceTypeLookUp incremental-mailbox | measured the rebuild via new `PROF_INIT_PIECE_VALUES` term | only 2.2% of eval → not worth incremental surgery | STOPPED at measure-gate (scatter shipped instead) |
+
+**Killed pre-build (verify-first discipline):** latent_threat lazy-skip (presence term always fires + inner loops already no-op → not byte-id AND no savings); CAPTURE_GAINS skip (circular: `g_capg_tension` is the call's output); x-ray recompute (SCOUTED IRREDUCIBLE — already one composite magic lookup); SEE-cache (shelved, 8.7% hit); pawn-hash (impure: reads king via attackingLayer + non-pawn blockers + phase → not byte-id). Tools built: `diagnostics/depth_nps_bench.py`, `eval_profile_corpus.py` (+ `overnight_runner.sh build_profile`/`pyrun` subs).
+
+## LANE 3 (TT-rebuild/search-structure) — STRUCK; IIR the one survivor, tested NO-GO
+
+Two scouts + a code-grounded Fable re-consult DEFLATED Lane 3: verified TT-move is pre-captured (movegen cache already key-verifies + `promoteMoveToFront`s the cutoff move); eval-in-TT is minor (eval already cached in `evalCacheNew`); singular is already built+tested-NEUTRAL; negamax-fold's payoff evaporated with them. The one salvageable lever — **cache-miss-keyed IIR** (reduce depth 1 at movegen-cache-miss/first-visit nodes; `ENABLE_IIR`/`IIR_MIN_DEPTH` in min+max, byte-id 247 default-off): WAC sanity encouraging (−6.2% nodes, solves 248 vs 247) but **paired seed-1 gauntlet (LIGHTNING, vs SF18@400) = 49.8% IIR vs 52.7% baseline = −2.9%.** BANKED default-off. ⇒ **search-structure lane confirmed mined out.**
+
+## MILESTONE + the real eval hole (2026-07-13/14)
+
+**AlphaUX beat the 2705 chess.com Tal bot for the FIRST TIME EVER** (win by mate; build = current committed engine). SF11-grounded analysis of the game's slips (`selfplay/games/manual/first-tal-win-2026-07-13.pgn`; memory [[first-tal-bot-win]]) decomposed the ONE real eval hole cleanly (eval/pruning/depth): **25.Qxc5 = EVAL over-read, NOT pruning/depth** — our engine evals the clean Qxe4 endgame accurately (+5.10 ≈ SF +4.78) but over-reads the messy Qxc5 grab (+5.84 vs SF +3.52), so it backs the grab up as "better." **KEY: our eval is TRUSTWORTHY when simplified, OVER-OPTIMISTIC in messy positions** (where opponent counterplay/king-attack lives). Same as the systematic over-read in `overread_bench.csv` (2,172 sign-flip positions) — **already-tried-to-fix-and-FAILED via eval-magnitude damping** (static eval HELD permanently). **NEXT-CANDIDATE (un-tried mechanism): a GENTLE, conditional simplification/safety MOVE-bias when clearly ahead** (steers into the accurate-eval regime; a move-selection bias, NOT an eval-magnitude fix). DOUBLE-EDGED — Game 06-05 (draw) is the opposite failure (over-simplified into a draw), so it must be gated on "clearly ahead AND still winning after". Gauntlet-gated; treat as a fresh careful campaign.
+
+**Meta:** the strength picture after this session — search-structure levers exhausted (IIR NO-GO), byte-id NPS mined (~12% banked, modest ~+0.15 ply), eval-magnitude-damp dead. The remaining honest levers: (a) the simplification MOVE-bias (new mechanism, double-edged), (b) the LMR/pruning-margin SPSA tuning tail (expensive), (c) the ceiling (~3100-3300 classical; 2700→3000 doesn't need NNUE). The one clean strength ship this session was statScore-LMR (+23, now committed).
+
+## Imbalance term NO-GO + simplification MOVE-bias NO-GO (2026-07-14, overnight)
+Pursued the "eval accurate-when-simplified / over-optimistic-when-messy" hole from two angles, both offline-first.
+- **Diagnostics (single-core):** (1) STS themed baseline — the count-keyed SF-Imbalance term's target themes are ALREADY our strongest (Bishop-vs-Knight 65%, Recapturing 68% vs 51.6% avg); (2) collapse N-vs-B filter (`diagnostics/nvb_filter.py`) — only 4-11% of collapse slips are minor-trade decisions. ⇒ **count-keyed material-Imbalance term = NO-GO** (targets our strength, barely touches collapses; cancelled before building). Term-attribution (`diagnostics/slip_term_attrib.py`) had pinned the over-read to `pieces`/PST (77%), and the STS weak spot is **Offer-of-Simplification 42%** (a when-to-convert hole) → pivoted to the simplification MOVE-bias.
+- **Built + gauntletted (d) the simplification move-bias** (the line-305 next-candidate): gated `ENABLE_SIMPL_BIAS`/`SIMPL_AHEAD_THRESH`/`SIMPL_MARGIN` (search_engine.h), root-only exact-tie/near-tie argmax repoint in `alpha_beta` toward a non-pawn-trading move when clearly ahead (SIMPL_AHEAD_THRESH<best<mate). Pure argmax repoint (never touches best_score/alpha/tree) ⇒ **byte-id 247/41,479,610 holds OFF and ON** (mate-guarded; nodes identical). **Gauntlet A/B (fixed-node vs SF18@400, near-deterministic venue, 2 seeds × margins 0/300/750): pooled OFF 49.3% vs bias 48.4% = −0.9%, and collapses consistently UP (+1 s0, +4 s1) — the OPPOSITE of intent. NO-GO.** Thesis disproven: overriding the engine's best move toward a simplifying trade loses because that best move was, on average, correct (load-bearing optimism again). Knob left in code default-OFF, NOT committed.
+- **Verdict:** the eval/conversion lane resists a MOVE-selection fix too, not just eval-magnitude damps. The (c) SF-initiative aggregate term + the existing `realizability_factor` (REALIZ_MAT_K) damp remain untried at the gauntlet, but they are eval-magnitude changes with 2-3 uncalibrated params → must be OFFLINE-CALIBRATED + design-reviewed first (do NOT blind-gauntlet). Recommend tackling (c)/realizability offline-first together. Results detail: scratchpad `simplbias_gauntlet_results.md`.
+
+## SEARCH LANE: prune-verification methodology + RFP NO-GO + ordering-limited (2026-07-14 pt.3)
+Eval/conversion lane fully closed → pivoted to SEARCH ("lower EBF 3.68 → SF's ~1.5-2 without removing important
+nodes"). Full map: `dev_notes/search-ordering-pruning-map-2026-07-14.md`. Fable SF11-search audit + 3 code-audits:
+**we're NOT missing SF's machinery — it's built but keyed/gated/untuned** (contHist keyed from×to not piece×to;
+TT-move/2-ply-contHist/capture-hist/check-order parked default-off; decay/margins handpicked). LMR re-search
+is full-depth = SAFE (not the bug).
+- **METHODOLOGY WIN — prune-verification harness.** User raised the core problem: a black-box gauntlet NO-GO
+  conflates "genuinely low value" with "mis-integrated." Fix: judge each prune by MECHANISM — verify each fire
+  against a labeled corpus of its own mistakes. Built `ENABLE_PRUNE_LOG` logger (byte-id-safe) +
+  `diagnostics/prune_verify.py` (per-fire verification search, auto non-negamax POV calibration) +
+  `prune_discriminate.py` (AUC) + `prune_collect.py`. See memory [[prune-verification-methodology]].
+- **RFP conditioning = DEFINITIVE NO-GO (harness-verified).** The black-box pruning-A/B had fingered RFP
+  (reverse-futility) as the over-pruning culprit (RFP-off +7 WAC solves). The harness REFUTED it: RFP prunes
+  ~99.7% CORRECTLY on BOTH clean (WAC ~18k fires) and messy (`overread_bench` ~12.5k fires) corpora; the
+  eval-reliability discriminator is INVERTED (eval_instab AUC 0.18 — wrong prunes are in STABLE not messy
+  positions). The +7 was search-path CHURN, not blunders. **The harness caught a false lead before we built a
+  gate against a non-problem** — the whole point of the methodology.
+- **LMR push = ordering-limited.** `LMR_EXTRA` (reduce harder): WAC fixed-depth looked like headroom (−15% nodes,
+  accuracy held) but the equal-budget gauntlet was flat-to-NEGATIVE (LMR_EXTRA=3 pooled −4.9% over 2 seeds,
+  +collapses). **Pushing reduction causes blunders → our ordering can't safely support harder reduction.**
+- **CONCLUSION / NEXT:** the path to <3 EBF is the ORDERING FOUNDATION (compress the cutoff TAIL so the best move
+  isn't at ranks where pruning fires → unlock harder LMP/futility + steeper tail reduction). Highest-leverage
+  first step = re-key continuation history from×to → **piece×to** (SF keying), then turn-on/tune the parked
+  ordering signals + fail-high sibling malus/gravity + SPSA decay/margins. **Ordering changes can't hurt the MEAN
+  (only reorder the search) = the first low-risk lane all session** (no load-bearing-optimism trap). Pre-search
+  is a latent downstream lever (droppable if the foundation lands; needs rework, shelved). byte-id 247 preserved;
+  nothing committed; banked-uncommitted knobs: SIMPL_BIAS(off), ENABLE_PRUNE_LOG(off) + the diagnostics scripts.
+
+## ★ EVAL ARC MEASURED: +83 Elo (2026-07-25) — first tournament in weeks, and it is NOT flat
+
+**`tournament 300 "<former defaults>" 4 evalarc_2026_07_25`** — 620 games, LIGHTNING, equal clock, paired UHO,
+SF18-arbitrated, conc 4, OMP=1 both sides. p1 = current shipped defaults; p2 = the pre-upgrade set
+(`KS_ZONE_ATTACK_PCT=100 KAUFMAN_SCALE=0 ENABLE_CAPG_PIN=0 ENABLE_KS_REPLACE_LT=0 KS_SAFE_CHECK_DEF=3`).
+
+| | result |
+|---|---|
+| **base vs fast** | **+334 −188 =98 of 620 = 61.8% ⇒ Elo +83.4 ±32.1** |
+| as White / as Black | +169−96=45 (62.9%) / +165−92=53 (62.4%) — symmetric, no colour artifact |
+
+⇒ **the cumulative eval arc (KS v1 + DEF5 + Kaufman + CAPG_PIN + de-king) is worth ~+83 Elo**, CI entirely above
+zero. The revert config was **verified non-inert FIRST** (WAC 243/41,326,736 vs shipped 248/44,038,704), so this
+cannot be a silently-ignored-knob null ([[env-knob-name-verify]]). Commits: `8ca657d` (gated scaffolding, byte-id
+247/39,971,153) + `e02219e` (ship de-king, byte-id 248/44,038,704).
+
+### SF BENCH CEILING (first run of `diagnostics/sf_bench_ceiling.py`) — the missing frame
+Full 1500-position STS, same c8/c9 scoring, **depth 10 for every engine** (factors out SF's 5× NPS):
+
+| ours (pre) | ours (de-king) | SF11 | **SF15.1 classical** | SF15.1 NNUE | SF18 |
+|---|---|---|---|---|---|
+| 51.8% | **54.9%** | 65.5% | **73.3%** | 76.0% | 79.3% |
+
+⇒ **NNUE is worth only 2.7pp over SF15-classical, while SF11→SF15 classical is 7.8pp.** ~18pp of CLASSICAL
+headroom remains before NNUE is the relevant question — strong justification for continuing HCE work. It also
+frames de-king: +3.1pp against a 10.6pp gap to SF11 ≈ 29% of the distance to SF11 closed by one change.
+
+### EBF is INVARIANT to depth-local pruning — and the eval→EBF channel is DISCONFIRMED
+
+| lever | nodes | EBF | WAC |
+|---|---|---|---|
+| base | 44.04M | **3.667** | 248 |
+| `ENABLE_IMPROVING=1` | 37.77M (−14%) | 3.640 | 241 |
+| `RFP_MARGIN` 1000 / 2200 | 38.95M / 45.14M | 3.640 / 3.695 | 237 / 246 |
+| `LMR_EXTRA` 1 / 2 / 3 | 34.31M / 34.38M / 32.58M (−26%) | 3.626 / 3.617 / **3.604** | 239 / 238 / 231 |
+
+**A 26% node cut moves EBF by 0.063.** EBF = nodes(d)/nodes(d−1), so a prune firing ~uniformly across depths
+leaves the RATIO untouched — only savings that COMPOUND per-ply move it. Independently reconfirms the banked
+`collapse-campaign` result ("maxing ALL pruning only gets EBF 3.8→3.6"). Also: `RFP_MARGIN=1500` is already
+optimal (1000 and 2200 both worse) ⇒ **"free on/off" does NOT imply slack at the margin.**
+
+Same binary, same search, only `KS_ZONE_ATTACK_PCT` flipped:
+
+| | old eval (100) | new eval (50) |
+|---|---|---|
+| EBF | 3.656 | 3.667 |
+| first-move cutoff | 86.40% | 86.33% |
+| nodes | 39.97M | **44.04M (+10%)** |
+| WAC at `LMR_EXTRA=1` | 242 (−5) | 239 (−9) |
+
+The +83-Elo eval arc produced **no ordering gain, no EBF gain, and no gain in reduction safety.** Corollary worth
+keeping: part of our old "efficiency" was FAKE — an over-optimistic eval buys beta cutoffs that shouldn't happen,
+so a *more* accurate eval legitimately searches MORE nodes. **EBF is not purely a virtue metric.**
+
+**★ ROOT-CAUSE HYPOTHESIS (untested):** `reduced_search_depth` returns an ABSOLUTE target depth
+(`base = DEPTH_REDUCTION[depth_limit]` − `log2(move)/scale` − `LMR_EXTRA`) and **never reads `cur_depth`**;
+null-move does the same. Reduction is therefore front-loaded near the root and vanishes deeper, whereas
+SF/Ethereal reduce off REMAINING depth at every node (SF11 `reduction()`: `Reductions[d]*Reductions[mn]`,
+`Reductions[i] = 24.8*log(i)` — a function of remaining depth AND move number). This predicts all three symptoms:
+EBF cannot compound, `LMR_EXTRA` blunders (it eats the shallow region where lines resolve), and the 2026-07-14
+"ordering-limited" verdict may be a misdiagnosis of a reduction-SHAPE problem. Revised theory: **SF's low EBF is
+eval-enabled because SF's machinery CONVERTS eval accuracy into pruning** (corrhist, improving, per-move futility
+crediting the victim, depth-relative reduction, singular); our search barely reads the eval, so accuracy has no
+path to become depth.
+
+### Closed / corrected this session
+- **Root razoring is NOT SF razoring**: a root-only stale-score `break` (`max(300·0.75^(d−4), 100)`), saturated at
+  its floor by depth ~8. Five magic numbers are now knobs (`RAZOR_BASE_FIRST/FLOOR_FIRST/BASE/FLOOR/DECAY_PCT`).
+- **`ROOT_RAZOR_CONTINUE` is PROVABLY INERT** — the root list is sorted score-descending, so the razor condition
+  is monotone in the move index and `continue` skips exactly the set `break` does. Byte-identical, as predicted.
+- **`RAZOR_FLOOR=800` WITHDRAWN.** It scored WAC 249 / STS 1685 (base 248/1647) but the plateau check killed it:
+  600→1495, 1000→1481, 1400→1502 vs base 1647. An isolated spike in a DETERMINISTIC-but-chaotic metric (root
+  razoring perturbs which root moves are searched at all). Committing it would have fit the suite, not the engine.
+  **Always check the neighbourhood before shipping a swept knob.**
+- **Safe-check table (`ENABLE_KS_CHECK_V2`) is DEAD, unconfounded**: alone, at its default table (14/14/7/9) with
+  `KS_FLOOR=13` INTACT → **WAC 234 (−14) / STS 1481 (−166)**. The earlier −166 was never a floor-change artifact.
+  It was a corpus-fit selection, and **the corpus win%-MSE fit is now 5-for-5 bench-negative** (it also rejected
+  de-king 3×). Principle is sound (SF15 really does weight checks per-type); our port mis-scales SF's
+  quadratic-formula weights onto our linear knee-12 budget ⇒ park as **"principle sound, port wrong."**
+- **`ENABLE_CONT_HIST` correction**: the *tier path* is NOT dead code — it is the reachable else-branch of
+  `ENABLE_STATSCORE_LMR` and our only alternative LMR-history shape. Only `ENABLE_CONT_HIST`/`_2PLY`/
+  `CONT_HIST_LMR_THRESH` are dead under the shipped default. Delete-candidate WITHDRAWN.
+- **`ENABLE_PRUNE_SHADOW` verified REAL** (genuine shadow re-searches + enter%/cut% wrong-prune tallies,
+  deterministic 1-in-`SHADOW_N` sampler, nesting-suppressed) — but instrumented at **LMP and futility only, NOT
+  LMR**, and it is a live meter, not the offline record-once/sweep-many dataset previously assumed.
+- **`ENABLE_CAPG_REALIZ` is the IDENTITY function** (`REALIZ_MAT_K=0`, `REALIZ_PHASE_K=0`, `REALIZ_FLOOR=256`
+  ⇒ 256/256). It has never actually run. Worse, its material-backing signal is the one `6ac8855` already
+  disproved for KS ("does not separate phantom from real king attacks at scale") ⇒ it needs a DIFFERENT signal,
+  not merely opened knobs.
+- **Open eval item: passer V3 + `PASSER_RFLOOR_R5/R6`** (one feature + its fix). Categorical game WIN on the OLD
+  baseline (3 seeds, +2.8%, positional −10% all seeds) but bench-negative on the NEW one (WAC 245 vs 248, STS
+  1600 vs 1647) ⇒ likely OVERLAPS de-king (both cut the same over-read). Needs re-judging on the current baseline.
+
+## ★ SHIPPED: per-move qsearch futility = +53.8 Elo (2026-07-26) — `029f619` on `2487145`
+
+Replaces the node-level qsearch delta prune with SF's per-move form, which **credits the captured piece**:
+
+| | test | failure mode |
+|---|---|---|
+| old | `static_eval < alpha − DELTA_MARGIN` → **return** | skips EVERY capture at the node, incl. a hanging queen |
+| new | `static_eval + margin + victim <= alpha` → **continue** | a queen needs a ~10000-larger gap than a pawn ⇒ big captures protected by construction |
+
+**Game gate: 456 games** (LIGHTNING equal clock, paired UHO, SF18-arbitrated, conc 4, OMP=1 both sides) —
+base `+149 −219 =88` = **42.3%** ⇒ **candidate +53.8 ±37.5 Elo** (CI +16..+91), colour-symmetric (58.8% W /
+56.6% B). **Benches: WAC 248→249, STS 1647→1662, nodes 44,038,704→38,840,709 (−12%)** — better on all three axes.
+Margin **plateau**: 1500 and 2200 both give STS 1662; 400/800 prune too hard (243/247); 3000 degrades (1597).
+**NEW BYTE-ID REFERENCE: WAC 249 / 38,840,709.** `ENABLE_QDELTA_PERMOVE=0` reproduces 248/44,038,704 exactly.
+
+**★ It was UNREACHABLE for two sessions.** The guard tested `move.promotion == 0`, but `move_gen.h` pushes **1**
+for every NON-promotion (`:277,336,389`, comment "Else the move is not a promotion") and 2..5 for real ones.
+Instrumented: `moves=3,912,755 caps=3,848,782 promo=3,912,755` — promo == moves exactly. **Use `promotion <= 1`.**
+Two wrong diagnoses were published (dead mechanism, then wrong margin) before a fire counter settled it in ONE run.
+**Tell: identical node counts across a swept margin = UNREACHABLE code, not a mistuned threshold** (same
+fingerprint as `ENABLE_CONT_HIST`). `g_qdelta_permove_fires/_seen` are now permanent.
+
+**★ CALIBRATION — fixed-depth benches UNDER-measure soundness fixes.** WAC moved **+1 solve (inside noise)** for a
+change worth **~+54 Elo**, because a suite of forcing tactical positions rarely punishes "skipped every capture at
+this node". The pre-run forecast was "probably flat in games". Weight games heavily for qsearch/soundness work.
+
+**Capgains at stand-pat remains REQUIRED.** With the sound prune in place the `QSTANDPAT_EVAL_MODE=2` penalty
+**halves (−13 → −6 WAC)** — confirming capgains was partly masking the broken selection (fable's audit vindicated)
+— but the residual −6 WAC / **STS 1581 (−66)** shows it also does genuine **valuation** work at quiescent leaves.
+**Selection (which captures to search) and valuation (what the node is worth) are separate jobs.** The
+"cheaper eval" upside (capgains ≈13% of eval cost) stays closed.
+
+### Same session: the LMR lane measured cleanly and paid NOTHING (contrast)
+Built real LMR wrong-reduction measurement (`ENABLE_PRUNE_SHADOW` extended to the LMR drop site, node-type × level)
+and fixed `lmr_profile_event`, which applied one maximizer-oriented drop/cutoff test to both sides — min-node
+cutoffs were counted as drops, making the by-level rate alternate ~95%/~8% as a pure artifact.
+Baseline wrong-reduction **1.58%** (LMP 1.25%, futility 0.21%); **MAX nodes degrade with depth (L6 4.12%,
+L8 6.25%), MIN nodes flat ~1%**. Two fixes, both NO-GO: `LMR_REM_FLOOR_PCT` (inert where it mattered — at
+remaining depth 1 the percentage floors to zero) and `LMR_MIN_REM=4`, which removes the **entire L6+L8 population
+(~35% of ALL wrong reductions)** for WAC +1 / STS −8. ⇒ **our benches are insensitive to wrong-prune rates at this
+scale** (same shape as the July RFP null). **A correctly-diagnosed defect is not automatically an exploitable one.**
+
+### Cross-engine schedule study (`dev_notes/sf-pruning-schedules-comparison.md`, SF11/15/16/17/18 + Ethereal)
+Portability heuristic: **core expression invariant across versions ⇒ load-bearing ⇒ port** (the qsearch
+victim-credit above); **monotone trend ⇒ tracks a CAPABILITY ⇒ check we have it** (RFP depth cap `<6`→`<8`→`<11`→
+`<14`; **ours is 6 = SF11's**, and the growth plausibly tracks eval trust via NNUE+corrhist — inference, not
+stated in the source); **oscillating detail ⇒ don't chase**. ⚠️ **SF's razoring ≠ ours** — theirs is node-level
+"eval hopeless ⇒ drop to qsearch", ours is a root-only stale-score `break`; we may lack SF-style razoring entirely.
+Two cheap unported items: **RFP should return a value pulled toward beta** (SF16+ `(2*beta+eval)/3`; we return raw
+eval) and **`improving` belongs in the futility MARGIN** (SF11-era `217*(d − improving)`; ours only feeds LMR
+reduction). **Port FORMS, refit CONSTANTS** — SF15+ runs ~356–385 internal per displayed pawn while `PieceValue`
+in the same file uses 126–208, which is how the safe-check table died (WAC −14 / STS −166).
+
+## ⚖️ MEASUREMENT CRISIS + two NO-GO games (2026-07-26) — nothing shipped, but the selector question is now open
+
+**Overnight tournaments (both LIGHTNING equal clock, paired UHO, SF18-arbitrated, conc 4):**
+
+| arm | games | score | Elo |
+|---|---|---|---|
+| `ENABLE_HISTORY_MALUS` | 478 | 51.6% | **+10.9 ±36.6 — n.s.** |
+| `SEE_PRUNE_CAPTURES` (m=0) | 475 | 51.4% | **+9.5 ±36.7 — n.s.** |
+
+Neither ships. Both were selected on **equal-time STS gains of +107 and +93** — the largest we have ever recorded
+— and both converted to ≈ nothing. Contrast the qsearch prune shipped the day before: **+1 WAC / +15 STS ⇒ +53.8
+Elo.** Across three measured cases the bench↔games relation is near-INVERTED.
+
+**The ruler fix was real but insufficient.** Judging node-cutting changes at fixed depth IS wrong (it hands the
+savings back): malus read **STS −30 at d10 vs +107 at equal time**, capture-prune **−47 → +93**. Correcting that
+removed an ARTEFACT — it did not make STS predictive of Elo. ⇒ **do not ship on STS at any ruler.**
+
+**New instrument evaluated: `cploss_frozen`** (win%-loss of OUR move vs SF18 over a frozen stratified corpus;
+lower better; corpus path positional, SF judge cache config-independent, `--shard train|holdout` built in).
+⚠️ **Its own default is `PRESET=LONG_FORMAT MAX_DEPTH=<d>` = fixed depth, which INVERTED the sign on the known
++53.8 Elo qdelta ship** (32.18 vs 31.69). Re-run with `PRESET=LIGHTNING MAX_DEPTH=64` it gets that case right
+(30.49 vs 33.06). Against three known game outcomes it is **1-of-3**:
+
+| config | timed cploss vs default 30.49 | games |
+|---|---|---|
+| qdelta OFF | 33.06 (+2.57 worse ⇒ ≈ −54 Elo) | −53.8 Elo ✅ |
+| malus | 32.09 (+1.60 ⇒ ≈ −34 Elo) | +10.9 n.s. ❌ |
+| capture-prune | 34.15 (+3.66 ⇒ ≈ −77 Elo) | +9.5 n.s. ❌ |
+
+Not a resolution failure: −77 Elo ⇒ ~39% score, observed 51.4% over 475 games. **Hypothesis (untested): the
+corpus is FAILURE-BIASED** — built from collapse positions, i.e. sharp spots where extra pruning is most
+dangerous — so it over-penalises aggressive pruners, while flattering qdelta (a soundness fix, which helps most
+exactly there). ⇒ good detector of "did this fix our failures", poor detector of "is this better overall".
+
+**NEXT (critical path): mine a WIDE cploss corpus** from the ~2,000 recent games (`evalarc_2026_07_25` 620,
+`qdelta_pm1500` 456, `malus_night` 478, `spc_night` 475) plus the 33,683-game archive. In self-play **both sides
+are our engine**, so blunders by either colour are ours. Keep `stratum` separating broad-sample from
+mined-blunder; sample the DECISION POINT (before the blunder); mix in SF-opponent/deeper positions since
+LIGHTNING blunders are partly clock artifacts. Then re-score all four known configs — if the broad stratum calls
+malus/capture-prune flat while the collapse stratum keeps penalising them, the bias hypothesis is confirmed.
+
+**Other results this session:** RFP return-value blend toward beta (SF16+ form) = **NO-GO at every value**
+(worse on both benches, +7…+27% nodes) — it and `RFP_MAX_DEPTH=14` are both **gated behind corrhist**.
+`ENABLE_SEE_PRUNE` (quiets) NO-GO (STS −141, no node saving). **`ENABLE_HIST_PRUNE` is INERT** — it fires on
+`history < −COEF·rd` but history never goes negative without malus, which is off; that is the **third**
+unreachable-by-construction feature found in two days (after `ENABLE_CONT_HIST` and `ENABLE_QDELTA_PERMOVE`).
+**`ENABLE_CORR_HIST` already EXISTS** (`search_engine.cpp:3660`) but is applied at the **RFP site only** — SF
+applies the correction where `staticEval` is assigned, so everything downstream inherits it. Corrhist is
+therefore a RE-SITING job, not a build-from-scratch, and it now gates a cluster of other items.
+
+### ★★ The selector hunt (2026-07-26 pt.2): NO metric we have predicts Elo
+
+Built a **wide tiered corpus** (`diagnostics/build_cploss_wide.py`): **77,432 games** (126 annotated
+`tournament.pgn` self-play + 36,708 vs-SF `game_*.jsonl`) → 5.1M decision points → 4.29M unique → 9,000 sampled,
+3,000 each of **general / blunder / stable**. Tiers come from the ENGINE'S OWN eval trace (the PGNs are annotated
+`{ base +0.49/d10 }`), deliberately NOT from cploss — classifying by the metric that later scores it would inflate
+that tier by selection and hand every new config a regression-to-mean gain.
+
+Then scored the three configs whose game results we know, on BOTH corpora:
+
+| config | collapse (n=813) | wide (n=1500) | **GAMES** |
+|---|---|---|---|
+| default (qdelta ON) | 30.49 | 23.18 | — |
+| qdelta OFF | 33.06 worse ✅ | **22.01 better ❌** | **−53.8 Elo** |
+| malus | 32.09 worse ❌ | 21.84 better ✅ | +10.9 ±36.6 n.s. |
+| capture-prune | 34.15 worse ❌ | 22.44 better ✅ | +9.5 ±36.7 n.s. |
+
+**Each corpus calls a DIFFERENT subset right; neither predicts Elo.** Gaps are 2–12× the ~0.3 noise floor (timed
+scoring is nondeterministic — the same config measured 23.46 and 23.18), so these are real measurements: the
+instrument is **precise but not accurate for Elo**. Composition explains the split — the collapse corpus is
+tactical (rewards the soundness fix, punishes pruners), the wide corpus is quiet-dominated (rewards pruners
+buying depth, punishes a soundness fix that does nothing there).
+
+**★ LEADING HYPOTHESIS (untested): cploss and STS are MEAN metrics; Elo is TAIL-driven.** A game is decided by a
+few sharp moments, not average move quality. The qsearch prune stops RARE catastrophes — it barely moves any mean
+(WAC +1, cploss mean slightly worse) yet is worth +53.8 Elo; the pruners shave a little off many moves and buy
+depth (good mean, ~0 Elo). This explains all four known cases AND the earlier STS failure (+107/+93 STS ⇒ ~0 Elo).
+**Test: blunder RATE (loss > 5/10/20 win%) and p95 instead of the mean** — needs a per-position `--dump`, which
+`cploss_frozen` does not yet emit. Cheapest decisive check = default vs qdelta-OFF only.
+
+**Per-stratum (what the tiering bought):** both pruners improve `general` (24.07→22.07 malus) and `stable`
+(22.20→20.40/20.11) while doing **nothing or worse in `blunder`** (23.28→23.12 / +0.31) — depth pays off in quiet
+play, not where tactics dominate, which is exactly why the collapse corpus condemned them. Caveat: the blunder
+tier marks where we ONCE erred, not where we err NOW (re-searched fresh we mostly handle them), so the three tiers
+span only 1.9 points.
+
+**Tooling bugs found, both silent:** stratum names were hardcoded (`["collapse","sts","neutral","game"]`) so a
+corpus with other tier names printed NO breakdown — computed and dropped; and `--limit` takes a PREFIX, so
+tier-grouped rows would have made a limited run read one stratum only (rows are now interleaved).
+**Operational:** never edit a script while a job is executing it (bash reads incrementally; shifting offsets
+produced a phantom syntax error mid-run), and don't pipe long runs through `grep`/`tail` (buffering hides all
+progress until exit).
+
+### ★★★★ RESOLVED (2026-07-26 pt.3): fixed NODES + the TAIL. The MEAN is blind.
+
+**Ruler solved.** `PRESET=LONG_FORMAT NODE_LIMIT=250000 MAX_DEPTH=64` is **deterministic AND fair** — two runs of
+one config gave byte-identical output (23.82 / n=1477 / identical tail buckets). A leaner search reaches DEEPER
+inside a fixed node budget, so node-savers still convert their savings; and there is no clock variance.
+
+| ruler | deterministic | fair to node-savers |
+|---|---|---|
+| fixed DEPTH | ✅ | ❌ savings handed back |
+| fixed TIME | ❌ **σ≈1.0** (one config: 23.46 / 23.18 / 22.30) | ✅ |
+| **fixed NODES** | ✅ exact | ✅ |
+
+`node_ab` already used `NODE_LIMIT` for this reason; we never applied it to cploss. **⇒ every fixed-TIME cploss
+comparison from earlier today is VOID** — σ≈1.0 swamped the 0.7–1.3 gaps, and the qdelta comparison flipped SIGN
+between runs. The "wide corpus gets qdelta backwards" claim is retracted; it was noise, not a corpus property.
+
+**★★ And the MEAN carries ZERO signal for a +53.8 Elo change.** Default vs qdelta-OFF, deterministic:
+
+| | mean | rate>5% | rate>10% | **rate>20%** | **p99** |
+|---|---|---|---|---|---|
+| default | **23.82** | 14.6% | 5.1% | **0.5%** | **17.0** |
+| qdelta OFF | **23.82** | 14.1% | 5.1% | **0.8%** | **18.4** |
+
+qdelta-OFF is slightly BETTER on small errors and clearly WORSE on catastrophes; the two cancel exactly.
+**⇒ Elo is TAIL-driven while every metric we owned is MEAN-like.** Explains the whole week: STS +107/+93 ⇒ ~0 Elo,
+WAC +1 solve for a +54 Elo change, and cploss means flipping sign between corpora (average quality really does
+differ by corpus; Elo tracked the tail throughout). **SELECT ON `rate>20%` AND p99, NOT the mean.**
+⚠️ Thin: that bucket is ~7 vs 12 positions at n=1500. The `>5%`/`>10%` buckets carry mass and show NOTHING — the
+signal lives only where we have least data. **Run the full 9,000** (~45 vs ~70) before trusting a verdict.
+`cploss_frozen` now emits tail stats + an optional `--dump` of per-position losses so a finished run can be
+re-analysed at other thresholds without re-searching.
+
+**Idea backlog captured** in memory `ordering-and-reduction-idea-backlog`: static-table tiebreaker for history-0
+quiets (also usable as REDUCTION CONFIDENCE where history is thin — which is where our wrong-reductions cluster),
+ProbCut re-test (invariant SF11→18 + Ethereal; our 2.2-pawn margin vs SF's ~1.5 ⇒ likely too conservative),
+RankCut alpha-reset and Caissa depth-decay (1 knob each, opposite directions), SF11's `ttHitAverage` as precedent
+for a running reliability statistic feeding LMR. **MultiCut rejected** — absent from every reference engine.
+⚠️ Correction to this log's earlier claim: "ordering changes can't hurt the mean" is **false** — LMP prunes and
+LMR reduces by move INDEX, so a bad tiebreaker can get good moves pruned.

@@ -354,6 +354,15 @@ static long g_lmp_fires = 0;           // LMP actually pruned a late quiet
 static long g_lmp_exempt_saves = 0;    // LMP would have pruned, but LMP_HIST_EXEMPT rescued the move
 static long g_hist_prune_fires = 0;    // history pruning discarded an ordering-condemned quiet
 
+// Remaining-depth LMR instrumentation. Only touched when ENABLE_LMR_REMDEPTH is on, so the default build
+// pays nothing. less/more split the calls by which SIDE of the trade the re-indexing actually took at this
+// node -- the reason for the knob is that re-indexing alone reduces LESS almost everywhere, and a change
+// that only de-aggresses has already measured null here.
+static long g_lmr_remdepth_calls = 0;
+static long g_lmr_remdepth_less = 0;      // new base searches DEEPER than the iteration-depth constant
+static long g_lmr_remdepth_more = 0;      // new base searches SHALLOWER
+static long g_lmr_remdepth_ply_delta = 0; // signed sum of (new base - legacy base)
+
 // Root-table coverage: how many entries the table carried, and how many of those held a score a search
 // actually proved. verified/slots is the headline mechanism number -- ~34% on the push_back path (only
 // searched moves get an entry), and expected near 100% once the table is pre-sized and kept.
@@ -1108,6 +1117,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LMR_PROFILE = env_flag("LMR_PROFILE", false);
         Config::LMR_REM_FLOOR_PCT = env_int("LMR_REM_FLOOR_PCT", Config::LMR_REM_FLOOR_PCT);
         Config::LMR_MIN_REM = env_int("LMR_MIN_REM", Config::LMR_MIN_REM);
+        Config::ENABLE_LMR_REMDEPTH = env_flag("ENABLE_LMR_REMDEPTH", Config::ENABLE_LMR_REMDEPTH);
+        Config::LMR_REMDEPTH_SCALE = env_int("LMR_REMDEPTH_SCALE", Config::LMR_REMDEPTH_SCALE);
         Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", false);
         Config::PROTECT_PV = env_flag("PROTECT_PV", false);
         Config::PROTECT_MAX_IDX = env_int("PROTECT_MAX_IDX", Config::PROTECT_MAX_IDX);
@@ -2376,6 +2387,11 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                                         ? (100.0 * g_lmp_exempt_saves / (g_lmp_fires + g_lmp_exempt_saves))
                                         : 0.0)
               << " hist_prune_fires=" << g_hist_prune_fires << std::endl;
+    std::cerr << "[lmr_remdepth] calls=" << g_lmr_remdepth_calls
+              << " reduce_less=" << g_lmr_remdepth_less
+              << " reduce_more=" << g_lmr_remdepth_more
+              << " avg_ply_delta=" << (g_lmr_remdepth_calls > 0 ? (1.0 * g_lmr_remdepth_ply_delta / g_lmr_remdepth_calls) : 0.0)
+              << std::endl;
     std::cerr << "[root_table] slots=" << g_root_table_slots
               << " has_real=" << g_root_table_has_real
               << " evidence_pct=" << (g_root_table_slots > 0 ? (100.0 * g_root_table_has_real / g_root_table_slots) : 0.0)
@@ -6869,6 +6885,23 @@ inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relav
     // Adjust move number so 1 and 2 map to no reduction
     int adjusted_move = std::max(move_number - 2, 1);
     int base = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+
+    // Re-derive the base from the node's own remaining depth (see ENABLE_LMR_REMDEPTH). The same tuned
+    // curve supplies the reduction in plies, scaled, and is never allowed to consume the child's last ply.
+    if (Config::ENABLE_LMR_REMDEPTH)
+    {
+        int rem = std::clamp(depth_limit - cur_depth, 0, 63);
+        int red = (rem - Config::ACTIVE->DEPTH_REDUCTION[rem]) * Config::LMR_REMDEPTH_SCALE / 100;
+        red = std::clamp(red, 0, std::max(rem - 2, 0));
+        int remdepth_base = depth_limit - red;
+        ++g_lmr_remdepth_calls;
+        if (remdepth_base > base)
+            ++g_lmr_remdepth_less;
+        else if (remdepth_base < base)
+            ++g_lmr_remdepth_more;
+        g_lmr_remdepth_ply_delta += remdepth_base - base;
+        base = remdepth_base;
+    }
 
     int phase = 0;
     phase += 4 * __builtin_popcountll(current_state.queens);

@@ -275,6 +275,24 @@ namespace Config
     // Below this many remaining plies the move is searched unreduced. 0 = off = byte-identical.
     inline int LMR_MIN_REM = 0;
 
+    // Key the LMR reduction on the node's OWN remaining depth instead of the iteration depth.
+    // DEPTH_REDUCTION is a table of absolute target depths, so DEPTH_REDUCTION[D] implies a reduction of
+    // (D - DEPTH_REDUCTION[D]) plies; indexing it with depth_limit applies that one constant at every node
+    // of the iteration. Indexing it with the remaining depth instead reuses the same tuned curve where it
+    // was meant to apply, and collapses the reduction toward zero near the horizon the way SF's
+    // reductions[remaining] does. The clamp to rem-2 is part of the form, not a tuning choice: a reduction
+    // may never consume the child's last ply, which is the truncate-straight-into-qsearch case the
+    // prune-shadow measurement blamed for 4.1% (L6) / 6.2% (L8) wrong reductions.
+    // Default off = byte-identical.
+    inline bool ENABLE_LMR_REMDEPTH = false;
+
+    // Percent applied to the remaining-depth reduction. Re-indexing alone reduces LESS almost everywhere
+    // (at a depth-10 iteration the constant is 2 plies while the curve gives 1 below the root), and pure
+    // de-aggression is already known to pay nothing here -- LMR_MIN_REM=4 removed ~35% of all wrong
+    // reductions for WAC +1 / STS -8. This dial restores or exceeds the old aggression on top of the
+    // sounder shape, so the pair can be tested at the corner rather than only on the de-aggression side.
+    inline int LMR_REMDEPTH_SCALE = 100;
+
     // Margin for the PER-MOVE qsearch futility test (ENABLE_QDELTA_PERMOVE). It must be its own knob:
     // the node-level prune asks "is static_eval below alpha by more than DELTA_MARGIN", while the
     // per-move test asks "is static_eval below alpha by more than the margin PLUS the victim's value".

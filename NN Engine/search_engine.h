@@ -325,8 +325,14 @@ namespace Config
     // Measured node_ab: peak at OFFSET=512, DIVISOR=768-1024 (~+30 Elo); KILLER_BONUS added nothing.
     inline bool ENABLE_STATSCORE_LMR = true;  // SHIPPED 2026-07-08: +23 Elo lightning SPRT (906g) / +33 node_ab;
                                               // replaces the tiered HISTORY_LMR_CAP path (off = tiered, byte-id 245).
-    inline int STATSCORE_OFFSET = 512;        // re-centering offset (empirical; zero-history quiet -> delta 0)
-    inline int STATSCORE_DIVISOR = 1024;      // statScore units per ply; delta +1 at >=1536, +2 at >=2560 (top ~2-3%)
+    // SHIPPED 2026-07-30 with gravity (see ENABLE_HISTORY_SATURATION/MALUS): re-derived from the
+    // POST-GRAVITY statScore distribution via the ENABLE_STATSCORE_PROFILE sweep. The pre-gravity values
+    // were 512/1024; keeping them under gravity costs -90 STS, because the constants grade QUIET moves and
+    // gravity changes the scale of every table statScore reads.
+    // ⚠️ These are one atomic unit WITH gravity. Reverting gravity while leaving these (or vice versa)
+    // leaves the shipped statScore-LMR channel reading a distribution it was never fitted to.
+    inline int STATSCORE_OFFSET = 0;          // re-centering offset (empirical; zero-history quiet -> delta 0)
+    inline int STATSCORE_DIVISOR = 683;       // statScore units per ply
     inline int STATSCORE_CLAMP = 2;           // max |delta| plies applied to the reduction
     inline int STATSCORE_MAIN_W = 1;          // weight on main history in the statScore sum
     inline int STATSCORE_CONT1_W = 1;         // weight on 1-ply continuation history (counterMoveHeuristics)
@@ -564,7 +570,10 @@ namespace Config
 
     // Move-ordering experiments, each benched independently.
     inline bool ENABLE_CONT_HIST_2PLY = false; // 2-ply continuation history -- d10 LOSS at equal weight (WAC -3, +7% nodes); needs down-weight (b/4) + the bonus/malus rework before it's worth anything
-    inline bool ENABLE_CAPTURE_HIST = false;   // capture-history refinement -- marginal (+0.7 STS/+1 WAC but +2.6% nodes); knob, revisit after bonus/malus
+    inline bool ENABLE_CAPTURE_HIST = true;    // SHIPPED 2026-07-30 as part of gravcap (+33.0 Elo, 1203 games).
+                                               // Looked "marginal" pre-gravity (+0.7 STS/+1 WAC, +2.6% nodes) because
+                                               // capture history, like every history consumer, only discriminates once
+                                               // malus exists. Best single component on bench under gravity (254 WAC).
     inline bool ENABLE_CHECK_ORDER = false;    // direct-check bonus -- on the SCALE-OFF baseline it's -6 WAC for -9.8% nodes (accuracy traded for speed; bad at fixed depth). BONUS=6000 too hot -> recalibrate lower before re-enabling
     inline int CHECK_ORDER_BONUS = 6000;       // the flat quiet-check ordering bonus
     // TT best-move ordering: promote the transposition table's remembered cutoff move (TTEntry::move) when a
@@ -582,11 +591,15 @@ namespace Config
     // History gravity: replace the bonus-only `+= depth²` cutoff update with a saturating bonus/MALUS --
     // reward the move that cut off, penalize the quiets/captures tried-and-failed before it. Applies to
     // HH + 1-ply counter + cont2 + capture uniformly (bounds: MAX_HISTORY/CONT2_GRAVITY_DIV above).
-    // Default off = byte-identical (the existing += depth² path runs untouched).
     // Decomposed into two orthogonal knobs: SATURATION (bounded hist_update vs simple +=) and
     // MALUS (penalize searched-and-failed quiets/captures). gravity == SATURATION && MALUS.
-    inline bool ENABLE_HISTORY_SATURATION = false;
-    inline bool ENABLE_HISTORY_MALUS = false;
+    // SHIPPED 2026-07-30 as "gravcap" (+ ENABLE_CAPTURE_HIST + the recalibrated statScore constants):
+    // +33.0 Elo over 1203 games (+506 -392 =305, 95% CI [+16.1, +50.1]).
+    // ⚠️ Malus is a PRECONDITION, not a feature: without it history accumulates only bonuses, saturates and
+    // stops discriminating -- which is why every history CONSUMER (capture hist, hist-prune, statScore-LMR)
+    // measured null or inert before this landed. Set both off to recover the old bonus-only tree.
+    inline bool ENABLE_HISTORY_SATURATION = true;
+    inline bool ENABLE_HISTORY_MALUS = true;   // SHIPPED with SATURATION above (gravcap, +33.0 Elo)
     inline int MAX_HISTORY = 16384;     // gravity saturation bound (env-tunable for the sweep; bake the winner to constexpr for ship)
     inline int CONT2_GRAVITY_DIV = 4;   // 2-ply gravity down-weight divisor
     inline bool ENABLE_HISTORY_DECAY = true; // periodic >>=1 aging of history tables; off = saturation-only bounding (gravity tuning knob)

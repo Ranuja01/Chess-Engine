@@ -164,14 +164,6 @@ extern int contHist2[2][4096][4096];
 // the same root-relative frame; the correction is added to the node-entry static eval before RFP/null gates.
 // Gated by Config::ENABLE_CORR_HIST (off = never read or written = byte-identical). Phase-0 signal-verified
 // (pawn x maxbit, NET +3-4% held-out on quiet positions). See dev_notes/corrhist-feasibility-plan-2026-07-15.md.
-// Quiescence-cache hit composition by bound type. An EXACT hit reuses a value the stored search resolved
-// strictly inside its window; a LOWER/UPPER hit reuses a value produced under a DIFFERENT window, which
-// matters because qsearch is window-dependent (per-move delta pruning keys on alpha), so the stored value
-// is not what a fresh search in the current window would return.
-inline long g_qcache_hit_exact = 0;
-inline long g_qcache_hit_lower = 0;
-inline long g_qcache_hit_upper = 0;
-
 constexpr int CORR_SIZE = 16384;   // power of two -> index by & (CORR_SIZE-1)
 extern int pawnCorrHist[2][CORR_SIZE];
 
@@ -847,15 +839,14 @@ inline bool probeQCache(uint64_t key, uint64_t castling_rights, int ep_square, i
 	switch (entry.flag) {
 		case TTFlag::EXACT:
 			outScore = entry.score;
-			++g_qcache_hit_exact;
 			return true;
 		case TTFlag::LOWERBOUND:
 			if (Config::QCACHE_EXACT_ONLY) break;
-			if (entry.score >= beta) { outScore = entry.score; ++g_qcache_hit_lower; return true; }
+			if (entry.score >= beta) { outScore = entry.score; return true; }
 			break;
 		case TTFlag::UPPERBOUND:
 			if (Config::QCACHE_EXACT_ONLY) break;
-			if (entry.score <= alpha) { outScore = entry.score; ++g_qcache_hit_upper; return true; }
+			if (entry.score <= alpha) { outScore = entry.score; return true; }
 			break;
 	}
 	return false;

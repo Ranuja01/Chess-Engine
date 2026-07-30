@@ -346,40 +346,10 @@ static long g_root_lmr_researches = 0;
 // Counts the branch that ACTS, so g_root_lmr_reduced must fall by exactly this when the knob is enabled.
 static long g_root_lmr_exempt = 0;
 
-// Aggression x guard pair instrumentation (Pair A). A guard is only testable where it actually fires:
-// a correct guard over an EMPTY guarded set measures null by construction, which is how the root-LMR
-// best-move exemption wasted a build. g_lmp_exempt_saves is the decisive one -- it counts moves the
-// move-count prune WOULD have discarded and the history exemption rescued.
-static long g_lmp_fires = 0;           // LMP actually pruned a late quiet
-static long g_lmp_exempt_saves = 0;    // LMP would have pruned, but LMP_HIST_EXEMPT rescued the move
-static long g_hist_prune_fires = 0;    // history pruning discarded an ordering-condemned quiet
-
-// Remaining-depth LMR instrumentation. Only touched when ENABLE_LMR_REMDEPTH is on, so the default build
-// pays nothing. less/more split the calls by which SIDE of the trade the re-indexing actually took at this
-// node -- the reason for the knob is that re-indexing alone reduces LESS almost everywhere, and a change
-// that only de-aggresses has already measured null here.
-static long g_lmr_remdepth_calls = 0;
-static long g_lmr_remdepth_less = 0;      // new base searches DEEPER than the iteration-depth constant
-static long g_lmr_remdepth_more = 0;      // new base searches SHALLOWER
-static long g_lmr_remdepth_ply_delta = 0; // signed sum of (new base - legacy base)
-
-// LMR guard instrumentation (aggression x guard Pair B). Each counts the branch that ACTS -- a move the
-// reduction would otherwise have taken and the guard rescued -- so a guard sitting over an empty set is
-// visible as null rather than mistaken for a tuning miss. Only tick when the respective knob is on.
-static long g_guard_pv_saves = 0;        // PROTECT_PV kept an eligible move unreduced
-static long g_guard_killer_saves = 0;    // PROTECT_KILLERS/counter-move kept an eligible move unreduced
-static long g_guard_capchain_skips = 0;  // capture-chain HARD skip (CAPCHAIN_REDUCE_LESS == 0)
-static long g_guard_capchain_less = 0;   // capture-chain reduce-LESS actually moved the target depth
-
-// Correction history at the qsearch stand-pat. Only touched when ENABLE_CORRHIST_QSEARCH is on.
-static long g_corrhist_q_seen = 0;  // stand-pat evals the correction was applied to
-static long g_corrhist_q_flips = 0; // of those, where it moved the cutoff decision across its bound
-
-// Quiescence-cache store hygiene. These count values the search never produced being offered to a cache
-// that has no age field and is never cleared, so a bad entry outlives the move that created it.
-static long g_qcache_unsound_seen = 0;  // stores that were a timeout/node-limit abort or a repetition draw
-static long g_qcache_abort_stores = 0;  // of those, aborts (qSearch returned a bare 0)
-static long g_qcache_draw_stores = 0;   // of those, path-dependent repetition draws
+// NOTE: the 2026-07-30 diagnostic counters ([prune_pair], [lmr_remdepth], [lmr_guards], [corrhist_q],
+// [qcache_hygiene], [qcache_hits]) are deliberately NOT in this tree. They cost ~15% NPS at byte-identical
+// node counts via code layout under -Ofast -flto, not via executing the increments. Rebuild them from
+// git history (see the 2026-07-30 commits) when a diagnosis needs them, and never time that build.
 
 // Root-table coverage: how many entries the table carried, and how many of those held a score a search
 // actually proved. verified/slots is the headline mechanism number -- ~34% on the push_back path (only
@@ -2403,36 +2373,6 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " pct=" << (g_razor_audit_iters > 0 ? (100.0 * g_razor_cut_winner / g_razor_audit_iters) : 0.0) << "%"
               << " avg_depth_past_razor=" << (g_razor_cut_winner > 0 ? (1.0 * g_razor_cut_depth_sum / g_razor_cut_winner) : 0.0)
               << std::endl;
-    std::cerr << "[prune_pair] lmp_fires=" << g_lmp_fires
-              << " lmp_exempt_saves=" << g_lmp_exempt_saves
-              << " exempt_pct=" << ((g_lmp_fires + g_lmp_exempt_saves) > 0
-                                        ? (100.0 * g_lmp_exempt_saves / (g_lmp_fires + g_lmp_exempt_saves))
-                                        : 0.0)
-              << " hist_prune_fires=" << g_hist_prune_fires << std::endl;
-    std::cerr << "[lmr_guards] pv_saves=" << g_guard_pv_saves
-              << " killer_saves=" << g_guard_killer_saves
-              << " capchain_skips=" << g_guard_capchain_skips
-              << " capchain_less=" << g_guard_capchain_less << std::endl;
-    std::cerr << "[lmr_remdepth] calls=" << g_lmr_remdepth_calls
-              << " reduce_less=" << g_lmr_remdepth_less
-              << " reduce_more=" << g_lmr_remdepth_more
-              << " avg_ply_delta=" << (g_lmr_remdepth_calls > 0 ? (1.0 * g_lmr_remdepth_ply_delta / g_lmr_remdepth_calls) : 0.0)
-              << std::endl;
-    std::cerr << "[corrhist_q] seen=" << g_corrhist_q_seen
-              << " flips=" << g_corrhist_q_flips
-              << " flip_pct=" << (g_corrhist_q_seen > 0 ? (100.0 * g_corrhist_q_flips / g_corrhist_q_seen) : 0.0) << "%"
-              << std::endl;
-    {
-        long qhits = g_qcache_hit_exact + g_qcache_hit_lower + g_qcache_hit_upper;
-        std::cerr << "[qcache_hits] exact=" << g_qcache_hit_exact
-                  << " lower=" << g_qcache_hit_lower
-                  << " upper=" << g_qcache_hit_upper
-                  << " bound_pct=" << (qhits > 0 ? (100.0 * (g_qcache_hit_lower + g_qcache_hit_upper) / qhits) : 0.0) << "%"
-                  << std::endl;
-    }
-    std::cerr << "[qcache_hygiene] unsound_seen=" << g_qcache_unsound_seen
-              << " abort_stores=" << g_qcache_abort_stores
-              << " draw_stores=" << g_qcache_draw_stores << std::endl;
     std::cerr << "[root_table] slots=" << g_root_table_slots
               << " has_real=" << g_root_table_has_real
               << " evidence_pct=" << (g_root_table_slots > 0 ? (100.0 * g_root_table_has_real / g_root_table_slots) : 0.0)
@@ -3213,14 +3153,6 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 bool guard_pv = Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX;
                 bool guard_killer = Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move);
                 bool guard_capchain = Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH;
-                // Count each guard only where it ACTS -- on a move the reduction would otherwise have taken.
-                // A guard over an empty set measures null by construction, so these gate the whole pair test.
-                if (lmr_eligible)
-                {
-                    if (guard_pv)       ++g_guard_pv_saves;
-                    if (guard_killer)   ++g_guard_killer_saves;
-                    if (guard_capchain) ++g_guard_capchain_skips;
-                }
                 bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain;
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
@@ -3264,13 +3196,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     bool lmp_exempt = Config::ENABLE_LMP_HIST_EXEMPT
                                       && historyHeuristics[current_state.turn][move.from_square][move.to_square]
                                              >= Config::LMP_HIST_EXEMPT;
-                    // Count the guard where it ACTS: a move the move-count prune would have discarded and
-                    // the history exemption rescued. If this stays 0 the pair is untestable.
-                    if (lmp_reached && lmp_exempt)
-                        ++g_lmp_exempt_saves;
                     if (lmp_reached && !lmp_exempt)
                     {
-                        ++g_lmp_fires;
                         if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                         {
                             g_in_shadow = true;
@@ -3290,7 +3217,6 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
                     {
-                        ++g_hist_prune_fires;
                         return 9999999;
                     }
                 }
@@ -3364,14 +3290,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     // Capture-chain reduce-LESS: resolving a capture sequence -> search the quiet move
                     // closer to full depth so a forcing line is not buried by the reduction.
                     if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
-                    {
-                        // Counted only when the clamp actually moves the target, not merely when the
-                        // capture-chain condition holds -- at full depth the reduce-less is a no-op.
-                        int relaxed = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
-                        if (relaxed != reduced_depth)
-                            ++g_guard_capchain_less;
-                        reduced_depth = relaxed;
-                    }
+                        reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
                     // Where only a ply or two remains, a constant ply-reduction truncates the child
                     // straight into qsearch; search it honestly instead (see LMR_MIN_REM).
                     if (Config::LMR_MIN_REM > 0 && (depth_limit - cur_depth - 1) < Config::LMR_MIN_REM)
@@ -3616,14 +3535,6 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 bool guard_pv = Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX;
                 bool guard_killer = Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move);
                 bool guard_capchain = Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH;
-                // Count each guard only where it ACTS -- on a move the reduction would otherwise have taken.
-                // A guard over an empty set measures null by construction, so these gate the whole pair test.
-                if (lmr_eligible)
-                {
-                    if (guard_pv)       ++g_guard_pv_saves;
-                    if (guard_killer)   ++g_guard_killer_saves;
-                    if (guard_capchain) ++g_guard_capchain_skips;
-                }
                 bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain;
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
@@ -3667,13 +3578,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     bool lmp_exempt = Config::ENABLE_LMP_HIST_EXEMPT
                                       && historyHeuristics[current_state.turn][move.from_square][move.to_square]
                                              >= Config::LMP_HIST_EXEMPT;
-                    // Count the guard where it ACTS: a move the move-count prune would have discarded and
-                    // the history exemption rescued. If this stays 0 the pair is untestable.
-                    if (lmp_reached && lmp_exempt)
-                        ++g_lmp_exempt_saves;
                     if (lmp_reached && !lmp_exempt)
                     {
-                        ++g_lmp_fires;
                         if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                         {
                             g_in_shadow = true;
@@ -3693,7 +3599,6 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
                     {
-                        ++g_hist_prune_fires;
                         return -9999999;
                     }
                 }
@@ -3766,14 +3671,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     // Capture-chain reduce-LESS: resolving a capture sequence -> search the quiet move
                     // closer to full depth so a forcing line is not buried by the reduction.
                     if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
-                    {
-                        // Counted only when the clamp actually moves the target, not merely when the
-                        // capture-chain condition holds -- at full depth the reduce-less is a no-op.
-                        int relaxed = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
-                        if (relaxed != reduced_depth)
-                            ++g_guard_capchain_less;
-                        reduced_depth = relaxed;
-                    }
+                        reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
                     // Where only a ply or two remains, a constant ply-reduction truncates the child
                     // straight into qsearch; search it honestly instead (see LMR_MIN_REM).
                     if (Config::LMR_MIN_REM > 0 && (depth_limit - cur_depth - 1) < Config::LMR_MIN_REM)
@@ -6315,18 +6213,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
     int static_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
     if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
-    {
-        int raw_eval = static_eval;
         static_eval += corrhist_correction(current_state, is_maximizing ? 1 : 0);
-        // Count where the correction actually moved the stand-pat decision ACROSS its bound. Everything
-        // else is a value nudge that no consumer here can act on, so a large seen count with few flips
-        // means the correction is present but inert at this site.
-        ++g_corrhist_q_seen;
-        bool raw_cut = is_maximizing ? (raw_eval >= beta) : (raw_eval <= alpha);
-        bool corrected_cut = is_maximizing ? (static_eval >= beta) : (static_eval <= alpha);
-        if (raw_cut != corrected_cut)
-            ++g_corrhist_q_flips;
-    }
     if (is_maximizing)
     {
         if (static_eval >= beta)
@@ -6990,14 +6877,7 @@ inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relav
         int rem = std::clamp(depth_limit - cur_depth, 0, 63);
         int red = (rem - Config::ACTIVE->DEPTH_REDUCTION[rem]) * Config::LMR_REMDEPTH_SCALE / 100;
         red = std::clamp(red, 0, std::max(rem - 2, 0));
-        int remdepth_base = depth_limit - red;
-        ++g_lmr_remdepth_calls;
-        if (remdepth_base > base)
-            ++g_lmr_remdepth_less;
-        else if (remdepth_base < base)
-            ++g_lmr_remdepth_more;
-        g_lmr_remdepth_ply_delta += remdepth_base - base;
-        base = remdepth_base;
+        base = depth_limit - red;
     }
 
     int phase = 0;
@@ -7675,22 +7555,15 @@ inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint
         flag = TTFlag::EXACT;
 
     // A fabricated abort value or a path-dependent draw must not be cached as an evaluation of the
-    // position (see QCACHE_SOUND_STORE). Counted unconditionally so the size of the leak is visible in
-    // the default build, where only the store itself is gated.
-    bool aborted = time_up.load(std::memory_order_relaxed);
-    // qSearch returns a bare 0 on every path this guards, so a non-zero result cannot be one of them.
-    // Testing that first keeps is_repetition -- a hash lookup -- off the per-qsearch-entry hot path.
-    bool path_draw = (result == 0) && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD);
-    if (aborted || path_draw)
-    {
-        ++g_qcache_unsound_seen;
-        if (aborted)
-            ++g_qcache_abort_stores;
-        if (path_draw)
-            ++g_qcache_draw_stores;
-    }
+    // position (see QCACHE_SOUND_STORE). qSearch returns a bare 0 on every path this guards, so a
+    // non-zero result cannot be one of them -- testing that first keeps is_repetition, a hash lookup,
+    // off the per-qsearch-entry hot path.
+    bool unsound_store = Config::QCACHE_SOUND_STORE
+                         && (time_up.load(std::memory_order_relaxed)
+                             || (result == 0
+                                 && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD)));
 
-    if (!Config::DISABLE_QCACHE && !(Config::QCACHE_SOUND_STORE && (aborted || path_draw)))
+    if (!Config::DISABLE_QCACHE && !unsound_store)
         addToQCache(zobrist, result, flag, current_state.castling_rights, current_state.ep_square);
 
     return result;

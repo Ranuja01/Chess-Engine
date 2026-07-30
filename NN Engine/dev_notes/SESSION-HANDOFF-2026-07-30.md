@@ -56,17 +56,22 @@ regime.** ★ Same lesson as the depth artifact: **the REGIME is part of the con
 right, the cross-regime inference was wrong. ✅ **Discriminator to reuse: measure a change of the OPPOSITE
 KIND in both regimes.**
 
-## ✅✅ WHAT REPLACED IT — the q-cache is unsound-but-profitable, and must NOT be "fixed"
+## ☠️ SECOND RETRACTION — "unsound but profitable" was ALSO wrong; the q-cache is FINE
 | config | solves | nodes | q-cache hits |
 |---|---|---|---|
 | full cache | **254** | 35,982,407 | 1,457,574 (**99.5% bound**) |
 | `QCACHE_EXACT_ONLY=1` | 246 | 38,963,635 | 9,568 |
 | `DISABLE_QCACHE=1` | 246 | 38,451,470 | 0 |
 
-**Exact-only ≈ no cache ⇒ 100% of the value is CROSS-WINDOW BOUND REUSE**; a perfectly SOUND q-cache is
-worth **zero**. Root-razor shape. ⚠️ **Do not "fix" the bound reuse — it is the feature.** Also resolves the
-132-STS puzzle: the bound checking was never what made it work. (`TIME_LIMIT=600 s/move` ⇒ nothing
-truncates; my earlier truncation worry was wrong.)
+⚠️ **The bound reuse is CORRECT and STANDARD (same as SF).** ☠️ `QCACHE_EXACT_ONLY` was
+**near-tautological**: PVS runs most searches on a **null window** (`beta = alpha+1`) where **EXACT is
+impossible**, so the 99.5%/0.5% split is what theory predicts and I disabled the only path that can hit.
+☠️ **"A cache can't change fixed-depth results" is false** — every TT does. **254 → 246 is ordinary**, and
+the 132-STS cost is **not a puzzle**, just what removing a working TT costs.
+✅ **REAL gaps vs SF: no depth field, no age/generation, direct-mapped always-overwrite.** The missing
+generation is the same root cause as the poisoning bug — entries outlive their search with no way to prefer
+fresh ones. **That is the only genuinely actionable item here.**
+(`TIME_LIMIT=600 s/move` ⇒ nothing truncates; my earlier truncation worry was also wrong.)
 
 ## ~~★★ THE BEST UNCLAIMED LEAD — the q-cache MASKS eval work~~ (SUPERSEDED)
 Corrhist RFP-only is **flat with the cache on** (1630 vs 1629) and **+81 STS with it off** — while using

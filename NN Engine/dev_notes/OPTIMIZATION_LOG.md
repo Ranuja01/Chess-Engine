@@ -11,23 +11,37 @@ Knobs `QCACHE_EXACT_ONLY` + `[qcache_hits]` counters, default-off, byte-identica
 `TIME_LIMIT = 600 s/move` and the whole 300-position d10 run takes ~77 s, so **nothing truncates** — an
 earlier worry of mine that the no-cache regime was time-truncated was simply wrong.
 
-### ✅ What is established
+### Measurements
 | config | solves | nodes | q-cache hits |
 |---|---|---|---|
 | full cache | **254** | 35,982,407 | 1,457,574 (**99.5% bound**) |
 | `QCACHE_EXACT_ONLY=1` | **246** | 38,963,635 | 9,568 |
 | `DISABLE_QCACHE=1` | **246** | 38,451,470 | 0 |
 
-★ **The q-cache is not transparent** — at genuinely fixed depth a real cache cannot change results, and this
-one does (254 → 246).
-★★ **Exact-only is indistinguishable from no cache ⇒ 100% of its value is CROSS-WINDOW BOUND REUSE.** The
-EXACT path is 9,568 of ~1.46M hits and buys nothing. ⇒ **A perfectly SOUND q-cache would be worth ZERO
-here; the technically-unsound part IS the entire benefit** — the root-razor shape, **not fixable by making
-it correct.** ⚠️ **Do not "fix" the bound reuse; it is the feature.**
-Mechanism (inference, fits the data): qsearch is **window-dependent** (per-move delta pruning keys on
-`alpha`), so a value computed under a WIDE window explored more captures than a fresh narrow-window search
-would, and the cache carries those forward. This also **resolves the 132-STS puzzle**: removing a
-"bound-checked" cache costs quality because the bound checking was never what made it work.
+### ☠️ Do NOT read these as "unsound but profitable" — that reading was wrong
+⚠️ **The bound reuse is CORRECT and STANDARD, the same as SF.** `LOWERBOUND` means "true >= score", so
+returning it on `score >= beta` is a valid cutoff; `UPPERBOUND` on `score <= alpha` is a valid fail-low.
+☠️ **`QCACHE_EXACT_ONLY` is near-tautological.** PVS runs most searches on a **null window**
+(`beta = alpha + 1`), and no integer lies strictly between `alpha` and `alpha+1`, so **EXACT is impossible
+on a null-window search** — it can only arise from the minority of full-window calls. The 99.5% / 0.5%
+split is therefore **exactly what theory predicts**, and disabling bound reuse zeroed the cache because it
+disabled **the only path that can produce hits**.
+☠️ **"A real cache cannot change fixed-depth results" is also false** — every TT does, since a hit prunes a
+subtree and returns a stored bound instead of a fresh fail-soft value (this is why engines are not
+bit-reproducible across TT sizes). **254 → 246 on removal is ordinary**, and the 132-STS cost is **not a
+puzzle**: it is what removing a working TT costs.
+
+### ✅ Where the q-cache genuinely differs from SF
+| | ours | SF |
+|---|---|---|
+| depth field | **none** | stores depth, requires `entry.depth >= needed` (qsearch at `DEPTH_QS`) |
+| replacement | direct-mapped, always overwrite | 3-way bucket, depth + generation priority |
+| aging | **none, never cleared** | generation counter refreshed per search |
+| abort/draw stores | stored them (fixed, `19c1c21`) | refused |
+
+★ The missing **age/generation** field is the most interesting gap — same root cause as the poisoning bug:
+entries outlive the search that created them with no way to prefer fresh ones. The missing depth field is
+defensible, since every `get_q_search_eval` call enters at `qDepth = 0`.
 
 ### ☠️ RETRACTED — "the q-cache masks eval work"
 Measuring a **SEARCH** change in both regimes shows it is amplified as much as any eval change:

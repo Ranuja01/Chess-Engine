@@ -50,9 +50,11 @@ case "$cmd" in
     ;;
 
   wac)
-    # Fixed-depth tactical bench. Deterministic (book off). Prints solves + summed node count.
+    # Tactical bench, fixed-depth by default. Deterministic (book off). Prints solves + summed node count.
+    # Caller knobs come LAST so they can override the defaults -- with env, later assignments win. Passing
+    # them first silently discarded any PRESET/MAX_DEPTH override, which made fixed-time runs impossible.
     tag="${1:?tag required}"; shift || true
-    env "$@" MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
         "$PY" diagnostics/tactical_test.py wac.epd "$tag" > "/tmp/wac_${tag}.out" 2> "/tmp/wac_${tag}.err" || true
     echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/wac_${tag}.out" || echo "?"
     echo -n "NODES: ";  grep -hoP '\(nodes=\K[0-9]+' "/tmp/wac_${tag}.err" | awk '{s+=$1} END{print s+0}'
@@ -66,7 +68,7 @@ case "$cmd" in
   wac_timed)
     # Same as wac but wrapped in /usr/bin/time -v -> reports user-seconds + nps (the speed gate).
     tag="${1:?tag required}"; shift || true
-    /usr/bin/time -v env "$@" MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+    /usr/bin/time -v env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
         "$PY" diagnostics/tactical_test.py wac.epd "$tag" > "/tmp/wac_${tag}.out" 2> "/tmp/wac_${tag}.err" || true
     echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/wac_${tag}.out" || echo "?"
     nodes=$(grep -hoP '\(nodes=\K[0-9]+' "/tmp/wac_${tag}.err" | awk '{s+=$1} END{print s+0}')
@@ -78,9 +80,10 @@ case "$cmd" in
     ;;
 
   sts)
-    # Fixed-depth positional bench. Prints "STS score: X/3000 (Y%)".
+    # Positional bench, fixed-depth by default. Prints "STS score: X/3000 (Y%)".
+    # Caller knobs LAST so PRESET/MAX_DEPTH overrides actually take effect (see the wac sub).
     tag="${1:?tag required}"; shift || true
-    env "$@" MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
         "$PY" diagnostics/sts_test.py sts300.epd "$tag" 2>/dev/null | grep -E 'STS score' || echo "STS score: (none)"
     ;;
 
@@ -998,6 +1001,29 @@ PYEOF
         OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
         VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
         "$PY" diagnostics/cploss_frozen.py --depth "$jd" --limit "$lim" --shard "$sh"
+    ;;
+
+  cploss_corpus)
+    # cploss over an EXPLICIT corpus csv (fen,stratum). Same metric as cploss_frozen -- mean WDL win%-loss of OUR
+    # move vs the SF18 judge, per stratum + overall, lower is better -- but pointed at any corpus and defaulting
+    # to the TIMED ruler. cploss_frozen's own fixed-depth default INVERTS the sign on node-cutting changes (it
+    # ranked the shipped +53.8 Elo qsearch prune as worse), so PRESET=LIGHTNING/MAX_DEPTH=64 is the default here
+    # and a fixed depth must be asked for explicitly.
+    # <sample> draws a fresh RANDOM subset each run (0 = whole corpus); prefer it over <limit>, which always
+    # takes the same prefix and so can be overfit to by repeated measurement. One large judged corpus + random
+    # subsets = fresh positions every run with no extra SF cost (the cache is keyed by fen, not by file).
+    # Args: <corpus.csv> [our_max_depth=64] [judge_depth=12] [sample=0] [shard=all|train|holdout] [KEY=VAL...]
+    corpus="${1:?corpus csv required}"; shift || true
+    od="${1:-64}"; shift || true
+    jd="${1:-12}"; shift || true
+    samp="${1:-0}"; shift || true
+    shard="${1:-all}"; shift || true
+    seed="${1:-12345}"; shift || true      # same seed => same positions => configs are comparable
+    export STOCKFISH_PATH="$SF"
+    env PRESET=LIGHTNING MAX_DEPTH="$od" USE_OPENING_BOOK=0 "$@" \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+        "$PY" diagnostics/cploss_frozen.py "$corpus" --depth "$jd" --sample "$samp" --shard "$shard" --seed "$seed"
     ;;
 
   moves_dump)

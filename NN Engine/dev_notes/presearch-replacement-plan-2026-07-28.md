@@ -1,6 +1,209 @@
 # Root pre-search replacement — design plan (2026-07-28)
 
-**Status: PLAN ONLY. Nothing built.**
+**Status: superseded for sequencing by `SESSION-HANDOFF-2026-07-30.md`. `ENABLE_ROOT_TABLE` is now BUILT
+(2026-07-29) — see § BUILD LEDGER below.**
+
+---
+# § BUILD LEDGER — persistent root table (2026-07-29, uncommitted)
+
+Baseline byte-identity re-confirmed after **every** build: **249 / 38,840,709 / EBF 3.934**.
+
+## Knobs added
+`ROOT_LMR_EXEMPT_BEST` · `ENABLE_ROOT_TABLE` · `ROOT_RAZOR_MAX_AGE` (default 1). All default-off/inert.
+`RootScore` gained `prev_score`, `last_real`, `verified`, `age`; constants `ROOT_SCORE_UNPROVEN`,
+`ROOT_AGE_NEVER`; counters `[root_table]` (slots / has_real / evidence_pct / proven_this_iter /
+razor_stale_skips) and `g_root_lmr_exempt`.
+
+## What the table does
+Sized to the **full** root list before the loop, so every one of `alpha_beta`'s eight exits leaves a
+complete, index-consistent table instead of a truncated stump — **the full-length invariant became
+structural rather than a convention six sites had to uphold.** Entries are updated in place; nothing is
+cleared or pushed. Razoring now consults `last_real`/`age` rather than a positional `synthetic_from`
+cutoff, which is what makes skip-instead-of-break sound.
+
+| step | config | solves | nodes | evidence | verdict |
+|---|---|---|---|---|---|
+| A1 | `ROOT_LMR_EXEMPT_BEST=1` (no table) | 243 | 37,756,371 | — | ☠️ **INERT** — bit-identical to exemption off; ex-best sorts to index 0, below `MIN_IDX`, so the guarded set is empty |
+| B1 | table, store-only-verified | 252 | 45,450,867 (+17.0%) | 4.4% | ⚠️ razor starved (110,559 stale-skips) |
+| B2 | + `last_real` split, fail-soft kept | 243 | 42,648,321 (+9.8%) | **92.8%** | ✅ mechanism confirmed; nodes still above base |
+
+## Hybrid razoring arms (all with `ENABLE_ROOT_TABLE=1 ROOT_SORT_L1_LASTREAL=1`)
+
+| arm | solves | nodes | vs base | reduced | skipped |
+|---|---|---|---|---|---|
+| **baseline** | 249 | **38,840,709** | — | — | — |
+| L1 sort only, age 1 | 247 | 41,595,710 | **+7.1%** ← best nodes of any table arm | — | — |
+| hybrid, skip > 600 | **254** ← best solves ever | 43,915,144 | +13.1% | 6,909 | 58,460 |
+| hybrid, deep (B3/D150) | 250 | 44,205,186 | +13.8% | 46,576 | 0 |
+| hybrid, reduce everything | 248 | 44,093,560 | +13.5% | 46,974 | 0 |
+| hybrid, skip > 200 deep | 246 | 46,208,019 | +19.0% | 2,149 | 62,875 |
+| hybrid + pre-search OFF | 235 | 57,288,159 | +47.5% | 49,977 | 0 |
+| hybrid + p-off + deep | 241 | 55,549,863 | +43.0% | 47,238 | 0 |
+
+☠️ **`ROOT_RAZOR_TO_LMR` adds nodes BY CONSTRUCTION.** It was justified as converting full searches into
+reduced ones; it does not. The branch sits inside `if (razorable && razor fires)`, so it only touches moves
+that would otherwise have been **skipped** — converting cost 0 into cost>0. The `hybrid_reduced` /
+`hybrid_skipped` counters showed which bucket was being touched, which is why the error surfaced in one run.
+
+★ **Where the cost actually lives:** `razor_stale_skips` = **45k-58k moves per bench** whose evidence was too
+stale or too shallow to prune on, which therefore fell through to a **FULL-DEPTH search**. `ROOT_STALE_TO_LMR`
+reduces that bucket instead — the only branch in the design that can remove work rather than add it.
+
+## ★ Findings
+1. **Slot coverage vs score coverage.** "Ours 34%, SF 100%" was *slot* coverage. **SF's SCORE coverage is
+   ~3% too** — fail-soft PVS proves a value only for alpha-raisers. Slot coverage is the real defect and is
+   now 100%.
+2. **The pruning line is MEASURED vs FABRICATED, not proven vs unproven.** A fail-low is a real fail-soft
+   value; only fill values are fabricated. Porting SF's store-only-verified literally discarded legitimate
+   bounds and starved the razor. SF can afford that because **SF never razors at the root**; we do.
+3. **`ROOT_RAZOR_MAX_AGE` is now the live axis** — how many iterations a move may go unsearched and still
+   be razorable. This is the "reasonably recent score" dial.
+
+⚠️ Both solve deltas (+3, −6) are inside the **no-sign-information band** (<15 solves). Only nodes and
+coverage are decisive here; neither arm yet meets the shortlist rule (coverage high **and** nodes ≤ base).
+
+---
+# § EXECUTION LEDGER (2026-07-29)
+
+Baseline commit **`0f4edc8`**. Reference fingerprint: **249 solves / 38,840,709 nodes / EBF 3.934**,
+`presearch=16,051,978`. Byte-identity = solves+nodes reproducing exactly.
+
+| step | build | result | verdict |
+|---|---|---|---|
+| 0 baseline | — | 249 / 38,840,709 / EBF 3.934 · FMC 87.55% · presearch 16,051,978 · `[aspiration] windows=1499 fails=2256 fallbacks=235` | ✅ fingerprint reproduced |
+| 1 FMC region split | byte-id ✅ | **main FMC 86.14%** (1,046,431/1,214,868) · pre FMC 89.79% (689,666/768,109) · **pre = 38.7% of all cutoffs** | ✅ arithmetic self-check passes (1,214,868+768,109 = 1,982,977) |
+| 2 prefix/tail cross-tab | byte-id ✅ | **ALL prefix_pct = 29.93%** (4,803,075 prefix / 11,244,557 tail nodes) · **tail_frac = 92.87%** (160,945 of 173,301 root moves have NO previous entry) | 🚦 see GATE 1 below |
+| 2b list-1 sufficiency (quiet, d10, n=60 / 92 deep iters) | byte-id ✅ 249 / 38,840,709 | **FIRST** fed 9.58 / searched 13.68 / within 38.3% / overshoot 5.67 / head_kept 68.3% — **RETRY** fed 5.22 / searched 5.63 / within 65.6% / overshoot 1.72 / head_kept 62.5% · overshoot hist `0→44 1→6 2→0 3→8 4→7 5-7→8 8-15→11 16+→8` | ✅ **47.8% of deep iterations never leave list 1**; chunk 4 covers 70.7%, chunk 8 covers 79.3% |
+
+## ★ FINDING 2b — the retry starves the NEXT depth, and Step 9 is a measured prerequisite
+
+A retry searches only ~5.6 root moves, and the table a call leaves behind is whatever *it* searched. So the
+next depth's FIRST attempt inherits ~5.6 instead of ~13.7. The arithmetic closes: of 60 iterations, 32 had
+retries, so `(28 × 13.7 + 32 × 5.6) / 60 = 9.38` predicted against **9.58 measured**.
+
+⇒ **Persisting the last COMPLETED root table across widenings (Step 9) raises FIRST's fed prefix from 9.58
+toward the ~13.7 the search already demands**, which should collapse the `o8-15` (11) / `o16+` (8) tail —
+precisely the ~21% of iterations that would make a chunked lazy scheme expensive. This also explains the
+earlier oddity that short tables dominate FIRST calls rather than RETRY: the starvation propagates forward
+one iteration from where it is created.
+
+☠️ **Falsified here:** the prediction that a fail-high leaves a 1-2 entry stump and that retries would be
+the expensive case for laziness. Retries are fed 5.22 and search 5.63 — narrow but not degenerate, and they
+stay *within* their prefix more often (65.6%) than first attempts do (38.3%).
+
+⚠️ **Bench speed shifted between sessions:** `depth_nps_bench` now reports ~304k NPS reproducibly (two runs)
+vs 454,674 on 07-27 at *identical* median nodes (198,943). Counter conclusions are unaffected; **cross-session
+timed comparisons and any SPRT against a historically-calibrated baseline are void until reconciled.**
+
+## ★ FINDING 1 — the published FMC was inflated; the reference number is now 86.14%
+`g_fh_*` counted the pre-search's own subtree (it recurses into the real `maximizer`). Splitting by region:
+the **pre-search produces 38.7% of all cutoffs**, at a *higher* internal FMC (89.79%) than the main search's
+**86.14%**. Every prior ordering claim quoting 87.55% was measuring tester and testee together.
+⇒ **Use 86.14% as the ordering baseline from here on.**
+
+## 🚦 GATE 1 READING — 29.93%, the REDUCED-SCOPE band
+
+| cell | calls | prefix_pct (NODE share) | prefix/tail MOVES |
+|---|---|---|---|
+| FIRST len8+ (designated gate cell) | 283 | **31.67%** | 4,145 / 7,409 |
+| FIRST len3-7 | 437 | 14.70% | 1,925 / 15,043 |
+| FIRST len1-2 (6.6M nodes, the biggest block) | 1,070 | 6.14% | 1,336 / 40,670 |
+| RETRY len1-2 (most calls) | 1,718 | 70.42% | 2,281 / 66,552 |
+| RETRY len8+ | 100 | 91.34% | 1,409 / 2,813 |
+| **ALL** | — | **29.93%** | **tail_frac 92.87%** |
+
+⇒ **Ceiling on the subset scheme = 29.93% of the pre-search = ~12% of total nodes.** Per the gate that is the
+**25–50% band: proceed for fixed-node-bench value only; ~12% of nodes is invisible at ±23 Elo in games.**
+
+⚠️ **`prefix_pct` is a NODE share, not a move share.** Only ~7% of root moves are reusable, but they are the
+expensive ones (move 0's full window + re-searches), which is why they carry 30% of the nodes. A first
+reading of this table as move-share is wrong.
+
+## ★★ CORPUS CHECK — WAC inflates the stump rate, but the CEILING IS ROBUST
+
+The gate above was measured on WAC, a tactical suite. Re-measured on 60 quiet game positions
+(`depth_nps_bench.py` over the `cploss_corpus` game/neutral/collapse strata, `MAX_DEPTH=10`):
+
+| metric | WAC (tactical) | quiet game positions |
+|---|---|---|
+| aspiration fails per window | **1.50** | **0.60** |
+| `FIRST len1-2` calls (stumps) | 1,070 (dominant) | 140 |
+| `FIRST len8+` calls (healthy) | 283 | **164** (now the larger) |
+| `tail_frac` | 92.87% | **82.21%** |
+| `prefix_pct` ALL | 29.93% | **38.50%** |
+| `FIRST len8+` prefix_pct | 31.67% | **50.79%** |
+| main-only FMC | 86.14% | **82.03%** |
+| **pre-search share of ALL nodes** | **41.3%** | **26.5%** |
+
+⇒ **WAC inflates root fail-highs** (1.5 vs 0.60 per window), so stumps dominated there and healthy tables
+dominate in quiet play. On the designated gate cell the prefix share crosses the full-scope line
+(31.67% → **50.79%**).
+⇒ **BUT THE CEILING IS ESSENTIALLY THE SAME, because two effects cancel:**
+**WAC 29.93% × 41.3% = 12.4% of total nodes · quiet 38.50% × 26.5% = 10.2% of total nodes.**
+**The subset scheme is worth ~10-12% of total nodes on BOTH corpora.** Corpus-robust, not an artifact.
+
+⚠️ **`tail_frac` is still 82% in quiet play** — most root moves genuinely have no previous-iteration data.
+That was NOT a suite artifact. ⇒ the lever that could lift the ceiling past 10-12% is retaining **last
+iteration's PRE-SEARCH scores** for the tail (`alpha_beta` currently refills `previous_search_data` from
+main-search results only and discards them). Neither audit raised this; it is the owner's idea.
+⚠️ **Main FMC is LOWER in quiet positions (82.03%)** than on WAC (86.14%) — ordering is harder where there is
+no forcing answer, so ordering headroom in real games is larger than the WAC-derived figure suggested.
+
+## ★★★ ROOT CONSUMPTION — the decisive data set (2026-07-29)
+
+**How much of the root move list does the main search actually READ?** The pre-search scores every root
+move; anything beyond the consumed count is never looked at — not recomputation, pure waste.
+Measured with an RAII guard on all four `alpha_beta` return paths (a missed return would bias toward the
+completed case). Deep iterations only (`depth_limit >= 10`); byte-identity held at 249 / 38,840,709.
+
+| corpus / phase | avg root moves | **avg searched** | consumed | prefix | **best_in_prefix** |
+|---|---|---|---|---|---|
+| WAC OPEN/MID | 41.1 | **4.00** | 9.7% | 7.4% | 91.3% |
+| WAC ENDGAME | 31.2 | 3.62 | 11.6% | 8.9% | 89.7% |
+| WAC ADV_EG | 16.0 | 3.69 | 23.1% | 22.1% | 84.6% |
+| **QUIET OPEN/MID** | 35.1 | **11.83** | **33.7%** | 24.6% | **94.0%** |
+| QUIET ENDGAME | 21.0 | 2.11 | 10.1% | 13.2% | **100%** |
+
+⚠️ **WAC UNDER-REPRESENTS ROOT WIDTH BY ~3×.** Its forcing tactics cut the root loop early: ~4 moves
+searched vs **~12** in quiet play. The owner's own observation ("I generally see 10-20 moves searched")
+matches the QUIET column and falsified the WAC-derived reading. **Do not size this work from WAC.**
+⚠️ On WAC `avg_searched` is ~3.6-4.0 in EVERY phase — phase changes the denominator (list length), not the
+numerator. That pattern does NOT survive to quiet play, where OPEN/MID searches 11.8 and ENDGAME 2.1.
+
+### Revised prize (quiet OPEN/MID, where nearly all nodes are)
+Pre-search node split by phase (quiet): OPEN/MID prefix **38.4%** / tail 61.6% · ENDGAME prefix 42.8%.
+- **Reusable prefix** ≈ 38% of pre-search nodes → the SUBSET scheme (avoid re-deriving what we knew).
+- **Never read at all** ≈ 54% of pre-search nodes → the LAZY scheme (avoid deriving what we never look at).
+- **Complementary, not competing.** Combined ceiling ≈ 92% of pre-search nodes ≈ **24% of total nodes**.
+⇒ **Lazy generation is the larger half and was not in the original plan.** It is the owner's idea.
+
+### The safety number
+**`best_in_prefix` = 94.0% (quiet OPEN/MID), 100% (quiet endgame), 85-91% on WAC.** The move finally chosen
+is nearly always already inside the previous iteration's known set ⇒ deferring the TAIL's ordering rarely
+changes the outcome. This is what makes lazy generation low-risk.
+
+⚠️ **Unanswered and load-bearing:** are the ~12 searched moves the same ones the pre-search ranked top? If
+the pre-search's ordering is *why* they are the right twelve, removing it degrades the selection this whole
+argument rests on. Deferring scoring does NOT defer searching — the loop still walks the full list, so
+unscored moves fall back to heuristic ordering. **Needs the warming/ordering ablation before any build.**
+
+## ☠️ MECHANISM: two wrong calls, recorded so they are not repeated
+1. **"Aspiration stumps starve the prefix"** — the reason the cross-tab was built. Partly right, but the
+   cross-tab showed the starvation is worst on **FIRST** calls, not RETRY.
+2. **"Root razoring's `break` truncates the table"** — **FALSIFIED BY PROBE.** `ROOT_RAZOR_CONTINUE=1` is
+   **byte-identical**, counters included (`tail_frac=92.8702%` to the digit) ⇒ the razor branch never
+   executes. (Memory already recorded `ROOT_RAZOR_CONTINUE` as "provably inert"; it should have been checked
+   before an explanation was built on it.)
+3. **Current best candidate: the ROOT BETA CUTOFF** at `alpha_beta`'s root loop (`if (beta <= alpha)`), which
+   under a narrow aspiration window fires on a fail-high and ends the loop. **NOT asserted — needs a
+   loop-exit-reason counter before anyone relies on it.**
+
+**The gate number is mechanism-independent**, so the go/no-go decision does not wait on this.
+
+## ★ FINDING 2 — aspiration retries are common, not rare
+`windows=1499 fails=2256 fallbacks=235` — roughly **1.5 failed attempts per window**. The stump condition is
+a normal operating state, not a corner case, which is why the cross-tab (class × prev-table-length) was
+built before any gate was read.
 
 ---
 # ★★★ STAGE 1 MAP (2026-07-28) — the concrete, reduced version. Build from this.

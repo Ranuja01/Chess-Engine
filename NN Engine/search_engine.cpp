@@ -306,6 +306,135 @@ static long g_node_tt_stores = 0;
 // question the SF depth race raised: we need ~62x SF's nodes for the same nominal depth, and ~18x of that
 // is already present at shallow depth, so it is a fixed overhead rather than a growth-rate problem.
 static long g_presearch_nodes = 0;
+// Root moves whose ply-1 reply list is left EMPTY by a draw detected at cur_depth == 1. Both producers of a
+// RootScore return before filling it: minimizer's repetition/50-move return (out_entry) and pre_minimizer's
+// (pre_moves_list). alpha_beta then indexes scores[i].second_moves for every root move with no guard, so an
+// empty list is a latent defect masked only by the draw re-firing identically on the next iteration.
+static long g_draw_empty_ply1_min = 0;
+static long g_draw_empty_ply1_pre = 0;
+// Violations of reorder_legal_moves' documented contract that `scores` comes back full-length. Its two
+// time-up bailouts return the PREVIOUS table, whose scores can be short (razor break) or empty (first
+// iteration), while alpha_beta indexes scores[i] once per root move. Counted before deciding whether a
+// repair is needed at all.
+static long g_root_scores_short = 0;
+// Tail handling (PRESEARCH_TAIL_MODE): root moves past prev_len + PRESEARCH_CHUNK. g_tail_* count how many
+// were served each way, and g_razor_fires tracks the root-razor break -- the synthesised top_score used by
+// mode 2 feeds `alpha - scores[i].top_score > razor_threshold` directly, so the razor rate is the first
+// place a bad fill value shows up.
+static long g_tail_full = 0;
+static long g_tail_reduced = 0;
+static long g_tail_heuristic = 0;
+static long g_razor_fires = 0;
+// Root moves the pre-search skipped because the previous iteration already scored them
+// (ENABLE_PRESEARCH_SUBSET). Their pre-search RootScore is discarded by descending_sort_wrapper regardless.
+static long g_prefix_skipped = 0;
+
+// Root-razor SOUNDNESS audit. Within one iteration the razor can only discard low-scoring moves (the list
+// is score-sorted), so a same-iteration check is vacuous. The real question is across iterations: if
+// iteration k razors from index i onward, does iteration k+1 then pick a move that sat at index >= i in
+// iteration k's ordering? That is the razor throwing away the eventual winner. Reset per position.
+static std::vector<Move> g_prev_root_list;
+static int g_prev_razor_idx = -1;
+static long g_razor_audit_iters = 0;   // iterations preceded by a razoring iteration (denominator)
+static long g_razor_cut_winner = 0;    // ... whose chosen move had been razored away
+static long g_razor_cut_depth_sum = 0; // how far past the razor point the winner sat
+// Root LMR activity: moves given a reduced scout, and how many of those beat alpha and forced the
+// full-depth re-search. A high re-search rate means the reduction is too aggressive to be paying for itself.
+static long g_root_lmr_reduced = 0;
+static long g_root_lmr_researches = 0;
+// Reductions declined because the move was the previous iteration's best (SF's best_move_count exemption).
+// Counts the branch that ACTS, so g_root_lmr_reduced must fall by exactly this when the knob is enabled.
+static long g_root_lmr_exempt = 0;
+
+// Root-table coverage: how many entries the table carried, and how many of those held a score a search
+// actually proved. verified/slots is the headline mechanism number -- ~34% on the push_back path (only
+// searched moves get an entry), and expected near 100% once the table is pre-sized and kept.
+static long g_root_table_slots = 0;
+static long g_root_table_verified = 0;
+static long g_root_table_has_real = 0;
+// Razor decisions the recency guard declined: the entry existed but was a sentinel or too stale to prune on.
+static long g_root_razor_stale_skips = 0;
+// Hybrid razoring outcomes: hopeless moves still discarded vs suspect moves demoted to a reduced search.
+// Counted on the branch that ACTS, so reduced+skipped must equal the razor fires under the hybrid path.
+static long g_razor_hybrid_skipped = 0;
+static long g_razor_hybrid_reduced = 0;
+// Stale-but-suspect moves demoted from a full-depth search to a reduced one (ROOT_STALE_TO_LMR).
+static long g_razor_stale_reduced = 0;
+
+/*
+    Writes one root move's result into its persistent table slot.
+
+    SF stores a real value only when the move is the first searched or beats alpha; everything else becomes
+    -VALUE_INFINITE, a marker for "unproven this iteration" that keeps its prior position under a stable
+    sort and is never pruned on. The reply lists are search products either way, so they transfer even when
+    the score does not -- an entry with an empty second_moves would be indexed unguarded by the next
+    iteration.
+*/
+inline void root_table_store(RootScore &slot, int score, RootScore &&searched, bool proven, int searched_depth)
+{
+    if (!searched.second_moves.empty())
+        slot.second_moves = std::move(searched.second_moves);
+    if (!searched.second_scores.empty())
+        slot.second_scores = std::move(searched.second_scores);
+
+    // A fail-low score is MEASURED -- a real fail-soft value from a real search -- even though it proves
+    // only an upper bound. The line razoring must respect is measured vs FABRICATED, not proven vs
+    // unproven: the collapse cases all came from pruning on a fill value nothing ever searched. SF can
+    // discard its fail-lows because it never razors at the root; we do, so the value is kept here and the
+    // sort below still treats the move as unproven.
+    slot.last_real = score;
+    slot.last_real_depth = searched_depth;
+    slot.age = 0;
+
+    if (proven)
+    {
+        // SF's sort semantics: a real value only when the move is first or beat alpha, so that fail-lows
+        // sink to the sentinel block and keep their prior relative order under the stable sort.
+        slot.top_score = score;
+        slot.verified = true;
+        ++g_root_table_verified;
+    }
+    else
+    {
+        slot.top_score = ROOT_SCORE_UNPROVEN;
+        slot.verified = false;
+    }
+}
+
+/*
+    Records the razor-soundness comparison on every alpha_beta exit. The comparison must run at EXIT (the
+    chosen move is not known before then), and alpha_beta has eight returns, so a scope guard is used rather
+    than instrumenting each one -- a missed return would bias the audit toward the completed case.
+*/
+struct RootRazorAudit
+{
+    const Move &best;
+    const std::vector<Move> &cur_list;
+    const int &razor_idx;
+    ~RootRazorAudit()
+    {
+        if (g_prev_razor_idx >= 0 && !g_prev_root_list.empty())
+        {
+            ++g_razor_audit_iters;
+            for (size_t k = 0; k < g_prev_root_list.size(); ++k)
+            {
+                if (g_prev_root_list[k].from_square == best.from_square
+                    && g_prev_root_list[k].to_square == best.to_square
+                    && g_prev_root_list[k].promotion == best.promotion)
+                {
+                    if (static_cast<int>(k) >= g_prev_razor_idx)
+                    {
+                        ++g_razor_cut_winner;
+                        g_razor_cut_depth_sum += static_cast<int>(k) - g_prev_razor_idx;
+                    }
+                    break;
+                }
+            }
+        }
+        g_prev_root_list = cur_list;
+        g_prev_razor_idx = razor_idx;
+    }
+};
 // Phase-A qsearch ordering quality (diagnostic, cumulative across a run, like g_fh_*): cutoffs in the
 // NOT-IN-CHECK qsearch loop, the fraction on the first noisy move (qfmc), and the summed cutoff move-index
 // (qcut = avg index). Low qfmc / high qcut ⇒ a SEE re-sort of the noisy list should help.
@@ -1006,6 +1135,33 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CAPCHAIN_RUN_THRESH = env_int("CAPCHAIN_RUN_THRESH", Config::CAPCHAIN_RUN_THRESH);
         Config::ENABLE_LMP = env_flag("ENABLE_LMP", Config::ENABLE_LMP);
         Config::ROOT_PRESEARCH_REDUCTION = env_int("ROOT_PRESEARCH_REDUCTION", Config::ROOT_PRESEARCH_REDUCTION);
+        Config::ENABLE_ROOT_LMR = env_flag("ENABLE_ROOT_LMR", Config::ENABLE_ROOT_LMR);
+        Config::ROOT_LMR_MIN_IDX = env_int("ROOT_LMR_MIN_IDX", Config::ROOT_LMR_MIN_IDX);
+        Config::ROOT_LMR_BASE = env_int("ROOT_LMR_BASE", Config::ROOT_LMR_BASE);
+        Config::ROOT_LMR_DIV = env_int("ROOT_LMR_DIV", Config::ROOT_LMR_DIV);
+        Config::ROOT_LMR_EXEMPT_BEST = env_flag("ROOT_LMR_EXEMPT_BEST", Config::ROOT_LMR_EXEMPT_BEST);
+        Config::ENABLE_ROOT_TABLE = env_flag("ENABLE_ROOT_TABLE", Config::ENABLE_ROOT_TABLE);
+        Config::ROOT_RAZOR_MAX_AGE = env_int("ROOT_RAZOR_MAX_AGE", Config::ROOT_RAZOR_MAX_AGE);
+        if (Config::ROOT_RAZOR_MAX_AGE < 0) Config::ROOT_RAZOR_MAX_AGE = 0;
+        Config::ROOT_SORT_L2_LASTREAL = env_flag("ROOT_SORT_L2_LASTREAL", Config::ROOT_SORT_L2_LASTREAL);
+        Config::ROOT_SORT_L1_LASTREAL = env_flag("ROOT_SORT_L1_LASTREAL", Config::ROOT_SORT_L1_LASTREAL);
+        Config::ROOT_RAZOR_TO_LMR = env_flag("ROOT_RAZOR_TO_LMR", Config::ROOT_RAZOR_TO_LMR);
+        Config::ROOT_RAZOR_SKIP_MARGIN = env_int("ROOT_RAZOR_SKIP_MARGIN", Config::ROOT_RAZOR_SKIP_MARGIN);
+        Config::ROOT_RAZOR_LMR_BASE = env_int("ROOT_RAZOR_LMR_BASE", Config::ROOT_RAZOR_LMR_BASE);
+        Config::ROOT_RAZOR_LMR_DIV = env_int("ROOT_RAZOR_LMR_DIV", Config::ROOT_RAZOR_LMR_DIV);
+        if (Config::ROOT_RAZOR_LMR_DIV < 1) Config::ROOT_RAZOR_LMR_DIV = 1;
+        Config::ROOT_RAZOR_MAX_DEPTH_DEFICIT = env_int("ROOT_RAZOR_MAX_DEPTH_DEFICIT", Config::ROOT_RAZOR_MAX_DEPTH_DEFICIT);
+        Config::ROOT_STALE_TO_LMR = env_flag("ROOT_STALE_TO_LMR", Config::ROOT_STALE_TO_LMR);
+        Config::ROOT_STALE_LMR_BASE = env_int("ROOT_STALE_LMR_BASE", Config::ROOT_STALE_LMR_BASE);
+        Config::ROOT_STALE_LMR_DIV = env_int("ROOT_STALE_LMR_DIV", Config::ROOT_STALE_LMR_DIV);
+        if (Config::ROOT_STALE_LMR_DIV < 1) Config::ROOT_STALE_LMR_DIV = 1;
+        Config::ENABLE_ROOT_RAZOR = env_flag("ENABLE_ROOT_RAZOR", Config::ENABLE_ROOT_RAZOR);
+        Config::PRESEARCH_OFF_FROM_DEPTH = env_int("PRESEARCH_OFF_FROM_DEPTH", Config::PRESEARCH_OFF_FROM_DEPTH);
+        Config::ENABLE_PRESEARCH_SUBSET = env_flag("ENABLE_PRESEARCH_SUBSET", Config::ENABLE_PRESEARCH_SUBSET);
+        Config::PRESEARCH_SUBSET_ALPHA_MARGIN = env_int("PRESEARCH_SUBSET_ALPHA_MARGIN", Config::PRESEARCH_SUBSET_ALPHA_MARGIN);
+        Config::PRESEARCH_TAIL_MODE = env_int("PRESEARCH_TAIL_MODE", Config::PRESEARCH_TAIL_MODE);
+        Config::PRESEARCH_CHUNK = env_int("PRESEARCH_CHUNK", Config::PRESEARCH_CHUNK);
+        Config::PRESEARCH_TAIL_REDUCTION = env_int("PRESEARCH_TAIL_REDUCTION", Config::PRESEARCH_TAIL_REDUCTION);
         Config::ENABLE_ROOT_PRESEARCH = env_flag("ENABLE_ROOT_PRESEARCH", Config::ENABLE_ROOT_PRESEARCH);
         Config::ENABLE_SEE_PRUNE = env_flag("ENABLE_SEE_PRUNE", Config::ENABLE_SEE_PRUNE);
         Config::SEE_PRUNE_MARGIN = env_int("SEE_PRUNE_MARGIN", Config::SEE_PRUNE_MARGIN);
@@ -1300,6 +1456,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_QCHECK_FULL = env_flag("ENABLE_QCHECK_FULL", Config::ENABLE_QCHECK_FULL);
         Config::ENABLE_QCHECK_MASK_COMPARE = env_flag("ENABLE_QCHECK_MASK_COMPARE", Config::ENABLE_QCHECK_MASK_COMPARE);
         Config::ENABLE_NODE_TT = env_flag("ENABLE_NODE_TT", Config::ENABLE_NODE_TT);
+        Config::ENABLE_ROOT_SORT_SPLIT = env_flag("ENABLE_ROOT_SORT_SPLIT", Config::ENABLE_ROOT_SORT_SPLIT);
         Config::ENABLE_ITER_LOG = env_flag("ENABLE_ITER_LOG", Config::ENABLE_ITER_LOG);
         Config::ENABLE_STATIC_ORDER = env_flag("ENABLE_STATIC_ORDER", Config::ENABLE_STATIC_ORDER);
         Config::STATIC_ORDER_MODE = env_int("STATIC_ORDER_MODE", Config::STATIC_ORDER_MODE);
@@ -1665,6 +1822,27 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_QCHECK_FULL=" << Config::ENABLE_QCHECK_FULL
                   << " ENABLE_QCHECK_MASK_COMPARE=" << Config::ENABLE_QCHECK_MASK_COMPARE
                   << " ENABLE_NODE_TT=" << Config::ENABLE_NODE_TT
+                  << " ENABLE_ROOT_SORT_SPLIT=" << Config::ENABLE_ROOT_SORT_SPLIT
+                  << " ENABLE_ROOT_LMR=" << Config::ENABLE_ROOT_LMR
+                  << " ROOT_LMR_MIN_IDX=" << Config::ROOT_LMR_MIN_IDX
+                  << " ROOT_LMR_BASE=" << Config::ROOT_LMR_BASE
+                  << " ROOT_LMR_DIV=" << Config::ROOT_LMR_DIV
+                  << " ROOT_LMR_EXEMPT_BEST=" << Config::ROOT_LMR_EXEMPT_BEST
+                  << " ENABLE_ROOT_TABLE=" << Config::ENABLE_ROOT_TABLE
+                  << " ROOT_RAZOR_MAX_AGE=" << Config::ROOT_RAZOR_MAX_AGE
+                  << " ROOT_SORT_L2_LASTREAL=" << Config::ROOT_SORT_L2_LASTREAL
+                  << " ROOT_SORT_L1_LASTREAL=" << Config::ROOT_SORT_L1_LASTREAL
+                  << " ROOT_RAZOR_TO_LMR=" << Config::ROOT_RAZOR_TO_LMR
+                  << " ROOT_RAZOR_SKIP_MARGIN=" << Config::ROOT_RAZOR_SKIP_MARGIN
+                  << " ROOT_RAZOR_LMR_BASE=" << Config::ROOT_RAZOR_LMR_BASE
+                  << " ROOT_RAZOR_LMR_DIV=" << Config::ROOT_RAZOR_LMR_DIV
+                  << " ROOT_RAZOR_MAX_DEPTH_DEFICIT=" << Config::ROOT_RAZOR_MAX_DEPTH_DEFICIT
+                  << " ENABLE_ROOT_RAZOR=" << Config::ENABLE_ROOT_RAZOR
+                  << " PRESEARCH_OFF_FROM_DEPTH=" << Config::PRESEARCH_OFF_FROM_DEPTH
+                  << " ENABLE_PRESEARCH_SUBSET=" << Config::ENABLE_PRESEARCH_SUBSET
+                  << " PRESEARCH_TAIL_MODE=" << Config::PRESEARCH_TAIL_MODE
+                  << " PRESEARCH_CHUNK=" << Config::PRESEARCH_CHUNK
+                  << " PRESEARCH_TAIL_REDUCTION=" << Config::PRESEARCH_TAIL_REDUCTION
                   << " ENABLE_STATIC_ORDER=" << Config::ENABLE_STATIC_ORDER
                   << " STATIC_ORDER_MODE=" << Config::STATIC_ORDER_MODE
                   << " STATIC_ORDER_WEIGHT=" << Config::STATIC_ORDER_WEIGHT
@@ -1972,6 +2150,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     int beta = 9999999;
 
     SearchData preliminary_search_data;
+    // The razor audit compares consecutive iterations of the SAME search; carrying state across positions
+    // would compare a move list against an unrelated one.
+    g_prev_root_list.clear();
+    g_prev_razor_idx = -1;
     TimePoint search_start_time = Clock::now();
     TimePoint t0 = Clock::now();
 
@@ -2165,6 +2347,34 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     std::cerr << "[node_split] total=" << num_iterations
               << " qnodes=" << qsearchVisits
               << " presearch=" << g_presearch_nodes << std::endl;
+    std::cerr << "[draw_empty_ply1] minimizer=" << g_draw_empty_ply1_min
+              << " pre_minimizer=" << g_draw_empty_ply1_pre
+              << " root_scores_short=" << g_root_scores_short << std::endl;
+    std::cerr << "[tail_mode] mode=" << Config::PRESEARCH_TAIL_MODE
+              << " chunk=" << Config::PRESEARCH_CHUNK
+              << " full=" << g_tail_full
+              << " reduced=" << g_tail_reduced
+              << " heuristic=" << g_tail_heuristic
+              << " razor_fires=" << g_razor_fires
+              << " prefix_skipped=" << g_prefix_skipped << std::endl;
+    std::cerr << "[razor_audit] iters_after_razor=" << g_razor_audit_iters
+              << " winner_was_razored=" << g_razor_cut_winner
+              << " pct=" << (g_razor_audit_iters > 0 ? (100.0 * g_razor_cut_winner / g_razor_audit_iters) : 0.0) << "%"
+              << " avg_depth_past_razor=" << (g_razor_cut_winner > 0 ? (1.0 * g_razor_cut_depth_sum / g_razor_cut_winner) : 0.0)
+              << std::endl;
+    std::cerr << "[root_table] slots=" << g_root_table_slots
+              << " has_real=" << g_root_table_has_real
+              << " evidence_pct=" << (g_root_table_slots > 0 ? (100.0 * g_root_table_has_real / g_root_table_slots) : 0.0)
+              << " proven_this_iter=" << g_root_table_verified
+              << " razor_stale_skips=" << g_root_razor_stale_skips
+              << " hybrid_reduced=" << g_razor_hybrid_reduced
+              << " hybrid_skipped=" << g_razor_hybrid_skipped
+              << " stale_reduced=" << g_razor_stale_reduced << std::endl;
+    std::cerr << "[root_lmr] reduced=" << g_root_lmr_reduced
+              << " exempt_best=" << g_root_lmr_exempt
+              << " researches=" << g_root_lmr_researches
+              << " research_pct=" << (g_root_lmr_reduced > 0 ? (100.0 * g_root_lmr_researches / g_root_lmr_reduced) : 0.0)
+              << "%" << std::endl;
     if (Config::ENABLE_NODE_TT)
         std::cerr << "[node_tt] stores=" << g_node_tt_stores << std::endl;
     if (Config::ENABLE_STATIC_ORDER)
@@ -2275,6 +2485,20 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     int presearch_nodes_before = num_iterations;
     SearchData current_search_data = reorder_legal_moves(alpha, beta, depth_limit, t0, zobrist, previous_search_data, state_history, position_count, num_iterations);
     g_presearch_nodes += (long)(num_iterations - presearch_nodes_before);
+
+    if (current_search_data.scores.size() < current_search_data.moves_list.size())
+        ++g_root_scores_short;
+
+    int root_razor_idx = -1;
+    RootRazorAudit root_razor_audit{best_move, current_search_data.moves_list, root_razor_idx};
+    // Alpha as this call entered, before move 0 raises it. Root LMR delays reductions by one move while
+    // nothing has beaten it, which is SF's (rootNode && bestValue < alpha) term.
+    const int root_alpha_entry = alpha;
+    // The previous iteration's chosen root move. best_move is an in/out parameter carried across every
+    // iterative-deepening pass and every aspiration retry, so on entry it still holds the last winner --
+    // but the loop below overwrites it, hence the snapshot here. Approximates SF's
+    // `best_move_count(move) == 0` term, which exempts a recently-best root move from reduction.
+    const Move root_prev_best = best_move;
 
     std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0);
@@ -2412,8 +2636,45 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         razor_threshold += alpha - current_search_data.scores[0].top_score;
 
     previous_search_data.moves_list = current_search_data.moves_list;
-    entry.top_score = score;
-    previous_search_data.scores.push_back(std::move(entry));
+    if (Config::ENABLE_ROOT_TABLE)
+    {
+        // Size the table to the FULL root list before the loop runs. Every move gets an entry up front,
+        // so each of alpha_beta's eight exits leaves a complete, index-consistent table instead of a
+        // truncated stump -- the invariant becomes structural rather than a convention six sites uphold.
+        // Entries start unproven and inherit their incoming score as the second-level sort key.
+        size_t n_root = previous_search_data.moves_list.size();
+        previous_search_data.scores.assign(n_root, RootScore{});
+        for (size_t k = 0; k < n_root; ++k)
+        {
+            RootScore &slot = previous_search_data.scores[k];
+            bool had = k < current_search_data.scores.size();
+            slot.prev_score = had ? current_search_data.scores[k].top_score : ROOT_SCORE_UNPROVEN;
+            slot.top_score = ROOT_SCORE_UNPROVEN;
+            slot.verified = false;
+            // The last proven value survives an iteration that only failed low; only its age advances.
+            slot.last_real = had ? current_search_data.scores[k].last_real : ROOT_SCORE_UNPROVEN;
+            slot.last_real_depth = had ? current_search_data.scores[k].last_real_depth : 0;
+            slot.age = (had && current_search_data.scores[k].age < ROOT_AGE_NEVER)
+                           ? current_search_data.scores[k].age + 1
+                           : ROOT_AGE_NEVER;
+            // Keep a legal reply list on every entry: alpha_beta indexes second_moves unguarded.
+            if (had)
+                slot.second_moves = current_search_data.scores[k].second_moves;
+
+            // Evidence coverage: does this move have ANY proven score behind it, at any age? This is the
+            // number the lane is about -- the push_back table could only answer yes for moves searched in
+            // the immediately preceding iteration.
+            ++g_root_table_slots;
+            if (slot.last_real != ROOT_SCORE_UNPROVEN)
+                ++g_root_table_has_real;
+        }
+        root_table_store(previous_search_data.scores[0], score, std::move(entry), true, depth_limit);
+    }
+    else
+    {
+        entry.top_score = score;
+        previous_search_data.scores.push_back(std::move(entry));
+    }
 
     if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
         return score;
@@ -2422,19 +2683,116 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     {
         Move &move = current_search_data.moves_list[i];
 
+        // Plies removed because the razor judged this move suspect rather than hopeless (hybrid path).
+        // Combines with the index-keyed root LMR reduction below; the deeper of the two wins.
+        int razor_r = 0;
+
         // Razoring
         if (i < current_search_data.scores.size())
         {
-            int score_diff = alpha - current_search_data.scores[i].top_score;
+            // Under the table a fail-low entry carries a sentinel in top_score, so the razor must read the
+            // last PROVEN value instead -- differencing against the sentinel would clear any threshold and
+            // prune the whole tail on a number nothing measured.
+            int razor_ref = Config::ENABLE_ROOT_TABLE ? current_search_data.scores[i].last_real
+                                                      : current_search_data.scores[i].top_score;
+            int score_diff = alpha - razor_ref;
             // int best_diff = current_search_data.scores[0].top_score - current_search_data.scores[i].top_score;
 
-            if (Config::ENABLE_RAZORING && (score_diff > razor_threshold) && (alpha < 9000000))
+            // Never razor on a synthetic score: an unsearched move has NO score, which is not the same as a
+            // score of zero. Pruning on a value nothing measured is what collapsed the pre-search-off path
+            // to 57/300 -- with a winning alpha, `alpha - 0` clears the razor margin on move 1 and the root
+            // loop abandons everything after it.
+            // Under the table, "may I prune this?" is answered by the entry's own provenance rather than by
+            // a positional cutoff: a sentinel or a stale score is skipped, never razored. This is what makes
+            // ROOT_RAZOR_CONTINUE sound -- previously it wrote a sentinel that the NEXT iteration's razor
+            // read back as a real score, which is why it collapsed to 92/300.
+            bool razorable = i < current_search_data.synthetic_from;
+            if (Config::ENABLE_ROOT_TABLE)
             {
-                if (Config::ROOT_RAZOR_CONTINUE)
-                    continue;   // skip only this stale-low move; keep searching later moves (safety)
-                break;          // default: abandon all remaining root moves (byte-identical)
+                // Evidence test: a real score, recent enough, AND searched deep enough. The depth clause
+                // matters once reductions can write the table -- a score from a heavily reduced search is
+                // weak evidence, and treating it as full-depth is the "shallower overrides deeper" fault.
+                razorable = current_search_data.scores[i].last_real != ROOT_SCORE_UNPROVEN
+                            && current_search_data.scores[i].age <= Config::ROOT_RAZOR_MAX_AGE
+                            && current_search_data.scores[i].last_real_depth
+                                   >= depth_limit - Config::ROOT_RAZOR_MAX_DEPTH_DEFICIT;
+                if (!razorable && Config::ENABLE_RAZORING && Config::ENABLE_ROOT_RAZOR
+                    && (score_diff > razor_threshold) && (alpha < 9000000))
+                {
+                    ++g_root_razor_stale_skips;
+                    // This move looks bad but the evidence is too stale or too shallow to prune on. Paying
+                    // full depth for it is what makes the table expensive; reduce instead, and let the
+                    // re-search promote it if the reduction was wrong. The only branch here that removes
+                    // work rather than adding it.
+                    if (Config::ROOT_STALE_TO_LMR)
+                    {
+                        razor_r = Config::ROOT_STALE_LMR_BASE
+                                + (score_diff - razor_threshold) / std::max(1, Config::ROOT_STALE_LMR_DIV);
+                        razor_r = std::min(razor_r, depth_limit - 2);
+                        if (razor_r < 0)
+                            razor_r = 0;
+                        if (razor_r > 0)
+                            ++g_razor_stale_reduced;
+                    }
+                }
+            }
+            if (razorable
+                && Config::ENABLE_RAZORING && Config::ENABLE_ROOT_RAZOR && (score_diff > razor_threshold) && (alpha < 9000000))
+            {
+                ++g_razor_fires;
+                if (root_razor_idx < 0)
+                    root_razor_idx = static_cast<int>(i);
+                if (Config::ENABLE_ROOT_TABLE && Config::ROOT_RAZOR_TO_LMR)
+                {
+                    // Hybrid: skip only the hopeless, reduce the merely suspect. The razor's own deficit is
+                    // the reduction signal -- a MEASURED quantity, unlike the list index root LMR keys on,
+                    // which carries no score information inside the sentinel block.
+                    int over = score_diff - razor_threshold;
+                    if (Config::ROOT_RAZOR_SKIP_MARGIN > 0 && over > Config::ROOT_RAZOR_SKIP_MARGIN)
+                    {
+                        ++g_razor_hybrid_skipped;
+                        continue;
+                    }
+                    razor_r = Config::ROOT_RAZOR_LMR_BASE + over / std::max(1, Config::ROOT_RAZOR_LMR_DIV);
+                    razor_r = std::min(razor_r, depth_limit - 2);
+                    if (razor_r < 0)
+                        razor_r = 0;
+                    if (razor_r > 0)
+                        ++g_razor_hybrid_reduced;
+                }
+                else if (Config::ENABLE_ROOT_TABLE)
+                {
+                    // The slot already holds ROOT_SCORE_UNPROVEN with an inherited reply list and an aged
+                    // counter, so razoring needs no write at all -- skipping the move simply leaves it
+                    // unproven for this iteration. Nothing desyncs because the table is pre-sized.
+                    continue;
+                }
+                else if (Config::ROOT_RAZOR_CONTINUE)
+                {
+                    // Push a FRESH entry: scores must stay parallel with moves_list (skipping the push
+                    // desyncs them and aborts), and every entry must carry a non-empty legal reply list
+                    // because alpha_beta indexes second_moves unguarded -- reusing the loop's `entry` here
+                    // would push a moved-from husk with an empty list. SF's analogue: a root move that does
+                    // not beat alpha is stored as -VALUE_INFINITE, a sentinel for "unproven this iteration",
+                    // never a measured value, and keeps its prior position under a stable sort.
+                    RootScore razored;
+                    razored.top_score = -9999998;
+                    razored.second_moves = current_search_data.scores[i].second_moves;
+                    previous_search_data.scores.push_back(std::move(razored));
+                    continue;   // skip only this stale-low move; keep searching later moves
+                }
+                else
+                {
+                    break;      // default: abandon all remaining root moves (byte-identical)
+                }
+                // Hybrid path alone reaches here: razor_r is set and the move is searched reduced below.
             }
         }
+
+        // Alpha as this move's search begins. A scout that fails low proves only "not better than alpha",
+        // which is a bound rather than this move's value, so SF refuses to store it -- the table records a
+        // real score only when the search beat this threshold.
+        const int alpha_before_move = alpha;
 
         bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 
@@ -2463,13 +2821,73 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         make_move(state_history, position_count, move, zobrist, capture_move);
         // std::cout <<"EEE" << std::endl;
         RootScore entry;
-        score = minimizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+        // Root LMR: reduce the null-window scout for late root moves instead of abandoning them. Eligibility
+        // starts one move later while nothing has beaten the entry alpha, mirroring SF's
+        // `moveCount > 1 + rootNode + (rootNode && bestValue < alpha)`. A reduced scout that beats alpha is
+        // re-searched at FULL depth below, so a reduction can never by itself decide a root move.
+        int root_r = 0;
+        // Never reduce a move we have not measured. SF reduces by index in a list where EVERY root move
+        // carries a real score, so every reduction rests on evidence. When our table is incomplete the
+        // unscored moves are ordered by move_gen, which measures WORSE than arbitrary at the root -- so
+        // reducing them is reducing at random, and a good move that fails low at reduced depth is lost.
+        // Same rule as the razor guard: act on measurement, never on its absence.
+        // A move that was best last iteration has the strongest evidence in the table of being best again,
+        // so reducing it risks losing the very move the search is most likely to want. SF exempts it
+        // outright; we approximate with the immediately preceding iteration's winner.
+        bool root_lmr_exempt = Config::ROOT_LMR_EXEMPT_BEST
+                               && move.from_square == root_prev_best.from_square
+                               && move.to_square == root_prev_best.to_square
+                               && move.promotion == root_prev_best.promotion;
+        if (Config::ENABLE_ROOT_LMR && depth_limit >= 3 && i < current_search_data.synthetic_from
+            && !root_lmr_exempt)
+        {
+            int first_reduced = Config::ROOT_LMR_MIN_IDX + (best_score <= root_alpha_entry ? 1 : 0);
+            if (static_cast<int>(i) >= first_reduced)
+            {
+                root_r = Config::ROOT_LMR_BASE
+                       + (static_cast<int>(i) - first_reduced) / std::max(1, Config::ROOT_LMR_DIV);
+                root_r = std::min(root_r, depth_limit - 2);
+                if (root_r < 0)
+                    root_r = 0;
+            }
+        }
+        else if (root_lmr_exempt && Config::ENABLE_ROOT_LMR && depth_limit >= 3
+                 && i < current_search_data.synthetic_from
+                 && static_cast<int>(i) >= Config::ROOT_LMR_MIN_IDX + (best_score <= root_alpha_entry ? 1 : 0))
+        {
+            // Count only reductions the exemption actually declined. Below first_reduced the move would
+            // not have been reduced anyway, so counting those would overstate the exemption's reach.
+            ++g_root_lmr_exempt;
+        }
+        // The razor's score-deficit reduction and the index-keyed one measure different things; take the
+        // deeper rather than summing, so the two cannot compound into an unsound reduction.
+        if (razor_r > root_r)
+            root_r = razor_r;
+        if (root_r > 0)
+            ++g_root_lmr_reduced;
+
+        // Depth this move's kept score actually came from. Starts at the reduced depth and is promoted to
+        // full whenever a re-search supersedes the scout, so the table never records a shallow value as
+        // though it were deep.
+        int searched_depth = depth_limit - root_r;
+
+        score = minimizer(cur_depth + 1, depth_limit - root_r, alpha, alpha + 1, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+
+        // A reduced scout that beats alpha is unreliable -- redo it at full depth before deciding anything.
+        if (root_r > 0 && score > alpha)
+        {
+            ++g_root_lmr_researches;
+            searched_depth = depth_limit;
+            entry = RootScore{};
+            score = minimizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+        }
 
         // std::cout <<"FFF" << std::endl;
         //  If the score is within the window, re-search with full window. Discard the scout's entry first
         //  (this replaces the old second_level pop_backs) so the kept entry reflects the full-window search.
         if (alpha < score && score < beta)
         {
+            searched_depth = depth_limit;
             entry = RootScore{};
             score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
         }
@@ -2498,8 +2916,13 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         }
 
         zobrist = cur_hash;
-        entry.top_score = score;
-        previous_search_data.scores.push_back(std::move(entry));
+        if (Config::ENABLE_ROOT_TABLE)
+            root_table_store(previous_search_data.scores[i], score, std::move(entry), score > alpha_before_move, searched_depth);
+        else
+        {
+            entry.top_score = score;
+            previous_search_data.scores.push_back(std::move(entry));
+        }
 
         if (depth_limit >= 10)
         {
@@ -3551,6 +3974,16 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     {
         if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || current_state.halfmove_clock >= 100)
         {
+            ++g_draw_empty_ply1_min;
+            // alpha_beta indexes scores[i].second_moves for every root move with no bounds or emptiness
+            // guard, so this early return must not leave the ply-1 list empty. Carry the incoming list
+            // through; regenerate only when it is itself empty, which pre_minimizer's own draw return can
+            // produce. Masked today because the draw re-fires identically next iteration, but a persisted
+            // root table would carry the empty entry into a position where the draw no longer holds.
+            if (!second_level_moves_list.empty())
+                out_entry.second_moves = second_level_moves_list;
+            else
+                out_entry.second_moves = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
             is_draw = true;
             return 0;
         }
@@ -4922,7 +5355,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     return highest_score;
 }
 
-SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint &t0, uint64_t zobrist, SearchData previous_search_data, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, int &num_iterations)
+SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimePoint &t0, uint64_t zobrist, const SearchData &previous_search_data, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, int &num_iterations)
 {
 
     increment_node_count_with_decay(num_iterations);
@@ -4962,7 +5395,10 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
     // scores vector must stay full-length (alpha_beta indexes second_moves per root move) — so heuristic-fill
     // any move the previous iteration razored away (its scores vector is shorter than moves_list), and all
     // moves on the first iteration. second_scores may be empty (ascending_sort only needs moves >= scores).
-    if (!Config::ENABLE_ROOT_PRESEARCH)
+    const bool presearch_active = Config::ENABLE_ROOT_PRESEARCH
+                                  && (Config::PRESEARCH_OFF_FROM_DEPTH <= 0
+                                      || depth_limit < Config::PRESEARCH_OFF_FROM_DEPTH);
+    if (!presearch_active)
     {
         SearchData rd;
         rd.moves_list = moves_list;
@@ -4970,8 +5406,18 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
                            ? 0
                            : std::min(previous_search_data.scores.size(), moves_list.size());
         rd.scores.reserve(moves_list.size());
+        int off_floor = 0;
+        bool have_off_floor = false;
         for (size_t i = 0; i < reuse; ++i)
+        {
             rd.scores.push_back(previous_search_data.scores[i]);
+            int s = previous_search_data.scores[i].top_score;
+            if (!have_off_floor || s < off_floor)
+            {
+                off_floor = s;
+                have_off_floor = true;
+            }
+        }
         for (size_t i = reuse; i < moves_list.size(); ++i)
         {
             Move &move = moves_list[i];
@@ -4984,12 +5430,20 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
                                      move.promotion);
             make_move(state_history, position_count, move, zobrist, cap);
             RootScore rs;
-            rs.top_score = 0;
+            // Rank an unscored move at the WORST real score we hold, never at 0. Zero means "equal
+            // material", so in any position we are behind it sorts every unknown move ABOVE every known one
+            // -- we would try the moves we know least about first, exactly when losing. It also makes
+            // alpha - top_score enormous, which is what razors the whole root loop away (the historical
+            // "57/300 collapse" attributed to this path). Falls back to 0 only when nothing is known yet.
+            rs.top_score = have_off_floor ? off_floor : 0;
             rs.second_moves = buildMoveListFromReordered(state_history, zobrist, 1, move);   // copies out of g_moveBuf[1]
             rd.scores.push_back(std::move(rs));
             unmake_move(state_history, position_count, zobrist);
             zobrist = cur_hash;
         }
+        // Everything from `reuse` on carries a synthetic score. This path does NOT sort, so the boundary
+        // survives to alpha_beta unchanged and root razoring can skip exactly those entries.
+        rd.synthetic_from = reuse;
         dbg_searchdata("reorder_legal_moves(no-presearch)", rd);
         return rd;
     }
@@ -5017,6 +5471,28 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
 
     make_move(state_history, position_count, moves_list[0], zobrist, capture_move);
 
+    // Boundary between list 1 (root moves the previous iteration left a real score for) and list 2 (the
+    // tail). Move 0 is always searched in full: it seeds alpha for every scout below.
+    const size_t presearch_prev_len = previous_search_data.scores.size();
+    // Worst real score the previous iteration retained -- the floor an unknown tail move is ranked at under
+    // PRESEARCH_TAIL_MODE 2. Filling with 0 instead is the historical "57/300 collapse": it makes
+    // alpha - top_score enormous and razors the whole root loop away.
+    int trusted_floor = 0;
+    bool have_trusted_floor = false;
+    for (size_t k = 0; k < presearch_prev_len; ++k)
+    {
+        int s = previous_search_data.scores[k].top_score;
+        if (!have_trusted_floor || s < trusted_floor)
+        {
+            trusted_floor = s;
+            have_trusted_floor = true;
+        }
+    }
+    // Tail handling only applies once we actually have previous data; the first iteration (depth_limit 3,
+    // pre-search depth 2) has none and stays on the full pass, which costs almost nothing.
+    const bool tail_active = have_trusted_floor && Config::PRESEARCH_TAIL_MODE > 0;
+    const size_t tail_start = presearch_prev_len + static_cast<size_t>(std::max(0, Config::PRESEARCH_CHUNK));
+
     std::vector<int> preliminary_scores;
     std::vector<Move> preliminary_moves;
     highest_score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, moves_list[0], num_iterations);
@@ -5042,6 +5518,22 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
     for (size_t i = 1; i < moves_list.size(); ++i)
     {
         Move &move = moves_list[i];
+
+        // Prefix: the previous iteration already scored this move at full depth, and the merge below throws
+        // the pre-search's version away. Reuse the real entry instead of re-deriving it -- and seed alpha
+        // from it, so the tail scouts below keep the tight window the skipped pass would have produced.
+        if (Config::ENABLE_PRESEARCH_SUBSET && i < presearch_prev_len)
+        {
+            ++g_prefix_skipped;
+            current_search_data.scores.push_back(previous_search_data.scores[i]);
+            highest_score = std::max(highest_score, previous_search_data.scores[i].top_score);
+            // Stored root scores are mostly PVS bounds, not values, so raising alpha to one directly can
+            // mis-set the window for every scout below. The margin backs off from it; a very large margin
+            // disables seeding from skipped moves entirely.
+            alpha = std::max(alpha, highest_score - Config::PRESEARCH_SUBSET_ALPHA_MARGIN);
+            continue;
+        }
+
         // std::cout <<"BBB4-0" << std::endl;
         bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 
@@ -5070,16 +5562,61 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
         std::vector<int> preliminary_scores;
         std::vector<Move> preliminary_moves;
 
-        // zobrist = generateZobristHash(new_state.pawns, new_state.knights, new_state.bishops, new_state.rooks, new_state.queens, new_state.kings, new_state.occupied_colour[true], new_state.occupied_colour[false], new_state.turn);
-        score = pre_minimizer(1, depth, alpha, alpha + 1, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
-        // std::cout <<"BBB4" << std::endl;
-        //  If the score is within the window, re-search with full window
-        if (alpha < score && score < beta)
+        // Tail moves (no previous-iteration score, past the chunk the root loop actually reaches) can be
+        // served three ways. Mode 2 skips the search entirely and takes move_gen's own ordering, which is
+        // what produces the main search's 86% first-move-cutoff rate at interior nodes.
+        if (tail_active && i >= tail_start)
         {
+            if (Config::PRESEARCH_TAIL_MODE == 2)
+            {
+                ++g_tail_heuristic;
+                preliminary_moves = buildMoveListFromReordered(state_history, zobrist, 1, move);
+                // A CONSTANT, deliberately. Stepping the score down by index preserves move_gen's ordering
+                // through the (unstable) sort, and that was MEASURED WORSE: -12 WAC solves and -44 STS at
+                // CHUNK 4. move_gen ranks by killer/history/countermove signal tuned for interior nodes; one
+                // ply from a fresh root it is apparently worse than no signal, so letting the tied entries
+                // fall arbitrarily beats imposing that order.
+                score = trusted_floor;
+            }
+            else if (Config::PRESEARCH_TAIL_MODE == 3)
+            {
+                // Same search as mode 0 -- identical warming and ply-1 list -- but the root score is
+                // replaced. Any node delta versus base is therefore attributable to the SCORE alone.
+                ++g_tail_heuristic;
+                score = pre_minimizer(1, depth, alpha, alpha + 1, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+                if (alpha < score && score < beta)
+                {
+                    preliminary_scores.clear();
+                    preliminary_moves.clear();
+                    score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+                }
+                score = trusted_floor;
+            }
+            else
+            {
+                ++g_tail_reduced;
+                int tail_depth = std::max(2, depth - Config::PRESEARCH_TAIL_REDUCTION);
+                score = pre_minimizer(1, tail_depth, alpha, alpha + 1, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+                if (alpha < score && score < beta)
+                {
+                    preliminary_scores.clear();
+                    preliminary_moves.clear();
+                    score = pre_minimizer(1, tail_depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+                }
+            }
+        }
+        else
+        {
+            ++g_tail_full;
+            score = pre_minimizer(1, depth, alpha, alpha + 1, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+            //  If the score is within the window, re-search with full window
+            if (alpha < score && score < beta)
+            {
 
-            preliminary_scores.clear();
-            preliminary_moves.clear();
-            score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+                preliminary_scores.clear();
+                preliminary_moves.clear();
+                score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+            }
         }
         // std::cout <<"BBB5-0" << std::endl;
         current_search_data.scores.push_back(RootScore{score, std::move(preliminary_moves), std::move(preliminary_scores)});
@@ -5151,7 +5688,14 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
     if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || current_state.halfmove_clock >= 100)
     {
         if (cur_depth == 1)
+        {
+            ++g_draw_empty_ply1_pre;
+            // Same contract as minimizer's draw return: reorder_legal_moves stores this list in a RootScore
+            // that alpha_beta later indexes unguarded, so it must not be left empty.
+            if (pre_moves_list.empty())
+                pre_moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, prevMove);
             is_draw = true;
+        }
         return 0;
     }
 
@@ -5769,12 +6313,48 @@ inline void sortSearchDataByScore(SearchData &data)
     std::vector<size_t> indices(n);
     std::iota(indices.begin(), indices.end(), 0);
 
-    // Sort indices based on scores (descending)
-    std::sort(indices.begin(), indices.end(),
-              [&](size_t a, size_t b)
-              {
-                  return data.scores[a].top_score > data.scores[b].top_score;
-              });
+    // Sort indices based on scores (descending). Under the persistent table this becomes SF's two-level
+    // key: this iteration's score first, the previous iteration's as the tiebreak. Level 1 is entirely
+    // this-iteration and level 2 entirely previous-iteration, so depths are never compared against each
+    // other and a shallow score cannot outrank a deep one. stable_sort so equal keys -- in particular the
+    // block of unproven sentinels -- keep the order the previous iteration left them in.
+    if (Config::ENABLE_ROOT_TABLE)
+    {
+        // Level-2 choice matters more than it looks. SF's `previousScore` is last iteration's top_score,
+        // which for a chronic fail-low move is ITSELF the sentinel -- so the whole fail-low block ties on
+        // both levels and stable_sort merely freezes the previous order, discarding the fine-grained
+        // ordering those moves used to get from their real fail-soft scores. Keying level 2 on last_real
+        // instead orders the block by the most recent MEASURED value, which still never compares against a
+        // this-iteration score because level 1 has already separated the two groups.
+        const bool l2_last_real = Config::ROOT_SORT_L2_LASTREAL;
+        const bool l1_last_real = Config::ROOT_SORT_L1_LASTREAL;
+        std::stable_sort(indices.begin(), indices.end(),
+                         [&](size_t a, size_t b)
+                         {
+                             // Level 1 by most recent measured score: keeps the table's bookkeeping but
+                             // restores value ordering among the fail-low majority, which the sentinel key
+                             // flattens into a single block.
+                             if (l1_last_real)
+                             {
+                                 if (data.scores[a].last_real != data.scores[b].last_real)
+                                     return data.scores[a].last_real > data.scores[b].last_real;
+                                 return data.scores[a].top_score > data.scores[b].top_score;
+                             }
+                             if (data.scores[a].top_score != data.scores[b].top_score)
+                                 return data.scores[a].top_score > data.scores[b].top_score;
+                             if (l2_last_real)
+                                 return data.scores[a].last_real > data.scores[b].last_real;
+                             return data.scores[a].prev_score > data.scores[b].prev_score;
+                         });
+    }
+    else
+    {
+        std::sort(indices.begin(), indices.end(),
+                  [&](size_t a, size_t b)
+                  {
+                      return data.scores[a].top_score > data.scores[b].top_score;
+                  });
+    }
 
     // Helper lambda to reorder any vector by indices
     auto reorder = [&](auto &vec)
@@ -5790,6 +6370,41 @@ inline void sortSearchDataByScore(SearchData &data)
     reorder(data.moves_list);
     reorder(data.scores);
     dbg_searchdata("sortSearchDataByScore", data);
+}
+
+/*
+    Sorts [lo, hi) of a SearchData descending by top_score, keeping moves and grouped scores parallel.
+    Same index-permutation form as sortSearchDataByScore, restricted to a sub-range so the root tail's
+    two provenance groups can be ordered without ever being compared against each other.
+*/
+inline void sortSearchDataRange(SearchData &data, size_t lo, size_t hi)
+{
+    size_t n = std::min(data.moves_list.size(), data.scores.size());
+    if (hi > n)
+        hi = n;
+    if (lo >= hi)
+        return;
+
+    std::vector<size_t> indices(hi - lo);
+    std::iota(indices.begin(), indices.end(), lo);
+    std::sort(indices.begin(), indices.end(),
+              [&](size_t a, size_t b)
+              {
+                  return data.scores[a].top_score > data.scores[b].top_score;
+              });
+
+    std::vector<Move> moves_tmp(indices.size());
+    std::vector<RootScore> scores_tmp(indices.size());
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        moves_tmp[i] = std::move(data.moves_list[indices[i]]);
+        scores_tmp[i] = std::move(data.scores[indices[i]]);
+    }
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        data.moves_list[lo + i] = std::move(moves_tmp[i]);
+        data.scores[lo + i] = std::move(scores_tmp[i]);
+    }
 }
 
 inline void descending_sort_wrapper(const SearchData &preSearchData, SearchData &mainSearchData)
@@ -5839,8 +6454,23 @@ inline void descending_sort_wrapper(const SearchData &preSearchData, SearchData 
     sub_data.moves_list = std::move(moves_sub);
     sub_data.scores = std::move(scores_sub);
 
-    // Sort the tail descending by top_score
-    sortSearchDataByScore(sub_data);
+    // Sort the tail descending by top_score. Split mode orders the two provenance groups separately and
+    // concatenates trusted-first: entries carrying the previous iteration's real searched scores occupy
+    // sub_data[0, real_len), pre-pass entries the remainder, and the two are never compared. Note this
+    // also stops a previously-searched move that failed low (upper bound near alpha, i.e. known bad) from
+    // sinking below an unscored move, which the single sort does today.
+    if (Config::ENABLE_ROOT_SORT_SPLIT)
+    {
+        size_t real_len = mainSearchData.scores.empty() ? 0 : mainSearchData.scores.size() - 1;
+        if (real_len > sub_data.moves_list.size())
+            real_len = sub_data.moves_list.size();
+        sortSearchDataRange(sub_data, 0, real_len);
+        sortSearchDataRange(sub_data, real_len, sub_data.moves_list.size());
+    }
+    else
+    {
+        sortSearchDataByScore(sub_data);
+    }
 
     // Write the sorted tail back after the front entry, growing main to the full length if needed.
     if (mainSearchData.scores.size() < sub_data.scores.size() + 1)

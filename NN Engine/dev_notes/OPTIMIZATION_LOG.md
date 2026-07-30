@@ -4,6 +4,36 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ☠️ Ordering quality does NOT substitute for the pre-search (2026-07-30)
+
+The pre-search sells **INTERIOR HEURISTIC POPULATION** (38.7% of all cutoffs) — owner: *"the ordering
+gained there is somehow loadbearing; we haven't figured out how to replace it."* Since the pre-search-off
+penalty fell **54.7% → 30.7%** when gravcap shipped, the hypothesis was that **history QUALITY substitutes
+for pre-search QUANTITY**, which would give a program: stack ordering wins ⇒ trim the pre-search ⇒ the
+LARGE node cut the corrected pricing says we need (halving ≈ 1.3 ply, vs 0.23 for `LMR_EXTRA=2`).
+
+★ **Method worth reusing: the pre-search-off penalty is a far better instrument for ordering quality than
+STS** — deterministic, node-based, and it moves in large legible steps.
+
+**2×2, all arms `ENABLE_ROOT_TABLE=1` so p-on/p-off are like-for-like:**
+| config | p-on | p-off | Δ solves | **node penalty** |
+|---|---|---|---|---|
+| control | 248 / 39,513,075 | 244 / 47,028,063 | −4 | **19.0%** |
+| + `ENABLE_STATIC_ORDER` | 244 / 39,177,402 | 247 / 47,117,611 | +3 | **20.3%** |
+
+☠️ **NO on the exact metric.** Static order does not cut the pre-search's node contribution (19.0 → 20.3,
+slightly worse) ⇒ **gravcap's 54.7→30.7 was specific to history MALUS / discrimination, not to ordering
+quality in general.** The "stack ordering until the pre-search is cheap" program is **not currently
+justified.** ⚠️ The +3 vs −4 solve swing sits inside the ±3-4 band that failed to survive STS or pricing
+every time this session — do not build on it.
+
+📋 **UPDATED FIGURE: the pre-search is LESS load-bearing than the notes said** — fresh like-for-like control
+is **19.0% nodes / −4 solves** vs the banked 30.7% / 10-14 solves. Measure future work against 19.0%.
+🪤 **`ENABLE_ROOT_TABLE` defaults to FALSE**, and the table is what makes p-off viable (111→243 solves); a
+p-off run without it returns ~113 solves. I made exactly that mistake and briefly computed a 50.5%
+"penalty". ★ **A number that misses the banked figure by a wide margin is a SETUP MISMATCH, not a
+discovery** — re-running the control in the same batch is what kept this interpretable.
+
 ## ⚖️ THE EXCHANGE RATE — why the search lane keeps losing (2026-07-30, owner's reframing)
 
 ★★ **Owner's observation: at d10 SF18 solves LESS tactically than us but is 24pp better positionally**

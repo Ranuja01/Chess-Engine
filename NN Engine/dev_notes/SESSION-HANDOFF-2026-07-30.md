@@ -151,6 +151,26 @@ harder.** ☠️ The corner is **purely additive** ⇒ no interaction.
 properly applies to **INDEX-KEYED** pruning (LMP), where better tail ordering changes what sits at index 12.
 **Backlog.**
 
+## ⚡ SPEED IS THE LAST ACCURACY-FREE LEVER — and it could NOT be measured today
+★ The owner's goal was never node count: **same depth faster ⇒ higher depth in real games.** Mechanically
+correct. **Time-to-depth = nodes × time-per-node**, and every arm this session attacked only the first
+factor, which costs accuracy by construction; **the second is accuracy-free.**
+📐 **Break-even: ~1.3 STS per 1% of nodes** (1 ply = −41% nodes = 54 STS). Actual: `LMR_EXTRA=2` **4.8** ·
+`RFP_MAX_DEPTH=8` **7.5** · rd200 **9.9** · rd300 **13.2** ⇒ **3.6-10× above break-even.**
+▶️ Untapped: ours ~470k NPS vs SF11 **2.53M**; static eval **65-84% of per-node cost**; counters reportedly
+cost **~28% NPS at identical nodes** ⇒ gating them out would be **~0.62 ply ≈ 33 STS-equivalent at ZERO
+accuracy cost.**
+
+☠️ **UNMEASURABLE TODAY.** Six `wac_timed` runs of a byte-identical config: **397k / 444k / 424k**, then
+after a fix **376k / 368k / 401k** — total spread **20.6%** with monotone downward drift, vs a **±5%** noise
+band. The box was thermally loaded after a day of benches. ⚠️ **Never take NPS after a bench-heavy day.**
+▶️ **TO DO on a COLD machine:** A/B a **counters-out build in the SAME batch** (a banked figure from another
+session is not a control — same cross-regime error class as the depth/cache/table mistakes).
+🐛 **Regression found + fixed (`5008602`)**: `[qcache_hygiene]` called `is_repetition` (a hash lookup)
+**unconditionally on every `get_q_search_eval`** — ~30% of nodes — purely to feed a counter. Gated behind
+`result == 0`, byte-identical. ★ **Instrumentation can silently become hot-path cost; check a counter's
+INPUTS, not just its increment.**
+
 ## ⚖️ THE STRATEGIC READ — go to EVAL
 Search went **0-for-7 in this session** (remdepth, corrhist-qsearch, RFP cap, LMP cap, capchain,
 protect-killers, + two retracted leads). **Every single arm** traded a few % nodes for 25-170 STS —

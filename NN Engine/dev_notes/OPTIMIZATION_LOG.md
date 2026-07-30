@@ -4,6 +4,38 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## Aggression × guard **Pair B — THESIS FALSIFIED, LANE CLOSED** (2026-07-30)
+
+`[lmr_guards]` counters added first (`pv_saves` / `killer_saves` / `capchain_skips` / `capchain_less`),
+each counting the branch that **acts** — a move the reduction would otherwise have taken and the guard
+rescued. Refactor byte-identical: **254 / 35,982,407 / EBF 3.820**, all counters 0 with guards off.
+
+The lane's premise was that guards had only ever been measured at **baseline** aggression, where they
+cannot pay (null by construction), while the one aggression lever tried without a guard (`LMR_EXTRA=2`)
+cost **−55 Elo** — *"both diagonals tested, never the corner."*
+
+| arm | solves | nodes | vs base | guard fires |
+|---|---|---|---|---|
+| baseline | **254** | 35,982,407 | — | — |
+| aggression `LMR_EXTRA=2` | 248 | 31,341,096 | **−12.9%** | — |
+| capchain guard alone | 253 | 52,474,625 | **+45.8%** | `capchain_less` 3,833,402 |
+| **corner A** agg + capchain | **244** | 43,643,465 | +21.3% | `capchain_less` 3,399,344 |
+| **corner B** agg + `PROTECT_KILLERS` | **240** | 35,163,456 | −2.3% | `killer_saves` 600,169 |
+
+☠️ **Both corners are worse than either diagonal.** Corner A (244) sits below aggression alone (248) *and*
+guard alone (253); corner B (240) is worse still and returns nearly all the node saving
+(−12.9% → −2.3%) while losing **14 solves**.
+✅ **Conclusive rather than another ambiguous null because the counters FIRED** (3.8M / 600k acts) — the
+"guard over an empty set" failure mode is ruled out, and the counters were built *before* the 2×2.
+⚠️ Same **interaction-not-addition** signature as Pair A, now with two independent guard mechanisms.
+☠️ The capchain guard alone costs **+45.8% nodes for −1 solve** — effectively disabling LMR inside capture
+chains at enormous expense for nothing.
+⚠️ **Unexplained, and deliberately not given a mechanism:** reducing *less* should search more thoroughly,
+so at fixed depth solves should hold or rise; corner A instead falls below both baseline and aggression.
+Outside the ±3 band, and not a clock effect (`TIME_LIMIT = 600 s/move`).
+⇒ **Do not reopen by tuning guard thresholds** — Pair A already showed that surface is chaotic, and Pair B
+shows the corner itself is the wrong place to stand.
+
 ## The q-cache is unsound-but-profitable — and the "masking" lead is **RETRACTED** (2026-07-30)
 
 Knobs `QCACHE_EXACT_ONLY` + `[qcache_hits]` counters, default-off, byte-identical

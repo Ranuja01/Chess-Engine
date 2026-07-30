@@ -363,6 +363,14 @@ static long g_lmr_remdepth_less = 0;      // new base searches DEEPER than the i
 static long g_lmr_remdepth_more = 0;      // new base searches SHALLOWER
 static long g_lmr_remdepth_ply_delta = 0; // signed sum of (new base - legacy base)
 
+// LMR guard instrumentation (aggression x guard Pair B). Each counts the branch that ACTS -- a move the
+// reduction would otherwise have taken and the guard rescued -- so a guard sitting over an empty set is
+// visible as null rather than mistaken for a tuning miss. Only tick when the respective knob is on.
+static long g_guard_pv_saves = 0;        // PROTECT_PV kept an eligible move unreduced
+static long g_guard_killer_saves = 0;    // PROTECT_KILLERS/counter-move kept an eligible move unreduced
+static long g_guard_capchain_skips = 0;  // capture-chain HARD skip (CAPCHAIN_REDUCE_LESS == 0)
+static long g_guard_capchain_less = 0;   // capture-chain reduce-LESS actually moved the target depth
+
 // Correction history at the qsearch stand-pat. Only touched when ENABLE_CORRHIST_QSEARCH is on.
 static long g_corrhist_q_seen = 0;  // stand-pat evals the correction was applied to
 static long g_corrhist_q_flips = 0; // of those, where it moved the cutoff decision across its bound
@@ -2401,6 +2409,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                                         ? (100.0 * g_lmp_exempt_saves / (g_lmp_fires + g_lmp_exempt_saves))
                                         : 0.0)
               << " hist_prune_fires=" << g_hist_prune_fires << std::endl;
+    std::cerr << "[lmr_guards] pv_saves=" << g_guard_pv_saves
+              << " killer_saves=" << g_guard_killer_saves
+              << " capchain_skips=" << g_guard_capchain_skips
+              << " capchain_less=" << g_guard_capchain_less << std::endl;
     std::cerr << "[lmr_remdepth] calls=" << g_lmr_remdepth_calls
               << " reduce_less=" << g_lmr_remdepth_less
               << " reduce_more=" << g_lmr_remdepth_more
@@ -3197,7 +3209,19 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
             {
                 // LMR flag can still be computed here as you do
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX) && !(Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move)) && !(Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH);
+                bool lmr_eligible = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */);
+                bool guard_pv = Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX;
+                bool guard_killer = Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move);
+                bool guard_capchain = Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH;
+                // Count each guard only where it ACTS -- on a move the reduction would otherwise have taken.
+                // A guard over an empty set measures null by construction, so these gate the whole pair test.
+                if (lmr_eligible)
+                {
+                    if (guard_pv)       ++g_guard_pv_saves;
+                    if (guard_killer)   ++g_guard_killer_saves;
+                    if (guard_capchain) ++g_guard_capchain_skips;
+                }
+                bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain;
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
                 // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
@@ -3340,7 +3364,14 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     // Capture-chain reduce-LESS: resolving a capture sequence -> search the quiet move
                     // closer to full depth so a forcing line is not buried by the reduction.
                     if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
-                        reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
+                    {
+                        // Counted only when the clamp actually moves the target, not merely when the
+                        // capture-chain condition holds -- at full depth the reduce-less is a no-op.
+                        int relaxed = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
+                        if (relaxed != reduced_depth)
+                            ++g_guard_capchain_less;
+                        reduced_depth = relaxed;
+                    }
                     // Where only a ply or two remains, a constant ply-reduction truncates the child
                     // straight into qsearch; search it honestly instead (see LMR_MIN_REM).
                     if (Config::LMR_MIN_REM > 0 && (depth_limit - cur_depth - 1) < Config::LMR_MIN_REM)
@@ -3581,7 +3612,19 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
             {
                 // LMR flag can still be computed here as you do
                 bool move_is_check = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-                bool base_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */) && !(Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX) && !(Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move)) && !(Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH);
+                bool lmr_eligible = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1 /* && !relevant_pin_exists(state_history, false) */);
+                bool guard_pv = Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX;
+                bool guard_killer = Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move);
+                bool guard_capchain = Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH;
+                // Count each guard only where it ACTS -- on a move the reduction would otherwise have taken.
+                // A guard over an empty set measures null by construction, so these gate the whole pair test.
+                if (lmr_eligible)
+                {
+                    if (guard_pv)       ++g_guard_pv_saves;
+                    if (guard_killer)   ++g_guard_killer_saves;
+                    if (guard_capchain) ++g_guard_capchain_skips;
+                }
+                bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain;
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
                 // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
@@ -3723,7 +3766,14 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     // Capture-chain reduce-LESS: resolving a capture sequence -> search the quiet move
                     // closer to full depth so a forcing line is not buried by the reduction.
                     if (Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS > 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
-                        reduced_depth = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
+                    {
+                        // Counted only when the clamp actually moves the target, not merely when the
+                        // capture-chain condition holds -- at full depth the reduce-less is a no-op.
+                        int relaxed = std::min(reduced_depth + Config::CAPCHAIN_REDUCE_LESS, depth_limit);
+                        if (relaxed != reduced_depth)
+                            ++g_guard_capchain_less;
+                        reduced_depth = relaxed;
+                    }
                     // Where only a ply or two remains, a constant ply-reduction truncates the child
                     // straight into qsearch; search it honestly instead (see LMR_MIN_REM).
                     if (Config::LMR_MIN_REM > 0 && (depth_limit - cur_depth - 1) < Config::LMR_MIN_REM)

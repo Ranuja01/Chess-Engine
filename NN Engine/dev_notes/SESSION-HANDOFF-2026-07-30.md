@@ -97,19 +97,41 @@ observations come from the same knob, so understand it before trusting either.
 - ▶️ Delta pruning's unsound UPPERBOUND is **dead code by default** (`!ENABLE_QDELTA_PERMOVE`, which ships
   `true`). Nothing to chase.
 
-## ▶️ NEXT — both of my proposed leads were investigated and CLOSED this session
+## ☠️☠️ PAIR B — THE AGGRESSION × GUARD THESIS IS FALSIFIED, LANE CLOSED
+`[lmr_guards]` counters built FIRST (byte-identical, all 0 with guards off), then the 2×2:
+
+| arm | solves | nodes | vs base | guard fires |
+|---|---|---|---|---|
+| baseline | **254** | 35,982,407 | — | — |
+| aggression `LMR_EXTRA=2` | 248 | 31,341,096 | **−12.9%** | — |
+| capchain guard alone | 253 | 52,474,625 | **+45.8%** | `capchain_less` 3,833,402 |
+| **corner A** agg + capchain | **244** | 43,643,465 | +21.3% | `capchain_less` 3,399,344 |
+| **corner B** agg + `PROTECT_KILLERS` | **240** | 35,163,456 | −2.3% | `killer_saves` 600,169 |
+
+★★ **BOTH CORNERS ARE WORSE THAN EITHER DIAGONAL.** ✅ Conclusive because **the counters FIRED** (3.8M /
+600k) ⇒ not an empty-set null. ⚠️ Interaction-not-addition, same as Pair A, now with two independent guards.
+⇒ **Do not reopen by tuning guard thresholds** (Pair A already showed that surface is chaotic).
+
+## ▶️ NEXT — every lane I proposed this session was investigated and CLOSED
 1. ☠️ **d10 depth-artifact audit — DONE, 0-for-2.** Artifact real (RFP 415×) but rescued nothing.
 2. ☠️ **q-cache masking — DONE, RETRACTED.** Replaced by "unsound but profitable, don't fix it."
 3. ▶️ **`draw_stores` in a real game** — still open, still cheap, the one number that could revise the
    shipped q-cache fix upward. **Lowest-effort item on the board.**
-4. ▶️ **Aggression × guard Pair B** — now the default lane again, but note the record: today's search work
-   went **0-for-6** (remdepth, corrhist-qsearch, RFP cap, LMP cap, + two retracted leads), every arm
-   trading a few % nodes for 25-170 STS, **off by 15-25× on ply-pricing.**
-   ⚖️ **The standing asymmetry is the real signal: eval is 5-for-5 (+83.4 Elo), search is 2-for-15.**
-   Search-side pruning tuning is priced badly here *because the eval cannot support more aggression* —
-   which the `RFP_MAX_DEPTH` result independently confirmed (SF's cap growth tracks eval trust we lack).
-   ⇒ **Strongly consider returning to the EVAL lane** ([[ordering-retest-queue-under-gravcap]] PST/AST
-   tiebreaker, passer V3 re-judge) rather than more search knobs.
+4. ☠️ **Aggression × guard Pair B — DONE, thesis FALSIFIED** (above). The lane is closed.
+
+## ⚖️ THE STRATEGIC READ — go to EVAL
+Search went **0-for-7 in this session** (remdepth, corrhist-qsearch, RFP cap, LMP cap, capchain,
+protect-killers, + two retracted leads). **Every single arm** traded a few % nodes for 25-170 STS —
+**off by 15-25× on ply-equivalents**. That is not seven unlucky knobs, it is a price signal.
+⚖️ Standing record: **eval 5-for-5 (+83.4 ±32.1 Elo)** vs **search 2-for-15**.
+★ `RFP_MAX_DEPTH` independently supplies the reason: SF's pruning-schedule growth **tracks eval trust
+(NNUE + corrhist) that we do not have**, so pruning aggression is mispriced here **until the eval improves**.
+⇒ ▶️ **EVAL LANE NEXT** — [[ordering-retest-queue-under-gravcap]] **PST/AST tiebreaker where history is
+SILENT** (strongest warrant: history-thin regions are exactly where wrong-reductions cluster), then the
+passer V3 3-seed re-judge.
+▶️ **Still open and bench-invisible: the real-game calculation errors.** No bench can see them
+(warm-state). Needs the FEN **plus preset plus per-move time** captured at the moment of the bad move —
+the one instrument that cannot be substituted from this side.
 
 ---
 

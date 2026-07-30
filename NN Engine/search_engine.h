@@ -1343,6 +1343,23 @@ namespace Config
     // (bestScore - staticEval); the node-entry static eval is corrected by CORR_W/CORR_DIV of the entry before
     // the RFP/null gates. Default off => byte-identical. Signal-verified in Phase 0 (pawn x maxbit).
     inline bool ENABLE_CORR_HIST = false;
+
+    // Extend the correction history to the qsearch static eval (stand-pat + the qDepth horizon return).
+    // SF applies the correction once, at the staticEval assignment, so every consumer inherits it -- in both
+    // the main search and qsearch (to_corrected_static_eval is called at four sites there). Ours reaches only
+    // rfp_static_eval, so RFP and the null-move eval gate see a de-biased eval while qsearch stand-pat, the
+    // node-level qdelta and the per-move qdelta futility all still compare a RAW eval against a bound.
+    // Requires ENABLE_CORR_HIST; separate so RFP-only can be A/B'd against RFP+qsearch. Default off.
+    // Note the correction is learned against RFP_EVAL_MODE and applied here against QSTANDPAT_EVAL_MODE:
+    // the frames agree only while both modes are 0 (the default).
+    inline bool ENABLE_CORRHIST_QSEARCH = false;
+
+    // DIAGNOSTIC ONLY: bypass the quiescence cache on both the probe and the store. The q-cache is keyed by
+    // zobrist alone, so any eval adjustment that drifts over time (correction history) gets frozen into it
+    // and served stale to later probes -- which confounds ENABLE_CORRHIST_QSEARCH with a cache-coherence
+    // artifact. Turning this on isolates the correction's own value at a large cost in nodes; it is not
+    // shippable. Default off = byte-identical.
+    inline bool DISABLE_QCACHE = false;
     inline int  CORR_SHIFT = 6;     // EMA learning rate = 1 / 2^CORR_SHIFT (higher = slower/steadier)
     inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
     inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)

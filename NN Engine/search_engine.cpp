@@ -363,6 +363,10 @@ static long g_lmr_remdepth_less = 0;      // new base searches DEEPER than the i
 static long g_lmr_remdepth_more = 0;      // new base searches SHALLOWER
 static long g_lmr_remdepth_ply_delta = 0; // signed sum of (new base - legacy base)
 
+// Correction history at the qsearch stand-pat. Only touched when ENABLE_CORRHIST_QSEARCH is on.
+static long g_corrhist_q_seen = 0;  // stand-pat evals the correction was applied to
+static long g_corrhist_q_flips = 0; // of those, where it moved the cutoff decision across its bound
+
 // Root-table coverage: how many entries the table carried, and how many of those held a score a search
 // actually proved. verified/slots is the headline mechanism number -- ~34% on the push_back path (only
 // searched moves get an entry), and expected near 100% once the table is pre-sized and kept.
@@ -1455,6 +1459,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CORRHIST_LOG = env_flag("ENABLE_CORRHIST_LOG", Config::ENABLE_CORRHIST_LOG);
         Config::CORRHIST_LOG_STRIDE = env_int("CORRHIST_LOG_STRIDE", Config::CORRHIST_LOG_STRIDE);
         Config::ENABLE_CORR_HIST = env_flag("ENABLE_CORR_HIST", Config::ENABLE_CORR_HIST);
+        Config::ENABLE_CORRHIST_QSEARCH = env_flag("ENABLE_CORRHIST_QSEARCH", Config::ENABLE_CORRHIST_QSEARCH);
+        Config::DISABLE_QCACHE = env_flag("DISABLE_QCACHE", Config::DISABLE_QCACHE);
         Config::CORR_SHIFT = env_int("CORR_SHIFT", Config::CORR_SHIFT);
         Config::CORR_MAX = env_int("CORR_MAX", Config::CORR_MAX);
         Config::CORR_W = env_int("CORR_W", Config::CORR_W);
@@ -2391,6 +2397,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " reduce_less=" << g_lmr_remdepth_less
               << " reduce_more=" << g_lmr_remdepth_more
               << " avg_ply_delta=" << (g_lmr_remdepth_calls > 0 ? (1.0 * g_lmr_remdepth_ply_delta / g_lmr_remdepth_calls) : 0.0)
+              << std::endl;
+    std::cerr << "[corrhist_q] seen=" << g_corrhist_q_seen
+              << " flips=" << g_corrhist_q_flips
+              << " flip_pct=" << (g_corrhist_q_seen > 0 ? (100.0 * g_corrhist_q_flips / g_corrhist_q_seen) : 0.0) << "%"
               << std::endl;
     std::cerr << "[root_table] slots=" << g_root_table_slots
               << " has_real=" << g_root_table_has_real
@@ -6131,12 +6141,17 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     }
 
     if (qDepth >= Config::MAX_QDEPTH)
-        return eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
+    {
+        int horizon_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
+        if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
+            horizon_eval += corrhist_correction(state_history.back(), is_maximizing ? 1 : 0);
+        return horizon_eval;
+    }
 
     BoardState current_state = state_history.back();
     increment_node_count_with_decay(num_iterations);
     int cache_result;
-    if (probeQCache(zobrist, current_state.castling_rights, current_state.ep_square, alpha, beta, cache_result))
+    if (!Config::DISABLE_QCACHE && probeQCache(zobrist, current_state.castling_rights, current_state.ep_square, alpha, beta, cache_result))
     {
         return cache_result;
     }
@@ -6230,6 +6245,19 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     }
 
     int static_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
+    if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
+    {
+        int raw_eval = static_eval;
+        static_eval += corrhist_correction(current_state, is_maximizing ? 1 : 0);
+        // Count where the correction actually moved the stand-pat decision ACROSS its bound. Everything
+        // else is a value nudge that no consumer here can act on, so a large seen count with few flips
+        // means the correction is present but inert at this site.
+        ++g_corrhist_q_seen;
+        bool raw_cut = is_maximizing ? (raw_eval >= beta) : (raw_eval <= alpha);
+        bool corrected_cut = is_maximizing ? (static_eval >= beta) : (static_eval <= alpha);
+        if (raw_cut != corrected_cut)
+            ++g_corrhist_q_flips;
+    }
     if (is_maximizing)
     {
         if (static_eval >= beta)
@@ -7577,7 +7605,8 @@ inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint
     else
         flag = TTFlag::EXACT;
 
-    addToQCache(zobrist, result, flag, current_state.castling_rights, current_state.ep_square);
+    if (!Config::DISABLE_QCACHE)
+        addToQCache(zobrist, result, flag, current_state.castling_rights, current_state.ep_square);
 
     return result;
 }

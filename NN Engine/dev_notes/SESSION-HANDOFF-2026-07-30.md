@@ -2,6 +2,87 @@
 
 ---
 
+# 📌 LATER SESSION 2026-07-30 — two lanes closed, one soundness fix shipped
+
+**Read this block first; everything below it is the earlier gravcap session.**
+Baseline unchanged and re-verified after every build: **`254 / 35,982,407 / EBF 3.820 / STS 1629`**.
+
+| commit | what | state |
+|---|---|---|
+| `d0d3ac1` | `[prune_pair]` fire counters + log/handoff | byte-identical |
+| `f8b3d11` | `ENABLE_LMR_REMDEPTH` + `LMR_REMDEPTH_SCALE` | default-off, **lane CLOSED** |
+| `4115315` | `ENABLE_CORRHIST_QSEARCH` + `DISABLE_QCACHE` | default-off, **lane CLOSED** |
+| `daf3adf` | `[qcache_hygiene]` counters + gated fix | byte-identical |
+| **`19c1c21`** | **`QCACHE_SOUND_STORE` default ON** | ✅ **SHIPPED (correctness)** |
+
+## 🚨 THE METHOD RESULT THAT OUTLIVES BOTH LANES
+**For a depth-keyed mechanism, the BENCH DEPTH is part of the config.** `ENABLE_LMR_REMDEPTH` reads as a
+wash at d10 (**+0.9% nodes**) and as **−11.1% nodes** at d12 — because `DEPTH_REDUCTION[D] = D − 1` for all
+D ≤ 9 and `rem` ≤ 9 at `MAX_DEPTH=10`, so **the bench sits entirely in the table's flat region while real
+timed play sits past it.** Counters prove they are different features (`avg_ply_delta` −0.355 at d10 vs
+−0.0015 at d12). ⚠️ "Run STS on the EXACT config" was **obeyed and still produced a false verdict.**
+★ Owner's catch — *"benches at D10 may not represent a timed scenario where depth generally exceeds that."*
+▶️ **ACTION: re-examine every depth-keyed knob swept only at d10** — `LMP_MAX_DEPTH`,
+`HIST_PRUNE_MAX_DEPTH`, the RFP depth cap, `DEPTH_REDUCTION` itself. **Part of the search 0-for-13 record
+may be this artifact**, which makes it the highest-value item on the board.
+
+📐 **Second method result — price trades in PLY-EQUIVALENTS.** Same baseline at two depths gives STS
+1629@d10 → 1737@d12 ⇒ **~54 STS/ply**. So a −110 STS arm surrenders ~2 plies to buy an 11.1% node cut worth
+~0.08 ply: **off by 25×**, no tuning rescues it. ⚠️ Triage only — gravcap (−29 STS, +33 Elo) is the
+standing counterexample that no statistic predicts Elo.
+
+## ✅ SHIPPED — the q-cache stored values the search never produced
+`qSearch` returns a bare `0` on **timeout abort, node-limit abort, and repetition draw**;
+`get_q_search_eval` cached all three as evaluations. The cache has **no age field and is never cleared**, so
+one move's timeout unwind answered questions for the rest of the game. ★ The probe/store logic is
+textbook-correct — **the unsoundness is upstream, in what qsearch hands it.**
+🚨 `[qcache_hygiene]` = **0 at fixed depth, 144 timed** ⇒ no bench we own can reach those paths, so the fix
+is **byte-identical by construction** and shipped on correctness, not on a measurement.
+☠️ **The main TT was NEVER affected** (I claimed it was, wrongly): the unguarded overload is inside a
+`/* */` block; the live one refuses `score == 0`, and the abort value *is* 0.
+🪤 **`ENABLE_TT_STORE_DRAW=1` removes that protection** and starts caching aborts as real bounds — warned in
+the header now.
+⚠️ **Do not oversell it:** ~30 bad entries per game in an **8.4M-entry** cache. **Unlikely to explain the
+lightning/standard blunders** (~1200 cp swings = systematic, not a stale leaf); warm state in the
+non-position-keyed history/killer tables remains the better hypothesis.
+▶️ **One untested number could change that verdict:** `draw_stores` read 0 only because WAC has no
+repetition history. **Measure it in a real game** — the counter is already in the build.
+
+## ★★ THE BEST UNCLAIMED LEAD — the q-cache MASKS eval work
+Corrhist RFP-only is **flat with the cache on** (1630 vs 1629) and **+81 STS with it off** — while using
+**more** nodes (WAC no-qcache: control 246 / 38.45M vs corrhist 247 / 38.72M), which **falsifies** the
+confound that the time-truncated no-cache regime merely rewards node savings.
+⇒ Cached qsearch values override corrected evals downstream, so this would suppress **any** eval-side
+improvement routed through qsearch — a candidate explanation for a whole class of "eval change measured
+null" results in the ledger.
+⚠️ Still unexplained and worth its own look: removing a **bound-checked** cache costs **132 STS**
+(1629→1497) for only ~7% more nodes. That is a large quality swing for a supposedly sound lookup, and both
+observations come from the same knob, so understand it before trusting either.
+⚠️ `DISABLE_QCACHE` is **diagnostic only** — never shippable.
+
+## ☠️ Closed this session
+- **`ENABLE_LMR_REMDEPTH`** — no plateau exists (150→200 swings nodes 27 pts with nothing between; integer
+  division yields only 1 or 2 plies at the dominant rem). d12 best arm is −11.1% nodes for **−110 STS**.
+  The horizon-truncation defect has now measured null/negative **four** ways.
+- **`ENABLE_CORR_HIST` re-wire** — the "mis-wired" defect was real and **fixing it made things worse**:
+  live (91k stand-pat flips) but **−49 STS** matched, still negative with the cache bypassed. SF keys
+  corrhist four ways with divisor 131072; ours is one coarse pawn table ⇒ a **structural** correction
+  mis-prices **tactical** leaves. ☠️ `improving` is inert by construction (pawn-key cancels over 2 plies) —
+  argued, **not measured**.
+- ▶️ Delta pruning's unsound UPPERBOUND is **dead code by default** (`!ENABLE_QDELTA_PERMOVE`, which ships
+  `true`). Nothing to chase.
+
+## ▶️ NEXT, in my recommended order
+1. **The d10 depth-artifact audit** — re-test the depth-keyed knobs at d12/d14. Highest value: it may
+   reopen previously "failed" search work in bulk.
+2. **The q-cache masking question** — why does a bound-checked cache cost 132 STS, and does it suppress
+   eval work generally? Bigger than any single knob.
+3. **`draw_stores` in a real game** — cheap, and the one number that could revise the q-cache verdict.
+4. Resume the aggression × guard lane (Pair B) only after 1-2, since guard tuning bought ~3 points while
+   one structural change bought 24.
+
+---
+
 # 🏆 OUTCOME — `gravcap` SHIPPED, +33.0 Elo (2026-07-30)
 
 **Everything below this section is the road that led here; this is the current state.**

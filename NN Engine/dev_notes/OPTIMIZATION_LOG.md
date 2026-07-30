@@ -4,6 +4,101 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## Q-cache stored values the search never produced — **SHIPPED on correctness** (2026-07-30, later session)
+
+Commits `daf3adf` (instrumentation, default-off) then `19c1c21` (`QCACHE_SOUND_STORE` default **on**).
+Byte-identical throughout: **254 / 35,982,407 / EBF 3.820**.
+
+`qSearch` returns a bare `0` on three paths that are not evaluations — **timeout abort, node-limit abort,
+and repetition draw** (the last a property of the PATH, not the position). `get_q_search_eval` cached all
+three, tagging them EXACT/LOWER/UPPER by comparison against the window. `quiesceEvalCache` has **no
+generation or age field and is never cleared**, so a `0` written during one move's timeout unwind was
+served as a real score for the rest of the game.
+
+★ **The probe/store logic is textbook-correct** (EXACT always usable, LOWERBOUND only on a beta cutoff,
+UPPERBOUND only on an alpha cutoff). The unsoundness is **entirely upstream, in what qsearch hands it** —
+reading the cache code alone would never find it.
+
+🚨 **Why no bench could see it, and why it shipped anyway.** `[qcache_hygiene]` reads **0 at fixed depth**
+and **144 timed** (`PRESET=LIGHTNING MAX_DEPTH=30`, 300 positions). The blocked paths are unreachable at
+fixed depth ⇒ the fix **cannot regress a bench by construction**, so it went in on correctness rather than
+on a measurement. ⚠️ Timed WAC cannot judge it either — fixed-TIME drifts up to 125 solves on an unchanged
+config; the 252 vs 250 observed here is noise.
+
+☠️ **The main TT was never affected** — an earlier claim in this session that it shared the hole was wrong.
+The unguarded `addToSearchEvalCache` overload sits inside a `/* ... */` block (closed at
+`cache_management.h` L905); the live overload refuses `score == 0` unless `ENABLE_TT_STORE_DRAW`, and the
+fabricated abort value **is** exactly 0. 🪤 **Therefore `ENABLE_TT_STORE_DRAW=1` removes that protection**
+and starts caching aborts as real bounds — now warned about in the knob's header comment.
+
+⚠️ **Realistic value: small.** ~0.5 poisoned stores per timed search ⇒ ~30 bad entries per game in a
+**8.4M-entry** (`CACHE_SIZE = 1 << 23`) direct-mapped cache, many overwritten before being read. **It is
+very unlikely to explain the lightning/standard game blunders** — those were ~1200 cp swings, the shape of
+a systematic assessment error, not a rare stale leaf. The better-fitting hypothesis remains warm state in
+the non-position-keyed history/killer/countermove tables. One amplifier argues against fully dismissing it:
+the poisoned positions are exactly those being searched when the clock expired, so they are unusually
+likely to recur on the next move.
+▶️ **The one untested number that could change this verdict:** `draw_stores` read 0 only because WAC has no
+repetition history. Games repeat constantly. Measure it in a real game — the counter is already in the build.
+▶️ Delta pruning's unsound UPPERBOUND (`return static_eval` for a claim that only earns "true ≤ alpha") is
+**dead code by default** — gated `!ENABLE_QDELTA_PERMOVE`, which ships `true`. Nothing to chase.
+
+## `ENABLE_LMR_REMDEPTH` — remaining-depth LMR — **CLOSED, no gateable arm** (2026-07-30)
+
+Commit `f8b3d11`, default-off, byte-identical. `reduced_search_depth` indexes `DEPTH_REDUCTION` with the
+ITERATION depth, so one reduction constant hits every node and near the horizon truncates the child into
+qsearch. The knob re-derives the base from the node's own remaining depth (`LMR_REMDEPTH_SCALE` = the
+aggression dial), never letting the reduction consume the child's last ply.
+
+🚨 **The durable lesson is about measurement: for a depth-keyed mechanism, the BENCH DEPTH is part of the
+config.** `DEPTH_REDUCTION[D] = D − 1` for every D ≤ 9, and with root LMR off `rem` never exceeds 9 at
+`MAX_DEPTH=10` ⇒ **the d10 bench sits entirely in the table's flat region while real timed play sits past
+it.** The counters prove the two regimes are different features: `avg_ply_delta` is **−0.355** at d10
+(a blunt 3:1 aggression shift) but **−0.0015** at d12 (balanced — the intended shape).
+⚠️ The standing rule "run STS on the EXACT config being gated" was **obeyed and still gave a false verdict**,
+because the config was held fixed while the depth was not. ★ Owner's catch.
+
+| depth | SCALE | solves | nodes | vs base | STS |
+|---|---|---|---|---|---|
+| d10 | 100 | 248 | 40.50M | +12.6% | — |
+| d10 | 200/250 | 256 | 36.32M | +0.9% (reads as a WASH) | 1595 (−34) |
+| d10 | 300 | 249 | 32.49M | −9.7% | 1501 (−128) |
+| d12 | 150 | — | 123.50M | **+15.6%** | — |
+| d12 | 200 | 265 | 95.01M | **−11.1%** | **1627 (−110)** |
+| d12 | 300 | — | 92.84M | −13.1% | — |
+
+☠️ **No plateau exists** — 150→200 swings nodes 27 points with nothing between, because at the dominant
+rem 4-9 the integer division can only yield 1 or 2 plies (which is also why 200 and 250 are byte-identical
+at d10). 📐 **Priced in ply-equivalents:** baseline STS 1629@d10 → 1737@d12 ⇒ **~54 STS/ply**, so −110 STS
+≈ 2 plies bought with an 11.1% node cut ≈ 0.08 ply — **off by ~25×**. ⚠️ Triage only; gravcap (−29 STS,
++33 Elo) is the standing counterexample.
+▶️ **Re-examine every depth-keyed knob swept only at d10** (`LMP_MAX_DEPTH`, `HIST_PRUNE_MAX_DEPTH`, RFP
+cap, `DEPTH_REDUCTION`) — part of the search 0-for-13 record may be this artifact.
+
+## `ENABLE_CORR_HIST` re-wire — **CLOSED, the defect fix made it worse** (2026-07-30)
+
+Commit `4115315`, both knobs default-off, byte-identical. Corrhist reached only `rfp_static_eval` (RFP +
+the null-move eval gate) where SF applies the correction once at the `staticEval` assignment so every
+consumer inherits it. Audit of the rest:
+- ☠️ **`improving` is inert by construction** — it compares eval vs eval 2 plies apart, and a **pawn-key**
+  correction rarely changes in 2 plies ⇒ it cancels in the difference. (Argued, **not measured**.)
+- ✅ **qsearch stand-pat + horizon** were the real gap: bound comparisons, where an offset does not cancel.
+
+`[corrhist_q] seen=8,085,408 flips=91,525 (1.13%)` ⇒ genuinely live, not inert. **And still harmful:**
+matched no-qcache batch gives control **1497**, RFP-only **1578**, +qsearch **1529** ⇒ the extension costs
+**−49 STS** against RFP-only *with the cache bypassed*, so it is not the cache artifact it first looked
+like. ★ **Why SF can and we can't:** SF keys corrhist four ways (pawn + minor + non-pawn×2 + continuation)
+with divisor 131072 — a fine, small correction; ours is ONE coarse pawn table, and a **structural**
+correction mis-prices **tactical** leaves. Port FORMS, refit CONSTANTS — biting on the **KEYING** this time.
+
+★★ **The incidental find is bigger than the lane: the q-cache MASKS eval work.** Corrhist RFP-only is flat
+with the cache on (1630 vs 1629) and **+81 STS with it off** — while using **more** nodes (WAC no-qcache:
+control 246 / 38,451,470 vs corrhist 247 / 38,720,267), which **falsifies** the obvious confound that the
+time-truncated no-cache regime merely rewards node savings. ⇒ Cached qsearch values override corrected
+evals downstream, which would suppress **any** eval-side improvement routed through qsearch.
+⚠️ Still unexplained: removing a bound-checked q-cache costs **132 STS** (1629→1497) for only ~7% more
+nodes — a large quality swing for a supposedly sound lookup. `DISABLE_QCACHE` is **diagnostic only**.
+
 ## `gravcap` — history gravity + capture history + recalibrated statScore — **SHIPPED, +33.0 Elo** (2026-07-30)
 
 Commits `6e26ffd` (gated infrastructure, byte-identical) then `5a8655e` (defaults flipped).

@@ -1468,6 +1468,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CORRHIST_QSEARCH = env_flag("ENABLE_CORRHIST_QSEARCH", Config::ENABLE_CORRHIST_QSEARCH);
         Config::DISABLE_QCACHE = env_flag("DISABLE_QCACHE", Config::DISABLE_QCACHE);
         Config::QCACHE_SOUND_STORE = env_flag("QCACHE_SOUND_STORE", Config::QCACHE_SOUND_STORE);
+        Config::QCACHE_EXACT_ONLY = env_flag("QCACHE_EXACT_ONLY", Config::QCACHE_EXACT_ONLY);
         Config::CORR_SHIFT = env_int("CORR_SHIFT", Config::CORR_SHIFT);
         Config::CORR_MAX = env_int("CORR_MAX", Config::CORR_MAX);
         Config::CORR_W = env_int("CORR_W", Config::CORR_W);
@@ -2409,6 +2410,14 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " flips=" << g_corrhist_q_flips
               << " flip_pct=" << (g_corrhist_q_seen > 0 ? (100.0 * g_corrhist_q_flips / g_corrhist_q_seen) : 0.0) << "%"
               << std::endl;
+    {
+        long qhits = g_qcache_hit_exact + g_qcache_hit_lower + g_qcache_hit_upper;
+        std::cerr << "[qcache_hits] exact=" << g_qcache_hit_exact
+                  << " lower=" << g_qcache_hit_lower
+                  << " upper=" << g_qcache_hit_upper
+                  << " bound_pct=" << (qhits > 0 ? (100.0 * (g_qcache_hit_lower + g_qcache_hit_upper) / qhits) : 0.0) << "%"
+                  << std::endl;
+    }
     std::cerr << "[qcache_hygiene] unsound_seen=" << g_qcache_unsound_seen
               << " abort_stores=" << g_qcache_abort_stores
               << " draw_stores=" << g_qcache_draw_stores << std::endl;

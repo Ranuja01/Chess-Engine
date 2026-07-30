@@ -48,7 +48,27 @@ non-position-keyed history/killer tables remains the better hypothesis.
 ▶️ **One untested number could change that verdict:** `draw_stores` read 0 only because WAC has no
 repetition history. **Measure it in a real game** — the counter is already in the build.
 
-## ★★ THE BEST UNCLAIMED LEAD — the q-cache MASKS eval work
+## ☠️ RETRACTED — "the q-cache masks eval work" (the lead below is DEAD; investigated and killed)
+A **SEARCH** change amplifies as much as any eval change (`LMP_MAX_DEPTH=8`: **−170 cached, +7 uncached**),
+and **all three tested changes beat the uncached control including a known-bad one** (control 1497 < LMP8
+1504 < corrhist 1578 < KS 1602) ⇒ **`DISABLE_QCACHE` is a PATHOLOGICAL BASELINE and not a valid measurement
+regime.** ★ Same lesson as the depth artifact: **the REGIME is part of the config**; the measurements were
+right, the cross-regime inference was wrong. ✅ **Discriminator to reuse: measure a change of the OPPOSITE
+KIND in both regimes.**
+
+## ✅✅ WHAT REPLACED IT — the q-cache is unsound-but-profitable, and must NOT be "fixed"
+| config | solves | nodes | q-cache hits |
+|---|---|---|---|
+| full cache | **254** | 35,982,407 | 1,457,574 (**99.5% bound**) |
+| `QCACHE_EXACT_ONLY=1` | 246 | 38,963,635 | 9,568 |
+| `DISABLE_QCACHE=1` | 246 | 38,451,470 | 0 |
+
+**Exact-only ≈ no cache ⇒ 100% of the value is CROSS-WINDOW BOUND REUSE**; a perfectly SOUND q-cache is
+worth **zero**. Root-razor shape. ⚠️ **Do not "fix" the bound reuse — it is the feature.** Also resolves the
+132-STS puzzle: the bound checking was never what made it work. (`TIME_LIMIT=600 s/move` ⇒ nothing
+truncates; my earlier truncation worry was wrong.)
+
+## ~~★★ THE BEST UNCLAIMED LEAD — the q-cache MASKS eval work~~ (SUPERSEDED)
 Corrhist RFP-only is **flat with the cache on** (1630 vs 1629) and **+81 STS with it off** — while using
 **more** nodes (WAC no-qcache: control 246 / 38.45M vs corrhist 247 / 38.72M), which **falsifies** the
 confound that the time-truncated no-cache regime merely rewards node savings.
@@ -72,14 +92,19 @@ observations come from the same knob, so understand it before trusting either.
 - ▶️ Delta pruning's unsound UPPERBOUND is **dead code by default** (`!ENABLE_QDELTA_PERMOVE`, which ships
   `true`). Nothing to chase.
 
-## ▶️ NEXT, in my recommended order
-1. **The d10 depth-artifact audit** — re-test the depth-keyed knobs at d12/d14. Highest value: it may
-   reopen previously "failed" search work in bulk.
-2. **The q-cache masking question** — why does a bound-checked cache cost 132 STS, and does it suppress
-   eval work generally? Bigger than any single knob.
-3. **`draw_stores` in a real game** — cheap, and the one number that could revise the q-cache verdict.
-4. Resume the aggression × guard lane (Pair B) only after 1-2, since guard tuning bought ~3 points while
-   one structural change bought 24.
+## ▶️ NEXT — both of my proposed leads were investigated and CLOSED this session
+1. ☠️ **d10 depth-artifact audit — DONE, 0-for-2.** Artifact real (RFP 415×) but rescued nothing.
+2. ☠️ **q-cache masking — DONE, RETRACTED.** Replaced by "unsound but profitable, don't fix it."
+3. ▶️ **`draw_stores` in a real game** — still open, still cheap, the one number that could revise the
+   shipped q-cache fix upward. **Lowest-effort item on the board.**
+4. ▶️ **Aggression × guard Pair B** — now the default lane again, but note the record: today's search work
+   went **0-for-6** (remdepth, corrhist-qsearch, RFP cap, LMP cap, + two retracted leads), every arm
+   trading a few % nodes for 25-170 STS, **off by 15-25× on ply-pricing.**
+   ⚖️ **The standing asymmetry is the real signal: eval is 5-for-5 (+83.4 Elo), search is 2-for-15.**
+   Search-side pruning tuning is priced badly here *because the eval cannot support more aggression* —
+   which the `RFP_MAX_DEPTH` result independently confirmed (SF's cap growth tracks eval trust we lack).
+   ⇒ **Strongly consider returning to the EVAL lane** ([[ordering-retest-queue-under-gravcap]] PST/AST
+   tiebreaker, passer V3 re-judge) rather than more search knobs.
 
 ---
 

@@ -1375,6 +1375,13 @@ namespace Config
     // vs 144 timed), so this is byte-identical on every fixed-depth bench and can only change timed play --
     // which is why it defaults ON despite being unmeasurable by the benches.
     inline bool QCACHE_SOUND_STORE = true;
+
+    // Serve only EXACT entries from the quiescence cache, refusing LOWER/UPPER reuse. Diagnostic: a bound
+    // entry was produced under a DIFFERENT window, and qsearch is window-dependent (per-move delta pruning
+    // keys on alpha), so a value computed under a WIDE window explored more captures than a fresh search in
+    // a narrow window would. If most of the cache's benefit disappears here, the cache is not acting as a
+    // transparent lookup but as a carrier of better-window values. Default off = byte-identical.
+    inline bool QCACHE_EXACT_ONLY = false;
     inline int  CORR_SHIFT = 6;     // EMA learning rate = 1 / 2^CORR_SHIFT (higher = slower/steadier)
     inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
     inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)

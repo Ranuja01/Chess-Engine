@@ -4,6 +4,50 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## The q-cache is unsound-but-profitable — and the "masking" lead is **RETRACTED** (2026-07-30)
+
+Knobs `QCACHE_EXACT_ONLY` + `[qcache_hits]` counters, default-off, byte-identical
+(**254 / 35,982,407**). All comparisons fixed-depth and deterministic: `LONG_FORMAT` has
+`TIME_LIMIT = 600 s/move` and the whole 300-position d10 run takes ~77 s, so **nothing truncates** — an
+earlier worry of mine that the no-cache regime was time-truncated was simply wrong.
+
+### ✅ What is established
+| config | solves | nodes | q-cache hits |
+|---|---|---|---|
+| full cache | **254** | 35,982,407 | 1,457,574 (**99.5% bound**) |
+| `QCACHE_EXACT_ONLY=1` | **246** | 38,963,635 | 9,568 |
+| `DISABLE_QCACHE=1` | **246** | 38,451,470 | 0 |
+
+★ **The q-cache is not transparent** — at genuinely fixed depth a real cache cannot change results, and this
+one does (254 → 246).
+★★ **Exact-only is indistinguishable from no cache ⇒ 100% of its value is CROSS-WINDOW BOUND REUSE.** The
+EXACT path is 9,568 of ~1.46M hits and buys nothing. ⇒ **A perfectly SOUND q-cache would be worth ZERO
+here; the technically-unsound part IS the entire benefit** — the root-razor shape, **not fixable by making
+it correct.** ⚠️ **Do not "fix" the bound reuse; it is the feature.**
+Mechanism (inference, fits the data): qsearch is **window-dependent** (per-move delta pruning keys on
+`alpha`), so a value computed under a WIDE window explored more captures than a fresh narrow-window search
+would, and the cache carries those forward. This also **resolves the 132-STS puzzle**: removing a
+"bound-checked" cache costs quality because the bound checking was never what made it work.
+
+### ☠️ RETRACTED — "the q-cache masks eval work"
+Measuring a **SEARCH** change in both regimes shows it is amplified as much as any eval change:
+
+| change | type | cached | uncached | shift |
+|---|---|---|---|---|
+| corrhist RFP-only | eval | +1 | +81 | +80 |
+| KS bundle | eval | −58 | +105 | +163 |
+| **`LMP_MAX_DEPTH=8`** | **search** | **−170** | **+7** | **+177** |
+
+Uncached absolutes — control **1497**, LMP8 **1504**, corrhist **1578**, KS **1602** — show **all three
+changes beating the uncached control, including one that is unambiguously bad.** That is a **pathological
+baseline**, not three good changes. ⇒ **`DISABLE_QCACHE` is not a valid measurement regime; deltas measured
+in it do not transfer.** It stays a mechanism probe only.
+★ **Same lesson as the depth artifact in a new costume: THE REGIME IS PART OF THE CONFIG.** There the bench
+DEPTH was wrong, here the CACHE STATE was; in both the individual measurements were correct and
+reproducible while the **cross-regime inference** was the error.
+✅ **Method to reuse: before believing any cross-regime delta, measure a change of the OPPOSITE KIND in both
+regimes.** If it moves too, the effect is generic.
+
 ## The d10 depth-artifact audit — **artifact CONFIRMED, 0-for-2 on rescuing knobs** (2026-07-30)
 
 Re-tested the depth-capped knobs at d10 AND d12. Bases: d10 `254 / 35,982,407 / STS 1629`,

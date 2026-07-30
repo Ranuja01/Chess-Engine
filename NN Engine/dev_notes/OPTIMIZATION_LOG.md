@@ -4,6 +4,34 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## The d10 depth-artifact audit — **artifact CONFIRMED, 0-for-2 on rescuing knobs** (2026-07-30)
+
+Re-tested the depth-capped knobs at d10 AND d12. Bases: d10 `254 / 35,982,407 / STS 1629`,
+d12 `268 / 106,879,693 / STS 1737`.
+
+| knob | d10 Δnodes | d12 Δnodes | ratio | d12 verdict |
+|---|---|---|---|---|
+| `RFP_MAX_DEPTH=8` | **−0.008%** (2,895 nodes) | **−3.32%** | **~415×** | ☠️ −4 solves, **STS 1712 (−25)** |
+| `LMP_MAX_DEPTH=8` | +2.8%, −8 solves | +5.35%, −5 solves | ~2× | ☠️ bad at BOTH depths |
+
+☠️ **The strong hypothesis is FALSE.** The audit was opened on the expectation that it might reopen failed
+search work in bulk. It did not. The artifact is **real and large on `RFP_MAX_DEPTH`** — a d10 sweep of that
+knob moved 2,895 nodes out of 36M and would have reported "null" for any value — but **measuring it properly
+at d12 still says no**, and `LMP_MAX_DEPTH`'s d10 read was **directionally correct**.
+⇒ **Do NOT assume a d10 null on a capped-depth knob is wrong; check the specific knob.**
+📐 Ply-priced: −25 STS ≈ 0.46 ply bought with 3.32% nodes ≈ 0.025 ply ⇒ **off by ~18×**.
+★ **Untested rule that fits n=2:** **node-level** prunes (RFP removes a whole subtree near the root) are
+depth-sensitive; **move-level** prunes (LMP skips late quiets) are not. Predicts `HIST_PRUNE_MAX_DEPTH`
+behaves like LMP. Would give a rule for which knobs ever need a d12 check.
+
+🏛️ **✅ KEEP `RFP_MAX_DEPTH=6` — and a portability prediction confirmed.** Solves fall **monotonically**
+with the cap at d12: **268 (6) → 264 (8) → 259 (11)**. SF's 6→8→11→14 is monotone across versions, which by
+the portability heuristic means it **tracks a capability**; `sf-pruning-schedules-comparison.md` guessed
+that capability is **eval trust via NNUE + corrhist**. RFP at high remaining depth prunes on a static eval
+far from the leaf — and we have neither NNUE nor working corrhist. ⇒ **Our monotone solve loss is evidence
+FOR an inference previously flagged "not stated in the source,"** and our value is correctly matched to our
+eval quality rather than merely stale.
+
 ## Q-cache stored values the search never produced — **SHIPPED on correctness** (2026-07-30, later session)
 
 Commits `daf3adf` (instrumentation, default-off) then `19c1c21` (`QCACHE_SOUND_STORE` default **on**).

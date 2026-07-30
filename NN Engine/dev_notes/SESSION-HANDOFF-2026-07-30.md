@@ -161,7 +161,26 @@ factor, which costs accuracy by construction; **the second is accuracy-free.**
 cost **~28% NPS at identical nodes** ⇒ gating them out would be **~0.62 ply ≈ 33 STS-equivalent at ZERO
 accuracy cost.**
 
-☠️ **UNMEASURABLE TODAY.** Six `wac_timed` runs of a byte-identical config: **397k / 444k / 424k**, then
+## ✅ MEASURED AND FIXED — instrumentation cost ~16% NPS (`0af420a`)
+Same machine, same session, **byte-identical 35,982,407 nodes every run**:
+
+| build | median NPS | spread |
+|---|---|---|
+| HEAD with the 6 new counter groups | **388,354** | 20.6% |
+| **stripped (shipped)** | **452,950** | — |
+| clean pre-session `5a8655e` | 456,050 | 2.4% |
+
+⇒ **+16.6% recovered ≈ 0.28 ply ≈ 15 STS-equivalent at ZERO accuracy cost** — larger than any pruning arm
+this session, all of which were negative. The clean arm was measured **last, when the box was most loaded,
+and was still fastest**, which is what made it conclusive.
+⚠️ Cost is **code layout under `-Ofast -flto`**, not executing increments ⇒ **runtime gating cannot recover
+it; counters must LEAVE the tree.** Recoverable from this session's earlier commits. **Never time that build.**
+📜 **The ~607k NPS figure the owner recalled is real and already priced** (`BASELINE_PERF.md`): lazy-resort/
+LMP dropped raw NPS from ~607k but cut nodes **−48.5%** ⇒ **+0.50 ply at equal time, measured in play.**
+★ That remains the ONLY node reduction we have ever made that was big enough to pay — **the scale any future
+node-reduction change must reach.**
+
+☠️ **EARLIER IN THIS SESSION I WRONGLY CALLED THIS UNMEASURABLE:** Six `wac_timed` runs of a byte-identical config: **397k / 444k / 424k**, then
 after a fix **376k / 368k / 401k** — total spread **20.6%** with monotone downward drift, vs a **±5%** noise
 band. The box was thermally loaded after a day of benches. ⚠️ **Never take NPS after a bench-heavy day.**
 ▶️ **TO DO on a COLD machine:** A/B a **counters-out build in the SAME batch** (a banked figure from another

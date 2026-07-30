@@ -7678,7 +7678,9 @@ inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint
     // position (see QCACHE_SOUND_STORE). Counted unconditionally so the size of the leak is visible in
     // the default build, where only the store itself is gated.
     bool aborted = time_up.load(std::memory_order_relaxed);
-    bool path_draw = is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD);
+    // qSearch returns a bare 0 on every path this guards, so a non-zero result cannot be one of them.
+    // Testing that first keeps is_repetition -- a hash lookup -- off the per-qsearch-entry hot path.
+    bool path_draw = (result == 0) && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD);
     if (aborted || path_draw)
     {
         ++g_qcache_unsound_seen;

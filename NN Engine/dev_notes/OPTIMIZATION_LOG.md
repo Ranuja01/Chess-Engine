@@ -4,6 +4,29 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ☠️ `ENABLE_IMPROVING` + `ENABLE_CONT_HIST_2PLY` re-tested — both FAIL, theory falsified (2026-07-30)
+
+Both were queued as **revived by the malus ship**, on the triage rule *"does the feature CONSUME history?"*
+Re-tested against gravcap (baseline `254 / 35,982,407 / STS 1629`), on the stripped build:
+
+| arm | WAC | nodes | **STS** |
+|---|---|---|---|
+| `ENABLE_IMPROVING` | 243 (−11) | −0.6% | **1592 (−37)** |
+| `ENABLE_CONT_HIST_2PLY` | 250 (−4) | +4.7% | **1541 (−88)** |
+
+☠️ **Both fail on both metrics.** `CONT_HIST_2PLY` had **both** stated preconditions satisfied —
+`CONT2_GRAVITY_DIV = 4` (the b/4 down-weight its header demanded) and the bonus/malus rework — and still
+lost 88 STS. `ENABLE_IMPROVING` is worse than its banked −5 Elo despite the statScore recalibration that
+was the reason to revisit it.
+⇒ **The "consumes history ⇒ malus revived it" triage rule DOES NOT WORK.** It was stated in advance that a
+positive `CONT_HIST_2PLY` would generalise the theory to `ENABLE_PIECE_CONTHIST` and `ENABLE_THREAT_HIST`;
+it was negative, so **those remain speculative, not warranted.**
+⚠️ Only `CONT_HIST_2PLY`'s WAC improved vs the earlier 240-under-gravcap note (→250); nodes and STS both
+got worse, so that is not a revival.
+⇒ Search is **0-for-9** for the session. ★ Both this year's search wins (qdelta, gravcap) came from a
+**specific mechanism insight**, never from working through the knob list — which is now the ninth
+data point for that pattern.
+
 ## ☠️ Ordering quality does NOT substitute for the pre-search (2026-07-30)
 
 The pre-search sells **INTERIOR HEURISTIC POPULATION** (38.7% of all cutoffs) — owner: *"the ordering

@@ -1,0 +1,522 @@
+﻿diff --git a/NN Engine/search_engine.cpp b/NN Engine/search_engine.cpp
+index 5caeae7..caf56d7 100644
+--- a/NN Engine/search_engine.cpp	
++++ b/NN Engine/search_engine.cpp	
+@@ -306,6 +306,264 @@ static long g_node_tt_stores = 0;
+ // question the SF depth race raised: we need ~62x SF's nodes for the same nominal depth, and ~18x of that
+ // is already present at shallow depth, so it is a fixed overhead rather than a growth-rate problem.
+ static long g_presearch_nodes = 0;
++
++// ===================== root pre-search region instrumentation =====================
++// True while the root pre-search subtree is executing. pre_minimizer recurses into the REAL maximizer, so
++// the first-move-cutoff counters cannot otherwise tell the pre-search's own ordering from the main search's
++// -- the headline 87.55% FMC mixes tester and testee. A per-function test is impossible for the same reason;
++// only a call-region flag set around reorder_legal_moves can separate them.
++// g_fh_total/g_fh_first keep counting BOTH regions unchanged, so the existing line stays comparable and
++// main-only = total - pre is an arithmetic self-check.
++// Diagnostic instrumentation is COMPILE-TIME gated, not runtime gated. These counters are trivial to
++// execute but expensive to HAVE: reading the mutable g_in_presearch flag from inside the hot cutoff paths
++// costs ~30% of search speed under -Ofast -flto while leaving every decision byte-identical. Byte-identity
++// guards decisions, not cost -- so a runtime flag would not have caught this. Default builds stay clean;
++// build with -DCHESS_INSTRUMENT=1 (or flip this) only for a counter run, and never time such a build.
++#ifndef CHESS_INSTRUMENT
++#define CHESS_INSTRUMENT 0
++#endif
++
++static bool g_in_presearch = false;
++static long g_fh_first_pre = 0;
++static long g_fh_total_pre = 0;
++
++// Pre-search node/move cost split by whether the root move already had a real score from the previous
++// iteration. Cross-tabbed against the call class and the previous table's length, because a SHORT previous
++// table has two very different causes -- an aspiration fail-high stump, and a legitimate root-razor break --
++// and only the cross-tab separates them. Cumulative across the run; read the LAST printed line, never a sum.
++enum AspCallClass { ASP_FIRST = 0, ASP_RETRY = 1, ASP_FALLBACK = 2, ASP_CLASS_N = 3 };
++static int g_asp_call_class = ASP_FIRST;
++// [class][prev_len_bucket] where bucket = 0:empty 1:(1-2) 2:(3-7) 3:(8+)
++static long g_pre_prefix_nodes[ASP_CLASS_N][4] = {};
++static long g_pre_tail_nodes[ASP_CLASS_N][4] = {};
++static long g_pre_prefix_moves[ASP_CLASS_N][4] = {};
++static long g_pre_tail_moves[ASP_CLASS_N][4] = {};
++static long g_pre_calls[ASP_CLASS_N][4] = {};
++// Tail length (root moves with no previous-iteration entry) -- bounds how much pre-search must keep running.
++static long g_pre_taillen_sum = 0;
++static long g_pre_rootlen_sum = 0;
++
++// Phase of the position at the current root call, set once per alpha_beta entry. Declared here because the
++// pre-search attribution below reads it; the bucket helper itself lives with the root-consume counters.
++// 0 = opening/middlegame (phase_score <= 62), 1 = endgame (63-96), 2 = advanced endgame (>96).
++static int g_root_phase = 0;
++static long g_pre_prefix_nodes_ph[3] = {};
++static long g_pre_tail_nodes_ph[3] = {};
++
++inline int asp_prev_len_bucket(size_t n)
++{
++    if (n == 0) return 0;
++    if (n <= 2) return 1;
++    if (n <= 7) return 2;
++    return 3;
++}
++
++/*
++    Charges pre-search nodes to the prefix (this root move already had a real score from the previous
++    iteration) or the tail (it did not -- razored away, or never reached). The prefix share is the ceiling on
++    what a subset pre-search could ever save; the tail is the population that must keep being pre-searched.
++
++    Parameters:
++        move_index - index into moves_list
++        prev_len   - previous_search_data.scores.size() for this call
++        nodes      - node delta attributable to this move's pre-search work
++*/
++inline void presearch_attribute_nodes(size_t move_index, size_t prev_len, long nodes)
++{
++    int b = asp_prev_len_bucket(prev_len);
++    int c = g_asp_call_class;
++    if (move_index < prev_len)
++    {
++        g_pre_prefix_nodes[c][b] += nodes;
++        g_pre_prefix_nodes_ph[g_root_phase] += nodes;
++    }
++    else
++    {
++        g_pre_tail_nodes[c][b] += nodes;
++        g_pre_tail_nodes_ph[g_root_phase] += nodes;
++    }
++}
++
++// ===================== root-loop consumption =====================
++// The pre-search scores EVERY root move, but the main root loop reads only the moves it gets through before
++// it stops. Any pre-search score beyond that point is never read at all -- not recomputation, pure waste.
++// These size that directly, and record whether the move finally chosen lay inside the previous iteration's
++// reusable prefix (if it nearly always does, ordering the tail matters little and it can be generated lazily).
++static long g_root_calls = 0;
++static long g_root_moves_total = 0;
++static long g_root_moves_searched = 0;
++static long g_root_prefix_len_sum = 0;
++static long g_root_best_in_prefix = 0;
++static long g_root_best_outside_prefix = 0;
++static long g_root_consumed_hist[6] = {};   // % of the root list consumed: <10, <25, <50, <75, <100, =100
++// Deep iterations only (depth_limit >= 10) -- the regime actually observed in play; the all-calls figures
++// are dragged down by shallow iterations and aspiration retries.
++static long g_root_deep_calls = 0;
++static long g_root_deep_moves_total = 0;
++static long g_root_deep_moves_searched = 0;
++static long g_root_deep_prefix_len_sum = 0;
++static long g_root_deep_best_in_prefix = 0;
++static long g_root_deep_best_outside_prefix = 0;
++
++// Phase-split, because root width and cutoff behaviour differ sharply between a 40-move middlegame and a
++// 12-move endgame -- an aggregate over both would hide exactly the comparison we want.
++// Buckets follow move_gen's own phase_score thresholds: 0 = opening/middlegame (<=62), 1 = endgame (63-96),
++// 2 = advanced endgame (>96). Second index: 0 = all calls, 1 = deep only (depth_limit >= 10).
++static long g_rc_calls[3][2] = {};
++static long g_rc_total[3][2] = {};
++static long g_rc_searched[3][2] = {};
++static long g_rc_prefix[3][2] = {};
++static long g_rc_best_in[3][2] = {};
++static long g_rc_best_out[3][2] = {};
++
++// Sufficiency of the previously-scored root prefix ("list 1") and the accuracy of the ordering it feeds.
++// Cross-tabbed by aspiration call class, because a retry is fed whatever the FAILED attempt left rather
++// than the last completed iteration's table -- the two must never be averaged. Second index: 0 = all
++// calls, 1 = deep only (depth_limit >= 10). Calls with no incoming table are counted apart, since
++// "stayed within the prefix" is undefined when the prefix is empty.
++static long g_l1_calls[ASP_CLASS_N][2] = {};
++static long g_l1_noprev[ASP_CLASS_N][2] = {};
++static long g_l1_within[ASP_CLASS_N][2] = {};
++static long g_l1_over_sum[ASP_CLASS_N][2] = {};
++static long g_l1_head_calls[ASP_CLASS_N][2] = {};
++static long g_l1_head_kept[ASP_CLASS_N][2] = {};
++// Absolute levels, without which "stayed within the prefix" is ambiguous: a one-entry prefix matched by a
++// one-move search satisfies it as readily as a healthy table does.
++static long g_l1_prevlen_sum[ASP_CLASS_N][2] = {};
++static long g_l1_searched_sum[ASP_CLASS_N][2] = {};
++// How far past the prefix edge the root loop runs, deep calls only: 0,1,2,3,4,5-7,8-15,16+.
++// This sizes a chunked widening step: the chunk only pays if it covers the bulk of this distribution.
++static long g_l1_over_hist[8] = {};
++
++inline void record_list_split(size_t searched_moves, size_t prev_len, bool has_fed_head,
++                              bool head_kept, int depth_limit)
++{
++    int c = g_asp_call_class;
++    if (c < 0 || c >= ASP_CLASS_N)
++        return;
++
++    long over = (searched_moves > prev_len) ? static_cast<long>(searched_moves - prev_len) : 0;
++    for (int d = 0; d < 2; ++d)
++    {
++        if (d == 1 && depth_limit < 10) continue;
++        if (prev_len == 0)
++        {
++            ++g_l1_noprev[c][d];
++            continue;
++        }
++        ++g_l1_calls[c][d];
++        if (over == 0) ++g_l1_within[c][d];
++        g_l1_over_sum[c][d] += over;
++        g_l1_prevlen_sum[c][d] += static_cast<long>(prev_len);
++        g_l1_searched_sum[c][d] += static_cast<long>(searched_moves);
++        if (has_fed_head)
++        {
++            ++g_l1_head_calls[c][d];
++            if (head_kept) ++g_l1_head_kept[c][d];
++        }
++    }
++    if (depth_limit >= 10 && prev_len > 0)
++        ++g_l1_over_hist[(over <= 4) ? static_cast<int>(over) : (over <= 7) ? 5 : (over <= 15) ? 6 : 7];
++}
++inline int root_phase_bucket(const BoardState &s)
++{
++    int phase = 4 * __builtin_popcountll(s.queens)
++              + 2 * __builtin_popcountll(s.rooks)
++              + __builtin_popcountll(s.bishops | s.knights);
++    int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE;
++    return (phase_score <= 62) ? 0 : (phase_score <= 96) ? 1 : 2;
++}
++
++inline void record_root_consumption(size_t total_moves, size_t searched_moves, size_t prev_len,
++                                    int best_index, int depth_limit)
++{
++    if (total_moves == 0)
++        return;
++
++    {
++        int ph = g_root_phase;
++        bool in_pfx = (best_index >= 0 && (size_t)best_index < prev_len);
++        for (int d = 0; d < 2; ++d)
++        {
++            if (d == 1 && depth_limit < 10) continue;
++            ++g_rc_calls[ph][d];
++            g_rc_total[ph][d] += (long)total_moves;
++            g_rc_searched[ph][d] += (long)searched_moves;
++            g_rc_prefix[ph][d] += (long)prev_len;
++            if (best_index >= 0)
++            {
++                if (in_pfx) ++g_rc_best_in[ph][d]; else ++g_rc_best_out[ph][d];
++            }
++        }
++    }
++
++    ++g_root_calls;
++    g_root_moves_total += (long)total_moves;
++    g_root_moves_searched += (long)searched_moves;
++    g_root_prefix_len_sum += (long)prev_len;
++
++    int pct = (int)((100 * searched_moves) / total_moves);
++    int b = (pct < 10) ? 0 : (pct < 25) ? 1 : (pct < 50) ? 2 : (pct < 75) ? 3 : (pct < 100) ? 4 : 5;
++    ++g_root_consumed_hist[b];
++
++    bool in_prefix = (best_index >= 0 && (size_t)best_index < prev_len);
++    if (best_index >= 0)
++    {
++        if (in_prefix) ++g_root_best_in_prefix; else ++g_root_best_outside_prefix;
++    }
++
++    if (depth_limit >= 10)
++    {
++        ++g_root_deep_calls;
++        g_root_deep_moves_total += (long)total_moves;
++        g_root_deep_moves_searched += (long)searched_moves;
++        g_root_deep_prefix_len_sum += (long)prev_len;
++        if (best_index >= 0)
++        {
++            if (in_prefix) ++g_root_deep_best_in_prefix; else ++g_root_deep_best_outside_prefix;
++        }
++    }
++}
++
++/*
++    Records root-loop consumption on EVERY exit path. alpha_beta returns from four places (root beta cutoff,
++    two time-limit checks, and the normal end), so a scope guard is used rather than instrumenting each site
++    -- a missed return would silently bias the numbers toward the completed case.
++*/
++struct RootConsumeGuard
++{
++    const SearchData &cur;
++    const SearchData &prev;
++    const int &best_index;
++    size_t prev_len;
++    int depth_limit;
++    // Head of the table this call was FED, captured before the root loop clears it. Comparing it against
++    // the move finally chosen measures how often the incoming ordering's first candidate was already right.
++    Move fed_head;
++    bool has_fed_head;
++    ~RootConsumeGuard()
++    {
++        record_root_consumption(cur.moves_list.size(), prev.scores.size(), prev_len, best_index, depth_limit);
++
++        bool head_kept = has_fed_head
++                         && best_index >= 0
++                         && static_cast<size_t>(best_index) < cur.moves_list.size()
++                         && cur.moves_list[best_index].from_square == fed_head.from_square
++                         && cur.moves_list[best_index].to_square == fed_head.to_square
++                         && cur.moves_list[best_index].promotion == fed_head.promotion;
++        record_list_split(prev.scores.size(), prev_len, has_fed_head, head_kept, depth_limit);
++    }
++};
++
++inline void presearch_attribute_move(size_t move_index, size_t prev_len)
++{
++    int b = asp_prev_len_bucket(prev_len);
++    int c = g_asp_call_class;
++    if (move_index < prev_len)
++        ++g_pre_prefix_moves[c][b];
++    else
++        ++g_pre_tail_moves[c][b];
++}
+ // Phase-A qsearch ordering quality (diagnostic, cumulative across a run, like g_fh_*): cutoffs in the
+ // NOT-IN-CHECK qsearch loop, the fraction on the first noisy move (qfmc), and the summed cutoff move-index
+ // (qcut = avg index). Low qfmc / high qcut ⇒ a SEE re-sort of the noisy list should help.
+@@ -2035,6 +2293,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
+             int beta_win = prev_score + hi;
+             for (int attempt = 0;; ++attempt)
+             {
++                // Attempt 0 sees the last completed iteration's table; a retry sees whatever the FAILED
++                // attempt left behind, which can be a one-entry stump. The pre-search cost counters are
++                // cross-tabbed on this so the two cases never get averaged together.
++                g_asp_call_class = (attempt == 0) ? ASP_FIRST : ASP_RETRY;
+                 score = alpha_beta(alpha_win, beta_win, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
+ 
+                 // A timed-out search is unresolved; the completed_move guard below refuses it.
+@@ -2054,6 +2316,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
+                     ++g_asp_fallbacks;
+                     alpha_win = -9999998;
+                     beta_win = 9999999;
++                    g_asp_call_class = ASP_FALLBACK;
+                     score = alpha_beta(alpha_win, beta_win, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
+                     break;
+                 }
+@@ -2073,6 +2336,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
+         }
+         else
+         {
++            g_asp_call_class = ASP_FIRST;
+             score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
+         }
+ 
+@@ -2165,6 +2429,127 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
+     std::cerr << "[node_split] total=" << num_iterations
+               << " qnodes=" << qsearchVisits
+               << " presearch=" << g_presearch_nodes << std::endl;
++
++    // Cumulative counters -- read the LAST printed line, never a sum across positions.
++    // fmc_main is the reference ordering number from here on: the headline first_move_cutoff above counts
++    // the pre-search's own cutoffs too, so it partly measures the tester rather than the testee.
++    {
++        long fh_total_main = g_fh_total - g_fh_total_pre;
++        long fh_first_main = g_fh_first - g_fh_first_pre;
++        std::cerr << "[fmc_split(cum)] main=" << (fh_total_main > 0 ? (100.0 * fh_first_main / fh_total_main) : 0.0)
++                  << "% (" << fh_first_main << "/" << fh_total_main << ")"
++                  << "  pre=" << (g_fh_total_pre > 0 ? (100.0 * g_fh_first_pre / g_fh_total_pre) : 0.0)
++                  << "% (" << g_fh_first_pre << "/" << g_fh_total_pre << ")"
++                  << "  pre_share_of_cutoffs=" << (g_fh_total > 0 ? (100.0 * g_fh_total_pre / g_fh_total) : 0.0) << "%"
++                  << std::endl;
++
++        static const char *cls[ASP_CLASS_N] = {"FIRST", "RETRY", "FALLBK"};
++        static const char *bkt[4] = {"len0", "len1-2", "len3-7", "len8+"};
++        long all_prefix = 0, all_tail = 0;
++        for (int c = 0; c < ASP_CLASS_N; ++c)
++            for (int b = 0; b < 4; ++b)
++            {
++                all_prefix += g_pre_prefix_nodes[c][b];
++                all_tail += g_pre_tail_nodes[c][b];
++                if (g_pre_calls[c][b] == 0) continue;
++                std::cerr << "[presearch_split(cum)] " << cls[c] << " " << bkt[b]
++                          << " calls=" << g_pre_calls[c][b]
++                          << " prefix_nodes=" << g_pre_prefix_nodes[c][b]
++                          << " tail_nodes=" << g_pre_tail_nodes[c][b]
++                          << " prefix_moves=" << g_pre_prefix_moves[c][b]
++                          << " tail_moves=" << g_pre_tail_moves[c][b]
++                          << " prefix_pct=" << ((g_pre_prefix_nodes[c][b] + g_pre_tail_nodes[c][b]) > 0
++                                                ? (100.0 * g_pre_prefix_nodes[c][b] / (g_pre_prefix_nodes[c][b] + g_pre_tail_nodes[c][b]))
++                                                : 0.0)
++                          << "%" << std::endl;
++            }
++        std::cerr << "[root_consume(cum)] calls=" << g_root_calls
++                  << " moves_total=" << g_root_moves_total
++                  << " moves_searched=" << g_root_moves_searched
++                  << " consumed_pct=" << (g_root_moves_total > 0 ? (100.0 * g_root_moves_searched / g_root_moves_total) : 0.0) << "%"
++                  << " prefix_pct_of_list=" << (g_root_moves_total > 0 ? (100.0 * g_root_prefix_len_sum / g_root_moves_total) : 0.0) << "%"
++                  << " best_in_prefix=" << g_root_best_in_prefix
++                  << " best_outside=" << g_root_best_outside_prefix
++                  << " best_in_prefix_pct=" << ((g_root_best_in_prefix + g_root_best_outside_prefix) > 0
++                                                ? (100.0 * g_root_best_in_prefix / (g_root_best_in_prefix + g_root_best_outside_prefix))
++                                                : 0.0) << "%"
++                  << std::endl;
++        {
++            static const char *phn[3] = {"OPEN/MID", "ENDGAME", "ADV_EG"};
++            static const char *dn[2] = {"all", "deep"};
++            for (int ph = 0; ph < 3; ++ph)
++                for (int d = 0; d < 2; ++d)
++                {
++                    if (g_rc_calls[ph][d] == 0) continue;
++                    long bi = g_rc_best_in[ph][d], bo = g_rc_best_out[ph][d];
++                    std::cerr << "[root_phase(cum)] " << phn[ph] << " " << dn[d]
++                              << " calls=" << g_rc_calls[ph][d]
++                              << " avg_rootlen=" << (double)g_rc_total[ph][d] / g_rc_calls[ph][d]
++                              << " avg_searched=" << (double)g_rc_searched[ph][d] / g_rc_calls[ph][d]
++                              << " consumed_pct=" << (g_rc_total[ph][d] > 0 ? (100.0 * g_rc_searched[ph][d] / g_rc_total[ph][d]) : 0.0) << "%"
++                              << " prefix_pct=" << (g_rc_total[ph][d] > 0 ? (100.0 * g_rc_prefix[ph][d] / g_rc_total[ph][d]) : 0.0) << "%"
++                              << " best_in_prefix_pct=" << ((bi + bo) > 0 ? (100.0 * bi / (bi + bo)) : 0.0) << "%"
++                              << std::endl;
++                }
++            for (int ph = 0; ph < 3; ++ph)
++            {
++                long pn = g_pre_prefix_nodes_ph[ph], tn = g_pre_tail_nodes_ph[ph];
++                if (pn + tn == 0) continue;
++                std::cerr << "[presearch_phase(cum)] " << phn[ph]
++                          << " prefix_nodes=" << pn << " tail_nodes=" << tn
++                          << " prefix_pct=" << (100.0 * pn / (pn + tn)) << "%" << std::endl;
++            }
++        }
++        std::cerr << "[root_consume_hist(cum)] <10%=" << g_root_consumed_hist[0]
++                  << " <25%=" << g_root_consumed_hist[1]
++                  << " <50%=" << g_root_consumed_hist[2]
++                  << " <75%=" << g_root_consumed_hist[3]
++                  << " <100%=" << g_root_consumed_hist[4]
++                  << " =100%=" << g_root_consumed_hist[5] << std::endl;
++        std::cerr << "[root_consume_deep(cum)] calls=" << g_root_deep_calls
++                  << " moves_total=" << g_root_deep_moves_total
++                  << " moves_searched=" << g_root_deep_moves_searched
++                  << " consumed_pct=" << (g_root_deep_moves_total > 0 ? (100.0 * g_root_deep_moves_searched / g_root_deep_moves_total) : 0.0) << "%"
++                  << " prefix_pct_of_list=" << (g_root_deep_moves_total > 0 ? (100.0 * g_root_deep_prefix_len_sum / g_root_deep_moves_total) : 0.0) << "%"
++                  << " best_in_prefix_pct=" << ((g_root_deep_best_in_prefix + g_root_deep_best_outside_prefix) > 0
++                                                ? (100.0 * g_root_deep_best_in_prefix / (g_root_deep_best_in_prefix + g_root_deep_best_outside_prefix))
++                                                : 0.0) << "%"
++                  << std::endl;
++        {
++            static const char *cn[ASP_CLASS_N] = {"FIRST", "RETRY", "FALLBK"};
++            for (int c = 0; c < ASP_CLASS_N; ++c)
++            {
++                long n = g_l1_calls[c][1];
++                if (n == 0 && g_l1_noprev[c][1] == 0) continue;
++                std::cerr << "[list1_deep(cum)] " << cn[c]
++                          << " calls=" << n
++                          << " noprev=" << g_l1_noprev[c][1]
++                          << " avg_prevlen=" << (n > 0 ? (1.0 * g_l1_prevlen_sum[c][1] / n) : 0.0)
++                          << " avg_searched=" << (n > 0 ? (1.0 * g_l1_searched_sum[c][1] / n) : 0.0)
++                          << " within_pct=" << (n > 0 ? (100.0 * g_l1_within[c][1] / n) : 0.0) << "%"
++                          << " avg_overshoot=" << (n > 0 ? (1.0 * g_l1_over_sum[c][1] / n) : 0.0)
++                          << " head_kept_pct=" << (g_l1_head_calls[c][1] > 0
++                                                   ? (100.0 * g_l1_head_kept[c][1] / g_l1_head_calls[c][1])
++                                                   : 0.0) << "%"
++                          << std::endl;
++            }
++            std::cerr << "[list1_over_hist(cum)] o0=" << g_l1_over_hist[0]
++                      << " o1=" << g_l1_over_hist[1]
++                      << " o2=" << g_l1_over_hist[2]
++                      << " o3=" << g_l1_over_hist[3]
++                      << " o4=" << g_l1_over_hist[4]
++                      << " o5_7=" << g_l1_over_hist[5]
++                      << " o8_15=" << g_l1_over_hist[6]
++                      << " o16up=" << g_l1_over_hist[7] << std::endl;
++        }
++        std::cerr << "[presearch_split(cum)] ALL prefix_nodes=" << all_prefix
++                  << " tail_nodes=" << all_tail
++                  << " prefix_pct=" << ((all_prefix + all_tail) > 0 ? (100.0 * all_prefix / (all_prefix + all_tail)) : 0.0) << "%"
++                  << "  taillen_sum=" << g_pre_taillen_sum
++                  << " rootlen_sum=" << g_pre_rootlen_sum
++                  << " tail_frac=" << (g_pre_rootlen_sum > 0 ? (100.0 * g_pre_taillen_sum / g_pre_rootlen_sum) : 0.0) << "%"
++                  << std::endl;
++    }
+     if (Config::ENABLE_NODE_TT)
+         std::cerr << "[node_tt] stores=" << g_node_tt_stores << std::endl;
+     if (Config::ENABLE_STATIC_ORDER)
+@@ -2273,7 +2658,9 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
+     // difference across the call is exactly what reorder_legal_moves spent. Charged on every aspiration
+     // widening too, since alpha_beta is re-entered for each.
+     int presearch_nodes_before = num_iterations;
++    g_in_presearch = true;
+     SearchData current_search_data = reorder_legal_moves(alpha, beta, depth_limit, t0, zobrist, previous_search_data, state_history, position_count, num_iterations);
++    g_in_presearch = false;
+     g_presearch_nodes += (long)(num_iterations - presearch_nodes_before);
+ 
+     std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
+@@ -2297,6 +2684,13 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
+     }
+     // std::cout << "BBB" << std::endl;
+ 
++    // Captured BEFORE the clear: how many root moves the PREVIOUS iteration left real scores for. This is
++    // the reusable prefix, and the root loop is about to overwrite it with this iteration's results.
++    const size_t root_prev_len = previous_search_data.scores.size();
++    const bool root_has_fed_head = !previous_search_data.moves_list.empty();
++    const Move root_fed_head = root_has_fed_head ? previous_search_data.moves_list[0] : Move(0, 0, 0);
++    g_root_phase = root_phase_bucket(current_state);
++
+     previous_search_data.moves_list.clear();
+     previous_search_data.scores.clear();
+ 
+@@ -2304,6 +2698,10 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
+     int num_legal_moves = static_cast<int>(current_search_data.moves_list.size());
+     int best_move_index = -1;
+ 
++    // previous_search_data.scores grows by one per root move actually searched, so at scope exit its size IS
++    // the consumed count, on every return path.
++    RootConsumeGuard root_consume_guard{current_search_data, previous_search_data, best_move_index, root_prev_len, depth_limit, root_fed_head, root_has_fed_head};
++
+     /* // Define the depth that should be used
+     int depth_usage = 0;
+ 
+@@ -3641,6 +4039,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
+             // Check for a beta cutoff
+             if (beta <= alpha)
+             {
++                if constexpr (CHESS_INSTRUMENT) { if (g_in_presearch) { ++g_fh_total_pre; if (i == 0) ++g_fh_first_pre; } }
+                 ++g_fh_total;
+                 if (i == 0)
+                     ++g_fh_first;
+@@ -4138,6 +4537,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
+             // Check for a beta cutoff
+             if (beta <= alpha)
+             {
++                if constexpr (CHESS_INSTRUMENT) { if (g_in_presearch) { ++g_fh_total_pre; if (i == 0) ++g_fh_first_pre; } }
+                 ++g_fh_total;
+                 if (i == 0)
+                     ++g_fh_first;
+@@ -4789,6 +5189,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
+         // Check for a beta cutoff
+         if (beta <= alpha)
+         {
++            if constexpr (CHESS_INSTRUMENT) { if (g_in_presearch) { ++g_fh_total_pre; if (i == 0) ++g_fh_first_pre; } }
+             ++g_fh_total;
+             if (i == 0)
+                 ++g_fh_first;
+@@ -5019,7 +5420,19 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
+ 
+     std::vector<int> preliminary_scores;
+     std::vector<Move> preliminary_moves;
++    // Cost attribution for the go/no-go gate. Move 0 is pre-searched OUTSIDE the loop with a full window and
++    // its result seeds alpha for every scout below, so it is charged separately.
++    const size_t presearch_prev_len = previous_search_data.scores.size();
++    {
++        int b = asp_prev_len_bucket(presearch_prev_len);
++        ++g_pre_calls[g_asp_call_class][b];
++        g_pre_rootlen_sum += (long)moves_list.size();
++        g_pre_taillen_sum += (long)(moves_list.size() > presearch_prev_len ? moves_list.size() - presearch_prev_len : 0);
++    }
++    int presearch_move_nodes = num_iterations;
+     highest_score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, moves_list[0], num_iterations);
++    presearch_attribute_nodes(0, presearch_prev_len, (long)(num_iterations - presearch_move_nodes));
++    presearch_attribute_move(0, presearch_prev_len);
+     // std::cout <<"BBB3" << std::endl;
+     BoardState updated_state = state_history.back();
+     // std::vector<Move> line(pv_table[1], pv_table[1] + pv_length[1]);
+@@ -5070,6 +5483,10 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
+         std::vector<int> preliminary_scores;
+         std::vector<Move> preliminary_moves;
+ 
++        // Both the scout and any re-search below belong to this root move, so they share one accumulator.
++        int presearch_move_nodes_i = num_iterations;
++        presearch_attribute_move(i, presearch_prev_len);
++
+         // zobrist = generateZobristHash(new_state.pawns, new_state.knights, new_state.bishops, new_state.rooks, new_state.queens, new_state.kings, new_state.occupied_colour[true], new_state.occupied_colour[false], new_state.turn);
+         score = pre_minimizer(1, depth, alpha, alpha + 1, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+         // std::cout <<"BBB4" << std::endl;
+@@ -5081,6 +5498,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
+             preliminary_moves.clear();
+             score = pre_minimizer(1, depth, alpha, beta, t0, preliminary_scores, preliminary_moves, state_history, position_count, zobrist, move, num_iterations);
+         }
++        presearch_attribute_nodes(i, presearch_prev_len, (long)(num_iterations - presearch_move_nodes_i));
+         // std::cout <<"BBB5-0" << std::endl;
+         current_search_data.scores.push_back(RootScore{score, std::move(preliminary_moves), std::move(preliminary_scores)});
+         // std::cout <<"BBB5-1" << std::endl;

@@ -1,0 +1,14 @@
+{
+  "_doc": "v1 king-attack cluster co-tune spec (CONDITIONING-focused, user 2026-07-05). Instead of bare flat magnitudes (best-on-average, wrong per-position), tune the value*f(board-state) CONDITIONING FUNCTIONS: KS magnitude adjusts by per-king attack-realness (KS_DYN/KS_DYN_PIVOT), material backing (MOD_KS_BACKING = the fantasy-attack killer, the collapse lever), and control edge (MOD_KS_CONTROL). These died in ISOLATION before; the untried test is tuning them inside the coherent holistic vector. base = FIXED dedupe+enables. params = magnitude anchors + the KS conditioners. Overfit surface is larger => lean on holdout + transfer-ratio. Expand to REALIZ_*/more conditioners only if transfer-ratio holds. Search margins FROZEN (Stage 1).",
+  "base": "KS_CONSOLIDATE=1 ENABLE_KS_REPLACE_LT=1 KS_ZONE2=1 ENABLE_THREATS=1",
+  "params": [
+    {"name": "KING_SAFETY_MAG",   "init": 1500, "min": 0,  "max": 4000, "scale": 1500},
+    {"name": "KS_DYN",             "init": 128,  "min": 0,  "max": 512,  "scale": 256},
+    {"name": "KS_DYN_PIVOT",       "init": 4,    "min": 0,  "max": 12,   "scale": 6},
+    {"name": "MOD_KS_BACKING",     "init": 0,    "min": 0,  "max": 512,  "scale": 256},
+    {"name": "MOD_KS_CONTROL",     "init": 0,    "min": 0,  "max": 512,  "scale": 256},
+    {"name": "SCALE_ATTACK_LAYER", "init": 100,  "min": 40, "max": 200,  "scale": 100},
+    {"name": "SCALE_THREATS",      "init": 100,  "min": 0,  "max": 300,  "scale": 100},
+    {"name": "IMBALANCE_SCALE",    "init": 3,    "min": 1,  "max": 8,    "scale": 3}
+  ]
+}

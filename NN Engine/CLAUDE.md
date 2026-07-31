@@ -32,6 +32,29 @@ python main.py
 - `setupAI.py` compiles with `-Ofast -march=native -flto -fopenmp -mpopcnt -mbmi2`, C++20, `-fno-rtti`. It is tuned for the host CPU (`-march=native`), so the built `.so` is machine-specific.
 - `main.py` still loads two keras models at startup only because the `ChessAI` constructor signature requires them — the engine logic itself is C++.
 
+### Unattended / autonomous runs — the ONLY prompt-free invocation form
+
+For overnight/unattended work, calls MUST auto-approve or they hang waiting on a prompt. The
+`.claude/settings.local.json` allowlist is a **prefix match**: `wsl.exe -e bash -lc "bash '<abs overnight_runner.sh>'` followed by `*` (any suffix). So:
+
+- ✅ **Auto-approved** — the command *begins* with, verbatim:
+  `wsl.exe -e bash -lc "bash '/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/selfplay/overnight_runner.sh' <sub> <args…>"`
+  The trailing `*` also covers `KEY=VALUE` knobs after the sub **and** a trailing `… 2>&1 | grep … >> '<literal path>'`.
+- ❌ **Prompts (hangs unattended)** — anything that does NOT start with `bash '<runner>'` right after `-lc "`: a leading `R='…';`/`cd`/`export` wrapper, `wsl.exe bash -c` (missing `-e`/`-lc`), or raw commands (`pgrep`, `pkill`, `env … python`, `find`, `wsl.exe --shutdown`).
+
+**Rules for unattended sequences:** (1) launch **each** run as its own auto-approved `bash '<runner>' …`
+call (background for long ones) — do NOT chain them in one `R='…'` wrapper (that prompts); (2) write
+paths/knobs **literally** — shell vars (`$R`) expand empty in this wrapper; (3) read results **with the
+Read tool** on the Windows-path results file (no shell → no prompt), not via `grep`; (4) never `pgrep`/
+`pkill` unattended. To adapt between runs, go step-by-step: launch → Read the result file → decide → launch next.
+
+**Waiting on long runs — do NOT use `ScheduleWakeup` to poll.** It is unreliable here (the timed wakeup
+often never fires). Instead launch the run as a **background Bash task** and wait for the harness's
+automatic completion notification — a background task pings you when it exits, so no self-scheduled poll is
+needed. For a *mid-run* directional read (e.g. an SPRT that runs to a game cap), just `Read` the task's
+output file when you're next active; the interim lines (running Elo/LLR) are all there. Never sit on a
+`ScheduleWakeup` timer expecting it to wake you.
+
 ---
 
 ## C++ Engine File Map
@@ -97,3 +120,14 @@ Know what exists before adding anything — **reuse, don't reinvent**:
 - **No magic numbers** for evaluation or search thresholds. Use (or add to) the named constants in `cpp_bitboard.h` / `search_engine.h` — piece values, futility margins, `MAX_QDEPTH`, `MIN_MATERIAL_FOR_NULL_MOVE`, time-check interval, etc. — rather than inlining literals.
 - **Performance-critical code.** Eval and move generation run millions of times per search. Avoid heap allocations and any logging inside hot loops; respect and use the existing caches instead of recomputing.
 - **Use the dedicated tools** (Grep / Read / Glob), not shell `grep` / `cat` / `find`, when exploring this codebase.
+
+## Eval diagnosis — the three-way triangulation (ours / SF11-static / SF18-search)
+
+The standing method for hunting eval bugs: for a suspect position compare **ours** (`ai.ev_breakdown(board)`,
+a clean partition — fields sum to `total`), **SF11-static** (classical HCE `eval` with a labeled per-term
+table — the hand-fixable ceiling; compare our term vs SF11's same term), and **SF18-search** (the truth, but
+includes tactics we can't encode statically). Act on positions where **SF11-static agrees with SF18 but ours is
+wrong** (statically fixable → read SF11's classical source); skip where SF11 also misses (search's job); leave
+alone where we already beat SF11. Tools live in `diagnostics/`: `probe_fens.py` (explicit FEN list),
+`sf11_collapse_gap.py` (corpus per-term over-read), `ks_failure_hunt.py`. SF11 binary + full recipe:
+memory `sf11-sf18-triangulation-method`.

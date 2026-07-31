@@ -6,7 +6,9 @@ number an eval fix (KS rework, conditioned term, ...) must drive DOWN without wr
 Single process, static (ev_breakdown), NO games. Set eval env knobs (KING_SAFETY_MAG / ENABLE_KS_REPLACE_LT
 / KS_* / SCALE_*) BEFORE the first ChessAI(...) -- initialize_engine parses env ONCE per process
 (static bool toggles_loaded latch), so a ChessAI built earlier freezes Config at defaults.
-Usage: [env knobs] python bench_gate.py <out_csv>
+Usage: [env knobs] python bench_gate.py <out_csv> [bench_csv]
+bench_csv (relative to NN Engine/) defaults to diagnostics/overread_bench.csv; pass the
+_train/_holdout split files for the anti-overfit protocol.
 """
 import os, sys, csv, chess
 
@@ -16,7 +18,8 @@ sys.path.insert(0, BASE)
 from ChessAI import ChessAI
 
 out_csv = sys.argv[1] if len(sys.argv) > 1 else "/tmp/bench_gate.csv"
-rows = list(csv.DictReader(open(os.path.join(BASE, "diagnostics", "overread_bench.csv"))))
+bench_csv = sys.argv[2] if len(sys.argv) > 2 else os.path.join("diagnostics", "overread_bench.csv")
+rows = list(csv.DictReader(open(os.path.join(BASE, bench_csv))))
 
 seed = chess.Board()
 ai = ChessAI(None, None, seed, seed.turn)   # ev_breakdown reads only the board arg

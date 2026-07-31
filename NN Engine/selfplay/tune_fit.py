@@ -35,6 +35,21 @@ def sigmoid(x):
     return 1.0 / (1.0 + np.exp(-x / K_PAWNS))
 
 
+def fit_k(result, ours_pawns, grid=None):
+    """Standard Texel K-fit: the logistic slope (in pawns) that best maps our baseline eval -> win-prob,
+    minimizing MSE vs the game RESULT. Well-posed for the OUTCOME target (unlike the scale-invariant SF-total
+    target, where a strength-neutral global scale makes K degenerate -> that is why K_PAWNS was pinned). Fit on
+    TRAIN only so the held-out split stays clean."""
+    grid = np.arange(0.5, 6.01, 0.1) if grid is None else grid
+    best_k, best = 2.0, 1e18
+    for k in grid:
+        pred = 1.0 / (1.0 + np.exp(-ours_pawns / k))
+        l = float(np.mean((pred - result) ** 2))
+        if l < best:
+            best, best_k = l, k
+    return best_k
+
+
 def load(path):
     rows = list(csv.DictReader(open(path)))
     data = {
@@ -44,6 +59,8 @@ def load(path):
         "endgame": np.array([int(r["is_endgame"]) for r in rows]),
         "status": np.array([r["status"] for r in rows]),
         "result": np.array([float(r["result_white"]) for r in rows]),
+        # game id for the by-GAME held-out split (older corpora lack it -> fall back to a by-position split).
+        "game": np.array([r.get("game", "") for r in rows]),
     }
     for t in ALL_TERMS:
         if rows and t in rows[0]:                 # older corpora lack king_safety/material columns
@@ -150,6 +167,8 @@ def main():
     ap.add_argument("--hi", type=float, default=3.0)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--control-frac", type=float, default=0.3)
+    ap.add_argument("--fit-k", action="store_true",
+                    help="fit the logistic K to the game RESULT on train (outcome-Texel) instead of the pinned 2.0")
     ap.add_argument("--scale-inv", action="store_true",
                     help="scale-invariant: give each candidate its own best global scale so the fit measures "
                          "RELATIVE re-balancing (strength-relevant), not strength-neutral magnitude matching")
@@ -174,12 +193,36 @@ def main():
         print("pinned baseline: %s" % args.pin)
     n = len(data["our_total"])
     rng = np.random.default_rng(args.seed)
-    perm = rng.permutation(n)
-    n_ctrl = int(n * args.control_frac)
-    ctrl_idx, train_idx = perm[:n_ctrl], perm[n_ctrl:]
     mode = args.target
+    # Held-out control split BY GAME when game ids are present (positions from one game share the outcome label
+    # and are near-duplicates -> a by-position split leaks the holdout; by-game does not). Fall back to by-
+    # position only for older corpora without a game column.
+    uniq = sorted(g for g in set(data["game"]) if g)
+    if len(uniq) > 5:
+        uarr = np.array(uniq)
+        rng.shuffle(uarr)
+        n_ctrl_g = max(1, int(len(uarr) * args.control_frac))
+        ctrl_games = set(uarr[:n_ctrl_g].tolist())
+        is_ctrl = np.array([g in ctrl_games for g in data["game"]])
+        ctrl_idx = np.where(is_ctrl)[0]
+        train_idx = np.where(~is_ctrl)[0]
+        split_kind = "by-game (%d games, %d control)" % (len(uniq), len(ctrl_games))
+    else:
+        perm = rng.permutation(n)
+        n_ctrl = int(n * args.control_frac)
+        ctrl_idx, train_idx = perm[:n_ctrl], perm[n_ctrl:]
+        split_kind = "by-position (no game ids in corpus)"
 
-    print("corpus n=%d  train=%d  control=%d  terms=%s  target=%s  K=%.1f" % (n, len(train_idx), len(ctrl_idx), terms, mode, K_PAWNS))
+    if args.fit_k:
+        if mode != "result":
+            print("WARNING: --fit-k only meaningful with --target result; ignoring")
+        else:
+            global K_PAWNS
+            K_PAWNS = fit_k(data["result"][train_idx], white_pawns(data["our_total"][train_idx]))
+            print("fitted K = %.2f pawns (on train, vs game result)" % K_PAWNS)
+
+    print("corpus n=%d  train=%d  control=%d  split=%s  terms=%s  target=%s  K=%.2f"
+          % (n, len(train_idx), len(ctrl_idx), split_kind, terms, mode, K_PAWNS))
 
     base = np.ones(len(terms))
     si = args.scale_inv

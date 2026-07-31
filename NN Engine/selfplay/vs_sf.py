@@ -35,12 +35,15 @@ import chess.engine
 from selfplay import EngineProc, Adjudicator
 from arbiter import find_stockfish, Arbiter
 from tournament import load_openings, schedule, _config_with_preset
+from raw_uci import RawUciEngine
 
 
-def _build_play_sf(sf_path, sf_elo):
-    """Open + strength-cap a fresh playing-Stockfish process. One per game (handles aren't reentrant)."""
-    sf = chess.engine.SimpleEngine.popen_uci(sf_path)
-    opts = {"Threads": 1}
+def _build_play_sf(sf_path, sf_elo, use_raw=False):
+    """Open + strength-cap a fresh playing-opponent process. One per game (handles aren't reentrant).
+    use_raw drives the opponent through the tolerant raw-pipe UCI driver (legacy engines like Mediocre
+    whose id/uciok re-emission desyncs python-chess); the default SimpleEngine path is unchanged for SF."""
+    sf = RawUciEngine(sf_path) if use_raw else chess.engine.SimpleEngine.popen_uci(sf_path)
+    opts = {"Threads": 1} if "Threads" in sf.options else {}   # non-SF opponents (e.g. Mediocre) lack Threads
     if sf_elo:                                   # strength-cap SF to keep games competitive
         opts.update({"UCI_LimitStrength": True, "UCI_Elo": sf_elo})
     try:
@@ -57,7 +60,7 @@ def our_pov(eval_white_pov, our_is_white):
     return eval_white_pov if our_is_white else -eval_white_pov
 
 
-def play_one(our_config, our_label, sf, sf_movetime, sf_depth, our_is_white, start_fen,
+def play_one(our_config, our_label, sf, sf_movetime, sf_depth, sf_nodes, our_is_white, start_fen,
              opening_moves, max_plies, gpath, verbose, adjudicator=None):
     """One game: our engine vs Stockfish. Returns a per-game dict with our eval trajectory + result."""
     our_color = "white" if our_is_white else "black"
@@ -74,7 +77,8 @@ def play_one(our_config, our_label, sf, sf_movetime, sf_depth, our_is_white, sta
             if mv not in board.legal_moves:
                 raise ValueError(f"illegal opening move {uci} at {board.fen()}")
             board.push(mv); eng.push(uci); moves.append(uci)
-        sf_limit = (chess.engine.Limit(depth=sf_depth) if sf_depth
+        sf_limit = (chess.engine.Limit(nodes=sf_nodes) if sf_nodes
+                    else chess.engine.Limit(depth=sf_depth) if sf_depth
                     else chess.engine.Limit(time=sf_movetime))
         while True:
             if board.is_game_over(claim_draw=True):
@@ -175,7 +179,23 @@ def run(args):
     logdir = os.path.join(THIS_DIR, "games", args.tag)
     os.makedirs(logdir, exist_ok=True)
     openings = load_openings(args.openings)
-    if not openings:
+    start_fens = None
+    if args.start_fens:
+        start_fens = []
+        for ln in open(args.start_fens):
+            ln = ln.strip()
+            if not ln or ln.startswith("#"):
+                continue
+            fen = ln.split("\t", 1)[-1].strip()
+            try:
+                chess.Board(fen); start_fens.append(fen)
+            except ValueError:
+                pass
+        start_fens = list(dict.fromkeys(start_fens))   # dedup, keep order
+        if not start_fens:
+            print(f"[vs_sf] no valid FENs in {args.start_fens}", flush=True); return
+        print(f"[vs_sf] REPLAY mode: {len(start_fens)} start FENs x {args.games_per_fen}", flush=True)
+    elif not openings:
         print(f"[vs_sf] no openings parsed from {args.openings}", flush=True); return
     sf_path = args.sf_path or find_stockfish()
     if not sf_path:
@@ -184,7 +204,11 @@ def run(args):
     # while a strong neutral SF18 adjudicates. Defaults to the same binary (back-compat).
     arb_path = args.sf_arb_path or sf_path
 
-    sched = schedule(args.games, len(openings), args.seed)
+    if start_fens:
+        sched = [(i, chess.Board(start_fens[i]).turn) for _ in range(args.games_per_fen)
+                 for i in range(len(start_fens))]   # play the side to move at the (recoverable) decision point
+    else:
+        sched = schedule(args.games, len(openings), args.seed)
     our_cfg = _config_with_preset(args.our_config, args.preset)
 
     do_adj = args.adjudicate_draw or args.adjudicate_win
@@ -211,7 +235,7 @@ def run(args):
         gpath = os.path.join(logdir, f"game_{g:03d}")
         sf = arb = None
         try:
-            sf = _build_play_sf(sf_path, args.sf_elo)
+            sf = _build_play_sf(sf_path, args.sf_elo, args.opponent_raw)
             adj = None
             if do_adj:
                 try:
@@ -219,9 +243,10 @@ def run(args):
                     adj = Adjudicator(arb, do_draw=args.adjudicate_draw, do_win=args.adjudicate_win)
                 except Exception as e:
                     print(f"[vs_sf] game {g}: arbiter init failed ({e}); no adjudication", flush=True)
-            res = play_one(our_cfg, args.our_label, sf, args.sf_movetime, args.sf_depth, our_white,
-                           chess.STARTING_FEN, openings[oi], args.max_plies, gpath, not args.quiet,
-                           adjudicator=adj)
+            sfen = start_fens[oi] if start_fens else chess.STARTING_FEN
+            oms = [] if start_fens else openings[oi]
+            res = play_one(our_cfg, args.our_label, sf, args.sf_movetime, args.sf_depth, args.sf_nodes, our_white,
+                           sfen, oms, args.max_plies, gpath, not args.quiet, adjudicator=adj)
             res["game"] = g
             return res
         except Exception as e:
@@ -277,6 +302,14 @@ def run(args):
                              "drop_eval": coll["drop_eval"], "decision_fen": coll["decision_fen"],
                              "drop_fen": coll["drop_fen"]})
         cf.flush()
+        # Per-game results (outcome labels for the outcome-Texel fit): our-POV score + color + result.
+        rf_path = os.path.join(logdir, "results.csv")
+        with open(rf_path, "w", newline="") as rf:
+            rw = csv.DictWriter(rf, fieldnames=["game", "our_color", "result", "our_score", "plies", "reason"])
+            rw.writeheader()
+            for res in sorted(summ, key=lambda r: r["game"]):
+                rw.writerow({"game": res["game"], "our_color": res["our_color"], "result": res["result"],
+                             "our_score": res["our_score"], "plies": res["plies"], "reason": res["reason"]})
     finally:
         cf.close()
 
@@ -295,7 +328,11 @@ def main():
     ap.add_argument("--sf-elo", type=int, default=2400, help="UCI_Elo cap for SF (0 = full strength)")
     ap.add_argument("--sf-movetime", type=float, default=0.3, help="SF seconds/move (if --sf-depth unset)")
     ap.add_argument("--sf-depth", type=int, default=None, help="SF fixed depth (overrides movetime)")
+    ap.add_argument("--sf-nodes", type=int, default=0, help="SF fixed nodes/move (overrides depth+movetime; 0=off)")
     ap.add_argument("--games", type=int, default=20)
+    ap.add_argument("--start-fens", default="", help="replay mode: file of FENs (or 'x<TAB>fen'); play each out "
+                    "vs SF from that position (we play the side to move). Overrides --openings scheduling.")
+    ap.add_argument("--games-per-fen", type=int, default=1, help="games played from each start FEN (replay mode)")
     ap.add_argument("--openings", default=os.path.join(THIS_DIR, "openings_uho.txt"))
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--preset", default="LIGHTNING")
@@ -310,6 +347,9 @@ def main():
                     help="dump the run-up window from the peak until our eval falls below this (milli-pawns)")
     ap.add_argument("--tag", default="vssf")
     ap.add_argument("--sf-path", default=None, help="opponent SF binary (the engine we PLAY against)")
+    ap.add_argument("--opponent-raw", action="store_true",
+                    help="drive the opponent via the tolerant raw-pipe UCI driver (legacy engines like "
+                         "Mediocre whose id/uciok re-emission desyncs python-chess SimpleEngine)")
     ap.add_argument("--sf-arb-path", default=None, help="arbiter SF binary (adjudicator); defaults to --sf-path")
     ap.add_argument("--quiet", action="store_true")
     # Game adjudication (separate SF arbiter): draw ends dead-drawn tails early (overnight throughput),

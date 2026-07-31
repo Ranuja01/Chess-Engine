@@ -23,6 +23,11 @@ if "anchor" in sys.argv:
     os.environ.setdefault("ENABLE_KS_REPLACE_LT", "1")
     os.environ.setdefault("KING_SAFETY_MAG", "4000")
     os.environ.setdefault("MOD_KS_CONTROL", "256")
+# Any KEY=VAL tokens on argv are applied to the environment BEFORE ChessAI import (so engine knobs like
+# ENABLE_KAUFMAN_IMBALANCE / BISHOP_PAIR_BONUS reach the eval). Non-KEY=VAL args (N, split, anchor) untouched.
+for _a in sys.argv[1:]:
+    if '=' in _a:
+        _k, _v = _a.split('=', 1); os.environ[_k] = _v
 import re
 import random
 import subprocess
@@ -35,7 +40,7 @@ sys.path.insert(0, THIS_DIR)
 import chess  # noqa: E402
 from sts_test import load_sts_epd  # noqa: E402
 
-SF11 = "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_11/stockfish-11-win/Windows/stockfish_20011801_x64_bmi2.exe"
+SF11 = os.environ.get("SF11_BIN", "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_11_linux/stockfish-11-linux/Linux/stockfish_20011801_x64_bmi2")
 STS = os.path.join(THIS_DIR, "suites", "STS1-STS15_LAN_v3.epd")
 
 # Our additive terms (ChessAI.ev_breakdown), in Black-positive milli-pawns -> White-POV pawns = -v/1000.
@@ -88,7 +93,7 @@ class SF11Eval:
 
 
 def main():
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 400
+    n = next((int(a) for a in sys.argv[1:] if a.isdigit()), 400)  # first purely-numeric arg (ignore KEY=VAL)
     # Seeded DISJOINT train/holdout split (fixed seed => train and holdout are always the same disjoint
     # halves): tune the KS bundle on `train`, confirm the KS-fit gain GENERALIZES on `holdout`.
     split = "train" if "train" in sys.argv else ("holdout" if "holdout" in sys.argv else "all")

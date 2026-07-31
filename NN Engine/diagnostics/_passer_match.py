@@ -8,13 +8,20 @@ Usage (from NN Engine/):
     PRESET=LIGHTNING USE_OPENING_BOOK=0 LMP_BASE=2 ... python diagnostics/_passer_match.py <csv> [N]
 """
 import os, sys, csv
+# Split argv: KEY=VAL tokens -> environment (must precede the ChessAI import); the rest are positional.
+_pos = []
+for a in sys.argv[1:]:
+    if '=' in a and not a.endswith('.csv'):
+        k, v = a.split('=', 1); os.environ[k] = v
+    else:
+        _pos.append(a)
 THIS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS)
 from tactical_test import run_one
 
-path = sys.argv[1]
+path = _pos[0]
 rows = list(csv.DictReader(open(path)))
-n = int(sys.argv[2]) if len(sys.argv) > 2 else len(rows)
+n = int(_pos[1]) if len(_pos) > 1 else len(rows)
 if len(rows) > n:
     step = len(rows) / n
     rows = [rows[int(k * step)] for k in range(n)]

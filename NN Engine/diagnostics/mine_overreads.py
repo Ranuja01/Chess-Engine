@@ -14,7 +14,8 @@ recs = []
 n_files = n_both = 0
 for f in files:
     n_files += 1
-    tag = f.split("/games/")[1].split("/")[0]
+    parts = f.split("/games/")[1].split("/")
+    tag, game = parts[0], parts[1]
     try:
         lines = open(f).readlines()
     except Exception:
@@ -32,7 +33,7 @@ for f in files:
         if abs(op) > 25 or abs(sp) > 25:   # drop mate-ish / decided
             continue
         n_both += 1
-        recs.append((tag, r.get("ply"), r.get("fen"), op, sp, op - sp, r.get("depth")))
+        recs.append((tag, r.get("ply"), r.get("fen"), op, sp, op - sp, r.get("depth"), game))
 
 
 def piece_count(fen):
@@ -53,7 +54,7 @@ print("  middlegame -- over-value White: %d  over-value Black: %d"
 out = BASE + "/diagnostics/overread_bench.csv"
 with open(out, "w", newline="") as fh:
     w = csv.writer(fh)
-    w.writerow(["tag", "ply", "pieces", "our_pawns", "sf_pawns", "gap_pawns", "our_depth", "fen"])
-    for t, ply, fen, op, sp, gap, d in mid:
-        w.writerow([t, ply, piece_count(fen), "%.3f" % op, "%.3f" % sp, "%.3f" % gap, d, fen])
+    w.writerow(["tag", "ply", "pieces", "our_pawns", "sf_pawns", "gap_pawns", "our_depth", "fen", "game"])
+    for t, ply, fen, op, sp, gap, d, game in mid:
+        w.writerow([t, ply, piece_count(fen), "%.3f" % op, "%.3f" % sp, "%.3f" % gap, d, fen, game])
 print("wrote %d middlegame collapse-bench positions -> %s" % (len(mid), out))

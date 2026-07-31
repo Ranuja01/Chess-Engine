@@ -6809,6 +6809,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			0    
 		);
 		//std::cout << total << std::endl;
+		// The per-piece evaluators accumulate whitePieceVal/blackPieceVal as a SIDE EFFECT, and the
+		// phase-blend path calls BOTH the midgame and endgame variant for the same square -- the returned
+		// scores are blended, the side effect is not, so pawns/rooks/queens/kings are counted twice whenever
+		// phase_score > 40. Recompute both sums from the bitboards here: after every piece loop, before any
+		// consumer of the material edge (capture-gains realizability, latent threat, king-safety backing).
+		if (Config::ENABLE_MATERIAL_COUNT_FIX) {
+			whitePieceVal = __builtin_popcountll(pawns   & occupied_white) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_white) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_white) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_white) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_white) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_white) * values[KING];
+			blackPieceVal = __builtin_popcountll(pawns   & occupied_black) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_black) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_black) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_black) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_black) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_black) * values[KING];
+		}
 		br_pieces = total; br_run = total;
 		// A zero-weighted capture-gains term contributes nothing, so skip the (most expensive per call in the
 		// whole eval) simulation entirely rather than computing a number that is then multiplied by zero.
@@ -7095,6 +7114,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			0    
 		);
 		//std::cout << total << std::endl;
+		// The per-piece evaluators accumulate whitePieceVal/blackPieceVal as a SIDE EFFECT, and the
+		// phase-blend path calls BOTH the midgame and endgame variant for the same square -- the returned
+		// scores are blended, the side effect is not, so pawns/rooks/queens/kings are counted twice whenever
+		// phase_score > 40. Recompute both sums from the bitboards here: after every piece loop, before any
+		// consumer of the material edge (capture-gains realizability, latent threat, king-safety backing).
+		if (Config::ENABLE_MATERIAL_COUNT_FIX) {
+			whitePieceVal = __builtin_popcountll(pawns   & occupied_white) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_white) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_white) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_white) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_white) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_white) * values[KING];
+			blackPieceVal = __builtin_popcountll(pawns   & occupied_black) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_black) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_black) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_black) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_black) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_black) * values[KING];
+		}
 		br_pieces = total; br_run = total;
 		// A zero-weighted capture-gains term contributes nothing, so skip the (most expensive per call in the
 		// whole eval) simulation entirely rather than computing a number that is then multiplied by zero.

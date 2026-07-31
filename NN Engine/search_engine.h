@@ -1382,6 +1382,16 @@ namespace Config
     // a narrow window would. If most of the cache's benefit disappears here, the cache is not acting as a
     // transparent lookup but as a carrier of better-window values. Default off = byte-identical.
     inline bool QCACHE_EXACT_ONLY = false;
+
+    // Recompute whitePieceVal/blackPieceVal from the bitboards after the piece loops, instead of trusting the
+    // side-effect accumulation inside the per-piece evaluators. The phase-blend path (phase_score > 40) calls
+    // BOTH the midgame and endgame variant for the same square: the returned scores are blended, but the
+    // `pieceVal +=` side effect is not, so pawns/rooks/queens/kings are counted TWICE. Measured 2026-07-31:
+    // 277 of 600 banked positions carry a wrong `material`, per-side accumulators inflated ~3.8 pawns (max 30).
+    // Every consumer of the material edge is currently default-off (MOD_KS_BACKING / MOD_KS_REALIZ /
+    // ENABLE_CAPG_REALIZ, and latent_threat is replaced by KS), so this is byte-identical today -- it fixes the
+    // `material` diagnostic and unblocks those knobs. Default off pending the byte-identity check.
+    inline bool ENABLE_MATERIAL_COUNT_FIX = false;
     inline int  CORR_SHIFT = 6;     // EMA learning rate = 1 / 2^CORR_SHIFT (higher = slower/steadier)
     inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
     inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)

@@ -5,7 +5,11 @@ suite, with the SAME c8/c9 scoring our sts_test uses, at a fixed shallow depth. 
 
 Depth is matched across engines (DEPTH=10 default; SF is fast there). Uses all scorable EPD positions, so the
 totals are directly comparable to `overnight_runner.sh sts` output.
-  pyrun diagnostics/sf_bench_ceiling.py [DEPTH=10] [ENGINES=sf11,sf15c,sf15n,sf18]
+  pyrun diagnostics/sf_bench_ceiling.py [DEPTH=10] [ENGINES=sf11,sf15c,sf15n,sf18] [SUITE=sts300.epd]
+
+SUITE selects the .epd under diagnostics/suites/. Default is the full 1500-position STS; pass
+SUITE=sts300.epd to score the same 300-position subset the `sts` runner sub uses, which makes the
+reference ladder directly 1:1 with our routine bench instead of only approximately comparable.
 """
 import os, sys
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -30,7 +34,7 @@ ENGINES = {                                    # label -> (binary, uci options)
     "sf18":  (None, {}),                       # SF18 (NNUE-only) via arbiter.find_stockfish
 }
 
-STS = os.path.join(THIS, "suites", "STS1-STS15_LAN_v3.epd")
+STS = os.path.join(THIS, "suites", os.environ.get("SUITE", "STS1-STS15_LAN_v3.epd"))
 positions = load_sts_epd(STS)
 maxtotal = sum(p[2] for p in positions)
 print("SF bench ceiling — STS %d positions, max %d, depth %d\n" % (len(positions), maxtotal, DEPTH))
@@ -57,4 +61,5 @@ for label in WANT:
     eng.quit()
     print("  %-6s  %5d / %d   (%.1f%%)" % (label, total, maxtotal, 100.0 * total / maxtotal))
 
-print("\n(ours, same suite/scoring: baseline 1555 = 51.8%%, de-king@50 1647 = 54.9%%)")
+print("\n(ours on sts300, same scoring: defaults 1629 = 54.3%%, +material-fix/passer-V3 1658 = 55.3%%,"
+      "\n +MOD_KS_REALIZ=128 1746 = 58.2%%. On the full 1500: baseline 1555 = 51.8%%, de-king@50 1647 = 54.9%%.)")

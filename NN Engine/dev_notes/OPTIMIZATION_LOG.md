@@ -992,3 +992,61 @@ RankCut alpha-reset and Caissa depth-decay (1 knob each, opposite directions), S
 for a running reliability statistic feeding LMR. **MultiCut rejected** — absent from every reference engine.
 ⚠️ Correction to this log's earlier claim: "ordering changes can't hurt the mean" is **false** — LMP prunes and
 LMR reduces by move INDEX, so a bad tiebreaker can get good moves pruned.
+
+---
+
+## 🏆 SHIPPED 2026-08-01 — the material-count fix bundle (+36.7 Elo, 503 games)
+
+**New default fingerprint: `246 / 35,089,668 / EBF 3.846 / STS 1746`** (was `254 / 35,982,407 / 3.820 / 1629`).
+Now default-on: `ENABLE_MATERIAL_COUNT_FIX`, `ENABLE_PASSER_V3`, `MOD_KS_REALIZ=128`.
+Verified on the shipped build: WAC and nodes reproduce the env-knob measurement **to the node**.
+⚠️ **WAC solves FELL 254 → 246 while STS rose 1629 → 1746 — that is the intended trade**, not a regression
+(WAC is at ceiling 84.7%; STS carries the ~19pp positional gap). Do not "fix" it later.
+
+### The bug
+`cpp_bitboard.cpp` phase-blend path calls **both** `evaluate_X_midgame` and `_endgame` for the same square.
+The returned scores are blended; the `whitePieceVal/blackPieceVal +=` **side effect is not** ⇒ pawns, rooks,
+queens and kings counted **twice** whenever `phase_score > 40`. 277 of 600 banked positions carried a wrong
+`material`; per-side accumulators inflated ~3.8 pawns (max 30). Found by triangulating a real-game collapse
+(drew from **+7414**; search depth ROSE 16→22 through it, so not a clock problem).
+
+### ★★ The lesson: a fix's value can lie entirely in what it UNBLOCKS
+The fix alone is worth **+5 STS — indistinguishable from noise**, and was reported as "not measurably
+helping". The owner overrode that (*"it reopens items that were formerly utilizing the double counting"*).
+`MOD_KS_REALIZ=128` then measured **−196 STS without the fix and +88 with it — a 279-point swing**, because
+the knob damps king-safety using the material edge, and a doubled edge damped the wrong side. It had been
+banked "DISPROVEN" purely because it was judged against corrupted input.
+⇒ **Testing a bug fix in isolation can understate it to zero.**
+
+### ⚠️ …but the swing is a BENCH phenomenon; games are milder
+| arm (vs defaults) | STS | games |
+|---|---|---|
+| A = fix + V3 + `MOD_KS_REALIZ=128` | 1746 | **+36.7, SPRT H1 accepted (503g)** |
+| B = fix + V3 | 1658 | +25.4 [−7,+58] (439g) |
+| B + `RFP_MAX_DEPTH=8` | 1689 | +19.5 ±35.8 (500g) |
+| lever alone, **no fix** | **1467 (−196)** | **0.0 ±35.8 (500g)** |
+
+The lever alone is **neutral in games, not harmful** — the dramatic bench swing does **not** reproduce.
+A − B = +11, unresolvable at feasible sample sizes (needs ~4000 games). **Only the bundle has a verdict.**
+🚨 **Forward consequence: large negative STS overstates real harm.** We have killed many candidates on
+negative bench readings alone (search is 0-for-13 and 0-for-9); a −196 arm being game-neutral means some of
+those deserve re-testing.
+
+### Falsified this arc (measurements all held; the explanations did not)
+- **"Eval unblocks pruning"** — `RFP_MAX_DEPTH=8` is +31 STS on B but **−167 on A**, and **+19.5 Elo in
+  games, below B's +25.4** ⇒ deeper reverse-futility is worth nothing here. Pruning lane parked.
+- **`RFP_MAX_DEPTH` saturates at ≥8 at d10** (8/10/12 all exactly 1689) ⇒ a d10 plateau check cannot tell
+  "8 is optimal" from "the bench went blind". Real games reach d16-22.
+- **"A third of our losses are thrown-away won positions"** — a **30× artifact** of per-ply snapshot mining
+  (a side being mated is briefly "up a queen" mid-combination). With a persistence filter: **~1%**.
+- **`MOD_KS_BACKING` ≡ `MOD_KS_REALIZ`** at default floors — verified in code (`mod_gain` clamps both to
+  `[128,256]`, and `sig ≤ 0` makes backing's ceiling unreachable) and empirically byte-identical. **Never
+  set both**; they double-damp (−95 STS).
+- **Per-theme STS structure is noise** — the theme pattern at `MOD_KS_REALIZ=128` reverses at 256.
+- **Equal-DEPTH engine ladders are biased by pruning** — SF1.1 spends **12.8× SF11's nodes** to reach
+  "depth 10" and thereby out-scores it. We spend 61.6× SF18's ⇒ our measured gaps are **floors**.
+
+### Reference ladder (true 1:1, `sts300.epd` @d10)
+ours **58.2%** · SF11 64.3% · SF15.1-classical 72.1% · SF15.1-NNUE 76.0% · SF18 77.5%.
+⇒ gap to SF18 is **19.3pp, not the 24pp long quoted**, and **13.9pp of it is CLASSICAL** (NNUE worth only
+3.9pp; everything after SF15.1 worth 1.5pp). **The hand-reachable term is by far the largest.**

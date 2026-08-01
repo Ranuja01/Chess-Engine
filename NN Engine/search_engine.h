@@ -1079,8 +1079,8 @@ namespace Config
     // Landed incrementally under this one gate. Round 1a: a REAR doubled pawn (a friendly pawn ahead on its
     // own file) can never promote, so it is no longer mis-flagged as a passed pawn (getPPIncrement). Later
     // rounds add the board-driven R-gate on the rank bonus, disable the smeared per-piece credits, and hook the
-    // midgame king-race. Default false = byte-identical.
-    inline bool ENABLE_PASSER_V3 = false;
+    // midgame king-race. Shipped default 2026-08-01 as part of the material-fix bundle (+36.7 Elo, 503 games).
+    inline bool ENABLE_PASSER_V3 = true;
 
     // Gap-P C1: blockade-QUALITY in getPPIncrement. When on, only a secure blockade (enemy minor on the
     // stop square) gets the full PP_BLOCKADE_PEN; a rook/queen merely contesting the file ahead gets only
@@ -1132,7 +1132,10 @@ namespace Config
     // step-0 probe showed MOD_KS_BACKING bottoms out at ~halving the budget and cannot fully fix the fantasy
     // over-read. MOD_KS_REALIZ=0 (default) => not applied => byte-identical. Acts on the netted ks, so it damps
     // the whole unit-KS danger budget the home now owns.
-    inline int MOD_KS_REALIZ = 0;      // strength of the whole-budget material-backing damp (0 = off = byte-id)
+    // Shipped default 128 on 2026-08-01 (peak of a smooth unimodal sweep: 0/64/128/256/512 = 1658/1669/1746/
+    // 1705/1575). Requires ENABLE_MATERIAL_COUNT_FIX -- without it this same value is -196 STS. Note that with
+    // KS_REALIZ_FLOOR == MOD_FLOOR (both 128) this is the SAME function as MOD_KS_BACKING; do not set both.
+    inline int MOD_KS_REALIZ = 128;    // strength of the whole-budget material-backing damp (0 = off = byte-id)
     inline int KS_REALIZ_FLOOR = 128;  // min gain over 256 for MOD_KS_REALIZ (tunable below 128 for harder damp)
     inline int MOD_PVBOOST_COMP = 0;  // damp the material-domination boost x opponent offense-vs-our-defense COMPENSATION
                                       // (a material lead is worth less under an unmatched attack; the collapse over-read)
@@ -1388,10 +1391,10 @@ namespace Config
     // BOTH the midgame and endgame variant for the same square: the returned scores are blended, but the
     // `pieceVal +=` side effect is not, so pawns/rooks/queens/kings are counted TWICE. Measured 2026-07-31:
     // 277 of 600 banked positions carry a wrong `material`, per-side accumulators inflated ~3.8 pawns (max 30).
-    // Every consumer of the material edge is currently default-off (MOD_KS_BACKING / MOD_KS_REALIZ /
-    // ENABLE_CAPG_REALIZ, and latent_threat is replaced by KS), so this is byte-identical today -- it fixes the
-    // `material` diagnostic and unblocks those knobs. Default off pending the byte-identity check.
-    inline bool ENABLE_MATERIAL_COUNT_FIX = false;
+    // Its value is almost entirely in what it UNBLOCKS: alone it is worth ~+5 STS, but it turns MOD_KS_REALIZ
+    // from -196 STS into +88 (the consumer reads the material edge, so a doubled edge damped the wrong side).
+    // Shipped default 2026-08-01 with ENABLE_PASSER_V3 and MOD_KS_REALIZ=128: +36.7 Elo over 503 games.
+    inline bool ENABLE_MATERIAL_COUNT_FIX = true;
     inline int  CORR_SHIFT = 6;     // EMA learning rate = 1 / 2^CORR_SHIFT (higher = slower/steadier)
     inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
     inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)

@@ -339,6 +339,42 @@ int cheap_eval(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rook
 	the additive terms reflect the pre-replace state and total == advanced_endgame_total + pair_bonus +
 	piece_value_boost.
 */
+/*
+	Diagnostic-only PER-PASSER attribution. `ev_breakdown` reports one aggregate `passed_pawn_support`
+	number, which cannot localise a passer misvaluation to a STAGE: a passer reading ~0 may never have been
+	FLAGGED (getPPIncrement), may carry a small MAGNITUDE for its rank/phase, or may have had its
+	REALIZABILITY collapse. Those have unrelated fixes and a corpus average cannot tell them apart -- which
+	is why every global reshape of `mag * R/256` failed while the actual defect stayed unlocated.
+
+	evaluate_passers fills these when g_passer_probe is set. The caller compares OUR flagged set against a
+	reference passer set computed from the FEN, so a stage-1 miss shows up as a set difference and stages
+	2-4 show up as which field is degenerate. Not read anywhere in search; zero cost when the flag is off.
+*/
+struct PasserRec {
+	int sq;      // square of the passed pawn
+	int white;   // 1 = White's passer
+	int rank;    // advancement toward promotion, 0..7
+	int mag;     // phase-blended rank magnitude, post PASSER_MAG_SCALE
+	int R;       // realizability actually used (post PASSER_R_CAP)
+	int rawR;    // realizability BEFORE the [0,384] clamp -- see note below
+	int blk;     // stop-square blockade quality (passer_block_quality)
+	int val;     // final per-passer value contributed
+};
+extern PasserRec g_passer_recs[16];
+extern int g_passer_nrec;
+extern bool g_passer_probe;
+// R is clamped to [0,384] on return, so every degree of "stopped" reads exactly 0: a pawn one step from
+// promotion and a pawn on the 4th rank become indistinguishable. rawR keeps the pre-clamp value so the
+// diagnosis can tell "hopeless" from "marginal" -- the discrimination a floor on the clamped value cannot make.
+extern int g_passer_rawR;
+
+// Accessors rather than direct global writes: assigning an extern global from inside a Cython `def` binds a
+// LOCAL of that name instead of writing the C symbol, which silently yields an empty record set.
+void passer_probe_begin();
+void passer_probe_end();
+int passer_probe_count();
+PasserRec passer_probe_get(int i);
+
 struct EvalBreakdown {
 	int total;
 	int pieces;

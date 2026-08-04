@@ -121,6 +121,20 @@ Know what exists before adding anything — **reuse, don't reinvent**:
 - **Performance-critical code.** Eval and move generation run millions of times per search. Avoid heap allocations and any logging inside hot loops; respect and use the existing caches instead of recomputing.
 - **Use the dedicated tools** (Grep / Read / Glob), not shell `grep` / `cat` / `find`, when exploring this codebase.
 
+## 🧰 Diagnostics toolkit — READ BEFORE WRITING ANY NEW PROBE
+
+`diagnostics/` already holds ~200 scripts and nearly every question we ask has a tool for it. **Check
+[`dev_notes/DIAGNOSTICS-TOOLKIT.md`](dev_notes/DIAGNOSTICS-TOOLKIT.md) first** — it is the index of what
+exists, what each script answers, and the conventions. Rebuilding a probe wastes time and usually produces a
+weaker version (the rebuilt one lacks the *control set* that made the original trustworthy).
+
+- **Extend the canonical tool, do not fork it.** `probe_fens.py` is THE per-FEN probe (ours + SF11 +
+  SF15.1 classical + SF15.1 NNUE + SF18 static + SF18 search, `--table` for one row per FEN).
+- **Rank eval errors by win% (Lichess k=0.00368208), not centipawns** — the same logistic the fit scripts
+  use. Two pawns of error at +8 barely matters; two pawns at 0.0 flips the game.
+- **Carry the whole reference ladder.** The SF versions are a progression: whichever generation is closest
+  to truth for a situation is the source to read for that concept.
+
 ## Eval diagnosis — the three-way triangulation (ours / SF11-static / SF18-search)
 
 The standing method for hunting eval bugs: for a suspect position compare **ours** (`ai.ev_breakdown(board)`,

@@ -59,10 +59,38 @@ class RawStatic:
             except Exception: pass
 
 
+SF15 = os.environ.get("SF15_BIN", "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/"
+                                  "stockfish_15_linux/stockfish_15.1_linux_x64/stockfish-ubuntu-20.04-x86-64")
+K_LICHESS = 0.00368208   # same logistic the fit scripts use
+
+
+def winpct(pawns):
+    """Lichess win% from an eval in pawns. Ranking by this rather than raw cp matters: 2 pawns of error at
+    +8 barely changes the expected result, while 2 pawns at 0.0 flips the game."""
+    import math
+    return 100.0 / (1.0 + math.exp(-K_LICHESS * pawns * 100.0))
+
+
+class NNUEStatic(RawStatic):
+    """RawStatic with an explicit Use NNUE setting, so one binary gives both a classical and an NNUE column.
+    SF15.1 is the LAST classical-king-safety Stockfish: NNUE-off is the ceiling a handcrafted eval can reach,
+    and the on-vs-off delta on the SAME binary separates 'un-encodable by hand' from 'we are simply missing it'."""
+    def __init__(self, path, nnue):
+        super().__init__(path)
+        self.p.stdin.write("setoption name Use NNUE value %s\nisready\n" % ("true" if nnue else "false"))
+        self.p.stdin.flush()
+        while True:
+            ln = self.p.stdout.readline()
+            if not ln or ln.strip() == "readyok":
+                break
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("file")
     ap.add_argument("--sf-depth", type=int, default=22)
+    ap.add_argument("--table", action="store_true",
+                    help="compact one-row-per-FEN table (FEN, engine columns, win%% error last)")
     args = ap.parse_args()
     items = []
     for ln in open(args.file):
@@ -77,7 +105,12 @@ def main():
     ai = ChessAI(None, None, seed, seed.turn)
     sf11 = SF11Eval(SF11)
     sf18s = RawStatic(SF18)
+    sf15c = NNUEStatic(SF15, nnue=False)
+    sf15n = NNUEStatic(SF15, nnue=True)
     sf18 = chess.engine.SimpleEngine.popen_uci(SF18)
+    if args.table:
+        print("%-72s %7s %7s %7s %7s %7s %9s %9s"
+              % ("FEN", "OURS", "SF11", "SF15c", "SF15n", "SF18s", "SF18@d%d" % args.sf_depth, "win%err"))
     try:
         for label, fen in items:
             b = chess.Board(fen)
@@ -86,8 +119,19 @@ def main():
             our_terms = {t: -bd.get(t, 0.0) / 1000.0 for t in OUR_TERMS}   # White-POV
             sf11_tot, sf11_terms = sf11.eval(fen)
             sf18_static = sf18s.final_eval(fen)
+            s15c = sf15c.final_eval(fen)
+            s15n = sf15n.final_eval(fen)
             info = sf18.analyse(b, chess.engine.Limit(depth=args.sf_depth))
             sf18_search = info["score"].white().score(mate_score=100000) / 100.0
+            if args.table:
+                fmt = lambda v: "n/a" if v is None else "%+.2f" % v
+                # Win% error is vs SF18 search (the truth column), signed in the side-to-move's favour.
+                sgn = 1.0 if b.turn == chess.WHITE else -1.0
+                werr = (winpct(our_white) - winpct(sf18_search)) * sgn
+                print("%-72s %7s %7s %7s %7s %7s %9s %+8.1f"
+                      % (fen, fmt(our_white), fmt(sf11_tot), fmt(s15c), fmt(s15n),
+                         fmt(sf18_static), fmt(sf18_search), werr))
+                continue
             print("=" * 100)
             print("%s   [%s]" % (label, fen))
             print("  OURS static  %+6.2f   |  SF11 static %+6.2f   |  SF18 static %s   |  SF18 d%d %+.2f"
@@ -98,7 +142,7 @@ def main():
             st = sorted(((k, v) for k, v in sf11_terms.items() if k != "Total"), key=lambda kv: -abs(kv[1]))
             print("  SF11 terms: " + "  ".join("%s=%+.2f" % (t, v) for t, v in st if abs(v) > 0.08))
     finally:
-        sf11.close(); sf18s.close(); sf18.quit()
+        sf11.close(); sf18s.close(); sf15c.close(); sf15n.close(); sf18.quit()
 
 
 if __name__ == "__main__":

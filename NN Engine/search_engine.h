@@ -658,13 +658,37 @@ namespace Config
     inline int SCALE_LATENT_THREAT = 100;
 
     // SF11-style piece-on-piece STATIC threats (weak enemies attacked by minor/rook/pawn, hanging pieces) —
-    // representation our king-directed latent_threat lacks (incremental-validity +0.0014 held-out outcome).
-    // Default OFF ⇒ byte-identical. SCALE_THREATS = percent magnitude (fit-set via tune_fit, not hand-cranked).
-    inline bool ENABLE_THREATS = false;
-    inline int  SCALE_THREATS = 100;
-    // Stripped variant: drop the currently-hanging bonus (volatile + double-counts capture_gains' en-prise
-    // sim), keep only the standing underdefended-piece pressure. The leaf-visibility (stage-4) medicine.
-    inline bool THREATS_STANDING_ONLY = false;
+    // representation our king-directed latent_threat lacks. SHIPPED 2026-08-04 with STANDING_ONLY + the
+    // per-target cap: +45.0 Elo (+171 -121 =96 of 388, LLR +3.035, SPRT H1 accepted vs the previous default).
+    // ⚠️ The bench DISAGREED: STS 1746 -> 1685 (d10) and 1751 -> 1674 (d12), i.e. reproducibly negative in
+    // BOTH regimes, while WAC rose 246 -> 250. The STS loss is concentrated in the sts_guard tier; the term
+    // repairs our worst-scored positions and taxes our best. Games decide -- do not "fix" the STS drop.
+    inline bool ENABLE_THREATS = true;
+    inline int  SCALE_THREATS = 75;
+    // Drop the currently-hanging bonus: MEASURED to be ~87% a subset of capture_gains (14 of 16 firings
+    // co-occur, corr 0.60), which resolves the same en-prise facts properly via SEE -- and qsearch resolves
+    // them a third time. Keep only the standing underdefended-piece pressure.
+    inline bool THREATS_STANDING_ONLY = true;
+    // Per-target contribution cap (millipawns, 0 = uncapped/byte-identical). threats_by sums an unbounded
+    // stack of per-target bonuses (minor + rook + king + safe-pawn), so one misjudged target can dominate
+    // the whole term; SF's threat terms each contribute within a bounded band instead. This bounds the
+    // BLAST RADIUS of a single wrong target without touching which targets are detected.
+    // SHIPPED at 800. Verified to be genuine STACK-bounding, not just a SAFE_PAWN cut: with the cap on,
+    // THREAT_SAFE_PAWN=800 is byte-identical to 1600 (the cap already clamps it), yet NO uncapped
+    // SAFE_PAWN reduction reaches the capped accuracy -- even SAFE_PAWN=400 uncapped reads 264.068 vs the
+    // capped 263.920. So it also bounds minor+rook+king combinations. 0 = uncapped (pre-ship behaviour).
+    inline int THREAT_PER_TARGET_CAP = 800;
+    // Largest single per-target contribution in threats_by (next is 850). Every cap that helped is BELOW
+    // it, so the cap's benefit may just be a SAFE_PAWN reduction in disguise. Knob to separate the two.
+    inline int THREAT_SAFE_PAWN = 1600;
+    // Tension gate on the threat term. The per-position profile of the capped term is a REDISTRIBUTION, not
+    // a rescale: it repairs our worst decile (mean -28 win%^2) and taxes our best (+2.9), and the only tier
+    // it worsens is sts_guard -- which is why the corpus improves while STS falls. Damp threats in QUIET
+    // positions (g_capg_tension = pending SEE>=0 captures) instead of applying them everywhere.
+    // Ramp: tension<=LO -> THREATS_QUIET_PCT, tension>=HI -> 100%. QUIET_PCT=100 = ungated/byte-identical.
+    inline int THREATS_QUIET_PCT   = 100;
+    inline int THREATS_TENSION_LO  = 0;
+    inline int THREATS_TENSION_HI  = 3;
     inline int SCALE_CENTRAL       = 100;
     inline int SCALE_CAPTURE_GAINS = 100;
 
@@ -1048,9 +1072,20 @@ namespace Config
     inline int PASSER_R_FLOOR     = 64;     // soft floor for R when scaling the additive king-race term (so a fully
                                             // stopped passer, R~0, still can't leak unbounded king-race, but a mostly-
                                             // stopped one is heavily damped): king_race * max(R, R_FLOOR) / 256
-    inline int PASSER_RFLOOR_R5   = 0;      // floor-first for ADVANCED passers (SF/Ethereal keep the rank table
-    inline int PASSER_RFLOOR_R6   = 0;      // unconditional): min R for a passer on the 6th (R5) / 7th (R6) rank,
-                                            // so a near-promotion pawn stays dangerous even when contested. 0 = byte-id.
+    inline int PASSER_RFLOOR_R5   = 0;      // ☠️ DEAD (2026-08-03): rank-keyed floors on R degrade held-out passer
+    inline int PASSER_RFLOOR_R6   = 0;      // accuracy MONOTONICALLY and cost 107-149 STS. A rank floor fires on EVERY
+                                            // advanced passer, so it cannot tell a stopped passer from an unstoppable
+                                            // one, and it distorts the ASSESSMENT (R) rather than bounding the OUTPUT.
+                                            // Kept at 0 as the record; use PASSER_RESID_PCT instead. Do not re-propose.
+
+    // Residual passer value that survives R collapsing, as a percent of the rank magnitude, SCALED DOWN BY
+    // BLOCKADE PERMANENCE. Rationale: our multiplicative `mag * R/256` sends a contested passer to ~0, so a
+    // single wrong realizability call costs the whole pawn (measured: we read -0.01 where SF reads -1.26).
+    // Bounding the OUTPUT fixes that without touching the assessment. Unlike a rank floor this DISCRIMINATES:
+    // the residual is keyed on the stop-square blockade quality we already compute, so a knight blockade
+    // (permanent, BLOCK 140) still collapses to ~0 while a queen "blockade" (BLOCK 50, must move) keeps most
+    // of its residual. 0 = byte-identical.
+    inline int PASSER_RESID_PCT   = 0;
 
     // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
     // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing
@@ -1395,6 +1430,16 @@ namespace Config
     // from -196 STS into +88 (the consumer reads the material edge, so a doubled edge damped the wrong side).
     // Shipped default 2026-08-01 with ENABLE_PASSER_V3 and MOD_KS_REALIZ=128: +36.7 Elo over 503 games.
     inline bool ENABLE_MATERIAL_COUNT_FIX = true;
+
+    // approximate_capture_gains mutates whitePieceVal/blackPieceVal as a side effect: pieces it simulates off
+    // the board come out of the accumulators. ENABLE_MATERIAL_COUNT_FIX recomputes them BEFORE that call, so
+    // capgains immediately undoes it and every later consumer of the material edge (MOD_KS_REALIZ, imbalance
+    // realizability, piece_value_boost, the `material` diagnostic) reads exchange-adjusted material rather
+    // than raw material. Measured 2026-08-02: moving the White queen d1->d4 shifts `material` by 1.045 pawns
+    // with no capture on the board. This re-runs the recompute AFTER capgains so those consumers see raw
+    // material. Default false = byte-identical; it changes the input to four tuned terms, so it needs a joint
+    // retune (sweep MOD_KS_REALIZ on top) rather than a straight A/B.
+    inline bool PIECEVAL_RECOMPUTE_LATE = false;
     inline int  CORR_SHIFT = 6;     // EMA learning rate = 1 / 2^CORR_SHIFT (higher = slower/steadier)
     inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
     inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)

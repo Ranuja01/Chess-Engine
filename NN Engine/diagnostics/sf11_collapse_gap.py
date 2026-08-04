@@ -173,13 +173,29 @@ def main():
               % (np.mean([r["gap"] for r in ksdanger]),
                  np.mean([r["gap"] for r in placement]) if placement else 0.0))
 
+    # Rank by WIN% error, not centipawn gap. A 2-pawn error at +8 barely changes the expected result while a
+    # 2-pawn error at 0.0 flips the game, so raw cp over-weights blowouts and hides the errors that actually
+    # cost points. Same Lichess logistic (k=0.00368208) the fit scripts use, so ranking here matches tuning.
+    K_LICHESS = 0.00368208
+
+    def winpct(pawns):
+        return 100.0 / (1.0 + np.exp(-K_LICHESS * pawns * 100.0))
+
+    for r in rows:
+        r["wp_ours"] = winpct(r["our_tot"])
+        r["wp_sf"] = winpct(r["sf_tot"])
+        r["wp_gap"] = r["wp_ours"] - r["wp_sf"]
+
     topk = args.top
-    rows.sort(key=lambda r: -r["gap"])
-    print("\n=== WORST %d OVER-READ collapse positions (our_tot vs SF11_tot, our POV) — to READ & REASON ===" % topk)
+    rows.sort(key=lambda r: -r["wp_gap"])
+    print("\n=== WORST %d OVER-READ collapse positions BY WIN%% ERROR (our POV) — to READ & REASON ===" % topk)
+    print("    (win%% via Lichess k=0.00368208, as in the fit scripts; cp gap shown for reference)")
     for r in rows[:topk]:
         print("-" * 100)
-        print("gap %+5.2f  ours %+5.2f  SF11 %+5.2f  | %s to move, material %+d, enemy king-ring attackers %d"
-              % (r["gap"], r["our_tot"], r["sf_tot"], r["us"], r["mat"], r["katt"]))
+        print("win%% %+5.1f (ours %.1f%% vs SF11 %.1f%%)  cp_gap %+5.2f  ours %+5.2f  SF11 %+5.2f"
+              " | %s to move, material %+d, enemy king-ring attackers %d"
+              % (r["wp_gap"], r["wp_ours"], r["wp_sf"], r["gap"], r["our_tot"], r["sf_tot"],
+                 r["us"], r["mat"], r["katt"]))
         print("  %s" % r["fen"])
         ot = sorted(r["our"].items(), key=lambda kv: -abs(kv[1]))
         print("  OURS: " + "  ".join("%s=%+.2f" % (t, v) for t, v in ot if abs(v) > 0.05)[:180])

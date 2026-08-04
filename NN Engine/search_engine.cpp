@@ -1240,6 +1240,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_THREATS = env_flag("ENABLE_THREATS", Config::ENABLE_THREATS);
         Config::SCALE_THREATS = env_int("SCALE_THREATS", Config::SCALE_THREATS);
         Config::THREATS_STANDING_ONLY = env_flag("THREATS_STANDING_ONLY", Config::THREATS_STANDING_ONLY);
+        Config::THREAT_PER_TARGET_CAP = env_int("THREAT_PER_TARGET_CAP", Config::THREAT_PER_TARGET_CAP);
+        Config::THREAT_SAFE_PAWN = env_int("THREAT_SAFE_PAWN", Config::THREAT_SAFE_PAWN);
+        Config::THREATS_QUIET_PCT = env_int("THREATS_QUIET_PCT", Config::THREATS_QUIET_PCT);
+        Config::THREATS_TENSION_LO = env_int("THREATS_TENSION_LO", Config::THREATS_TENSION_LO);
+        Config::THREATS_TENSION_HI = env_int("THREATS_TENSION_HI", Config::THREATS_TENSION_HI);
         Config::SCALE_CENTRAL = env_int("SCALE_CENTRAL", Config::SCALE_CENTRAL);
         Config::SCALE_CAPTURE_GAINS = env_int("SCALE_CAPTURE_GAINS", Config::SCALE_CAPTURE_GAINS);
         Config::ENABLE_CAPG_COND = env_flag("ENABLE_CAPG_COND", Config::ENABLE_CAPG_COND);
@@ -1387,6 +1392,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_R_FLOOR = env_int("PASSER_R_FLOOR", Config::PASSER_R_FLOOR);
         Config::PASSER_RFLOOR_R5 = env_int("PASSER_RFLOOR_R5", Config::PASSER_RFLOOR_R5);
         Config::PASSER_RFLOOR_R6 = env_int("PASSER_RFLOOR_R6", Config::PASSER_RFLOOR_R6);
+        Config::PASSER_RESID_PCT = env_int("PASSER_RESID_PCT", Config::PASSER_RESID_PCT);
         Config::ENABLE_KS_DEBUG = env_flag("ENABLE_KS_DEBUG", Config::ENABLE_KS_DEBUG);
         Config::ENABLE_PASSER_KRACE_MG = env_flag("ENABLE_PASSER_KRACE_MG", Config::ENABLE_PASSER_KRACE_MG);
         Config::PASSER_KRACE_MG_PCT = env_int("PASSER_KRACE_MG_PCT", Config::PASSER_KRACE_MG_PCT);
@@ -1493,6 +1499,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::QCACHE_SOUND_STORE = env_flag("QCACHE_SOUND_STORE", Config::QCACHE_SOUND_STORE);
         Config::QCACHE_EXACT_ONLY = env_flag("QCACHE_EXACT_ONLY", Config::QCACHE_EXACT_ONLY);
         Config::ENABLE_MATERIAL_COUNT_FIX = env_flag("ENABLE_MATERIAL_COUNT_FIX", Config::ENABLE_MATERIAL_COUNT_FIX);
+        Config::PIECEVAL_RECOMPUTE_LATE = env_flag("PIECEVAL_RECOMPUTE_LATE", Config::PIECEVAL_RECOMPUTE_LATE);
         Config::CORR_SHIFT = env_int("CORR_SHIFT", Config::CORR_SHIFT);
         Config::CORR_MAX = env_int("CORR_MAX", Config::CORR_MAX);
         Config::CORR_W = env_int("CORR_W", Config::CORR_W);

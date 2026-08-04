@@ -5419,7 +5419,9 @@ static constexpr int THREAT_MINOR[5]   = {0, 550, 550, 850, 800};
 static constexpr int THREAT_ROOK_TBL[5]= {0, 400, 400, 450, 850};
 static constexpr int THREAT_HANGING[5] = {0, 500, 500, 700, 750};
 static constexpr int THREAT_KING_VAL   = 250;
-static constexpr int THREAT_SAFE_PAWN  = 1600;
+// SAFE_PAWN is by far the largest single contribution (1600 vs 850 for the next), and every
+// THREAT_PER_TARGET_CAP value that helped is BELOW it -- so "cap the stack" and "cut SAFE_PAWN" are
+// confounded. Knob-ised so the two can be separated; Config default 1600 keeps it byte-identical.
 
 inline int threats_by(bool by_white){
 	uint64_t our       = by_white ? occupied_white : occupied_black;
@@ -5449,11 +5451,15 @@ inline int threats_by(bool by_white){
 		int na = __builtin_popcountll(attackers), nd = __builtin_popcountll(defenders);
 		uint64_t sm = BB_SQUARES[s];
 		int tgt = (sm & knights) ? 1 : (sm & bishops) ? 2 : (sm & rooks) ? 3 : 4;   // queen = 4
-		if (attackers & our_minor) score += THREAT_MINOR[tgt];
-		if (attackers & our_rooks) score += THREAT_ROOK_TBL[tgt];
-		if (attackers & our_king)  score += THREAT_KING_VAL;
-		if (by_pawn)               score += THREAT_SAFE_PAWN;
-		if (!Config::THREATS_STANDING_ONLY && (nd == 0 || na > nd)) score += THREAT_HANGING[tgt];   // Hanging (volatile) = fenced out under STANDING_ONLY
+		// Accumulate this target's contribution separately so it can be bounded: the stack below is otherwise
+		// unbounded, and one misjudged target can dominate the whole term.
+		int t = 0;
+		if (attackers & our_minor) t += THREAT_MINOR[tgt];
+		if (attackers & our_rooks) t += THREAT_ROOK_TBL[tgt];
+		if (attackers & our_king)  t += THREAT_KING_VAL;
+		if (by_pawn)               t += Config::THREAT_SAFE_PAWN;
+		if (!Config::THREATS_STANDING_ONLY && (nd == 0 || na > nd)) t += THREAT_HANGING[tgt];   // Hanging (volatile) = fenced out under STANDING_ONLY
+		score += Config::THREAT_PER_TARGET_CAP ? std::min(t, Config::THREAT_PER_TARGET_CAP) : t;
 	}
 	return score;
 }
@@ -5461,6 +5467,39 @@ inline int threats_by(bool by_white){
 // Black-positive milli-pawns (before SCALE): threats by Black (favour Black, +) minus threats by White.
 inline int get_static_threats_score(){
 	return threats_by(false) - threats_by(true);
+}
+
+/*
+ * Scaled threat term for the eval add sites: SCALE_THREATS, then an optional TENSION GATE.
+ *
+ * Why the gate: the per-position profile of the capped threat term shows it REPAIRS the positions we get
+ * most wrong (worst decile: mean -28 win%^2, 69 better vs 34 worse) while TAXING the ones we already score
+ * well (best decile +2.9, 21 better vs 58 worse) -- and the one tier it worsens is sts_guard, i.e. exactly
+ * what the bench measures. Tactical tension separates those regimes, so damp the term when nothing is
+ * pending rather than applying it uniformly.
+ *
+ * @return Black-positive milli-pawns, scaled.
+ * NOTE: g_capg_tension is an OUTPUT of approximate_capture_gains, which runs immediately before both add
+ * sites -- but is SKIPPED when SCALE_CAPTURE_GAINS==0, in which case the tension read is stale. The gate is
+ * only meaningful with capture-gains live (the default).
+ */
+inline int threats_term_scaled(){
+	int th = get_static_threats_score();
+	if (Config::SCALE_THREATS != 100)
+		th = Config::SCALE_THREATS * th / 100;
+	const int lo = Config::THREATS_TENSION_LO, hi = Config::THREATS_TENSION_HI;
+	if (Config::THREATS_QUIET_PCT != 100 && hi > lo) {
+		const int t = g_capg_tension;
+		int pct;
+		if (t <= lo)
+			pct = Config::THREATS_QUIET_PCT;
+		else if (t >= hi)
+			pct = 100;
+		else
+			pct = Config::THREATS_QUIET_PCT + (100 - Config::THREATS_QUIET_PCT) * (t - lo) / (hi - lo);
+		th = pct * th / 100;
+	}
+	return th;
 }
 
 inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king_square){
@@ -5892,22 +5931,50 @@ inline int chebyshev_distance(int from_sq, int to_sq) {
  * the fully-populated attack_bitmasks, so it is only meaningful AFTER all piece evaluators have run (i.e. from
  * the post-loop passes). Returns R in [0, 384]. Shared by passer_danger (near-promotion base pricing) and the
  * ENABLE_PASSER_V3 midgame rank-bonus gate, so both channels price the same board-driven realizability. */
-inline int passer_realizability_R(int sq, bool white) {
+// Blockade quality of the canonical blockader (a knight); also the normaliser for the residual-value scale.
+constexpr int PASSER_BLOCK_MAX = 140;
+
+// Diagnostic-only per-passer attribution (see PasserRec in cpp_bitboard.h). Off in search.
+PasserRec g_passer_recs[16];
+int g_passer_nrec = 0;
+bool g_passer_probe = false;
+int g_passer_rawR = 0;
+
+void passer_probe_begin(){ g_passer_nrec = 0; g_passer_probe = true; }
+void passer_probe_end(){ g_passer_probe = false; }
+int passer_probe_count(){ return g_passer_nrec; }
+PasserRec passer_probe_get(int i){ return g_passer_recs[i]; }
+
+/*
+ * Blockade quality of a passer's stop square: how PERMANENTLY the pawn is held.
+ *
+ * @param sq     square of the passed pawn
+ * @param white  true if the passer is White's
+ * @return       0 (stop square empty) .. PASSER_BLOCK_MAX (a knight, the canonical blockader); heavy pieces
+ *               score low because they must eventually move. Halved when the blockader is attacked by the
+ *               passer's own side, since it can be captured or evicted.
+ */
+inline int passer_block_quality(int sq, bool white) {
 	// Blockade quality by the piece type on the stop square (1=P..6=K): a knight is the canonical blockader,
 	// heavy pieces are poor ones. Index 0 = empty stop square (no blockade).
-	static constexpr int BLOCK[7] = {0, 100, 140, 110, 60, 50, 100};
+	static constexpr int BLOCK[7] = {0, 100, PASSER_BLOCK_MAX, 110, 60, 50, 100};
+	int stop = white ? sq + 8 : sq - 8;
+	if (stop < 0 || stop > 63 || !(occupied & BB_SQUARES[stop]))
+		return 0;
+	int blk = BLOCK[pieceTypeLookUp[stop]];
+	if (attack_bitmasks[stop] & (white ? occupied_white : occupied_black))
+		blk >>= 1; // the defender's blocker can be captured/evicted
+	return blk;
+}
+
+inline int passer_realizability_R(int sq, bool white) {
 	int R = 256;
 	int file = sq & 7;
 	if (white) {
 		int s = 7 - (sq >> 3);
 		int stop = sq + 8;
 		int promo = 56 + (sq & 7);
-		if (stop <= 63 && (occupied & BB_SQUARES[stop])) {
-			int blk = BLOCK[pieceTypeLookUp[stop]];
-			if (attack_bitmasks[stop] & occupied_white)
-				blk >>= 1; // the defender's blocker can be captured/evicted
-			R -= blk;
-		}
+		R -= passer_block_quality(sq, true);
 		if (Config::ENABLE_PASSER_V3) {
 			// GRADED path safety: net (enemy attackers - own defenders) per path square, stop square weighted
 			// worst. Uses our attacker/defender COUNTS (popcount of attack_bitmasks) — SF's binary k made continuous.
@@ -5943,12 +6010,7 @@ inline int passer_realizability_R(int sq, bool white) {
 		int s = sq >> 3;
 		int stop = sq - 8;
 		int promo = sq & 7;
-		if (stop >= 0 && (occupied & BB_SQUARES[stop])) {
-			int blk = BLOCK[pieceTypeLookUp[stop]];
-			if (attack_bitmasks[stop] & occupied_black)
-				blk >>= 1;
-			R -= blk;
-		}
+		R -= passer_block_quality(sq, false);
 		if (Config::ENABLE_PASSER_V3) {
 			for (int i = stop; i >= promo; i -= 8) {
 				int contest = std::clamp(__builtin_popcountll(attack_bitmasks[i] & occupied_white)
@@ -5976,6 +6038,7 @@ inline int passer_realizability_R(int sq, bool white) {
 				R += std::clamp((dK - s - 1) * Config::PASSER_DANGER_D4, 0, 96);
 		}
 	}
+	g_passer_rawR = R;   // diagnostic only: the clamp below erases how far past 0 the assessment went
 	return std::clamp(R, 0, 384);
 }
 
@@ -6036,10 +6099,24 @@ inline int evaluate_passers(uint64_t white_passed_pawns, uint64_t black_passed_p
 			int rf = (rank >= 6) ? Config::PASSER_RFLOOR_R6 : Config::PASSER_RFLOOR_R5;
 			if (R < rf) R = rf;
 		}
-		int val = mag * R / 256;
+		// Bound the OUTPUT rather than the assessment: grant a residual share of the rank magnitude that R
+		// cannot take away, scaled DOWN by how permanent the blockade is. A knight on the stop square is a
+		// forever-blockade and keeps no residual; a queen there must move, so the pawn stays a live asset.
+		// This is the discrimination a rank-keyed floor on R could not make (see PASSER_RFLOOR_*).
+		int resid = Config::PASSER_RESID_PCT
+		          * (PASSER_BLOCK_MAX - std::min(passer_block_quality(sq, white), PASSER_BLOCK_MAX))
+		          / PASSER_BLOCK_MAX;
+		int base = mag * resid / 100;
+		int val = base + (mag - base) * R / 256;
 		// King-race, added SOFT-GATED by R so it cannot leak past a stopped passer but a mostly-realizable one
 		// still gets it (fable's operator fix). Owner-oriented positive magnitude; sign applied below.
 		val += passer_king_race_one(sq, white, turn) * std::max(R, Config::PASSER_R_FLOOR) / 256;
+		if (g_passer_probe && g_passer_nrec < 16) {
+			PasserRec &pr = g_passer_recs[g_passer_nrec++];
+			pr.sq = sq; pr.white = white ? 1 : 0; pr.rank = rank;
+			pr.mag = mag; pr.R = R; pr.rawR = g_passer_rawR;
+			pr.blk = passer_block_quality(sq, white); pr.val = val;
+		}
 		priced_passer[sq] = val;
 		agg += white ? -val : val;
 	}
@@ -6845,6 +6922,24 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 					                                           : (whitePieceVal - blackPieceVal), phase_score) / 256;
 				total += (cgs == 100) ? cg : (cgs * cg / 100);
 		}
+		// approximate_capture_gains above mutates whitePieceVal/blackPieceVal (pieces it simulates off the
+		// board leave the accumulators), which silently undoes the ENABLE_MATERIAL_COUNT_FIX recompute done
+		// before it. Re-establish RAW material here so the later consumers of the material edge see the
+		// pieces actually on the board. Default off => byte-identical.
+		if (Config::PIECEVAL_RECOMPUTE_LATE) {
+			whitePieceVal = __builtin_popcountll(pawns   & occupied_white) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_white) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_white) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_white) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_white) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_white) * values[KING];
+			blackPieceVal = __builtin_popcountll(pawns   & occupied_black) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_black) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_black) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_black) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_black) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_black) * values[KING];
+		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 
@@ -6852,9 +6947,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		// +0.0010 held-out outcome, unlike the midgame-only king terms). Beside capture_gains in both the midgame
 		// and endgame branches, before the PV-boost / advanced_endgame reads of total. Default-off => byte-id.
 		if (Config::ENABLE_THREATS && !g_eval_light){
-			int th = get_static_threats_score();
-			th = (Config::SCALE_THREATS == 100) ? th : (Config::SCALE_THREATS * th / 100);
-			total += th;
+			total += threats_term_scaled();
 		}
 		br_threats = total - br_run; br_run = total;
 
@@ -7150,6 +7243,24 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 					                                           : (whitePieceVal - blackPieceVal), phase_score) / 256;
 				total += (cgs == 100) ? cg : (cgs * cg / 100);
 		}
+		// approximate_capture_gains above mutates whitePieceVal/blackPieceVal (pieces it simulates off the
+		// board leave the accumulators), which silently undoes the ENABLE_MATERIAL_COUNT_FIX recompute done
+		// before it. Re-establish RAW material here so the later consumers of the material edge see the
+		// pieces actually on the board. Default off => byte-identical.
+		if (Config::PIECEVAL_RECOMPUTE_LATE) {
+			whitePieceVal = __builtin_popcountll(pawns   & occupied_white) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_white) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_white) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_white) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_white) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_white) * values[KING];
+			blackPieceVal = __builtin_popcountll(pawns   & occupied_black) * values[PAWN]
+			              + __builtin_popcountll(knights & occupied_black) * values[KNIGHT]
+			              + __builtin_popcountll(bishops & occupied_black) * values[BISHOP]
+			              + __builtin_popcountll(rooks   & occupied_black) * values[ROOK]
+			              + __builtin_popcountll(queens  & occupied_black) * values[QUEEN]
+			              + __builtin_popcountll(kings   & occupied_black) * values[KING];
+		}
 		br_capture = total - br_run; br_run = total;
 		//std::cout << total << std::endl;
 
@@ -7157,9 +7268,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		// +0.0010 held-out outcome, unlike the midgame-only king terms). Beside capture_gains in both the midgame
 		// and endgame branches, before the PV-boost / advanced_endgame reads of total. Default-off => byte-id.
 		if (Config::ENABLE_THREATS && !g_eval_light){
-			int th = get_static_threats_score();
-			th = (Config::SCALE_THREATS == 100) ? th : (Config::SCALE_THREATS * th / 100);
-			total += th;
+			total += threats_term_scaled();
 		}
 		br_threats = total - br_run; br_run = total;
 

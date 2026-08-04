@@ -134,6 +134,22 @@ cdef extern from "cpp_bitboard.h":
     int placement_and_piece_endgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_eval(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
 
+    # Diagnostic-only per-PASSER attribution (see PasserRec in cpp_bitboard.h). Localises a passer
+    # misvaluation to a stage: not flagged / small magnitude / collapsed realizability.
+    cdef struct PasserRec:
+        int sq
+        int white
+        int rank
+        int mag
+        int R
+        int rawR
+        int blk
+        int val
+    void passer_probe_begin()
+    void passer_probe_end()
+    int passer_probe_count()
+    PasserRec passer_probe_get(int i)
+
     # Diagnostic-only per-term static-eval attribution (see EvalBreakdown in cpp_bitboard.h).
     cdef struct EvalBreakdown:
         int total
@@ -478,6 +494,46 @@ cdef class ChessAI:
         return placement_and_piece_eval(moveNum, board.turn, pawns, knights, bishops,
                                         rooks, queens, kings, occupied_white, occupied_black, occupied)
 
+
+    # Diagnostic: per-PASSER attribution for one position. Runs the REAL eval with the probe flag set and
+    # returns one dict per passer that evaluate_passers priced, so a passer reading ~0 can be attributed to
+    # a stage (never flagged / small magnitude / collapsed realizability) instead of inferred from a corpus
+    # average. Returns [] when ENABLE_PASSER_V3 is off, since evaluate_passers is then not the payer.
+    def passer_records(self, object board):
+
+        cdef uint64_t pawns = board.pawns
+        cdef uint64_t knights = board.knights
+        cdef uint64_t bishops = board.bishops
+        cdef uint64_t rooks = board.rooks
+        cdef uint64_t queens = board.queens
+        cdef uint64_t kings = board.kings
+        cdef uint64_t occupied_white = board.occupied_co[True]
+        cdef uint64_t occupied_black = board.occupied_co[False]
+        cdef uint64_t occupied = board.occupied
+        cdef int moveNum = board.ply()
+        cdef int i
+
+        if board.is_checkmate():
+            return []
+
+        cdef PasserRec pr
+        passer_probe_begin()
+        eval_breakdown_capture(moveNum, board.turn, pawns, knights, bishops,
+                               rooks, queens, kings, occupied_white, occupied_black, occupied)
+        passer_probe_end()
+
+        out = []
+        for i in range(passer_probe_count()):
+            pr = passer_probe_get(i)
+            out.append({"sq": pr.sq,
+                        "white": pr.white != 0,
+                        "rank": pr.rank,
+                        "mag": pr.mag,
+                        "R": pr.R,
+                        "rawR": pr.rawR,
+                        "blk": pr.blk,
+                        "val": pr.val})
+        return out
 
     # Diagnostic: per-term attribution of the static eval for one position. Returns a plain dict in the
     # engine's absolute (Black-positive) milli-pawn units; the caller normalizes to White-POV (see

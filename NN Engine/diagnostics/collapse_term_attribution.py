@@ -60,10 +60,16 @@ class SF15Eval:
 # OUR ev_breakdown CLEAN-PARTITION terms only (these sum to total; pt_*/det_*/flags are sub-components -> excluded
 # to avoid double-count). Value = SF classical label(s); empty list = OURS-SPECIFIC (no SF counterpart -> the full
 # value is 'excess over classical', which is exactly what flags an over-read SF doesn't share -- e.g. OvD, capg).
+# ⚠️ `material` is DELIBERATELY ABSENT. It is a DIAGNOSTIC (blackPieceVal - whitePieceVal), not part of the
+# additive sum -- verified by breakdown_partition_check.py (residual 0 without it). Including it double-counted
+# material, since `pieces` is the sum of the pt_* sub-views and those bundle each piece's VALUE with its
+# placement. For the same reason `pieces` must map to SF's Material AND Pawns AND the piece terms: SF reports
+# material separately from activity, we do not. Mapping `pieces` to the activity terms alone made our piece
+# aggregate look 3-5 pawns "over-read" in every position where we were simply ahead on material.
 OUR2SF = {
-    "material": ["Material"], "kaufman_imbalance": ["Imbalance"], "pair_bonus": ["Imbalance"],
+    "kaufman_imbalance": ["Imbalance"], "pair_bonus": ["Imbalance"],
     "imbalance_white": [], "imbalance_black": [],          # OvD offense/defense -- ours-specific (SF has no OvD)
-    "pieces": ["Knights", "Bishops", "Rooks", "Queens"], "king_safety": ["King safety"],
+    "pieces": ["Material", "Pawns", "Knights", "Bishops", "Rooks", "Queens"], "king_safety": ["King safety"],
     "passed_pawn_support": ["Passed"], "latent_threat": [], "threats": ["Threats"],
     "central": ["Space"], "capture_gains": [], "piece_value_boost": [],
 }
@@ -113,6 +119,57 @@ def profile(fens, label):
         print("  %-22s %+8.2f %+8.2f %7.0f%%" % (t, our_sum[t] / n, exc_sum[t] / n, 100.0 * topcnt[t] / n))
     return n
 
+
+def per_fen(path):
+    """PER-POSITION mode (FENS=<file> with 'label<TAB>fen'): print our clean-partition terms beside BOTH
+    classical references, so a single position can be reasoned about term by term. The aggregate mode says
+    WHICH term is hot across a class; this says WHY for one board. Ours-specific terms (capture_gains,
+    piece_value_boost, latent_threat, OvD imbalance) are marked '--' on the SF side -- they have no
+    counterpart, so their whole value is excess over classical."""
+    items = []
+    for ln in open(path):
+        ln = ln.rstrip("\n")
+        if not ln.strip() or ln.lstrip().startswith("#"):
+            continue
+        lbl, fen = (ln.split("\t", 1) if "\t" in ln else ("", ln))
+        items.append((lbl.strip(), fen.strip()))
+    for lbl, fen in items:
+        try:
+            bd = ai.ev_breakdown(chess.Board(fen))
+            ot = our_terms(bd)
+            t11, s11 = sf11.eval(fen)
+            t15, s15 = sf15.eval(fen)
+        except Exception as exc:
+            print("%s  ERROR %s" % (lbl, exc))
+            continue
+        print("=" * 104)
+        print("%s   %s" % (lbl, fen))
+        print("  totals: OURS %+6.2f | SF11 %s | SF15c %s"
+              % (-bd.get("total", 0) / 1000.0,
+                 "n/a" if t11 is None else "%+6.2f" % t11,
+                 "n/a" if t15 is None else "%+6.2f" % t15))
+        print("  %-22s %9s %9s %9s %9s   %s"
+              % ("our term", "OURS", "SF11", "SF15c", "excess", "SF label(s)"))
+        rows = []
+        for t, ov in ot.items():
+            labels = OUR2SF.get(t, None)
+            c11 = None if not labels else sum(s11.get(l, 0.0) for l in labels)
+            c15 = None if not labels else sum(s15.get(l, 0.0) for l in labels)
+            avg = None if (c11 is None and c15 is None) else \
+                ((c11 or 0.0) + (c15 or 0.0)) / (int(c11 is not None) + int(c15 is not None))
+            exc = ov if avg is None else ov - avg
+            rows.append((abs(exc), t, ov, c11, c15, exc, ",".join(labels) if labels else "(ours-only)"))
+        for _, t, ov, c11, c15, exc, lab in sorted(rows, reverse=True):
+            if abs(ov) < 0.05 and abs(exc) < 0.05:
+                continue
+            f = lambda v: "  --  " if v is None else "%+6.2f" % v
+            print("  %-22s %9.2f %9s %9s %+9.2f   %s" % (t, ov, f(c11), f(c15), exc, lab))
+
+
+if os.environ.get("FENS"):
+    per_fen(os.environ["FENS"])
+    sf11.close(); sf15.close()
+    raise SystemExit
 
 # ---- collapse positions of the target class ----
 CLS = os.path.join(THIS, "ks_sets", "collapse_dataset_classified.csv")

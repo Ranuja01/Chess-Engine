@@ -101,8 +101,32 @@ for fen, src in sample:
 sf11.close()
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
-with open(OUT, "w", newline="") as f:
-    w = csv.DictWriter(f, fieldnames=COLS); w.writeheader(); w.writerows(rows)
+
+# MERGE with whatever is already banked. This file previously opened OUT with "w" and never read it, so
+# every run silently REPLACED the bank -- destroying the expensive `sf18` labels written by
+# add_sf18_labels.py -- despite the docstring promising append-only accumulation. Existing rows win on
+# conflict so hard-won labels are never clobbered by a fresh unlabeled sample of the same FEN.
+existing = []
+if os.path.exists(OUT):
+    with open(OUT, newline="") as f:
+        existing = list(csv.DictReader(f))
+by_fen = {r["fen"]: r for r in existing if r.get("fen")}
+added = 0
+for r in rows:
+    if r["fen"] in by_fen:
+        continue
+    by_fen[r["fen"]] = r
+    added += 1
+merged = list(by_fen.values())
+
+tmp = OUT + ".tmp"
+with open(tmp, "w", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=COLS, extrasaction="ignore")
+    w.writeheader(); w.writerows(merged)
+os.replace(tmp, OUT)
+kept_sf18 = sum(1 for r in merged if (r.get("sf18") or "").strip())
+print("bank merge: %d existing + %d new = %d rows (%d already SF18-labeled)"
+      % (len(existing), added, len(merged), kept_sf18))
 
 from collections import Counter
 print("labeled %d positions -> %s" % (len(rows), OUT))

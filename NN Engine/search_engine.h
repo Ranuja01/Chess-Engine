@@ -834,6 +834,183 @@ namespace Config
     inline int SCALE_PAWN_WALL    = 100;  // pawn_wall_file_bonus (pawn-shield / wall cohesion)
     inline int SCALE_PAWN_CHAIN   = 100;  // pawn_chain_file_bonus (diagonal chain support)
 
+    // Eval: GRADED obstruction selector for the pawn rank tables. Both pawn evaluators pick between the
+    // ordinary and passed rank tables with a single threshold on ppIncrement, discarding the fact that
+    // ppIncrement is already a continuous 0..cap obstruction score. Measured against SF18, that boolean is
+    // misplaced: a pawn whose only stopper sits on an adjacent file ahead scores ppIncrement 75 -- just
+    // under the midgame threshold -- yet is worth as much as a true passer (+258..+329 vs +240..+273 at the
+    // 6th rank), and SF15.1 flags exactly that shape as passed. Blending interpolates between the two
+    // tables over [LO, HI] instead. Off => the original threshold, byte-identical.
+    // Eval: PER-RANK percentage scales on the three pawn rank tables, applied on top of the whole-table
+    // SCALE_* knobs in rebuild_scaled_pawn_tables(). The tables are hand-picked; a single whole-table
+    // multiplier can only rescale that hand-picked SHAPE, never derive a different one. These let the
+    // win%-error tuner choose the entries themselves, jointly with every other eval term, which is the
+    // only way the curve's shape becomes data-driven rather than assumed.
+    // Only indices 1..6 (ranks 2..7) are reachable: index 0 is the pawn's own back rank and index 7 the
+    // promotion square, neither of which a pawn can occupy. All default 100 => byte-identical.
+    inline std::array<int, 8> RANK_DEF_PCT = {100, 100, 100, 100, 100, 100, 100, 100};  // default_midgame_pawn_rank_bonus
+    inline std::array<int, 8> RANK_PSD_PCT = {100, 100, 100, 100, 100, 100, 100, 100};  // passed_midgame_pawn_rank_bonus
+    inline std::array<int, 8> RANK_EG_PCT  = {100, 100, 100, 100, 100, 100, 100, 100};  // endgame_pawn_rank_bonus
+
+    // PER-FILE percentage scales on the chain and wall tables, same rationale as the per-rank knobs above:
+    // the base values (chain A 10 / B 15 / C 100 / D 150 / E 150 / F 100 / G 15 / H 10) are hand-picked and
+    // only a whole-table multiplier existed, so the file SHAPE has never been fitted to anything. Chain is
+    // indexed by file 0..7; wall is indexed [x] and [x+2] so its live entries are 1..8. Default 100 => same.
+    inline std::array<int, 8>  CHAIN_F_PCT = {100, 100, 100, 100, 100, 100, 100, 100};
+    inline std::array<int, 11> WALL_F_PCT  = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
+
+    // PER-PAWN BONUS CAPS, made tunable. `min(225, structural + positional)` midgame and
+    // `min(175, structural)` endgame were fixed literals chosen to stop central pawns growing until two of
+    // them equalled a minor piece. Measured: the midgame cap binds for ~36% of pawns (corpus-invariant) and
+    // the endgame cap barely binds at all. Whether those are the right heights is a question for the
+    // win%-descent, not for judgement -- so they become knobs rather than constants.
+    inline int PAWN_CLAMP_MID = 225;
+    inline int PAWN_CLAMP_EG  = 175;
+
+    // ENDGAME structural magnitudes. These were HARDCODED literals in evaluate_pawns_endgame and no knob
+    // reached them -- SCALE_PAWN_WALL/_CHAIN only rebuild the file tables that the MIDGAME path reads. So
+    // endgame pawn structure was flat in file, flat in rank, and had never been fitted even once, while
+    // SF's endgame connected term is its most rank-sensitive component. Defaults reproduce the literals.
+    inline int EG_PHALANX = 100;   // same-rank neighbour (SF's phalanx)
+    inline int EG_SUPPORT = 135;   // diagonally-behind supporter (SF's support)
+    inline int EG_DEFEND  = 115;   // this pawn defends another pawn
+    inline int EG_LATENT  = 50;    // potential (not yet realised) support
+
+    // ENDGAME piece-EXISTENCE bonuses. Each endgame piece evaluator adds a flat amount on top of
+    // values[] simply for the piece being on the board, restating what a piece is worth once the
+    // position simplifies. They were hardcoded literals reachable by no knob, so the endgame piece
+    // scale has never been fitted. Measured motivation: on real positions our minor/pawn exchange
+    // rate is ~3.4-3.6 where SF11, SF15.1-classical and SF18 all sit at 3.9-4.1, and the per-removal
+    // error is fat-tailed rather than a uniform offset. Defaults reproduce the literals exactly.
+    inline int EG_EXIST_KNIGHT = 200;
+    inline int EG_EXIST_BISHOP = 250;
+    inline int EG_EXIST_ROOK   = 350;
+    inline int EG_EXIST_QUEEN  = 900;
+
+    // MIDGAME per-piece accumulator clamps, previously fixed literals. The bishop path clamps TWICE,
+    // 150 apart, straddling the colour-complex term -- a stacked clamp, which makes any knob feeding
+    // it step-shaped (plateau then discontinuity) rather than smooth. Exposed so the descent can see
+    // the steps instead of fighting them.
+    inline int MG_CLAMP_KNIGHT   = 3750;
+    inline int MG_CLAMP_BISHOP_A = 3850;   // before get_bishop_colour_complex_score
+    inline int MG_CLAMP_BISHOP_B = 4000;   // after it
+
+    // ENDGAME per-piece accumulator clamps. These DO NOT EXIST today: only the knight and bishop
+    // MIDGAME paths are clamped, so every endgame piece score is unbounded while its midgame twin is
+    // capped. That asymmetry is a live suspect for endgame divergence -- the identical asymmetry was
+    // found and closed for pawns this session (PAWN_CLAMP_MID existed, PAWN_CLAMP_EG did not).
+    // 0 = disabled, which is the default, so the engine stays byte-identical until a value is set.
+    inline int EG_CLAMP_KNIGHT = 0;
+    inline int EG_CLAMP_BISHOP = 0;
+    inline int EG_CLAMP_ROOK   = 0;
+    inline int EG_CLAMP_QUEEN  = 0;
+
+    // ---------------------------------------------------------------------------------------------
+    // WINNABILITY. A second-order correction asking "can this nominal advantage actually be converted?"
+    // Verified ABSENT from our eval and our entire commit history; both reference lineages have one.
+    // SF1.1 had nothing -> SF11 `initiative()` -> SF15.1 renamed it `winnable()`, which is the semantic
+    // point: it never measured initiative in the chess sense, and not one of its inputs is an attacking
+    // signal. Ethereal carries the same clamp shape with a simpler, endgame-only feature set.
+    //
+    // Form ported, constants ours. `complexity` is a linear combination of convertibility features; the
+    // result is applied ONCE to the summed total, sign-preserving and bounded by |total| so it can drive
+    // a score to zero but never flip who is winning. SF damps midgame-only (its upper bound is literally
+    // 0) and allows a two-way endgame adjustment; we hold one blended total rather than an (mg,eg) pair,
+    // so that split becomes a phase blend of the two forms -- the boost half vanishes toward the opening,
+    // preserving the restraint that NEITHER reference engine lets this term boost in the middlegame.
+    inline bool ENABLE_WINNABILITY = false;
+    inline int WINNAB_PASSED      = 9;    // passed pawns: a concrete conversion mechanism
+    inline int WINNAB_PAWNS       = 12;   // total pawns: material to make a passer from
+    inline int WINNAB_OUTFLANK    = 9;    // king file distance + SIGNED rank difference (SF15.1's form)
+    inline int WINNAB_FLANKS      = 21;   // pawns on both wings: two fronts to attack
+    inline int WINNAB_INFILT      = 24;   // a king already advanced into enemy territory
+    inline int WINNAB_NO_NPM      = 51;   // pure pawn endgame: sharply more convertible
+    inline int WINNAB_UNWINNABLE  = 43;   // subtracted when outflanking < 0 and pawns on one wing only
+    inline int WINNAB_TENSION     = 0;    // OUR signal, no SF/Ethereal analogue: g_capg_tension. Opt-in.
+    inline int WINNAB_BASE        = 110;  // subtracted; makes complexity negative in simplified positions
+    inline int WINNAB_MG_OFFSET   = 50;   // SF's `complexity + 50` on the damp-only branch
+    inline int WINNAB_SCALE       = 10;   // complexity units -> millipawns (our pawn = 1000, SF's ~126)
+
+    // ---------------------------------------------------------------------------------------------
+    // CLOSEDNESS. Ethereal's `evaluateClosedness`, which Stockfish has no analogue for: a pawn-structure
+    // index that shifts knight and rook value relative to each other. This is a Kaufman-family imbalance
+    // term (which piece is better here?), NOT a winnability term (is the advantage convertible?) -- a
+    // damp on the total moves pawns and minors together and so cannot correct a piece/pawn RATIO.
+    // Motivation from our own data: minors sit ~7% below the classical consensus on the piece/pawn
+    // exchange rate while rooks are exact, and the knight's closed-vs-open win% error spread is 3.9
+    // against the bishop's 1.2 -- a knight keeps its eight target squares in a closed position, so
+    // nothing in our eval notices it is BETTER there.
+    inline bool ENABLE_CLOSEDNESS = false;
+    // Indexed by closedness 0 (wide open) .. 8 (fully closed). Millipawns per net piece. All-zero =
+    // inert even with the gate on, so the descent supplies the shape rather than inheriting Ethereal's.
+    inline int CLOSED_N[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    inline int CLOSED_R[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // 🚨 Bishops deliberately get NO additive table -- they would double-count. Bishops are ALREADY
+    // closedness-sensitive through get_bishop_colour_complex_score, which subtracts `block` (own pawns
+    // on the bishop's colour) and pays `mob` (real diagonal scope, which collapses when the position
+    // closes). This modulates that existing term instead, keeping it the single payer for the signal.
+    // Percent, 100 = unchanged.
+    inline int CLOSED_B_PCT[9] = {100, 100, 100, 100, 100, 100, 100, 100, 100};
+
+    // ---------------------------------------------------------------------------------------------
+    // PHASE BLEND POINTS. 🐛 The blend does not complete. `PHASE_BLEND_RANGE` of 30 implies a 40->70
+    // ramp, but the blend is only reached inside `!isEndGame` (phase_score <= 64), so the endgame weight
+    // tops out at 24/30 = 80% and then JUMPS to 100% when isEndGame flips -- a ~20% step of
+    // (result_end - result_mid) at the phase boundary, on every blended piece type. Setting RANGE to 24
+    // closes the step. Defaults reproduce the current behaviour exactly.
+    inline int PHASE_BLEND_LO    = 40;
+    inline int PHASE_BLEND_RANGE = 30;
+
+    // RANK sensitivity for the structural bonuses, per phase. Ours are file-indexed with NO rank term at
+    // all; SF's `Connected[r]` is rank-indexed and its endgame component scales `v*(r-2)/4`, a 4x swing.
+    // Because we have two separate evaluators the two phases can carry entirely different curves -- SF must
+    // encode an (mg,eg) pair from one formula, we do not. Indices are ranks 1..6 (2..7); 100 => unchanged.
+    inline std::array<int, 8> STRUCT_R_MG_PCT = {100, 100, 100, 100, 100, 100, 100, 100};
+    inline std::array<int, 8> STRUCT_R_EG_PCT = {100, 100, 100, 100, 100, 100, 100, 100};
+
+    // OPPOSED modulation. SF scales the connected bonus by `(2 + phalanx - opposed)`; we had no `opposed`
+    // signal exposed at all, even though getPPIncrement computes it and throws it away via an early return.
+    // `opposed` = an enemy pawn anywhere ahead on OUR OWN file. Note opposed is a STRICT SUBSET of
+    // "not passed": a pawn contested only on an adjacent file is not passed, but is unopposed.
+    inline int STRUCT_OPPOSED_MG_PCT = 100;
+    inline int STRUCT_OPPOSED_EG_PCT = 100;
+
+    // Defer the inline rank bonus for every FLAGGED passer, instead of for every pawn above the ppIncrement
+    // threshold. Deferring discards the value (g_passer_*_deferred are written and never read) because
+    // evaluate_passers independently pays each pawn in the passed bitboard, so the two populations must
+    // coincide -- and in the endgame they do not. There the threshold is 300, but a flagged passer's
+    // ppIncrement is 200 - blockade + 50(clear) + 75*diag + 150(file clear) + 225*horiz, so an UNSUPPORTED
+    // passer caps at 250 and always keeps the inline base while a SUPPORTED one reaches 475 and loses it:
+    // the base is granted to weak passers and withheld from strong ones. Measured on a lone blockaded
+    // endgame passer: ~12 cp inline PLUS 43.5 cp from evaluate_passers, for the same pawn.
+    // ⚠️ Also the precondition for tuning the PP_* constants: `ppInc >= 100 <=> flagged` holds in the
+    // midgame only because base 200 - PP_BLOCKADE_PEN 100 = exactly 100. Move that constant and midgame
+    // passers start double-paying too. Behaviour change, so gated; default off = today's engine.
+    // PASSED-PAWN SUPPORT magnitudes (boost_pieces_for_supporting_passed_pawns). Every one of these was a
+    // hardcoded literal scaled only by the whole-function SCALE_PASSED_PAWN, so the SHAPE of the
+    // path-occupancy/path-control trade has never been fitted. Per promotion-path square ahead of a passer:
+    // an own piece standing there, an enemy piece standing there, and — for empty squares — each own or
+    // enemy attacker of it. All multiplied by rank and halved unless the passer is advanced in an endgame.
+    // Defaults reproduce the literals exactly.
+    inline int PPS_OWN_BLOCK    = 75;   // own piece occupying a path square (was y * 75)
+    inline int PPS_ENEMY_BLOCK  = 100;  // enemy piece occupying a path square (was y * 100)
+    inline int PPS_OWN_ATTACK   = 60;   // own attacker of an empty path square (was y * 60)
+    inline int PPS_ENEMY_ATTACK = 50;   // enemy attacker of an empty path square (was y * 50)
+
+    inline bool ENABLE_PASSER_DEFER_ON_FLAG = false;
+
+    // Upper bound of the realizability clamp inside passer_realizability_R. PASSER_R_CAP could never exceed
+    // this, which is why raising the cap alone was found inert -- and the joint descent pinned the cap at
+    // exactly 384, i.e. it wanted more upside and the architecture refused. Raise both together to give it
+    // room. Default 384 => byte-identical.
+    inline int PASSER_R_MAX = 384;
+
+    inline bool ENABLE_PAWN_OBSTRUCTION_BLEND = false;
+    inline int PAWN_OBS_LO        = 50;   // ppIncrement at/below which the ORDINARY table is used outright (midgame)
+    inline int PAWN_OBS_HI        = 250;  // ppIncrement at/above which the PASSED table is used outright (midgame)
+    inline int PAWN_OBS_LO_EG     = 150;  // endgame twin; that path runs on a wider ppIncrement scale (cap 600,
+    inline int PAWN_OBS_HI_EG     = 450;  // legacy threshold 300) so it carries its own span rather than sharing.
+
     // Eval: latent bishop-activity increments in get_latent_bishop_activity_score (absolute, defaults =
     // the original literals = byte-identical; the knob IS the value, no division). Reward for a bishop's
     // blocked-diagonal reach onto an enemy pawn and its second-order diagonal scope.
@@ -1086,6 +1263,16 @@ namespace Config
     // (permanent, BLOCK 140) still collapses to ~0 while a queen "blockade" (BLOCK 50, must move) keeps most
     // of its residual. 0 = byte-identical.
     inline int PASSER_RESID_PCT   = 0;
+
+    // Floor a passer at what the SAME pawn would earn if it were NOT passed
+    // (default_midgame_pawn_rank_bonus[rank]). Under V3 the pawn loop defers the rank bonus for a flagged
+    // passer, so `mag * R/256` is the sole payer and a collapsed R leaves the passer worth LESS than an
+    // ordinary pawn on that square (w1: 6 mp vs 90). Being detected as passed must never be a penalty.
+    // With this on, R interpolates ordinary-pawn -> full-passer instead of zero -> full-passer. The ceiling
+    // is unchanged, so unlike every unconditional-base arm this adds nothing to healthy passers.
+    // Default false = byte-identical.
+    inline bool ENABLE_PASSER_ORD_FLOOR = false;
+
 
     // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
     // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing

@@ -79,6 +79,44 @@ case "$cmd" in
     awk -v n="$nodes" -v s="${secs:-0}" 'BEGIN{ if (s+0>0) printf "NPS: %d\n", n/s }'
     ;;
 
+  wac_speed)
+    # SPEED gate: repeat the fixed-depth WAC bench N times on a PINNED core and report the distribution,
+    # with the MINIMUM user-time (= peak NPS) as the headline estimator.
+    #
+    # Why not wac_timed's single median-of-3: six runs of one byte-identical binary over the identical
+    # 35.8M-node workload spanned 376k-431k NPS (14.6%). Frequency scaling, thermal state and WSL scheduling
+    # all ADD time and never remove it, so the median tracks machine conditions while the minimum tracks the
+    # code. Pinning removes core-migration noise on top of that. Compare MIN_NPS between arms; treat MEDIAN
+    # as a load indicator, not as the measurement.
+    #
+    # NOTE this only sharpens the ruler -- it does not make it exact. Small per-node additions (a probe's
+    # disabled branch costs a fraction of a percent) stay under the floor of ANY timing method here, so
+    # "NPS looked unchanged" is not evidence that instrumentation is free; bound those by construction.
+    tag="${1:?tag required}"; shift || true
+    reps="${1:-5}"; shift || true
+    pin="${PIN_CORE:-2}"
+    : > "/tmp/wac_speed_${tag}.tsv"
+    for i in $(seq 1 "$reps"); do
+      /usr/bin/time -v taskset -c "$pin" \
+        env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
+          "$PY" diagnostics/tactical_test.py wac.epd "${tag}_r${i}" \
+          > "/tmp/wac_${tag}_r${i}.out" 2> "/tmp/wac_${tag}_r${i}.err" || true
+      n=$(grep -hoP '\(nodes=\K[0-9]+' "/tmp/wac_${tag}_r${i}.err" | awk '{s+=$1} END{print s+0}')
+      s=$(grep -hoP 'User time \(seconds\): \K[0-9.]+' "/tmp/wac_${tag}_r${i}.err")
+      echo "$n	${s:-0}" >> "/tmp/wac_speed_${tag}.tsv"
+    done
+    echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/wac_${tag}_r1.out" || echo "?"
+    echo -n "NODES: ";  awk 'NR==1{print $1}' "/tmp/wac_speed_${tag}.tsv"
+    echo -n "NODES_STABLE: "; awk '{print $1}' "/tmp/wac_speed_${tag}.tsv" | sort -u | wc -l \
+      | awk '{print ($1==1 ? "yes (all reps identical)" : "NO -- " $1 " distinct node counts, workload not fixed")}'
+    awk -F'\t' '$2+0>0 {printf "%.0f\n", $1/$2}' "/tmp/wac_speed_${tag}.tsv" | sort -n \
+      | awk '{v[NR]=$1} END{ if(!NR){print "NPS: (none)"; exit}
+              printf "MIN_NPS: %d\n", v[1];
+              printf "MAX_NPS: %d  <- headline (least-disturbed run)\n", v[NR];
+              printf "MEDIAN_NPS: %d\n", (NR%2 ? v[(NR+1)/2] : int((v[NR/2]+v[NR/2+1])/2));
+              printf "SPREAD: %.1f%% over %d reps\n", 100.0*(v[NR]-v[1])/v[1], NR }'
+    ;;
+
   sts)
     # Positional bench, fixed-depth by default. Prints "STS score: X/3000 (Y%)".
     # Caller knobs LAST so PRESET/MAX_DEPTH overrides actually take effect (see the wac sub).
@@ -1127,6 +1165,31 @@ PYEOF
         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
+  kpgauntlet)
+    # DIAGNOSTIC venue: same fixed-node gauntlet vs SF18, but started from randomized PAWN-DOMINATED
+    # positions (diagnostics/gen_kp_fens.py) instead of the UHO book. Pawn-structure and passer terms are
+    # diluted in normal play; here they sit on the critical path, so a term that WORKS shows a signal even
+    # if it does not MATTER over full games. ⚠️ NEVER ship on this venue -- endgame FENs are only 5-9% of
+    # forfeited points. Use it to find/validate a mechanism, then decide with a general-game SPRT.
+    # Args: <games> <sfnodes> [conc=3] [tag=kpg] [seed=0] [fens=selfplay/kp_fens.txt] [KEY=VAL knobs...].
+    games="${1:?games}"; shift || true
+    sfn="${1:?sf-nodes}"; shift || true
+    conc="${1:-3}"; shift || true
+    ttag="${1:-kpg}"; shift || true
+    gseed=0
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then gseed="$1"; shift || true; fi
+    kpf="selfplay/kp_fens.txt"
+    if [[ "${1:-}" == *.txt ]]; then kpf="$1"; shift || true; fi
+    export STOCKFISH_PATH="$SF"
+    env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" selfplay/vs_sf.py --our-label ours \
+        --our-config "PRESET=LONG_FORMAT MAX_DEPTH=64 NODE_LIMIT=${OUR_NODES:-250000} USE_OPENING_BOOK=0" \
+        --sf-elo 0 --sf-path "$SF" --sf-arb-path "$SF" --sf-nodes "$sfn" \
+        --games "$games" --concurrency "$conc" --seed "$gseed" --start-fens "$kpf" \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
   triage)
     # Classify the collapse points in games/<tag>/collapses.csv as EVAL (our move/eval still wrong at
     # deep depth = an eval hole) vs HORIZON (deeper search avoids it). Re-searches each decision FEN at
@@ -1141,8 +1204,11 @@ PYEOF
 
   pyrun)
     # Run a project python helper with the anaconda interpreter (analysis scripts). Args: <script.py> [args...].
+    # -u (unbuffered): when stdout is redirected to a file, python buffers by ~8KB, so a long job's log stays
+    # EMPTY for hours and an unattended watcher cannot tell progress from a hang. Interactive runs are
+    # unaffected (a tty is line-buffered either way).
     export STOCKFISH_PATH="$SF"
-    "$PY" "$@"
+    "$PY" -u "$@"
     ;;
 
   bias_sweep)
@@ -1168,6 +1234,41 @@ PYEOF
     done
     ;;
 
+  nightwatch)
+    # Poll an overnight job's log and emit ONE compact line per check, for an unattended Monitor.
+    #
+    # Why this lives in the runner rather than in the Monitor command: only commands beginning with
+    # `bash '<abs runner>' …` are auto-approved. A monitor whose command starts with a variable assignment
+    # or a `for` loop falls outside that prefix and PROMPTS — which, unattended, blocks until someone is
+    # there to click, freezing the whole chain. Keeping the loop here means the caller's command is a single
+    # allowlisted invocation.
+    #
+    # Emits a terminal marker (DONE / FAILED) and exits early, so the caller can start the next job instead
+    # of burning the rest of the window. ⚠️ The failure pattern must cover crashes as well as success:
+    # a watcher that only greps for the success marker is silent through a crash, and silence is
+    # indistinguishable from progress.
+    #
+    # Args: <log> [checks=22] [interval_seconds=1800]
+    log="${1:?log path required}"; shift || true
+    checks="${1:-22}"; shift || true
+    iv="${1:-1800}"; shift || true
+    for i in $(seq 1 "$checks"); do
+      sleep "$iv"
+      mins=$(( i * iv / 60 ))
+      if [ ! -f "$log" ]; then echo "[t+${mins}m] PENDING (no log yet)"; continue; fi
+      last=$(tail -n 1 "$log" 2>/dev/null | cut -c1-150)
+      if grep -qE 'Traceback|MemoryError|Killed|Segmentation|No such file' "$log" 2>/dev/null; then
+        echo "[t+${mins}m] FAILED | $(grep -m1 -hE 'Traceback|MemoryError|Killed|Segmentation|No such file' "$log" | cut -c1-120)"
+        break
+      fi
+      if grep -q 'BEST CONFIG' "$log" 2>/dev/null; then echo "[t+${mins}m] DONE (descent) | $last"; break; fi
+      if grep -qE 'SPRT (ACCEPT|REJECT)|H1 accepted|H0 accepted|final:' "$log" 2>/dev/null; then
+        echo "[t+${mins}m] DONE (sprt) | $last"; break
+      fi
+      echo "[t+${mins}m] running | $last"
+    done
+    ;;
+
   result)
     "$PY" -c "import json; d=json.load(open('selfplay/games/overnight_speed/tournament.json')); print(d)" 2>/dev/null \
         || echo "no tournament.json yet"
@@ -1178,7 +1279,13 @@ PYEOF
     ;;
 
   ps)
-    ps -eo pid,etime,args | grep -E 'tactical_test|sts_test|movematch|tournament.py|setupAI' | grep -v grep || echo "none running"
+    # The pattern MUST cover every long-running job, or "none running" is a false negative and the caller
+    # launches a duplicate on top of a live one. That happened: `sprt.py` and `pyrun` were both missing, an
+    # in-flight SPRT was reported dead, and a second SPRT was started against it -- seven workers competing
+    # on time-controlled games. Add new job types here when they are added above.
+    ps -eo pid,etime,args \
+      | grep -E 'tactical_test|sts_test|movematch|tournament\.py|sprt\.py|spsa\.py|gauntlet|annotate\.py|setupAI|diagnostics/' \
+      | grep -v grep || echo "none running"
     ;;
 
   *)

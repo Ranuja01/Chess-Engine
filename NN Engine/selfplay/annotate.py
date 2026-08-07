@@ -108,7 +108,11 @@ def _metrics(meta, result_rec, moves):
         return round(s / c, 1) if c else 0.0
 
     return {
-        "game": os.path.basename(os.path.dirname(meta.get("_path", ""))) or meta.get("_game", ""),
+        # Nested layout identifies a game by its directory; flat layout by the filename stem. Using the
+        # directory for both would label all 600 flat games with the tag name and make the ranking useless.
+        "game": (os.path.basename(meta.get("_path", ""))[:-len(".jsonl")]
+                 if os.path.basename(meta.get("_path", "")) not in ("game.jsonl", "")
+                 else os.path.basename(os.path.dirname(meta.get("_path", "")))) or meta.get("_game", ""),
         "white": meta.get("white", ""), "black": meta.get("black", ""),
         "result": result_rec.get("result", "*"), "plies": len(moves),
         "max_div_pawns": round(max_div, 2), "max_div_ply": max_div_ply,
@@ -176,12 +180,18 @@ def annotate_game(jsonl_path, arbiter, ai=None):
                 r["eval_breakdown"] = ai.ev_breakdown(chess.Board(r["fen"]))
             except Exception:
                 r["eval_breakdown"] = None
+    # Nested layout (…/game_007/game.jsonl) gets a fixed filename inside its own directory; the flat
+    # layout (…/game_007.jsonl) must keep the per-game stem or all 600 games would overwrite one file.
     gdir = os.path.dirname(jsonl_path)
-    with open(os.path.join(gdir, "game.annotated.jsonl"), "w") as f:
+    stem = os.path.basename(jsonl_path)
+    flat = stem != "game.jsonl"
+    out_jsonl = (stem[:-len(".jsonl")] + ".annotated.jsonl") if flat else "game.annotated.jsonl"
+    out_pgn = (stem[:-len(".jsonl")] + ".annotated.pgn") if flat else "game.annotated.pgn"
+    with open(os.path.join(gdir, out_jsonl), "w") as f:
         for r in recs:
             f.write(json.dumps(r) + "\n")
     write_pgn(gdir, meta, moves, result_rec.get("result", "*"), result_rec.get("reason", ""),
-              start_fen, filename="game.annotated.pgn")
+              start_fen, filename=out_pgn)
     meta["_path"] = jsonl_path
     return _metrics(meta, result_rec, moves)
 
@@ -211,7 +221,24 @@ def _write_analysis(logdir, rows):
 
 def annotate_tag(tag, depth=None, movetime=None, sf_path=None, concurrency=1):
     logdir = os.path.join(THIS_DIR, "games", tag)
+    # Two archive layouts exist. The older harness wrote games/<tag>/game_NNN/game.jsonl; the current
+    # gauntlet writes them FLAT as games/<tag>/game_NNN.jsonl. Only the nested form was matched here, so
+    # this tool silently reported "no games found" for every tournament the current harness has produced
+    # -- tens of thousands of games that were never annotatable.
     jsonls = sorted(glob.glob(os.path.join(logdir, "game_*", "game.jsonl")))
+    if not jsonls:
+        flat = [p for p in sorted(glob.glob(os.path.join(logdir, "game_*.jsonl")))
+                if not p.endswith(".annotated.jsonl")]
+        if flat:
+            # The flat files the current gauntlet writes contain ONLY per-ply move records -- no meta
+            # record (white/black) and no result record. Every metric here is computed from those two,
+            # so the pass completes and reports zeros for everything rather than failing. Refuse instead:
+            # a silent zero is indistinguishable from "the engines agreed everywhere".
+            print("[annotate] %d flat game_*.jsonl found under %s, but they carry no meta/result "
+                  "records -- this tool's metrics cannot be computed from them. Use the position-bank "
+                  "pipeline (build_position_bank.py -> add_sf18_labels.py) for a disagreement corpus."
+                  % (len(flat), logdir), flush=True)
+            return
     if not jsonls:
         print(f"[annotate] no games found under {logdir}", flush=True)
         return

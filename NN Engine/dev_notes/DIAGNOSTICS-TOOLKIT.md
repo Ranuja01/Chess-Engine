@@ -27,6 +27,56 @@ truth for a situation is the source to read for that concept.
 
 ---
 
+## Pawn model (2026-08-05) — see [`PAWN_MODEL.md`](PAWN_MODEL.md) for the findings
+
+🚨 **`pawn_marginal_real.py` is the ANCHOR — use it before believing any manufactured-position magnitude.**
+The generator below was right about direction everywhere and wrong about MAGNITUDE by 2.6×; three headline
+claims died when re-measured on real positions.
+
+| script | answers |
+|---|---|
+| `pawn_marginal_real.py` | marginal pawn value on **REAL corpus positions**, ours vs SF18, by rank. The anchor. |
+| `pawn_truth_generator.py` | manufactured positions with controlled rank × structure × obstruction contexts. `BASE_ABS_CP` conditions on a balanced baseline; **never** filter on the outcome (`MAX_ABS_CP`, default off). |
+| `pawn_truth_analyze.py` | answers rank/structure/obstruction contrasts from a truth CSV, with CI; prints UNRESOLVED rather than a small number. |
+| `pawn_truth_ours.py` | per-cell residual `SF18 − ours` on identical FENs ⇒ no double-counting of terms we already pay. |
+| `pawn_gap_attribution.py` | splits a marginal-value gap by eval TERM (`ev_breakdown` on paired FENs). Run before reshaping anything. |
+| `passer_detector_diff.py` | counts our passed-pawn predicate vs SF15.1's, by rank. Pure predicate compare, no engine calls. |
+| `_pawn_clamp_headroom.py` | per-pawn clamp binding rate and survival of an added bonus (`ai.pawn_clamp_records()`). |
+| `_endgame_passer_doublepay.py` | whether a flagged sub-threshold endgame passer is paid by both the inline bonus and `evaluate_passers`. |
+| `_venue_power.py` | **what effect size a game venue can actually RESOLVE.** Run before spending games, and before writing any null into a doc. |
+| `pawn_truth_casebook.py` | regenerates §4 of `PAWN_MODEL.md` from the truth CSVs, between markers, so the doc cannot drift. `WRITE=1` to inject. **Quarantines the pre-fix CSVs** — `pawn_truth.csv` and `pawn_truth_valid.csv` must never be cited. |
+| `pawn_fit_shipped.py` | pawn/passer win%-descent **in the SHIPPED regime** (no `ENABLE_KS_CHECK_V2`). Use this rather than `ks_fit_wholesystem.py` when the result has to be directly applicable — earlier descents optimised inside a regime we do not ship. |
+| 🚨 **`_eval_symmetry.py`** | **colour-swap and file-mirror INVARIANCE. Zero Stockfish, seconds.** `eval(mirror(b))` must equal `-eval(b)`; found a LIVE bug at **74.7% of positions**, worst 374 cp. Validated: symmetric positions return exactly 0, results are deterministic and order-independent. ⚠️ A side-to-move term is no excuse — `mirror()` swaps `turn` too. |
+| **`pawn_marginal_real.py`** | now also `PIECE=P\|N\|B\|R\|ALL` (ALL prices every type on ONE sample and prints the scale-invariant exchange rate), `LADDER=1` (adds SF11 + SF15.1-classical columns — **the triangulation gate**), `TERMS=1` (per-term attribution of OUR marginal), `OUT=<csv>` (dump every removal with position features so follow-ups cost zero CPU). 🚨 **Never splice marginals from separately-sampled runs** — a ratio of medians from different position sets is not an exchange rate; that produced three retracted numbers. |
+| **`_marginal_slice.py`** | slices the `OUT=` dump — error distribution, worst-decile concentration, and conditioning by phase/queens/pawn-count, **in both cp and win%**. Zero CPU, re-runnable. The cp-vs-win% comparison is the point: they disagree on which positions are broken. |
+| **`static_vs_search_triage.py`** | now has `CORPUS=1 [CLASS=] [PHASE=] [N=] [DEPTH=]` — turns the per-FEN verdict into a SPLIT over a failure class (eval-reachable vs search-property), with a **scale-invariant sign test** beside the cp-distance test and a **neutral-fitted** scale factor (`KFIT`). ⚠️ Fitting the scale factor in-sample on collapses is conditioning on the dependent variable; it gave 0.31 against ~0.97 neutral. |
+| **`_sibling_spread.py`** | **can a term change which move we play at all?** Evaluates EVERY legal child of real positions, then DELETES a term group and re-takes the argmax — deletion is the ceiling on what retuning could do. Reports sibling spread and flip rate gated by regret margin. **Carries `threats` as the control (+45 Elo shipped)**; the reading is comparative, never absolute. `QUIET_ONLY=1` for the piece-moves-only case. Zero Stockfish. |
+| `blend_corpora.py` | merges the schema-compatible fit corpora with the four hygiene checks that make a blend trustworthy: **stale-baseline detection (refuses unless FORCE=1)**, cross-source FEN dedup, split re-assignment by FEN hash, explicit tier weighting. |
+
+🚨🚨 **CORPUS REBUILT AGAIN, LATER ON 2026-08-06: `diverse_corpus_wide.csv` 4,987 → 23,113 rows.** Bank
+extended 4,987 → 24,656 and labelled **24,656/24,656 at d13** (depth matched to the existing labels on
+purpose — the script defaults to d18, and mixing depths would put two truth standards in one target
+column). Snapshots `*_pre0806b.csv`.
+⚠️⚠️ **NO `val` from before this rebuild is comparable, INCLUDING the 4,987-row numbers.**
+New shipped-default baseline: **ALL.train 228.347 / ALL.val 231.177** (previous corpus: 230.555 / 234.881
+— *not* comparable, listed only to prevent accidental cross-corpus comparison).
+- tiers: diverse 9134 · calm 8478 · target 3816 · working 1025 · crowded_safe 185 · sts_guard 187 ·
+  passer_blowup 140 · passer_control 79 · passer_under_fire 69 — **diverse+calm is now 76%**, against a
+  bank that was previously king-safety weighted. Composition decides the optimum; treat this as a
+  deliberate shift toward general play, not a neutral enlargement.
+- phases: opening 7722 · endgame 6109 · midgame 5571 · adveg 3711. splits: train 18439 / val 4674.
+- ⚠️ `passer_blowup_guard` reads train 382 / val 748 on 140 rows — a high-variance guard that a descent
+  can trip or satisfy on noise.
+- ⚠️ `DIR target` shows capture 0% **by construction** (the tier is defined as positions where SF11 fires
+  KS and we score zero). Not a finding.
+- ✅ val/train = 0.988 ⇒ still NOT overfitting at 8.5× the data. More corpus buys reliability, not
+  proxy→Elo conversion; that needs a different OBJECTIVE.
+
+⚠️ Marginal value shows diminishing returns where the context already holds similar assets — a phalanx
+pawn's marginal value is low partly because its partner already carries it. Read MEDIANS, not means.
+
+---
+
 ## Per-FEN inspection
 | script | what it gives |
 |---|---|

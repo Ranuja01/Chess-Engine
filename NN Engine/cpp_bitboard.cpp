@@ -359,14 +359,21 @@ std::array<int, 8>  pawn_chain_file_bonus = []{
 }();
 
 void rebuild_scaled_pawn_tables(){
+	// Whole-table SCALE_* first, then the PER-RANK percentage on top: the whole-table knob moves the level,
+	// the per-rank knobs move the SHAPE. Both default to 100, so the product is the base value unchanged.
 	for (size_t i = 0; i < 8; ++i){
-		default_midgame_pawn_rank_bonus[i] = default_midgame_pawn_rank_bonus_base[i] * Config::SCALE_PAWN_RANK    / 100;
-		passed_midgame_pawn_rank_bonus[i]  = passed_midgame_pawn_rank_bonus_base[i]  * Config::SCALE_PASSED_RANK   / 100;
-		endgame_pawn_rank_bonus[i]         = endgame_pawn_rank_bonus_base[i]         * Config::SCALE_ENDGAME_RANK  / 100;
-		pawn_chain_file_bonus[i]           = pawn_chain_file_bonus_base[i]           * Config::SCALE_PAWN_CHAIN     / 100;
+		default_midgame_pawn_rank_bonus[i] = default_midgame_pawn_rank_bonus_base[i] * Config::SCALE_PAWN_RANK    / 100
+		                                     * Config::RANK_DEF_PCT[i] / 100;
+		passed_midgame_pawn_rank_bonus[i]  = passed_midgame_pawn_rank_bonus_base[i]  * Config::SCALE_PASSED_RANK   / 100
+		                                     * Config::RANK_PSD_PCT[i] / 100;
+		endgame_pawn_rank_bonus[i]         = endgame_pawn_rank_bonus_base[i]         * Config::SCALE_ENDGAME_RANK  / 100
+		                                     * Config::RANK_EG_PCT[i] / 100;
+		pawn_chain_file_bonus[i]           = pawn_chain_file_bonus_base[i]           * Config::SCALE_PAWN_CHAIN     / 100
+		                                     * Config::CHAIN_F_PCT[i] / 100;
 	}
 	for (size_t i = 0; i < 11; ++i)
-		pawn_wall_file_bonus[i] = pawn_wall_file_bonus_base[i] * Config::SCALE_PAWN_WALL / 100;
+		pawn_wall_file_bonus[i] = pawn_wall_file_bonus_base[i] * Config::SCALE_PAWN_WALL / 100
+		                          * Config::WALL_F_PCT[i] / 100;
 }
 
 // King-safety working tables the eval hot path reads. ks_safety_table maps clamped attack-units to a
@@ -834,6 +841,37 @@ uint64_t edges(uint8_t square) {
 	Set of functions directly used to evaluate the position
 */
 
+/*
+	Weight, 0..256, on the PASSED rank table versus the ordinary one, from how obstructed the pawn is.
+
+	`ppIncrement` (getPPIncrement) is already a graded obstruction score -- it starts from a base, is docked
+	per enemy pawn stopping the promotion path and per blockade, and is credited for a clear path and for
+	support -- but both pawn evaluators collapsed it to a boolean at one threshold, discarding the grading.
+	Measured against SF18 that boolean sits in the wrong place: a pawn whose only stopper is on an adjacent
+	file ahead scores ppIncrement 75, just under the midgame threshold of 100, yet is worth about as much as
+	a true passer (+258..+329 vs +240..+273 at the 6th rank). SF15.1 classes that same shape as passed
+	(pawns.cpp: `passed = !(stoppers ^ lever) || ...`), while routing it to the ordinary table pays 9 cp at
+	the 7th rank where the passed table pays 108.
+
+	Parameters:
+	- ppIncrement: the graded obstruction score for this pawn
+	- threshold: the legacy switch point, used when blending is off
+	- lo, hi: ppIncrement span over which the tables interpolate
+
+	Returns:
+	0 = ordinary table outright, 256 = passed table outright. With blending off this returns only 0 or 256,
+	reproducing the original switch exactly.
+*/
+static inline int passer_table_weight(int ppIncrement, int threshold, int lo, int hi) {
+	if (!Config::ENABLE_PAWN_OBSTRUCTION_BLEND)
+		return ppIncrement >= threshold ? 256 : 0;
+	// A degenerate or inverted span is treated as a plain threshold rather than a division by zero, so a
+	// mistuned pair can never produce garbage -- it just reproduces the legacy behaviour at `hi`.
+	if (hi <= lo)
+		return ppIncrement >= hi ? 256 : 0;
+	return std::clamp((ppIncrement - lo) * 256 / (hi - lo), 0, 256);
+}
+
 inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns, int& pawn_rank_bonus){
 	// Initialize the evaluation
     int total = 0;
@@ -880,8 +918,19 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 
 		int rank = y;
 		//total -= ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));
-		pawn_rank_bonus = -(((default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement < 100)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 100)));
-		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 100) {
+		int obs_w = passer_table_weight(ppIncrement, 100, Config::PAWN_OBS_LO, Config::PAWN_OBS_HI);
+		int ord_bonus = default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3);
+		int psd_bonus = passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3);
+		pawn_rank_bonus = -((ord_bonus * (256 - obs_w) + psd_bonus * obs_w) >> 8);
+		// Deferring DISCARDS the value (g_passer_mid_deferred is written and never read); evaluate_passers
+		// independently pays every pawn in the passed bitboard. So the deferred set must be exactly the
+		// flagged set: route an unflagged pawn here and its rank bonus vanishes, inline-add for a flagged
+		// one and it is paid twice. `ENABLE_PASSER_DEFER_ON_FLAG` keys on the bitboard directly; the default
+		// keeps the ppIncrement threshold, which coincides with the flagged set in the midgame only because
+		// base 200 - PP_BLOCKADE_PEN 100 = exactly 100.
+		if (Config::ENABLE_PASSER_V3 && (Config::ENABLE_PASSER_DEFER_ON_FLAG
+		                                 ? ((white_passed_pawns & BB_SQUARES[square]) != 0)
+		                                 : (ppIncrement >= 100))) {
 			// Defer the passer bonus: priced once post-loop, gated by board realizability (full attack_bitmasks).
 			g_passer_mid_deferred[square] = pawn_rank_bonus;
 		} else {
@@ -958,7 +1007,22 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 			bb &= bb - 1;		
 		}
 		//std::cout << total << std::endl;
-		total -= std::min(225, structural_bonus + positional_bonus);			
+		// Rank- and opposed-sensitivity for the structural bonuses. Ours carried no rank term at all; SF's
+		// connected bonus is rank-indexed and scaled by (2 + phalanx - opposed). `opposed` means an enemy
+		// pawn ahead on our OWN file -- computed here because getPPIncrement detects it and then discards
+		// it through an early return. All defaults 100 => byte-identical.
+		{
+			int smul = Config::STRUCT_R_MG_PCT[rank];
+			// Short-circuited: the mask work only runs when the knob is actually engaged. Computing
+			//  unconditionally cost an array lookup + two ANDs PER PAWN PER EVAL even at the
+			// default, and byte-identity cannot detect added work -- only added output change.
+			if (Config::STRUCT_OPPOSED_MG_PCT != 100
+			    && (passed_span_white[square] & BB_FILES[square & 7] & (occupied_black & pawns)))
+				smul = smul * Config::STRUCT_OPPOSED_MG_PCT / 100;
+			if (smul != 100) structural_bonus = structural_bonus * smul / 100;
+		}
+		record_pawn_clamp(square, true, false, structural_bonus, positional_bonus, Config::PAWN_CLAMP_MID);
+		total -= std::min(Config::PAWN_CLAMP_MID, structural_bonus + positional_bonus);
 		//std::cout << structural_bonus << " | " << positional_bonus<< std::endl;
 	}else{
 		
@@ -991,8 +1055,14 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		int rank = 7 - y;
 		//total += ((rank * 15) * (ppIncrement < 200)) + (((rank * 50) + (rank * rank * 15) + (ppIncrement >> 3)) * (ppIncrement >= 200));		
 		
-		pawn_rank_bonus = ((default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement < 100)) + ((passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3)) * (ppIncrement >= 100));
-		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 100) {
+		int obs_w = passer_table_weight(ppIncrement, 100, Config::PAWN_OBS_LO, Config::PAWN_OBS_HI);
+		int ord_bonus = default_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3);
+		int psd_bonus = passed_midgame_pawn_rank_bonus[rank] + (ppIncrement >> 3);
+		pawn_rank_bonus = (ord_bonus * (256 - obs_w) + psd_bonus * obs_w) >> 8;
+		// See the White twin.
+		if (Config::ENABLE_PASSER_V3 && (Config::ENABLE_PASSER_DEFER_ON_FLAG
+		                                 ? ((black_passed_pawns & BB_SQUARES[square]) != 0)
+		                                 : (ppIncrement >= 100))) {
 			// Defer the passer bonus: priced once post-loop, gated by board realizability (full attack_bitmasks).
 			g_passer_mid_deferred[square] = pawn_rank_bonus;
 		} else {
@@ -1073,7 +1143,19 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 			bb &= bb - 1; 
 		}
 		//std::cout << total << std::endl;
-		total += std::min(225, structural_bonus + positional_bonus);			
+		// See the White twin. Black's forward span is passed_span_black; `rank` here is already 7 - y.
+		{
+			int smul = Config::STRUCT_R_MG_PCT[rank];
+			// Short-circuited: the mask work only runs when the knob is actually engaged. Computing
+			//  unconditionally cost an array lookup + two ANDs PER PAWN PER EVAL even at the
+			// default, and byte-identity cannot detect added work -- only added output change.
+			if (Config::STRUCT_OPPOSED_MG_PCT != 100
+			    && (passed_span_black[square] & BB_FILES[square & 7] & (occupied_white & pawns)))
+				smul = smul * Config::STRUCT_OPPOSED_MG_PCT / 100;
+			if (smul != 100) structural_bonus = structural_bonus * smul / 100;
+		}
+		record_pawn_clamp(square, false, false, structural_bonus, positional_bonus, Config::PAWN_CLAMP_MID);
+		total += std::min(Config::PAWN_CLAMP_MID, structural_bonus + positional_bonus);
 		//std::cout << structural_bonus << " | " << positional_bonus<< std::endl;
 	}	
 	return total;
@@ -1349,7 +1431,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 		if ((Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light)){
 			total -= Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_white);
 		}
-		total = std::max(total, -3750);
+		total = std::max(total, -Config::MG_CLAMP_KNIGHT);
 	}else{
 		// First add the piece value
         total += values[KNIGHT];
@@ -1458,7 +1540,7 @@ inline int evaluate_knights_midgame(uint8_t square, uint64_t white_passed_pawns,
 		if ((Config::ENABLE_CHEAP_KNIGHT_MOBILITY || g_eval_light)){
 			total += Config::CHEAP_KNIGHT_MOB * __builtin_popcountll(pieceAttackMask & ~occupied_black);
 		}
-		total = std::min(total, 3750);
+		total = std::min(total, Config::MG_CLAMP_KNIGHT);
 	}
 	return total;
 }
@@ -1647,6 +1729,10 @@ inline int eval_bishop_influence_score(int increment) {
 }
 
 
+// Defined below beside endgame_convertibility_scale; declared here because the bishop colour-complex
+// term (the single payer for the bishop's closedness signal) consumes it thousands of lines earlier.
+inline int pawn_closedness();
+
 inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t attack_mask){
 	
 	int increment = 0;
@@ -1678,6 +1764,13 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 		        + Config::CHEAP_BISHOP_FWD * fwd
 		        + Config::CHEAP_BISHOP_KING * kingp
 		        - Config::CHEAP_BISHOP_BLOCK * block;
+		// Closedness modulates the bishop through the term that ALREADY owns the signal, rather than via
+		// a second additive table like the knight and rook get. `block` and `mob` above are both already
+		// closedness-sensitive, so an independent bishop table would pay twice for one effect.
+		if (Config::ENABLE_CLOSEDNESS){
+			int pct = Config::CLOSED_B_PCT[pawn_closedness()];
+			if (pct != 100) raw = raw * pct / 100;
+		}
 		return std::max(-2 * BAD_THRESHOLD, std::min(MAX_BONUS, raw));
 	}
 
@@ -1931,12 +2024,12 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			PROF_BLOCK(PROF_BISHOP_ACTIVITY);
 			total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_black, occupied_white);
 		}
-		total = std::max(total, -3850);
+		total = std::max(total, -Config::MG_CLAMP_BISHOP_A);
 		{
 			PROF_BLOCK(PROF_BISHOP_COLOUR);
 			total -= get_bishop_colour_complex_score(colour, square, pieceAttackMask);
 		}
-		total = std::max(total, -4000);
+		total = std::max(total, -Config::MG_CLAMP_BISHOP_B);
 	}else{
 		// First add the piece value
         total += values[BISHOP];
@@ -2071,12 +2164,12 @@ inline int evaluate_bishops_midgame(uint8_t square, uint64_t white_passed_pawns,
 			PROF_BLOCK(PROF_BISHOP_ACTIVITY);
 			total += get_latent_bishop_activity_score(pieceAttackMask, square, colour, occupied_white, occupied_black);
 		}
-		total = std::min(total, 3850);
+		total = std::min(total, Config::MG_CLAMP_BISHOP_A);
 		{
 			PROF_BLOCK(PROF_BISHOP_COLOUR);
 			total += get_bishop_colour_complex_score(colour, square, pieceAttackMask);
 		}
-		total = std::min(total, 4000);
+		total = std::min(total, Config::MG_CLAMP_BISHOP_B);
 	}
 	
 	return total;
@@ -3105,8 +3198,15 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 
 		int rank = y;		
 		
-		pawn_rank_bonus = -((3 * default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 300)) + ((endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2)) * (ppIncrement >= 300)));
-		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 300) {
+		int obs_w = passer_table_weight(ppIncrement, 300, Config::PAWN_OBS_LO_EG, Config::PAWN_OBS_HI_EG);
+		int ord_bonus = 3 * default_midgame_pawn_rank_bonus[rank];
+		int psd_bonus = endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2);
+		pawn_rank_bonus = -((ord_bonus * (256 - obs_w) + psd_bonus * obs_w) >> 8);
+		// Endgame twin. Here the threshold and the flagged set genuinely DIVERGE: an unsupported passer
+		// caps at ppIncrement 250 and keeps the inline base, a supported one reaches 475 and loses it.
+		if (Config::ENABLE_PASSER_V3 && (Config::ENABLE_PASSER_DEFER_ON_FLAG
+		                                 ? ((white_passed_pawns & BB_SQUARES[square]) != 0)
+		                                 : (ppIncrement >= 300))) {
 			// Defer the endgame passer bonus: priced once post-loop, gated by board realizability R.
 			g_passer_end_deferred[square] = pawn_rank_bonus;
 		} else {
@@ -3124,14 +3224,14 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
 		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);
 
-		structural_bonus += 100 * (left != 0);
-		structural_bonus += 100 * (right != 0);
-		
-		structural_bonus += 135 * (sw != 0);
-		structural_bonus += 135 * (se != 0);
+		structural_bonus += Config::EG_PHALANX * (left != 0);
+		structural_bonus += Config::EG_PHALANX * (right != 0);
 
-		structural_bonus += 50 * (sw == 0) * ((latent_left_support_mask & occupied_white & pawns) != 0) * ((latent_left_support_mask & occupied_black) == 0);
-		structural_bonus += 50 * (se == 0) * ((latent_right_support_mask & occupied_white & pawns) != 0) * ((latent_right_support_mask & occupied_black) == 0);  
+		structural_bonus += Config::EG_SUPPORT * (sw != 0);
+		structural_bonus += Config::EG_SUPPORT * (se != 0);
+
+		structural_bonus += Config::EG_LATENT * (sw == 0) * ((latent_left_support_mask & occupied_white & pawns) != 0) * ((latent_left_support_mask & occupied_black) == 0);
+		structural_bonus += Config::EG_LATENT * (se == 0) * ((latent_right_support_mask & occupied_white & pawns) != 0) * ((latent_right_support_mask & occupied_black) == 0);
 		//std::cout << total << std::endl;
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -3170,11 +3270,25 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 			/*
 				In this section, award pawn chains where pawns are supporting eachother defensively
 			*/
-			structural_bonus += 115 * ((BB_SQUARES[r] & occupied_white & pawns) != 0);
+			structural_bonus += Config::EG_DEFEND * ((BB_SQUARES[r] & occupied_white & pawns) != 0);
 
-			bb &= bb - 1;   	
+			bb &= bb - 1;
 		}
-		total -= std::min(175, structural_bonus);
+		// Rank / opposed sensitivity, endgame twin. The endgame carries its OWN curve: with two separate
+		// evaluators the phases need not share a shape, and SF's endgame connected term is far more
+		// rank-sensitive than its midgame one.
+		{
+			int smul = Config::STRUCT_R_EG_PCT[rank];
+			// Short-circuited: the mask work only runs when the knob is actually engaged. Computing
+			//  unconditionally cost an array lookup + two ANDs PER PAWN PER EVAL even at the
+			// default, and byte-identity cannot detect added work -- only added output change.
+			if (Config::STRUCT_OPPOSED_EG_PCT != 100
+			    && (passed_span_white[square] & BB_FILES[square & 7] & (occupied_black & pawns)))
+				smul = smul * Config::STRUCT_OPPOSED_EG_PCT / 100;
+			if (smul != 100) structural_bonus = structural_bonus * smul / 100;
+		}
+		record_pawn_clamp(square, true, true, structural_bonus, 0, Config::PAWN_CLAMP_EG);
+		total -= std::min(Config::PAWN_CLAMP_EG, structural_bonus);
 		//std::cout << structural_bonus<< std::endl;
 	}else{
 		// First subtract the piece value and increment the global white piece value
@@ -3196,8 +3310,15 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 
 		int rank = 7 - y;
 				
-		pawn_rank_bonus = (3 * default_midgame_pawn_rank_bonus[rank] * (ppIncrement < 300)) + ((endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2)) * (ppIncrement >= 300));
-		if (Config::ENABLE_PASSER_V3 && ppIncrement >= 300) {
+		int obs_w = passer_table_weight(ppIncrement, 300, Config::PAWN_OBS_LO_EG, Config::PAWN_OBS_HI_EG);
+		int ord_bonus = 3 * default_midgame_pawn_rank_bonus[rank];
+		int psd_bonus = endgame_pawn_rank_bonus[rank] + (ppIncrement >> 2);
+		pawn_rank_bonus = (ord_bonus * (256 - obs_w) + psd_bonus * obs_w) >> 8;
+		// Endgame twin. Here the threshold and the flagged set genuinely DIVERGE: an unsupported passer
+		// caps at ppIncrement 250 and keeps the inline base, a supported one reaches 475 and loses it.
+		if (Config::ENABLE_PASSER_V3 && (Config::ENABLE_PASSER_DEFER_ON_FLAG
+		                                 ? ((black_passed_pawns & BB_SQUARES[square]) != 0)
+		                                 : (ppIncrement >= 300))) {
 			// Defer the endgame passer bonus: priced once post-loop, gated by board realizability R.
 			g_passer_end_deferred[square] = pawn_rank_bonus;
 		} else {
@@ -3215,12 +3336,12 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
 		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);
 		
-		structural_bonus += 100 * (left != 0);
-		structural_bonus += 100 * (right != 0);	
-		structural_bonus += 135 * (nw != 0);
-		structural_bonus += 135 * (ne != 0);
-		structural_bonus += 50 * (nw == 0) * ((latent_left_support_mask & occupied_black & pawns) != 0) * ((latent_left_support_mask & occupied_white) == 0);
-		structural_bonus += 50 * (ne == 0) * ((latent_right_support_mask & occupied_black & pawns) != 0) * ((latent_right_support_mask & occupied_white) == 0);  
+		structural_bonus += Config::EG_PHALANX * (left != 0);
+		structural_bonus += Config::EG_PHALANX * (right != 0);
+		structural_bonus += Config::EG_SUPPORT * (nw != 0);
+		structural_bonus += Config::EG_SUPPORT * (ne != 0);
+		structural_bonus += Config::EG_LATENT * (nw == 0) * ((latent_left_support_mask & occupied_black & pawns) != 0) * ((latent_left_support_mask & occupied_white) == 0);
+		structural_bonus += Config::EG_LATENT * (ne == 0) * ((latent_right_support_mask & occupied_black & pawns) != 0) * ((latent_right_support_mask & occupied_white) == 0);
 
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -3259,11 +3380,23 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 			/*
 				In this section, award pawn chains where pawns are supporting eachother defensively
 			*/											
-			structural_bonus += 115 * ((BB_SQUARES[r] & occupied_black & pawns) != 0);
-						
-			bb &= bb - 1; 
+			structural_bonus += Config::EG_DEFEND * ((BB_SQUARES[r] & occupied_black & pawns) != 0);
+
+			bb &= bb - 1;
 		}
-		total += std::min(175, structural_bonus);
+		// See the White twin: endgame-specific rank curve and opposed modulation.
+		{
+			int smul = Config::STRUCT_R_EG_PCT[rank];
+			// Short-circuited: the mask work only runs when the knob is actually engaged. Computing
+			//  unconditionally cost an array lookup + two ANDs PER PAWN PER EVAL even at the
+			// default, and byte-identity cannot detect added work -- only added output change.
+			if (Config::STRUCT_OPPOSED_EG_PCT != 100
+			    && (passed_span_black[square] & BB_FILES[square & 7] & (occupied_white & pawns)))
+				smul = smul * Config::STRUCT_OPPOSED_EG_PCT / 100;
+			if (smul != 100) structural_bonus = structural_bonus * smul / 100;
+		}
+		record_pawn_clamp(square, false, true, structural_bonus, 0, Config::PAWN_CLAMP_EG);
+		total += std::min(Config::PAWN_CLAMP_EG, structural_bonus);
 		//std::cout << structural_bonus<< std::endl;
 	}	
 	return total;			        
@@ -3286,8 +3419,8 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 		// Subtract the score based on the attack of the opposing position and defense of white's own position
 		total -= attackingLayer[0][x][y];
 		total -= attackingLayer[1][x][y] >> 1;
-				
-		total -= 200;
+
+		total -= Config::EG_EXIST_KNIGHT;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -3380,7 +3513,7 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 		total += attackingLayer[1][x][y];
 		total += attackingLayer[0][x][y] >> 1;
 
-		total += 200;
+		total += Config::EG_EXIST_KNIGHT;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -3488,8 +3621,8 @@ inline int evaluate_bishops_endgame(uint8_t square, uint64_t white_passed_pawns,
 		total -= attackingLayer[0][x][y];
 		total -= attackingLayer[1][x][y] >> 1;	
 		
-		// Boost the scores for the existence of a bishop or knight		
-		total -= 250;
+		// Boost the scores for the existence of a bishop or knight
+		total -= Config::EG_EXIST_BISHOP;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -3612,7 +3745,7 @@ inline int evaluate_bishops_endgame(uint8_t square, uint64_t white_passed_pawns,
 		total += attackingLayer[0][x][y] >> 1;
 		
 		// Boost the scores for the existence of a bishop or knight
-        total += 250;		
+        total += Config::EG_EXIST_BISHOP;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -3756,7 +3889,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 		total -= attackingLayer[1][x][y] >> 1;	
 		
 		// Boost the score for the existence of a rook in the endgame
-		total -= 350;
+		total -= Config::EG_EXIST_ROOK;
 
 		
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
@@ -3964,7 +4097,7 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 		total += attackingLayer[0][x][y] >> 1;
 				
 		// Boost the score for the existence of a rook in the endgame
-		total += 350;
+		total += Config::EG_EXIST_ROOK;
 		// Aqcuire the rooks mask as all occupied pieces on the same file as the rook
 		rooks_mask |= BB_FILES[x] & occupied;            
 		
@@ -4184,7 +4317,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 		total -= attackingLayer[1][x][y] >> 1;	
 
 		// Boost the score for the existence of a queen in the endgame
-		total -= 900;
+		total -= Config::EG_EXIST_QUEEN;
 		/*
 			In this section, the scores for piece attacks are acquired
 		*/
@@ -4318,7 +4451,7 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 		total += attackingLayer[0][x][y] >> 1;
 
 		// Boost the score for the existence of a queen in the endgame
-		total += 900;
+		total += Config::EG_EXIST_QUEEN;
 		
 		/*
 			In this section, the scores for piece attacks are acquired
@@ -5796,11 +5929,11 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 					uint64_t cur_mask = BB_SQUARES[i];
 
 					if (cur_mask & occupied_white){
-						white_adjustment += (y * 75) / scale;
+						white_adjustment += (y * Config::PPS_OWN_BLOCK) / scale;
 						//square_values[i] -= (y * 100);
 						
 					}else if(cur_mask & occupied_black){
-						{ int blk = (y * 100) / scale; if (Config::PASSER_BLOCK_ADV && y >= 5) blk -= blk * Config::PASSER_BLOCK_ADV / 100; black_adjustment += blk; }
+						{ int blk = (y * Config::PPS_ENEMY_BLOCK) / scale; if (Config::PASSER_BLOCK_ADV && y >= 5) blk -= blk * Config::PASSER_BLOCK_ADV / 100; black_adjustment += blk; }
 						//square_values[i] += (y * 125);
 						
 					} else{
@@ -5823,11 +5956,11 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 							while (attackers) {			
 								uint8_t attacker = __builtin_ctzll(attackers); 
 								if (BB_SQUARES[attacker] & occupied_white){
-									white_adjustment -= (y * 60) / scale;
+									white_adjustment -= (y * Config::PPS_OWN_ATTACK) / scale;
 									//std::cout << "WHITE: " << (int)attacker << std::endl;
 									//square_values[attacker] += (y * 75);
 								}else{
-									black_adjustment += (y * 50) / scale;
+									black_adjustment += (y * Config::PPS_ENEMY_ATTACK) / scale;
 									//std::cout << "BLACK: " << (int)attacker << std::endl;
 									//square_values[attacker] += (y * 60);
 								}
@@ -5864,10 +5997,10 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 					uint64_t cur_mask = BB_SQUARES[i];
 
 					if (cur_mask & occupied_white){
-						{ int blk = ((7 - y) * 100) / scale; if (Config::PASSER_BLOCK_ADV && y <= 2) blk -= blk * Config::PASSER_BLOCK_ADV / 100; white_adjustment -= blk; }
+						{ int blk = ((7 - y) * Config::PPS_ENEMY_BLOCK) / scale; if (Config::PASSER_BLOCK_ADV && y <= 2) blk -= blk * Config::PASSER_BLOCK_ADV / 100; white_adjustment -= blk; }
 						//square_values[i] += ((7 - y) * 125);					
 					}else if(cur_mask & occupied_black){
-						black_adjustment -= ((7 - y) * 75) / scale;
+						black_adjustment -= ((7 - y) * Config::PPS_OWN_BLOCK) / scale;
 						//square_values[i] -= ((7 - y) * 100);						
 					} else{
 
@@ -5889,10 +6022,10 @@ inline int boost_pieces_for_supporting_passed_pawns(uint64_t white_passed_pawns,
 							while (attackers) {			
 								uint8_t attacker = __builtin_ctzll(attackers); 
 								if (BB_SQUARES[attacker] & occupied_white){
-									white_adjustment -= ((7 - y) * 50) / scale;
+									white_adjustment -= ((7 - y) * Config::PPS_ENEMY_ATTACK) / scale;
 									//square_values[attacker] += ((7 - y) * 60);
 								}else{
-									black_adjustment += ((7 - y) * 60) / scale;
+									black_adjustment += ((7 - y) * Config::PPS_OWN_ATTACK) / scale;
 									//square_values[attacker] += ((7 - y) * 75);
 								}
 								attackers &= attackers - 1;  
@@ -5944,6 +6077,16 @@ void passer_probe_begin(){ g_passer_nrec = 0; g_passer_probe = true; }
 void passer_probe_end(){ g_passer_probe = false; }
 int passer_probe_count(){ return g_passer_nrec; }
 PasserRec passer_probe_get(int i){ return g_passer_recs[i]; }
+
+// Diagnostic-only per-pawn clamp attribution (see PawnClampRec in cpp_bitboard.h). Off in search.
+PawnClampRec g_pawn_clamp_recs[16];
+int g_pawn_clamp_nrec = 0;
+bool g_pawn_clamp_probe = false;
+
+void pawn_clamp_probe_begin(){ g_pawn_clamp_nrec = 0; g_pawn_clamp_probe = true; }
+void pawn_clamp_probe_end(){ g_pawn_clamp_probe = false; }
+int pawn_clamp_probe_count(){ return g_pawn_clamp_nrec; }
+PawnClampRec pawn_clamp_probe_get(int i){ return g_pawn_clamp_recs[i]; }
 
 /*
  * Blockade quality of a passer's stop square: how PERMANENTLY the pawn is held.
@@ -6039,7 +6182,7 @@ inline int passer_realizability_R(int sq, bool white) {
 		}
 	}
 	g_passer_rawR = R;   // diagnostic only: the clamp below erases how far past 0 the assessment went
-	return std::clamp(R, 0, 384);
+	return std::clamp(R, 0, Config::PASSER_R_MAX);
 }
 
 inline int passer_danger(uint64_t white_passed_pawns, uint64_t black_passed_pawns) {
@@ -6099,19 +6242,33 @@ inline int evaluate_passers(uint64_t white_passed_pawns, uint64_t black_passed_p
 			int rf = (rank >= 6) ? Config::PASSER_RFLOOR_R6 : Config::PASSER_RFLOOR_R5;
 			if (R < rf) R = rf;
 		}
-		// Bound the OUTPUT rather than the assessment: grant a residual share of the rank magnitude that R
-		// cannot take away, scaled DOWN by how permanent the blockade is. A knight on the stop square is a
-		// forever-blockade and keeps no residual; a queen there must move, so the pawn stays a live asset.
-		// This is the discrimination a rank-keyed floor on R could not make (see PASSER_RFLOOR_*).
-		int resid = Config::PASSER_RESID_PCT
-		          * (PASSER_BLOCK_MAX - std::min(passer_block_quality(sq, white), PASSER_BLOCK_MAX))
-		          / PASSER_BLOCK_MAX;
-		int base = mag * resid / 100;
+		// UNCONDITIONAL base, matching SF11 and SF15.1 (invariant across both): `bonus = PassedRank[r]` is
+		// granted outright and the ENTIRE safety analysis sits inside `if (pos.empty(blockSq))`, so SF
+		// WITHHOLDS the advancement bonus when the stop square is occupied but never SUBTRACTS. It has no
+		// blockade penalty at all -- our `BLOCK[]` docking has no counterpart there.
+		// ⚠️ Deliberately NOT scaled by blockade quality: the first attempt scaled the residual by
+		// (BLOCK_MAX - blk), which gave the residual to UNBLOCKED passers (already high R) and withheld it
+		// from blockaded ones -- exactly inverted from SF, and it degraded held-out accuracy monotonically.
+		int base = mag * Config::PASSER_RESID_PCT / 100;
+		// ORDINARY-PAWN FLOOR. Under V3 the pawn loop DEFERS the rank bonus for a flagged passer and pays
+		// nothing, so `mag * R/256` is the sole payer -- and once R falls below ~21/256 the passer collects
+		// LESS than the same pawn would have earned for NOT being passed (measured: w1's f2 on the 6th took
+		// 6 mp where default_midgame_pawn_rank_bonus[6] = 90). Being recognised as passed must never make a
+		// pawn worth less. R then interpolates between ordinary-pawn value and full passer value instead of
+		// between ZERO and it, which is what "realizability scales the passer BONUS" was always meant to say.
+		// ⚠️ Aggregate-neutral by construction: healthy passers already exceed the floor, so only the
+		// collapsed tail moves, and the CEILING is untouched (unlike every failed unconditional-base arm).
+		if (Config::ENABLE_PASSER_ORD_FLOOR) {
+			int ord = default_midgame_pawn_rank_bonus[rank];
+			if (base < ord) base = std::min(ord, mag);   // never exceed the passer's own magnitude
+		}
 		int val = base + (mag - base) * R / 256;
 		// King-race, added SOFT-GATED by R so it cannot leak past a stopped passer but a mostly-realizable one
 		// still gets it (fable's operator fix). Owner-oriented positive magnitude; sign applied below.
 		val += passer_king_race_one(sq, white, turn) * std::max(R, Config::PASSER_R_FLOOR) / 256;
-		if (g_passer_probe && g_passer_nrec < 16) {
+		// Branch-hinted like record_pawn_clamp: this sits in the per-passer loop, so the DISABLED path must
+		// cost one predictable test. passer_block_quality() is called inside the block, never when off.
+		if (__builtin_expect(g_passer_probe, 0) && g_passer_nrec < 16) {
 			PasserRec &pr = g_passer_recs[g_passer_nrec++];
 			pr.sq = sq; pr.white = white ? 1 : 0; pr.rank = rank;
 			pr.mag = mag; pr.R = R; pr.rawR = g_passer_rawR;
@@ -6394,6 +6551,70 @@ inline void print_bitboard(uint64_t bb, const std::string& label) {
 }
 
 
+/*
+	Position-complexity scalar: how CONVERTIBLE is a nominal advantage here?
+
+	Ported form, our constants. Every input is a structural convertibility signal -- pawns to make a
+	passer from, wings to attack on, king geometry, whether any pieces remain. None of them measures
+	attacking chances, which is why Stockfish renamed its own version from `initiative` to `winnable`.
+	Returns raw complexity units; the caller converts to millipawns and applies the sign-preserving cap.
+
+	Cold tail: called once per eval, integer only, no allocation.
+*/
+inline int position_complexity(uint64_t white_passed_pawns, uint64_t black_passed_pawns){
+
+	const uint64_t queen_side = BB_FILES[0] | BB_FILES[1] | BB_FILES[2] | BB_FILES[3];
+	const uint64_t king_side  = BB_FILES[4] | BB_FILES[5] | BB_FILES[6] | BB_FILES[7];
+
+	int passed_count = __builtin_popcountll(white_passed_pawns | black_passed_pawns);
+	int pawn_count   = __builtin_popcountll(pawns);
+	bool both_flanks = (pawns & queen_side) && (pawns & king_side);
+
+	uint8_t wk = __builtin_ctzll(occupied_white & kings);
+	uint8_t bk = __builtin_ctzll(occupied_black & kings);
+	int wk_file = wk & 7, wk_rank = wk >> 3;
+	int bk_file = bk & 7, bk_rank = bk >> 3;
+
+	// SF15.1's revision: file distance plus a SIGNED rank difference, so this knows WHICH king is
+	// advanced rather than only how far apart they are. SF11 used minus the absolute rank distance.
+	int outflanking = std::abs(wk_file - bk_file) + (wk_rank - bk_rank);
+	bool infiltration = (wk_rank > 3) || (bk_rank < 4);
+	bool almost_unwinnable = (outflanking < 0) && !both_flanks;
+
+	int npm = __builtin_popcountll(knights) * values[KNIGHT]
+	        + __builtin_popcountll(bishops) * values[BISHOP]
+	        + __builtin_popcountll(rooks)   * values[ROOK]
+	        + __builtin_popcountll(queens)  * values[QUEEN];
+
+	return Config::WINNAB_PASSED   * passed_count
+	     + Config::WINNAB_PAWNS    * pawn_count
+	     + Config::WINNAB_OUTFLANK * outflanking
+	     + Config::WINNAB_FLANKS   * (both_flanks ? 1 : 0)
+	     + Config::WINNAB_INFILT   * (infiltration ? 1 : 0)
+	     + Config::WINNAB_NO_NPM   * (npm == 0 ? 1 : 0)
+	     - Config::WINNAB_UNWINNABLE * (almost_unwinnable ? 1 : 0)
+	     + Config::WINNAB_TENSION  * g_capg_tension
+	     - Config::WINNAB_BASE;
+}
+
+/*
+	Pawn-structure closedness index, 0 (wide open) .. 8 (fully closed).
+
+	Ethereal's form; Stockfish has no analogue. Drives the knight/rook imbalance tables and the bishop
+	colour-complex modulator. Rammed pawns are pawns directly blocked by an enemy pawn -- a shift and a
+	mask; open files are counted over the eight file masks. Cold tail, once per eval.
+*/
+inline int pawn_closedness(){
+	uint64_t wp = occupied_white & pawns;
+	uint64_t bp = occupied_black & pawns;
+	int rammed = __builtin_popcountll(wp & (bp >> 8));      // white pawns with a black pawn directly ahead
+	int open_files = 0;
+	for (int f = 0; f < 8; f++)
+		if (!(pawns & BB_FILES[f])) open_files++;
+	int c = (__builtin_popcountll(pawns) + 3 * rammed - 4 * open_files) / 3;
+	return std::max(0, std::min(8, c));
+}
+
 // Continuous endgame convertibility scale in [DRAW_SCALE_FLOOR, 1] — the graded companion to
 // is_practically_drawn (env-gated; see ENABLE_ENDGAME_SCALE). Damps a material/placement lead toward
 // draw when the remaining force can't realistically convert it (a bare minor, opposite-coloured
@@ -6604,7 +6825,15 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
 	bool isEndGame;
-	bool isNearGameEnd;
+	// Assigned ONLY in the phase_score > 96 branch below, but READ at the advanced_endgame_eval gate inside
+	// the `else` (endgame) branch, which covers ALL of phase_score > 64. For 65..96 it was therefore an
+	// UNINITIALISED READ -- undefined behaviour deciding whether a major eval transform fires.
+	// Measured: the stack garbage was reliably TRUTHY, so advanced_endgame_eval has been running in NORMAL
+	// endgames all along, and every tuning decision was made against that behaviour. Initialising to `false`
+	// (the code's apparent intent) is NOT byte-identical -- it reads 249 / 35,657,971 vs 250 / 35,791,173.
+	// So preserve the REAL behaviour explicitly here and treat "gate above 96 as intended" as a separate
+	// candidate that needs games, not as a bug fix.
+	bool isNearGameEnd = true;
 
 	bool boost_white_for_piece_value_advantage = false;
 	bool boost_black_for_piece_value_advantage = false;
@@ -6674,20 +6903,32 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			
 			PROF_BLOCK(PROF_PAWNS);
 			int blended_score;
-			if (phase_score <= 40) {
+			if (phase_score <= Config::PHASE_BLEND_LO) {
 				int pawn_rank_bonus = 0;
 				int result_mid = evaluate_pawns_midgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus);
 				pawn_rank_bonuses[r] = pawn_rank_bonus;
 				blended_score = result_mid;
 			} else {
+				// NOTE: this blend is reached only inside `if (!isEndGame)`, i.e. phase_score <= 64, so
+				// `end_weight = phase_score - 40` tops out at 24 and never exceeds `blend_range` -- the
+				// weights cannot go out of range here. (The sibling ROOK block carries an extra
+				// `phase_score >= 70 -> pure endgame` branch; that is defensive, not a fix for a missing
+				// case. The endgame path calls evaluate_pawns_endgame directly instead of blending.)
 				int pawn_rank_bonus_mid = 0;
 				int pawn_rank_bonus_end = 0;
 
 				int result_mid = evaluate_pawns_midgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus_mid);
 				int result_end = evaluate_pawns_endgame(r, white_passed_pawns, black_passed_pawns, pawn_rank_bonus_end);
 
-				int blend_range = 30; // 70 - 40
-				int end_weight = phase_score - 40;
+				// 🐛 The ramp does not complete: this blend is only reached inside `!isEndGame`
+				// (phase_score <= 64), so with the default LO=40/RANGE=30 the endgame weight tops out at
+				// 24/30 = 80% and then jumps to 100% when isEndGame flips -- a ~20% step of
+				// (result_end - result_mid) at the boundary. RANGE=24 closes it. Defaults reproduce the
+				// original behaviour exactly; max(1,...) keeps a zero RANGE from dividing by zero.
+				int blend_range = std::max(1, Config::PHASE_BLEND_RANGE);
+				// Clamped so a RANGE below the reachable span (e.g. 24, which closes the step) cannot
+				// drive mid_weight negative. Inert at the defaults, where end_weight spans 1..24 < 30.
+				int end_weight = std::max(0, std::min(blend_range, phase_score - Config::PHASE_BLEND_LO));
 				int mid_weight = blend_range - end_weight;
 				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
 
@@ -6755,18 +6996,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 			PROF_BLOCK(PROF_ROOKS);
 			int blended_score;
-			if (phase_score <= 40) {
+			if (phase_score <= Config::PHASE_BLEND_LO) {
 				int result_mid = evaluate_rooks_midgame(r, white_passed_pawns, black_passed_pawns);
 				blended_score = result_mid;
-			} else if (phase_score >= 70) {
+			} else if (phase_score >= Config::PHASE_BLEND_LO + Config::PHASE_BLEND_RANGE) {
 				int result_end = evaluate_rooks_endgame(r, white_passed_pawns, black_passed_pawns);
 				blended_score = result_end;
 			} else {
 				int result_mid = evaluate_rooks_midgame(r, white_passed_pawns, black_passed_pawns);
 				int result_end = evaluate_rooks_endgame(r, white_passed_pawns, black_passed_pawns);
 
-				int blend_range = 30; // 70 - 40
-				int end_weight = phase_score - 40;
+				// 🐛 The ramp does not complete: this blend is only reached inside `!isEndGame`
+				// (phase_score <= 64), so with the default LO=40/RANGE=30 the endgame weight tops out at
+				// 24/30 = 80% and then jumps to 100% when isEndGame flips -- a ~20% step of
+				// (result_end - result_mid) at the boundary. RANGE=24 closes it. Defaults reproduce the
+				// original behaviour exactly; max(1,...) keeps a zero RANGE from dividing by zero.
+				int blend_range = std::max(1, Config::PHASE_BLEND_RANGE);
+				// Clamped so a RANGE below the reachable span (e.g. 24, which closes the step) cannot
+				// drive mid_weight negative. Inert at the defaults, where end_weight spans 1..24 < 30.
+				int end_weight = std::max(0, std::min(blend_range, phase_score - Config::PHASE_BLEND_LO));
 				int mid_weight = blend_range - end_weight;
 				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
 			}
@@ -6804,18 +7052,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			//std::cout << "QUEENS: " << int(r) << " | " << result << std::endl;
 
 			/* int blended_score;
-			if (phase_score <= 40) {
+			if (phase_score <= Config::PHASE_BLEND_LO) {
 				int result_mid = evaluate_queens_midgame(r);
 				blended_score = result_mid;
-			} else if (phase_score >= 70) {
+			} else if (phase_score >= Config::PHASE_BLEND_LO + Config::PHASE_BLEND_RANGE) {
 				int result_end = evaluate_queens_endgame(r);
 				blended_score = result_end;
 			} else {
 				int result_mid = evaluate_queens_midgame(r);
 				int result_end = evaluate_queens_endgame(r);
 
-				int blend_range = 30; // 70 - 40
-				int end_weight = phase_score - 40;
+				// 🐛 The ramp does not complete: this blend is only reached inside `!isEndGame`
+				// (phase_score <= 64), so with the default LO=40/RANGE=30 the endgame weight tops out at
+				// 24/30 = 80% and then jumps to 100% when isEndGame flips -- a ~20% step of
+				// (result_end - result_mid) at the boundary. RANGE=24 closes it. Defaults reproduce the
+				// original behaviour exactly; max(1,...) keeps a zero RANGE from dividing by zero.
+				int blend_range = std::max(1, Config::PHASE_BLEND_RANGE);
+				// Clamped so a RANGE below the reachable span (e.g. 24, which closes the step) cannot
+				// drive mid_weight negative. Inert at the defaults, where end_weight spans 1..24 < 30.
+				int end_weight = std::max(0, std::min(blend_range, phase_score - Config::PHASE_BLEND_LO));
 				int mid_weight = blend_range - end_weight;
 				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
 			}
@@ -6838,18 +7093,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			
 			PROF_BLOCK(PROF_KINGS);
 			int blended_score;
-			if (phase_score <= 40) {
+			if (phase_score <= Config::PHASE_BLEND_LO) {
 				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
 				blended_score = result_mid;
-			} else if (phase_score >= 70) {
+			} else if (phase_score >= Config::PHASE_BLEND_LO + Config::PHASE_BLEND_RANGE) {
 				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
 				blended_score = result_end;
 			} else {
 				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
 				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
 
-				int blend_range = 30; // 70 - 40
-				int end_weight = phase_score - 40;
+				// 🐛 The ramp does not complete: this blend is only reached inside `!isEndGame`
+				// (phase_score <= 64), so with the default LO=40/RANGE=30 the endgame weight tops out at
+				// 24/30 = 80% and then jumps to 100% when isEndGame flips -- a ~20% step of
+				// (result_end - result_mid) at the boundary. RANGE=24 closes it. Defaults reproduce the
+				// original behaviour exactly; max(1,...) keeps a zero RANGE from dividing by zero.
+				int blend_range = std::max(1, Config::PHASE_BLEND_RANGE);
+				// Clamped so a RANGE below the reachable span (e.g. 24, which closes the step) cannot
+				// drive mid_weight negative. Inert at the defaults, where end_weight spans 1..24 < 30.
+				int end_weight = std::max(0, std::min(blend_range, phase_score - Config::PHASE_BLEND_LO));
 				int mid_weight = blend_range - end_weight;
 				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
 			}
@@ -7163,18 +7425,25 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			
 			PROF_BLOCK(PROF_KINGS);
 			int blended_score;
-			if (phase_score <= 40) {
+			if (phase_score <= Config::PHASE_BLEND_LO) {
 				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
 				blended_score = result_mid;
-			} else if (phase_score >= 70) {
+			} else if (phase_score >= Config::PHASE_BLEND_LO + Config::PHASE_BLEND_RANGE) {
 				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
 				blended_score = result_end;
 			} else {
 				int result_mid = evaluate_kings_midgame(r, white_passed_pawns, black_passed_pawns);
 				int result_end = evaluate_kings_endgame(r, white_passed_pawns, black_passed_pawns);
 
-				int blend_range = 30; // 70 - 40
-				int end_weight = phase_score - 40;
+				// 🐛 The ramp does not complete: this blend is only reached inside `!isEndGame`
+				// (phase_score <= 64), so with the default LO=40/RANGE=30 the endgame weight tops out at
+				// 24/30 = 80% and then jumps to 100% when isEndGame flips -- a ~20% step of
+				// (result_end - result_mid) at the boundary. RANGE=24 closes it. Defaults reproduce the
+				// original behaviour exactly; max(1,...) keeps a zero RANGE from dividing by zero.
+				int blend_range = std::max(1, Config::PHASE_BLEND_RANGE);
+				// Clamped so a RANGE below the reachable span (e.g. 24, which closes the step) cannot
+				// drive mid_weight negative. Inert at the defaults, where end_weight spans 1..24 < 30.
+				int end_weight = std::max(0, std::min(blend_range, phase_score - Config::PHASE_BLEND_LO));
 				int mid_weight = blend_range - end_weight;
 				blended_score = (mid_weight * result_mid + end_weight * result_end) / blend_range;
 			}
@@ -7490,6 +7759,35 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			total += scaled - br_pt_pawns;                      // pull the unbacked pawn-placement claim toward 0
 	}
 
+	// Closedness imbalance (env-gated, default off = byte-identical). Shifts knight and rook value by
+	// pawn-structure closedness -- a Kaufman-family question (which piece is better in this structure?)
+	// rather than a convertibility one. Bishops are deliberately absent here and are handled inside
+	// get_bishop_colour_complex_score instead, which already owns that signal via `block` and `mob`.
+	if (Config::ENABLE_CLOSEDNESS){
+		int c = pawn_closedness();
+		int net_n = __builtin_popcountll(occupied_white & knights) - __builtin_popcountll(occupied_black & knights);
+		int net_r = __builtin_popcountll(occupied_white & rooks)   - __builtin_popcountll(occupied_black & rooks);
+		// Black-positive convention: a White edge must LOWER the total, hence the subtraction.
+		total -= net_n * Config::CLOSED_N[c] + net_r * Config::CLOSED_R[c];
+	}
+
+	// Winnability (env-gated, default off = byte-identical). Applied ONCE to the summed total and BEFORE
+	// the convertibility scale below, matching SF's ordering (initiative -> scale factor -> boost).
+	// Sign-preserving: bounded below by -|total|, so it can drive a score to zero but never past it.
+	// We hold one blended total rather than an (mg,eg) pair, so SF's "damp-only in mg, two-way in eg"
+	// becomes a phase blend of those two forms -- the boost half fades out toward the opening.
+	if (Config::ENABLE_WINNABILITY){
+		int cx = position_complexity(white_passed_pawns, black_passed_pawns);
+		int mg_form = std::min(cx + Config::WINNAB_MG_OFFSET, 0);   // damp-only, never a midgame bonus
+		int eg_form = cx;                                           // two-way in the endgame
+		int ph = std::max(0, std::min(128, phase_score));
+		int units = (mg_form * (128 - ph) + eg_form * ph) / 128;
+		int delta = units * Config::WINNAB_SCALE;
+		int mag = std::abs(total);
+		int sign = (total > 0) - (total < 0);
+		total += sign * std::max(delta, -mag);
+	}
+
 	// Endgame convertibility scale (env-gated, default off = byte-identical). Damp an unconvertible
 	// material/placement lead toward draw, and scale the piece-value boost below by the same factor so
 	// the material-conversion bonus is damped coherently. A balanced (~0) total is unaffected; conv_s
@@ -7625,7 +7923,11 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 				total += Config::ISOLATED_PAWN_PEN;
 			} else if (Config::BACKWARD_PAWN_PEN > 0 && y < 7){
 				uint64_t below_incl = (1ULL << ((y + 1) << 3)) - 1;            // ranks 0..y
-				if ((adj & wp & below_incl) == 0 && (b_att & BB_SQUARES[s + 8]))
+				// SF gates backwardness on (leverPush | blocked): the stop square is either ATTACKED by an
+				// enemy pawn or OCCUPIED by one. We previously tested only the attacked half, so a pawn
+				// frozen by a pawn directly in front was never flagged.
+				if ((adj & wp & below_incl) == 0
+				    && ((b_att & BB_SQUARES[s + 8]) || (bp & BB_SQUARES[s + 8])))
 					total += Config::BACKWARD_PAWN_PEN;
 			}
 		}
@@ -7638,7 +7940,8 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 				total -= Config::ISOLATED_PAWN_PEN;
 			} else if (Config::BACKWARD_PAWN_PEN > 0 && y > 0){
 				uint64_t above_incl = ~((1ULL << (y << 3)) - 1);              // ranks y..7
-				if ((adj & bp & above_incl) == 0 && (w_att & BB_SQUARES[s - 8]))
+				if ((adj & bp & above_incl) == 0
+				    && ((w_att & BB_SQUARES[s - 8]) || (wp & BB_SQUARES[s - 8])))
 					total -= Config::BACKWARD_PAWN_PEN;
 			}
 		}

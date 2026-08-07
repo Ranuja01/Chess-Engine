@@ -135,6 +135,18 @@ weaker version (the rebuilt one lacks the *control set* that made the original t
 - **Carry the whole reference ladder.** The SF versions are a progression: whichever generation is closest
   to truth for a situation is the source to read for that concept.
 
+## 📐 Subsystem model docs — READ BEFORE CHANGING THAT SUBSYSTEM
+
+Each records the measured system, the principles behind it, the evidence, and **what would falsify each
+claim**. Read the relevant one before touching that area of the eval, and **update it if you change the
+system** — a stale model doc is worse than none. These are canonical: they hold knowledge that does not
+expire, and superseded claims are struck through and kept, never deleted.
+
+- **Pawns → [`dev_notes/PAWN_MODEL.md`](dev_notes/PAWN_MODEL.md)** — rank/file tables, chain & wall,
+  isolated/backward, passer detection and realizability, the per-pawn clamp. Includes a **refutation
+  record** of ideas already measured and killed; check it before re-proposing one.
+- *(King safety, and other subsystems, to follow the same pattern.)*
+
 ## Eval diagnosis — the three-way triangulation (ours / SF11-static / SF18-search)
 
 The standing method for hunting eval bugs: for a suspect position compare **ours** (`ai.ev_breakdown(board)`,

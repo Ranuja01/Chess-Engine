@@ -42,16 +42,38 @@ def s18(fen):
     b = chess.Board(fen); i = sf18.analyse(b, chess.engine.Limit(depth=DEPTH)); s = i["score"].white()
     return 99.0 if (s.is_mate() and s.mate() > 0) else (-99.0 if s.is_mate() else s.score() / 100.0)
 
-done = 0
-for r in todo:
-    try:
-        r["sf18"] = round(s18(r["fen"]), 2); done += 1
-    except Exception:
-        continue
-    if done % 50 == 0: print("  ...%d" % done)
-sf18.quit()
+# Commit periodically, not just at the end. This pass runs for HOURS at ~1-2s/position, and writing only
+# after the loop meant a kill (or a crash) threw away every label earned in that invocation -- the resume
+# logic above could then only skip work that had survived a clean exit. Atomic tmp+replace so an interrupt
+# during the write itself cannot truncate the bank.
+CKPT = int(os.environ.get("CKPT", "100"))
 
-with open(BANK, "w", newline="") as f:
-    w = csv.DictWriter(f, fieldnames=rows[0].keys()); w.writeheader(); w.writerows(rows)
+
+def commit():
+    tmp = BANK + ".tmp"
+    with open(tmp, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=rows[0].keys()); w.writeheader(); w.writerows(rows)
+    os.replace(tmp, BANK)
+
+
+done = 0
+try:
+    for r in todo:
+        try:
+            r["sf18"] = round(s18(r["fen"]), 2); done += 1
+        except Exception:
+            continue
+        if done % CKPT == 0:
+            commit()
+            print("  ...%d (checkpointed)" % done, flush=True)
+        elif done % 50 == 0:
+            print("  ...%d" % done, flush=True)
+finally:
+    # Runs on Ctrl-C, SIGTERM-driven interpreter shutdown, and normal completion alike.
+    try:
+        sf18.quit()
+    except Exception:
+        pass
+    commit()
 labeled = sum(1 for r in rows if r.get("sf18", "") not in ("", None))
 print("SF18-labeled this pass: %d   total labeled in bank: %d / %d" % (done, labeled, len(rows)))

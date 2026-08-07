@@ -13,6 +13,7 @@
 #include <unordered_set>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 std::atomic<bool> time_up;
 std::atomic<bool> use_q_precautions;
@@ -1303,6 +1304,89 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SCALE_PAWN_RANK = env_int("SCALE_PAWN_RANK", Config::SCALE_PAWN_RANK);
         Config::SCALE_PASSED_RANK = env_int("SCALE_PASSED_RANK", Config::SCALE_PASSED_RANK);
         Config::SCALE_ENDGAME_RANK = env_int("SCALE_ENDGAME_RANK", Config::SCALE_ENDGAME_RANK);
+        // Per-rank pawn-table scales, ranks 2..7 (indices 1..6; 0 and 7 are unreachable squares for a pawn).
+        // Names are RANK_DEF_R2..R7 / RANK_PSD_R2..R7 / RANK_EG_R2..R7 so each is an ordinary KNOB=VAL the
+        // fit harness can sweep individually alongside every other eval knob.
+        for (int i = 1; i <= 6; ++i) {
+            char nm[24];
+            std::snprintf(nm, sizeof nm, "RANK_DEF_R%d", i + 1);
+            Config::RANK_DEF_PCT[i] = env_int(nm, Config::RANK_DEF_PCT[i]);
+            std::snprintf(nm, sizeof nm, "RANK_PSD_R%d", i + 1);
+            Config::RANK_PSD_PCT[i] = env_int(nm, Config::RANK_PSD_PCT[i]);
+            std::snprintf(nm, sizeof nm, "RANK_EG_R%d", i + 1);
+            Config::RANK_EG_PCT[i] = env_int(nm, Config::RANK_EG_PCT[i]);
+        }
+        // Per-file chain/wall scales. CHAIN_F_A..H index files 0..7; WALL_F_A..H map to the wall array's
+        // live entries 1..8 (it is indexed [x] and [x+2], so 0 and 9/10 are padding).
+        for (int i = 0; i < 8; ++i) {
+            char nm[24];
+            std::snprintf(nm, sizeof nm, "CHAIN_F_%c", 'A' + i);
+            Config::CHAIN_F_PCT[i] = env_int(nm, Config::CHAIN_F_PCT[i]);
+            std::snprintf(nm, sizeof nm, "WALL_F_%c", 'A' + i);
+            Config::WALL_F_PCT[i + 1] = env_int(nm, Config::WALL_F_PCT[i + 1]);
+        }
+        // Per-rank structural sensitivity, one curve per PHASE (the two evaluators are independent).
+        for (int i = 1; i <= 6; ++i) {
+            char nm[24];
+            std::snprintf(nm, sizeof nm, "STRUCT_R_MG_R%d", i + 1);
+            Config::STRUCT_R_MG_PCT[i] = env_int(nm, Config::STRUCT_R_MG_PCT[i]);
+            std::snprintf(nm, sizeof nm, "STRUCT_R_EG_R%d", i + 1);
+            Config::STRUCT_R_EG_PCT[i] = env_int(nm, Config::STRUCT_R_EG_PCT[i]);
+        }
+        Config::STRUCT_OPPOSED_MG_PCT = env_int("STRUCT_OPPOSED_MG_PCT", Config::STRUCT_OPPOSED_MG_PCT);
+        Config::STRUCT_OPPOSED_EG_PCT = env_int("STRUCT_OPPOSED_EG_PCT", Config::STRUCT_OPPOSED_EG_PCT);
+        Config::PAWN_CLAMP_MID = env_int("PAWN_CLAMP_MID", Config::PAWN_CLAMP_MID);
+        Config::PAWN_CLAMP_EG  = env_int("PAWN_CLAMP_EG",  Config::PAWN_CLAMP_EG);
+        Config::EG_PHALANX = env_int("EG_PHALANX", Config::EG_PHALANX);
+        Config::EG_SUPPORT = env_int("EG_SUPPORT", Config::EG_SUPPORT);
+        Config::EG_DEFEND  = env_int("EG_DEFEND",  Config::EG_DEFEND);
+        Config::EG_LATENT  = env_int("EG_LATENT",  Config::EG_LATENT);
+        Config::EG_EXIST_KNIGHT = env_int("EG_EXIST_KNIGHT", Config::EG_EXIST_KNIGHT);
+        Config::EG_EXIST_BISHOP = env_int("EG_EXIST_BISHOP", Config::EG_EXIST_BISHOP);
+        Config::EG_EXIST_ROOK   = env_int("EG_EXIST_ROOK",   Config::EG_EXIST_ROOK);
+        Config::EG_EXIST_QUEEN  = env_int("EG_EXIST_QUEEN",  Config::EG_EXIST_QUEEN);
+        Config::MG_CLAMP_KNIGHT   = env_int("MG_CLAMP_KNIGHT",   Config::MG_CLAMP_KNIGHT);
+        Config::MG_CLAMP_BISHOP_A = env_int("MG_CLAMP_BISHOP_A", Config::MG_CLAMP_BISHOP_A);
+        Config::MG_CLAMP_BISHOP_B = env_int("MG_CLAMP_BISHOP_B", Config::MG_CLAMP_BISHOP_B);
+        Config::EG_CLAMP_KNIGHT = env_int("EG_CLAMP_KNIGHT", Config::EG_CLAMP_KNIGHT);
+        Config::EG_CLAMP_BISHOP = env_int("EG_CLAMP_BISHOP", Config::EG_CLAMP_BISHOP);
+        Config::EG_CLAMP_ROOK   = env_int("EG_CLAMP_ROOK",   Config::EG_CLAMP_ROOK);
+        Config::EG_CLAMP_QUEEN  = env_int("EG_CLAMP_QUEEN",  Config::EG_CLAMP_QUEEN);
+        Config::ENABLE_WINNABILITY = env_flag("ENABLE_WINNABILITY", Config::ENABLE_WINNABILITY);
+        Config::WINNAB_PASSED     = env_int("WINNAB_PASSED",     Config::WINNAB_PASSED);
+        Config::WINNAB_PAWNS      = env_int("WINNAB_PAWNS",      Config::WINNAB_PAWNS);
+        Config::WINNAB_OUTFLANK   = env_int("WINNAB_OUTFLANK",   Config::WINNAB_OUTFLANK);
+        Config::WINNAB_FLANKS     = env_int("WINNAB_FLANKS",     Config::WINNAB_FLANKS);
+        Config::WINNAB_INFILT     = env_int("WINNAB_INFILT",     Config::WINNAB_INFILT);
+        Config::WINNAB_NO_NPM     = env_int("WINNAB_NO_NPM",     Config::WINNAB_NO_NPM);
+        Config::WINNAB_UNWINNABLE = env_int("WINNAB_UNWINNABLE", Config::WINNAB_UNWINNABLE);
+        Config::WINNAB_TENSION    = env_int("WINNAB_TENSION",    Config::WINNAB_TENSION);
+        Config::WINNAB_BASE       = env_int("WINNAB_BASE",       Config::WINNAB_BASE);
+        Config::WINNAB_MG_OFFSET  = env_int("WINNAB_MG_OFFSET",  Config::WINNAB_MG_OFFSET);
+        Config::WINNAB_SCALE      = env_int("WINNAB_SCALE",      Config::WINNAB_SCALE);
+        Config::ENABLE_CLOSEDNESS = env_flag("ENABLE_CLOSEDNESS", Config::ENABLE_CLOSEDNESS);
+        for (int i = 0; i < 9; i++){
+            char nm[24];
+            snprintf(nm, sizeof(nm), "CLOSED_N%d", i);
+            Config::CLOSED_N[i] = env_int(nm, Config::CLOSED_N[i]);
+            snprintf(nm, sizeof(nm), "CLOSED_R%d", i);
+            Config::CLOSED_R[i] = env_int(nm, Config::CLOSED_R[i]);
+            snprintf(nm, sizeof(nm), "CLOSED_B%d", i);
+            Config::CLOSED_B_PCT[i] = env_int(nm, Config::CLOSED_B_PCT[i]);
+        }
+        Config::PHASE_BLEND_LO    = env_int("PHASE_BLEND_LO",    Config::PHASE_BLEND_LO);
+        Config::PHASE_BLEND_RANGE = env_int("PHASE_BLEND_RANGE", Config::PHASE_BLEND_RANGE);
+        Config::PPS_OWN_BLOCK    = env_int("PPS_OWN_BLOCK",    Config::PPS_OWN_BLOCK);
+        Config::PPS_ENEMY_BLOCK  = env_int("PPS_ENEMY_BLOCK",  Config::PPS_ENEMY_BLOCK);
+        Config::PPS_OWN_ATTACK   = env_int("PPS_OWN_ATTACK",   Config::PPS_OWN_ATTACK);
+        Config::PPS_ENEMY_ATTACK = env_int("PPS_ENEMY_ATTACK", Config::PPS_ENEMY_ATTACK);
+        Config::ENABLE_PASSER_DEFER_ON_FLAG = env_flag("ENABLE_PASSER_DEFER_ON_FLAG", Config::ENABLE_PASSER_DEFER_ON_FLAG);
+        Config::PASSER_R_MAX = env_int("PASSER_R_MAX", Config::PASSER_R_MAX);
+        Config::ENABLE_PAWN_OBSTRUCTION_BLEND = env_flag("ENABLE_PAWN_OBSTRUCTION_BLEND", Config::ENABLE_PAWN_OBSTRUCTION_BLEND);
+        Config::PAWN_OBS_LO = env_int("PAWN_OBS_LO", Config::PAWN_OBS_LO);
+        Config::PAWN_OBS_HI = env_int("PAWN_OBS_HI", Config::PAWN_OBS_HI);
+        Config::PAWN_OBS_LO_EG = env_int("PAWN_OBS_LO_EG", Config::PAWN_OBS_LO_EG);
+        Config::PAWN_OBS_HI_EG = env_int("PAWN_OBS_HI_EG", Config::PAWN_OBS_HI_EG);
         Config::SCALE_PAWN_WALL = env_int("SCALE_PAWN_WALL", Config::SCALE_PAWN_WALL);
         Config::SCALE_PAWN_CHAIN = env_int("SCALE_PAWN_CHAIN", Config::SCALE_PAWN_CHAIN);
         Config::BISHOP_MOB_PAWN_ATTACK = env_int("BISHOP_MOB_PAWN_ATTACK", Config::BISHOP_MOB_PAWN_ATTACK);
@@ -1393,6 +1477,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_RFLOOR_R5 = env_int("PASSER_RFLOOR_R5", Config::PASSER_RFLOOR_R5);
         Config::PASSER_RFLOOR_R6 = env_int("PASSER_RFLOOR_R6", Config::PASSER_RFLOOR_R6);
         Config::PASSER_RESID_PCT = env_int("PASSER_RESID_PCT", Config::PASSER_RESID_PCT);
+        Config::ENABLE_PASSER_ORD_FLOOR = env_flag("ENABLE_PASSER_ORD_FLOOR", Config::ENABLE_PASSER_ORD_FLOOR);
         Config::ENABLE_KS_DEBUG = env_flag("ENABLE_KS_DEBUG", Config::ENABLE_KS_DEBUG);
         Config::ENABLE_PASSER_KRACE_MG = env_flag("ENABLE_PASSER_KRACE_MG", Config::ENABLE_PASSER_KRACE_MG);
         Config::PASSER_KRACE_MG_PCT = env_int("PASSER_KRACE_MG_PCT", Config::PASSER_KRACE_MG_PCT);
@@ -1773,6 +1858,54 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " SCALE_PAWN_RANK=" << Config::SCALE_PAWN_RANK
                   << " SCALE_PASSED_RANK=" << Config::SCALE_PASSED_RANK
                   << " SCALE_ENDGAME_RANK=" << Config::SCALE_ENDGAME_RANK
+                  << " ENABLE_PAWN_OBSTRUCTION_BLEND=" << Config::ENABLE_PAWN_OBSTRUCTION_BLEND
+                  << " PAWN_OBS_LO=" << Config::PAWN_OBS_LO
+                  << " PAWN_OBS_HI=" << Config::PAWN_OBS_HI
+                  << " PAWN_OBS_LO_EG=" << Config::PAWN_OBS_LO_EG
+                  << " PAWN_OBS_HI_EG=" << Config::PAWN_OBS_HI_EG
+                  << " PAWN_CLAMP_MID=" << Config::PAWN_CLAMP_MID
+                  << " PAWN_CLAMP_EG=" << Config::PAWN_CLAMP_EG
+                  << " EG_PHALANX=" << Config::EG_PHALANX
+                  << " EG_SUPPORT=" << Config::EG_SUPPORT
+                  << " EG_DEFEND=" << Config::EG_DEFEND
+                  << " EG_LATENT=" << Config::EG_LATENT
+                  << " EG_EXIST_KNIGHT=" << Config::EG_EXIST_KNIGHT
+                  << " EG_EXIST_BISHOP=" << Config::EG_EXIST_BISHOP
+                  << " EG_EXIST_ROOK=" << Config::EG_EXIST_ROOK
+                  << " EG_EXIST_QUEEN=" << Config::EG_EXIST_QUEEN
+                  << " MG_CLAMP_KNIGHT=" << Config::MG_CLAMP_KNIGHT
+                  << " MG_CLAMP_BISHOP_A=" << Config::MG_CLAMP_BISHOP_A
+                  << " MG_CLAMP_BISHOP_B=" << Config::MG_CLAMP_BISHOP_B
+                  << " EG_CLAMP_KNIGHT=" << Config::EG_CLAMP_KNIGHT
+                  << " EG_CLAMP_BISHOP=" << Config::EG_CLAMP_BISHOP
+                  << " EG_CLAMP_ROOK=" << Config::EG_CLAMP_ROOK
+                  << " EG_CLAMP_QUEEN=" << Config::EG_CLAMP_QUEEN
+                  << " ENABLE_WINNABILITY=" << Config::ENABLE_WINNABILITY
+                  << " WINNAB_PASSED=" << Config::WINNAB_PASSED
+                  << " WINNAB_PAWNS=" << Config::WINNAB_PAWNS
+                  << " WINNAB_OUTFLANK=" << Config::WINNAB_OUTFLANK
+                  << " WINNAB_FLANKS=" << Config::WINNAB_FLANKS
+                  << " WINNAB_INFILT=" << Config::WINNAB_INFILT
+                  << " WINNAB_NO_NPM=" << Config::WINNAB_NO_NPM
+                  << " WINNAB_UNWINNABLE=" << Config::WINNAB_UNWINNABLE
+                  << " WINNAB_TENSION=" << Config::WINNAB_TENSION
+                  << " WINNAB_BASE=" << Config::WINNAB_BASE
+                  << " WINNAB_MG_OFFSET=" << Config::WINNAB_MG_OFFSET
+                  << " WINNAB_SCALE=" << Config::WINNAB_SCALE
+                  << " ENABLE_CLOSEDNESS=" << Config::ENABLE_CLOSEDNESS
+                  << " CLOSED_N4=" << Config::CLOSED_N[4]
+                  << " CLOSED_R4=" << Config::CLOSED_R[4]
+                  << " CLOSED_B4=" << Config::CLOSED_B_PCT[4]
+                  << " PHASE_BLEND_LO=" << Config::PHASE_BLEND_LO
+                  << " PHASE_BLEND_RANGE=" << Config::PHASE_BLEND_RANGE
+                  << " STRUCT_OPPOSED_MG_PCT=" << Config::STRUCT_OPPOSED_MG_PCT
+                  << " STRUCT_OPPOSED_EG_PCT=" << Config::STRUCT_OPPOSED_EG_PCT
+                  << " ENABLE_PASSER_DEFER_ON_FLAG=" << Config::ENABLE_PASSER_DEFER_ON_FLAG
+                  << " PASSER_R_MAX=" << Config::PASSER_R_MAX
+                  << " PPS_OWN_BLOCK=" << Config::PPS_OWN_BLOCK
+                  << " PPS_ENEMY_BLOCK=" << Config::PPS_ENEMY_BLOCK
+                  << " PPS_OWN_ATTACK=" << Config::PPS_OWN_ATTACK
+                  << " PPS_ENEMY_ATTACK=" << Config::PPS_ENEMY_ATTACK
                   << " SCALE_PAWN_WALL=" << Config::SCALE_PAWN_WALL
                   << " SCALE_PAWN_CHAIN=" << Config::SCALE_PAWN_CHAIN
                   << " BISHOP_MOB_PAWN_ATTACK=" << Config::BISHOP_MOB_PAWN_ATTACK

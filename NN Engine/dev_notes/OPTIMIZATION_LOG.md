@@ -4,6 +4,163 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚨 2026-08-06 evening — TWO LATENT DEFECTS FOUND; pawn lane closed; 21 knobs + 8.5× corpus banked
+
+**No games run. Engine byte-identical at defaults throughout (`250 / 35,791,173 / EBF 3.804`, verified 4×).**
+
+### ☠️ BLOCKER: the eval is not colour-symmetric
+`eval(mirror(b))` must equal `-eval(b)`. It fails in **1,121 / 1,500 = 74.7%** of positions, median 51 mp,
+worst **3,738 mp (374 cp)**. Reproduces on four pieces: `4k3/8/8/8/8/8/4P3/4K3 w` vs its mirror, off by 27 mp.
+✅ Instrument validated — bare kings / kings facing / startpos all return exactly 0; deterministic across
+repeats; no order dependence (ruled out global-state contamination, which matters because our static eval
+shares C++ globals). ⚠️ Side-to-move terms are not an excuse: `mirror()` swaps `turn` as well.
+**Multiple sources**: `passed_pawn_support` owns the whole KPK case; `passer_king_race_one` (the eval's only
+`turn` consumer) is ~7 of 27 mp; but in the worst real position ~2,300 mp of the asymmetry lies OUTSIDE
+`passed_pawn_support`. ✅ Ruled out: `boost_pieces_for_supporting_passed_pawns` (its `y > 2` / `y < 5` gates
+ARE correct rank mirrors). LATENT, not new — byte-identity held all day and cannot introduce this.
+☠️ **Blocks the joint retune**: fitting ~60 constants against a function wrong in 3/4 of its domain lets the
+optimiser absorb the bug. A correct fix MUST break the current fingerprint. 🧰 `_eval_symmetry.py`.
+
+### 🐛 The phase blend never completes — a ~20% step
+`blend_range = 30` implies a 40→70 ramp, but the blend only runs inside `!isEndGame` (phase ≤ 64), so the
+endgame weight tops out at **24/30 = 80%** and then jumps to 100%. Every blended piece type has a
+discontinuity of ~20% of `(result_end − result_mid)` at the boundary. Now knobbed (`PHASE_BLEND_LO/RANGE`);
+RANGE=24 closes it.
+
+### 📊 Where the pawn lane actually ended
+- ☠️ **Sibling invariance REFUTED.** Deleting the pawn terms changes the top move **7.1%** of the time
+  (≥25 cp regret) vs the `threats` control's **5.1%** — pawns reorder MORE than the +45 Elo term. The
+  mechanism holds only among piece moves (`QUIET_ONLY` collapses spread 49.4 → 6.7 cp); the candidate set
+  is not piece moves.
+- **Exchange rate, one sample, full ladder**: rook exact (ours 4.98 vs 5.01/5.02/5.09) but **minors ~7%
+  below the classical consensus** (N 3.37 vs 3.60/3.67/3.92). Global scale k ≈ 1.0 ⇒ a RATIO defect.
+- **`pieces` is the top contributor in 56% of material collapses**, and its excess flips sign against a
+  quiet control (+0.27 → −0.23).
+- 🚨 **Ranking by cp vs win% INVERTS the conditioning** and the worst-decile sets overlap only 33-53%.
+  Retracted a "6× worse when losing / 2× worse in endgames" conclusion on that basis. Error is fat-tailed
+  and two-sided (worst decile = 31-36% of win% error) ⇒ a uniform ratio correction was withdrawn.
+
+### ✅ Banked
+Corpus **2,713 → 23,113 rows** (bank 24,656, fully SF18-labelled at **d13**, depth matched deliberately —
+the script defaults to d18 and mixing depths would put two truth standards in one target column).
+New shipped-default baseline **train 228.347 / val 231.177**; snapshots `*_pre0806b.csv`.
+**21 new knobs, all gated, all byte-identical off**: `EG_EXIST_KNIGHT/BISHOP/ROOK/QUEEN`,
+`MG_CLAMP_KNIGHT/BISHOP_A/BISHOP_B`, `EG_CLAMP_*` (declared, unwired), `ENABLE_WINNABILITY` + 11 `WINNAB_*`,
+`ENABLE_CLOSEDNESS` + `CLOSED_N/R/B_PCT[9]`, `PHASE_BLEND_LO/RANGE`. NPS peak **454,491** vs register
+445,330 ⇒ no cost. 🐛 `endgame_convertibility_scale` was found **built, wired and never run**
+(`ENABLE_ENDGAME_SCALE=0`) — add it to the grid.
+
+## ⚖️ Pawn iteration 3 — shipped regime, widened corpus, `PPS_*` exposed ⇒ **elo ~+18 at 389g, stopped** (2026-08-06)
+
+First descent run **in the SHIPPED regime** (earlier ones optimised inside `ENABLE_KS_CHECK_V2=1`, which we
+do not ship, so their winners were never directly applicable), on the corpus widened to **4,987 rows**, and
+with the passed-pawn SUPPORT magnitudes exposed for the first time.
+
+    corpus (new baseline)  shipped default  train 230.555 / val 234.881
+    fitted                                  train 212.702 / val 213.028   (-21.85 val, all 9 guards held)
+    SPRT vs base           +161 -141 =89 @ 389 games, LLR +0.556, elo ~+18  (stopped for context transfer)
+
+★ **`PPS_OWN_ATTACK 60→35` was the single largest move of the round** — those magnitudes (`y*75`, `y*100`,
+`y*60`, `y*50` in `boost_pieces_for_supporting_passed_pawns`) had never been tuned at all.
+★★ Consistent across all three descents: **pawn values want to come DOWN nearly everywhere, except rank 7
+which wants UP.** `PAWN_CLAMP_MID` has now walked **225 → 175 → 140**.
+⚠️ The SPRT was volatile and unsettled when stopped: check trajectory **−6, +6, +4, +2, +2, +8, +18**.
+Treat +18 as a local upswing, not a converged estimate.
+⇒ **Four pawn arms now: −15, ~+4, +12.4 ±30.2, ~+18(unsettled).** None resolvable; none negative except the
+first.
+☠️ **The "sibling invariance" explanation was tested that evening and REFUTED** (`_sibling_spread.py`, 800
+positions × 2 seeds, zero SF): deleting the pawn terms changes the top move **14.0%/16.6%** of the time
+(**7.1%** at ≥25 cp regret) against the `threats` control's **10.0%/11.5%** (5.1%) — **pawns reorder more
+than the term that won +45 Elo.** The mechanism holds only among piece moves (`QUIET_ONLY=1` spread
+collapses 49.4 → 6.7 cp); the candidate set is not piece moves. ⇒ Leading explanation is now simply that
+**the effect is ~10-20 Elo and under our measurement floor.** See
+`pawn-scoring-may-be-unable-to-change-our-move` (kept as a refutation record).
+
+🚨 **CORPUS CHANGED**: `diverse_corpus_wide` 2,713 → 4,987 rows (bank labelled to 4,925/4,987; ~4 pos/sec at
+d13). Snapshots `*_pre0806.csv`. **No `val` measured before 2026-08-06 is comparable to one after.**
+⚡ **SPEED, re-established properly**: pinned **peak 445,330 NPS** vs the register's 446,218 ⇒ today's
+additions cost nothing measurable. (Median 431k, spread 5.9% — peak-of-N is the right statistic; a
+median-of-3 would have shown a phantom slowdown.) 🐛 One genuinely unconditional cost was introduced and
+then removed: the `opposed` mask was computed per pawn per eval even at the default. **Byte-identity cannot
+detect added work — only added output change.**
+
+## ⚖️ `ISOLATED`/`BACKWARD` ALONE, at last: **+12.4 ±30.2 Elo over 700 games** (2026-08-06)
+
+First time these were ever tested in isolation. `ISOLATED_PAWN_PEN=120 BACKWARD_PAWN_PEN=120` (the value the
+joint descent chose — note **2.5× below the hand-picked 200/100** they were previously judged on).
+
+    W 280  L 255  D 165   score 51.8%   elo +12.4  margin ±30.2   LLR −0.013
+    decision: inconclusive — hit max_games without crossing a bound
+
+⚖️ **This is exactly what `_venue_power.py` predicted before the run**: resolving +10 Elo needs ~4,344
+games; 700 buys ±30. So the honest statement is **"not ≥25 Elo, point estimate +12.4"** — NOT "failed".
+★ It was also the **only** pawn arm of the session that never decayed: readings across ten checks were
++7, −3, +8, +8, +11, +17, +17, +20, +14, +9 — a flat non-negative band, versus `pawn2` which spiked to +44
+and fell to +4, and iteration 1 which fell to −15.
+⇒ The owner's thesis (isolated/backward measure *true structural weaknesses* and should be worth something)
+is **not refuted and is mildly supported** — it simply sits under this project's game-resolution floor.
+▶️ To resolve it would take ~4,000+ games. Worth doing only if it is bundled with other small positives, or
+if a cheaper high-power venue is built.
+
+## ☠️ Pawn iteration 2 — endgame surface + `opposed` + tunable caps ⇒ **elo ~+4, still nothing** (2026-08-06)
+
+Made tunable for the first time: the ENDGAME structural literals (`EG_PHALANX/SUPPORT/DEFEND/LATENT` —
+previously hardcoded, reachable by no knob, **never fitted once**), both per-pawn caps, per-phase structural
+rank curves, `opposed` (the signal `getPPIncrement` computes then discards), `PASSER_R_MAX`, and the six
+`PP_*` constants. Joint descent over ~105 knobs.
+
+| metric | base | iter 1 | iter 2 |
+|---|---|---|---|
+| corpus val (shipped regime) | 279.51 | 265.53 | **262.10** |
+| joint-run ALL.val | 300.37 | 256.71 | **252.32** |
+| **SPRT vs base** | — | **−15** (232g) | **~+4** (324g, LLR −0.771, cut) |
+
+☠️ **Three corpus improvements in a row (−7.3, −13.98, −17.4) and no Elo from any of them.** The pawn
+subsystem is **0-for-3 in games**. The proxy improved monotonically while the game result did not move.
+★★★ Matches `most-eval-error-is-move-neutral`: we keep making the eval agree with SF18 without changing the
+moves we play.
+
+**What the descent chose, and what it overturns:**
+- ☠️ **Both caps want to go DOWN** (`PAWN_CLAMP_MID 225→175`, `PAWN_CLAMP_EG 175→125`) *even with new terms
+  competing for the headroom* — against both the redesign brief and the "new terms need room" intuition.
+- ✅ **`opposed` pays**: both phases pinned to the grid minimum 60% ⇒ an opposed pawn's structure is worth
+  ~40% less. ⚠️ Corpus evidence only.
+- ↩️ **`PASSER_R_MAX` declined the extra headroom** (offered 512, kept 384) ⇒ the earlier "the architecture
+  blocks a passer valuation it wants to pay" reading was **overstated**.
+
+## ☠️ Fitted pawn model: −13.98 corpus val, ALL nine guards improved ⇒ **elo ~−15 in games** (2026-08-05)
+
+First time the pawn tables were ever FITTED rather than hand-picked (new per-rank `RANK_*_R2..R7` and
+per-file `CHAIN_F_*`/`WALL_F_*` knobs; whole-table `SCALE_*` could only rescale a chosen shape). Joint
+win%-descent also switched `ISOLATED_PAWN_PEN` on at **80** and `BACKWARD_PAWN_PEN` at **120** — 2.5× below
+the hand-picked 200/100 they had previously been judged on.
+
+| metric | base | fitted |
+|---|---|---|
+| corpus val (shipped regime) | 279.51 | **265.53** (−13.98) |
+| all 9 guard tiers | — | **every one improved** |
+| WAC / nodes / STS | 250 / 35,791,173 / 1685 | 245 / 34,724,789 / **1668** |
+| **SPRT vs base** | — | **+84 −94 =55, LLR −1.731, elo ~−15** (stopped at 232g, trending to H0) |
+
+☠️ **A −14 corpus gain with every guard improving produced no Elo.** Third proxy failure of the day, after
+`+58 STS ⇒ ~0 Elo` (pawn structure) and the obstruction blend. ★★★ Consistent with
+`most-eval-error-is-move-neutral`: 52% of our eval error is large but does NOT change the move we play, so
+making the eval more SF-accurate moves the corpus number without moving the game result. **Pawn terms look
+especially prone to this** — they shift standing evaluations more than they flip candidate moves.
+⚠️ Not a clean kill of any single idea: the arm changed ~40 knobs at once. `ISOLATED`/`BACKWARD` in
+particular remain untested individually.
+⚠️ Caveat: ~4 minutes of the run overlapped a duplicate SPRT (see below), so a handful of games are suspect;
+both arms were slowed equally so the bias is largely symmetric.
+
+## 🐛 The `ps` sub reported a live SPRT as dead, and a duplicate was launched on top of it (2026-08-05)
+
+`overnight_runner.sh ps` grepped only `tactical_test|sts_test|movematch|tournament.py|setupAI` — it never
+matched **`sprt.py`** or **`pyrun`** jobs. A running SPRT showed "none running", was declared crashed, and a
+second SPRT was started against it: seven workers competing on time-controlled games.
+✅ Pattern fixed to include `sprt\.py|spsa\.py|gauntlet|annotate\.py|diagnostics/`.
+★ Same blind spot had earlier caused two long `pawn_truth_generator` runs to be declared dead while merely
+slow. **A negative from a monitoring tool is a claim about the tool until confirmed with `pgrep -af`.**
+
 ## ☠️ `ENABLE_IMPROVING` + `ENABLE_CONT_HIST_2PLY` re-tested — both FAIL, theory falsified (2026-07-30)
 
 Both were queued as **revived by the malus ship**, on the triage rule *"does the feature CONSUME history?"*

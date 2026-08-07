@@ -38,8 +38,26 @@ TERM = os.environ.get("ASYM_TERM", "det_pieceval")
 ai = ChessAI(None, None, chess.Board(), True)
 
 
+# ASYM_MODE=colour (default): eval(mirror(b)) must NEGATE eval(b).
+# ASYM_MODE=file: eval(flip_h(b)) must EQUAL eval(b) -- a<->h reflection is a rules symmetry once
+# castling rights are gone, so the eval must PRESERVE, not negate. ⚠️ The per-file pawn scales
+# (CHAIN_F_PCT / WALL_F_PCT) are all 100 at the shipped defaults, so the standard "those tables are
+# deliberately asymmetric" excuse for a file-mirror violation is VACUOUS at defaults.
+ASYM_MODE = os.environ.get("ASYM_MODE", "colour")
+
+
 def asym(b):
     """Magnitude of the invariance violation for this board, 0 = clean."""
+    if ASYM_MODE == "file":
+        # Only meaningful where the transform is unambiguous.
+        if b.castling_rights or b.ep_square is not None:
+            return 0
+        try:
+            db, df = ai.ev_breakdown(b), ai.ev_breakdown(b.transform(chess.flip_horizontal))
+        except Exception:
+            return 0
+        return abs(db.get(TERM if TERM != "det_pieceval" else "total", 0)
+                   - df.get(TERM if TERM != "det_pieceval" else "total", 0))
     try:
         db, dm = ai.ev_breakdown(b), ai.ev_breakdown(b.mirror())
     except Exception:
@@ -134,30 +152,45 @@ def main():
     show(b, "minimal")
 
     # --- 2. which terms still break here? with so few pieces this is usually one line of code ---
-    db, dm = ai.ev_breakdown(b), ai.ev_breakdown(b.mirror())
-    SWAP = [("det_w_pieceval", "det_b_pieceval"), ("det_w_defense", "det_b_defense"),
-            ("det_w_offense", "det_b_offense"), ("det_w_mobility", "det_b_mobility"),
-            ("det_ks_units_w", "det_ks_units_b")]
-    SKIP = {"phase_score", "is_endgame", "advanced_endgame_fired", "det_pawn_count", "det_central"}
-    members = {k for p in SWAP for k in p}
+    if ASYM_MODE == "file":
+        # File mirror PRESERVES every term (a<->h is a rules symmetry once castling is gone), so the
+        # test is plain equality -- applying the colour NEGATE rule here reports nonsense.
+        db, df = ai.ev_breakdown(b), ai.ev_breakdown(b.transform(chess.flip_horizontal))
+        print("\n  terms breaking under FILE mirror (must be EQUAL, not negated):")
+        rows = []
+        for k in set(db) | set(df):
+            x, y = db.get(k, 0), df.get(k, 0)
+            if isinstance(x, int) and isinstance(y, int) and x != y:
+                rows.append((abs(x - y), k, x, y))
+        for d, k, x, y in sorted(rows, reverse=True)[:14]:
+            print("     %-30s %8d      base %+8d   flipped %+8d" % (k, d, x, y))
+        if not rows:
+            print("     (none)")
+    else:
+        db, dm = ai.ev_breakdown(b), ai.ev_breakdown(b.mirror())
+        SWAP = [("det_w_pieceval", "det_b_pieceval"), ("det_w_defense", "det_b_defense"),
+                ("det_w_offense", "det_b_offense"), ("det_w_mobility", "det_b_mobility"),
+                ("det_ks_units_w", "det_ks_units_b")]
+        SKIP = {"phase_score", "is_endgame", "advanced_endgame_fired", "det_pawn_count", "det_central"}
+        members = {k for p in SWAP for k in p}
 
-    print("\n  terms still breaking on the minimal position:")
-    out = []
-    for wk, bk in SWAP:
-        d = abs(db.get(wk, 0) - dm.get(bk, 0)) + abs(db.get(bk, 0) - dm.get(wk, 0))
-        if d:
-            out.append((d, "%s<->%s" % (wk, bk)))
-    for k in set(db) | set(dm):
-        x, y = db.get(k, 0), dm.get(k, 0)
-        if not isinstance(x, int) or not isinstance(y, int) or k in SKIP or k in members:
-            continue
-        if abs(x + y):
-            out.append((abs(x + y), k))
-    for d, k in sorted(out, reverse=True):
-        print("     %-34s %8d      base %+8d   mirror %+8d"
-              % (k, d, db.get(k.split("<->")[0], 0), dm.get(k.split("<->")[-1], 0)))
-    if not out:
-        print("     (none -- the violation is only visible in the composite)")
+        print("\n  terms still breaking on the minimal position:")
+        out = []
+        for wk, bk in SWAP:
+            d = abs(db.get(wk, 0) - dm.get(bk, 0)) + abs(db.get(bk, 0) - dm.get(wk, 0))
+            if d:
+                out.append((d, "%s<->%s" % (wk, bk)))
+        for k in set(db) | set(dm):
+            x, y = db.get(k, 0), dm.get(k, 0)
+            if not isinstance(x, int) or not isinstance(y, int) or k in SKIP or k in members:
+                continue
+            if abs(x + y):
+                out.append((abs(x + y), k))
+        for d, k in sorted(out, reverse=True):
+            print("     %-34s %8d      base %+8d   mirror %+8d"
+                  % (k, d, db.get(k.split("<->")[0], 0), dm.get(k.split("<->")[-1], 0)))
+        if not out:
+            print("     (none -- the violation is only visible in the composite)")
 
     print("\n  phase=%s endgame=%s ae_fired=%s   turn=%s"
           % (db.get("phase_score"), db.get("is_endgame"), db.get("advanced_endgame_fired"),

@@ -106,6 +106,48 @@ Know what exists before adding anything — **reuse, don't reinvent**:
 
 ## Development Rules & Code Style
 
+### 🚨 COLOUR-SYMMETRY IS A SHIP GATE, NOT A DEBUGGING TOOL
+
+**Any new or modified EVAL term must pass the mirror test before it ships.** `eval(board.mirror())` must
+equal `-eval(board)` — mirror flips ranks, swaps colours AND swaps side-to-move, so a *correctly*
+implemented side-to-move term still passes. Run it mid-development or at the end of a run, but run it:
+
+```
+pyrun diagnostics/_eval_symmetry.py N=800 [TERMS=1] [<your knobs>]
+```
+
+**Why this is a hard gate.** A 2026-08-08 sweep found **seven** colour defects and cut violations from
+74.5% to 1.4%. Two of them were introduced *by recent, game-validated ships*: the signed-shift rounding
+bug rode in with `MOD_KS_REALIZ` (+36.7 Elo bundle), and the rook `DBLCOUNT` contradiction rode in with
+capped threats (+45 Elo bundle). **Winning Elo is no protection against carrying a colour bug in**, and
+every constant fitted afterwards silently absorbs the breakage.
+
+The recurring shapes, so they can be recognised while writing rather than months later:
+- **Wrong constant per colour** — one branch pays 10, its twin pays 15.
+- **Swapped wrap guards** — `<<9` wraps onto file A, `<<7` onto file H; getting them backwards both
+  admits the wrap AND deletes a legitimate neighbour.
+- **Non-mirrored rank windows** — White `> 4` (ranks 5-7) must mirror to Black `< 3`, not `< 5`.
+- **Two alternative fixes both shipped** — they are alternatives, not a bundle; shipping both recreates
+  the defect inverted. Grep the sibling knob's default before flipping either.
+- **`>>` on a SIGNED value** — an arithmetic shift rounds toward −∞, so `v>>8` and `(-v)>>8` are not
+  negatives of each other. Use `/ 256`, which truncates toward zero. ⚠️ A one-unit rounding error is not
+  automatically small: `KING_SAFETY_MAG=3000` amplified one unit into exactly 30 mp on 68 positions.
+- **Unstable sort with no tie-break** — `std::sort` leaves ties in insertion order, and insertion order
+  is usually square order, which reverses under a mirror. Tie-break on something colour-relative.
+
+⚠️ **Colour is the invariant axis; PHASE is not.** A white/black difference *inside one function* is
+presumptively a bug. A midgame/endgame difference is a legitimate design choice — the two evaluators
+exist so the phases can price things differently. Sweep white-branch vs black-branch, never midgame vs
+endgame.
+
+⚠️ **Both benches are colour-skewed** (`sts300` 177w/123b, `wac` 190w/110b), so neither can judge a
+colour change alone — the skewed STS once ranked two candidate fixes *backwards*. Use the mirrored twins
+and score `orig + mirror`:
+`sts_suite sts300_mirror.epd <tag>` · `wac_suite wac_mirror.epd <tag>`.
+
+★ When symmetry alone cannot choose (both repair directions are symmetric, e.g. 10-vs-15), it is a
+TUNING question — decide it on balanced STS, and choose on the balanced TOTAL, never the colour gap.
+
 - **Build & run via the WSL workflow above.** Don't invent new build steps or compile flags. On Windows, use PowerShell syntax for any host-side commands.
 - **Reuse, don't redefine.** Call the existing eval / move-gen / cache / hashing helpers rather than reimplementing detection or scoring logic. Define a piece of logic once.
 - **Match the existing C++ style** (lifted from the codebase, not invented):

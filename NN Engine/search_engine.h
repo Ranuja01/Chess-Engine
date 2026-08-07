@@ -734,6 +734,22 @@ namespace Config
     // RE-TEST rather than inherit that: it predates the ENABLE_CAPG_INVARIANT_ORDER tie-break defect in
     // this same function, which was corrupting the measurement it was based on. Behavioral -> gated.
     inline bool ENABLE_CAPG_EVADE_POLARITY_FIX = false;
+    // KS_ROUND: the king-safety modulators scale a SIGNED, Black-positive `ks` with `>> 8`. An arithmetic
+    // right shift rounds toward -inf, so (v)>>8 = floor(v/256) but (-v)>>8 = -ceil(v/256) -- the two
+    // differ by ONE unit unless v divides 256 exactly. Since `ks` flips sign under a colour mirror, that
+    // is a direct antisymmetry break. Integer DIVISION truncates toward zero and is antisymmetric.
+    // ★ KING_SAFETY_MAG=3000 makes the final `MAG * ks / 100` equal 30*ks, so one unit of rounding is
+    // EXACTLY 30 mp -- which is why every measured king_safety violation was exactly 30 mp (68 of 800
+    // positions, mean 30.0, max 30). Behavioral -> gated default-off.
+    inline bool ENABLE_KS_ROUND_FIX = false;
+    // ROOK_ENEMY_RANKWIN: the midgame rook's ENEMY-pawn penalty uses non-mirrored rank windows -- White
+    // fires on `> 4` (ranks 5-7, three ranks) but Black on `< 5` (ranks 0-4, FIVE ranks). White's window
+    // mirrors to black {0,1,2} = `< 3`, so Black fires on two extra ranks, worth exactly
+    // ROOK_ENEMY_PAWN_PEN = 50 mp -- precisely the constant 50 that every pt_rooks violation measured
+    // (36 of 800 positions, mean 50.2, max 50). Sibling of ENABLE_ROOK_RANKWIN_FIX, which is the same
+    // defect on the OWN-pawn window. Both directions are symmetric, so balanced STS picks the value:
+    //   0 = legacy (asymmetric)   1 = widen White to match Black   2 = narrow Black to match White
+    inline int ROOK_ENEMY_RANKWIN_MODE = 0;
     inline bool ENABLE_CAPG_PIN   = true;
     inline bool ENABLE_CAPG_TEMPO = false;
 

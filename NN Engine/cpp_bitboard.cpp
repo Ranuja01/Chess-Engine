@@ -2351,7 +2351,14 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 							if (!Config::ENABLE_PASSER_V3) rookIncrement += (7 - (att_square >> 3)) * Config::ROOK_PASSER_ENEMY;
 						}else{
 							// If the pawn is within the opponent's (second) half, lower the rook's increment
-							if ((att_square >> 3) > 4){
+							// 🐛 COLOUR ASYMMETRY: this window is ranks 5-7 (three ranks) but the BLACK twin
+							// uses `< 5` = ranks 0-4 (FIVE ranks). White's window mirrors to black ranks
+							// {0,1,2} = `< 3`, so black fires on two extra ranks. Worth exactly
+							// ROOK_ENEMY_PAWN_PEN = 50 mp, which is precisely the constant 50 that every
+							// pt_rooks violation measured. Same defect class as ENABLE_ROOK_RANKWIN_FIX
+							// (that one is the OWN-pawn window; this is the ENEMY-pawn one).
+							// MODE 1 widens White to match Black; MODE 2 narrows Black to match White.
+							if ((att_square >> 3) > (Config::ROOK_ENEMY_RANKWIN_MODE == 1 ? 2 : 4)){
 								rookIncrement -= Config::ROOK_ENEMY_PAWN_PEN;
 							}
 						}
@@ -2564,7 +2571,8 @@ inline int evaluate_rooks_midgame(uint8_t square, uint64_t white_passed_pawns, u
 							if (!Config::ENABLE_PASSER_V3) rookIncrement += (att_square >> 3) * Config::ROOK_PASSER_ENEMY;
 						}else{
 							// If the pawn is within the opponent's (first) half, lower the rook's increment
-							if ((att_square >> 3) < 5){
+							// See the WHITE twin: these two windows are not mirrors (3 ranks vs 5).
+							if ((att_square >> 3) < (Config::ROOK_ENEMY_RANKWIN_MODE == 2 ? 3 : 5)){
 								rookIncrement -= Config::ROOK_ENEMY_PAWN_PEN;
 							}
 						}	
@@ -5532,14 +5540,18 @@ inline int evaluate_king_safety(uint8_t white_king_square, uint8_t black_king_sq
 	if (Config::MOD_KS_BACKING){
 		int threat_side_edge = (ks >= 0) ? (blackPieceVal - whitePieceVal) : (whitePieceVal - blackPieceVal);
 		int sig = std::min(0, threat_side_edge);   // <0 = attacking side under-backed -> damp only
-		ks = (ks * mod_gain(Config::MOD_KS_BACKING, sig, 12, 0, 0, 0)) >> 8;
+		// 🐛 See MOD_KS_REALIZ below: `>>` on a SIGNED ks rounds toward -inf, so +ks and -ks do not round
+		// to negatives of each other. Latent here (MOD_KS_BACKING defaults 0) but the same defect.
+		ks = Config::ENABLE_KS_ROUND_FIX ? (ks * mod_gain(Config::MOD_KS_BACKING, sig, 12, 0, 0, 0)) / 256
+		                                 : (ks * mod_gain(Config::MOD_KS_BACKING, sig, 12, 0, 0, 0)) >> 8;
 	}
 	if (Config::MOD_KS_CONTROL){
 		// Attacker's board-control edge over the defender (the imbalance-term signal): a real, space-backed
 		// attack boosts the danger, a control-less one damps it (two-sided).
 		int control_edge = (ks >= 0) ? (blackOffensiveScore - std::max(whiteDefensiveScore, 0))
 		                             : (whiteOffensiveScore - std::max(blackDefensiveScore, 0));
-		ks = (ks * mod_gain(Config::MOD_KS_CONTROL, control_edge, 8, 0, 0, 0)) >> 8;
+		ks = Config::ENABLE_KS_ROUND_FIX ? (ks * mod_gain(Config::MOD_KS_CONTROL, control_edge, 8, 0, 0, 0)) / 256
+		                                 : (ks * mod_gain(Config::MOD_KS_CONTROL, control_edge, 8, 0, 0, 0)) >> 8;
 	}
 	// Whole-budget realizability gate: damp the consolidated king-danger by the attacking side's material
 	// backing, with its OWN floor so it can cut BELOW the shared MOD_FLOOR (0.5x) that MOD_KS_BACKING saturates
@@ -5550,7 +5562,13 @@ inline int evaluate_king_safety(uint8_t white_king_square, uint8_t black_king_sq
 		int g = 256 + ((Config::MOD_KS_REALIZ * sig) >> 12);
 		if (g < Config::KS_REALIZ_FLOOR) g = Config::KS_REALIZ_FLOOR;
 		if (g > 256) g = 256;                       // damp-only (never boost)
-		ks = (ks * g) >> 8;
+		// 🐛 COLOUR ASYMMETRY: `>>` on a SIGNED value is an ARITHMETIC shift -- it rounds toward -inf,
+		// not toward zero. So (v)>>8 = floor(v/256) while (-v)>>8 = -ceil(v/256): the two differ by ONE
+		// unit whenever v is not a multiple of 256, and `ks` is Black-positive so it flips sign under a
+		// mirror. C++ integer DIVISION truncates toward zero, which IS antisymmetric.
+		// Every king_safety violation measured exactly 30 mp because KING_SAFETY_MAG=3000 turns the
+		// final `MAG * ks / 100` into 30*ks -- one unit of rounding becomes exactly 30 mp, every time.
+		ks = Config::ENABLE_KS_ROUND_FIX ? (ks * g) / 256 : (ks * g) >> 8;
 	}
 	return Config::KING_SAFETY_MAG * ks / 100;
 }

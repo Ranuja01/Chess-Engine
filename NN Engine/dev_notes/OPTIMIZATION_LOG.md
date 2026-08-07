@@ -4,6 +4,63 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🔧 2026-08-07 — COLOUR-SYMMETRY CLEANUP, partial: 74.5% → 57.4%. Fingerprint MOVED.
+
+🚨 **New default fingerprint `35,138,590 / EBF 3.839`** (was `250 / 35,791,173 / EBF 3.804`). Byte-identity
+was broken deliberately — a correct symmetry fix MUST change output. WAC still 250/300.
+🚨 **The corpus baseline `228.347 / 231.177` is now STALE** — `our_total_base` on all 23,113 rows refers to
+the old eval. Run `refresh_bank_ours.py` and re-derive before any fit.
+
+### ✅ FIXED — king-race tempo polarity, the same bug in two places
+`kingCanCatch` correctly flips polarity by colour; the tempo term beside it did not.
+- `advanced_endgame_eval` inline passer block (**dead at default** — runs only when `ENABLE_PASSER_V3=0`)
+- **`passer_king_race_one`, the V3 successor — LIVE.** The bug was copied forward verbatim.
+
+In both, the White branch computed `diff = (turn) ? ... : ...` where `kingCanCatch` two lines up used
+`(!turn)`. The catcher on that branch is Black, so the tempo credit had the wrong polarity and White's
+passer was docked a penalty its Black mirror escaped. Hand-verified on b5/kings e1-e8: White's
+`passedBonus` came out `3·ppInc/16` vs Black's `4·ppInc/16` — **exactly the 4/3 ratio measured**
+(1.32 / 1.31 / 1.33 at b5 / c6 / d7).
+✅ **Result: single pawn on a bare board is now PERFECTLY symmetric on all 48 squares** (was 30/46 broken,
+worst +830 mp). Corpus-wide violations 74.5% → 57.4%.
+
+### ↩️ TRIED AND REVERTED — capture-gains evasion polarity
+`find_and_pop_last_viable_capture(opp_captures, …, current_turn)` at two sites reads as wrong: the stack
+belongs to the other side, `find_last_viable_capture` beside it uses `!current_turn`, and both helpers
+define `captureColour` identically. With the wrong polarity `isValid` fails for every entry and — since
+the helper pops unconditionally — it DRAINS the opponent's whole stack. Changing it to `!current_turn`
+**made asymmetry worse** (capture_gains 43 pos/583 mp → 50/688; total 82,264 → 92,450). Reverted; the
+measurement is recorded in a code comment so it is not re-attempted on the same reasoning.
+
+### ☠️ RETRACTED — `imbalance_white`/`imbalance_black` were never a defect
+Reported as the largest remaining source (87 positions, 1722 mp mean). They are **signed** fields in the
+Black-positive frame, so they negate-and-swap; the test checked plain swap and flagged all 87.
+**`kaufman_imbalance` — the term that actually reaches `total` — is perfectly antisymmetric on every one.**
+★★★ Three invariant families live in this breakdown and mixing them manufactures phantom bugs:
+signed contributions **negate**; side-labelled magnitudes (`det_*_pieceval`, mobility) **plain-swap**;
+side-labelled signed values (`imbalance_*`) **negate AND swap**. `_eval_symmetry.py` now encodes all three.
+
+### ▶️ STILL OPEN — with a four-piece repro in hand
+| source | positions | mean | note |
+|---|---|---|---|
+| `pieces` (`pt_pawns` 302, `pt_rooks` 233, `pt_knights` 223) | 616 | 69 | broadest |
+| `advanced_endgame_total` / `ae_input` | 352 | 107 | |
+| `material` / `capture_gains` / `det_*_pieceval` | 43 | 603 | all three fire on the SAME positions |
+| `piece_value_boost` | 36 | 303 | **amplifier, not a source** |
+
+🎯 **MINIMAL REPRO: `4k3/8/8/8/8/3N4/P7/4K3 w` — off by 35 mp, isolated to `pt_knights`.**
+Own-side pawn + knight is asymmetric **24 out of 24** sampled placements. Clean in isolation: single piece
+(N/B/R/Q all 0), single pawn (0/48), pawn vs enemy pawn (0/25), pawn + own rook (0/19), knight vs enemy
+knight (0/29). Persists with the knight far from the pawn (+20 h3, +30 b3, +35 d3) ⇒ **not proximity**;
+the knight evaluator reads some pawn-derived state asymmetrically. ✅ Already ruled out: the
+`BB_PAWN_ATTACKS[colour][r]` guards at L3470/L3565 are correctly mirrored.
+Also open: 2 white pawns is asymmetric 2/21 (worst +135 at `4k3/8/8/8/8/8/P6P/4K3`) — a separate
+pawn-pawn thread.
+
+⚠️ **`piece_value_boost` amplifies whatever remains.** Its ±1500 trigger is written symmetrically and is
+NOT itself buggy, but it is a hard step: two positions differing by 61 mp landed either side of it and
+came out 830 mp apart — a 13× magnification. Worth softening to a ramp regardless of colour.
+
 ## 🚨 2026-08-06 evening — TWO LATENT DEFECTS FOUND; pawn lane closed; 21 knobs + 8.5× corpus banked
 
 **No games run. Engine byte-identical at defaults throughout (`250 / 35,791,173 / EBF 3.804`, verified 4×).**

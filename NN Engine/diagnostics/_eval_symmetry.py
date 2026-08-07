@@ -35,6 +35,22 @@ sys.path.insert(0, os.path.dirname(THIS)); sys.path.insert(0, THIS)
 import chess
 from ChessAI import ChessAI
 
+# 🚨 THREE different invariants live in this breakdown, and mixing them up manufactures phantom bugs.
+#   signed contributions      -> must NEGATE            (the default path below)
+#   side-labelled MAGNITUDES  -> plain SWAP: b.w == m.b  (piece-value sums, attack counts, mobility)
+#   side-labelled SIGNED      -> NEGATE AND SWAP: b.w == -m.b
+# imbalance_white/black are the third kind: they carry the Black-positive sign already. Testing them
+# as plain-swap flagged all 87 occurrences at a 1722mp mean and made them look like the single largest
+# remaining defect. They are correct -- kaufman_imbalance, the term that actually reaches `total`, is
+# perfectly antisymmetric on every one of those positions.
+SWAP_PAIRS = [("det_w_pieceval", "det_b_pieceval"), ("det_w_defense", "det_b_defense"),
+              ("det_w_offense", "det_b_offense"), ("det_w_mobility", "det_b_mobility"),
+              ("det_ks_units_w", "det_ks_units_b")]
+SIGNED_SWAP_PAIRS = [("imbalance_white", "imbalance_black")]
+SWAP_MEMBERS = {k for pair in SWAP_PAIRS + SIGNED_SWAP_PAIRS for k in pair}
+# Not signed quantities at all -- antisymmetry does not apply.
+SKIP_TERMS = {"phase_score", "is_endgame", "advanced_endgame_fired", "det_pawn_count", "det_central"}
+
 N = int(os.environ.get("N", "800"))
 TOL = int(os.environ.get("TOL", "0"))          # millipawns; 0 = demand exactness
 IN = os.environ.get("IN", "ks_sets/diverse_corpus_wide.csv")
@@ -49,6 +65,13 @@ def main():
     rows = list(csv.DictReader(open(IN, newline="")))[:N]
     col_bad, col_n, col_worst = [], 0, 0
     fil_bad, fil_n, fil_worst = [], 0, 0
+    # TERMS=1 ranks WHICH terms break antisymmetry, across the whole sample. Bisecting one position at a
+    # time finds one source; the asymmetry has at least three, and they do not all show on the same
+    # position. `total` is listed too as the reference row -- a term whose share approaches total's is
+    # the dominant payer. Sub-view fields (pt_*, det_*, material) are reported but are NOT additive with
+    # `pieces`, so read them as localisation hints rather than a partition.
+    TERMS = os.environ.get("TERMS", "0") == "1"
+    term_abs, term_hits = {}, {}
 
     for r in rows:
         try:
@@ -61,6 +84,33 @@ def main():
         # --- colour swap: must negate ---
         try:
             m = b.mirror()
+            if TERMS:
+                db, dm = ai.ev_breakdown(b), ai.ev_breakdown(m)
+                # 🚨 Two different invariants. Signed eval contributions must NEGATE under mirror.
+                # Side-LABELLED diagnostics (det_w_* / det_b_*, imbalance_white/black) must SWAP --
+                # testing those for negation flags every position and made them look like the biggest
+                # culprits when they were correct. The tell was det_w_defense and det_b_defense having
+                # byte-identical violation sums over identical counts.
+                for wk, bk in SWAP_PAIRS:          # magnitudes: b.w == m.b
+                    d = abs(db.get(wk, 0) - dm.get(bk, 0)) + abs(db.get(bk, 0) - dm.get(wk, 0))
+                    if d:
+                        term_abs[wk + "<->" + bk] = term_abs.get(wk + "<->" + bk, 0) + d
+                        term_hits[wk + "<->" + bk] = term_hits.get(wk + "<->" + bk, 0) + 1
+                for wk, bk in SIGNED_SWAP_PAIRS:   # signed: b.w == -m.b
+                    d = abs(db.get(wk, 0) + dm.get(bk, 0)) + abs(db.get(bk, 0) + dm.get(wk, 0))
+                    if d:
+                        term_abs[wk + "~" + bk] = term_abs.get(wk + "~" + bk, 0) + d
+                        term_hits[wk + "~" + bk] = term_hits.get(wk + "~" + bk, 0) + 1
+                for k in set(db) | set(dm):
+                    x, y = db.get(k, 0), dm.get(k, 0)
+                    if not isinstance(x, int) or not isinstance(y, int):
+                        continue
+                    if k in SKIP_TERMS or k in SWAP_MEMBERS:
+                        continue
+                    d = abs(x + y)
+                    if d:
+                        term_abs[k] = term_abs.get(k, 0) + d
+                        term_hits[k] = term_hits.get(k, 0) + 1
             a, c = ev(b), ev(m)
             col_n += 1
             d = abs(a + c)                      # a and c should sum to zero
@@ -99,6 +149,14 @@ def main():
 
     report("1) COLOUR SWAP — eval(mirror(b)) must equal -eval(b).  A FAILURE HERE IS A BUG.",
            None, col_n, col_bad, col_worst, "mirrored")
+
+    if TERMS:
+        print("\n1b) WHICH TERMS BREAK IT — total |term(b) + term(mirror)| summed over the sample.")
+        print("    `total` is the reference row. Sub-views (pt_*, det_*, material) are localisation")
+        print("    hints, NOT a partition — they are not additive with `pieces`.")
+        print("    %-26s %14s %10s %12s" % ("term", "sum |asym|", "positions", "mean/pos"))
+        for k, v in sorted(term_abs.items(), key=lambda kv: -kv[1])[:16]:
+            print("    %-26s %14d %10d %12.1f" % (k, v, term_hits[k], v / term_hits[k]))
     report("\n2) FILE MIRROR — eval(flip_h(b)) must equal eval(b), no-castling/no-ep positions only.",
            "   ⚠️ Our per-file pawn tables (CHAIN_F_*/WALL_F_*) are not constrained symmetric, so a\n"
            "   violation may be deliberate. Treat as a question, not automatically a defect.",

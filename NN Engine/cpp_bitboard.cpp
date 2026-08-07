@@ -4987,7 +4987,11 @@ inline int passer_king_race_one(int sq, bool white, bool turn) {
 		int kingDist = square_distance(blackKingSquare, 56 + file); // white promotes on rank 7
 		int pawnDist = 7 - rank;
 		bool kingCanCatch = (!turn) ? (kingDist <= pawnDist + 1) : (kingDist <= pawnDist);
-		int blockModifier = kingCanCatch ? -((turn ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist)) * (ppIncrement >> 2))
+		// Catcher is BLACK on this branch, so the tempo credit keys on `!turn`, matching kingCanCatch
+		// above. It read `turn` -- the polarity belonging to the black-passer branch, where the catcher
+		// is White -- so a White passer was docked a tempo penalty its mirrored Black passer escaped.
+		// Measured on the pre-V3 twin of this code: Black's bonus came out exactly 4/3 of White's.
+		int blockModifier = kingCanCatch ? -(((!turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist)) * (ppIncrement >> 2))
 		                                 : (ppIncrement >> 1);
 		int passedBonus = (((rank * (ppIncrement + blockModifier)) >> 4) * Config::PASSER_KRACE_MAG) / 100;
 		return bkSep * passedBonus + (7 - wkSep) * passedBonus;
@@ -5181,7 +5185,12 @@ inline int advanced_endgame_eval(int total, bool turn){
 		if (!kingCanCatch) {
 			blockModifier = ppIncrement >> 1; // can't stop it, big problem
 		} else {
-			int diff = (turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
+			// The catcher here is BLACK, so the tempo credit keys on `!turn` -- matching kingCanCatch
+			// directly above. It previously read `turn`, the polarity used by the black-pawn loop where
+			// the catcher is White, which docked White's passer a tempo its mirrored Black passer kept
+			// and made Black's bonus exactly 4/3 of White's on ranks 5-8 (measured 1.32/1.31/1.33 at
+			// b5/c6/d7). Colour-antisymmetry violation, not a tuning choice.
+			int diff = (!turn) ? (pawnDist + 1 - kingDist) : (pawnDist - kingDist);
 			blockModifier = -diff * (ppIncrement >> 2); // the closer we are, the better
 		}
 		
@@ -8319,9 +8328,17 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
 				
 			} else {
 				CaptureInfo* opp_side_capture = find_last_viable_capture(opp_captures, white_pieces, black_pieces, !current_turn);
-				if (opp_side_capture != nullptr && can_evade(opp_side_capture->to, current_turn)){				
+				if (opp_side_capture != nullptr && can_evade(opp_side_capture->to, current_turn)){
 					evading = true;
-					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces, current_turn);								
+					// ⚠️ The polarity here looks wrong and ISN'T SAFE TO "FIX". opp_captures belongs to
+					// the other side, and find_last_viable_capture above tests it with !current_turn, so
+					// this reads as a bug -- with current_turn the side masks are swapped, isValid fails
+					// for every entry, and since this helper pops unconditionally it DRAINS the whole
+					// opponent stack rather than removing one capture. Changing it to !current_turn was
+					// tried and MEASURED: colour asymmetry got worse (capture_gains 43 positions/583mp
+					// -> 50/688, total 82,264 -> 92,450). Something downstream depends on the draining
+					// behaviour. Leave it; if it is ever revisited, re-measure with _eval_symmetry.py.
+					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces, current_turn);
 				}
 			}
 		}
@@ -8466,6 +8483,9 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				
 				if (opp_side_capture != nullptr && opp_side_capture->value_gained > cur_side_capture->value_gained && can_evade(opp_side_capture->to, current_turn)){
 					evading = true;
+					// ⚠️ Same apparent polarity inversion as the sibling branch below, and likewise NOT
+					// safe to "fix" -- switching both to !current_turn was measured and made colour
+					// asymmetry worse, not better. See the note there.
 					find_and_pop_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy, current_turn);
 					// The evasion spends this side's tempo (it moves the threatened piece instead of capturing),
 					// so it does NOT also get to complete its own pending capture "for free" -- the opponent gets
@@ -8476,9 +8496,17 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				
 			} else {
 				CaptureInfo* opp_side_capture = find_last_viable_capture(opp_captures, white_pieces, black_pieces, !current_turn);
-				if (opp_side_capture != nullptr && can_evade(opp_side_capture->to, current_turn)){				
+				if (opp_side_capture != nullptr && can_evade(opp_side_capture->to, current_turn)){
 					evading = true;
-					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces, current_turn);								
+					// ⚠️ The polarity here looks wrong and ISN'T SAFE TO "FIX". opp_captures belongs to
+					// the other side, and find_last_viable_capture above tests it with !current_turn, so
+					// this reads as a bug -- with current_turn the side masks are swapped, isValid fails
+					// for every entry, and since this helper pops unconditionally it DRAINS the whole
+					// opponent stack rather than removing one capture. Changing it to !current_turn was
+					// tried and MEASURED: colour asymmetry got worse (capture_gains 43 positions/583mp
+					// -> 50/688, total 82,264 -> 92,450). Something downstream depends on the draining
+					// behaviour. Leave it; if it is ever revisited, re-measure with _eval_symmetry.py.
+					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces, current_turn);
 				}
 			}
 		}

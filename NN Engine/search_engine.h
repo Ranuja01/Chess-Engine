@@ -1732,13 +1732,13 @@ namespace Config
     // Balanced STS picks UP: symmetrize-up 3264 (+5 vs the broken pair, i.e. free) against
     // symmetrize-down 3146 (-113). Chess agrees -- a rook behind an enemy passer is worth real material,
     // so deleting it from both sides discards signal. ⚠️ Do not re-enable without disabling SYM_UP.
-    inline bool ENABLE_ROOK_DBLCOUNT_FIX = false;
+    inline bool ENABLE_ROOK_DBLCOUNT_FIX = true;   // ⏸️ held at the (broken) shipped value; see below
     // SHIPPED 2026-08-08 (correctness). Colour-balanced measurement: positional 3406 -> 3405 (neutral),
     // tactical 485 -> 495 (+10 solves), colour-swap violations 57.4% -> 47.1%, nodes +0.06%. Free.
     // ⚠️ It was in the 2026-06 three-fix bundle that measured -32.2 Elo, but that bundle was never
     // isolated and its villain was pinned on CAPGAIN_PAWN_FIX (later shipped alone at ~neutral), so the
     // -32 is UNATTRIBUTED, not evidence against this knob.
-    inline bool ENABLE_KNIGHT_MOB_FIX = true;
+    inline bool ENABLE_KNIGHT_MOB_FIX = false;   // ⏸️ held OFF until the asymmetry sweep completes
 
     // Symmetrize-UP counterparts to the KNIGHT_MOB / ROOK_DBLCOUNT colour asymmetries: instead of
     // collapsing black DOWN to white's value (the _FIX knobs), raise WHITE up to black's higher
@@ -1766,7 +1766,7 @@ namespace Config
     // the eval was fitted against the buggy function -- so it is NOT repairable by a targeted sweep.
     // Shipped anyway: a correct eval is the foundation a retune has to sit on, and STS has been wrong
     // in this exact direction before (capped threats read -61/-77 STS and won +45 Elo).
-    inline bool ENABLE_PAWN_SUPPORT_WRAP_FIX = true;
+    inline bool ENABLE_PAWN_SUPPORT_WRAP_FIX = false;   // ⏸️ held OFF until the asymmetry sweep completes
 
     // Batch 1 endgame-asymmetry tail. ROOK_ENDGAME_CAP: evaluate_rooks_endgame applies rookIncrement
     // UNCAPPED in both colour branches (reaching ~725 on a behind-passer file), unlike

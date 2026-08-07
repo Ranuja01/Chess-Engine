@@ -724,7 +724,7 @@ namespace Config
     // mass and every large violation, plus every large file-mirror violation.
     // Tie-break: least valuable attacker (MVV-LVA), then own-perspective square (sq for white,
     // sq^56 for black). Behavioral -> gated default-off.
-    inline bool ENABLE_CAPG_INVARIANT_ORDER = false;
+    inline bool ENABLE_CAPG_INVARIANT_ORDER = true;   // SHIPPED 2026-08-08 in the 7-fix colour bundle
     // CAPG_EVADE_POLARITY: the evasion branches pop from opp_captures with `current_turn`, but that
     // stack belongs to the OTHER side (the sibling find_last_viable_capture right above uses
     // !current_turn). With the wrong polarity isValid fails for every entry and the helper -- which
@@ -741,7 +741,7 @@ namespace Config
     // ★ KING_SAFETY_MAG=3000 makes the final `MAG * ks / 100` equal 30*ks, so one unit of rounding is
     // EXACTLY 30 mp -- which is why every measured king_safety violation was exactly 30 mp (68 of 800
     // positions, mean 30.0, max 30). Behavioral -> gated default-off.
-    inline bool ENABLE_KS_ROUND_FIX = false;
+    inline bool ENABLE_KS_ROUND_FIX = true;           // SHIPPED 2026-08-08 in the 7-fix colour bundle
     // ROOK_ENEMY_RANKWIN: the midgame rook's ENEMY-pawn penalty uses non-mirrored rank windows -- White
     // fires on `> 4` (ranks 5-7, three ranks) but Black on `< 5` (ranks 0-4, FIVE ranks). White's window
     // mirrors to black {0,1,2} = `< 3`, so Black fires on two extra ranks, worth exactly
@@ -749,7 +749,9 @@ namespace Config
     // (36 of 800 positions, mean 50.2, max 50). Sibling of ENABLE_ROOK_RANKWIN_FIX, which is the same
     // defect on the OWN-pawn window. Both directions are symmetric, so balanced STS picks the value:
     //   0 = legacy (asymmetric)   1 = widen White to match Black   2 = narrow Black to match White
-    inline int ROOK_ENEMY_RANKWIN_MODE = 0;
+    // SHIPPED 2026-08-08 at 2: balanced STS 3407 (mode 2, narrow Black) vs 3275 (mode 1, widen White).
+    // Both are perfectly symmetric, so the 132-point spread is purely the MAGNITUDE choice.
+    inline int ROOK_ENEMY_RANKWIN_MODE = 2;
     inline bool ENABLE_CAPG_PIN   = true;
     inline bool ENABLE_CAPG_TEMPO = false;
 
@@ -1767,13 +1769,13 @@ namespace Config
     // Balanced STS picks UP: symmetrize-up 3264 (+5 vs the broken pair, i.e. free) against
     // symmetrize-down 3146 (-113). Chess agrees -- a rook behind an enemy passer is worth real material,
     // so deleting it from both sides discards signal. ⚠️ Do not re-enable without disabling SYM_UP.
-    inline bool ENABLE_ROOK_DBLCOUNT_FIX = true;   // ⏸️ held at the (broken) shipped value; see below
+    inline bool ENABLE_ROOK_DBLCOUNT_FIX = false;  // SHIPPED OFF 2026-08-08: exclusive with SYM_UP, which stays ON
     // SHIPPED 2026-08-08 (correctness). Colour-balanced measurement: positional 3406 -> 3405 (neutral),
     // tactical 485 -> 495 (+10 solves), colour-swap violations 57.4% -> 47.1%, nodes +0.06%. Free.
     // ⚠️ It was in the 2026-06 three-fix bundle that measured -32.2 Elo, but that bundle was never
     // isolated and its villain was pinned on CAPGAIN_PAWN_FIX (later shipped alone at ~neutral), so the
     // -32 is UNATTRIBUTED, not evidence against this knob.
-    inline bool ENABLE_KNIGHT_MOB_FIX = false;   // ⏸️ held OFF until the asymmetry sweep completes
+    inline bool ENABLE_KNIGHT_MOB_FIX = true;    // SHIPPED 2026-08-08 in the 7-fix colour bundle
 
     // Symmetrize-UP counterparts to the KNIGHT_MOB / ROOK_DBLCOUNT colour asymmetries: instead of
     // collapsing black DOWN to white's value (the _FIX knobs), raise WHITE up to black's higher
@@ -1801,7 +1803,7 @@ namespace Config
     // the eval was fitted against the buggy function -- so it is NOT repairable by a targeted sweep.
     // Shipped anyway: a correct eval is the foundation a retune has to sit on, and STS has been wrong
     // in this exact direction before (capped threats read -61/-77 STS and won +45 Elo).
-    inline bool ENABLE_PAWN_SUPPORT_WRAP_FIX = false;   // ⏸️ held OFF until the asymmetry sweep completes
+    inline bool ENABLE_PAWN_SUPPORT_WRAP_FIX = true;    // SHIPPED 2026-08-08 in the 7-fix colour bundle
 
     // Batch 1 endgame-asymmetry tail. ROOK_ENDGAME_CAP: evaluate_rooks_endgame applies rookIncrement
     // UNCAPPED in both colour branches (reaching ~725 on a behind-passer file), unlike
@@ -1812,7 +1814,11 @@ namespace Config
     // boundary; the fix aligns them. Both behavioral -> gated default-off.
     inline bool ENABLE_ROOK_ENDGAME_CAP = false;
     inline int ROOK_ENDGAME_CAP = 300;
-    inline bool ENABLE_ROOK_RANKWIN_FIX = false;
+    // SHIPPED 2026-08-08. Midgame rook OWN-pawn rank window: White fires `< 5` (ranks 0-4), whose mirror
+    // is Black `> 2`, but the code said `> 4` so Black skipped ranks 3-4. Parked in 2026-06 because the
+    // instrument of the day could not resolve it; re-tested with the mirror suites it was the biggest
+    // single symmetry win of the sweep (violations 23.8% -> 14.6%, pt_rooks 122 positions -> 36).
+    inline bool ENABLE_ROOK_RANKWIN_FIX = true;
 
     // Search-side latent-bug knobs (adversarial rescan #8; bench-decided on WAC nodes/solves + STS d10).
     // TT_DEPTH_FIX (DEFAULT-ON, the keeper): reorder_legal_moves' pre-pass searches depth_limit-1 but

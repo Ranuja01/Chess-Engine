@@ -3330,8 +3330,15 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		*/		
 		uint64_t left = ((BB_SQUARES[square]) >> 1) & ~BB_FILE_H & occupied_black & pawns;
 		uint64_t right = ((BB_SQUARES[square]) << 1) & ~BB_FILE_A & occupied_black & pawns;
-		uint64_t ne  = (BB_SQUARES[square] << 9) & ~BB_FILE_H & occupied_black & pawns;
-		uint64_t nw = (BB_SQUARES[square] << 7) & ~BB_FILE_A & occupied_black & pawns;
+		// 🐛 The two file-wrap guards are SWAPPED here. `<<9` (up-RIGHT) wraps onto file A, so it must be
+		// masked with ~BB_FILE_A; `<<7` (up-LEFT) wraps onto file H, so it needs ~BB_FILE_H. As written,
+		// each one fails to filter its real wrap AND deletes a legitimate supporter on the guarded file
+		// (b5 supported by a6 reads as unsupported). Not a judgement call: the MIDGAME twin at the top of
+		// this file and the sibling at ~9047 both use the correct pairing -- this site is the odd one out.
+		// Costs EG_SUPPORT (135) and then wrongly pays EG_LATENT (50, gated on the support being absent),
+		// i.e. exactly the −85 mp measured on `8/8/p4k2/1p6/8/8/8/5K2 w`.
+		uint64_t ne  = (BB_SQUARES[square] << 9) & (Config::ENABLE_PAWN_SUPPORT_WRAP_FIX ? ~BB_FILE_A : ~BB_FILE_H) & occupied_black & pawns;
+		uint64_t nw = (BB_SQUARES[square] << 7) & (Config::ENABLE_PAWN_SUPPORT_WRAP_FIX ? ~BB_FILE_H : ~BB_FILE_A) & occupied_black & pawns;
 
 		uint64_t latent_left_support_mask = latent_support_mask_left(square, colour);
 		uint64_t latent_right_support_mask = latent_support_mask_right(square, colour);

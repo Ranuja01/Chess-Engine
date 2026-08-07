@@ -1736,6 +1736,15 @@ namespace Config
     inline bool ENABLE_KNIGHT_MOB_SYM_UP = false;
     inline bool ENABLE_ROOK_DBLCOUNT_SYM_UP = true;   // SHIPPED (collapse bundle): rook double-count symmetric-up
 
+    // PAWN_SUPPORT_WRAP: evaluate_pawns_endgame's BLACK branch has its two file-wrap guards SWAPPED --
+    // `<<9` (up-right, wraps onto file A) is masked with ~BB_FILE_H and `<<7` (up-left, wraps onto file
+    // H) with ~BB_FILE_A. So it both misses the real wrap and DELETES a legitimate diagonal supporter on
+    // the guarded file: a black pawn on b5 supported by a6 reads as unsupported, losing EG_SUPPORT and
+    // then wrongly collecting EG_LATENT (which is gated on the support being absent). Worth −85 mp on
+    // `8/8/p4k2/1p6/8/8/8/5K2 w`. NOT a judgement call -- the midgame twin and the sibling near the
+    // pawn-shield code both use the correct pairing; this one site is the outlier. Behavioral -> gated.
+    inline bool ENABLE_PAWN_SUPPORT_WRAP_FIX = false;
+
     // Batch 1 endgame-asymmetry tail. ROOK_ENDGAME_CAP: evaluate_rooks_endgame applies rookIncrement
     // UNCAPPED in both colour branches (reaching ~725 on a behind-passer file), unlike
     // evaluate_rooks_midgame which clamps std::min(rookIncrement, 300) -- suspected endgame rook/material

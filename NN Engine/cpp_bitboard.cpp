@@ -8526,22 +8526,40 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				apply_basic_capture(cur_side_capture->from, cur_side_capture->to, white_pieces, black_pieces, current_turn);
 				if (current_turn){
 					int value_gained = cur_side_capture->value_gained;
+					int prb = 0; bool fired = false;
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
-						int prb = pawn_rank_bonuses[cur_side_capture->to];
+						prb = pawn_rank_bonuses[cur_side_capture->to];
 						if (Config::ENABLE_PASSER_V2 || Config::ENABLE_PASSER_V3) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
 						value_gained += prb;
+						fired = true;
 					}
+					// Per-capture trace. The rank bonus measures as applied in ONE mirror orientation and
+					// contributing exactly nothing in the other (base capture_gains tracks
+					// CAPG_PAWN_RANK_CLAMP exactly while the mirror sits at the bare pawn value), and three
+					// rounds of reading this code produced three wrong stories. Print the inputs instead.
+					if (std::getenv("CAPG_TRACE"))
+						std::fprintf(stderr, "CAPG w from=%d to=%d ptTo=%d ptFrom=%d fired=%d prb=%d vg=%d\n",
+						             (int)cur_side_capture->from, (int)cur_side_capture->to,
+						             (int)pieceTypeLookUp[cur_side_capture->to],
+						             (int)pieceTypeLookUp[cur_side_capture->from], (int)fired, prb, value_gained);
 					white_gains += value_gained;
 					blackPieceVal -= value_gained;
 
-					
+
 				} else {
 					int value_gained = cur_side_capture->value_gained;
+					int prb = 0; bool fired = false;
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
-						int prb = pawn_rank_bonuses[cur_side_capture->to];
+						prb = pawn_rank_bonuses[cur_side_capture->to];
 						if (Config::ENABLE_PASSER_V2 || Config::ENABLE_PASSER_V3) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
 						value_gained += (Config::ENABLE_CAPGAIN_PAWN_FIX ? -prb : prb);
+						fired = true;
 					}
+					if (std::getenv("CAPG_TRACE"))
+						std::fprintf(stderr, "CAPG b from=%d to=%d ptTo=%d ptFrom=%d fired=%d prb=%d vg=%d\n",
+						             (int)cur_side_capture->from, (int)cur_side_capture->to,
+						             (int)pieceTypeLookUp[cur_side_capture->to],
+						             (int)pieceTypeLookUp[cur_side_capture->from], (int)fired, prb, value_gained);
 					black_gains += value_gained;
 					whitePieceVal -= value_gained;
 				}

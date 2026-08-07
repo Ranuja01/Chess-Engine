@@ -100,13 +100,24 @@ def scan_for_worst():
 def main():
     fen = FEN if os.environ.get("FEN") else scan_for_worst()
     b = chess.Board(fen)
+    # The dispatcher splits argv on spaces, so a FEN passed as FEN=... arrives BOARD-ONLY and
+    # python-chess silently defaults to white-to-move. That flipped a legal position into one with the
+    # side-not-to-move in check, which made every leave-one-out row read "illegal". Pass TURN=b/w.
+    if os.environ.get("TURN"):
+        b.turn = (os.environ["TURN"].strip().lower() == "w")
     print("MINIMISING  term=%s\n" % TERM)
     base = show(b, "start")
     if not base:
         print("\n  (no violation on this FEN for that term -- nothing to shrink)")
         return
 
-    # --- 1. drop pieces, keep anything that preserves the violation ---
+    # --- 1. drop pieces, keep anything that preserves MOST of the violation ---
+    # ⚠️ Accepting ANY nonzero asymmetry lets the search wander into a DIFFERENT, smaller defect: a
+    # 150 mp rook case once shrank to a 5 mp integer-rounding residual in an entirely different phase,
+    # which is a minimal repro of the wrong bug. Require the violation to stay within MIN_FRAC of where
+    # it started, so what comes out is a smaller instance of the SAME defect.
+    MIN_FRAC = float(os.environ.get("MIN_FRAC", "0.5"))
+    floor = base * MIN_FRAC
     changed = True
     while changed:
         changed = False
@@ -115,7 +126,7 @@ def main():
                 continue
             t = b.copy(stack=False)
             t.remove_piece_at(sq)
-            if legalish(t) and asym(t):
+            if legalish(t) and asym(t) >= floor:
                 b = t
                 changed = True
                 break
@@ -151,6 +162,22 @@ def main():
     print("\n  phase=%s endgame=%s ae_fired=%s   turn=%s"
           % (db.get("phase_score"), db.get("is_endgame"), db.get("advanced_endgame_fired"),
              "w" if b.turn else "b"))
+
+    # --- 2b. LEAVE-ONE-OUT: which pieces are load-bearing? ---
+    # Once the repro is irreducible, the greedy pass can no longer tell us WHY. Removing each piece in
+    # turn and reporting the resulting magnitude does: a piece whose removal collapses the violation is
+    # part of the interaction, one that barely moves it is scenery. This is what separates "a rook bug"
+    # from "a rook-plus-something bug", which single-piece probes cannot see (single rooks are clean).
+    print("\n  leave-one-out (asym after removing each piece; start %d):" % asym(b))
+    rows = []
+    for sq, pc in sorted(b.piece_map().items()):
+        if pc.piece_type == chess.KING:
+            continue
+        t = b.copy(stack=False)
+        t.remove_piece_at(sq)
+        rows.append((asym(t) if legalish(t) else None, chess.square_name(sq), pc.symbol()))
+    for d, name, sym in sorted(rows, key=lambda r: (r[0] is None, r[0])):
+        print("     remove %-3s %-2s -> %s" % (name, sym, "illegal" if d is None else str(d)))
 
     # --- 3. does it survive a side-to-move flip? tells us if the defect is turn-gated ---
     t = b.copy(stack=False); t.turn = not b.turn

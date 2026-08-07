@@ -119,7 +119,25 @@ Know what exists before adding anything — **reuse, don't reinvent**:
 - **Comment guidelines:** explain *what* the code does and *why*, never *that it was added*. No `// Phase 7 fix`, `// ISSUE 15 FIX`, `// NEW:`, or AI-dialogue comments. Good: `// Skip pinned defenders when scoring captures`.
 - **No magic numbers** for evaluation or search thresholds. Use (or add to) the named constants in `cpp_bitboard.h` / `search_engine.h` — piece values, futility margins, `MAX_QDEPTH`, `MIN_MATERIAL_FOR_NULL_MOVE`, time-check interval, etc. — rather than inlining literals.
 - **Performance-critical code.** Eval and move generation run millions of times per search. Avoid heap allocations and any logging inside hot loops; respect and use the existing caches instead of recomputing.
-- **Use the dedicated tools** (Grep / Read / Glob), not shell `grep` / `cat` / `find`, when exploring this codebase.
+- 🚨 **NEVER USE A SHELL TO READ — it prompts, and a prompt BLOCKS THE QUEUE.** Read / Grep / Glob never
+  prompt. Any shell invocation that is not the exact allowlisted runner prefix does, and while the owner
+  is asleep that stalls every job behind it until a human wakes up. One careless read can cost a whole
+  overnight block.
+
+  | need | ✅ use | ❌ never |
+  |---|---|---|
+  | read a file or task output | **Read** | `cat`, `tail`, `pyrun -c "print(open(...))"` |
+  | search contents | **Grep** | `grep`, `rg`, `Select-String` |
+  | find files | **Glob** | `find`, `ls -R`, `Get-ChildItem -Recurse` |
+  | file size / existence | **Read it, or don't check** | `Get-Item .Length`, `stat`, `wc` |
+
+  ☠️ **PowerShell prompts, always** — there is no read-only PowerShell command worth running here.
+  ☠️ **Multi-line `pyrun -c` prompts** — the allowlist needs a SINGLE-LINE command; embedded newlines break
+  the prefix match. Put logic in a `.py` file and run `pyrun diagnostics/<file>.py`.
+  ☠️ **Never pipe a long run through `| tail`** — output buffers until exit, so a crash is indistinguishable
+  from a slow run (this cost 47 minutes waiting on an already-dead job).
+  ★ **Before any Bash call, ask: "is this reading something?" If yes, it is the wrong tool.**
+  Detail + incident log: memory `never-shell-for-reading-it-prompts`.
 
 ## 🧰 Diagnostics toolkit — READ BEFORE WRITING ANY NEW PROBE
 

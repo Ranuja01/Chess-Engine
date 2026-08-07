@@ -4,6 +4,134 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ★★★ 2026-08-08 — THE BENCH WAS THE BLOCKER: STS ranked two colour fixes BACKWARDS
+
+🐛 Third symmetry site: **`evaluate_knights_endgame` pays 10 per free mobility square for White, 15 for
+Black.** Midgame twin is symmetric (20/20, 5/5). The `4k3/8/8/8/8/3N4/P7/4K3 w` repro is off by exactly
+35 mp = the d3 knight's **7** free squares × the **5** mp gap. Both repair directions were already built
+and gated in 2026-06: `ENABLE_KNIGHT_MOB_SYM_UP` (White→15), `ENABLE_KNIGHT_MOB_FIX` (Black→10). They are
+byte-identical on the symmetry test (both 57.4% → 47.1%, N=800), so symmetry cannot pick the value.
+
+☠️☠️ **`sts300.epd` is 177 white-to-move vs 123 black-to-move — it cannot arbitrate a colour fix.**
+
+| arm | STS orig | STS mirror | **balanced** | colour gap |
+|---|---|---|---|---|
+| baseline (10/15) | **1755** | 1651 | **3406** | +104 |
+| `SYM_UP` (15/15) | 1712 | 1552 | **3264 (−142)** | +160 |
+| `MOB_FIX` (10/10) | 1677 | **1728** | **3405 (−1)** | −51 |
+
+★★★ Orig-only says `MOB_FIX` is the worst arm (−78) and `SYM_UP` better (−43). **Colour-balanced, that
+inverts**: `MOB_FIX` is exactly neutral, `SYM_UP` is the loser. Same binary, same runs — only the colour
+composition of the question set changed. Same shape as `rank-by-winpct-not-cp`: the metric flipped the
+conclusion, not the data. 🧰 `make_mirror_suite.py` + the `sts_suite` runner sub.
+
+✅ **`ENABLE_KNIGHT_MOB_FIX` is free on every axis**: violations 57.4%→47.1%, balanced STS 3406→3405,
+colour gap +104→−51, **WAC 243→248**, nodes +0.06%. NOT shipped — a default flip is the owner's call.
+⚠️ It was in the 2026-06 bundle that measured −32.2 Elo, but that bundle was never isolated and the
+villain was pinned on `CAPGAIN_PAWN_FIX` (later shipped alone at ~neutral) ⇒ the −32 is **unattributed**.
+
+🚨 **FINGERPRINT CORRECTION: the default is `243 / 35,138,590`, not 250.** Re-measured twice,
+byte-identical. The 250 was the previous row's value carried across when only the node count was
+updated ⇒ the 2026-08-07 symmetry fix was **+70 STS AND −7 WAC**. Re-read every field of a fingerprint
+when you edit any field of it.
+
+🐛 **Fourth site, localised not fixed:** `material` is really `blackPieceVal − whitePieceVal`, mutated
+inside `approximate_capture_gains` — so the capture-gains rank bonus, which **fires in one orientation
+only**, makes *material* colour-asymmetric on 16/400 positions. 6-piece repro
+`8/6k1/1Rp5/8/8/4p3/5P2/4K3 w`; the asymmetry tracks `CAPG_PAWN_RANK_CLAMP` exactly (200→200, 275→275,
+400→322) while the mirror side stays pinned at **exactly ±1000, the bare pawn value**, at every setting.
+Ablating the clamp to 0 halves the violations (16→8), so a second independent root remains.
+
+---
+
+## ☠️☠️☠️ 2026-08-07 — THE BEST CORPUS FIT EVER RECORDED IS **−86 ELO**. Games, 116 of 700.
+
+    DECISION: H0 accepted -- P1 is NOT a >= elo1 improvement
+    +32 -60 =24 of 116  (37.9%)  elo ~ -85.6 +/- 74.3  LLR = -3.144   (tag sprt_noblend)
+
+| measure | result |
+|---|---|
+| corpus val | **−41 — the largest movement this project has ever produced** |
+| WAC | +2 (250 → 252) |
+| STS | −46 (1755 → 1709) |
+| **GAMES** | **≈ −86 Elo, rejected at 116 games** |
+
+★★★ **This is the definitive statement on the corpus objective.** It is not merely unreliable — optimising
+it hard makes the engine measurably worse. Five previous raw-corpus fits were bench-negative; this one is
+now *games*-negative, decisively, at the largest proxy gain we have ever achieved.
+⇒ **Never spend games on a raw-corpus winner again.** Route through `fit_bench_guarded.py` (benches
+dispose) or don't fit at all.
+
+↩️ **My error, recorded because it is the reusable part:** STS said −46 and I dismissed it as "within the
+documented jaggedness" to justify the SPRT. **STS was directionally correct and I explained away the one
+bench that disagreed with the conclusion I wanted.** The jaggedness note is real, but it is a reason to
+distrust a SMALL POSITIVE, not a licence to ignore a negative on a config whose winners are all
+"switch it off".
+
+## 📉 2026-08-07 — JOINT DESCENT over the whole eval: val 230.9 → 185.5, and the ACHIEVABLE FLOOR measured
+
+### 🎯 First: how good is good? (`_reference_ceiling.py`, 3,000 rows, same loss as the fit)
+| evaluator (STATIC) vs SF18-SEARCH | train | val |
+|---|---|---|
+| SF18 static (NNUE) | 64.84 | 68.85 |
+| SF15.1 NNUE | 67.60 | 61.61 |
+| **SF11 classical** | 101.68 | **95.26** |
+| SF15.1 classical | 141.44 | 139.20 |
+| OURS (shipped) | 254.38 | 245.46 |
+
+⇒ **The hand-reachable floor is ~95, not 0.** Every proxy number should be quoted against that.
+★★★ **SF11 beats SF15.1-classical decisively (95 vs 139)** — newer is NOT better for hand-written eval.
+📏 Same-binary classical→NNUE (139→62) sizes what is genuinely un-encodable by hand.
+⚠️ 3k head-of-file sample, not random; re-run on the full 23k before quoting exact values.
+
+### The descents (`joint_fit.py`, 63 knobs, seeded from SHIPPED DEFAULTS, 9 guard tiers)
+| config | ALL.train | ALL.val | WAC | **STS** | nodes |
+|---|---|---|---|---|---|
+| shipped default (post symmetry fix) | 228.099 | 230.949 | 250 | **1755** | 35.1M |
+| gates OFF, tuned | 184.926 | 190.003 | 252 | **1634 (−121)** | 37.9M |
+| **gates ON, tuned** | **178.183** | **185.534** | 251 | **1584 (−171)** | 39.5M |
+
+☠️☠️ **BENCH-NEGATIVE — this is the FIFTH consecutive raw-corpus fit to fail the benches.** A −41 val gain
+costs **−121 STS**; the gates-on config buys 4.5 more val for another −50 STS. Both also need **8-13% more
+nodes** for the same solves.
+↩️ **RETRACTED mid-session:** I first called this a break in the bench-negative record on the basis of WAC
+250 → 252. **WAC is at its ceiling here and is insensitive**; STS is the discriminating bench and it says
+−121. The recorded guidance (weight STS ≫ WAC) exists precisely for this, and I read the wrong one first.
+★ The tell was visible before the bench ran and I talked past it: the winners are overwhelmingly
+"switch it off" (`PV_BOOST_MAG=0`, `IMBALANCE_SCALE=0`, `EG_EXIST_KNIGHT/BISHOP=0`, `SCALE_PAWN_RANK`
+100→30), which is the `corpus-fit-flattens-eval` signature.
+
+### ✅★★★ THE REAL WIN OF THE SESSION: the colour-symmetry fix is worth +70 STS ON ITS OWN
+Current default **STS 1755** vs the pre-fix register value **1685**. A pure correctness fix — the king-race
+tempo polarity, two sites — bought **+70 STS** with no tuning at all. That is larger than anything the
+63-knob descent produced, in the opposite direction.
+⇒ **Re-baseline the register: `35,138,590 / EBF 3.804→3.839 / WAC 250 / STS 1755`.**
+⇒ And it strengthens the case for finishing the cleanup: 57.4% of positions still violate antisymmetry.
+
+### ☠️ THE METHOD ERROR THAT NEARLY BURIED THE RESULT
+The first descent tried `ENABLE_WINNABILITY` / `ENABLE_CLOSEDNESS` / `ENABLE_ENDGAME_SCALE` on every pass
+and selected none. **Reported as a clean null. It was an artifact.** A gate is one knob and its weights are
+others; flipping the gate evaluates it at hand-guessed defaults, and while the gate is OFF its weights are
+inert, so the descent sees no gradient and never explores where the mechanism pays. `ENABLE_CLOSEDNESS`
+was worse than untested — all-zero tables make gate-on **byte-identical** to gate-off.
+✅ Forcing the gates on and tuning their weights makes them the **best config** (185.5 vs 190.0 val), and
+gate-on at default weights is already −8.6 val. 🧰 `joint_fit.py FORCE=...`.
+★ The closedness table, fitted freely, **reproduced Ethereal's shape unprompted**: `CLOSED_N1/N4 = −40`
+(knights penalised in OPEN positions), `CLOSED_R7 = −120` (rooks penalised in CLOSED). Independent support.
+
+### ⚠️ Caveats that must travel with these numbers
+- **~14 knobs still pinned at grid edges in BOTH runs** (`PV_BOOST_MAG=0`, `IMBALANCE_SCALE=0`,
+  `EG_EXIST_KNIGHT/BISHOP=0`, `SCALE_PAWN_RANK=30`, `PAWN_CLAMP_MID=60`, `STRUCT_OPPOSED_*=40`,
+  `MOD_KS_REALIZ=512`, …). The values are bounded by my grid, not by the objective — widening once already
+  doubled the gain (−20.9 → −43.2 train), so these are not converged.
+- **The direction is largely "switch things off"** — the documented `corpus-fit-flattens-eval` signature.
+  Mitigated but not removed by the WAC result.
+- 🐛 **`passer_under_fire` regresses on VAL in every run** (301.7 → 338.1 gates-off, → 387.4 gates-on) and
+  is worse in the *better* config. The guard never caught it because **guards test TRAIN only**.
+- ⚖️ `_venue_power.py`: the 700-game SPRT cap resolves ~±30 Elo. +20 Elo would need ~1,087 games vs SF18,
+  +10 Elo ~4,344. A sub-30 effect will not resolve.
+- ☠️ **Still no reliable corpus→Elo mapping**: threats moved −5.2 and won +45; pawns moved −22 and won ~0.
+
 ## 🔧 2026-08-07 — COLOUR-SYMMETRY CLEANUP, partial: 74.5% → 57.4%. Fingerprint MOVED.
 
 🚨 **New default fingerprint `35,138,590 / EBF 3.839`** (was `250 / 35,791,173 / EBF 3.804`). Byte-identity

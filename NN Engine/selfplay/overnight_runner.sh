@@ -125,6 +125,21 @@ case "$cmd" in
         "$PY" diagnostics/sts_test.py sts300.epd "$tag" 2>/dev/null | grep -E 'STS score' || echo "STS score: (none)"
     ;;
 
+  sts_suite)
+    # Same as `sts` but the SUITE is an argument, so the colour-mirrored twin can be benched with the
+    # identical regime. Args: <suite.epd> <tag> [KEY=VAL...].
+    #
+    # Why: sts300.epd is 177 white-to-move vs 123 black-to-move, so it is the wrong instrument for
+    # judging a COLOUR-SYMMETRY change -- it asks White's questions more often. Run this on
+    # sts300_mirror.epd (built by diagnostics/make_mirror_suite.py) and read two things:
+    #   orig + mirror = a colour-BALANCED positional score (the honest arbiter)
+    #   orig - mirror = the eval's colour bias, in move-choice units (should be ~0)
+    suite="${1:?suite required}"; shift || true
+    tag="${1:?tag required}"; shift || true
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
+        "$PY" diagnostics/sts_test.py "$suite" "$tag" 2>/dev/null | grep -E 'STS score' || echo "STS score: (none)"
+    ;;
+
   sts_coupling)
     # Single-core coupling COMPASS (diagnostic, proxy — games decide): fixed-depth STS for base vs KS across
     # RFP_MARGIN. RFP prunes on the full eval (KS included), so if relaxing RFP lifts KS's positional score MORE

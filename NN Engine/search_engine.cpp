@@ -1622,6 +1622,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_KNIGHT_MOB_FIX = env_flag("ENABLE_KNIGHT_MOB_FIX", Config::ENABLE_KNIGHT_MOB_FIX);
         Config::ENABLE_KNIGHT_MOB_SYM_UP = env_flag("ENABLE_KNIGHT_MOB_SYM_UP", Config::ENABLE_KNIGHT_MOB_SYM_UP);
         Config::ENABLE_PAWN_SUPPORT_WRAP_FIX = env_flag("ENABLE_PAWN_SUPPORT_WRAP_FIX", Config::ENABLE_PAWN_SUPPORT_WRAP_FIX);
+        Config::ENABLE_CAPG_INVARIANT_ORDER = env_flag("ENABLE_CAPG_INVARIANT_ORDER", Config::ENABLE_CAPG_INVARIANT_ORDER);
+        Config::ENABLE_CAPG_EVADE_POLARITY_FIX = env_flag("ENABLE_CAPG_EVADE_POLARITY_FIX", Config::ENABLE_CAPG_EVADE_POLARITY_FIX);
         Config::ENABLE_ROOK_DBLCOUNT_SYM_UP = env_flag("ENABLE_ROOK_DBLCOUNT_SYM_UP", Config::ENABLE_ROOK_DBLCOUNT_SYM_UP);
         Config::ENABLE_ROOK_ENDGAME_CAP = env_flag("ENABLE_ROOK_ENDGAME_CAP", Config::ENABLE_ROOK_ENDGAME_CAP);
         Config::ROOK_ENDGAME_CAP = env_int("ROOK_ENDGAME_CAP", Config::ROOK_ENDGAME_CAP);
@@ -2010,6 +2012,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_KNIGHT_MOB_FIX=" << Config::ENABLE_KNIGHT_MOB_FIX
                   << " ENABLE_KNIGHT_MOB_SYM_UP=" << Config::ENABLE_KNIGHT_MOB_SYM_UP
                   << " ENABLE_PAWN_SUPPORT_WRAP_FIX=" << Config::ENABLE_PAWN_SUPPORT_WRAP_FIX
+                  << " ENABLE_CAPG_INVARIANT_ORDER=" << Config::ENABLE_CAPG_INVARIANT_ORDER
                   << " ENABLE_ROOK_DBLCOUNT_SYM_UP=" << Config::ENABLE_ROOK_DBLCOUNT_SYM_UP
                   << " ENABLE_ROOK_ENDGAME_CAP=" << Config::ENABLE_ROOK_ENDGAME_CAP
                   << " ROOK_ENDGAME_CAP=" << Config::ROOK_ENDGAME_CAP

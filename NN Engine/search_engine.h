@@ -715,6 +715,25 @@ namespace Config
     //    enemy queen). Uses slider_blockers per king + BB_RAYS; targets the initial-capturer phantom.
     //  - ENABLE_CAPG_TEMPO: drop a credited capture whose attacker is itself attacked and cannot both survive
     //    and keep the threat (the opponent captures/forces it first). Targets the attacker-hanging tempo case.
+    // CAPG_INVARIANT_ORDER: give the capture-stack sort a deterministic, COLOUR-RELATIVE tie-break.
+    // Sorting on value_gained alone is mirror-invariant, but std::sort is not stable and there is no
+    // tie-break, so equal-valued captures keep insertion (square) order -- which reverses under a
+    // mirror. Since the consumer takes back(), the two orientations then simulate DIFFERENT capture
+    // sequences: the base took a rook-takes-pawn (which earns the pawn-rank bonus) where the mirror
+    // took a pawn-takes-pawn (which does not). Accounted for ~87% of ALL remaining colour-asymmetry
+    // mass and every large violation, plus every large file-mirror violation.
+    // Tie-break: least valuable attacker (MVV-LVA), then own-perspective square (sq for white,
+    // sq^56 for black). Behavioral -> gated default-off.
+    inline bool ENABLE_CAPG_INVARIANT_ORDER = false;
+    // CAPG_EVADE_POLARITY: the evasion branches pop from opp_captures with `current_turn`, but that
+    // stack belongs to the OTHER side (the sibling find_last_viable_capture right above uses
+    // !current_turn). With the wrong polarity isValid fails for every entry and the helper -- which
+    // pops unconditionally -- DRAINS THE WHOLE OPPONENT STACK. Turn-order dependent, hence asymmetric:
+    // on 3q1rk1/8/5n1b/2n5/2b5/3P4/8/2R3K1 w, capture_gains reads -2175 base and EXACTLY 0 mirrored.
+    // ⚠️ The in-code note says switching to !current_turn measured WORSE (asymmetry 82,264 -> 92,450).
+    // RE-TEST rather than inherit that: it predates the ENABLE_CAPG_INVARIANT_ORDER tie-break defect in
+    // this same function, which was corrupting the measurement it was based on. Behavioral -> gated.
+    inline bool ENABLE_CAPG_EVADE_POLARITY_FIX = false;
     inline bool ENABLE_CAPG_PIN   = true;
     inline bool ENABLE_CAPG_TEMPO = false;
 

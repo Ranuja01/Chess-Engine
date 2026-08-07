@@ -260,7 +260,78 @@ pawn value at EVERY clamp setting, and why the earlier "evasion polarity" fix me
 SEE-best, with an invariant tie-break). Own gate, own measurement. Note this is *approximate*
 capture-gains, so "highest index wins" was never principled, merely unexamined.
 
-### Design sketch for the capture-ordering fix (NOT started — read before touching it)
+### ✅ FIXED — and the real cause was NARROWER than "selection by square index"
+↩️ **Correction to the diagnosis above.** Selection is NOT by square index: the stacks are
+`std::sort`ed on `value_gained`, which IS mirror-invariant. The defect is that **`std::sort` is not
+stable and there is no tie-break**, so equal-valued captures keep insertion order — `ctz` ascending,
+i.e. square order, which reverses under a mirror. Confirmed from the pending stacks:
+
+    BASE   white  {13 P->20 val=1000, 41 R->42 val=1000}   back() = 41, the ROOK capture
+    MIRROR black  {17 R->18 val=1000, 53 P->44 val=1000}   back() = 53, the PAWN capture
+
+Both captures take an undefended pawn, so both are worth exactly 1000 — a TIE. Only a non-pawn
+capturing a pawn enters the rank-bonus branch, so the mirror silently loses it.
+
+**`ENABLE_CAPG_INVARIANT_ORDER`** (default off) adds the tie-break: `value_gained`, then **least
+valuable attacker** (MVV-LVA — colour-blind and chess-sensible), then **own-perspective square**
+(`sq` for white, `sq ^ 56` for black) so no tie can ever fall back on raw square order again.
+Applied to BOTH capture-gains functions. Drain behaviour untouched.
+
+| | 4 fixes | **+ capgain order** |
+|---|---|---|
+| colour-swap violations | 117 (14.6%) | **102 (12.8%)** |
+| **total asym mass** | 30,912 | **6,475 (−79%)** |
+| worst violation | 4,724 mp | **1,241 mp** |
+| file-mirror worst | 1,519 mp | **194 mp** |
+
+★ `advanced_endgame_total`, `ae_input`, `ae_matedrive` all **vanish** — they were purely downstream of
+capgain via `material` (= `blackPieceVal − whitePieceVal`, mutated inside the capture loop).
+`piece_value_boost` 6,949 → 458. ★ Position count barely moves but MASS drops 79%: this removed the
+LARGE violations, not the numerous ones.
+
+### 📈 BUNDLE COST RECOVERS MONOTONICALLY AS THE SWEEP COMPLETES
+| fixes | balanced STS | vs baseline |
+|---|---|---|
+| 2 | 3259 | **−147** |
+| 3 | 3264 | −142 |
+| 4 | 3299 | −107 |
+| **5** | **3358** | **−48** |
+★★★ At −48 on a 6000-point suite against ~140 jaggedness, the correctness bundle is **effectively
+NEUTRAL** — while cutting violations 74.5% → 12.8% and asymmetry mass by 79%.
+⇒ **This vindicates holding the defaults OFF and refusing to ship mid-sweep.** Shipping at 3 fixes would
+have banked a −142 that was mostly an artifact of the REMAINING bugs, and a night of games would have
+been spent explaining a cost that was already dissolving. Per-fix costs really were conditional.
+↩️ **Retires the "unexplained diffuse cost"** framing: most of the −142 was interaction with unfixed
+defects; what remains is inside noise.
+
+### ☠️ EVASION POLARITY IS NOT A SYMMETRY FIX — old warning RETIRED
+`ENABLE_CAPG_EVADE_POLARITY_FIX` flips the evasion pops to `!current_turn` (the stack belongs to the
+other side; with the wrong polarity `isValid` fails for every entry and the unconditional pop drains
+the WHOLE opponent stack).
+✅ **Knob verified live**: 58/1500 positions change, max **5768 mp**.
+☠️ **Zero effect on colour symmetry** — 102 violations, 6475 mass, every term IDENTICAL to the digit.
+The change is antisymmetric: it moves the eval but affects both orientations equally.
+↩️ **The in-code "measured worse (82,264 → 92,450)" warning is RETIRED.** With the tie-break defect in
+the same function now fixed, the polarity is asymmetry-neutral, so that old reading was measuring the
+tie-break bug, not the polarity. ⇒ Whether the polarity is correct is a **capture-simulation** question
+needing its own bench/games justification — do NOT bundle it with the symmetry work.
+★ Method note: this null is trustworthy ONLY because the knob was proven to move the engine first.
+
+### ▶️ RESIDUAL capgain root #2 — still open, cause UNKNOWN
+`material`/`capture_gains` keep **2,549 over 11 positions**. 🎯 Repro
+`3q1rk1/8/5n1b/2n5/2b5/3P4/8/2R3K1 w` (10 pieces): `capture_gains` base **−2175**, mirror **exactly 0**
+— one orientation credits nothing at all. Load-bearing: Rc1, Pd3, Bc4 (two white attackers of the same
+bishop; the mirror has the matching pair).
+▶️ Prime suspect is the **evasion block**: `find_and_pop_last_viable_capture(opp_captures, …,
+current_turn)` uses the wrong polarity, so `isValid` fails for every entry and the helper — which pops
+unconditionally — **drains the whole opponent stack**. That would zero one side's gains exactly like
+this, and it is turn-order dependent hence asymmetric.
+⚠️★ The in-code note says fixing that polarity measured WORSE (82,264 → 92,450 asymmetry). **Re-test
+it**: that measurement predates every fix tonight, including the tie-break defect in the SAME function
+that was corrupting the measurement. Same lesson as the rank-window knob — a null from a compromised
+instrument is not a null.
+
+### Original design sketch (superseded by the above, kept for the drain warning)
 ⚠️ **Two coupled behaviours, not one.** `find_and_pop_last_viable_capture` selects `captures.back()`
 **and pops every entry it passes, valid or not** — the scan is destructive. The in-code comment records
 that something downstream depends on that draining (the "evasion polarity" change altered it and

@@ -8293,12 +8293,35 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
         } 
     }
 
-	std::sort(black_captures.begin(), black_captures.end(), [](const CaptureInfo& a, const CaptureInfo& b) {
-    	return a.value_gained < b.value_gained;
+	// 🐛 COLOUR ASYMMETRY: sorting on value_gained ALONE is invariant, but std::sort is NOT STABLE and
+	// there is no tie-break, so equal-valued captures keep their insertion order -- which is `ctz`
+	// ascending, i.e. SQUARE order, which reverses under a mirror. The consumer takes back(), so the two
+	// orientations pick DIFFERENT captures whenever the top entries tie.
+	//   base   white {13 P->20 val=1000, 41 R->42 val=1000}  back = 41, the ROOK capture
+	//   mirror black {17 R->18 val=1000, 53 P->44 val=1000}  back = 53, the PAWN capture
+	// Mirroring maps 41->17 and 13->53, so the tied pair reverses. Only a non-pawn capturing a pawn
+	// enters the pawn-rank-bonus branch, so the mirror silently loses it -- base tracked
+	// CAPG_PAWN_RANK_CLAMP exactly while the mirror sat at the bare pawn value at EVERY clamp setting.
+	// Fix: break ties on (a) least valuable attacker -- MVV-LVA, colour-blind and chess-sensible -- then
+	// (b) OWN-PERSPECTIVE square (sq for white, sq^56 for black) so no tie can ever fall back on raw
+	// square order again. back() is the chosen capture, so "better" must sort LAST.
+	auto capg_less = [](const CaptureInfo& a, const CaptureInfo& b, bool white_side) {
+		if (a.value_gained != b.value_gained) return a.value_gained < b.value_gained;
+		if (!Config::ENABLE_CAPG_INVARIANT_ORDER) return false;   // legacy: no tie-break at all
+		const int av = values[pieceTypeLookUp[a.from]], bv = values[pieceTypeLookUp[b.from]];
+		if (av != bv) return av > bv;                              // cheaper attacker sorts LATER -> chosen
+		const int af = white_side ? a.from : (a.from ^ 56), bf = white_side ? b.from : (b.from ^ 56);
+		if (af != bf) return af > bf;
+		const int at = white_side ? a.to : (a.to ^ 56), bt = white_side ? b.to : (b.to ^ 56);
+		return at > bt;
+	};
+
+	std::sort(black_captures.begin(), black_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+    	return capg_less(a, b, false);
 	});
 
-	std::sort(white_captures.begin(), white_captures.end(), [](const CaptureInfo& a, const CaptureInfo& b) {
-    	return a.value_gained < b.value_gained; 
+	std::sort(white_captures.begin(), white_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+    	return capg_less(a, b, true);
 	});
 
 	bool current_turn = turn;
@@ -8328,7 +8351,8 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
 						//std::cout << "CCCFrom: " << (int)opp_side_capture->from << " to " << int(opp_side_capture->to) << " value: " << opp_side_capture->value_gained << std::endl;
 						if (can_evade(opp_side_capture->to, current_turn)){				
 							evading = true;
-							find_and_pop_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy, current_turn);										
+							find_and_pop_last_viable_capture(opp_captures, white_pieces_copy, black_pieces_copy,
+						                                 Config::ENABLE_CAPG_EVADE_POLARITY_FIX ? !current_turn : current_turn);										
 						}
 					}
 				}
@@ -8345,7 +8369,17 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
 					// tried and MEASURED: colour asymmetry got worse (capture_gains 43 positions/583mp
 					// -> 50/688, total 82,264 -> 92,450). Something downstream depends on the draining
 					// behaviour. Leave it; if it is ever revisited, re-measure with _eval_symmetry.py.
-					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces, current_turn);
+					// ↩️ RE-MEASURED 2026-08-08 and that warning is RETIRED. Under
+					// ENABLE_CAPG_EVADE_POLARITY_FIX the polarity change is asymmetry-NEUTRAL: it moves
+					// the eval on 58/1500 positions (max 5768 mp, so the knob is provably live) yet
+					// leaves the colour-symmetry statistics IDENTICAL to the digit -- 102 violations,
+					// 6475 mass, every term unchanged. The old "made asymmetry worse" reading was
+					// almost certainly picking up the unstable-sort tie-break defect in this same
+					// function (see ENABLE_CAPG_INVARIANT_ORDER), which has since been fixed.
+					// ⇒ Whether this polarity is right is a CAPTURE-SIMULATION question, not a colour
+					// one, and needs its own bench/games justification. It is NOT a symmetry fix.
+					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces,
+					                                 Config::ENABLE_CAPG_EVADE_POLARITY_FIX ? !current_turn : current_turn);
 				}
 			}
 		}
@@ -8439,12 +8473,35 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 		}			
     }
 
-	std::sort(black_captures.begin(), black_captures.end(), [](const CaptureInfo& a, const CaptureInfo& b) {
-    	return a.value_gained < b.value_gained;
+	// 🐛 COLOUR ASYMMETRY: sorting on value_gained ALONE is invariant, but std::sort is NOT STABLE and
+	// there is no tie-break, so equal-valued captures keep their insertion order -- which is `ctz`
+	// ascending, i.e. SQUARE order, which reverses under a mirror. The consumer takes back(), so the two
+	// orientations pick DIFFERENT captures whenever the top entries tie.
+	//   base   white {13 P->20 val=1000, 41 R->42 val=1000}  back = 41, the ROOK capture
+	//   mirror black {17 R->18 val=1000, 53 P->44 val=1000}  back = 53, the PAWN capture
+	// Mirroring maps 41->17 and 13->53, so the tied pair reverses. Only a non-pawn capturing a pawn
+	// enters the pawn-rank-bonus branch, so the mirror silently loses it -- base tracked
+	// CAPG_PAWN_RANK_CLAMP exactly while the mirror sat at the bare pawn value at EVERY clamp setting.
+	// Fix: break ties on (a) least valuable attacker -- MVV-LVA, colour-blind and chess-sensible -- then
+	// (b) OWN-PERSPECTIVE square (sq for white, sq^56 for black) so no tie can ever fall back on raw
+	// square order again. back() is the chosen capture, so "better" must sort LAST.
+	auto capg_less = [](const CaptureInfo& a, const CaptureInfo& b, bool white_side) {
+		if (a.value_gained != b.value_gained) return a.value_gained < b.value_gained;
+		if (!Config::ENABLE_CAPG_INVARIANT_ORDER) return false;   // legacy: no tie-break at all
+		const int av = values[pieceTypeLookUp[a.from]], bv = values[pieceTypeLookUp[b.from]];
+		if (av != bv) return av > bv;                              // cheaper attacker sorts LATER -> chosen
+		const int af = white_side ? a.from : (a.from ^ 56), bf = white_side ? b.from : (b.from ^ 56);
+		if (af != bf) return af > bf;
+		const int at = white_side ? a.to : (a.to ^ 56), bt = white_side ? b.to : (b.to ^ 56);
+		return at > bt;
+	};
+
+	std::sort(black_captures.begin(), black_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+    	return capg_less(a, b, false);
 	});
 
-	std::sort(white_captures.begin(), white_captures.end(), [](const CaptureInfo& a, const CaptureInfo& b) {
-    	return a.value_gained < b.value_gained; 
+	std::sort(white_captures.begin(), white_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+    	return capg_less(a, b, true);
 	});
 
 	// Tactical tension = count of viable (SEE>=0) captures now pending for BOTH sides (captured before the
@@ -8513,7 +8570,17 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 					// tried and MEASURED: colour asymmetry got worse (capture_gains 43 positions/583mp
 					// -> 50/688, total 82,264 -> 92,450). Something downstream depends on the draining
 					// behaviour. Leave it; if it is ever revisited, re-measure with _eval_symmetry.py.
-					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces, current_turn);
+					// ↩️ RE-MEASURED 2026-08-08 and that warning is RETIRED. Under
+					// ENABLE_CAPG_EVADE_POLARITY_FIX the polarity change is asymmetry-NEUTRAL: it moves
+					// the eval on 58/1500 positions (max 5768 mp, so the knob is provably live) yet
+					// leaves the colour-symmetry statistics IDENTICAL to the digit -- 102 violations,
+					// 6475 mass, every term unchanged. The old "made asymmetry worse" reading was
+					// almost certainly picking up the unstable-sort tie-break defect in this same
+					// function (see ENABLE_CAPG_INVARIANT_ORDER), which has since been fixed.
+					// ⇒ Whether this polarity is right is a CAPTURE-SIMULATION question, not a colour
+					// one, and needs its own bench/games justification. It is NOT a symmetry fix.
+					find_and_pop_last_viable_capture(opp_captures, white_pieces, black_pieces,
+					                                 Config::ENABLE_CAPG_EVADE_POLARITY_FIX ? !current_turn : current_turn);
 				}
 			}
 		}

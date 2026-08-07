@@ -260,6 +260,25 @@ pawn value at EVERY clamp setting, and why the earlier "evasion polarity" fix me
 SEE-best, with an invariant tie-break). Own gate, own measurement. Note this is *approximate*
 capture-gains, so "highest index wins" was never principled, merely unexamined.
 
+### Design sketch for the capture-ordering fix (NOT started — read before touching it)
+⚠️ **Two coupled behaviours, not one.** `find_and_pop_last_viable_capture` selects `captures.back()`
+**and pops every entry it passes, valid or not** — the scan is destructive. The in-code comment records
+that something downstream depends on that draining (the "evasion polarity" change altered it and
+measured WORSE). So a selection change is also a drain change unless deliberately kept separate.
+
+Invariant key to select on, in order:
+1. `value_gained` DESC — the heuristic's own notion of "best", and colour-blind.
+2. attacker value ASC — standard MVV-LVA, also colour-blind.
+3. **own-perspective square** ASC — the tie-break MUST be colour-relative or the bug returns. Use
+   `captureColour ? sq : (sq ^ 56)` (rank flip) so both colours index the same geometry. A raw-square
+   tie-break is exactly the current defect.
+
+▶️ Gate it (`ENABLE_CAPG_INVARIANT_ORDER`), keep the drain behaviour byte-identical in the first cut,
+and measure separately — it moves which sequence capture-gains simulates in many positions, so folding
+it into the four-fix bundle would make the eventual games result unattributable.
+✅ Verify with `_capg_trace_pair.py`: every BASE line must have a rank-flipped MIRROR twin with the same
+`fired` and the same `|prb|`.
+
 ## 📊 WHERE THE SWEEP STANDS — 74.5% → 14.6%, and the tail is NOT rounding
 | tolerance | violations |
 |---|---|

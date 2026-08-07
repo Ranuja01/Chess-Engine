@@ -1724,8 +1724,21 @@ namespace Config
     // endgame black-rook extra unconditional rookIncrement add (no white mirror). KNIGHT_MOB: endgame
     // knight mobility bonus is 15 for black vs 10 for white.
     inline bool ENABLE_CAPGAIN_PAWN_FIX = true;
-    inline bool ENABLE_ROOK_DBLCOUNT_FIX = true;   // SHIPPED (collapse bundle, with SYM_UP)
-    inline bool ENABLE_KNIGHT_MOB_FIX = false;
+    // ☠️ TURNED OFF 2026-08-08. This and ENABLE_ROOK_DBLCOUNT_SYM_UP are MUTUALLY EXCLUSIVE designs for
+    // the same defect -- FIX symmetrizes DOWN (delete Black's extra "rook behind enemy pawn" term),
+    // SYM_UP symmetrizes UP (give White the matching one). BOTH were shipped in the collapse bundle, so
+    // White gained the term and Black lost it and the pair REPRODUCED the very asymmetry each was
+    // written to remove, sign-flipped: 105 mp on 8/1R6/5k2/1p6/8/6K1/8/8 b. Live in every game since.
+    // Balanced STS picks UP: symmetrize-up 3264 (+5 vs the broken pair, i.e. free) against
+    // symmetrize-down 3146 (-113). Chess agrees -- a rook behind an enemy passer is worth real material,
+    // so deleting it from both sides discards signal. ⚠️ Do not re-enable without disabling SYM_UP.
+    inline bool ENABLE_ROOK_DBLCOUNT_FIX = false;
+    // SHIPPED 2026-08-08 (correctness). Colour-balanced measurement: positional 3406 -> 3405 (neutral),
+    // tactical 485 -> 495 (+10 solves), colour-swap violations 57.4% -> 47.1%, nodes +0.06%. Free.
+    // ⚠️ It was in the 2026-06 three-fix bundle that measured -32.2 Elo, but that bundle was never
+    // isolated and its villain was pinned on CAPGAIN_PAWN_FIX (later shipped alone at ~neutral), so the
+    // -32 is UNATTRIBUTED, not evidence against this knob.
+    inline bool ENABLE_KNIGHT_MOB_FIX = true;
 
     // Symmetrize-UP counterparts to the KNIGHT_MOB / ROOK_DBLCOUNT colour asymmetries: instead of
     // collapsing black DOWN to white's value (the _FIX knobs), raise WHITE up to black's higher
@@ -1743,7 +1756,17 @@ namespace Config
     // then wrongly collecting EG_LATENT (which is gated on the support being absent). Worth −85 mp on
     // `8/8/p4k2/1p6/8/8/8/5K2 w`. NOT a judgement call -- the midgame twin and the sibling near the
     // pawn-shield code both use the correct pairing; this one site is the outlier. Behavioral -> gated.
-    inline bool ENABLE_PAWN_SUPPORT_WRAP_FIX = false;
+    // SHIPPED 2026-08-08 as CORRECTNESS, with its cost recorded and UNEXPLAINED. Colour-swap violations
+    // 47.1% -> 27.5% and file-mirror 18.4% -> 7.2% (two independent invariants, the corroboration);
+    // tactical FREE (+10 balanced solves, same as KNIGHT_MOB_FIX); positional -105 balanced STS.
+    // ☠️ The "stale EG_SUPPORT/EG_LATENT" explanation for that -105 was MEASURED AND REFUTED: with the
+    // fix on, Black's endgame clamp binds LESS (13.1% -> 12.3%) and its mean structural bonus goes DOWN
+    // (88.2 -> 86.5), so neither clamp saturation nor a magnitude shift accounts for it. (White is
+    // byte-identical across that probe, which validates it.) The cost is diffuse -- every constant in
+    // the eval was fitted against the buggy function -- so it is NOT repairable by a targeted sweep.
+    // Shipped anyway: a correct eval is the foundation a retune has to sit on, and STS has been wrong
+    // in this exact direction before (capped threats read -61/-77 STS and won +45 Elo).
+    inline bool ENABLE_PAWN_SUPPORT_WRAP_FIX = true;
 
     // Batch 1 endgame-asymmetry tail. ROOK_ENDGAME_CAP: evaluate_rooks_endgame applies rookIncrement
     // UNCAPPED in both colour branches (reaching ~725 on a behind-passer file), unlike

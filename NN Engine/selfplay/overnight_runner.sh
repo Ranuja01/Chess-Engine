@@ -65,6 +65,23 @@ case "$cmd" in
     true
     ;;
 
+  wac_suite)
+    # `wac` with the SUITE as an argument, so the colour-mirrored twin runs in the identical regime.
+    # Args: <suite.epd> <tag> [KEY=VAL...].
+    #
+    # wac.epd is 190 white-to-move vs 110 black-to-move (63/37) -- a WORSE colour skew than sts300's
+    # 59/41 -- so the TACTICAL suite needs balancing too before it can judge a colour-symmetry change.
+    # Read orig+mirror as the balanced solve count; orig-mirror is the tactical colour bias.
+    suite="${1:?suite required}"; shift || true
+    tag="${1:?tag required}"; shift || true
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT "$@" \
+        "$PY" diagnostics/tactical_test.py "$suite" "$tag" > "/tmp/wac_${tag}.out" 2> "/tmp/wac_${tag}.err" || true
+    echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/wac_${tag}.out" || echo "?"
+    echo -n "NODES: ";  grep -hoP '\(nodes=\K[0-9]+' "/tmp/wac_${tag}.err" | awk '{s+=$1} END{print s+0}'
+    echo -n "EBF: ";    grep -hoP 'ebf=\K[0-9.]+' "/tmp/wac_${tag}.err" | awk '{s+=$1;n++} END{if(n)printf "%.3f\n",s/n; else print "?"}'
+    true
+    ;;
+
   wac_timed)
     # Same as wac but wrapped in /usr/bin/time -v -> reports user-seconds + nps (the speed gate).
     tag="${1:?tag required}"; shift || true

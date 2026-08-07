@@ -147,6 +147,27 @@ half of Black's diagonal supports were invisible. Restoring detection without re
 magnitudes hands Black credit it never had during tuning. **The right treatment is fix + refit those
 two constants**, not fix alone. That is a 2-knob sweep, not a descent.
 
+### Fire rate — the wrap fix is NOT a rare edge case
+`_eval_dump_simple.py` twice (one process per setting — knobs latch at init), 1500 corpus rows:
+
+    positions 1500   changed 252 = 16.8%   median 75 mp   p90 135   max 803   mean 72.5
+
+★ One position in six, ~7.5 cp median. So −147 balanced STS is **proportionate to the footprint**, not
+disproportionate — which argues the bench loss is real signal rather than jaggedness. ⚠️ Note the bug
+lives in the BLACK branch only, so the fix shifts Black's support credit systematically; a refit of
+`EG_SUPPORT`/`EG_LATENT` moves BOTH colours, so it can rebalance the magnitude but cannot perfectly
+undo a one-sided change. Expect the refit to recover most, not all, of the 147.
+
+## 🚨 THE TACTICAL SUITE IS SKEWED TOO — worse than the positional one
+**`wac.epd` is 190 white-to-move vs 110 black-to-move (63/37)**, a WORSE skew than `sts300`'s 59/41.
+Every WAC number in this document (243 / 248 / 244) was read on that skewed suite, for colour fixes —
+I applied the balancing lesson to the positional bench and not to the tactical one.
+✅ `make_mirror_suite.py` now handles the **`bm`/SAN** form as well as `c9`/UCI (parse SAN on the
+original board → mirror both squares → re-emit SAN on the mirrored board, asserting legality), and
+`suites/wac_mirror.epd` is built and verified: census inverts `(190,110) → (110,190)`.
+🧰 New runner sub **`wac_suite <suite.epd> <tag> [KEY=VAL...]`**.
+▶️ Balanced tactical readings were in flight at handoff — re-read them before quoting any WAC delta.
+
 ## 🎯 RETARGETING — the SF11 filter is sized (full 23k, labels banked)
 
 `label_sf11_static.py` labelled **23,084 / 23,113** rows with SF11-classical AND SF18-static.
@@ -164,6 +185,51 @@ head-of-file ceiling (95.3 / 245.5), so that result survives its sampling caveat
 ★ **Our edge over SF11 is only 4.8%** ⇒ the risk of retargeting away our positional advantage is small
 and explicitly protectable. ⚠️ Hold those 1,112 rows OUT as a no-regression guard — never train on them
 (selected for us already being right ⇒ self-confirming + regression to the mean).
+
+## ☠️🐛 SIXTH SITE — a SHIPPED BUNDLE recreated the bug it fixed, inverted
+
+`evaluate_rooks_endgame`'s "rook behind an enemy pawn" term has TWO knobs, built in 2026-06 as
+**mutually exclusive** repairs of one colour asymmetry:
+
+| knob | effect | code |
+|---|---|---|
+| `ENABLE_ROOK_DBLCOUNT_FIX` | symmetrize DOWN — delete Black's extra | `+= FIX ? 0 : (att/8)*35` |
+| `ENABLE_ROOK_DBLCOUNT_SYM_UP` | symmetrize UP — give White the match | `+= SYM_UP ? (7-att/8)*35 : 0` |
+
+☠️ **BOTH shipped `true`** in the collapse bundle ⇒ White gained the term, Black lost it ⇒ the pair
+**reproduced the exact asymmetry each was written to remove, sign-flipped** (originally Black-favoured,
+since the bundle White-favoured). 🎯 `8/1R6/5k2/1p6/8/6K1/8/8 b` = **105 mp**, and it has been live in
+every game since.
+
+Both single-knob settings are symmetric, so symmetry could not choose. Balanced STS did:
+
+| setting | orig | mirror | balanced | gap |
+|---|---|---|---|---|
+| both on (broken) | 1669 | 1590 | 3259 | +79 |
+| **SYM_UP only** ✅ SHIPPED | 1673 | 1591 | **3264 (+5, free)** | +82 |
+| FIX only | 1573 | 1573 | 3146 (−113) | **0** |
+
+⚠️★★ **The DOWN arm scored a PERFECT zero colour gap and was 113 points WORSE.** Minimising colour bias
+is NOT the objective — choose on the balanced TOTAL, never the gap.
+★★★ Reusable: **two candidate repairs for one defect are ALTERNATIVES, not a bundle.** Shipping both was
+exactly as broken as shipping neither. And since this asymmetry was introduced *by* a game-validated
+ship (+45 Elo) and survived months undetected, **the mirror test belongs in the pre-ship gate**, not
+just the debugging toolkit. See [[two-alternative-fixes-both-shipped-recreated-the-bug]].
+
+## ⚠️ COLOUR vs PHASE — do not conflate them (owner correction)
+The axis that MUST be symmetric is **colour**. A white/black difference *inside one function* is
+presumptively a bug. A **midgame/endgame** difference is a legitimate design choice — the two phases are
+separate evaluators so they can price things differently, and sweeping for phase divergence would be
+mostly false positives.
+⇒ The knight defect was `W=10 / B=15` **within the endgame function** (colour). Its midgame twin (20/20)
+was only a WITNESS to intended convention — it does NOT argue the endgame should use 20, and the value
+question was settled by balanced STS, not by the twin.
+⇒ The pawn wrap guards need no twin at all: `<<9` shifts up-right so its wrap lands on file A, provable
+from bitboard geometry alone.
+⇒ **The systematic sweep to run is WHITE-branch vs BLACK-branch of the same function**, not midgame vs
+endgame. ★ Observation worth noting but not over-reading: all three fixes so far are in ENDGAME
+evaluators and every midgame twin was clean — likelier that the endgame branches got less scrutiny than
+that phase divergence is itself wrong.
 
 ## 🧰 TOOLING (new this session)
 | tool | what |

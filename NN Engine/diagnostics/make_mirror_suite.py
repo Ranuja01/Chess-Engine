@@ -41,6 +41,7 @@ if not os.path.isabs(OUT):
 C8 = re.compile(r'\bc8\s+"([^"]*)"')
 C9 = re.compile(r'\bc9\s+"([^"]*)"')
 ID = re.compile(r'\bid\s+"([^"]*)"')
+BM = re.compile(r'\bbm\s+([^;]+);')      # WAC-style: best move(s) in SAN, not UCI
 
 
 def mirror_uci(u):
@@ -51,6 +52,40 @@ def mirror_uci(u):
                       promotion=mv.promotion).uci()
 
 
+def mirror_bm_line(line):
+    """WAC/tactical form: `<epd> bm <SAN...>; id "...";` -- SAN needs the board to parse and re-emit.
+
+    wac.epd is 190 white-to-move vs 110 black-to-move (63/37), a WORSE skew than sts300's 59/41, so the
+    tactical suite needs the same colour-balancing treatment as the positional one before it can judge
+    a colour fix.
+    """
+    bm = BM.search(line)
+    if not bm:
+        return None
+    b = chess.Board()
+    try:
+        b.set_epd(line)
+    except Exception:
+        return None
+    m = b.mirror()
+    moves = []
+    for san in bm.group(1).split():
+        try:
+            mv = b.parse_san(san)
+        except Exception:
+            return None
+        mm = chess.Move(chess.square_mirror(mv.from_square),
+                        chess.square_mirror(mv.to_square), promotion=mv.promotion)
+        if mm not in m.legal_moves:
+            return None
+        moves.append(m.san(mm))
+    ident = ID.search(line)
+    ops = "bm %s;" % " ".join(moves)
+    if ident:
+        ops += ' id "%s(mirror)";' % ident.group(1)
+    return "%s %s" % (m.epd(), ops)
+
+
 def main():
     out_lines, n, skipped = [], 0, 0
     for line in open(IN):
@@ -59,7 +94,13 @@ def main():
             continue
         c8, c9 = C8.search(line), C9.search(line)
         if not (c8 and c9):
-            skipped += 1
+            # Fall back to the bm/SAN form before giving up, so this one tool covers both suites.
+            alt = mirror_bm_line(line)
+            if alt:
+                out_lines.append(alt)
+                n += 1
+            else:
+                skipped += 1
             continue
         b = chess.Board()
         try:

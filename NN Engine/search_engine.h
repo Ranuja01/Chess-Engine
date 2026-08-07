@@ -725,6 +725,13 @@ namespace Config
     // Tie-break: least valuable attacker (MVV-LVA), then own-perspective square (sq for white,
     // sq^56 for black). Behavioral -> gated default-off.
     inline bool ENABLE_CAPG_INVARIANT_ORDER = true;   // SHIPPED 2026-08-08 in the 7-fix colour bundle
+    // CAPG_LVA_STATIC: the capture-gains GATHER picks its attacker with get_least_valuable_attacker,
+    // which ranks by square_values[] -- the EVAL MAGNITUDE on the square, not the piece's material
+    // value. That is not colour-blind, so a target attacked by both a rook and a pawn resolves to
+    // DIFFERENT attackers in mirrored positions, and the divergence cascades through the evasion logic.
+    // _static ranks by true piece TYPE. Same correction ENABLE_SEE_FIX already made inside see();
+    // the gather was never updated. Behavioral -> gated.
+    inline bool ENABLE_CAPG_LVA_STATIC = false;
     // CAPG_EVADE_POLARITY: the evasion branches pop from opp_captures with `current_turn`, but that
     // stack belongs to the OTHER side (the sibling find_last_viable_capture right above uses
     // !current_turn). With the wrong polarity isValid fails for every entry and the helper -- which

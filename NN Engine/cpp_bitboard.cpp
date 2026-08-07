@@ -8262,6 +8262,11 @@ inline bool can_evade(uint8_t target_square, bool target_colour){
 		to_square = __builtin_ctzll(bb);	
 		bb &= bb - 1;
 		//std::cout << int(to_square)<< " "<<  attack_bitmasks[to_square]<< std::endl;
+		if (g_capture_eval_breakdown && std::getenv("EVADE_TRACE"))
+			std::fprintf(stderr, "  EVADE[%c] from=%d to=%d attackers=%llu safe=%d\n",
+			             target_colour ? 'W' : 'B', (int)target_square, (int)to_square,
+			             (unsigned long long)(attack_bitmasks[to_square] & opposingPieces),
+			             (int)((attack_bitmasks[to_square] & opposingPieces) == 0));
 		if ((attack_bitmasks[to_square] & opposingPieces) == 0){
 			return true;
 		}
@@ -8467,7 +8472,19 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 		//std::cout << static_exchange_eval << std::endl;
 		if (static_exchange_eval >= 0) {
 
-			uint8_t from = get_least_valuable_attacker(attacker_mask, state);
+			// 🐛 COLOUR ASYMMETRY: get_least_valuable_attacker ranks by square_values[] -- the EVAL
+			// MAGNITUDE on that square, not the piece's material value. Eval magnitudes are per-square
+			// contributions, so "least valuable" resolves DIFFERENTLY in mirrored positions: on
+			// 3q1rk1/8/5n1b/2n5/2b5/3P4/8/2R3K1 w the target is attacked by a rook AND a pawn in both
+			// orientations, and the gather picked the ROOK in base but the PAWN in the mirror. That
+			// cascades -- base's rook capture vacates c1 and kills the opponent's larger threat so it
+			// does not evade, while the mirror's pawn capture leaves its rook en prise so it evades and
+			// plays nothing (capture_gains -2175 vs 0).
+			// _static ranks by true piece TYPE, which is colour-blind and mirror-symmetric. This is the
+			// same correction ENABLE_SEE_FIX already made inside see() -- see the note there about
+			// "the stale eval-magnitude square_values[]"; the capture-gains GATHER was never updated.
+			uint8_t from = Config::ENABLE_CAPG_LVA_STATIC ? get_least_valuable_attacker_static(attacker_mask, state)
+			                                              : get_least_valuable_attacker(attacker_mask, state);
 
 			bool attacker_white = !current_colour;                 // attacker is the opposite colour to r
 

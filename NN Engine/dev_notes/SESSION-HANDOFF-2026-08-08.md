@@ -1,4 +1,56 @@
-# Session handoff — 2026-08-08: the bench was the blocker, not the bug
+# Session handoff — 2026-08-08: colour asymmetry 74.5% → 0.2%, and the bundle is FREE
+
+> ## 🚨 READ THIS BLOCK FIRST — everything below it is the working log, in discovery order
+>
+> **EIGHT colour defects found and fixed.** Colour-swap violations **74.5% → 0.2%** (2 of 800),
+> file-mirror worst **1519 → 24 mp**. The 7-fix bundle is **SHIPPED** (`a87e2f5`); the 8th
+> (`ENABLE_CAPG_LVA_STATIC`) was measuring at handoff.
+>
+>     SHIPPED DEFAULT (7-fix):  250 / 34,426,396 / EBF 3.723 / STS 1777
+>     MIRROR:                   250 / 33,879,603 / EBF 3.785 / STS 1630
+>     BALANCED: tactical 500 (was 485)   positional 3407 (was 3406)   nodes −2.0%
+>
+> ★ **The bundle is FREE positionally and +15 tactical.** ✅ Shipped defaults reproduce every env-knob
+> measurement to the NODE on all four suites.
+>
+> ### ★★★ THE ONE LESSON: a PARTIAL fix set has no meaningful cost
+> As fixes landed the bundle read **−147 → −142 → −107 → −48 → −172 → +1**. Every intermediate number
+> dissolved, including a −124 written up as a real cost ONE FIX before it vanished. Defects interact, so
+> a half-fixed eval sits on no meaningful line between broken and correct.
+> ⇒ **Never ship or spend games on a partial sweep. Hold defaults OFF, gate everything, take ONE bundle
+> A/B at the end.** Per-fix numbers are for CHOOSING A DIRECTION only.
+> ★ **Symmetry constrains SHAPE, not MAGNITUDE** — the last fix's two directions were both perfectly
+> symmetric and 132 balanced points apart. And an arm with a PERFECT zero colour gap was 113 points
+> WORSE ⇒ choose on the balanced TOTAL, never the gap.
+>
+> ### The eight, by mechanism (5 of 8 found by READING code)
+> | # | defect | mechanism |
+> |---|---|---|
+> | 1-2 | king-race tempo polarity (2 sites, 08-07) | wrong colour predicate |
+> | 3 | knight endgame mobility 10 vs 15 | per-colour constant |
+> | 4 | pawn diagonal-support guards | swapped file-wrap masks (`<<9` wraps to A, `<<7` to H) |
+> | 5 | rook `DBLCOUNT` pair | two MUTUALLY EXCLUSIVE fixes both shipped ⇒ bug returned inverted |
+> | 6 | rook own-pawn rank window | `>4` should be `>2` (parked knob from June, re-tested) |
+> | 7 | rook enemy-pawn rank window | `<5` should be `<3` |
+> | 8 | capgain sort tie-break | `std::sort` unstable + NO tie-break ⇒ ties inherit square order |
+> | 9 | KS modulators | `>>` on a SIGNED value rounds toward −inf; `/256` truncates toward zero |
+> | 10 | capgain attacker choice | ranked by EVAL MAGNITUDE `square_values[]`, not piece TYPE |
+>
+> ⚠️ **Two were introduced BY game-validated ships** (`MOD_KS_REALIZ` with +36.7 Elo, rook `DBLCOUNT`
+> with +45 Elo) ⇒ **winning Elo is no protection.** The mirror test is now a SHIP GATE in
+> `NN Engine/CLAUDE.md`, with all six recurring shapes written out.
+>
+> ### ▶️ NEXT
+> 1. Ship `ENABLE_CAPG_LVA_STATIC` if its 4-suite read is clean (1.4% → 0.2%).
+> 2. **2 of 800 positions remain** — same capgain family, ~1100 mp. A residual, not a class.
+> 3. **New-content SPRT** (`WINNABILITY`/`CLOSEDNESS`/`ENDGAME_SCALE`) — NEVER game-tested, and now it
+>    would run against a clean eval instead of a moving one.
+> 4. **Retargeted retune** — SF11-static labels banked (23,084 rows), filter sized: TRAIN 83.4% ·
+>    GUARD 4.8% (hold OUT, never train) · discard 11.8%.
+
+---
+
+# Working log — the bench was the blocker, not the bug
 
 **Read this top block first.** Prior: `SESSION-HANDOFF-2026-08-07.md` (the corpus-fit null + the first
 two symmetry fixes). Canonical pawn reference: [`PAWN_MODEL.md`](PAWN_MODEL.md).

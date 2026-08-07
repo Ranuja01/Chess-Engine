@@ -216,6 +216,71 @@ exactly as broken as shipping neither. And since this asymmetry was introduced *
 ship (+45 Elo) and survived months undetected, **the mirror test belongs in the pre-ship gate**, not
 just the debugging toolkit. See [[two-alternative-fixes-both-shipped-recreated-the-bug]].
 
+## ✅ SEVENTH SITE — `ENABLE_ROOK_RANKWIN_FIX`, parked since June, is the biggest single win
+
+The midgame rook penalises its OWN pawn on its file over a rank window. White fires for ranks 0-4
+(`(att>>3) < 5`); the mirror of that is Black ranks 3-7, i.e. `> 2` — but the code says `> 4`, so
+**Black silently skips ranks 3 and 4**. The magnitudes already mirror (`3-r` vs `r-4` agree under
+`r ↔ 7-r`), so it is purely the window. Provable from the two lines.
+
+`ENABLE_ROOK_RANKWIN_FIX=1` (no code change, the knob exists):
+**violations 23.8% → 14.6%**, `pt_rooks` 7659/122 positions → **1809/36**.
+
+☠️★★★ It was **parked in 2026-06** with: *"eval_symmetry couldn't confirm a residual drop (motif too
+rare + loop break-coupling)"*. The defect was correctly suspected two months ago and abandoned because
+the instrument of the day could not resolve it. ⇒ **A parked null from a weak instrument is not a
+null.** Same family as [[coordinate-descent-cannot-find-gated-mechanisms]] and "a negative from a
+monitoring tool is a claim about the TOOL".
+
+### Four-fix bundle (all gated, defaults OFF)
+| config | STS orig | mirror | balanced | gap |
+|---|---|---|---|---|
+| baseline | 1755 | 1651 | 3406 | +104 |
+| 3 fixes | 1673 | 1591 | 3264 (−142) | +82 |
+| **4 fixes** | 1641 | 1658 | **3299 (−107)** | **−17** |
+★ The bundle cost SHRINKS as the eval gets more correct (−147 → −142 → −107) and the colour gap
+collapses to ~0. Suggestive that part of the wrap fix's cost was interaction with the remaining bugs.
+⚠️ Three data points against ~140 jaggedness on a 6000-point suite — suggestive, not established.
+
+## ☠️🐛 EIGHTH SITE — capture-gains picks a DIFFERENT capture in each orientation (ROOT FOUND, NOT FIXED)
+Traced with the new `CAPG_TRACE=1`, after three separate code-readings produced three wrong stories:
+
+    BASE   (w) CAPG w from=41 to=42 ptFrom=4 fired=1 prb=275 vg=1275   Rb6xc6, rook takes pawn
+               CAPG b from=20 to=13 ptFrom=1 fired=0 prb=0   vg=0
+    MIRROR (b) CAPG b from=53 to=44 ptFrom=1 fired=0 prb=0   vg=1000   f7xe6, pawn takes pawn
+               -- the mirrored ROOK capture never happens at all
+
+`find_and_pop_last_viable_capture` selects by position in a stack built in **square order**, and square
+order is not mirror-invariant: base white chooses from {41 rook, 13 pawn} → picks 41 (the max); mirror
+black chooses from {17 rook, 53 pawn} → picks 53 (the max). But mirroring maps 41→17 and 13→53, so
+**the max becomes the min** and the two orientations simulate different capture sequences.
+★ Explains everything that was unexplained: the turn-gating, the mirror sitting at exactly the bare
+pawn value at EVERY clamp setting, and why the earlier "evasion polarity" fix measured WORSE.
+▶️ **Not a constant flip** — the selection RULE must become colour-blind (highest `value_gained`, or
+SEE-best, with an invariant tie-break). Own gate, own measurement. Note this is *approximate*
+capture-gains, so "highest index wins" was never principled, merely unexamined.
+
+## 📊 WHERE THE SWEEP STANDS — 74.5% → 14.6%, and the tail is NOT rounding
+| tolerance | violations |
+|---|---|
+| exact | 117 (14.6%) |
+| >20 mp | **113 (14.1%)** |
+| >100 mp | 18 (2.2%) |
+★★ **Only 4 of 117 are sub-20 mp.** The remaining tail is NOT integer-rounding noise from the
+`>>1`/`>>2`/`/100` scalings — it is ~95 positions in a tight **20-100 mp band, median 30**, which is the
+signature of a SPECIFIC TERM (the rank-window defect looked exactly like this and was 86 positions).
+⇒ Expect at least one, plausibly two, more moderate systematic defects. Exact zero is still coherent —
+rounding is not yet the binding constraint.
+
+| remaining source | positions | mean | status |
+|---|---|---|---|
+| `material`/`capture_gains` | 30 | 659 | root found (above), unfixed |
+| `piece_value_boost` | 20 | 347 | almost certainly downstream of the same accumulators |
+| `king_safety` | 67 | 33 | unexamined |
+| `pt_rooks` residual | 36 | 50 | unexamined |
+| `advanced_endgame_total` | 7 | 1246 | unexamined; rare but huge |
+| `det_ks_units_w<->b` | **278** | 10 | ⭐ breaks on 2.4× more positions than `total` does ⇒ asymmetric almost everywhere and usually CANCELS downstream. Prime suspect for the 30 mp band whenever cancellation is imperfect. **Look here next.** |
+
 ## ⚠️ COLOUR vs PHASE — do not conflate them (owner correction)
 The axis that MUST be symmetric is **colour**. A white/black difference *inside one function* is
 presumptively a bug. A **midgame/endgame** difference is a legitimate design choice — the two phases are

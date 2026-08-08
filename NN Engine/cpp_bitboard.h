@@ -196,7 +196,7 @@ constexpr std::array<uint64_t, 8> black_king_zones = {
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // A file
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // B file
     (BB_FILE_A | BB_FILE_B | BB_FILE_C | BB_FILE_D) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3), // C file
-    
+
     (BB_FILE_B | BB_FILE_C | BB_FILE_D | BB_FILE_E) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // D file
     (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // E file
 
@@ -204,6 +204,52 @@ constexpr std::array<uint64_t, 8> black_king_zones = {
     (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // G file
     (BB_FILE_E | BB_FILE_F | BB_FILE_G | BB_FILE_H) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3)  // H file
 };
+
+/*
+	🐛 FILE-MIRROR ASYMMETRY in the tables above, and the fix.
+	File mirroring requires zone[7-f] == flip(zone[f]). A/B/C <-> H/G/F hold (ABCD flips to EFGH), but
+	the two MIDDLE files are each other's mirror and do not pair:
+	    flip(D's BCDE) = DEFG, so E should be DEFG -- it is CDEF
+	    flip(E's CDEF) = CDEF, so D should be CDEF -- it is BCDE
+	D leans queenside while E is centred, so a king on D and its mirror-image king on E get differently
+	shaped zones. Measured worth 24 mp (= 2 zone squares x CHEAP_BISHOP_KING 12): zeroing that knob drops
+	file-mirror violations 42 -> 13 and the worst case 24 -> 5 mp.
+
+	Both repairs are symmetric, so the choice is a TUNING question settled on balanced STS:
+	  MODE 1 "lean"    E -> DEFG, matching D's BCDE. Continues the table's own pattern (A/B/C lean
+	                   queenside, F/G/H lean kingside), so each middle file leans to its own side.
+	  MODE 2 "centred" D -> CDEF, matching E. Both middle files share the centred zone.
+*/
+constexpr std::array<uint64_t, 8> white_king_zones_lean = {
+    white_king_zones[0], white_king_zones[1], white_king_zones[2], white_king_zones[3],
+    (BB_FILE_D | BB_FILE_E | BB_FILE_F | BB_FILE_G) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // E -> DEFG
+    white_king_zones[5], white_king_zones[6], white_king_zones[7]
+};
+constexpr std::array<uint64_t, 8> black_king_zones_lean = {
+    black_king_zones[0], black_king_zones[1], black_king_zones[2], black_king_zones[3],
+    (BB_FILE_D | BB_FILE_E | BB_FILE_F | BB_FILE_G) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // E -> DEFG
+    black_king_zones[5], black_king_zones[6], black_king_zones[7]
+};
+constexpr std::array<uint64_t, 8> white_king_zones_centred = {
+    white_king_zones[0], white_king_zones[1], white_king_zones[2],
+    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_8 | BB_RANK_7 | BB_RANK_6),  // D -> CDEF
+    white_king_zones[4], white_king_zones[5], white_king_zones[6], white_king_zones[7]
+};
+constexpr std::array<uint64_t, 8> black_king_zones_centred = {
+    black_king_zones[0], black_king_zones[1], black_king_zones[2],
+    (BB_FILE_C | BB_FILE_D | BB_FILE_E | BB_FILE_F) & ~(BB_RANK_1 | BB_RANK_2 | BB_RANK_3),  // D -> CDEF
+    black_king_zones[4], black_king_zones[5], black_king_zones[6], black_king_zones[7]
+};
+
+// Single accessor so every consumer (cheap bishop complex, the flood-fill path, king safety) picks the
+// same table -- fixing only one call site would leave the eval internally inconsistent.
+inline uint64_t king_zone_at(bool white_king, uint8_t file){
+	switch (Config::KING_ZONE_SYM_MODE) {
+		case 1:  return white_king ? white_king_zones_lean[file]    : black_king_zones_lean[file];
+		case 2:  return white_king ? white_king_zones_centred[file] : black_king_zones_centred[file];
+		default: return white_king ? white_king_zones[file]         : black_king_zones[file];
+	}
+}
 
 
 // Create a compile-time array of bitmasks
@@ -374,6 +420,49 @@ void passer_probe_begin();
 void passer_probe_end();
 int passer_probe_count();
 PasserRec passer_probe_get(int i);
+
+/*
+	Diagnostic-only PER-PAWN attribution of the pawn-bonus CLAMP. Both pawn evaluators cap the per-pawn bonus
+	before applying it -- `min(225, structural + positional)` in the midgame path and `min(175, structural)`
+	in the endgame path -- so any new pawn term competes for headroom that may already be exhausted. A term
+	added under a saturated clamp contributes exactly nothing, which is indistinguishable from a term that is
+	simply worthless. These records expose the raw offered value against the cap, per pawn, so the redesign
+	can ask whether granularity is even reachable before any table is built.
+
+	Note the two paths clamp different things: the midgame bundles the placement and attacking layers in with
+	the structural bonus, while the endgame applies those layers directly to `total` and clamps structural
+	alone. `positional` is therefore 0 on endgame records by construction, not by absence of signal.
+
+	Filled when g_pawn_clamp_probe is set. Not read anywhere in search; zero cost when the flag is off.
+*/
+struct PawnClampRec {
+	int sq;          // square of the pawn
+	int white;       // 1 = White's pawn
+	int endgame;     // 1 = scored by the endgame pawn evaluator
+	int structural;  // chain / wall / latent-support accumulation
+	int positional;  // placement + attacking layers (midgame path only)
+	int raw;         // value offered to the clamp: structural + positional
+	int cap;         // the cap in force: 225 midgame, 175 endgame
+};
+extern PawnClampRec g_pawn_clamp_recs[16];
+extern int g_pawn_clamp_nrec;
+extern bool g_pawn_clamp_probe;
+
+void pawn_clamp_probe_begin();
+void pawn_clamp_probe_end();
+int pawn_clamp_probe_count();
+PawnClampRec pawn_clamp_probe_get(int i);
+
+// Defined inline in the header, not in the .cpp: the recorder sits in the per-pawn eval loop, which runs
+// millions of times per search, and a cross-TU call there would cost NPS even though the probe is off.
+// Inlined, the disabled path is a single predictable test of a global bool.
+inline void record_pawn_clamp(int sq, bool white, bool endgame, int structural, int positional, int cap){
+	if (__builtin_expect(!g_pawn_clamp_probe, 1) || g_pawn_clamp_nrec >= 16) return;
+	PawnClampRec &pc = g_pawn_clamp_recs[g_pawn_clamp_nrec++];
+	pc.sq = sq; pc.white = white ? 1 : 0; pc.endgame = endgame ? 1 : 0;
+	pc.structural = structural; pc.positional = positional;
+	pc.raw = structural + positional; pc.cap = cap;
+}
 
 struct EvalBreakdown {
 	int total;

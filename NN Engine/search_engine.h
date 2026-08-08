@@ -732,6 +732,25 @@ namespace Config
     // _static ranks by true piece TYPE. Same correction ENABLE_SEE_FIX already made inside see();
     // the gather was never updated. Behavioral -> gated.
     inline bool ENABLE_CAPG_LVA_STATIC = false;
+    // BISHOP_FWD_RANK: get_bishop_colour_complex_score's "forward" staging mask is built from the
+    // SQUARE INDEX, not the rank, so for a staging square on e4 White's `~0ULL << 29` also includes
+    // f4/g4/h4 (same rank, to the right) and excludes a4-d4. Wrong on its own terms, and not
+    // file-mirror invariant.
+    // ☠️ BUT IT IS CURRENTLY INERT -- MEASURED: 0 of 1200 positions change. The expensive
+    // colour-complex path it lives in is unreachable at defaults, because ENABLE_CHEAP_BISHOP_COMPLEX
+    // (default ON) returns earlier in the same function. So this is a real defect in DEAD code, and it
+    // is NOT the residual file-mirror class -- that class (42/651, max 24 mp, pt_bishops) lives in the
+    // CHEAP path and is still unlocated.
+    // ⚠️ Keep the knob: the defect becomes live the moment the expensive path is re-enabled.
+    inline bool ENABLE_BISHOP_FWD_RANK_FIX = false;
+    // KING_ZONE_SYM: white/black_king_zones are indexed by the king's FILE, and the two MIDDLE entries
+    // are not file mirrors of each other -- D leans queenside (BCDE) while E is centred (CDEF), where
+    // flip(BCDE) is DEFG. So a king on D and its mirror-image king on E get differently shaped zones.
+    // Worth 24 mp via CHEAP_BISHOP_KING (2 zone squares x 12): zeroing that knob drops file-mirror
+    // violations 42 -> 13 and the worst case 24 -> 5 mp. Both repairs are symmetric, so balanced STS
+    // decides. 0 = legacy (asymmetric) · 1 = LEAN (E -> DEFG, each middle file leans to its own side,
+    // continuing the table's A/B/C-queenside F/G/H-kingside pattern) · 2 = CENTRED (D -> CDEF).
+    inline int KING_ZONE_SYM_MODE = 0;
     // CAPG_EVADE_POLARITY: the evasion branches pop from opp_captures with `current_turn`, but that
     // stack belongs to the OTHER side (the sibling find_last_viable_capture right above uses
     // !current_turn). With the wrong polarity isValid fails for every entry and the helper -- which

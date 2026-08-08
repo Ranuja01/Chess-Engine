@@ -1752,8 +1752,8 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 		uint64_t far_half = colour ? (BB_RANK_5 | BB_RANK_6 | BB_RANK_7 | BB_RANK_8)
 		                           : (BB_RANK_1 | BB_RANK_2 | BB_RANK_3 | BB_RANK_4);
 		uint64_t enemy_king_zone = colour
-		    ? black_king_zones[__builtin_ctzll(occupied_black & kings) & 7]
-		    : white_king_zones[__builtin_ctzll(occupied_white & kings) & 7];
+		    ? king_zone_at(false, __builtin_ctzll(occupied_black & kings) & 7)
+		    : king_zone_at(true, __builtin_ctzll(occupied_white & kings) & 7);
 
 		int block = __builtin_popcountll(pawns & our_pieces & colour_mask);
 		int mob   = __builtin_popcountll(attack_mask);
@@ -1774,8 +1774,8 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 		return std::max(-2 * BAD_THRESHOLD, std::min(MAX_BONUS, raw));
 	}
 
-	uint64_t white_king_zone = white_king_zones[__builtin_ctzll(occupied_white&kings) & 7] & ~BB_RANK_4 & ~BB_RANK_5;
-	uint64_t black_king_zone = black_king_zones[__builtin_ctzll(occupied_black&kings) & 7] & ~BB_RANK_4 & ~BB_RANK_5;
+	uint64_t white_king_zone = king_zone_at(true, __builtin_ctzll(occupied_white&kings) & 7) & ~BB_RANK_4 & ~BB_RANK_5;
+	uint64_t black_king_zone = king_zone_at(false, __builtin_ctzll(occupied_black&kings) & 7) & ~BB_RANK_4 & ~BB_RANK_5;
 
 	uint64_t base_zone = colour
     ? (is_light ? WHITE_LIGHT_BISHOP_ZONE : WHITE_DARK_BISHOP_ZONE)
@@ -1814,7 +1814,18 @@ inline int get_bishop_colour_complex_score(bool colour, uint8_t square, uint64_t
 			uint64_t raw_attacks = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & (occupied & ~BB_SQUARES[square])];
 
 			uint64_t forward_mask;
-			if (colour) {
+			// 🐛 The legacy masks say "ranks" but mask by SQUARE INDEX, so for a staging square on e4
+			// (28) White's `~0ULL << 29` also picks up f4/g4/h4 -- SAME RANK, to the right -- while
+			// excluding a4-d4. "Forward" therefore means "higher index", conflating rank with file
+			// position inside the rank. Wrong on its own terms (same-rank squares are not forward), and
+			// NOT file-mirror invariant: a square counted forward for being to the right stops being
+			// forward once the board is flipped a<->h. That is the residual 24 mp file-mirror class,
+			// localised to pt_bishops on 2bkr3/1r6/7R/8/4n3/3BN3/8/1R2K3 w.
+			if (Config::ENABLE_BISHOP_FWD_RANK_FIX) {
+				const int rk = r >> 3;
+				forward_mask = colour ? ((rk < 7) ? (~0ULL << ((rk + 1) << 3)) : 0ULL)
+				                      : ((rk > 0) ? ((1ULL << (rk << 3)) - 1)   : 0ULL);
+			} else if (colour) {
 				// White — forward = upward ranks (higher square indices)
 				forward_mask = (r < 63) ? (~0ULL << (r + 1)) : 0ULL;
 			} else {
@@ -5671,8 +5682,8 @@ inline int threats_term_scaled(){
 
 inline int get_latent_threat_score(uint8_t white_king_square, uint8_t black_king_square){
 
-	uint64_t white_king_zone = white_king_zones[white_king_square & 7];
-	uint64_t black_king_zone = black_king_zones[black_king_square & 7];
+	uint64_t white_king_zone = king_zone_at(true, white_king_square & 7);
+	uint64_t black_king_zone = king_zone_at(false, black_king_square & 7);
 
 	int black_increment = 0;
 	int white_increment = 0;

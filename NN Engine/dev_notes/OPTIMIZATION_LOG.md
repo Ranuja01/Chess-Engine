@@ -4,6 +4,60 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ✅★★★ 2026-08-08 (FINAL) — NINE symmetry defects; colour 74.5% → 1.4%; the bundle is FREE
+
+    SHIPPED  250 / 34,426,396 / EBF 3.723 / STS 1777    peak NPS 456,765 (spread 0.8%)
+    MIRROR   250 / 33,879,603 / EBF 3.785 / STS 1630
+    BALANCED tactical 500 (was 485)      positional 3407 (was 3406)
+    CORPUS   train 228.011 / val 230.105 (was 228.099 / 230.949)
+    SPEED    nodes −2.0% (exact) · time-to-depth −3.1%
+
+Seven of nine fixes shipped (`a87e2f5`). By mechanism: per-colour constant (knight endgame mobility
+10 vs 15) · swapped file-wrap masks (pawn diagonal support) · two MUTUALLY EXCLUSIVE fixes both shipped
+(rook `DBLCOUNT`, which recreated its own bug sign-flipped) · two non-mirrored rank windows (rook
+own-pawn and enemy-pawn) · an unstable sort with no tie-break (capture-gains chose different captures
+per orientation) · an arithmetic `>>` on a signed value (king safety) · a constexpr TABLE whose two
+middle files are not file mirrors (`king_zones`, gated pending a call).
+
+⚠️ **Two of the nine were introduced BY game-validated ships** (`MOD_KS_REALIZ` with +36.7 Elo, rook
+`DBLCOUNT` with +45 Elo) ⇒ **winning Elo is no protection against carrying a colour bug in.** The mirror
+test is now a SHIP GATE in `NN Engine/CLAUDE.md`.
+
+### ★★★ Every per-fix cost measured mid-sweep was an ARTIFACT
+Balanced STS as fixes landed: **−147 → −142 → −107 → −48 → −172 → +1**. Two intermediate costs were
+written up as real, one of them explicitly as "a genuine cost I am not going to explain away" — and both
+dissolved. Defects INTERACT, so a half-fixed eval sits on no meaningful line between broken and correct.
+⇒ **Hold defaults OFF through a correctness sweep; take ONE bundle A/B at the end.** Per-fix numbers are
+for choosing a DIRECTION only.
+✅ **Validated, not assumed:** leave-one-out reverting each shipped fix raises violations every time
+(+19 to +181). ★ A small COUNT delta can be a big MAGNITUDE fix — `CAPG_INVARIANT_ORDER` is +19 positions
+but reverting it takes the worst case 1241 → 4724 mp.
+
+### ☠️ An UNGUARDED `getenv` cost 7.5% peak NPS, and byte-identity could not see it
+`CAPG_TRACE` was added as `if (std::getenv(...))` instead of the house
+`if (g_capture_eval_breakdown && std::getenv(...))`; the flag is false in the search path and
+short-circuits the getenv away. Without it a linear scan of `environ` ran per applied capture per eval in
+the hot loop. Removing it: peak **424,755 → 456,765**, spread **6.7% → 0.8%**. Node counts were identical
+throughout, so it survived a full re-baseline and only surfaced when the owner asked about leftover
+instrumentation. **Every speed number taken earlier in the session measured the instrumentation.**
+
+### 📉 The corpus is STRUCTURALLY BLIND to this work
+Nine defects removed moved corpus error by **0.4%**. The loss scores each position INDEPENDENTLY, so it
+cannot represent "the MIRRORED position evaluates wrongly". ⇒ **A corpus retune cannot harvest the
+symmetry gains** — that is a games question. Fourth independent reason to distrust the objective.
+
+### ⏸️ Pending calls · ☠️ Dead knobs found
+`KING_ZONE_SYM_MODE=2` (file-mirror 42→13, −35 balanced = inside noise) → recommend SHIP.
+`ENABLE_CAPG_LVA_STATIC` (colour 11→2, −108 balanced = outside noise) → recommend HOLD; games, not a
+bench veto. ★ The distinction is measurable, not taste.
+☠️ **`EG_CLAMP_KNIGHT/BISHOP/ROOK/QUEEN` are declared, env-registered and echoed in the toggles dump but
+appear NOWHERE in `cpp_bitboard.cpp` — completely unwired.** ☠️ `ENABLE_BISHOP_FWD_RANK_FIX` is a real
+defect in code unreachable behind `ENABLE_CHEAP_BISHOP_COMPLEX` (0 of 1200 positions change).
+⇒ **A knob-liveness audit is the next task**: a descent that sweeps a dead knob banks a null about the
+WIRING, not the mechanism.
+
+---
+
 ## ★★★ 2026-08-08 — THE BENCH WAS THE BLOCKER: STS ranked two colour fixes BACKWARDS
 
 🐛 Third symmetry site: **`evaluate_knights_endgame` pays 10 per free mobility square for White, 15 for

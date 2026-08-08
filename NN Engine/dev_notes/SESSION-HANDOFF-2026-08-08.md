@@ -78,13 +78,32 @@
 > | `ENABLE_CAPG_LVA_STATIC` | colour 11→2 positions; **−108 balanced (outside noise)**, 0.9% fire rate | **HOLD** — if ever taken, on GAMES not a bench veto |
 > ★ The distinction is measurable, not taste: −35 is unresolvable on this instrument, −108 is not.
 >
-> ### ▶️ NEXT
-> 1. Ship `ENABLE_CAPG_LVA_STATIC` if its 4-suite read is clean (1.4% → 0.2%).
-> 2. **2 of 800 positions remain** — same capgain family, ~1100 mp. A residual, not a class.
-> 3. **New-content SPRT** (`WINNABILITY`/`CLOSEDNESS`/`ENDGAME_SCALE`) — NEVER game-tested, and now it
->    would run against a clean eval instead of a moving one.
-> 4. **Retargeted retune** — SF11-static labels banked (23,084 rows), filter sized: TRAIN 83.4% ·
->    GUARD 4.8% (hold OUT, never train) · discard 11.8%.
+> ### ▶️ NEXT — in this order, and the order matters
+> **1. KNOB-LIVENESS AUDIT (do this FIRST — cheap, no games).** Two dead knobs were found by ACCIDENT
+> this session: `EG_CLAMP_KNIGHT/BISHOP/ROOK/QUEEN` are declared, env-registered and echoed in the
+> toggles dump but appear NOWHERE in `cpp_bitboard.cpp`; and `ENABLE_BISHOP_FWD_RANK_FIX` is a real
+> defect sitting in code unreachable behind `ENABLE_CHEAP_BISHOP_COMPLEX` (0 of 1200 positions change).
+> ~25 knobs have been added recently (clamps, `EG_EXIST_*`, `WINNAB_*`, `CLOSED_*`, `PHASE_BLEND_*`) and
+> **we do not know which are live.** ☠️ A descent that sweeps a dead knob banks a null about the WIRING,
+> not the mechanism — exactly the `ENABLE_CLOSEDNESS` all-zero-tables trap.
+> ▶️ Method: for each knob, dump evals on/off (`_eval_dump_simple.py`, one process per setting) and diff.
+> Then wire-or-delete `EG_CLAMP_*`. Output = the actual testable inventory.
+>
+> **2. NEW-CONTENT SPRT — one night of games.** `WINNABILITY`/`CLOSEDNESS`/`ENDGAME_SCALE`, NEVER
+> game-tested, corpus-says-best vs STS-says-−50, now resolvable against a clean eval. No new tooling.
+>
+> **3. RETARGETED RETUNE — but fix the objective first.** SF11-static labels banked (23,084 rows),
+> filter sized: TRAIN 83.4% · GUARD 4.8% (hold OUT, never train) · discard 11.8%. Anti-flattening:
+> grid bounds, shrink-to-incumbent prior, eval-spread floor, per-mechanism contribution floor. Validate
+> on MOVE-CHANGE rate, not cp.
+> ⚠️★ **Set the expectation honestly: a corpus retune CANNOT harvest the symmetry gains.** The corpus
+> moved 0.4% for nine defects because it scores positions independently and cannot see that the mirrored
+> position is wrong. "Retune because the old constants were fitted on an asymmetric eval" is a real
+> motivation that this objective is structurally unable to deliver on — that is a GAMES question.
+>
+> **Pending calls (fold into step 1):** `KING_ZONE_SYM_MODE=2` → recommend SHIP · `ENABLE_CAPG_LVA_STATIC`
+> → recommend HOLD. **Residual asymmetry:** colour 11/800 (all capgain) · file-mirror 42/651 max 24 mp
+> (the king-zone fix takes it to 13 @ 5 mp).
 
 ---
 

@@ -40,6 +40,44 @@
 > with +45 Elo) ⇒ **winning Elo is no protection.** The mirror test is now a SHIP GATE in
 > `NN Engine/CLAUDE.md`, with all six recurring shapes written out.
 >
+> ### 📊 FINAL BENCH NUMBERS (shipped defaults, all verified to the node)
+> ```
+>         250 / 34,426,396 / EBF 3.723 / STS 1777      peak NPS 456,765 (spread 0.8%)
+> MIRROR: 250 / 33,879,603 / EBF 3.785 / STS 1630
+> BALANCED: tactical 500 (was 485)   positional 3407 (was 3406)
+> CORPUS:   train 228.011 / val 230.105  (was 228.099 / 230.949)
+> ```
+> **Speed, same-session both arms:** nodes **−2.0%** (exact), time-to-depth **−3.1%**. ⚠️ The +1.1% peak
+> NPS is inside the pre-sweep arm's own 7.5% spread ⇒ NPS unchanged within resolution; the gain is the
+> NODE reduction, not raw speed.
+>
+> ☠️🚨 **An UNGUARDED `getenv` cost 7.5% peak NPS and byte-identity could not see it.** `CAPG_TRACE` was
+> added as `if (std::getenv(...))` instead of the house `if (g_capture_eval_breakdown && std::getenv(...))`
+> — the flag is false in the search path and short-circuits the getenv away. Without it a linear scan of
+> `environ` ran per applied capture per eval in the hot loop. Removing it: peak **424,755 → 456,765**,
+> spread **6.7% → 0.8%**. Node counts were identical throughout, so it survived a full re-baseline.
+> ⇒ **Every speed number taken earlier in the session measured the instrumentation, not the bundle.**
+>
+> ### 📉 THE CORPUS IS STRUCTURALLY BLIND TO THIS WORK
+> Nine defects removed moved corpus error by **0.4%** (val 230.949 → 230.105). The loss scores each
+> position INDEPENDENTLY, so it cannot see that the MIRRORED position evaluates wrongly. A whole class
+> of genuine error is invisible to it — a FOURTH independent reason to distrust the objective, next to
+> the −86 Elo SPRT, val/train 0.99, and the flattening signature.
+>
+> ### ✅ THE BUNDLE IS VALIDATED, NOT JUST ASSUMED
+> Leave-one-out: reverting each of the 7 shipped fixes individually RAISES violations every time —
+> `PAWN_SUPPORT_WRAP` +181 · `KNIGHT_MOB` +151 · `ROOK_RANKWIN` +101 · `KS_ROUND` +68 ·
+> `ROOK_ENEMY_RANKWIN` +32 · `ROOK_DBLCOUNT` +31 · `CAPG_INVARIANT_ORDER` +19. None is a no-op.
+> ★ A small COUNT delta can be a big MAGNITUDE fix: `CAPG_INVARIANT_ORDER` is only +19 positions but
+> reverting it takes the worst case 1241 → 4724 mp.
+>
+> ### ⏸️ TWO DECISIONS PENDING
+> | knob | effect | recommendation |
+> |---|---|---|
+> | `KING_ZONE_SYM_MODE=2` | file-mirror 42→13, worst 24→5 mp; **−35 balanced (inside ~140 noise)** | **SHIP** |
+> | `ENABLE_CAPG_LVA_STATIC` | colour 11→2 positions; **−108 balanced (outside noise)**, 0.9% fire rate | **HOLD** — if ever taken, on GAMES not a bench veto |
+> ★ The distinction is measurable, not taste: −35 is unresolvable on this instrument, −108 is not.
+>
 > ### ▶️ NEXT
 > 1. Ship `ENABLE_CAPG_LVA_STATIC` if its 4-suite read is clean (1.4% → 0.2%).
 > 2. **2 of 800 positions remain** — same capgain family, ~1100 mp. A residual, not a class.

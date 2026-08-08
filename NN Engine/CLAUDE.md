@@ -106,6 +106,34 @@ Know what exists before adding anything — **reuse, don't reinvent**:
 
 ## Development Rules & Code Style
 
+### 🚨 THREE PRE-FLIGHT CHECKS — these mistakes recur, so run the check, don't rely on care
+
+Memory: [[three-recurring-self-check-failures]]. All three happened again in one 2026-08-08 session
+*after* two of them were already written down, which is why they live here as checks rather than notes.
+
+**1. Before concluding anything from a code fragment, prove it EXECUTES at defaults.**
+Check the enclosing branch, the gate, and the phase. Three failures in one session: removing a queen
+"proved the queen was involved" when it actually pushed `phase_score` past the endgame threshold and
+switched *evaluators*; "single rook" probes used rook+kings, which is deep endgame, while chasing a
+midgame defect; and a `forward_mask` fix landed in code unreachable behind `ENABLE_CHEAP_BISHOP_COMPLEX`
+and changed **0 of 1200 positions**.
+✅ Then verify the knob MOVES the engine — dump evals on/off and diff. A null from a knob you have not
+proven live is worthless, and this is the check that caught the inert "fix".
+
+**2. To explain WHY a number moved, ABLATE — do not read.**
+Reading is the best tool for *finding* defects (5 of 9 symmetry defects came from reading). It is
+unreliable for *explaining measurements*: four such stories were falsified in one session. Zero each
+candidate knob in turn and watch the metric instead.
+★ **When a violation magnitude is CONSTANT, divide it by the candidate knobs.** 30 mp = rounding ×
+`KING_SAFETY_MAG`; 50 = `ROOK_ENEMY_PAWN_PEN`; 85 = `EG_SUPPORT − EG_LATENT`; 24 = 2×`CHEAP_BISHOP_KING`.
+Four for four.
+
+**3. Every diagnostic print goes behind the existing flag guard FIRST, `getenv` second.**
+Use `if (g_capture_eval_breakdown && std::getenv("X"))` — the flag is false in the search path and
+short-circuits the `getenv` away. An unguarded `getenv` in the capture loop cost **7.5% peak NPS**
+(424,755 → 456,765) and inflated run-to-run spread from 0.8% to 6.7%. ☠️ **Byte-identity cannot see
+this** — node counts were identical throughout. Re-read `wac_speed` peak after adding any probe.
+
 ### 🚨 COLOUR-SYMMETRY IS A SHIP GATE, NOT A DEBUGGING TOOL
 
 **Any new or modified EVAL term must pass the mirror test before it ships.** `eval(board.mirror())` must

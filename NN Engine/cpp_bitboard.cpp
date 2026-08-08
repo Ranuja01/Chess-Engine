@@ -8650,7 +8650,10 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 					// contributing exactly nothing in the other (base capture_gains tracks
 					// CAPG_PAWN_RANK_CLAMP exactly while the mirror sits at the bare pawn value), and three
 					// rounds of reading this code produced three wrong stories. Print the inputs instead.
-					if (std::getenv("CAPG_TRACE"))
+					// ⚠️ The g_capture_eval_breakdown guard is LOAD-BEARING, not decoration: it is false in
+					// the search path, so the getenv (a linear scan of environ) is short-circuited away.
+					// Without it this ran per applied capture per eval in the hot loop.
+					if (g_capture_eval_breakdown && std::getenv("CAPG_TRACE"))
 						std::fprintf(stderr, "CAPG w from=%d to=%d ptTo=%d ptFrom=%d fired=%d prb=%d vg=%d\n",
 						             (int)cur_side_capture->from, (int)cur_side_capture->to,
 						             (int)pieceTypeLookUp[cur_side_capture->to],
@@ -8668,7 +8671,10 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 						value_gained += (Config::ENABLE_CAPGAIN_PAWN_FIX ? -prb : prb);
 						fired = true;
 					}
-					if (std::getenv("CAPG_TRACE"))
+					// ⚠️ The g_capture_eval_breakdown guard is LOAD-BEARING, not decoration: it is false in
+					// the search path, so the getenv (a linear scan of environ) is short-circuited away.
+					// Without it this ran per applied capture per eval in the hot loop.
+					if (g_capture_eval_breakdown && std::getenv("CAPG_TRACE"))
 						std::fprintf(stderr, "CAPG b from=%d to=%d ptTo=%d ptFrom=%d fired=%d prb=%d vg=%d\n",
 						             (int)cur_side_capture->from, (int)cur_side_capture->to,
 						             (int)pieceTypeLookUp[cur_side_capture->to],

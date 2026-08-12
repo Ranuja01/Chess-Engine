@@ -4,6 +4,162 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🧰 2026-08-09 (late) — capgain ROOT-CAUSED, a 3-item bundle built, NOTHING SHIPPED
+
+Detail: [`SESSION-HANDOFF-2026-08-09.md`](SESSION-HANDOFF-2026-08-09.md).
+
+**The defect.** `approximate_capture_gains` nets a real loss against a counter-capture that can never
+happen. On `6r1/nk1q4/1p6/3p1n2/p2Pp3/4P2P/PB1Q1Pp1/2RK3R w` we prefer `c1c8`, hanging a rook to three
+attackers, over `h1g1` which saves one (SF18 d16: −10.78 vs −4.34). The trace books Black's `g2xh1`
+(5000) AND White's `c8xg8` (5000) and cancels them. ✅ Root cause verified by independent code read: the
+two Black captures TIE, `capg_less` sorts the cheaper attacker LATER and the consumer pops `back()`, so
+the PAWN capture wins the tie and leaves White's rook alive. 🎯 6-piece repro
+`2R3r1/8/8/k7/8/8/6p1/3K3R b` — each capture alone is booked right (−3.50 / −2.00), together
+`capture_gains` collapses to **0** and our eval reads **+6.77 vs SF18 −9.62**. A **16-pawn** error.
+⚠️ `ENABLE_CAPG_TEMPO` is structurally blind to it: strict `opp > cur` never fires on equal trades.
+
+**Second defect:** promotion uncredited — `promo_gxR` and `plain_gxR` both booked −2.00.
+☠️ `apply_basic_capture` updates OCCUPANCY ONLY (no piece-type overlay), so an unguarded credit books
++9000 against a recapture priced at 1000. Guard: credit only when the promotion square is undefended.
+
+**Built, all gated, defaults unchanged** (`LAZY_PIN` is default-true and byte-identical):
+
+| knob | alone | in bundle |
+|---|---|---|
+| `ENABLE_CAPG_LAZY_PIN` | byte-identical, no measurable speed | — |
+| `ENABLE_CAPG_NET_SELECT` | −100 STS, +0.72% nodes, **−7.5% NPS**, 3.0% move-change | |
+| `ENABLE_CAPG_PROMO_CREDIT` | ~free, 0.8% move-change | |
+| **NET + PROMO** | | **−65 STS, −1 tactical, −3.1% NODES, NPS neutral** |
+
+★★★ **Bundling flipped the cost.** Net-select alone looked like an 8% time-to-depth tax; with promotion
+credit the bundle is ~3% FASTER to depth at neutral NPS. Neither component predicted it.
+⇒ Ship-on-invariant candidate, NOT an Elo candidate. ▶️ Missing: the bundle's move-change footprint, and
+the 5-item version (+ `CAPG_FILE_INVARIANT_TIEBREAK` + `CAPG_LVA_STATIC`, whose −116 is stale).
+
+### 🚨 Method findings that cost real time
+- **FIVE code-reading hypotheses refuted by ablation** in one session. The ONE that survived was isolated
+  with a REPRO first, then confirmed in code. ⇒ repro-first, read-second.
+- **A precondition bounds where a rule CAN act, not where it DOES** — net-rule preconditions hold in
+  50.8% of positions; realised move-change is 3.0%.
+- **A tie-only knob under-bounds a general rule** — `CAPG_INVARIANT_ORDER` moves 1.7% (exact ties); I
+  quoted that as the net rule's addressable set and was ~10× low.
+- 📏 **The NPS ruler cannot resolve capgain micro-optimisations** — three provably-less-work changes
+  (early-exit gate, lazy pin, double-sort removal) all measured flat. Node counts, being exact, are the
+  only trustworthy speed evidence here.
+- 🧰 New: `diagnostics/_d1_move_attribution.py` — depth-1 move choice vs the three-way reference in
+  **win%**, no filter, SF used as an ORACLE OVER MOVES only. **73.5% of positions are neither static
+  eval's to solve**; of the fixable remainder **54% have the truth move at rank 2**.
+
+---
+
+## 🎮 2026-08-09 — EG clamps GAME-TESTED NEUTRAL (parked) · the 5 mp class localised to `pt_queens`
+
+    SPRT egclamp_h500 vs defaults:  +455 -450 =295 of 1200 (50.2%)
+                                    elo ~ +1.4 ± 23.1   LLR -0.069   INCONCLUSIVE
+
+Nothing shipped; `EG_CLAMP_*` stay 0 and the fingerprint is unchanged.
+
+### ★★★ The bench and games now agree on the noise floor
+The arm benched **−59** balanced STS and games measured **+1.4 ± 23.1**. That matches the near-inert
+probe (H=2000 barely binds, read −151) from the opposite direction. ⇒ **|balanced STS| < ~150 is
+UNRESOLVABLE.** Every clamp reading in the 250-2000 sweep was inside it, so the sweep never had a
+signal to find — which is what the near-inert arm said before the games confirmed it.
+☠️ **NEVER-PEEK, demonstrated on our own hardware:** at 91 games this run read **elo ~ −31** and looked
+like a developing loss. Acting on that trend would have closed a live lane on noise.
+★ The mechanism is real and reaches the move (rook exceeds the midgame's own headroom on **29%** of
+positions; the bundle changes the d1 move on **6.0%**, near the +45 Elo `threats` control's 9.2%) — and
+still measured ~0 Elo. ⇒ **Footprint is NECESSARY but not SUFFICIENT.** It buys resolvability, not value.
+
+### 🎯 The 5 mp file-mirror class is `pt_queens` — three suspects killed by ablation
+✅ 7-piece repro `2b2k1r/Q5b1/2q5/8/8/8/8/6K1 b`: `pt_queens` +149 vs +144, `pieces` inherits it.
+`phase=64`, not endgame, **not turn-gated** ⇒ the MIDGAME queen evaluator. Leave-one-out: removing any
+of the five non-king pieces zeroes it ⇒ an **interaction**, not a per-square table error.
+☠️ Refuted: `BISHOP_MOB_SECONDARY=0` (byte-identical class, though the knob moved other evals — a
+trustworthy null) · `CHEAP_QUEEN_MOB_MG=0` (the `|| g_eval_light` story was wrong; the gate was honest)
+· the attacking layer — **`SCALE_ATTACK_LAYER=0` drops the term +149→+85 yet the gap stays EXACTLY 5.**
+★ That invariance is the live clue: the defect sits in an **unscaled** part of the queen path. Leading
+candidate is the xray block's `values[xRayPieceType] >> 6`, a raw per-type constant no SCALE knob touches.
+⚠️ Three reading-derived suspects have now died here. Ablate; do not theorise.
+
+---
+
+## ✅ 2026-08-08 (late) — `KING_ZONE_SYM_MODE=2` SHIPPED · `EG_CLAMP_*` WIRED · a 194 mp lead found
+
+    SHIPPED  250 / 35,426,396 / EBF 3.800 / STS 1631
+    MIRROR   245 / 35,727,805 / EBF 3.856 / STS 1741
+    BALANCED tactical 495 (was 500)      positional 3372 (was 3407)
+
+↩️ `KING_ZONE_SYM_MODE=0` reproduces the previous fingerprint EXACTLY (250 / 34,426,396 / EBF 3.723), so
+the change is one env value away and the `EG_CLAMP_*` wiring below is proven inert at its default.
+
+**The knob call.** File-mirror violations **43 → 14** and the 24 mp `CHEAP_BISHOP_KING` class is
+eliminated, for **−35 balanced STS** — inside the ~140 band on a 6000-point suite. ⚠️ But orig alone read
+**−146** and mirror **+111**: on `sts300` alone this correct fix looks like a disaster. Third time the
+skewed suite would have inverted a colour decision.
+⚠️ **NOT free on nodes: +2.9% orig, +5.5% mirror, EBF 3.723 → 3.800.** Nodes are exact and deterministic,
+so this cost is real where the STS delta is not. It returns most of the 7-fix bundle's −2.0%.
+
+🚨 **CORRECTION — the file-mirror worst case is 194 mp, not 24 and not 5.** The handoff's "worst 24 → 5"
+was read off the 24 mp class and missed a **194 mp outlier present in BOTH arms**:
+`5k1r/5pp1/8/p3Rp2/3b4/3p2B1/6PP/7K w` (ours +5829, flipped +6023). The king-zone fix neither causes nor
+touches it. ▶️ Live, unexplained, and the best remaining file-mirror lead.
+★ Second fingerprint mis-read in two sessions (after WAC 243-vs-250): **read the worst case off the top
+of the list, not off the class you went looking for.**
+
+**`EG_CLAMP_KNIGHT/BISHOP/ROOK/QUEEN` are now wired**, at the end of each `evaluate_*_endgame`, per colour
+(`std::max(total, -CLAMP)` for white, which accumulates negative; `std::min` for black) so the bound is on
+magnitude and is mirror-symmetric by construction. Default 0 = disabled ⇒ byte-identical. They are now
+genuinely testable content rather than a false null waiting to happen.
+⚠️ Speed bounded BY CONSTRUCTION (4 predictable int-load-and-branch per endgame piece), not by ruler: the
+`wac_speed` run was taken while the host was under load (5.4% spread) and was discarded. A same-session
+two-arm reading is still owed.
+
+### 🐛 TENTH DEFECT — the capgain tie-break is rank-invariant but NOT file-invariant
+
+The 194 mp file-mirror worst case minimised to **six pieces**: `5k2/8/8/p3Rp2/8/8/6P1/7K w` (176 mp, all
+four non-king pieces load-bearing, turn-gated). ✅ **Ablated, not read:** toggling
+`ENABLE_CAPG_INVARIANT_ORDER` leaves the magnitude at exactly 176 and **swaps which orientation gets
+which value** — the signature of a tie-break choosing between two equal-valued captures.
+
+The shipped tie-break is own-perspective square, `sq` for white / `sq ^ 56` for black — a **RANK** flip.
+Invariant under the colour mirror it was written for; a **FILE** mirror leaves ranks alone and reverses
+file order, so same-rank ties drop straight back onto file order. Re5 attacks two undefended pawns worth
+exactly 1000 each: base picks f5, the flip picks h5, where mirror(f5) is c5.
+
+**`ENABLE_CAPG_FILE_INVARIANT_TIEBREAK`** (default off) ranks ties by attacker-to-target Chebyshev
+distance first (`capture_span`), which BOTH mirrors preserve. ⚠️ Reduces but cannot eliminate — two
+targets equidistant from the attacker still fall through to square order.
+
+| | default | +tiebreak | +tiebreak +LVA_STATIC |
+|---|---|---|---|
+| colour violations | 11 (1.4%) | 12 | **3 (0.4%)** |
+| file-mirror worst | **194 mp** | **5 mp** | **5 mp** |
+| balanced STS | 3372 | 3289 (**−83**) | 3256 (**−116**) |
+| balanced tactical | 495 | 498 (+3) | — |
+| nodes | 35,426,396 | 34,993,191 (−1.2%) | — |
+
+★ The residual file-mirror tail is now a **uniform 5 mp class** (median 5, worst 5) — a constant
+magnitude, so by the standing heuristic it is ONE specific term, not a scatter. Best next lead.
+
+### ☠️★★ THE PARTIAL-SWEEP LESSON HAS A LIMIT — completing this sweep did NOT recover the cost
+The 7-fix bundle's costs dissolved as it completed (−147 → +1). These did not: **−83 alone, −116 as a
+pair**, sub-additive but nowhere near zero, and NEGATIVE IN BOTH ORIENTATIONS (orig −23, mirror −60 for
+the tie-break alone), which is much harder to explain as jaggedness than a split would be.
+⇒ **"Costs dissolve when the sweep completes" is not a general law** — it was a property of that
+particular interacting defect set. Do not use it to wave away a consistent negative.
+⇒ Both capgain fixes stay **HELD, gated, default off**. As a pair they are a legitimate GAMES candidate
+(STS was wrong in this exact direction for capped threats: −61/−77 STS, **+45 Elo**) — but that is a
+games decision, not a bench-driven ship.
+
+**`ENABLE_CAPG_LVA_STATIC` stays HELD.** Owner-reviewed. It is not merely "LVA ordering": the gather
+picks the cheapest attacker by `square_values[]`, which is *also* the currency `value_gained` is computed
+in (`CaptureInfo(from, r, square_values[r])`). `_static` ranks by material TYPE, leaving attacker-choice
+and gain-valuation in two different currencies — a plausible mechanism for the −108 being real rather
+than jagged. LVA-by-type is right for `see()`, where the currency IS material; this is approximate
+capture-gains, where it is not.
+
+---
+
 ## ✅★★★ 2026-08-08 (FINAL) — NINE symmetry defects; colour 74.5% → 1.4%; the bundle is FREE
 
     SHIPPED  250 / 34,426,396 / EBF 3.723 / STS 1777    peak NPS 456,765 (spread 0.8%)
@@ -47,12 +203,11 @@ cannot represent "the MIRRORED position evaluates wrongly". ⇒ **A corpus retun
 symmetry gains** — that is a games question. Fourth independent reason to distrust the objective.
 
 ### ⏸️ Pending calls · ☠️ Dead knobs found
-`KING_ZONE_SYM_MODE=2` (file-mirror 42→13, −35 balanced = inside noise) → recommend SHIP.
-`ENABLE_CAPG_LVA_STATIC` (colour 11→2, −108 balanced = outside noise) → recommend HOLD; games, not a
-bench veto. ★ The distinction is measurable, not taste.
-☠️ **`EG_CLAMP_KNIGHT/BISHOP/ROOK/QUEEN` are declared, env-registered and echoed in the toggles dump but
-appear NOWHERE in `cpp_bitboard.cpp` — completely unwired.** ☠️ `ENABLE_BISHOP_FWD_RANK_FIX` is a real
-defect in code unreachable behind `ENABLE_CHEAP_BISHOP_COMPLEX` (0 of 1200 positions change).
+✅ **RESOLVED in the 2026-08-08 (late) entry above:** `KING_ZONE_SYM_MODE=2` SHIPPED ·
+`ENABLE_CAPG_LVA_STATIC` HELD · `EG_CLAMP_*` WIRED.
+☠️ `ENABLE_BISHOP_FWD_RANK_FIX` remains a real defect in code unreachable behind
+`ENABLE_CHEAP_BISHOP_COMPLEX` (0 of 1200 positions change) — keep the knob, it goes live the moment the
+expensive path is re-enabled.
 ⇒ **A knob-liveness audit is the next task**: a descent that sweeps a dead knob banks a null about the
 WIRING, not the mechanism.
 

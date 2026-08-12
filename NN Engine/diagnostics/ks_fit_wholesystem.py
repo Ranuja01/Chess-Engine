@@ -64,6 +64,71 @@ GRID = {
     "REALIZ_FLOOR":     [128, 192, 256],
     "KAUFMAN_SCALE":    [90, 100, 110],
     "SCALE_CAPTURE_GAINS": [90, 100, 110],
+    # --- PAWN MODEL, tuned jointly rather than in its own silo -------------------------------------
+    # Measured on 1,621 real-position pawn removals: our marginal pawn value is ~+58 cp of positional
+    # value where SF18's is ~-6, i.e. we overpay a pawn at EVERY rank. The whole-table SCALE_* knobs can
+    # only rescale a hand-picked shape, so the per-rank knobs below let the win%-descent choose the table
+    # entries themselves. All default 100 => byte-identical. Ranks 2..7 only (0 and 7 are unreachable).
+    "SCALE_PAWN_RANK":   [70, 85, 100],
+    "SCALE_PASSED_RANK": [70, 85, 100],
+    "SCALE_ENDGAME_RANK":[70, 85, 100],
+    "SCALE_PAWN_WALL":   [80, 100, 120],
+    "SCALE_PAWN_CHAIN":  [80, 100, 120],
+    "RANK_DEF_R2": [75, 100, 125], "RANK_DEF_R3": [75, 100, 125], "RANK_DEF_R4": [75, 100, 125],
+    "RANK_DEF_R5": [75, 100, 125], "RANK_DEF_R6": [75, 100, 125], "RANK_DEF_R7": [75, 100, 125],
+    "RANK_PSD_R2": [75, 100, 125], "RANK_PSD_R3": [75, 100, 125], "RANK_PSD_R4": [75, 100, 125],
+    "RANK_PSD_R5": [75, 100, 125], "RANK_PSD_R6": [75, 100, 125], "RANK_PSD_R7": [75, 100, 125],
+    "RANK_EG_R2":  [75, 100, 125], "RANK_EG_R3":  [75, 100, 125], "RANK_EG_R4":  [75, 100, 125],
+    "RANK_EG_R5":  [75, 100, 125], "RANK_EG_R6":  [75, 100, 125], "RANK_EG_R7":  [75, 100, 125],
+    # --- Passer V3 core, RELEASED from its hold. The header above kept these fixed on the grounds that
+    # they are game-tuned and static re-tuning risks the proxy trap. Released deliberately: the passer path
+    # is now known to be structurally bounded (R clamps to [0,384] and PASSER_R_CAP=320 => at most a 1.25x
+    # multiplier), and these terms only make sense settled together with the rank tables they multiply.
+    # The passer_* tiers remain GUARDS, so the release cannot be bought by wrecking passer positions.
+    "PASSER_MAG_SCALE":   [80, 100, 120],
+    "PASSER_R_CAP":       [256, 320, 384],
+    "PASSER_CONTEST_STOP":[60, 90, 120],
+    "PASSER_CONTEST_PATH":[20, 40, 60],
+    # --- Structural DETECTORS, built and gated at 0. Previously judged only at hand-picked 200/100 on four
+    # game venues whose 95% CIs were each +-35..67 Elo -- i.e. inconclusive, never actually tested. They have
+    # never been win%-tuned at all, let alone jointly with the tables they interact with. 0 stays in the grid
+    # so the descent can keep them off if they genuinely do not pay.
+    "ISOLATED_PAWN_PEN": [0, 40, 80, 120],
+    "BACKWARD_PAWN_PEN": [0, 40, 80, 120],
+    # --- PER-FILE chain/wall shape. These base values are hand-picked (chain A 10 / B 15 / C 100 / D 150 /
+    # E 150 / F 100 / G 15 / H 10) and only a whole-table multiplier ever existed, so the file shape itself
+    # has never been fitted. Centre and edge files are free to move independently here.
+    "CHAIN_F_A": [80, 100, 130], "CHAIN_F_B": [80, 100, 130], "CHAIN_F_C": [80, 100, 130],
+    "CHAIN_F_D": [80, 100, 130], "CHAIN_F_E": [80, 100, 130], "CHAIN_F_F": [80, 100, 130],
+    "CHAIN_F_G": [80, 100, 130], "CHAIN_F_H": [80, 100, 130],
+    "WALL_F_A": [80, 100, 130], "WALL_F_B": [80, 100, 130], "WALL_F_C": [80, 100, 130],
+    "WALL_F_D": [80, 100, 130], "WALL_F_E": [80, 100, 130], "WALL_F_F": [80, 100, 130],
+    "WALL_F_G": [80, 100, 130], "WALL_F_H": [80, 100, 130],
+    # --- ITERATION 2 -----------------------------------------------------------------------------
+    # ENDGAME structural magnitudes. These were hardcoded literals no knob could reach, so endgame pawn
+    # structure was flat in file, flat in rank, and had NEVER been fitted once -- while SF's endgame
+    # connected term is its most rank-sensitive component. Most unexplored surface in the subsystem.
+    "EG_PHALANX": [70, 100, 150], "EG_SUPPORT": [95, 135, 180],
+    "EG_DEFEND":  [80, 115, 150], "EG_LATENT":  [25, 50, 80],
+    # Per-rank structural sensitivity, an INDEPENDENT curve per phase (two evaluators => no shared shape).
+    "STRUCT_R_MG_R3": [80, 100, 125], "STRUCT_R_MG_R4": [80, 100, 125],
+    "STRUCT_R_MG_R5": [80, 100, 125], "STRUCT_R_MG_R6": [80, 100, 125],
+    "STRUCT_R_EG_R3": [80, 100, 125], "STRUCT_R_EG_R4": [80, 100, 125],
+    "STRUCT_R_EG_R5": [80, 100, 150], "STRUCT_R_EG_R6": [80, 100, 150],
+    # `opposed` -- the signal getPPIncrement computes and discards. SF scales connected by (2+phalanx-opposed).
+    "STRUCT_OPPOSED_MG_PCT": [60, 80, 100], "STRUCT_OPPOSED_EG_PCT": [60, 80, 100],
+    # The per-pawn caps, tunable rather than assumed. Raising them alone hurt; the descent decides in context.
+    "PAWN_CLAMP_MID": [175, 225, 300], "PAWN_CLAMP_EG": [125, 175, 250],
+    # Realizability headroom: PASSER_R_CAP pinned itself at the internal clamp, so both must move together.
+    "PASSER_R_MAX": [384, 512], "PASSER_R_CAP": [320, 384, 512],
+    # Correctness gate: makes the deferred set equal the flagged set. Precondition for the PP_* knobs below,
+    # since `ppInc>=100 <=> flagged` holds only while PP_BLOCKADE_PEN == 100.
+    "ENABLE_PASSER_DEFER_ON_FLAG": [0, 1],
+    # getPPIncrement's own hand-picked constants -- never tuned, and doubly load-bearing because ppIncrement
+    # both selects the rank table and feeds the bonus via >>3 / >>2.
+    "PP_OPP_PAWN_PEN": [90, 125, 160], "PP_BLOCKADE_PEN": [70, 100, 140],
+    "PP_UNBLOCKED": [25, 50, 80], "PP_DIAG_SUPPORT": [50, 75, 110],
+    "PP_FILE_CLEAR": [100, 150, 200], "PP_HORIZ_SUPPORT": [160, 225, 290],
 }
 cur = {"ENABLE_KS_CHECK_V2": 1, "ENABLE_PASSER_V3": 1,
        "KS_CHK_QUEEN": 14, "KS_CHK_ROOK": 14, "KS_CHK_BISHOP": 7, "KS_CHK_KNIGHT": 9, "KS_CHK_MULTI": 0,
@@ -77,7 +142,30 @@ cur = {"ENABLE_KS_CHECK_V2": 1, "ENABLE_PASSER_V3": 1,
        "PASSER_RFLOOR_R5": 0, "PASSER_RFLOOR_R6": 0,
        "ENABLE_CAPG_REALIZ": 0, "REALIZ_MAT_K": 0, "REALIZ_MAT_THRESH": 0,
        "REALIZ_PHASE_K": 0, "REALIZ_FLOOR": 256,
-       "KAUFMAN_SCALE": 100, "SCALE_CAPTURE_GAINS": 100}
+       "KAUFMAN_SCALE": 100, "SCALE_CAPTURE_GAINS": 100,
+       "SCALE_PAWN_RANK": 100, "SCALE_PASSED_RANK": 100, "SCALE_ENDGAME_RANK": 100,
+       "SCALE_PAWN_WALL": 100, "SCALE_PAWN_CHAIN": 100,
+       "RANK_DEF_R2": 100, "RANK_DEF_R3": 100, "RANK_DEF_R4": 100,
+       "RANK_DEF_R5": 100, "RANK_DEF_R6": 100, "RANK_DEF_R7": 100,
+       "RANK_PSD_R2": 100, "RANK_PSD_R3": 100, "RANK_PSD_R4": 100,
+       "RANK_PSD_R5": 100, "RANK_PSD_R6": 100, "RANK_PSD_R7": 100,
+       "RANK_EG_R2": 100, "RANK_EG_R3": 100, "RANK_EG_R4": 100,
+       "RANK_EG_R5": 100, "RANK_EG_R6": 100, "RANK_EG_R7": 100,
+       "PASSER_MAG_SCALE": 100, "PASSER_R_CAP": 320,
+       "PASSER_CONTEST_STOP": 90, "PASSER_CONTEST_PATH": 40,
+       "ISOLATED_PAWN_PEN": 0, "BACKWARD_PAWN_PEN": 0,
+       "CHAIN_F_A": 100, "CHAIN_F_B": 100, "CHAIN_F_C": 100, "CHAIN_F_D": 100,
+       "CHAIN_F_E": 100, "CHAIN_F_F": 100, "CHAIN_F_G": 100, "CHAIN_F_H": 100,
+       "WALL_F_A": 100, "WALL_F_B": 100, "WALL_F_C": 100, "WALL_F_D": 100,
+       "WALL_F_E": 100, "WALL_F_F": 100, "WALL_F_G": 100, "WALL_F_H": 100,
+       "EG_PHALANX": 100, "EG_SUPPORT": 135, "EG_DEFEND": 115, "EG_LATENT": 50,
+       "STRUCT_R_MG_R3": 100, "STRUCT_R_MG_R4": 100, "STRUCT_R_MG_R5": 100, "STRUCT_R_MG_R6": 100,
+       "STRUCT_R_EG_R3": 100, "STRUCT_R_EG_R4": 100, "STRUCT_R_EG_R5": 100, "STRUCT_R_EG_R6": 100,
+       "STRUCT_OPPOSED_MG_PCT": 100, "STRUCT_OPPOSED_EG_PCT": 100,
+       "PAWN_CLAMP_MID": 225, "PAWN_CLAMP_EG": 175,
+       "PASSER_R_MAX": 384, "ENABLE_PASSER_DEFER_ON_FLAG": 0,
+       "PP_OPP_PAWN_PEN": 125, "PP_BLOCKADE_PEN": 100, "PP_UNBLOCKED": 50,
+       "PP_DIAG_SUPPORT": 75, "PP_FILE_CLEAR": 150, "PP_HORIZ_SUPPORT": 225}
 
 # Minimize OVERALL win%-MSE subject to NO tier regressing (Pareto): de-king improves the over-read GUARDS not the
 # `target` under-read tier, so a target-only objective would ignore it. `target` is guarded so KS recovery holds.

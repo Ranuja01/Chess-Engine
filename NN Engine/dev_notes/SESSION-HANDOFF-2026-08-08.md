@@ -1,3 +1,103 @@
+# 🌅 READ FIRST IN THE MORNING — the night's results
+
+## 1. SPRT `egclamp_h500` — DONE, INCONCLUSIVE, lane PARKED (nothing shipped)
+```
++455 -450 =295 of 1200  (50.2%)   elo ~ +1.4 ± 23.1   LLR -0.069  (bounds ±2.944)
+DECISION: inconclusive — hit max_games without crossing a bound
+verdict: NN Engine/selfplay/games/egclamp_h500/sprt.json
+```
+Per the agreed tree: **"not worth ≥5 Elo" ⇒ park, do not extend, do not ship.** `EG_CLAMP_*` stay 0 and
+the defaults are untouched. The endgame-vs-midgame bounding asymmetry is REAL (rook over the midgame's
+own headroom on 29% of positions, excess to 3094 mp) but it is not worth Elo at this shape.
+
+### ★★★ TWO CALIBRATIONS WORTH MORE THAN THE RESULT
+1. **The bench said −59; games said +1.4 ± 23.1.** Direct confirmation that a balanced-STS delta of that
+   size is NOISE, exactly as the near-inert arm predicted (H=2000 barely binds and read −151). The two
+   independent methods agree ⇒ **treat |balanced STS| < ~150 as unresolvable, full stop.**
+2. **☠️ NEVER PEEK — this run proves it.** At 91 games it read **elo ~ −31** and looked like a
+   developing loss. Final: **+1.4**. Acting on the interim trend would have closed a lane on noise.
+
+## 2. The 5 mp file-mirror class — LOCALISED to `pt_queens`, three suspects killed
+✅ **Minimal repro, 7 pieces:** `2b2k1r/Q5b1/2q5/8/8/8/8/6K1 b - - 1 20` — `pt_queens` +149 vs +144
+(`pieces` inherits it). `phase=64`, **not** endgame, **not** turn-gated ⇒ the MIDGAME queen evaluator.
+⚠️ Leave-one-out: removing ANY of the five non-king pieces takes it to 0 ⇒ an INTERACTION, not a
+single-square table error.
+
+☠️ **Refuted by ablation (all three were code-reading stories):**
+| suspect | why it looked right | result |
+|---|---|---|
+| `BISHOP_MOB_SECONDARY=5` | only knob whose value is literally 5 AND proven live at defaults | **=0 leaves the class byte-identical** (knob moved other evals, so a trustworthy null) |
+| `CHEAP_QUEEN_MOB_MG=5` | the other 5-valued knob; guard is `(ENABLE_… \|\| g_eval_light)`, so it might be live in the probe | **=0 changes nothing** — the gate was telling the truth |
+| the attacking layer | `attackingLayer[..]` feeds pt_queens heavily | **`SCALE_ATTACK_LAYER=0` drops the term +149→+85 but the gap stays EXACTLY 5** |
+
+★ That last one is the useful clue: **the 5 mp is invariant to attack-layer scaling**, so it lives in an
+unscaled/raw part of the midgame queen path. Leading remaining candidate: the xray block's
+`values[xRayPieceType] >> 6` (a raw constant per piece type, untouched by any SCALE knob).
+▶️ **Next test:** ablate the xray contribution on the 7-piece repro. ⚠️ Three reading-derived suspects
+have already died here — ablate, do not theorise.
+
+## 3. Still open (games-free, owner's call)
+Ship `ENABLE_CAPG_FILE_INVARIANT_TIEBREAK` + `ENABLE_CAPG_LVA_STATIC` on the INVARIANT? Their −116
+balanced STS is now **very likely noise** — the same instrument said −59 for a change games measured at
++1.4. The move-change rate (1.5%) says games can never adjudicate them, so it is ship-on-correctness or
+leave gated. See §"Pending, games-free decision" below.
+
+## 4. Collapse hunting — owner's proposal, needs a decision before it runs
+☠️ `vs_sf` hardcodes its tag as `vssf_<elo>` (`overnight_runner.sh` ~1142) ⇒ **re-running at 2400
+OVERWRITES the existing collapse corpus and PGNs**, the only record of how the pre-symmetry eval failed.
+Options: (a) preserve the old set, then re-run at 2400 — fully comparable, needs one copy first;
+(b) run at a different elo — safe, not comparable to the 60-69% / 67% baseline; (c) `gauntlet` with a
+fresh tag — deterministic and no overwrite, but it does not pass `--win-threshold` so it likely emits no
+collapse dump. ▶️ Recommend (a). ★ Rationale for doing it at all: collapse-derived findings are
+LARGE-FOOTPRINT BY CONSTRUCTION, which is exactly what the empty games queue needs.
+
+## ⚠️ THEN THE GAMES QUEUE IS EMPTY — this is the real state of the lane
+Every other candidate was footprint-filtered on 2026-08-08 and is **below the resolution of a games
+night** (control = `ENABLE_THREATS=0`, the +45 Elo shipped change, at **9.2%** meaningful move-change):
+
+| candidate | meaningful move-change | verdict |
+|---|---|---|
+| EG clamps H=500 | **6.0%** | ← the one running |
+| winnability @40 | 6.5% | harmful (−221 balanced) |
+| capgain pair | 1.5% | unresolvable |
+| `EG_EXIST` +300 | 1.2% | unresolvable |
+| winnability @10 | 0.5% | unresolvable AND −170 |
+| closedness | 0% | inert at defaults |
+
+⇒ **Do not schedule more games on small knobs.** The next block must FIND content with a large
+footprint, not test more known-small things. 🧰 `_move_change_arms.py ARM=<knobs>` is a 2-minute
+pre-filter — **run it BEFORE any bench sweep or games night**, never after.
+
+## ▶️ The one live lead worth the next session — with its first test already chosen
+The **uniform 5 mp file-mirror class** (13 positions, median 5, worst 5, after
+`ENABLE_CAPG_FILE_INVARIANT_TIEBREAK`). A CONSTANT magnitude ⇒ ONE specific term, by the standing
+heuristic that resolved 30/50/85/24 mp four times for four. Unlike every knob above this is an UNKNOWN
+defect, not a known-small one — the only place a large footprint might still be hiding.
+
+🎯 **Prime suspect, pre-flight-checked (zero CPU, 2026-08-08 night): `BISHOP_MOB_SECONDARY = 5`.**
+The only knob whose value is literally 5 AND which executes at defaults. `CHEAP_QUEEN_MOB_MG=5` is the
+other candidate and is RULED OUT — it sits behind `ENABLE_CHEAP_QUEEN_MOBILITY=0`.
+✅ Liveness proven: it lives in `get_latent_bishop_activity_score`, called UNCONDITIONALLY from the
+midgame bishop evaluator for both colours (`cpp_bitboard.cpp` ~2036 white / ~2176 black) — no gate, no
+early return above it, so it is NOT the dead-code trap that killed `ENABLE_BISHOP_FWD_RANK_FIX`.
+5 mp = exactly ONE secondary-mobility square counted differently under a file mirror.
+▶️ **FIRST TEST, one run, decisive:**
+`pyrun diagnostics/_eval_symmetry.py N=800 ENABLE_CAPG_FILE_INVARIANT_TIEBREAK=1 BISHOP_MOB_SECONDARY=0`
+If the 5 mp class vanishes → the term is located, then find WHY it differs. If it survives → suspect
+refuted, move to the `/3` truncations in the same function (`attackingLayer[..]/3`, two sites per colour).
+⚠️ This is a code-reading HYPOTHESIS, not a finding — reading has produced wrong stories repeatedly this
+session. Ablate first, explain second.
+
+## ⏸️ Pending, games-free decision (owner's call, do NOT fold into the SPRT)
+Ship `ENABLE_CAPG_FILE_INVARIANT_TIEBREAK` + `ENABLE_CAPG_LVA_STATIC` as defaults on the INVARIANT
+(colour 11→3, file-mirror worst 194→5 mp), accepting they are unresolvable in games. Argument for:
+leaving known asymmetry live means every constant fitted afterwards absorbs it — documented as how two
+of the nine defects rode in on game-validated bundles. Argument against: −116 balanced STS, probably
+noise (a comparable family's floor measured ~150) but unmeasured for this family. 🧰 A near-inert
+capgain arm (e.g. `CAPG_PAWN_RANK_CLAMP` ±1) would settle it in one run.
+
+---
+
 # Session handoff — 2026-08-08: colour asymmetry 74.5% → 0.2%, and the bundle is FREE
 
 > ## 🚨 READ THIS BLOCK FIRST — everything below it is the working log, in discovery order

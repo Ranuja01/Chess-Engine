@@ -1256,6 +1256,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CAPG_REALIZ = env_flag("ENABLE_CAPG_REALIZ", Config::ENABLE_CAPG_REALIZ);
         Config::ENABLE_CAPG_PIN = env_flag("ENABLE_CAPG_PIN", Config::ENABLE_CAPG_PIN);
         Config::ENABLE_CAPG_TEMPO = env_flag("ENABLE_CAPG_TEMPO", Config::ENABLE_CAPG_TEMPO);
+        Config::ENABLE_CAPG_LAZY_PIN = env_flag("ENABLE_CAPG_LAZY_PIN", Config::ENABLE_CAPG_LAZY_PIN);
+        Config::ENABLE_CAPG_NET_SELECT = env_flag("ENABLE_CAPG_NET_SELECT", Config::ENABLE_CAPG_NET_SELECT);
+        Config::ENABLE_CAPG_PROMO_CREDIT = env_flag("ENABLE_CAPG_PROMO_CREDIT", Config::ENABLE_CAPG_PROMO_CREDIT);
         Config::PP_OPP_PAWN_PEN = env_int("PP_OPP_PAWN_PEN", Config::PP_OPP_PAWN_PEN);
         Config::PP_BLOCKADE_PEN = env_int("PP_BLOCKADE_PEN", Config::PP_BLOCKADE_PEN);
         Config::PP_UNBLOCKED = env_int("PP_UNBLOCKED", Config::PP_UNBLOCKED);
@@ -1279,9 +1282,18 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SCALE_PLACE_BISHOP = env_int("SCALE_PLACE_BISHOP", Config::SCALE_PLACE_BISHOP);
         Config::SCALE_PLACE_QUEEN = env_int("SCALE_PLACE_QUEEN", Config::SCALE_PLACE_QUEEN);
         Config::SCALE_PLACE_KING_EG = env_int("SCALE_PLACE_KING_EG", Config::SCALE_PLACE_KING_EG);
+        // Must be read before rebuild_scaled_placement() below, which bakes it into the working tables.
+        Config::QUEEN_PST_FILE_SYM_MODE = env_int("QUEEN_PST_FILE_SYM_MODE", Config::QUEEN_PST_FILE_SYM_MODE);
         Config::CENTER_INNER_MULT = env_int("CENTER_INNER_MULT", Config::CENTER_INNER_MULT);
         Config::CENTER_OUTER_MULT = env_int("CENTER_OUTER_MULT", Config::CENTER_OUTER_MULT);
         Config::IMBALANCE_SCALE = env_int("IMBALANCE_SCALE", Config::IMBALANCE_SCALE);
+        Config::OVD_BOUNDED_MODE = env_int("OVD_BOUNDED_MODE", Config::OVD_BOUNDED_MODE);
+        Config::OVD_CAP = env_int("OVD_CAP", Config::OVD_CAP);
+        Config::OVD_KNEE = env_int("OVD_KNEE", Config::OVD_KNEE);
+        Config::OVD_DENOM_FLOOR = env_int("OVD_DENOM_FLOOR", Config::OVD_DENOM_FLOOR);
+        Config::CENTRAL_BOUNDED_MODE = env_int("CENTRAL_BOUNDED_MODE", Config::CENTRAL_BOUNDED_MODE);
+        Config::CENTRAL_CAP = env_int("CENTRAL_CAP", Config::CENTRAL_CAP);
+        Config::CENTRAL_KNEE = env_int("CENTRAL_KNEE", Config::CENTRAL_KNEE);
         Config::BISHOP_PAIR_BONUS = env_int("BISHOP_PAIR_BONUS", Config::BISHOP_PAIR_BONUS);
         Config::KNIGHT_PAIR_BONUS = env_int("KNIGHT_PAIR_BONUS", Config::KNIGHT_PAIR_BONUS);
         Config::ROOK_OPEN_BASE = env_int("ROOK_OPEN_BASE", Config::ROOK_OPEN_BASE);
@@ -1416,6 +1428,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_MIN_ATTACKERS = env_int("KS_MIN_ATTACKERS", Config::KS_MIN_ATTACKERS);
         Config::KS_ATT_PRODUCT = env_int("KS_ATT_PRODUCT", Config::KS_ATT_PRODUCT);
         Config::KS_OVERLOAD = env_int("KS_OVERLOAD", Config::KS_OVERLOAD);
+        Config::KS_DEFAWARE_MODE = env_int("KS_DEFAWARE_MODE", Config::KS_DEFAWARE_MODE);
+        Config::KS_DEFAWARE_COUNT_SHR = env_int("KS_DEFAWARE_COUNT_SHR", Config::KS_DEFAWARE_COUNT_SHR);
+        Config::ENABLE_KS_WEAK_ATT2 = env_flag("ENABLE_KS_WEAK_ATT2", Config::ENABLE_KS_WEAK_ATT2);
+        Config::KS_SQC_MODE = env_int("KS_SQC_MODE", Config::KS_SQC_MODE);
         Config::KS_WEAK = env_int("KS_WEAK", Config::KS_WEAK);
         Config::KS_SAFE_CHECK = env_int("KS_SAFE_CHECK", Config::KS_SAFE_CHECK);
         Config::KS_SAFE_CHECK_DEF = env_int("KS_SAFE_CHECK_DEF", Config::KS_SAFE_CHECK_DEF);
@@ -1534,6 +1550,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHEAP_ROOK_FWD = env_int("CHEAP_ROOK_FWD", Config::CHEAP_ROOK_FWD);
         Config::ENABLE_CHEAP_QUEEN_MOBILITY = env_flag("ENABLE_CHEAP_QUEEN_MOBILITY", Config::ENABLE_CHEAP_QUEEN_MOBILITY);
         Config::CHEAP_QUEEN_MOB_MG = env_int("CHEAP_QUEEN_MOB_MG", Config::CHEAP_QUEEN_MOB_MG);
+        Config::QUEEN_MOB_SAFE_MG = env_int("QUEEN_MOB_SAFE_MG", Config::QUEEN_MOB_SAFE_MG);
         Config::CHEAP_QUEEN_MOB_EG = env_int("CHEAP_QUEEN_MOB_EG", Config::CHEAP_QUEEN_MOB_EG);
         Config::ENABLE_CHEAP_KNIGHT_MOBILITY = env_flag("ENABLE_CHEAP_KNIGHT_MOBILITY", Config::ENABLE_CHEAP_KNIGHT_MOBILITY);
         Config::CHEAP_KNIGHT_MOB = env_int("CHEAP_KNIGHT_MOB", Config::CHEAP_KNIGHT_MOB);
@@ -1624,6 +1641,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_PAWN_SUPPORT_WRAP_FIX = env_flag("ENABLE_PAWN_SUPPORT_WRAP_FIX", Config::ENABLE_PAWN_SUPPORT_WRAP_FIX);
         Config::ENABLE_CAPG_INVARIANT_ORDER = env_flag("ENABLE_CAPG_INVARIANT_ORDER", Config::ENABLE_CAPG_INVARIANT_ORDER);
         Config::ENABLE_CAPG_LVA_STATIC = env_flag("ENABLE_CAPG_LVA_STATIC", Config::ENABLE_CAPG_LVA_STATIC);
+        Config::ENABLE_CAPG_FILE_INVARIANT_TIEBREAK = env_flag("ENABLE_CAPG_FILE_INVARIANT_TIEBREAK", Config::ENABLE_CAPG_FILE_INVARIANT_TIEBREAK);
         Config::ENABLE_BISHOP_FWD_RANK_FIX = env_flag("ENABLE_BISHOP_FWD_RANK_FIX", Config::ENABLE_BISHOP_FWD_RANK_FIX);
         Config::KING_ZONE_SYM_MODE = env_int("KING_ZONE_SYM_MODE", Config::KING_ZONE_SYM_MODE);
         Config::ENABLE_CAPG_EVADE_POLARITY_FIX = env_flag("ENABLE_CAPG_EVADE_POLARITY_FIX", Config::ENABLE_CAPG_EVADE_POLARITY_FIX);
@@ -1848,6 +1866,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CENTER_INNER_MULT=" << Config::CENTER_INNER_MULT
                   << " CENTER_OUTER_MULT=" << Config::CENTER_OUTER_MULT
                   << " IMBALANCE_SCALE=" << Config::IMBALANCE_SCALE
+                  << " OVD_BOUNDED_MODE=" << Config::OVD_BOUNDED_MODE
+                  << " OVD_CAP=" << Config::OVD_CAP
+                  << " OVD_KNEE=" << Config::OVD_KNEE
+                  << " OVD_DENOM_FLOOR=" << Config::OVD_DENOM_FLOOR
+                  << " CENTRAL_BOUNDED_MODE=" << Config::CENTRAL_BOUNDED_MODE
+                  << " CENTRAL_CAP=" << Config::CENTRAL_CAP
+                  << " CENTRAL_KNEE=" << Config::CENTRAL_KNEE
                   << " BISHOP_PAIR_BONUS=" << Config::BISHOP_PAIR_BONUS
                   << " KNIGHT_PAIR_BONUS=" << Config::KNIGHT_PAIR_BONUS
                   << " ROOK_OPEN_BASE=" << Config::ROOK_OPEN_BASE
@@ -1958,6 +1983,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_MIN_ATTACKERS=" << Config::KS_MIN_ATTACKERS
                   << " KS_ATT_PRODUCT=" << Config::KS_ATT_PRODUCT
                   << " KS_OVERLOAD=" << Config::KS_OVERLOAD
+                  << " KS_DEFAWARE_MODE=" << Config::KS_DEFAWARE_MODE
+                  << " KS_DEFAWARE_COUNT_SHR=" << Config::KS_DEFAWARE_COUNT_SHR
+                  << " ENABLE_KS_WEAK_ATT2=" << Config::ENABLE_KS_WEAK_ATT2
+                  << " KS_SQC_MODE=" << Config::KS_SQC_MODE
                   << " ENABLE_PASSER_BLOCKADE_QUALITY=" << Config::ENABLE_PASSER_BLOCKADE_QUALITY
                   << " PASSER_CONTEST_PCT=" << Config::PASSER_CONTEST_PCT
                   << " PASSER_KRACE_MAG=" << Config::PASSER_KRACE_MAG
@@ -2002,6 +2031,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CHEAP_ROOK_FWD=" << Config::CHEAP_ROOK_FWD
                   << " ENABLE_CHEAP_QUEEN_MOBILITY=" << Config::ENABLE_CHEAP_QUEEN_MOBILITY
                   << " CHEAP_QUEEN_MOB_MG=" << Config::CHEAP_QUEEN_MOB_MG
+                  << " QUEEN_MOB_SAFE_MG=" << Config::QUEEN_MOB_SAFE_MG
+                  << " QUEEN_PST_FILE_SYM_MODE=" << Config::QUEEN_PST_FILE_SYM_MODE
+                  << " ENABLE_CAPG_NET_SELECT=" << Config::ENABLE_CAPG_NET_SELECT
+                  << " ENABLE_CAPG_PROMO_CREDIT=" << Config::ENABLE_CAPG_PROMO_CREDIT
+                  << " ENABLE_CAPG_LAZY_PIN=" << Config::ENABLE_CAPG_LAZY_PIN
                   << " CHEAP_QUEEN_MOB_EG=" << Config::CHEAP_QUEEN_MOB_EG
                   << " ENABLE_CHEAP_KNIGHT_MOBILITY=" << Config::ENABLE_CHEAP_KNIGHT_MOBILITY
                   << " CHEAP_KNIGHT_MOB=" << Config::CHEAP_KNIGHT_MOB
@@ -2018,6 +2052,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_KNIGHT_MOB_SYM_UP=" << Config::ENABLE_KNIGHT_MOB_SYM_UP
                   << " ENABLE_PAWN_SUPPORT_WRAP_FIX=" << Config::ENABLE_PAWN_SUPPORT_WRAP_FIX
                   << " ENABLE_CAPG_INVARIANT_ORDER=" << Config::ENABLE_CAPG_INVARIANT_ORDER
+                  << " ENABLE_CAPG_FILE_INVARIANT_TIEBREAK=" << Config::ENABLE_CAPG_FILE_INVARIANT_TIEBREAK
                   << " ENABLE_ROOK_DBLCOUNT_SYM_UP=" << Config::ENABLE_ROOK_DBLCOUNT_SYM_UP
                   << " ENABLE_ROOK_ENDGAME_CAP=" << Config::ENABLE_ROOK_ENDGAME_CAP
                   << " ROOK_ENDGAME_CAP=" << Config::ROOK_ENDGAME_CAP

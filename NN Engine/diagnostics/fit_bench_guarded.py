@@ -253,7 +253,63 @@ GRID_SAFEPAWN = {
     "cap1200_sp800":   {"THREAT_PER_TARGET_CAP": 1200, "THREAT_SAFE_PAWN": 800},
 }
 
+# PAWN-STRUCTURE arm (2026-08-04): ISOLATED_PAWN_PEN and BACKWARD_PAWN_PEN are BUILT AND GATED OFF (both 0)
+# -- the same pattern as ENABLE_THREATS, MOD_KS_REALIZ and the gravity machinery, each of which turned out to
+# be a real gain sitting behind a zero. SF dampens ordinary pawns hard (Isolated S(1,20), Backward S(6,19),
+# both + WeakUnopposed S(15,18), plus Doubled/DoubledEarly/BlockedPawn); we have the BOOST half (chain/wall)
+# and none of the DAMPEN half, so every "is this pawn actually good" judgement is forced into the passer
+# layer's realizability multiplier. Ordinary pawns appear in far more positions than advanced passers, so a
+# general-play-weighted corpus can resolve these where passer arms never could.
+GRID_PAWNSTRUCT = {
+    "baseline":     {},
+    "iso_25":       {"ISOLATED_PAWN_PEN": 25},
+    "iso_50":       {"ISOLATED_PAWN_PEN": 50},
+    "iso_100":      {"ISOLATED_PAWN_PEN": 100},
+    "bwd_25":       {"BACKWARD_PAWN_PEN": 25},
+    "bwd_50":       {"BACKWARD_PAWN_PEN": 50},
+    "bwd_100":      {"BACKWARD_PAWN_PEN": 100},
+    "both_25":      {"ISOLATED_PAWN_PEN": 25, "BACKWARD_PAWN_PEN": 25},
+    "both_50":      {"ISOLATED_PAWN_PEN": 50, "BACKWARD_PAWN_PEN": 50},
+    "both_100_50":  {"ISOLATED_PAWN_PEN": 100, "BACKWARD_PAWN_PEN": 50},
+}
+
+# PAWN-STRUCTURE round 2 (2026-08-04): round 1 improved corpus val MONOTONICALLY (279.510 -> 276.372 at
+# iso100/bwd50) with the SMALLEST bench footprint of the session (bwd_100 = -7 STS / -2 WAC), and the trend
+# had NOT turned at the edge of the grid. Round 2 pushes further and runs on the CORRECTED backward
+# definition (now also counts an enemy pawn OCCUPYING the stop square, matching SF's `leverPush | blocked`).
+# ⚠️ Expect the flat knob to want a high value: SF splits these by phase (Isolated S(1,20), Backward S(6,19)
+# -- nearly pure endgame terms) and ours is phase-flat, so a single constant is compensating for a missing
+# phase split. A high optimum here is evidence for making them (mg, eg) pairs, not for shipping a big flat.
+GRID_PAWNSTRUCT2 = {
+    "baseline":      {},
+    "iso150":        {"ISOLATED_PAWN_PEN": 150},
+    "iso200":        {"ISOLATED_PAWN_PEN": 200},
+    "bwd150":        {"BACKWARD_PAWN_PEN": 150},
+    "bwd200":        {"BACKWARD_PAWN_PEN": 200},
+    "i100_b50":      {"ISOLATED_PAWN_PEN": 100, "BACKWARD_PAWN_PEN": 50},   # round-1 best, re-measured
+    "i150_b100":     {"ISOLATED_PAWN_PEN": 150, "BACKWARD_PAWN_PEN": 100},
+    "i200_b100":     {"ISOLATED_PAWN_PEN": 200, "BACKWARD_PAWN_PEN": 100},
+    "i200_b200":     {"ISOLATED_PAWN_PEN": 200, "BACKWARD_PAWN_PEN": 200},
+    "i300_b150":     {"ISOLATED_PAWN_PEN": 300, "BACKWARD_PAWN_PEN": 150},
+}
+
+# ORD-FLOOR arm (2026-08-05): floor a passer at what the same pawn would earn if NOT passed. Distinct from
+# every failed unconditional-base arm: those granted a share of `mag` (hundreds of mp, untethered); this
+# grants at most default_midgame_pawn_rank_bonus[rank] (90 mp at rank 6) and only where the passer is
+# currently scoring BELOW an ordinary pawn -- a discontinuity, not a fudge. Verified per-passer: w1 f2
+# 6 -> 96, w5 c4 13 -> 73, healthy passers move ~-1% (the ordinary-pawn part is no longer amplified by
+# R>256). Paired with R_CAP, the only other passer lever that has never cost STS (+4 on the mixed corpus).
+GRID_ORDFLOOR = {
+    "baseline":         {},
+    "ordfloor":         {"ENABLE_PASSER_ORD_FLOOR": 1},
+    "rcap384":          {"PASSER_R_CAP": 384},
+    "ordfloor_rcap384": {"ENABLE_PASSER_ORD_FLOOR": 1, "PASSER_R_CAP": 384},
+    "ordfloor_rcap448": {"ENABLE_PASSER_ORD_FLOOR": 1, "PASSER_R_CAP": 448},
+    "ordfloor_mag110":  {"ENABLE_PASSER_ORD_FLOOR": 1, "PASSER_MAG_SCALE": 110},
+}
+
 GRIDS = {"rfloor": GRID_RFLOOR, "passer": GRID_PASSER, "threats": GRID_THREATS,
+         "pawnstruct": GRID_PAWNSTRUCT, "pawnstruct2": GRID_PAWNSTRUCT2, "ordfloor": GRID_ORDFLOOR,
          "threatscale": GRID_THREAT_SCALE, "threatconfirm": GRID_THREAT_CONFIRM,
          "safepawn": GRID_SAFEPAWN,
          "resid": GRID_RESID, "threatcap": GRID_THREAT_CAP, "threatgate": GRID_THREAT_GATE,

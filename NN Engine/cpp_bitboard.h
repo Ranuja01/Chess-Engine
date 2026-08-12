@@ -313,9 +313,13 @@ struct CaptureInfo {
     uint8_t from;
 	uint8_t to;
     int value_gained;
+	// Gain net of the opponent's best reply that SURVIVES this capture (see ENABLE_CAPG_NET_SELECT).
+	// Defaults to value_gained so the field is inert unless the net-selection pass fills it in.
+	int net_gain;
 
 	CaptureInfo() = default;
-	CaptureInfo(uint8_t from_square, uint8_t to_square, int value) : from(from_square), to(to_square), value_gained(value) {}
+	CaptureInfo(uint8_t from_square, uint8_t to_square, int value)
+		: from(from_square), to(to_square), value_gained(value), net_gain(value) {}
 };
 
 /*
@@ -1588,6 +1592,24 @@ inline int get_least_valuable_attacker_static(uint64_t attackers, const BoardSta
     return 0; // or INT_MAX, or some sentinel
 }
 
+
+/*
+	Chebyshev distance between an attacker's square and its target.
+
+	Used as a capture-ordering tie-break that survives BOTH board mirrors: a rank flip (colour swap)
+	and a file flip both preserve this distance, where a raw square index preserves neither on its own.
+
+	Parameters:
+	- from: the attacker's square
+	- to: the captured square
+
+	Returns: the king-move distance between the two squares
+*/
+inline int capture_span(uint8_t from, uint8_t to){
+	const int df = std::abs((int)(from & 7) - (int)(to & 7));
+	const int dr = std::abs((int)(from >> 3) - (int)(to >> 3));
+	return df > dr ? df : dr;
+}
 
 inline void update_attackers_for_piece_removal(uint8_t to_square, uint64_t& occupancy, uint64_t colour_attackers[2], bool turn, const BoardState& state){
 	colour_attackers[turn] = attackersMask(turn, to_square, occupancy, (state.queens | state.rooks) & occupancy, (state.queens | state.bishops) & occupancy, state.kings & occupancy, state.knights & occupancy, state.pawns & occupancy, state.occupied_colour[turn] & occupancy);

@@ -725,6 +725,16 @@ namespace Config
     // Tie-break: least valuable attacker (MVV-LVA), then own-perspective square (sq for white,
     // sq^56 for black). Behavioral -> gated default-off.
     inline bool ENABLE_CAPG_INVARIANT_ORDER = true;   // SHIPPED 2026-08-08 in the 7-fix colour bundle
+    // CAPG_FILE_INVARIANT_TIEBREAK: the tie-break above is own-perspective, i.e. a RANK flip, so it is
+    // invariant under the colour mirror it was written for but NOT under a FILE mirror -- which leaves
+    // ranks alone and reverses file order, dropping same-rank ties straight back onto file order.
+    // Repro `5k2/8/8/p3Rp2/8/8/6P1/7K w` (176 mp, the minimal form of the worst file-mirror violation
+    // at shipped defaults): Re5 attacks two undefended pawns worth exactly 1000 each, base picks f5 and
+    // the flip picks h5 where mirror(f5) is c5, so the two orientations simulate different sequences.
+    // Ranks ties by attacker-to-target distance first, which BOTH mirrors preserve.
+    // ⚠️ Reduces but cannot eliminate: two targets equidistant from the attacker still fall through to
+    // the square order. Behavioral -> gated default-off.
+    inline bool ENABLE_CAPG_FILE_INVARIANT_TIEBREAK = false;
     // CAPG_LVA_STATIC: the capture-gains GATHER picks its attacker with get_least_valuable_attacker,
     // which ranks by square_values[] -- the EVAL MAGNITUDE on the square, not the piece's material
     // value. That is not colour-blind, so a target attacked by both a rook and a pawn resolves to
@@ -750,7 +760,9 @@ namespace Config
     // violations 42 -> 13 and the worst case 24 -> 5 mp. Both repairs are symmetric, so balanced STS
     // decides. 0 = legacy (asymmetric) · 1 = LEAN (E -> DEFG, each middle file leans to its own side,
     // continuing the table's A/B/C-queenside F/G/H-kingside pattern) · 2 = CENTRED (D -> CDEF).
-    inline int KING_ZONE_SYM_MODE = 0;
+    // SHIPPED 2026-08-08 at mode 2: -35 balanced STS, inside the ~140 jaggedness band on the 6000-point
+    // balanced suite, so the file-mirror repair is free at the resolution of this instrument.
+    inline int KING_ZONE_SYM_MODE = 2;
     // CAPG_EVADE_POLARITY: the evasion branches pop from opp_captures with `current_turn`, but that
     // stack belongs to the OTHER side (the sibling find_last_viable_capture right above uses
     // !current_turn). With the wrong polarity isValid fails for every entry and the helper -- which
@@ -780,6 +792,31 @@ namespace Config
     inline int ROOK_ENEMY_RANKWIN_MODE = 2;
     inline bool ENABLE_CAPG_PIN   = true;
     inline bool ENABLE_CAPG_TEMPO = false;
+    // CAPG_LAZY_PIN: compute the two slider_blockers pin masks on FIRST USE rather than on entry. They
+    // are consumed only by the pin guard inside the `static_exchange_eval >= 0` branch, and ~50% of
+    // corpus positions never reach it (10.2% have no attacked non-king piece at all; more have attacked
+    // squares that all fail SEE). Pure deferral -- identical values, identical order -- so it is
+    // byte-identical by construction and exists as a knob only so the speed A/B runs on ONE binary.
+    inline bool ENABLE_CAPG_LAZY_PIN = true;
+    // CAPG_NET_SELECT: rank gathered captures by gain NET of the opponent's best surviving reply rather
+    // than by raw value_gained. Greedy-by-value is wrong here because the items INTERACT: taking capture
+    // c can delete an opponent capture outright when c captures that reply's attacker. Repro
+    // `2R3r1/8/8/k7/8/8/6p1/3K3R b` -- two Black captures worth 5000 each; LVA picks the pawn one, which
+    // leaves White's c8 rook alive to "capture back", the pair nets to zero, and hanging a rook reads as
+    // free (ours +6.77 vs SF18 d10 -9.62). Netting picks Rxc8, which deletes White's reply.
+    // A reply dies iff `reply.from == c.to`. 1-ply only: computed once against the initial stacks.
+    // Preconditions measured over 2000 corpus positions: both colours hold a capture in 69.6%, the mover
+    // holds >=2 in 55.0%, both in 50.8% -- so unlike the tie-only knob (1.7%) this sits well above the
+    // ~9% games-resolvability floor. Behavioral -> gated default-off.
+    inline bool ENABLE_CAPG_NET_SELECT = false;
+    // CAPG_PROMO_CREDIT: capgain values a capture-promotion identically to the same capture one rank
+    // lower -- measured, `promo_gxR` and `plain_gxR` both book capture_gains = -2.00, so winning a rook
+    // AND queening scores the same as winning a rook. Credit queen-minus-pawn, but ONLY when the
+    // promotion square is undefended so the new queen survives; the simulation has no piece-type overlay,
+    // so on a defended square the recapture would be priced as a pawn and the credit would be unpaid.
+    // ⚠️ Narrow by construction: qsearch already generates promotions (search_engine.cpp), so this only
+    // bites at truncated leaves. Behavioral -> gated default-off.
+    inline bool ENABLE_CAPG_PROMO_CREDIT = false;
 
     // Eval: passed-pawn scoring magnitudes inside getPPIncrement (absolute increments, defaults = the
     // original literals = byte-identical). Finer than SCALE_PASSED_PAWN — these tune the SHAPE of the
@@ -847,7 +884,17 @@ namespace Config
 
     // Eval: scalar positional-term magnitudes (absolute, defaults = the original literals = byte-identical).
     // The knob IS the value (no mul/div in the hot path; sign applied at the site).
-    inline int IMBALANCE_SCALE   = 3;    // offense-vs-defense imbalance multiplier (was ×3)
+    inline int IMBALANCE_SCALE   = 3;    // offense-vs-defense imbalance multiplier (was ×3; MODE 0 only)
+    // OvD imbalance shape: the legacy linear form (MODE 0) is collinear with the base placement (it re-adds
+    // the same attackingLayer cells linearly). Bounded modes keep the "who-wins-the-pressure-battle" idea
+    // but SATURATE, decoupling it from the raw magnitude. Default MODE 0 = byte-identical.
+    inline int OVD_BOUNDED_MODE  = 0;    // 0 = legacy linear · 1 = dominance-ratio · 2 = dynamic-KNEE-by-phase
+    inline int OVD_CAP           = 300;  // max eval a dominant initiative can be worth (bounded modes)
+    inline int OVD_KNEE          = 40;   // MODE 2: pressure-diff (phase-scaled) counting as half-decisive
+    inline int OVD_DENOM_FLOOR   = 40;   // MODE 1: denominator floor guarding sparse positions
+    inline int CENTRAL_BOUNDED_MODE = 0; // 0 = legacy phase-stepped hard clamp (byte-id) · 1 = fixed-knee · 2 = dynamic-KNEE-by-phase
+    inline int CENTRAL_CAP          = 100; // % of the legacy phase caps (400/350/300/300); bounded modes only
+    inline int CENTRAL_KNEE         = 200; // saturation knee on the phase-scaled central magnitude
     inline int BISHOP_PAIR_BONUS = 300;  // magnitude of the bishop-pair bonus
     inline int KNIGHT_PAIR_BONUS = 200;  // magnitude of the knight-pair bonus
 
@@ -958,10 +1005,12 @@ namespace Config
     inline int MG_CLAMP_BISHOP_A = 3850;   // before get_bishop_colour_complex_score
     inline int MG_CLAMP_BISHOP_B = 4000;   // after it
 
-    // ENDGAME per-piece accumulator clamps. These DO NOT EXIST today: only the knight and bishop
-    // MIDGAME paths are clamped, so every endgame piece score is unbounded while its midgame twin is
-    // capped. That asymmetry is a live suspect for endgame divergence -- the identical asymmetry was
-    // found and closed for pawns this session (PAWN_CLAMP_MID existed, PAWN_CLAMP_EG did not).
+    // ENDGAME per-piece accumulator clamps. Only the knight and bishop MIDGAME paths were clamped, so
+    // every endgame piece score was unbounded while its midgame twin was capped. That asymmetry is a
+    // live suspect for endgame divergence -- the identical asymmetry was found and closed for pawns
+    // (PAWN_CLAMP_MID existed, PAWN_CLAMP_EG did not).
+    // Applied at the end of each evaluate_*_endgame, per colour (white accumulates negative, black
+    // positive), so the clamp bounds magnitude and is mirror-symmetric by construction.
     // 0 = disabled, which is the default, so the engine stays byte-identical until a value is set.
     inline int EG_CLAMP_KNIGHT = 0;
     inline int EG_CLAMP_BISHOP = 0;
@@ -1168,6 +1217,32 @@ namespace Config
     // defended by 1 pawn = +2) fires; a properly-defended king (attackers <= defenders everywhere) stays ~0.
     // Subtracts defenders per-square, so it does NOT over-fire on safe-but-crowded kings. 0 = OFF = byte-identical.
     inline int KS_OVERLOAD     = 0;
+    // ── KS discrimination unit (2026-08-11 rebalance) ─────────────────────────────────────────────
+    // Defender-aware attacker weighting: replace the per-piece PRESENCE term (KS_ATT_type * count of
+    // attacking pieces, which fires on mere proximity even into fully-defended squares — the diagnosed
+    // over-read) with a weight scaled by how CONTESTED each attacking piece's zone footprint is
+    // (per-square attackers > defenders, already computed as `overload`). A piece whose attacked zone
+    // squares are all defended decays toward 0; a breakthrough attacker keeps full weight. This is a
+    // graded per-square contest — finer than the giants' binary attackedBy2, uniquely ours, redistributive
+    // (dodges the additive-KS 0-for-9 trap), and a READ of the existing bitmasks (no ripple).
+    //   0 = OFF (legacy presence term) = byte-identical.
+    //   1 = contested-FRACTION: KS_ATT_type * (contested footprint / total footprint) — ceiling = the
+    //       legacy weight, smooth decay by how defended the piece's squares are.
+    //   2 = breakthrough-COUNT: KS_ATT_type * (# contested squares the piece attacks) — rewards a piece
+    //       bearing on several undefended squares (scaled by KS_DEFAWARE_COUNT_SHR to keep magnitude sane).
+    inline int KS_DEFAWARE_MODE = 0;
+    inline int KS_DEFAWARE_COUNT_SHR = 0;  // mode 2 only: right-shift on the count product (0 = none). Tunable.
+    // attackedBy2 in the weak-square test (standard; SF & Ethereal): a zone square attacked by >= 2 enemy
+    // pieces and defended at most once is ALSO weak, even if that lone defender is a minor/rook (the SF
+    // "K/Q-only" clause otherwise spares it). Extends the weak set toward the giants' double-attack rule.
+    // Default off = byte-identical. Only meaningful alongside ENABLE_KS_SF_WEAK's base definition.
+    inline bool ENABLE_KS_WEAK_ATT2 = false;
+    // square_control primitive (2026-08-12, KS redesign step 1): replace the raw popcount contest
+    // (#attackers > #defenders) with a value-aware "does the attacker break through" verdict
+    // (least-valuable-attacker + pawn-exclusion + attackedBy2) — honest per-square inputs before any
+    // curve reshape. KS_SQC_MODE=0 = OFF = raw contest = byte-identical. 1 = value-aware contest feeds
+    // KS_DEFAWARE's contested_zone (the first, KS-local, zero-ripple consumer; weak/check_safe follow).
+    inline int KS_SQC_MODE     = 0;
     inline int KS_WEAK         = 2;     // per weak zone square. Baseline: enemy-attacked AND no own defender. With
                                         // ENABLE_KS_SF_WEAK: enemy-attacked AND under-defended (<=1 defender, K/Q only).
     inline int KS_SAFE_CHECK   = 3;     // per safe-check square vs the ENEMY (offensive) king. Default 3.
@@ -1510,6 +1585,16 @@ namespace Config
     inline bool ENABLE_CHEAP_QUEEN_MOBILITY = false;   // default-off = byte-identical
     inline int CHEAP_QUEEN_MOB_MG = 5;   // per non-own-occupied attacked square, midgame (matches the original flat +5)
     inline int CHEAP_QUEEN_MOB_EG = 8;   // per non-own-occupied attacked square, endgame (covers base + dropped nested scan)
+
+    // Eval: the midgame queen's per-square safe-mobility credit, on the DEFAULT (non-cheap) path.
+    // Previously an unscaled literal 5, which is why zeroing SCALE_ATTACK_LAYER never moved it and why
+    // ablating CHEAP_QUEEN_MOB_MG (the other branch, off by default) refuted the wrong candidate.
+    // Named so it can be ablated; the default reproduces the literal exactly.
+    inline int QUEEN_MOB_SAFE_MG = 5;
+
+    // Eval: repair mode for the queen PST's two non-mirrored file cells (A/H rank 7, B/G rank 6).
+    // 0 = off (byte-identical) · 1 = keep the larger · 2 = keep the smaller · 3 = mirror kingside onto queenside.
+    inline int QUEEN_PST_FILE_SYM_MODE = 0;
 
     // Eval: same cheap-mobility surrogate for the knight evaluators. The knight folds mobility into
     // total via a per-square three-way lower-value-attacker test plus a nested second-order knight-hop

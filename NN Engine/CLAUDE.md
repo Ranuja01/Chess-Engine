@@ -233,7 +233,20 @@ expire, and superseded claims are struck through and kept, never deleted.
 - **Pawns → [`dev_notes/PAWN_MODEL.md`](dev_notes/PAWN_MODEL.md)** — rank/file tables, chain & wall,
   isolated/backward, passer detection and realizability, the per-pawn clamp. Includes a **refutation
   record** of ideas already measured and killed; check it before re-proposing one.
-- *(King safety, and other subsystems, to follow the same pattern.)*
+- **Before ANY eval RETUNE or adding a comparative term → [`dev_notes/collinearity-why-the-eval-cannot-be-tuned.md`](dev_notes/collinearity-why-the-eval-cannot-be-tuned.md).**
+  The eval is DEGENERATE (~30 terms, ~2 signals, collinear channels) — that, not the corpus, is why every
+  retune flattens (the −85.6-Elo fit). ★ The fix for collinearity is STRUCTURAL (de-dup / bounded re-shape),
+  **never ridge** (ridge resolves it *by* shrinking). Collinearity is a TUNING problem, not a PLAY problem:
+  de-dup by *removal* sheds load-bearing terms — re-shape (saturating/bounded) instead. Make comparative
+  terms bounded, never a linear re-sum of the base cells. Full code map: `eval-architecture-degeneracy-map.md`.
+- **To TUNE/VALIDATE eval → use the LOW-DEPTH REGRET method, NOT static corpus fit** (corpus is anti-correlated
+  with Elo; constants are tapped out). Score our fixed-**depth-7** search's chosen move by `winpct(SF18_best) −
+  winpct(SF18_of_our_move)` on **`diagnostics/ks_sets/game_regret_set.csv`** (~15k game-representative FENs, SF18
+  multi-PV @d14 cached; builder `_build_game_regret_set.py`; tools `_regret_tune.py` / `_regret_tune_broad.py`).
+  ⚠️ Seeded-SHUFFLE the train/held split (an index split over the multi-config game dirs fakes universal
+  overfitting). Method + data + depths: memory `low-depth-regret-tuning-method`, `dev_notes/SESSION-HANDOFF-2026-08-11.md`.
+  ★ Program: accumulate STRUCTURAL fixes (de-noise / detector-redesign) one unit at a time, confirm the BUNDLE in one tournament.
+- *(King safety → memory `ks-twelve-attempt-history-and-the-channel-law` + `dev_notes/KS-DETECTOR-REBALANCE-PLAN-2026-08-11.md`; other subsystems to follow.)*
 
 ## Eval diagnosis — the three-way triangulation (ours / SF11-static / SF18-search)
 

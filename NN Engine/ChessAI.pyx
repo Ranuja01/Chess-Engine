@@ -150,6 +150,21 @@ cdef extern from "cpp_bitboard.h":
     int passer_probe_count()
     PasserRec passer_probe_get(int i)
 
+    # Diagnostic-only per-PAWN clamp attribution (see PawnClampRec in cpp_bitboard.h). Reports the value
+    # each pawn OFFERED to the per-pawn bonus cap, so headroom can be measured before terms are added.
+    cdef struct PawnClampRec:
+        int sq
+        int white
+        int endgame
+        int structural
+        int positional
+        int raw
+        int cap
+    void pawn_clamp_probe_begin()
+    void pawn_clamp_probe_end()
+    int pawn_clamp_probe_count()
+    PawnClampRec pawn_clamp_probe_get(int i)
+
     # Diagnostic-only per-term static-eval attribution (see EvalBreakdown in cpp_bitboard.h).
     cdef struct EvalBreakdown:
         int total
@@ -533,6 +548,44 @@ cdef class ChessAI:
                         "rawR": pr.rawR,
                         "blk": pr.blk,
                         "val": pr.val})
+        return out
+
+    # Diagnostic: per-pawn clamp attribution for one position. Runs the REAL eval with the probe flag set and
+    # returns one dict per pawn describing what that pawn offered to the per-pawn bonus cap. `raw > cap` means
+    # the clamp BINDS for that pawn, so any bonus added to it would be truncated away.
+    def pawn_clamp_records(self, object board):
+
+        cdef uint64_t pawns = board.pawns
+        cdef uint64_t knights = board.knights
+        cdef uint64_t bishops = board.bishops
+        cdef uint64_t rooks = board.rooks
+        cdef uint64_t queens = board.queens
+        cdef uint64_t kings = board.kings
+        cdef uint64_t occupied_white = board.occupied_co[True]
+        cdef uint64_t occupied_black = board.occupied_co[False]
+        cdef uint64_t occupied = board.occupied
+        cdef int moveNum = board.ply()
+        cdef int i
+
+        if board.is_checkmate():
+            return []
+
+        cdef PawnClampRec pc
+        pawn_clamp_probe_begin()
+        eval_breakdown_capture(moveNum, board.turn, pawns, knights, bishops,
+                               rooks, queens, kings, occupied_white, occupied_black, occupied)
+        pawn_clamp_probe_end()
+
+        out = []
+        for i in range(pawn_clamp_probe_count()):
+            pc = pawn_clamp_probe_get(i)
+            out.append({"sq": pc.sq,
+                        "white": pc.white != 0,
+                        "endgame": pc.endgame != 0,
+                        "structural": pc.structural,
+                        "positional": pc.positional,
+                        "raw": pc.raw,
+                        "cap": pc.cap})
         return out
 
     # Diagnostic: per-term attribution of the static eval for one position. Returns a plain dict in the

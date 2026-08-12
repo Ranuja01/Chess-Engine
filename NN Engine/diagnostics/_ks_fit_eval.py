@@ -48,11 +48,15 @@ for r in csv.DictReader(open(CORPUS)):
         our_total = -bd.get("total", 0.0) / 1000.0              # full total -> OvD/imbalance knobs affect this
         tgt_ks = float(r["target_ks"]); tgt_total = float(r["target_total"])
         split = r["split"]; tier = r["tier"]
+        # Per-row WIN%-IMPACT weight (asym corpus). Absent/blank -> 1.0, so any legacy corpus that lacks the
+        # column reduces to the previous UNWEIGHTED mean -> byte-identical behaviour for existing callers.
+        _w = r.get("weight")
+        wgt = float(_w) if _w not in (None, "") else 1.0
     except Exception:
         continue
     e = loss_of(our_total, tgt_total)                                  # WIN%-space loss (LOSS=mse|logloss|hybrid)
-    sse[(tier, split)] += e; cnt[(tier, split)] += 1
-    sse[("ALL", split)] += e; cnt[("ALL", split)] += 1
+    sse[(tier, split)] += wgt * e; cnt[(tier, split)] += wgt          # weighted mean = sum(w*e)/sum(w)
+    sse[("ALL", split)] += wgt * e; cnt[("ALL", split)] += wgt
     if abs(tgt_ks) >= 0.5:                     # judge direction on meaningfully-nonzero KS targets
         n[tier] += 1; n["ALL"] += 1
         sum_ours[tier] += abs(our_ks); sum_ours["ALL"] += abs(our_ks)

@@ -107,6 +107,19 @@ def main():
             print("    ⚠️ flagged by us but NOT passed by the reference: %s"
                   % ", ".join(chess.square_name(s) for s in sorted(extra)))
 
+        # Is evaluate_passers the WHOLE passer term, or do the un-R-scaled channels (getPPIncrement's PP_*
+        # and boost_pieces_for_supporting_passed_pawns) already pay an unconditional base? If |PPS| far
+        # exceeds the summed per-passer val, we ALREADY have SF's PassedRank equivalent somewhere else --
+        # which would mean every "add an unconditional base" arm was double-paying.
+        try:
+            bd = ai.ev_breakdown(b)
+            pps = bd.get("passed_pawn_support", 0)
+            tot = sum(r["val"] * (-1 if r["white"] else 1) for r in recs.values())
+            print("    passed_pawn_support=%+d   sum(evaluate_passers)=%+d   OTHER CHANNELS=%+d"
+                  % (pps, tot, pps - tot))
+        except Exception as e:
+            print("    (breakdown failed: %s)" % e)
+
     print("\nSTAGE TALLY over %d positions: %s" % (len(fens), tally))
     print("Stage 1 dominant => fix getPPIncrement (detection), not R.")
     print("Stage 3 dominant => R is collapsing on real passers; look at CONTEST (the load-bearing input).")

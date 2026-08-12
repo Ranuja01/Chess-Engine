@@ -648,6 +648,25 @@ PYEOF
         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
+  oldce)
+    # FOR-FUN progress check: current build vs the archived pre-Claude engine in selfplay/old CE/, .so-vs-.so
+    # (ENGINE_SO_DIR per side). Both LIGHTNING -- the old tree's Configs::ACTIVE is already pinned to LIGHTNING
+    # and its constants match the current LIGHTNING exactly (cache x2, TIME_LIMIT 1.0, 0.5/0.75 move times),
+    # so the time control is genuinely equal and the result reads as pure engine strength.
+    # p1 = current, p2 = old, so a POSITIVE Elo means the current build is ahead. Args: <minutes> [conc=4] [tag].
+    mins="${1:?minutes required}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-oldce}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+           VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py \
+        --p1-label current --p1-config "" \
+        --p2-label oldce --p2-config "" --p2-engine-dir "$ENGINE/selfplay/old CE" \
+        --preset LIGHTNING --concurrency "$conc" --max-minutes "$mins" \
+        --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
   ks_tournament)
     # Permission-clean overnight A/B for the king-safety candidate: base (no knobs) vs m4000ctl
     # (ENABLE_KS_REPLACE_LT=1 KING_SAFETY_MAG=4000 MOD_KS_CONTROL=256) baked INSIDE so no =-args reach the

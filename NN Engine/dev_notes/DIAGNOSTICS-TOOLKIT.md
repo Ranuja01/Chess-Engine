@@ -27,6 +27,36 @@ truth for a situation is the source to read for that concept.
 
 ---
 
+## Eval tuning — static coarse → low-depth move-ordering sharpen (2026-08-10)
+The eval-tuning method, in two phases. ⚠️ Phase-1 (static) is a **coarse region-finder only** — fitting to a
+static target is ANTI-CORRELATED with Elo (proven again 2026-08-10; see `corpus-fit-is-anti-correlated-with-elo`
+memory). ✅ Phase-2 (low-depth search move-ordering) is the Elo-aligned pass — now that WE search, target =
+SF18's actual SEARCH-best move, on equal footing. **Rank/score by WIN% not cp** (§ Ranking convention above);
+low depth is a PROXY for game depth, so GAMES decide.
+
+| script | answers | status |
+|---|---|---|
+| `_central_regime.py` | central clamp: SATURATED (identifiable) vs LINEAR (collinear) per position, from `ev_breakdown` det_central+phase. Decides if a term is worth bounded re-shaping. | settled |
+| `_asym_corpus.py` | builds the SIGN-GATED, ASYMMETRIC (SF11-anchor / preserve-our-edge), win%-weighted static corpus `diverse_corpus_asym.csv`. The asymmetric TARGET is baked into `target_total` so the existing worker descends it. | settled machinery, **objective FAILED validation** |
+| `_ks_fit_eval.py` | static fit worker; now win%-IMPACT weighted (reads `weight` col; absent ⇒ 1.0 = byte-id for legacy callers). | settled |
+| `joint_fit.py` | static coordinate descent; added `GRID_ONLY=` (focus a knob subset) + bounded OVD/CENTRAL knobs. Base modes via `FORCE=`. | settled |
+| `_depth_timing.py` | times our FIXED-depth search at MAX_DEPTH (one process/depth). Measured D7=61ms/pos (~14k nodes — heavy pruning ⇒ low-depth searches are tiny ⇒ tuning on search is affordable). | settled |
+| `_build_lowdepth_set.py` | stratified FEN set + SF18-best@d16 cached ONCE (top-1) → `lowdepth_tuneset.csv`; disjoint from `_mp_*`. | settled |
+| `_lowdepth_tune.py` | driver+worker: coordinate-descend eval knobs to MAXIMISE SF18-best top-1 match at fixed depth. ⚠️ binary objective = NO gradient (descent can't see sub-flip gains). Seed from static-best. | settled, superseded by regret |
+| `_build_regret_set.py` | multi-PV cache: SF18 top-K move evals @ fixed depth → `regret_set.csv` (`moves`="uci:cp;..."). One-time; enables graded regret. | settled |
+| `_regret_tune.py` | focused: coordinate-descend to MINIMISE side-to-move win%-REGRET = `winpct(best)−winpct(our_move)` (multi-PV cache; POV-fixed). GRADED + move-based ⇒ gradient AND un-gameable by shrink. **The eval objective.** | settled |
+| `_regret_tune_broad.py` | whole-eval regret descent, 4-core (`JOBS`), **held-out-gated** (rejects overfits), seeded-shuffle split. Proved eval CONSTANTS tapped out. ⚠️ shuffle the split or a multi-config game-dir index split fakes universal overfitting. | settled |
+| `_build_game_regret_set.py` | mine ~15k GAME-representative FENs from the 108k selfplay games + SF18 multi-PV @d14 → `game_regret_set.csv` (disjoint from benches). | settled |
+| `_ks_channel_decomp.py` | KS channel firing (king_safety / OvD / central) on over-read (ks_attack) vs control (positional) — deterministic, no SF. Found the over-read is Channel-1 proximity, not collinearity. | settled |
+| `_ks_c1_decomp.py` | Channel-1 SUB-decomposition (attacker-weights / count / weak vs safe-checks / storm / open-files) on over vs control. Found proximity dominates, safe-check ~silent. | settled |
+
+🧰 Run the tuners directly (they self-dispatch a WORKER subprocess per candidate): `WORKER` path sets
+`PRESET=LONG_FORMAT MAX_DEPTH=<DEPTH> USE_OPENING_BOOK=0`. ⚠️ The `_move_match_arms.py` SF reference is
+`movetime=0.3s` = TIME-BASED ⇒ non-deterministic + corrupted under CPU load; its small deltas are NOISE. The
+deterministic instruments are the cached SF18 sets above.
+
+---
+
 ## Pawn model (2026-08-05) — see [`PAWN_MODEL.md`](PAWN_MODEL.md) for the findings
 
 🚨 **`pawn_marginal_real.py` is the ANCHOR — use it before believing any manufactured-position magnitude.**
@@ -51,6 +81,8 @@ claims died when re-measured on real positions.
 | **`_marginal_slice.py`** | slices the `OUT=` dump — error distribution, worst-decile concentration, and conditioning by phase/queens/pawn-count, **in both cp and win%**. Zero CPU, re-runnable. The cp-vs-win% comparison is the point: they disagree on which positions are broken. |
 | **`static_vs_search_triage.py`** | now has `CORPUS=1 [CLASS=] [PHASE=] [N=] [DEPTH=]` — turns the per-FEN verdict into a SPLIT over a failure class (eval-reachable vs search-property), with a **scale-invariant sign test** beside the cp-distance test and a **neutral-fitted** scale factor (`KFIT`). ⚠️ Fitting the scale factor in-sample on collapses is conditioning on the dependent variable; it gave 0.31 against ~0.97 neutral. |
 | **`_sibling_spread.py`** | **can a term change which move we play at all?** Evaluates EVERY legal child of real positions, then DELETES a term group and re-takes the argmax — deletion is the ceiling on what retuning could do. Reports sibling spread and flip rate gated by regret margin. **Carries `threats` as the control (+45 Elo shipped)**; the reading is comparative, never absolute. `QUIET_ONLY=1` for the piece-moves-only case. Zero Stockfish. |
+| ★★ **`_d1_move_attribution.py`** | **which of OUR terms made us pick the wrong move?** Depth-1 move choice vs the three-way reference, scored in **win%** (k=0.00368208), with **NO filter** — each position carries a signed weight `our_err − sf11_err` against SF18-search, so tactical positions self-suppress instead of being excluded. 🚨 **SF is an ORACLE OVER MOVES only**; our breakdown attributes our OWN choice. Never places an SF term beside one of ours — term names are not 1-to-1 across engines (our king-zone attacker−defender was once TRIPLE-counted, which is why term-level "we vs SF" comparisons mislead). Reports the truth move's rank in our ordering. 🐛 **Known flaw:** the guard table is structurally empty (for a guard case our move IS the truth move) — it should attribute against SF11's pick; and the blame sums are outlier-dominated, so prefer median / frequency-as-top-offender. |
+| ★★★ **`_move_change_arms.py`** | **the knob-arm form of the above — RUN THIS FIRST, BEFORE ANY BENCH SWEEP OR GAMES NIGHT.** `_sibling_spread` deletes a breakdown TERM, so it cannot be pointed at a mechanism that is gated OFF; this one runs one process per arm (knobs latch at init) and diffs the depth-1 argmax. Reports flip rate and the baseline REGRET each flip costs. `ARM=<KNOB=VAL[,…]> [N=400] [QUIET_ONLY=1]`. **Always pass a control arm** — `ENABLE_THREATS=0` is the +45 Elo shipped change and measures **13.2% / 9.2% at ≥10cp**. 2026-08-08: of six candidates only ONE cleared that bar; running it LAST instead of first cost a session. ⚠️ It shipped with a whitelist argv parser that silently dropped its own arm knobs and reported a confident 0.0% — the control caught it in one run. |
 | `blend_corpora.py` | merges the schema-compatible fit corpora with the four hygiene checks that make a blend trustworthy: **stale-baseline detection (refuses unless FORCE=1)**, cross-source FEN dedup, split re-assignment by FEN hash, explicit tier weighting. |
 
 🚨🚨 **CORPUS REBUILT AGAIN, LATER ON 2026-08-06: `diverse_corpus_wide.csv` 4,987 → 23,113 rows.** Bank
@@ -127,6 +159,16 @@ pawn's marginal value is low partly because its partner already carries it. Read
 ⚠️ **A subsystem map goes stale the moment a gate ships.** Before trusting one, check its date against the
 baseline register and the commit log. When you ship a default, stamp the affected map in the SAME session —
 a stale map is worse than none, because it reads as authoritative.
+
+## Rendered readouts → [`../graphs/`](../graphs/README.md)
+Self-contained HTML charts over measurements already taken, one file per readout
+(`YYYY-MM-DD-<subject>.html`), plus a README carrying the authoring conventions. Use it when the finding
+is a **shape** a table hides — the 2026-08-08 page shows a clamp sweep that is one flat smear inside its
+own noise band, and a six-candidate triage in which exactly one clears the resolvability bar.
+🚨 **Same epistemic status as reading source code:** admissible for FINDING a candidate, never for
+EXPLAINING a measurement — a persuasive picture makes a wrong story more convincing. Ablate instead.
+☠️ Never render the corpus objective; it is anti-correlated with Elo.
+★ **Draw the noise band on every bench chart**, or it invites the over-reading it was built to prevent.
 
 ## Rules
 1. **Search this file before writing a probe.** If something is close, extend it rather than fork it.

@@ -109,7 +109,26 @@ GRID = {
     "MOD_KS_REALIZ": [0, 128, 256, 384, 512], "KS_REALIZ_FLOOR": [64, 128, 200, 300, 420],
     "SCALE_THREATS": [35, 55, 75, 100, 130], "THREAT_PER_TARGET_CAP": [400, 600, 800, 1100, 1500],
     "SCALE_CAPTURE_GAINS": [50, 80, 100, 120, 150],
+
+    # ---- BOUNDED DE-DUP KNOBS (the identifiability payoff). INERT unless the base pins the bounded modes on:
+    # FORCE="OVD_BOUNDED_MODE=2,CENTRAL_BOUNDED_MODE=1". Seeds at header defaults; ranges span the screened
+    # sane region (OvD cap~300/knee~40 MODE 2; central cap~150-175/knee~200 MODE 1).
+    # Ranges CONSTRAINED to the STS-screened strength-safe region: the free min shrank CENTRAL_CAP->100
+    # (−245 STS alone) / OVD_CAP->150 for corpus loss, regressing STS −192 while move-match stayed neutral --
+    # the anti-correlation. Screening mapped central cap≥150 / OvD cap~300 as STS-neutral; fit WITHIN that.
+    "OVD_CAP": [250, 300, 400, 500], "OVD_KNEE": [20, 40, 80, 160],
+    "CENTRAL_CAP": [150, 175, 200, 250], "CENTRAL_KNEE": [100, 200, 400],
 }
+
+# GRID_ONLY: restrict the descent to a named subset of knobs (comma-separated) for a FOCUSED fit over just the
+# identifiable de-dup knobs, without disturbing the full descent's default. Base modes must still be pinned via
+# FORCE (e.g. FORCE="OVD_BOUNDED_MODE=2,CENTRAL_BOUNDED_MODE=1").
+_only = [x.strip() for x in os.environ.get("GRID_ONLY", "").split(",") if x.strip()]
+if _only:
+    _missing = [k for k in _only if k not in GRID]
+    if _missing:
+        sys.exit("GRID_ONLY names not in GRID: %s" % ", ".join(_missing))
+    GRID = {k: GRID[k] for k in _only}
 
 
 def evaluate(cfg):

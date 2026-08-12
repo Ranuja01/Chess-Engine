@@ -338,6 +338,29 @@ void rebuild_scaled_placement(){
 				whitePlacementLayer[p][x][y] = whitePlacementLayerBase[p][x][y] * sc[p] / 100;
 				blackPlacementLayer[p][x][y] = blackPlacementLayerBase[p][x][y] * sc[p] / 100;
 			}
+
+	// The queen PST is the one table here whose files are not mirrors: A disagrees with H on rank 7
+	// (15 vs 20) and B with G on rank 6 (25 vs 20), 5 mp each, in both colour tables. Those two cells
+	// are the whole of the residual file-mirror violation class. Both repair directions are themselves
+	// symmetric, so the choice is a tuning question rather than a correctness one and is left to a knob:
+	// 1 keeps the larger value, 2 keeps the smaller, 3 mirrors the kingside half onto the queenside.
+	// Mode 0 leaves the tables untouched and byte-identical.
+	if (Config::QUEEN_PST_FILE_SYM_MODE){
+		constexpr int QUEEN_PST = 4;
+		for (int x = 0; x < 4; ++x)
+			for (int y = 0; y < 8; ++y){
+				int &wq = whitePlacementLayer[QUEEN_PST][x][y];
+				int &wk = whitePlacementLayer[QUEEN_PST][7 - x][y];
+				int &bq = blackPlacementLayer[QUEEN_PST][x][y];
+				int &bk = blackPlacementLayer[QUEEN_PST][7 - x][y];
+				const int w = Config::QUEEN_PST_FILE_SYM_MODE == 1 ? std::max(wq, wk)
+				            : Config::QUEEN_PST_FILE_SYM_MODE == 2 ? std::min(wq, wk) : wk;
+				const int b = Config::QUEEN_PST_FILE_SYM_MODE == 1 ? std::max(bq, bk)
+				            : Config::QUEEN_PST_FILE_SYM_MODE == 2 ? std::min(bq, bk) : bk;
+				wq = wk = w;
+				bq = bk = b;
+			}
+	}
 }
 
 // Working pawn-structure tables the eval hot path reads. Rebuilt from the *_base arrays scaled by the
@@ -2852,8 +2875,8 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
      												 (BB_FILE_ATTACKS[r][file_pieces] & (queens | rooks) & occupied_black);
 
 				if (!attacked_by_lower_value_piece) {
-					total -= 5;
-				}	
+					total -= Config::QUEEN_MOB_SAFE_MG;
+				}
 			}
 
 			bb &= bb - 1;		
@@ -2981,8 +3004,8 @@ inline int evaluate_queens_midgame(uint8_t square, uint64_t white_passed_pawns, 
      												 (BB_FILE_ATTACKS[r][file_pieces] & (queens | rooks) & occupied_white);
 
 				if (!attacked_by_lower_value_piece) {
-					total += 5;
-				}	
+					total += Config::QUEEN_MOB_SAFE_MG;
+				}
 			}
 			
 			bb &= bb - 1; 
@@ -3620,8 +3643,14 @@ inline int evaluate_knights_endgame(uint8_t square, uint64_t white_passed_pawns,
 				}
 			}
 						
-			bb &= bb - 1; 
+			bb &= bb - 1;
 		}
+	}
+	// Bound the endgame accumulator the way the midgame twin is bounded by MG_CLAMP_KNIGHT. White
+	// accumulates negative, black positive, so the clamp is applied per colour to bound magnitude.
+	if (Config::EG_CLAMP_KNIGHT){
+		total = colour ? std::max(total, -Config::EG_CLAMP_KNIGHT)
+		               : std::min(total,  Config::EG_CLAMP_KNIGHT);
 	}
 	return total;
 }
@@ -3882,8 +3911,13 @@ inline int evaluate_bishops_endgame(uint8_t square, uint64_t white_passed_pawns,
 			if (xRayPieceType != 0){
 				total += values[xRayPieceType] >> 6;
 			}
-			bb &= bb - 1;  
-		}		
+			bb &= bb - 1;
+		}
+	}
+	// Bound the endgame accumulator the way the midgame twin is bounded by MG_CLAMP_BISHOP_A/B.
+	if (Config::EG_CLAMP_BISHOP){
+		total = colour ? std::max(total, -Config::EG_CLAMP_BISHOP)
+		               : std::min(total,  Config::EG_CLAMP_BISHOP);
 	}
 	return total;
 }
@@ -4317,7 +4351,12 @@ inline int evaluate_rooks_endgame(uint8_t square, uint64_t white_passed_pawns, u
 		total += std::min(mobility_bonus, 350);
 		//std::cout << mobility_bonus  << std::endl;
 	}
-	//std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << std::endl;
+	// Bound the endgame accumulator; the rook has no midgame clamp twin, so this is its only bound
+	// beyond the per-term mobility cap above.
+	if (Config::EG_CLAMP_ROOK){
+		total = colour ? std::max(total, -Config::EG_CLAMP_ROOK)
+		               : std::min(total,  Config::EG_CLAMP_ROOK);
+	}
 	return total;
 }
 
@@ -4598,10 +4637,14 @@ inline int evaluate_queens_endgame(uint8_t square, uint64_t white_passed_pawns, 
 			if (xRayPieceType != 0){
 				total += values[xRayPieceType] >> 6;
 			}
-			bb &= bb - 1;  
-		}		
+			bb &= bb - 1;
+		}
     }
-	//std::cout << "Total: " << total << " Type: " << int(piece_type) << " Colour: " << bool(colour) << " x: " << (int)(square & 7) << " y: " << (int)(square >> 3) << std::endl;
+	// Bound the endgame accumulator; the queen has no midgame clamp twin.
+	if (Config::EG_CLAMP_QUEEN){
+		total = colour ? std::max(total, -Config::EG_CLAMP_QUEEN)
+		               : std::min(total,  Config::EG_CLAMP_QUEEN);
+	}
 	return total;
 }
 
@@ -5250,6 +5293,33 @@ inline int advanced_endgame_eval(int total, bool turn){
 	danger by its attack-signature co-occurrence. Battery (KS_BATTERY) is the one declared knob still unwired.
 */
 inline int mod_gain(int k1, int sig1, int sh1, int k2, int sig2, int sh2);  // defined below; used for KS_DYN
+
+// ── square_control primitive (2026-08-12, KS step 1) ────────────────────────────────────────────────
+// Least-valuable-attacker ordinal for the pieces in `mask` on one square (1=pawn .. 6=king, 99=none). Uses
+// piece TYPE only (colour-blind), NEVER a square value — a capgains colour bug came from square-order tie-
+// breaks, so this must key on type to stay colour-symmetric. Reads the file-scope piece bitboards.
+static inline int ks_lva(uint64_t mask){
+	if (mask & pawns)   return 1;
+	if (mask & knights) return 2;
+	if (mask & bishops) return 3;
+	if (mask & rooks)   return 4;
+	if (mask & queens)  return 5;
+	if (mask & kings)   return 6;
+	return 99;
+}
+// Value-aware "does the ATTACKER break through square s" — the square_control verdict that replaces the raw
+// popcount contest (`#attackers > #defenders`). The attacker controls the square iff it is undefended, OR its
+// cheapest attacker is strictly cheaper than the cheapest defender (wins the exchange — and a pawn beating a
+// piece-only guard is pawn-exclusion for free; a queen bearing on a pawn-guarded square does NOT break through),
+// OR it is attacked twice with at most one defender (attackedBy2 overwhelm). Cheap: a few AND + popcount, NO
+// SEE simulation. Colour-blind (type-only). This is the honest-inputs upgrade for weak/defaware/check_safe.
+static inline bool ks_sqc_breaks(uint64_t am, uint64_t dm){
+	if (!am) return false;
+	if (!dm) return true;
+	if (ks_lva(am) < ks_lva(dm)) return true;
+	if (__builtin_popcountll(am) >= 2 && __builtin_popcountll(dm) <= 1) return true;
+	return false;
+}
 inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensive){
 	// Clamp the ring center in from the edge (C) only for an UNDER-sheltered king: a well-castled king with its
 	// own pawns still in the ring is genuinely safe and the wider clamped ring would wake false danger (sign
@@ -5277,6 +5347,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	int weak_squares = 0;
 	int overload_sum = 0;   // per-square sum of max(0, #attackers - #defenders): the discriminative breakthrough signal
 	int breakthrough_sq = 0;  // DIAGNOSTIC: count of zone squares where attackers > defenders (per-square breakthrough)
+	uint64_t contested_zone = 0;  // bitmask of zone squares where enemy attackers > own defenders (for KS_DEFAWARE_MODE)
 	uint64_t z = zone;
 	while (z) {
 		uint8_t s = __builtin_ctzll(z);
@@ -5290,6 +5361,10 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			attacked_zone_squares++;
 			int ov = __builtin_popcountll(am) - __builtin_popcountll(dm);   // attackers minus defenders on this sq
 			if (ov > 0) { overload_sum += ov; breakthrough_sq++; }
+				// contested_zone (feeds KS_DEFAWARE): raw popcount contest (default) OR the value-aware
+				// square_control verdict when KS_SQC_MODE is on (least-valuable-attacker + pawn-exclusion +
+				// attackedBy2). KS_SQC_MODE=0 => raw `ov>0` exactly as before => byte-identical.
+				if (Config::KS_SQC_MODE ? ks_sqc_breaks(am, dm) : (ov > 0)) contested_zone |= BB_SQUARES[s];
 			// Weak = enemy-attacked hole. Baseline: no own defender. SF11: UNDER-defended = at most one
 			// defender and only the king or queen (a pawn/minor/rook defender disqualifies).
 			bool weak;
@@ -5297,7 +5372,10 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 				weak = (__builtin_popcountll(dm) <= 1) && ((dm & (knights | bishops | rooks | pawns)) == 0);
 			else
 				weak = !dm;
-			if (weak) weak_squares++;
+			if (Config::ENABLE_KS_WEAK_ATT2 && !weak
+				    && __builtin_popcountll(am) >= 2 && __builtin_popcountll(dm) <= 1)
+					weak = true;   // attackedBy2 (SF & Ethereal): double-attacked, <=1 defender square is weak. Off = byte-id.
+				if (weak) weak_squares++;
 			// Diagnostic per-square trace (gated; byte-identical for production): shows why weak fires or not.
 			if (g_capture_eval_breakdown && std::getenv("KS_TRACE"))
 				std::fprintf(stderr, "  ZS[%c] sq=%d attby=N%dB%dR%dQ%d  ndef=%d defN%dB%dR%dP%dK%dQ%d  weak=%d\n",
@@ -5330,6 +5408,41 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	          + Config::KS_WEAK * weak_squares
 	          + Config::KS_OVERLOAD * overload_sum   // per-square breakthrough (attackers-defenders); default 0 = byte-id
 	          - Config::KS_DEFENDER * __builtin_popcountll(defenders_sq & pieces_nk);
+
+	// Defender-aware attacker weighting (KS_DEFAWARE_MODE): the legacy attacker term above counts each
+	// attacking piece fully by mere PRESENCE, even when every zone square it hits is defended (the diagnosed
+	// proximity over-read). Swap it for a weight scaled by how CONTESTED each piece's zone footprint is
+	// (per-square attackers > defenders, captured in contested_zone). A fully-defended proximity attacker
+	// decays toward 0; a breakthrough attacker keeps full weight. Graded per-square contest -- finer than the
+	// giants' binary attackedBy2, redistributive, and a READ of existing bitmasks (KS-local, no ripple).
+	//   MODE 1 = contested-FRACTION (ceiling = legacy weight); MODE 2 = breakthrough-COUNT (>> KS_DEFAWARE_COUNT_SHR).
+	// Default 0 = OFF = the legacy sum is left untouched = byte-identical.
+	if (Config::KS_DEFAWARE_MODE) {
+		int legacy_att = Config::KS_ATT_KNIGHT * __builtin_popcountll(attackers_sq & knights)
+		               + Config::KS_ATT_BISHOP * __builtin_popcountll(attackers_sq & bishops)
+		               + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
+		               + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens);
+		int daware = 0;
+		uint64_t atk = attackers_sq & pieces_nk;
+		while (atk) {
+			uint8_t ps = __builtin_ctzll(atk); atk &= atk - 1;
+			uint64_t pbit = BB_SQUARES[ps];
+			int w = (pbit & knights) ? Config::KS_ATT_KNIGHT
+			      : (pbit & bishops) ? Config::KS_ATT_BISHOP
+			      : (pbit & rooks)   ? Config::KS_ATT_ROOK
+			      :                    Config::KS_ATT_QUEEN;   // queen (only remaining pieces_nk type)
+			int foot = 0, contested = 0;
+			uint64_t zz = zone;
+			while (zz) {
+				uint8_t s = __builtin_ctzll(zz); zz &= zz - 1;
+				if (attack_bitmasks[s] & pbit) { foot++; if (contested_zone & BB_SQUARES[s]) contested++; }
+			}
+			if (foot == 0) continue;   // piece bears on the OR-zone but not the (possibly clamped) scan zone
+			if (Config::KS_DEFAWARE_MODE == 1) daware += w * contested / foot;
+			else                               daware += (w * contested) >> Config::KS_DEFAWARE_COUNT_SHR;
+		}
+		units += daware - legacy_att;
+	}
 
 	// Pawn shield: friendly pawns in front of the king reduce danger.
 	uint64_t shield_mask = white_king ? white_king_shield[king_square] : black_king_shield[king_square];
@@ -6734,6 +6847,69 @@ inline int realizability_factor(int attacker_material_edge, int phase_score){
 	return std::max(Config::REALIZ_FLOOR, 256 - discount);                     // discount>=0 -> R<=256
 }
 
+/*
+	Offense-vs-defense IMBALANCE ("who wins the pressure battle"), from the O/D accumulators built during
+	the per-piece loop. The legacy form is LINEAR and UNBOUNDED (diff * IMBALANCE_SCALE), which makes it
+	proportional to -- and thus COLLINEAR with -- the same attackingLayer cells already added to `total`
+	per-piece: the fit cannot separate the two, and the term reshuffles moves without adding net signal.
+	The bounded modes keep the idea (reward the dominant side) but SATURATE, so the term stops tracking the
+	raw magnitude and becomes a genuinely different-shaped signal (identifiable + situationally distinct).
+	  MODE 0 = legacy linear (default, byte-identical)
+	  MODE 1 = dominance RATIO: CAP * diff / (off + def), floored -> scale-invariant across phase/material
+	  MODE 2 = dynamic KNEE by phase: CAP * diff / (diff + KNEE*(128-phase)/128) -> saturates, threshold
+	           shrinks toward the endgame where the raw pressure sums are smaller
+	Realizability (convertibility + phase discount) multiplies the result in every mode; gated off => 256.
+	`off`/`def` are the attacker's offense vs the defender's defense; `mat_edge` is the attacker's material
+	edge for realizability. Callers gate on off>def, so diff>0 at every call.
+*/
+inline int ovd_imbalance(int off, int def, int phase_score, int mat_edge){
+	int diff = off - std::max(def, 0);
+	if (diff <= 0) return 0;
+	int imb;
+	if (Config::OVD_BOUNDED_MODE == 1){
+		int denom = off + std::max(def, 0);
+		if (denom < Config::OVD_DENOM_FLOOR) denom = Config::OVD_DENOM_FLOOR;
+		imb = Config::OVD_CAP * diff / denom;                              // bounded [0, CAP]
+	} else if (Config::OVD_BOUNDED_MODE == 2){
+		int knee = Config::OVD_KNEE * (128 - phase_score) / 128;           // larger opening, smaller endgame
+		if (knee < 1) knee = 1;
+		imb = Config::OVD_CAP * diff / (diff + knee);                      // saturates toward CAP
+	} else {
+		imb = diff * Config::IMBALANCE_SCALE;                              // MODE 0: legacy linear (byte-id)
+	}
+	if (Config::REALIZ_MAT_K | Config::REALIZ_PHASE_K)
+		imb = (imb * realizability_factor(mat_edge, phase_score)) >> 8;
+	return imb;
+}
+
+// Bounded/saturating CENTRAL differential (gated CENTRAL_BOUNDED_MODE). MODE 0 is handled at the call site
+// (the exact legacy phase-stepped hard clamp -> byte-identical). The regime probe (2026-08-10,
+// diagnostics/_central_regime.py, diverse_corpus) found central is already SATURATED in the opening (75%)
+// but LINEAR/collinear in the midgame (66%) and ÷4-attenuated in the endgame -- so the phase SLOPE
+// (×3/2 .. ÷4) is legitimate phase weighting and is PRESERVED; only the HARD CAP is replaced by a smooth
+// knee, which rounds the sub-cap regime so the term stops being exactly proportional to central_score
+// (de-correlated from the base placement cells -> identifiable for the retune).
+//   MODE 1 = fixed knee   : cap * mag / (mag + KNEE)
+//   MODE 2 = dynamic knee : cap * mag / (mag + KNEE*(128-phase)/128) -> later saturation in the opening
+//            (where central control is most decisive), sharper in the endgame (already attenuated)
+// CENTRAL_CAP scales the ceiling (100 = the legacy 400/350/300/300). Result carries central_score's sign.
+inline int central_bounded(int raw, int phase_score){
+	int pre, cap;
+	if (phase_score < 20)      { pre = (raw * 3) / 2; cap = 400; }
+	else if (phase_score < 31) { pre = raw;           cap = 350; }
+	else if (phase_score < 45) { pre = raw / 2;       cap = 300; }
+	else                       { pre = raw / 4;       cap = 300; }
+	cap = cap * Config::CENTRAL_CAP / 100;
+	int mag = pre < 0 ? -pre : pre;
+	int knee = Config::CENTRAL_KNEE;
+	if (Config::CENTRAL_BOUNDED_MODE == 2){
+		knee = Config::CENTRAL_KNEE * (128 - phase_score) / 128;   // larger opening, smaller endgame
+		if (knee < 1) knee = 1;
+	}
+	int sat = (mag + knee) ? (cap * mag / (mag + knee)) : 0;       // 0..cap, saturating
+	return pre < 0 ? -sat : sat;
+}
+
 // Dynamic conditional-eval layer: a generic term-gain (over 256; 256 = neutral) that blends up to two
 // cheap detector signals onto a 256 base, clamped to [MOD_FLOOR, MOD_CEIL]. Each signal contributes
 // (knob * signal) >> shift; a zero knob contributes nothing. Integer/bitwise (no division, no float).
@@ -7309,14 +7485,19 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 		//std::cout << phase_score << std::endl;
 		int central_add;
-		if(phase_score < 20){
-			central_add = std::max(std::min((central_score * 3) / 2, 400), -400);
-		} else if (phase_score < 31){
-			central_add = std::max(std::min(central_score, 350), -350);
-		} else if (phase_score < 45){
-			central_add = std::max(std::min(central_score / 2, 300), -300);
-		} else{
-			central_add = std::max(std::min(central_score / 4, 300), -300);
+		if (Config::CENTRAL_BOUNDED_MODE == 0){
+			// Legacy phase-stepped hard clamp -- byte-identical default path.
+			if(phase_score < 20){
+				central_add = std::max(std::min((central_score * 3) / 2, 400), -400);
+			} else if (phase_score < 31){
+				central_add = std::max(std::min(central_score, 350), -350);
+			} else if (phase_score < 45){
+				central_add = std::max(std::min(central_score / 2, 300), -300);
+			} else{
+				central_add = std::max(std::min(central_score / 4, 300), -300);
+			}
+		} else {
+			central_add = central_bounded(central_score, phase_score);
 		}
 		total += (Config::SCALE_CENTRAL == 100) ? central_add : (Config::SCALE_CENTRAL * central_add / 100);
 		br_central = total - br_run; br_run = total;
@@ -7341,18 +7522,12 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		//std::cout << occupied << " black:" << blackOffensiveScore << "  white: " << whiteDefensiveScore  << " diff: " << ((blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * 3)<< std::endl;
 		//std::cout << occupied << " black:" << blackDefensiveScore << "  white: " << whiteOffensiveScore  << " diff: " << ((whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * 3) << std::endl;
 		if (whiteOffensiveScore > blackDefensiveScore){
-			int imb = (whiteOffensiveScore - std::max(blackDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
-			if (Config::REALIZ_MAT_K | Config::REALIZ_PHASE_K)   // all-default skips -> byte-identical
-				imb = (imb * realizability_factor(whitePieceVal - blackPieceVal, phase_score)) >> 8;
-			total -= imb;
+			total -= ovd_imbalance(whiteOffensiveScore, blackDefensiveScore, phase_score, whitePieceVal - blackPieceVal);
 		}
 		br_imbalance_white = total - br_run; br_run = total;
 
 		if (blackOffensiveScore > whiteDefensiveScore){
-			int imb = (blackOffensiveScore - std::max(whiteDefensiveScore, 0)) * Config::IMBALANCE_SCALE;
-			if (Config::REALIZ_MAT_K | Config::REALIZ_PHASE_K)   // all-default skips -> byte-identical
-				imb = (imb * realizability_factor(blackPieceVal - whitePieceVal, phase_score)) >> 8;
-			total += imb;
+			total += ovd_imbalance(blackOffensiveScore, whiteDefensiveScore, phase_score, blackPieceVal - whitePieceVal);
 		}
 		br_imbalance_black = total - br_run; br_run = total;
 
@@ -8339,24 +8514,43 @@ inline int approximate_capture_gains1(uint64_t bb, bool turn) {
 	// Fix: break ties on (a) least valuable attacker -- MVV-LVA, colour-blind and chess-sensible -- then
 	// (b) OWN-PERSPECTIVE square (sq for white, sq^56 for black) so no tie can ever fall back on raw
 	// square order again. back() is the chosen capture, so "better" must sort LAST.
+	// The own-perspective square tie-break below is invariant under the COLOUR mirror it was built for
+	// (a rank flip), but not under a FILE mirror, which leaves ranks alone and reverses file order --
+	// so two equal-valued captures on the same rank fall straight back to file order and the flipped
+	// position picks the other one. Repro `5k2/8/8/p3Rp2/8/8/6P1/7K w`: Re5 takes two undefended pawns
+	// worth exactly 1000 each, base chooses f5 and the flip chooses h5 where mirror(f5) is c5.
+	// Attacker-to-target distance is preserved by BOTH mirrors, so ranking on it first removes the
+	// file dependence; the square order stays underneath purely as a determinism backstop.
 	auto capg_less = [](const CaptureInfo& a, const CaptureInfo& b, bool white_side) {
+		// Net gain outranks raw gain when ENABLE_CAPG_NET_SELECT is on; net_gain defaults to
+		// value_gained, so this line is inert whenever the net pass did not run.
+		if (Config::ENABLE_CAPG_NET_SELECT && a.net_gain != b.net_gain) return a.net_gain < b.net_gain;
 		if (a.value_gained != b.value_gained) return a.value_gained < b.value_gained;
 		if (!Config::ENABLE_CAPG_INVARIANT_ORDER) return false;   // legacy: no tie-break at all
 		const int av = values[pieceTypeLookUp[a.from]], bv = values[pieceTypeLookUp[b.from]];
 		if (av != bv) return av > bv;                              // cheaper attacker sorts LATER -> chosen
+		if (Config::ENABLE_CAPG_FILE_INVARIANT_TIEBREAK) {
+			const int ad = capture_span(a.from, a.to), bd = capture_span(b.from, b.to);
+			if (ad != bd) return ad > bd;                          // nearer capture sorts LATER -> chosen
+		}
 		const int af = white_side ? a.from : (a.from ^ 56), bf = white_side ? b.from : (b.from ^ 56);
 		if (af != bf) return af > bf;
 		const int at = white_side ? a.to : (a.to ^ 56), bt = white_side ? b.to : (b.to ^ 56);
 		return at > bt;
 	};
 
-	std::sort(black_captures.begin(), black_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
-    	return capg_less(a, b, false);
-	});
+	// Skipped when net selection is on: net_gain is not populated yet, so this pass would order by
+	// value_gained and then be immediately superseded by the sort inside the net block below. Sorting
+	// twice cost ~5% peak NPS in the first prototype for no behavioural difference.
+	if (!Config::ENABLE_CAPG_NET_SELECT) {
+		std::sort(black_captures.begin(), black_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+			return capg_less(a, b, false);
+		});
 
-	std::sort(white_captures.begin(), white_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
-    	return capg_less(a, b, true);
-	});
+		std::sort(white_captures.begin(), white_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+			return capg_less(a, b, true);
+		});
+	}
 
 	bool current_turn = turn;
 	uint64_t black_pieces = occupied_black;
@@ -8447,15 +8641,21 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 	CaptureStack black_captures;
 
 	// Absolute-pin awareness (gated): a piece that is the sole blocker between an enemy slider and its own
-	// king may only capture ALONG the pin ray. slider_blockers gives that per-side pinned mask once (loops
-	// over snipers only), so the gather below can drop an illegal off-ray pinned capture SEE would count.
+	// king may only capture ALONG the pin ray. slider_blockers gives that per-side pinned mask (loops over
+	// snipers only), so the gather below can drop an illegal off-ray pinned capture SEE would count.
+	// Computed LAZILY on first use: the masks are consumed only by the pin guard inside the
+	// `static_exchange_eval >= 0` branch, and roughly half of corpus positions never reach it -- 10% have
+	// no attacked piece at all, and more have attacked squares that all fail SEE. Computing both masks up
+	// front paid for work that was then discarded. Same values, same order, just deferred.
 	uint64_t blockers_white = 0, blockers_black = 0;
 	uint8_t white_king = 0, black_king = 0;
-	if (Config::ENABLE_CAPG_PIN) {
+	bool pin_masks_ready = false;
+	if (Config::ENABLE_CAPG_PIN && !Config::ENABLE_CAPG_LAZY_PIN) {
 		white_king = __builtin_ctzll(kings & occupied_white);
 		black_king = __builtin_ctzll(kings & occupied_black);
 		blockers_white = slider_blockers(white_king, queens | rooks, queens | bishops, occupied_black, occupied_white, occupied);
 		blockers_black = slider_blockers(black_king, queens | rooks, queens | bishops, occupied_white, occupied_black, occupied);
+		pin_masks_ready = true;
 	}
 
     while (bb) {
@@ -8502,6 +8702,13 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 			// Drop the capture when its attacker is absolutely pinned and the target is off the pin ray:
 			// SEE would count this illegal move (e.g. a pinned bishop "winning" the enemy queen).
 			if (Config::ENABLE_CAPG_PIN) {
+				if (!pin_masks_ready) {
+					white_king = __builtin_ctzll(kings & occupied_white);
+					black_king = __builtin_ctzll(kings & occupied_black);
+					blockers_white = slider_blockers(white_king, queens | rooks, queens | bishops, occupied_black, occupied_white, occupied);
+					blockers_black = slider_blockers(black_king, queens | rooks, queens | bishops, occupied_white, occupied_black, occupied);
+					pin_masks_ready = true;
+				}
 				uint64_t bl = attacker_white ? blockers_white : blockers_black;
 				if ((bl >> from) & 1ULL) {
 					uint8_t k = attacker_white ? white_king : black_king;
@@ -8510,7 +8717,25 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 				}
 			}
 
-			CaptureInfo newCapture(from, r, static_exchange_eval);
+			int capture_gain = static_exchange_eval;
+
+			// PROMOTION CREDIT (gated). A pawn capturing onto the last rank promotes, but the simulation
+			// carries NO piece-type overlay -- apply_basic_capture updates occupancy only -- so a
+			// recapture on that square is still priced as if a PAWN stood there. Crediting the promotion
+			// unconditionally would book queen-minus-pawn with no way to charge the recapture that pays
+			// for it: on `promo_gxR` the credit is +9000 while the reply would be valued at 1000.
+			// So credit ONLY when the promotion square has no defender left -- then the new queen lives,
+			// there is no recapture, and the full value is real. Defended squares keep today's behaviour,
+			// which implicitly prices the promoted piece as a pawn; that is roughly right for the forced
+			// recapture line, where the pawn effectively buys the recapturing piece.
+			// ⚠️ Approximate by design: ignores x-rays revealed when the capturing pawn vacates its square.
+			if (Config::ENABLE_CAPG_PROMO_CREDIT && pieceTypeLookUp[from] == PAWN) {
+				const bool promotes = current_colour ? (r < 8) : (r >= 56);
+				if (promotes && (attack_bitmasks[r] & state.occupied_colour[current_colour]) == 0)
+					capture_gain += values[QUEEN] - values[PAWN];
+			}
+
+			CaptureInfo newCapture(from, r, capture_gain);
 
 			if (current_colour)
 				black_captures.push_back(newCapture);
@@ -8531,27 +8756,87 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 	// Fix: break ties on (a) least valuable attacker -- MVV-LVA, colour-blind and chess-sensible -- then
 	// (b) OWN-PERSPECTIVE square (sq for white, sq^56 for black) so no tie can ever fall back on raw
 	// square order again. back() is the chosen capture, so "better" must sort LAST.
+	// The own-perspective square tie-break below is invariant under the COLOUR mirror it was built for
+	// (a rank flip), but not under a FILE mirror, which leaves ranks alone and reverses file order --
+	// so two equal-valued captures on the same rank fall straight back to file order and the flipped
+	// position picks the other one. Repro `5k2/8/8/p3Rp2/8/8/6P1/7K w`: Re5 takes two undefended pawns
+	// worth exactly 1000 each, base chooses f5 and the flip chooses h5 where mirror(f5) is c5.
+	// Attacker-to-target distance is preserved by BOTH mirrors, so ranking on it first removes the
+	// file dependence; the square order stays underneath purely as a determinism backstop.
 	auto capg_less = [](const CaptureInfo& a, const CaptureInfo& b, bool white_side) {
+		// Net gain outranks raw gain when ENABLE_CAPG_NET_SELECT is on; net_gain defaults to
+		// value_gained, so this line is inert whenever the net pass did not run.
+		if (Config::ENABLE_CAPG_NET_SELECT && a.net_gain != b.net_gain) return a.net_gain < b.net_gain;
 		if (a.value_gained != b.value_gained) return a.value_gained < b.value_gained;
 		if (!Config::ENABLE_CAPG_INVARIANT_ORDER) return false;   // legacy: no tie-break at all
 		const int av = values[pieceTypeLookUp[a.from]], bv = values[pieceTypeLookUp[b.from]];
 		if (av != bv) return av > bv;                              // cheaper attacker sorts LATER -> chosen
+		if (Config::ENABLE_CAPG_FILE_INVARIANT_TIEBREAK) {
+			const int ad = capture_span(a.from, a.to), bd = capture_span(b.from, b.to);
+			if (ad != bd) return ad > bd;                          // nearer capture sorts LATER -> chosen
+		}
 		const int af = white_side ? a.from : (a.from ^ 56), bf = white_side ? b.from : (b.from ^ 56);
 		if (af != bf) return af > bf;
 		const int at = white_side ? a.to : (a.to ^ 56), bt = white_side ? b.to : (b.to ^ 56);
 		return at > bt;
 	};
 
-	std::sort(black_captures.begin(), black_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
-    	return capg_less(a, b, false);
-	});
+	// Skipped when net selection is on: net_gain is not populated yet, so this pass would order by
+	// value_gained and then be immediately superseded by the sort inside the net block below. Sorting
+	// twice cost ~5% peak NPS in the first prototype for no behavioural difference.
+	if (!Config::ENABLE_CAPG_NET_SELECT) {
+		std::sort(black_captures.begin(), black_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+			return capg_less(a, b, false);
+		});
 
-	std::sort(white_captures.begin(), white_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
-    	return capg_less(a, b, true);
-	});
+		std::sort(white_captures.begin(), white_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+			return capg_less(a, b, true);
+		});
+	}
 
 	// Tactical tension = count of viable (SEE>=0) captures now pending for BOTH sides (captured before the
 	// exchange sequence below consumes the stacks). Read at the capg apply sites for conditioning.
+	// NET SELECTION (gated, computed AFTER the gather and BEFORE the sorts consume net_gain).
+	// Ranking purely by value_gained is a greedy choice over items whose values INTERACT: taking capture
+	// c can delete an opponent capture outright, because c may capture the very piece that was going to
+	// make it. Greedy never looks at that, so it can prefer a capture that leaves an enemy counter-capture
+	// standing over one that removes it.
+	//   Repro `2R3r1/8/8/k7/8/8/6p1/3K3R b`: Black's g2xh1 and Rg8xc8 are both worth 5000. The LVA
+	//   tie-break picks the PAWN capture, leaving White's c8 rook alive to "capture back", and the two net
+	//   to zero -- so hanging a rook reads as free (our eval +6.77 vs SF18 d10 -9.62). Taking Rxc8 instead
+	//   deletes White's reply entirely.
+	// Rank instead by gain NET of the opponent's best reply that SURVIVES this capture. A reply dies iff
+	// its attacker is the piece we just took, i.e. `reply.from == c.to` -- one integer compare.
+	// ⚠️ Computed ONCE against the initial stacks, so this is a 1-ply netting; deeper chains stay
+	// approximate on purpose, which is qsearch's job and keeps this cheap.
+	if (Config::ENABLE_CAPG_NET_SELECT) {
+		auto best_surviving = [](CaptureStack& opp, uint8_t captured_square) {
+			int best = 0;
+			for (int i = 0; i < opp.size(); i++) {
+				if (opp[i].from == captured_square) continue;      // its attacker was just taken
+				if (opp[i].value_gained > best) best = opp[i].value_gained;
+			}
+			return best;
+		};
+		for (int i = 0; i < white_captures.size(); i++) {
+			CaptureInfo& c = white_captures[i];
+			c.net_gain = c.value_gained - best_surviving(black_captures, c.to);
+		}
+		for (int i = 0; i < black_captures.size(); i++) {
+			CaptureInfo& c = black_captures[i];
+			c.net_gain = c.value_gained - best_surviving(white_captures, c.to);
+		}
+		// Re-sort now that net_gain is populated. The sorts above ran while net_gain still equalled
+		// value_gained, so they produced exactly the legacy order and this is the only ordering that
+		// reaches the consumer. Kept here rather than moved so the gate owns every behavioural change.
+		std::sort(black_captures.begin(), black_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+			return capg_less(a, b, false);
+		});
+		std::sort(white_captures.begin(), white_captures.end(), [&](const CaptureInfo& a, const CaptureInfo& b) {
+			return capg_less(a, b, true);
+		});
+	}
+
 	g_capg_tension = (int)(white_captures.size() + black_captures.size());
 
 	// Diagnostic-only capture-sequence dump (default-off; only under the breakdown flag + CAPG_DEBUG_DUMP env).

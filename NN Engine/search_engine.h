@@ -1243,6 +1243,18 @@ namespace Config
     // curve reshape. KS_SQC_MODE=0 = OFF = raw contest = byte-identical. 1 = value-aware contest feeds
     // KS_DEFAWARE's contested_zone (the first, KS-local, zero-ripple consumer; weak/check_safe follow).
     inline int KS_SQC_MODE     = 0;
+    // Pin awareness (2026-08-12 detector upgrade): exclude own-king-pinned pieces from the KS defender masks
+    // (a pinned defender can't leave the pin ray to cover a zone square). Raises units on genuinely-attacked
+    // kings whose defence is pinned -> closes part of the detection gap. 0 = OFF = byte-identical.
+    inline int KS_PIN_MODE     = 0;
+    // Weak-square VALUE-COUPLING (2026-08-12 detector upgrade): weight each weak zone square by its heaviest
+    // attacker (queen 3 / rook 2 / minor 1) instead of a flat count, so a weak king-square a queen bears on
+    // raises danger far more than one a knight bears on. Redistributive (minor-weak unchanged). 0 = OFF = byte-id.
+    inline int KS_WEAK_VAL_MODE = 0;
+    // Flank-attack breadth (2026-08-12 detector upgrade): SF's strongest single KS discriminator. KS_FLANK_MODE
+    // gates it (0 = OFF = byte-id); KS_FLANK = units per enemy-attacked flank-camp square (only consumed when on).
+    inline int KS_FLANK_MODE   = 0;
+    inline int KS_FLANK        = 1;
     inline int KS_WEAK         = 2;     // per weak zone square. Baseline: enemy-attacked AND no own defender. With
                                         // ENABLE_KS_SF_WEAK: enemy-attacked AND under-defended (<=1 defender, K/Q only).
     inline int KS_SAFE_CHECK   = 3;     // per safe-check square vs the ENEMY (offensive) king. Default 3.

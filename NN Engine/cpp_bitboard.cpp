@@ -5334,6 +5334,14 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	uint64_t enemy     = white_king ? occupied_black : occupied_white;
 	uint64_t own        = white_king ? occupied_white : occupied_black;
 	uint64_t own_pawns = pawns & own;
+	// Pin awareness (KS_PIN_MODE, 2026-08-12 detector upgrade): a defender pinned to its OWN king cannot leave
+	// the pin ray to actually cover a zone square, so it is NOT a real defender. Exclude own-king-pinned pieces
+	// from the defender masks -> a genuinely-attacked king whose defence is pinned reads HIGHER units (this
+	// closes part of the measured detection gap, where SF18 sees danger but our defender count masks it). A real
+	// detection capability, not a reweight. slider_blockers loops over snipers only (cheap). 0 = OFF = byte-id.
+	uint64_t own_pinned = Config::KS_PIN_MODE
+	                    ? slider_blockers(king_square, queens | rooks, queens | bishops, enemy, own, occupied)
+	                    : 0ULL;
 	// Optionally widen the zone to the full king 2-ring so attackers staging one square further out are
 	// still detected (the narrow ring1+one-rank zone reads 0 when real pieces sit in the second ring).
 	if (Config::KS_ZONE2) zone |= king_ring2[king_square];
@@ -5345,6 +5353,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	uint64_t defenders_sq = 0;
 	int attacked_zone_squares = 0;
 	int weak_squares = 0;
+	int weak_val_sum = 0;   // value-coupled weak count (KS_WEAK_VAL_MODE): each weak square weighted by its heaviest attacker
 	int overload_sum = 0;   // per-square sum of max(0, #attackers - #defenders): the discriminative breakthrough signal
 	int breakthrough_sq = 0;  // DIAGNOSTIC: count of zone squares where attackers > defenders (per-square breakthrough)
 	uint64_t contested_zone = 0;  // bitmask of zone squares where enemy attackers > own defenders (for KS_DEFAWARE_MODE)
@@ -5354,7 +5363,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		z &= z - 1;
 		uint64_t bm = attack_bitmasks[s];
 		uint64_t am = bm & enemy;  // enemy pieces attacking this zone square
-		uint64_t dm = bm & own;    // own pieces covering this zone square
+		uint64_t dm = bm & own & ~own_pinned;    // own pieces covering this zone square (pinned defenders excluded when KS_PIN_MODE; own_pinned=0 off => byte-id)
 		defenders_sq |= dm;
 		if (am) {
 			attackers_sq |= am;
@@ -5375,7 +5384,11 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			if (Config::ENABLE_KS_WEAK_ATT2 && !weak
 				    && __builtin_popcountll(am) >= 2 && __builtin_popcountll(dm) <= 1)
 					weak = true;   // attackedBy2 (SF & Ethereal): double-attacked, <=1 defender square is weak. Off = byte-id.
-				if (weak) weak_squares++;
+				if (weak) { weak_squares++;
+					// value-coupling: a weak king-square a QUEEN/ROOK bears on is far more dangerous than
+					// one only a minor attacks. Weight the weak square by its heaviest attacker (redistributive:
+					// minor-weak unchanged, heavy-weak amplified). Consumed only when KS_WEAK_VAL_MODE is on.
+					weak_val_sum += (am & queens) ? 3 : (am & rooks) ? 2 : 1; }
 			// Diagnostic per-square trace (gated; byte-identical for production): shows why weak fires or not.
 			if (g_capture_eval_breakdown && std::getenv("KS_TRACE"))
 				std::fprintf(stderr, "  ZS[%c] sq=%d attby=N%dB%dR%dQ%d  ndef=%d defN%dB%dR%dP%dK%dQ%d  weak=%d\n",
@@ -5405,7 +5418,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	          + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
 	          + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens)
 	          + attack_count_units
-	          + Config::KS_WEAK * weak_squares
+	          + Config::KS_WEAK * (Config::KS_WEAK_VAL_MODE ? weak_val_sum : weak_squares)
 	          + Config::KS_OVERLOAD * overload_sum   // per-square breakthrough (attackers-defenders); default 0 = byte-id
 	          - Config::KS_DEFENDER * __builtin_popcountll(defenders_sq & pieces_nk);
 
@@ -5442,6 +5455,33 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			else                               daware += (w * contested) >> Config::KS_DEFAWARE_COUNT_SHR;
 		}
 		units += daware - legacy_att;
+	}
+
+	// Flank-attack BREADTH (KS_FLANK_MODE, 2026-08-12 detector upgrade): SF's single strongest KS discriminator
+	// (flank_attack AUC 0.72) — the BREADTH of the enemy's attack across the king's whole flank within its own
+	// half (camp), not just the narrow ring. Count enemy-attacked flank-camp squares, +1 for a double-attacked
+	// one. A genuinely NEW detection FEATURE (breadth), not a reweight. 0 = OFF = byte-identical.
+	if (Config::KS_FLANK_MODE) {
+		int kfl = king_square & 7;
+		uint64_t flank_files = (kfl <= 2) ? (BB_FILES[0]|BB_FILES[1]|BB_FILES[2]|BB_FILES[3])
+		                     : (kfl >= 5) ? (BB_FILES[4]|BB_FILES[5]|BB_FILES[6]|BB_FILES[7])
+		                     :              (BB_FILES[2]|BB_FILES[3]|BB_FILES[4]|BB_FILES[5]);
+		uint64_t camp = white_king ? 0x000000FFFFFFFFFFULL : 0xFFFFFFFFFF000000ULL;   // king's own half (ranks 1-5 / 4-8)
+		uint64_t flank_sq = flank_files & camp;
+		int flank_attack = 0;
+		while (flank_sq) {
+			uint8_t s = __builtin_ctzll(flank_sq); flank_sq &= flank_sq - 1;
+			uint64_t a = attack_bitmasks[s] & enemy;
+			if (!a) continue;
+			// MODE 1 = SF-style raw BREADTH (every enemy-attacked flank square). MODE 2 = uniquely-ours
+			// CONTEST-weighted breadth: only flank squares the enemy actually CONTROLS (square_control:
+			// least-valuable-attacker > defender), so mere touched-but-defended squares (the quiet-inflation
+			// source) do NOT count -> distinctive AND compound-safer. A/B decides which is stronger.
+			if (Config::KS_FLANK_MODE == 2 && !ks_sqc_breaks(a, attack_bitmasks[s] & own & ~own_pinned)) continue;
+			flank_attack++;
+			if (__builtin_popcountll(a) >= 2) flank_attack++;
+		}
+		units += Config::KS_FLANK * flank_attack;
 	}
 
 	// Pawn shield: friendly pawns in front of the king reduce danger.

@@ -5,6 +5,60 @@ natural successor to `defaware1` and the most on-thesis idea on the board: upgra
 every detector reads, so the improvement compounds across KS **and** OvD, central, passers, capgains, evasion —
 not just king safety.
 
+## ★★★★ 2026-08-12 THE REFRAME — KS is a "WHEN-to-fire" problem, and the detectors are a "how much" win
+After building 4 discrimination-validated detectors (SQC/pins/weak-val/flank, AUC 0.748->0.810) they made general
+move-quality WORSE (footprint +0.14..+0.54 over-fire). Diagnosis chain: over-fire is NOT endgame (phase-split:
+opening +0.37 / midgame +0.27 / **endgame −0.32 = KS HELPS there**) — it's the OPENING. Root cause = the
+**"WHEN-to-fire" (context gating) system**, which we under-analysed for months by only ever asking "how much".
+### SF/Ethereal architecture (Opus map, source-verified): when+how-much are ONE signed object
+ONE signed `kingDanger` accumulator: positives (attacker weight×COUNT product, weak, checks) + large NEGATIVE
+suppressors in the SAME units (−873 no-queen, −shelter, −6·score/8 already-winning, −flank-defense) → they NET →
+one threshold (>100) → SQUARE (after all gates, so it amplifies NET danger never proximity) → phase as a
+**two-function mg/eg pair** (mg=square, eg=different tiny linear fn) blended by NON-PAWN MATERIAL.
+### Ours gets all three "when" shapes wrong (file:line)
+1. `KS_FLOOR=13` = fixed MAGNITUDE floor (chops same off all) vs SF's emergent NET-SIGN threshold. `:5571`
+2. `ks_phase_taper` = single LINEAR output scale on one scalar vs SF's per-term two-function mg/eg pair. `:5617`
+   `KS_PHASE_ZERO` = deep-endgame CLIFF vs continuous material weighting (under-gates R/Q endgames). `:5607`
+3. attacker term = flat additive SUM (`:5372`) vs SF count×weight PRODUCT (no super-linearity → lone piece
+   counts as much per-unit as a group). `KS_MIN_ATTACKERS` off+inert-w-queen `:5564`; `KS_NO_QUEEN` single-digit
+   vs SF −873 `:5545`.
+### Ordering (from OUR phase data, correcting the agent's phase-first suggestion)
+Over-read is the OPENING = a COORDINATION problem (we fire on presence/breadth; SF needs a coordinated group).
+So FIRST lever = **count×weight coordination gate**, validated on footprint STRATIFIED BY PHASE (predict: opening
+improves, midgame neutral, endgame unchanged). THEN the full signed-accumulator + net-threshold + two-function
+phase rebuild. Detectors (discrimination-validated) feed the POSITIVE side of that one object.
+### ☠️ METHODOLOGY LESSON (why we missed it for months)
+We asked only "how much" and DECOMPOSED into isolated pieces (primitive/curve/channels) — never the SYSTEM
+integration. And (owner-corrected) the error was NOT "no mixed corpus" — the move-regret sets
+(`game_regret_set`+`v2`) ARE mixed all-phases; it was DEFERRING that deployment move-test for pins/weak-val/flank
+on a wrong "honest inputs are move-neutral" theory, validating them on the KS-specific DISCRIMINATION corpus
+(AUC 0.81) only. The mixed move-regret caught the over-fire immediately once run; phase-stratification localized
+it. Fixes: ask WHEN+HOW-MUCH for every term; map INTEGRATION not parts; do NOT defer the deployment (mixed,
+move-regret, phase-STRATIFIED) test on a theoretical shortcut; when corpus-win but deployment-loss, change the
+QUESTION not the tuning. (Whacky/variant set built but UN-USED — fold in for non-opening diversity.)
+
+## ☠️ 2026-08-12 VERDICT — the coupled curve redesign FAILED the cross-set, and WE KNOW WHY. Bank +15, shelve.
+Tested the coupled redistribute+compound (honest SQC inputs + weak/safe-check UP + proximity DOWN + raise KNEE
+so the quadratic runs over the live 13-51 range, DIVISOR holds top magnitude). Two principled configs:
+`A(WEAK5 SC12 ATTACKCOUNT0 KNEE40 DIV6)` and `B(milder)`. **Footprint BOTH cross-sets: A +0.038/+0.115,
+B −0.018/+0.208 — both WORSE, v2 badly worse (the largest degradations measured).** 0-for-9 held.
+★ **The DRIFT analysis (`_ks_drift_analysis.py`, config A on v2) gives the mechanism:**
+- Root-unit inflation is UNIFORM (WORSE +3.3 vs BETTER +3.1) — compounding inflates danger BROADLY, not
+  selectively on genuine danger.
+- The damage pattern: the worst drift positions are almost all `base = reg 0.0 (SF18-best) → cand = reg 30-70`
+  — it **BREAKS already-correct moves**, doesn't fix bad ones. ~equal flip counts (2317 worse / 2245 better)
+  but the breaks are far bigger than the fixes ⇒ net-harmful.
+- Move changes flow through the SEARCH (config changes LEAF KS evals → different lines), not the root — inflated
+  danger pulls move selection toward ATTACK-CHASING when SF18 preferred quiet; leaks into endgames (units 26-33
+  in 7-piece positions past the taper) where king ACTIVITY ≠ safety.
+- ⇒ **You cannot compound units that don't discriminate.** Our units are proximity-dominated; compounding
+  amplifies genuine AND false danger alike, and the false-danger amplification dominates. Weight-redistribution
+  + square_control did NOT make the units discriminating enough to survive squaring. **The curve stays dead until
+  the units genuinely discriminate — a deeper detector-quality problem than we can crack now.**
+▶️ **For a future attempt:** the prerequisite is UNIT DISCRIMINATION (genuine-danger kings must land at clearly
+higher units than proximity-only kings) BEFORE any compounding — and neither the flat weights nor the value-aware
+contest achieved it. Do not re-try compounding without first proving units discriminate on the cross-set.
+
 ## ★★★ 2026-08-12 UPDATE — this is STEP 1 of a 3-step KS danger-model redesign (Opus analysis)
 Two analyses (primitive map + danger-model analysis) reshaped the picture:
 - **SCOPE CORRECTION:** OvD and `central` are NOT readers of `attack_bitmasks` — they are loop-siblings fed by

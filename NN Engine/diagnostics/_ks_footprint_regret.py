@@ -99,11 +99,20 @@ def cfg(**kw):
     d = dict(BUNDLE); d.update(kw); return d
 
 
-BASE = ("bundle+defaware1 (the floor)", cfg(KS_DEFAWARE_MODE=1))
+BASE = ("bundle+defaware1 (the ship)", cfg(KS_DEFAWARE_MODE=1))
 CANDS = [
-    # KS redesign step 1: value-aware square_control contest (least-valuable-attacker + pawn-exclusion +
-    # attackedBy2) feeding defaware's contested_zone, vs the raw popcount contest. The honest-inputs upgrade.
-    ("+SQC (value-aware contest)", cfg(KS_DEFAWARE_MODE=1, KS_SQC_MODE=1)),
+    # Move-regret guardrail on the DETECTOR stack (NO compound yet). The detectors raise units broadly, so on the
+    # linear curve they push quiet positions over the floor -> expected to OVER-FIRE (positive regret = worse).
+    # This quantifies what the compound rebalance must fix. A/B the two flank modes (SF-raw vs ours-contest).
+    # COMPOUND on the now-discriminating units: raise the FLOOR to sit between quiet(~11-15) and attack(~21-26)
+    # unit means so quiet falls back under (kills the over-fire) while genuine clears; KNEE>floor so the attack
+    # range compounds; DIVISOR rescales the 3x unit blowup back toward the old sane danger magnitude. Floor from
+    # each flank mode's own quiet/attack separation (ours quiet 10.7/att 20.9 -> floor 15; SF quiet 14.7/att 25.6
+    # -> floor 19). A/B the flank modes. Gate = sign-consistent IMPROVEMENT (negative) on BOTH cross-sets.
+    ("compound OURS (flank2 floor15)", cfg(KS_DEFAWARE_MODE=1, KS_SQC_MODE=1, KS_PIN_MODE=1, KS_WEAK_VAL_MODE=1,
+                                            KS_FLANK_MODE=2, KS_FLOOR=15, KS_KNEE=40, KS_DIVISOR=8)),
+    ("compound SF (flank1 floor19)", cfg(KS_DEFAWARE_MODE=1, KS_SQC_MODE=1, KS_PIN_MODE=1, KS_WEAK_VAL_MODE=1,
+                                          KS_FLANK_MODE=1, KS_FLOOR=19, KS_KNEE=45, KS_DIVISOR=8)),
 ]
 
 

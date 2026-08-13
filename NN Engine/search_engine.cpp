@@ -1432,6 +1432,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_DEFAWARE_COUNT_SHR = env_int("KS_DEFAWARE_COUNT_SHR", Config::KS_DEFAWARE_COUNT_SHR);
         Config::ENABLE_KS_WEAK_ATT2 = env_flag("ENABLE_KS_WEAK_ATT2", Config::ENABLE_KS_WEAK_ATT2);
         Config::KS_SQC_MODE = env_int("KS_SQC_MODE", Config::KS_SQC_MODE);
+        Config::KS_PIN_MODE = env_int("KS_PIN_MODE", Config::KS_PIN_MODE);
+        Config::KS_WEAK_VAL_MODE = env_int("KS_WEAK_VAL_MODE", Config::KS_WEAK_VAL_MODE);
+        Config::KS_FLANK_MODE = env_int("KS_FLANK_MODE", Config::KS_FLANK_MODE);
+        Config::KS_FLANK = env_int("KS_FLANK", Config::KS_FLANK);
         Config::KS_WEAK = env_int("KS_WEAK", Config::KS_WEAK);
         Config::KS_SAFE_CHECK = env_int("KS_SAFE_CHECK", Config::KS_SAFE_CHECK);
         Config::KS_SAFE_CHECK_DEF = env_int("KS_SAFE_CHECK_DEF", Config::KS_SAFE_CHECK_DEF);
@@ -1987,6 +1991,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_DEFAWARE_COUNT_SHR=" << Config::KS_DEFAWARE_COUNT_SHR
                   << " ENABLE_KS_WEAK_ATT2=" << Config::ENABLE_KS_WEAK_ATT2
                   << " KS_SQC_MODE=" << Config::KS_SQC_MODE
+                  << " KS_PIN_MODE=" << Config::KS_PIN_MODE
+                  << " KS_WEAK_VAL_MODE=" << Config::KS_WEAK_VAL_MODE
+                  << " KS_FLANK_MODE=" << Config::KS_FLANK_MODE
+                  << " KS_FLANK=" << Config::KS_FLANK
                   << " ENABLE_PASSER_BLOCKADE_QUALITY=" << Config::ENABLE_PASSER_BLOCKADE_QUALITY
                   << " PASSER_CONTEST_PCT=" << Config::PASSER_CONTEST_PCT
                   << " PASSER_KRACE_MAG=" << Config::PASSER_KRACE_MAG

@@ -2359,6 +2359,30 @@ inline void update_cache(int num_plies)
     */
 }
 
+// See search_engine.h. DIAGNOSTIC-ONLY clear of the persistent learning tables + caches, so an in-process
+// bench (fresh ChessAI per FEN, but the C++ globals are file-scope) judges each position from a neutral
+// state. get_engine_move resets only per-ply scratch (killers/counters/stacks); the history family and TT
+// persist and would otherwise carry ordering bias from unrelated prior positions.
+void clearSearchTables()
+{
+	std::fill(&historyHeuristics[0][0][0],     &historyHeuristics[0][0][0]     + 2LL * 64 * 64,     0);
+	std::fill(&moveFrequency[0][0][0],         &moveFrequency[0][0][0]         + 2LL * 64 * 64,     0);
+	std::fill(&counterMoveHeuristics[0][0][0], &counterMoveHeuristics[0][0][0] + 2LL * 4096 * 4096, 0);
+	std::fill(&killerMoves[0][0],  &killerMoves[0][0]  + 64 * 2,  Move{});
+	std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
+	if (Config::ENABLE_CONT_HIST_2PLY)
+		std::fill(&contHist2[0][0][0], &contHist2[0][0][0] + 2LL * 4096 * 4096, 0);
+	if (Config::ENABLE_PIECE_CONTHIST)
+		std::fill(&pieceContHist[0][0][0], &pieceContHist[0][0][0] + 2LL * PCONT_DIM * PCONT_DIM, 0);
+	if (Config::ENABLE_THREAT_HIST)
+		std::fill(&threatHist[0][0][0][0][0], &threatHist[0][0][0][0][0] + 2LL * 2 * 2 * 64 * 64, 0);
+	if (Config::ENABLE_CORR_HIST)
+		std::fill(&pawnCorrHist[0][0], &pawnCorrHist[0][0] + 2LL * CORR_SIZE, 0);
+	std::fill(searchEvalCache.begin(),  searchEvalCache.end(),  TTEntry{});
+	std::fill(quiesceEvalCache.begin(), quiesceEvalCache.end(), QTTEntry{});
+	std::fill(g_ttMoveTable.begin(),    g_ttMoveTable.end(),    Move{});
+}
+
 MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count)
 {
 #ifdef EVAL_PROFILE

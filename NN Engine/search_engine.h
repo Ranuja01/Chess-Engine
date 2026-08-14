@@ -2325,6 +2325,13 @@ inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_m
 inline void update_cache(int num_plies);
 
 MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count);
+
+// Zero the persistent, cross-position learning tables (history/continuation/frequency) + the TT/qTT caches.
+// DIAGNOSTIC-ONLY: call before each isolated position so an in-process bench loop does not carry move-ordering
+// history from unrelated prior positions -- that history is move-indexed (not position-keyed) and update_cache
+// only DECAYS it, so it shifts LMR/LMP and silently changes the chosen move (worst at low material). NEVER
+// called from the game path: real games correctly accumulate within-game history.
+void clearSearchTables();
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, SearchData &previous_search_data, Move &best_move, int &num_iterations);
 int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<int> second_level_preliminary_scores, std::vector<Move> second_level_moves_list, RootScore &out_entry, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);

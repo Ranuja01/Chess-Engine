@@ -139,6 +139,12 @@ def run_one(fen, best):
     t0 = timer()
     with _captured_stdout() as buf:
         ai = ChessAI(blackModel, whiteModel, board, board.turn)
+        # Isolated-position determinism: drop history/TT carried from prior FENs in this process (the file-scope
+        # C++ learning tables persist across the fresh-ChessAI-per-FEN loop). Default ON; DIAG_NO_CLEAR=1 opts out
+        # (e.g. pure-timing NPS benches, where the 134MB clear would add non-engine wall time, or to reproduce the
+        # old contaminated numbers). See search_engine clearSearchTables.
+        if os.environ.get("DIAG_NO_CLEAR") != "1":
+            ai.clear_search_tables()
         move = ai.alphaBetaWrapper()
         # The engine's Evaluation/Positions lines are Python prints (ChessAI.pyx) and sit in
         # Python's stdout buffer; flush them into the captured fd before reading, or only the

@@ -209,6 +209,24 @@ TUNING question — decide it on balanced STS, and choose on the balanced TOTAL,
   ★ **Before any Bash call, ask: "is this reading something?" If yes, it is the wrong tool.**
   Detail + incident log: memory `never-shell-for-reading-it-prompts`.
 
+## 🚨 DIAGNOSTIC-HARNESS CONTAMINATION — in-process loops clear learning tables per position
+
+Any diagnostic that searches MANY positions in ONE process (`run_one` and everything on it — `wac`/`sts`/`movematch`/
+the low-depth **regret** ruler `_ks_phase_split`) shares the engine's file-scope C++ learning tables ACROSS positions.
+A fresh `ChessAI` per FEN does NOT reset them, and `get_engine_move` clears only per-ply scratch — the ACCUMULATING
+move-indexed tables (`historyHeuristics`/`counterMoveHeuristics`/`moveFrequency`) persist (only decayed), so ordering
+history from UNRELATED prior FENs bleeds in and silently changes the chosen move. **Worst at low material / quiet
+positions** (few candidates, ordering decides); this FAKED an entire "endgame KS hurt" (KS was provably inert there).
+
+- `run_one` now calls `ai.clear_search_tables()` per position (→ `clearSearchTables()`, search_engine.cpp). Default ON;
+  **`DIAG_NO_CLEAR=1`** opts out (pure-timing NPS benches — the 134MB clear adds wall time — or to reproduce old numbers).
+- **DIAGNOSTIC-ONLY**: the GAME path never clears, so within-game learning + the shipped engine are byte-unchanged.
+- Cost of the bug (same build, contaminated→clean): **STS 1670→1771 (+101, +3.3pp)**; tactical WAC ~0.5%. Positional/regret
+  numbers were the ones distorted. ⇒ **any search-based POSITIONAL/REGRET number from before 2026-08-14 is confounded**
+  (re-baseline first). GAMES/SPRT, STATIC-eval (symmetry, per-term gap, collapse), and BYTE-ID are NOT affected — but
+  "byte-id cancels" holds ONLY for a LITERAL-identical eval, NOT for a real-change DELTA. Detail: memory
+  `diagnostic-harness-history-contamination`. Clean bundle baseline: `250 / 36,651,879 / 3.751 / STS 1771`.
+
 ## 🧰 Diagnostics toolkit — READ BEFORE WRITING ANY NEW PROBE
 
 `diagnostics/` already holds ~200 scripts and nearly every question we ask has a tool for it. **Check

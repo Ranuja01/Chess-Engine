@@ -96,6 +96,7 @@ cdef extern from "search_engine.h":
     void initialize_engine(vector[BoardState]& state_history, unordered_map[uint64_t, int]& position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bint turn, bint side_to_play)
     void set_current_state(vector[BoardState]& state_history, unordered_map[uint64_t, int]& position_count, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied, uint64_t occupied_white, uint64_t occupied_black, uint64_t promoted, uint64_t castling_rights, int ep_square, int halfmove_clock, int fullmove_number, bint turn)
     MoveData get_engine_move(vector[BoardState]& state_history, unordered_map[uint64_t, int]& position_count)
+    void clearSearchTables()
 
 # cdef extern from "nnue.h":
 #     int evaluate_position(const uint64_t* bitboards)
@@ -395,6 +396,12 @@ cdef class ChessAI:
     #     return (moves_list [:length], self.alpha_list)
     
     # Function to wrap the 
+    def clear_search_tables(self):
+        # Zero the persistent cross-position learning tables + caches so an in-process diagnostic loop judges
+        # each position from a neutral state (no move-ordering history from unrelated prior FENs). Diagnostic
+        # harness use only -- the game path never calls this, so within-game learning is preserved.
+        clearSearchTables()
+
     def alphaBetaWrapper(self):
 
         cdef MoveData_Cython result

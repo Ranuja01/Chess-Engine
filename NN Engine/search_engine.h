@@ -887,13 +887,13 @@ namespace Config
     inline int IMBALANCE_SCALE   = 3;    // offense-vs-defense imbalance multiplier (was ×3; MODE 0 only)
     // OvD imbalance shape: the legacy linear form (MODE 0) is collinear with the base placement (it re-adds
     // the same attackingLayer cells linearly). Bounded modes keep the "who-wins-the-pressure-battle" idea
-    // but SATURATE, decoupling it from the raw magnitude. Default MODE 0 = byte-identical.
-    inline int OVD_BOUNDED_MODE  = 0;    // 0 = legacy linear · 1 = dominance-ratio · 2 = dynamic-KNEE-by-phase
+    // but SATURATE, decoupling it from the raw magnitude. Shipped default MODE 2 (validated eval bundle).
+    inline int OVD_BOUNDED_MODE  = 2;    // 0 = legacy linear · 1 = dominance-ratio · 2 = dynamic-KNEE-by-phase
     inline int OVD_CAP           = 300;  // max eval a dominant initiative can be worth (bounded modes)
     inline int OVD_KNEE          = 40;   // MODE 2: pressure-diff (phase-scaled) counting as half-decisive
     inline int OVD_DENOM_FLOOR   = 40;   // MODE 1: denominator floor guarding sparse positions
-    inline int CENTRAL_BOUNDED_MODE = 0; // 0 = legacy phase-stepped hard clamp (byte-id) · 1 = fixed-knee · 2 = dynamic-KNEE-by-phase
-    inline int CENTRAL_CAP          = 100; // % of the legacy phase caps (400/350/300/300); bounded modes only
+    inline int CENTRAL_BOUNDED_MODE = 1; // 0 = legacy phase-stepped hard clamp (byte-id) · 1 = fixed-knee · 2 = dynamic-KNEE-by-phase
+    inline int CENTRAL_CAP          = 150; // % of the legacy phase caps (400/350/300/300); bounded modes only
     inline int CENTRAL_KNEE         = 200; // saturation knee on the phase-scaled central magnitude
     inline int BISHOP_PAIR_BONUS = 300;  // magnitude of the bishop-pair bonus
     inline int KNIGHT_PAIR_BONUS = 200;  // magnitude of the knight-pair bonus
@@ -1283,7 +1283,7 @@ namespace Config
     //       legacy weight, smooth decay by how defended the piece's squares are.
     //   2 = breakthrough-COUNT: KS_ATT_type * (# contested squares the piece attacks) — rewards a piece
     //       bearing on several undefended squares (scaled by KS_DEFAWARE_COUNT_SHR to keep magnitude sane).
-    inline int KS_DEFAWARE_MODE = 0;
+    inline int KS_DEFAWARE_MODE = 1;
     inline int KS_DEFAWARE_COUNT_SHR = 0;  // mode 2 only: right-shift on the count product (0 = none). Tunable.
     // attackedBy2 in the weak-square test (standard; SF & Ethereal): a zone square attacked by >= 2 enemy
     // pieces and defended at most once is ALSO weak, even if that lone defender is a minor/rook (the SF

@@ -1,10 +1,14 @@
 # Session handoff — 2026-08-14: the criticality-split reframe, the additive-hurts-critical verdict, and the data build
 
-> ## 🚨 READ THIS BLOCK FIRST
-> This session did NOT ship a strength gain. It produced a **methodology upgrade + a mechanism verdict + a data
-> pipeline** that reframe all KS work. Nothing committed beyond the prior `d58d47c`; default build byte-identical
-> (`250 / 35,426,396 / EBF 3.800`). The **+15 bundle (OvD+central+defaware1) is still the standing UNCONFIRMED
-> deliverable** — a night-of-games SPRT of it alone remains the safe fallback.
+> ## 🚨 READ THIS BLOCK FIRST  (UPDATED end-of-session — outcome CHANGED)
+> The bundle **SHIPPED**. The +15 bundle (OvD+central+defaware1) was CONFIRMED **+20.8 Elo** (pooled 1871 lightning
+> games, old sprt_bundle_ks 1362 g + two fresh batches; 95% CI [+6.9,+34.7] clears 0) and shipped as default —
+> **new default fingerprint `250 / 36,831,767 / EBF 3.772`** (commit `7743cad`; arch `8f21a36`; tooling/docs `c85a0a0`).
+> Pre-ship gates passed (symmetry-neutral, NPS tooling-clean). Pre-bundle baseline `250 / 35,426,396` recoverable via
+> old knobs. This session ALSO produced the methodology + mechanism verdict + data pipeline below (all still current).
+> ⚠️ Mid-session note preserved for context: the analysis/triangulation below was written BEFORE the ship + the
+> WSL-concurrency crash/reboot; the ship and the 3-corpus triangulation verdict came after. See OPTIMIZATION_LOG
+> 2026-08-14 entry for the consolidated outcome.
 
 ## ★★★★ THE CENTRAL FINDINGS (do not re-derive)
 1. **CRITICALITY SPLIT (owner insight) — read SIGNAL, not the average.** Bucket move-regret by SF's best-vs-2nd

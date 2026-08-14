@@ -4,6 +4,37 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🏆★★★★ 2026-08-14 — OvD+central+defaware BUNDLE **SHIPPED** (+20.8 Elo) · the CRITICALITY-SPLIT method
+
+    SHIPPED (new default)  250 / 36,831,767 / EBF 3.772   (commit 7743cad; arch 8f21a36)
+    pre-bundle recoverable 250 / 35,426,396 / EBF 3.800   (force OVD_BOUNDED_MODE=0 CENTRAL_BOUNDED_MODE=0 CENTRAL_CAP=100 KS_DEFAWARE_MODE=0)
+
+The long-held "+15 lean / UNCONFIRMED" bundle (`OVD_BOUNDED_MODE=2 CENTRAL_BOUNDED_MODE=1 CENTRAL_CAP=150
+KS_DEFAWARE_MODE=1`) is now **CONFIRMED +20.8 Elo** and shipped as default. Confirmation = pooling the old
+sprt_bundle_ks run (1362 g, +14.3) with two fresh same-condition lightning batches (360 g +41.7, 149 g +30.4) →
+**1871 g, +20.8 ±13.9, 95% CI [+6.9, +34.7] CLEARS 0.** Pooling was valid because the old PGN header showed the
+SAME LIGHTNING TC + byte-identical bundle config (verified, not assumed); the +15↔+42 spread is variance within
+overlapping CIs. Pre-ship gates PASSED: colour-symmetry NEUTRAL (11 viols on==off = pre-existing residual, bundle
+adds 0); NPS tooling-clean (every eval getenv behind `g_capture_eval_breakdown`, gated branches init-latched ints —
+the ~5-7% vs historical peak is cross-session noise, proven by code). Old baseline recoverable byte-exact (verified).
+
+### ★★★★ The CRITICALITY-SPLIT method (owner insight) — read SIGNAL, not the average
+Bucket move-regret by SF best-vs-2nd win% gap: benign <3% (noise), minor 3-8%, moderate 8-20%, CRITICAL >20%. The
+project-long "net-neutral" aggregates were LYING — they diluted a real critical effect against benign noise.
+`_ks_phase_split.py` now emits the criticality + non-pawn-material split. **VERDICT (3-corpus triangulation, KS on/off
+ruler):** incumbent KS HELPS minor/moderate criticality + opening on ALL THREE corpora; HURTS low-non-pawn-material
+endgame on all three; EVERY additive change HURTS critical (louder crude signal pulls precise moves off the one right
+answer — mechanism for additive-KS 0-for-9). ★ AUC ≠ critical-help (detectors 0.81 AUC still hurt critical). Only
+surviving direction = SUBTRACTIVE/REDISTRIBUTIVE at constant magnitude. The standard sets' extreme-critical band is
+32 positions and flips sign between the two disjoint sets (+2.01 vs −4.45) = sampling-variance smoking gun; the
+enriched Lichess corpus (814 crit) resolves it (−2.17). Method+data: memory [[criticality-split-reads-signal-not-average]],
+[[additive-ks-hurts-critical-incumbent-helps]], [[bundle-ovd-central-defaware1-confirmed-plus20]]; SESSION-HANDOFF-2026-08-14.
+
+### ▶️ NEXT (actionable): (1) SUBTRACTIVE endgame-KS gate — delete the measured low-material HURT (sketch: taper KS to
+0 in the endgame / lower KS_PHASE_ZERO), validated on the npm≤12 critical slice. (2) Per-term FAILURE ATLAS — the
+criticality ruler on threats/passers/capgains/imbalance = which term is weakest in which cell (needs a small tool ext).
+(3) Re-baseline all diagnostics vs the NEW default (36,831,767). (4) TT/cache `run_one` contamination still UNFIXED.
+
 ## 🧰 2026-08-09 (late) — capgain ROOT-CAUSED, a 3-item bundle built, NOTHING SHIPPED
 
 Detail: [`SESSION-HANDOFF-2026-08-09.md`](SESSION-HANDOFF-2026-08-09.md).

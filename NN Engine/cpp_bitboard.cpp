@@ -5413,10 +5413,30 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		if (zsz > 0) attack_count_units = attack_count_units * Config::KS_ZONE_NORM / zsz;
 	}
 
-	int units = Config::KS_ATT_KNIGHT * __builtin_popcountll(attackers_sq & knights)
-	          + Config::KS_ATT_BISHOP * __builtin_popcountll(attackers_sq & bishops)
-	          + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
-	          + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens)
+	// Coordination gate (KS_COORD_GATE_MODE, 2026-08-12 detector upgrade): replace flat attacker SUM with
+	// count × weight PRODUCT so that a lone/few-attacker position can't clear the threshold (the "when-to-fire"
+	// gate). A lone piece contributes less per-unit; multiple pieces amplify danger super-linearly. MODE 0 = OFF
+	// = byte-id (flat sum); MODE 1+ = product-based coordination gate. Gated before defaware1 so the product
+	// feeds into contested_zone correctly.
+	int attacker_units = 0;
+	if (Config::KS_COORD_GATE_MODE) {
+		int att_pieces = __builtin_popcountll(attackers_sq & pieces_nk);
+		int att_wsum = Config::KS_ATT_KNIGHT * __builtin_popcountll(attackers_sq & knights)
+		             + Config::KS_ATT_BISHOP * __builtin_popcountll(attackers_sq & bishops)
+		             + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
+		             + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens);
+		// Product: (count of attackers) * (sum of attacker weights) / normalizer. Normalizer (default 4)
+		// keeps the scale roughly equivalent to the flat sum while introducing coordination super-linearity.
+		attacker_units = (att_pieces * att_wsum) / std::max(1, Config::KS_COORD_DIVISOR);
+	} else {
+		// Flat sum (default, byte-id)
+		attacker_units = Config::KS_ATT_KNIGHT * __builtin_popcountll(attackers_sq & knights)
+		               + Config::KS_ATT_BISHOP * __builtin_popcountll(attackers_sq & bishops)
+		               + Config::KS_ATT_ROOK   * __builtin_popcountll(attackers_sq & rooks)
+		               + Config::KS_ATT_QUEEN  * __builtin_popcountll(attackers_sq & queens);
+	}
+
+	int units = attacker_units
 	          + attack_count_units
 	          + Config::KS_WEAK * (Config::KS_WEAK_VAL_MODE ? weak_val_sum : weak_squares)
 	          + Config::KS_OVERLOAD * overload_sum   // per-square breakthrough (attackers-defenders); default 0 = byte-id
@@ -5613,7 +5633,9 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 
 	// No-enemy-queen discount (SF11 -873 on its scale; ours is on the 0..KS_CAP unit scale, single-digit).
 	// Attacks without an enemy queen rarely mate, so drop the danger; keyed on the ENEMY's queen only.
-	if (Config::KS_NO_QUEEN && !(queens & enemy)) units -= Config::KS_NO_QUEEN;
+	// In KS_ACCUM_MODE the LARGE derived KS_NQ_SUP suppressor owns this signal, so the small one is gated off
+	// to avoid double-counting (the && !KS_ACCUM_MODE is inert at MODE=0 => byte-identical).
+	if (Config::KS_NO_QUEEN && !(queens & enemy) && !Config::KS_ACCUM_MODE) units -= Config::KS_NO_QUEEN;
 
 	// Optional SF-style coordination product: super-linear in the number/weight of COORDINATING attackers
 	// (a group is far more than the sum of its parts). Default KS_ATT_PRODUCT=0 => no contribution => byte-id.
@@ -5628,20 +5650,44 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 
 	if (units < 0) units = 0;
 	if (g_capture_eval_breakdown) { if (white_king) g_ks_units_white = units; else g_ks_units_black = units; }
-	// Attacker-count DISCRIMINATION gate (Ethereal-style): a lone piece near the king is not danger — require a
-	// coordinating group of >= KS_MIN_ATTACKERS enemy pieces (the bar drops by one when the enemy has a queen,
-	// which alone still threatens). This is the discriminator that lets KS_FLOOR come down without waking calm
-	// positions (0-1 attackers -> 0 danger). Default KS_MIN_ATTACKERS=0 => gate off => byte-identical.
-	if (Config::KS_MIN_ATTACKERS > 0) {
-		int att_pieces = __builtin_popcountll(attackers_sq & pieces_nk);
-		int min_att = (queens & enemy) ? std::max(1, Config::KS_MIN_ATTACKERS - 1) : Config::KS_MIN_ATTACKERS;
-		if (att_pieces < min_att) return 0;
+
+	int danger;
+	if (Config::KS_ACCUM_MODE) {
+		// ── Signed-accumulator "WHEN-to-fire" object ──────────────────────────────────────────────
+		// `units` is the positive side already net of shield/defender (the small no-queen is gated off
+		// above). Apply the LARGE derived suppressors, then the per-position threshold (replaces the
+		// blanket KS_FLOOR: a queenless/sheltered king self-nets below the bar; an exposed king with a
+		// queen clears it), then the map. Square-after-gate is CONDITIONAL (KS_ACCUM_SQUARE, default off)
+		// so we never square a signal that has not been shown to discriminate (the 0-for-9 law).
+		int net = units;
+		if (!(queens & enemy)) net -= Config::KS_NQ_SUP;                 // no-queen suppressor (derived large)
+		if (Config::KS_WIN_SUP) {
+			// already-winning discount: damp when the DEFENDING king's own side is materially ahead
+			// (a side up material rarely gets mated). Black-positive eval; this king = white_king.
+			int own_edge = white_king ? (whitePieceVal - blackPieceVal) : (blackPieceVal - whitePieceVal);
+			if (own_edge > 0) net -= (Config::KS_WIN_SUP * own_edge) / 1000;
+		}
+		if (net < Config::KS_ACCUM_THRESH) return 0;                    // per-position threshold (the "when")
+		int over = net - Config::KS_ACCUM_THRESH;
+		if (over > KS_MAX_UNITS) over = KS_MAX_UNITS;
+		danger = Config::KS_ACCUM_SQUARE ? (over * over) / std::max(1, Config::KS_ACCUM_DIV)  // square-after-gate
+		                                 : (over * Config::KS_ACCUM_LIN) / 16;                 // linear map
+	} else {
+		// Attacker-count DISCRIMINATION gate (Ethereal-style): a lone piece near the king is not danger — require a
+		// coordinating group of >= KS_MIN_ATTACKERS enemy pieces (the bar drops by one when the enemy has a queen,
+		// which alone still threatens). This is the discriminator that lets KS_FLOOR come down without waking calm
+		// positions (0-1 attackers -> 0 danger). Default KS_MIN_ATTACKERS=0 => gate off => byte-identical.
+		if (Config::KS_MIN_ATTACKERS > 0) {
+			int att_pieces = __builtin_popcountll(attackers_sq & pieces_nk);
+			int min_att = (queens & enemy) ? std::max(1, Config::KS_MIN_ATTACKERS - 1) : Config::KS_MIN_ATTACKERS;
+			if (att_pieces < min_att) return 0;
+		}
+		// Deadzone: trivial king-danger (units below the floor) contributes ZERO, so a barely-present "attack"
+		// can't perturb non-king positions (the def1 passer bleed). Gated; default KS_FLOOR=0 => byte-identical.
+		if (units < Config::KS_FLOOR) return 0;
+		if (units > KS_MAX_UNITS) units = KS_MAX_UNITS;
+		danger = ks_safety_table[units];
 	}
-	// Deadzone: trivial king-danger (units below the floor) contributes ZERO, so a barely-present "attack"
-	// can't perturb non-king positions (the def1 passer bleed). Gated; default KS_FLOOR=0 => byte-identical.
-	if (units < Config::KS_FLOOR) return 0;
-	if (units > KS_MAX_UNITS) units = KS_MAX_UNITS;
-	int danger = ks_safety_table[units];
 
 	// Per-king dynamic magnitude: the REALNESS of an attack is the CO-OCCURRENCE of independent danger
 	// dimensions (real pieces attacking THROUGH open lines and undefended holes), which the additive unit
@@ -5733,6 +5779,20 @@ inline int evaluate_king_safety(uint8_t white_king_square, uint8_t black_king_sq
 		// Every king_safety violation measured exactly 30 mp because KING_SAFETY_MAG=3000 turns the
 		// final `MAG * ks / 100` into 30*ks -- one unit of rounding becomes exactly 30 mp, every time.
 		ks = Config::ENABLE_KS_ROUND_FIX ? (ks * g) / 256 : (ks * g) >> 8;
+	}
+	// Deep-endgame material taper (KS_EG_MAT_GATE): move-regret maps on BOTH cross-sets show KS is net-HARMFUL at
+	// low non-pawn material (<=12: bare-king / minor-piece endings), net-HELPFUL at high material. Smoothly scale
+	// KS down as non-pawn material falls below KS_EG_MAT_HI, toward KS_EG_MAT_FLOOR% at zero. Material-based (robust
+	// to whacky), subtractive, no cliff. SF's endgame KS is likewise a tiny function. Default gate 0 => byte-id.
+	if (Config::KS_EG_MAT_GATE) {
+		int npm = 3 * __builtin_popcountll(knights) + 3 * __builtin_popcountll(bishops)
+		        + 5 * __builtin_popcountll(rooks)   + 9 * __builtin_popcountll(queens);
+		int lo = Config::KS_EG_MAT_LO, hi = Config::KS_EG_MAT_HI;
+		int scale;
+		if (npm >= hi)      scale = 100;                                                   // full KS at high material
+		else if (npm <= lo) scale = Config::KS_EG_MAT_FLOOR;                               // FLAT strong cut in the harmful band
+		else scale = Config::KS_EG_MAT_FLOOR + (100 - Config::KS_EG_MAT_FLOOR) * (npm - lo) / std::max(1, hi - lo); // ramp back
+		if (scale < 100) ks = ks * scale / 100;
 	}
 	return Config::KING_SAFETY_MAG * ks / 100;
 }
@@ -7813,6 +7873,16 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		}
 		br_passed = total - br_run; br_run = total;
 		//std::cout << " after pp: " << total << std::endl;
+
+		// Deep-endgame KS extension (KS_EXTEND_EG): the attack-unit KS term is normally midgame-only (behind the
+		// !isEndGame gate at :7203), so it cliffs to 0 at phase_score=65 and the endgame has no king-danger model.
+		// Run the SAME term here so the existing taper (built to KS_PHASE_ZERO) fades it smoothly instead of
+		// cliffing. attack_bitmasks was reset at :7122 and repopulated by the endgame piece loops above, so its
+		// inputs are valid. Gated; default KS_EXTEND_EG=0 => not added => byte-identical.
+		if (Config::KS_EXTEND_EG && !g_eval_light
+		    && (Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0)) {
+			total += evaluate_king_safety(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score, turn);
+		}
 
 		if(total <= -Config::PV_BOOST_TRIGGER){
 			boost_white_for_piece_value_advantage = true;

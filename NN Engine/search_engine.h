@@ -1212,6 +1212,59 @@ namespace Config
     // attackerWeightSum >> 4 (super-linear in the number of coordinating attackers). 0 = OFF = byte-identical.
     // Default off; the gate above is the LEADING (gentler, N^2) discriminator. Kept as a fit-testable variant.
     inline int KS_ATT_PRODUCT  = 0;
+    // Coordination gate (2026-08-12 WHEN-to-fire upgrade): replace the flat attacker SUM with a count×weight
+    // PRODUCT so a lone/few-attacker position can't clear the threshold (a missing "when" gate). A lone piece
+    // contributes less per-unit; multiple pieces amplify danger super-linearly. MODE 0 = OFF = flat sum = byte-id;
+    // MODE 1+ = product-based coordination. Product = (att_pieces * att_wsum) / KS_COORD_DIVISOR. The divisor
+    // normalizes scale; typical value 4 keeps magnitude close to flat sum while introducing coordination super-linearity.
+    inline int KS_COORD_GATE_MODE  = 0;  // mode 0 (default) = byte-identical; mode 1+ = product-based coordination gate
+    inline int KS_COORD_DIVISOR    = 4;  // normalizer on the product (att_pieces * att_wsum) / divisor. Tunable.
+    // ── Signed-accumulator "WHEN-to-fire" object (2026-08-13 rebuild) ─────────────────────────────
+    // The integrated object that replaces the fixed KS_FLOOR + single-taper curve: net = positives
+    // (attackers/weak/checks/flank/pins) MINUS large derived suppressors (no-queen, already-winning),
+    // then a per-position THRESHOLD (replaces the blanket floor), then a map (linear now; square-after-gate
+    // is CONDITIONAL on demonstrated unit discrimination, default off per the 0-for-9 "prove discrimination
+    // before compounding" law). All magnitudes derived on our 0..80 scale, NEVER ported constants. Gated:
+    // KS_ACCUM_MODE=0 => the old floor+table path runs verbatim => byte-identical.
+    inline int KS_ACCUM_MODE   = 0;   // 0 = OFF = old floor+table (byte-id); 1 = signed-accumulator object
+    inline int KS_NQ_SUP       = 35;  // no-queen suppressor in UNITS (derived: SF -873 is ~58% of its 1500 max;
+                                       // ~44% of our 80 = 35). Large, so a queenless false-attack self-nets silent.
+                                       // Inert at KS_ACCUM_MODE=0. ⚑ primary review knob (range ~30..46).
+    inline int KS_WIN_SUP      = 0;   // already-winning discount: net -= KS_WIN_SUP * own_material_edge / 1000
+                                       // (per pawn of the DEFENDING king's own edge). SF -6*score/8. 0 = off
+                                       // (isolate first). ⚑ review knob.
+    inline int KS_ACCUM_THRESH = 13;  // per-position net threshold (replaces the fixed KS_FLOOR). Starts at the old
+                                       // floor value; the large suppressors make the EFFECTIVE floor per-position.
+                                       // ⚑ sized from the unit-trace on real lost-king positions.
+    inline int KS_ACCUM_LIN    = 96;  // linear map slope /16 on (net - thresh): danger = over * KS_ACCUM_LIN / 16.
+                                       // Derived for rough magnitude-continuity with the old table (KING_SAFETY_MAG
+                                       // holds final scale). ⚑ review.
+    inline int KS_ACCUM_SQUARE = 0;   // 0 = linear map (net+threshold-first stage); 1 = square-after-gate
+                                       // (danger = over^2 / KS_ACCUM_DIV). CONDITIONAL: turn on ONLY after the
+                                       // unit-trace proves genuine-danger kings net clearly above proximity kings.
+    inline int KS_ACCUM_DIV    = 4;   // denominator for the square-after-gate map (only read when KS_ACCUM_SQUARE=1).
+    // ── Deep-endgame material taper (2026-08-13, cross-set validated) ─────────────────────────────
+    // Move-regret maps on BOTH cross-sets agree: KS HELPS at high non-pawn material (early game) and HURTS in the
+    // deep endgame (<=12 non-pawn material — bare-king / minor-piece endings). SF's endgame KS is a "tiny linear
+    // fn" — they barely use KS in low-material positions; we independently derived the same. Smoothly scale the
+    // whole KS contribution DOWN as non-pawn material (3*N+3*B+5*R+9*Q, both sides) falls below KS_EG_MAT_HI,
+    // toward KS_EG_MAT_FLOOR% at zero material. Material-based (robust to whacky/960), subtractive, SMOOTH (no cliff).
+    // KS_EG_MAT_GATE=0 => no scaling => byte-identical.
+    // Deep-endgame KS extension (2026-08-13, fable-verified): the attack-unit KS term is structurally MIDGAME-ONLY
+    // (inside `if(!isEndGame)`, phase_score<=64), so it CLIFFS to 0 at phase_score=65 and there is NO king-danger
+    // model in the endgame at all — only raw attackingLayer proximity. KS_PHASE_ZERO=104's designed smooth fade is
+    // dead code. This runs the SAME KS term in the endgame branch so the existing taper fades it smoothly (~70% at
+    // ps=65 -> 0% at ps=104) instead of cliffing. Reuses the whole KS machinery (detectors, taper) — no new term.
+    // Additive (KS where there was none) so validate carefully; but it fills an EMPTY slot, not on top of an over-read.
+    // 0 = OFF = today's cliff = byte-identical.
+    inline int KS_EXTEND_EG    = 0;
+    inline int KS_EG_MAT_GATE  = 0;   // 0 = OFF = byte-id; 1 = deep-endgame material taper ON
+    // Taper shape: KS scaled to KS_EG_MAT_FLOOR% for npm <= KS_EG_MAT_LO (FLAT strong cut across the harmful band),
+    // ramps FLOOR->100% over (LO..HI], full (100%) for npm >= HI. This cuts KS where the harm is (npm<=12), unlike
+    // the old ramp-from-zero which barely touched 7-12. LO/HI in non-pawn-material units (3N+3B+5R+9Q, both sides).
+    inline int KS_EG_MAT_LO    = 12;  // non-pawn material at/below which KS is cut to FLOOR% (the harmful band ceiling)
+    inline int KS_EG_MAT_HI    = 20;  // non-pawn material at/above which KS is FULL again (ramp top)
+    inline int KS_EG_MAT_FLOOR = 25;  // KS scale (%) in the cut band (100 = no reduction)
     // Per-zone-square OVERLOAD (the DISCRIMINATIVE coordination signal the blanket product lacked): sum over zone
     // squares of max(0, #enemy-attackers - #own-defenders). A breakthrough square (e.g. attacked by N+R+Q,
     // defended by 1 pawn = +2) fires; a properly-defended king (attackers <= defenders everywhere) stays ~0.

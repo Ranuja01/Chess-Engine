@@ -49,6 +49,13 @@ low depth is a PROXY for game depth, so GAMES decide.
 | `_build_game_regret_set.py` | mine ~15k GAME-representative FENs from the 108k selfplay games + SF18 multi-PV @d14 → `game_regret_set.csv` (disjoint from benches). | settled |
 | `_ks_channel_decomp.py` | KS channel firing (king_safety / OvD / central) on over-read (ks_attack) vs control (positional) — deterministic, no SF. Found the over-read is Channel-1 proximity, not collinearity. | settled |
 | `_ks_c1_decomp.py` | Channel-1 SUB-decomposition (attacker-weights / count / weak vs safe-checks / storm / open-files) on over vs control. Found proximity dominates, safe-check ~silent. | settled |
+| `_ks_discrimination.py` | **unit DISCRIMINATION AUC** (attack vs quiet_neg on `ks_sts_corpus`) per config — the verify-at-each-step metric for KS detector upgrades (survives the dead curve; move-regret is move-neutral there). | 2026-08-12 |
+| `_ks_footprint_regret.py` | **footprint D7 move-regret** (base vs cand, changed-move filter) on BOTH cross-sets (`game_regret_set` 15k + `_v2` 11,940). The deployment gate. ⚠️ do NOT DEFER it. | 2026-08-12 |
+| `_ks_phase_split.py` | the footprint STRATIFIED by phase (opening/midgame/endgame) — localized the KS over-read to the OPENING (endgame KS helps). | 2026-08-12 |
+| `_ks_drift_analysis.py` | worst move-flips + KS units base→cand (why a config drifts). | 2026-08-12 |
+| `_ks_channel_collinearity.py` | 4-channel king-credit collinearity (ablate each, correlate) — unit-KS dominant ~72%. | 2026-08-12 |
+| `_ks_unit_trace.py` | live KS unit distribution (confirmed the dead quadratic: 100% of dangerous kings past the knee). | 2026-08-12 |
+| `_build_variant_regret_set.py` | **whacky/variant corpus generator** (piece-swaps + 960-no-castle) → SF18 multi-PV; the structure-independent set, UN-USED. See [[whacky-variant-corpus-for-structure-independent-validation]]. | 2026-08-12 |
 
 🧰 Run the tuners directly (they self-dispatch a WORKER subprocess per candidate): `WORKER` path sets
 `PRESET=LONG_FORMAT MAX_DEPTH=<DEPTH> USE_OPENING_BOOK=0`. ⚠️ The `_move_match_arms.py` SF reference is

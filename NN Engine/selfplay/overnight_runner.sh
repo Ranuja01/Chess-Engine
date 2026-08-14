@@ -41,6 +41,34 @@ case "$cmd" in
     "$PY" setupAI.py build_ext --inplace 2>&1 | tail -n 5
     ;;
 
+  unit_trace)
+    # FIXED diagnostic: KS units distribution + proximity/discriminating composition (reads default KS config).
+    # Only free arg is N=<count>. Same blast-radius profile as the benches (a fixed script + KEY=VAL knobs).
+    "$PY" diagnostics/_ks_unit_trace.py "$@"
+    ;;
+
+  ks_phase)
+    # FIXED diagnostic: KS phase-stratified move-regret (base vs candidate). Free args are KEY=VAL knobs
+    # (SET/DEPTH/JOBS/COORD_DIV/ACCUM/... ) consumed by the tool's own arg parser -- no eval/exec.
+    "$PY" diagnostics/_ks_phase_split.py "$@"
+    ;;
+
+  regret_profile)
+    # FIXED diagnostic: pure-CSV distribution comparison of regret sets (no engine). Free arg is SETS=csv,csv.
+    "$PY" diagnostics/_regret_set_profile.py "$@"
+    ;;
+
+  lichess_filter)
+    # FIXED: stream the Lichess puzzle CSV and extract a small KS-themed, phase-stratified subset (no engine,
+    # no full-file load). Free args KEY=VAL (SRC/OUT/CAP/MINRATING) consumed by the tool's own parser.
+    "$PY" diagnostics/_lichess_ks_filter.py "$@"
+    ;;
+
+  label)
+    # FIXED: SF18 multi-PV label an existing position list -> our regret format. STOCKFISH_PATH from the runner's SF.
+    STOCKFISH_PATH="$SF" "$PY" diagnostics/_label_positions.py "$@"
+    ;;
+
   build_profile)
     # NON-production profiler build (PROFILE_EVAL=1 => -DEVAL_PROFILE). Enables the PROF_BLOCK cycle
     # counters; the resulting .so is NOT byte-id 247. ALWAYS run `build` afterwards to restore production.

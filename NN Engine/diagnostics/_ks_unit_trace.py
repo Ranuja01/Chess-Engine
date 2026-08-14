@@ -59,6 +59,30 @@ units = [int(m) for m in re.findall(r"units=(\d+)", p.stderr)]
 if not units:
     print("no KSD lines captured (is KS_DEBUG_DUMP wired + g_capture_eval_breakdown true in ev_breakdown?)")
     sys.exit(0)
+
+# COMPOSITION (2026-08-13): decompose units into proximity vs discriminating signal, per KSD line, to size the
+# step-1 proximity demotion + threshold. Weights are the live defaults: KS_ATTACK_COUNT=1, KS_WEAK=2, KS_SAFE_CHECK=3.
+# proximity_contrib ~= attsq (KS_ATTACK_COUNT*attsq); discriminating ~= 2*weak + 3*safe. The remainder is attacker
+# presence-weights + open/storm. Reports the PROXIMITY SHARE = attsq/units on floor-clearing kings: if it's high,
+# the threshold on raw units gates presence, not danger => quantifies how far KS_ATTACK_COUNT must come down.
+KSW_ATTACK, KSW_WEAK, KSW_SAFE = 1, 2, 3
+comp = re.findall(r"attsq=(\d+) weak=(\d+) safe=(\d+) attpc=(\d+) defpc=(\d+) openf=(\d+) bkru=(\d+) over=(\d+) units=(\d+)", p.stderr)
+if comp:
+    prox_share, disc_share, safe_present, weak_present = [], [], 0, 0
+    for attsq, weak, safe, attpc, defpc, openf, bkru, over, u in ((int(x) for x in t) for t in comp):
+        if u < 13: continue
+        prox = KSW_ATTACK * attsq
+        disc = KSW_WEAK * weak + KSW_SAFE * safe
+        prox_share.append(100.0 * prox / u); disc_share.append(100.0 * disc / u)
+        if safe > 0: safe_present += 1
+        if weak > 0: weak_present += 1
+    m = len(prox_share)
+    if m:
+        prox_share.sort(); disc_share.sort()
+        print("COMPOSITION over %d floor-clearing kings (weights KS_ATTACK_COUNT=1 KS_WEAK=2 KS_SAFE_CHECK=3):" % m)
+        print("  proximity share (attsq/units):     median=%.0f%%  p90=%.0f%%" % (prox_share[m//2], prox_share[int(m*0.9)]))
+        print("  discriminating share (2w+3s/units): median=%.0f%%  p90=%.0f%%" % (disc_share[m//2], disc_share[int(m*0.9)]))
+        print("  kings with any safe-check: %.0f%%   with any weak square: %.0f%%\n" % (100.0*safe_present/m, 100.0*weak_present/m))
 KNEE, FLOOR = 12, 13
 bins = {"0 (no danger)": 0, "1-12 (quadratic-eligible IF floor<=knee)": 0, "13-24 (low linear)": 0,
         "25-49 (mid linear)": 0, "50-80 (high linear)": 0, "81+ (capped)": 0}

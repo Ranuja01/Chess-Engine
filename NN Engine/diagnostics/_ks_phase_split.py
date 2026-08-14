@@ -60,7 +60,8 @@ if os.environ.get("WORKER") == "1":
         # a move-swap costs ~nothing). Lets us separate real failures from benign reshuffles (the cross-set noise).
         _wps = sorted(((_winpct(c) if stm_white else 100.0 - _winpct(c)) for c in mm.values()), reverse=True)
         crit = (_wps[0] - _wps[1]) if len(_wps) >= 2 else 0.0
-        w.writerow([fen, our, "%.4f" % max(0.0, bw - ow), r.get("phase_bucket", "?"), npm, "%.4f" % crit])
+        qc = sum(1 for c in board if c in "Qq")   # queens on the board (both sides) — disentangle no-queens from low-material
+        w.writerow([fen, our, "%.4f" % max(0.0, bw - ow), r.get("phase_bucket", "?"), npm, "%.4f" % crit, r.get("best_uci", "?"), qc])
     out.close(); sys.exit(0)
 
 THIS = os.path.dirname(os.path.abspath(__file__)); ENGINE = os.path.dirname(THIS); PY = sys.executable
@@ -183,7 +184,9 @@ def collect(config, tag):
             if len(row) >= 4:
                 npm = int(row[4]) if len(row) >= 5 else -1
                 crit = float(row[5]) if len(row) >= 6 else -1.0
-                d[row[0]] = (row[1], float(row[2]), row[3], npm, crit)
+                best = row[6] if len(row) >= 7 else "?"
+                qc = int(row[7]) if len(row) >= 8 else 0
+                d[row[0]] = (row[1], float(row[2]), row[3], npm, crit, best, qc)
     return d
 
 
@@ -247,3 +250,41 @@ if base and next(iter(base.values()))[4] >= 0:
         if n:
             print("  %-16s %8d   %9.4f %9.4f %+9.4f" % (lab, n, sb/n, sc/n, (sc-sb)/n))
     print(flush=True)
+
+# QUEEN × MATERIAL split (2026-08-14): disentangle "endgame problem" from "no-queens problem". If the KS hurt (delta>0)
+# is confined to LOW material regardless of queens => it's a material/endgame problem (a smooth material taper fixes it and
+# AUTO-handles promotion/multi-queen, since those just change material). If QUEENLESS positions hurt even at HIGH material,
+# OR queen-present LOW-material positions are FINE => it's a no-queens problem (needs a live queen-keyed suppressor). Gated QSPLIT.
+if int(os.environ.get("QSPLIT", "0")) and base and len(next(iter(base.values()))) >= 7:
+    QMB = [(0, 12, "0-12 low"), (13, 27, "13-27 mid-low"), (28, 99, "28+  high")]
+    cellq = {(lab, q): [0, 0.0, 0.0] for _, _, lab in QMB for q in ("Qless", "Qon")}
+    for f in changed:
+        npm = base[f][3]; qk = "Qon" if base[f][6] > 0 else "Qless"
+        for lo, hi, lab in QMB:
+            if lo <= npm <= hi:
+                cellq[(lab, qk)][0] += 1; cellq[(lab, qk)][1] += base[f][1]; cellq[(lab, qk)][2] += cand[f][1]; break
+    print("  QUEEN x MATERIAL split (delta<0 = KS-on better; endgame-problem vs no-queens-problem):")
+    print("  %-14s %8s %10s   %8s %10s" % ("material band", "Qless n", "Qless d", "Qon n", "Qon d"))
+    for _, _, lab in QMB:
+        nl, bl, cl = cellq[(lab, "Qless")]; no, bo, co = cellq[(lab, "Qon")]
+        dl = (cl - bl) / nl if nl else 0.0; do = (co - bo) / no if no else 0.0
+        print("  %-14s %8d %+10.4f   %8d %+10.4f" % (lab, nl, dl, no, do))
+    print("  read: hurt(+) only in the Qless column at ALL material => no-queens problem; hurt only in the low row => endgame problem.", flush=True)
+
+# WORST-HURT DUMP (2026-08-14): list the individual positions where cand HURTS most inside a target material band,
+# so the pattern is eyeball-able (what KS over-reads). Gated by DUMP_NPM (max non-pawn material to include; 0 = off).
+# Columns: delta (cand-base regret; +ve = KS-on WORSE), npm, crit, SFbest, off_mv (base move), on_mv (cand move),
+# on_reg (cand regret in win%). off_mv==SFbest with on_mv different is the signature of KS pulling us off the best move.
+_dump_npm = int(os.environ.get("DUMP_NPM", "0"))
+if _dump_npm > 0 and base and next(iter(base.values()))[3] >= 0:
+    _dn = int(os.environ.get("DUMP_N", "30"))
+    hurt = []
+    for f in changed:
+        if base[f][3] <= _dump_npm:
+            hurt.append((cand[f][1] - base[f][1], base[f][3], base[f][4], base[f][5], base[f][0], cand[f][0], cand[f][1], f))
+    hurt.sort(reverse=True)   # biggest positive delta first = most hurt by turning KS on
+    print("  WORST-HURT dump (npm<=%d, sorted most-hurt first; delta=KS-on minus KS-off regret in win%%):" % _dump_npm)
+    print("  %8s %4s %6s  %-6s %-6s %-6s %8s  %s" % ("delta", "npm", "crit", "SFbest", "off_mv", "on_mv", "on_reg", "fen"))
+    for delta, npm, crit, sfbest, offm, onm, onr, f in hurt[:_dn]:
+        print("  %+8.3f %4d %6.1f  %-6s %-6s %-6s %8.3f  %s" % (delta, npm, crit, sfbest, offm, onm, onr, f))
+    print("  (n=%d hurt-or-changed positions in band; showing top %d)" % (len(hurt), min(_dn, len(hurt))), flush=True)

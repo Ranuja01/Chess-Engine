@@ -4,6 +4,38 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ☠️★★★★ 2026-08-14 (later) — DIAGNOSTIC-HARNESS CONTAMINATION found + fixed; prior single-run positional/regret numbers were confounded
+
+    CLEAN baseline (per-position clear):      250 / 36,651,879 / EBF 3.751 / STS 1771   <- USE THIS
+    Contaminated (old, DIAG_NO_CLEAR=1):      250 / 36,831,767 / EBF 3.772 / STS 1670   <- = pre-fix, GAME ENGINE byte-unchanged
+
+**The bug.** Every in-process diagnostic that searches many FENs in one process (`run_one` and all built on it —
+`wac`/`sts`/`movematch`/the low-depth REGRET ruler) shared the engine's file-scope C++ learning tables ACROSS
+unrelated positions. `run_one` builds a fresh `ChessAI` per FEN, but the tables are file-scope globals; `get_engine_move`
+clears only per-ply scratch (killers/counters), and the move-indexed `historyHeuristics`/`counterMoveHeuristics`/
+`moveFrequency` persist (only decayed). So ordering history from prior FENs biased the current position's LMR/LMP and
+silently changed the chosen move — WORST at low material (few candidates, ordering decides). Sourced from code + reproduced
+(a 6-piece endgame FEN gave `c4d3` isolated, `e6d8` after two midgames in-process — the exact move the regret ruler had reported).
+
+**The fix.** `clearSearchTables()` (search_engine.cpp) zeros the history family + killers/counters + TT/qTT/ttMove;
+exposed as `ChessAI.clear_search_tables()`; `run_one` calls it per position. **DIAGNOSTIC-ONLY** (default on; `DIAG_NO_CLEAR=1`
+opts out for timing benches / reproducing old numbers). GAME PATH never clears → the shipped engine is byte-identical
+(verified: contaminated WAC on the new build reproduces `36,831,767` exactly). **Nothing shipped is invalidated.**
+
+**What WAS confounded (re-baseline before trusting):** search-based in-process POSITIONAL/REGRET numbers — the low-depth
+regret method (incl. this session's KS criticality/queen exploration, esp. its low-material conclusions = GHOSTS),
+move-match, absolute/delta STS·WAC. Measured cost (same build, contaminated→clean): **STS 1670→1771 (+101, +3.3pp)**
+positional; tactical WAC ~0.5% nodes (concrete solutions survive ordering noise). ⚠️ "byte-id cancels" holds ONLY for a
+LITERAL-identical eval, NOT a real-change DELTA. NOT affected: GAMES/SPRT (the +20.8 ship stands), STATIC-eval (symmetry,
+per-term gap, collapse), byte-id. Detail: memory `diagnostic-harness-history-contamination`.
+
+**KS diagnosis, re-run CLEAN (3 corpora) — it CHANGED the conclusion:** the "endgame/low-material KS hurt" was ~85%
+contamination ghost (734→103 low-material changes; the endgame is help/neutral clean). KS HELPS critical (lichess
+**−2.01 / 616 pos** — resolves the ±2-3 standard-set flip = sampling noise, not contamination) and queen attacks (−2.13 /
+708). The real flaw is a **QUEENLESS OVER-READ at mid-high material** (sets A+B Qless +0.25..+0.37, Qon helps) ⇒ fix =
+reference-scale NO-QUEEN SUPPRESSOR (SF −873 analog), NOT the endgame taper. Supersedes the contaminated "material-not-queens"
+read. See memory `endgame-ks-hurt-is-material-not-queens` (corrected) + `dev_notes/KING-PHASE-TRANSITION-ANALYSIS-2026-08-14.md`.
+
 ## 🏆★★★★ 2026-08-14 — OvD+central+defaware BUNDLE **SHIPPED** (+20.8 Elo) · the CRITICALITY-SPLIT method
 
     SHIPPED (new default)  250 / 36,831,767 / EBF 3.772   (commit 7743cad; arch 8f21a36)

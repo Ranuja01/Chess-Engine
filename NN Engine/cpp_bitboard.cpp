@@ -402,10 +402,10 @@ void rebuild_scaled_pawn_tables(){
 // King-safety working tables the eval hot path reads. ks_safety_table maps clamped attack-units to a
 // danger value (the non-linear "additive pressure" curve, danger = min(units,KS_CAP)^2 / KS_DIVISOR);
 // ks_phase_taper maps phase_score 0..128 to a /256 fade so king safety is at full weight in the
-// midgame and ~0 in the deep endgame. Both are rebuilt once at init from the KS_* knobs
-// (rebuild_ks_tables), so the hot path is a plain array read with NO per-eval division. Initialised
-// to zero -> king safety contributes nothing until init runs (and stays byte-identical while
-// KING_SAFETY_MAG == 0, the gated default).
+// midgame and fades toward the deep endgame (to KS_PHASE_FLOOR, default 0). Both are rebuilt once at init
+// from the KS_* knobs (rebuild_ks_tables), so the hot path is a plain array read with NO per-eval division.
+// Initialised to zero -> king safety contributes nothing until init runs. NOTE: KING_SAFETY_MAG defaults to
+// 3000 (NOT 0), so midgame KS is LIVE in the shipped default; the tables carry that live term.
 std::array<int, KS_MAX_UNITS + 1> ks_safety_table = {};
 std::array<int, 129>              ks_phase_taper  = {};
 
@@ -422,17 +422,20 @@ void rebuild_ks_tables(){
 		ks_safety_table[u] = (c <= knee) ? (c * c / divisor)
 		                                 : (knee_val + knee_slope * (c - knee));
 	}
-	// Smooth linear taper: full weight (256) at/below KS_PHASE_FULL, zero at/above KS_PHASE_ZERO, ramped
-	// between. phase_score is 0=full material/opening .. 128=bare kings/endgame, so FULL <= ZERO; king
+	// Smooth linear taper: full weight (256) at/below KS_PHASE_FULL, KS_PHASE_FLOOR at/above KS_PHASE_ZERO,
+	// ramped between. phase_score is 0=full material/opening .. 128=bare kings/endgame, so FULL <= ZERO; king
 	// danger is a midgame concern, so it is full in the opening/midgame and fades out toward the endgame.
-	const int full = std::clamp(Config::KS_PHASE_FULL, 0, 128);
-	const int zero = std::clamp(Config::KS_PHASE_ZERO, 0, 128);
+	// KS_PHASE_FLOOR default 0 => fades to a hard 0 (byte-identical); >0 keeps a small SF-style residual so KS
+	// never fully zeroes in the deep endgame.
+	const int full  = std::clamp(Config::KS_PHASE_FULL, 0, 128);
+	const int zero  = std::clamp(Config::KS_PHASE_ZERO, 0, 128);
+	const int floor = std::clamp(Config::KS_PHASE_FLOOR, 0, 256);
 	for (int ps = 0; ps <= 128; ++ps){
 		int t;
 		if (ps <= full)        t = 256;
-		else if (ps >= zero)   t = 0;
-		else if (zero <= full) t = (ps <= full) ? 256 : 0;  // degenerate: hard step at FULL
-		else                   t = 256 * (zero - ps) / (zero - full);
+		else if (ps >= zero)   t = floor;
+		else if (zero <= full) t = (ps <= full) ? 256 : floor;  // degenerate: hard step at FULL
+		else                   t = floor + (256 - floor) * (zero - ps) / (zero - full);
 		ks_phase_taper[ps] = t;
 	}
 }
@@ -5290,7 +5293,7 @@ inline int advanced_endgame_eval(int total, bool turn){
 	Components (this build): attacker-set-by-type, attacked-zone-square count, weak (undefended attacked)
 	squares, defender count (subtract), pawn shield (subtract), open/semi-open files, enemy pawn storm,
 	and SAFE CHECKS. Optional wider zone (KS_ZONE2) and a per-king dynamic magnitude (KS_DYN) scaling the
-	danger by its attack-signature co-occurrence. Battery (KS_BATTERY) is the one declared knob still unwired.
+	danger by its attack-signature co-occurrence. Battery (KS_BATTERY) recovers rear x-ray sliders (below).
 */
 inline int mod_gain(int k1, int sig1, int sh1, int k2, int sig2, int sh2);  // defined below; used for KS_DYN
 
@@ -5346,12 +5349,86 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	// still detected (the narrow ring1+one-rank zone reads 0 when real pieces sit in the second ring).
 	if (Config::KS_ZONE2) zone |= king_ring2[king_square];
 
+	// Pinned-ATTACKER clipping (KS_PIN_ATT): an enemy piece absolutely pinned to its OWN king cannot
+	// deliver an attack off the pin line, so crediting it for zone squares away from that line is phantom
+	// offense. SF clips the same way at generation (`b &= LineBB[ksq][s]`), and `ray()` is our equivalent of
+	// LineBB -- the FULL line through both squares, so attacks ALONG the pin (including legal checks) are
+	// kept and only the off-ray ones are dropped. Pawns are excluded, matching SF, whose pawn attacks come
+	// unclipped from the pawn hash. Removes credit only. 0 = OFF = pinatt_n stays 0 => byte-identical.
+	uint64_t pinatt_bit[8]; uint64_t pinatt_line[8]; int pinatt_n = 0; uint64_t pinatt_any = 0;
+	if (Config::KS_PIN_ATT && (kings & enemy)) {
+		uint8_t eksq = (uint8_t)__builtin_ctzll(kings & enemy);
+		uint64_t ep = slider_blockers(eksq, queens | rooks, queens | bishops, own, enemy, occupied) & ~pawns;
+		while (ep && pinatt_n < 8) {
+			uint8_t p = __builtin_ctzll(ep); ep &= ep - 1;
+			pinatt_bit[pinatt_n]  = BB_SQUARES[p];
+			pinatt_line[pinatt_n] = ray(eksq, p);
+			pinatt_any |= BB_SQUARES[p];
+			++pinatt_n;
+		}
+	}
+
+	// Uncontestable-square pruning (KS_SQPRUNE_MODE): a zone square an enemy piece merely TOUCHES is charged
+	// as danger today no matter how unbreakable its defence is, which is the quiet-position over-read. Modes
+	// 1-2 use SF11's rule (a square defended twice by the king's own pawns carries no danger); modes 3-4 use
+	// our own value-aware square-control verdict inside the scan loop below and need no mask. Guard the
+	// diagonal shifts by masking the PAWNS before the shift: <<7/>>9 lose a file, <<9/>>7 gain one, so the
+	// edge file must be dropped first or the attack wraps onto the opposite side.
+	uint64_t dbl_pawn_def = 0;
+	if (Config::KS_SQPRUNE_MODE == 1 || Config::KS_SQPRUNE_MODE == 2) {
+		uint64_t pl = white_king ? ((own_pawns & ~BB_FILES[0]) << 7) : ((own_pawns & ~BB_FILES[7]) >> 7);
+		uint64_t pr = white_king ? ((own_pawns & ~BB_FILES[7]) << 9) : ((own_pawns & ~BB_FILES[0]) >> 9);
+		dbl_pawn_def = pl & pr;
+		if (Config::KS_SQPRUNE_MODE == 1) zone &= ~dbl_pawn_def;   // SF11 reference: drop them from the whole zone
+	}
+
+	// ── Battery x-ray feeder (KS_BATTERY) ──────────────────────────────────────────────────────────────
+	// A doubled slider whose ray to the king zone is blocked by a FRIENDLY (attacker-side) slider of matching
+	// motion type is a real attacker the occupancy-blocked attack_bitmasks misses (the rear rook of a b-file
+	// battery reads as 0). Recover it as a LOCAL footprint overlay so attackers_sq, weak, contested AND the
+	// defaware swap all price it as a first-class attacker -- adding it to attackers_sq ALONE nets 0 under the
+	// shipped KS_DEFAWARE_MODE=1 (its zone footprint is 0, so it is skipped in `daware` while `legacy_att`
+	// still counts it). Type-only geometry (no colour-conditional shifts), commutative ORs. Gated: default
+	// KS_BATTERY=0 => batt_n stays 0 => every consumer below is byte-identical.
+	uint64_t batt_xray[8]; uint8_t batt_sq[8]; int batt_n = 0;
+	if (Config::KS_BATTERY && zone) {
+		uint64_t occ = occupied;
+		uint64_t enemy_line = enemy & (rooks | queens);    // orthogonal (file/rank) battery rears
+		uint64_t enemy_diag = enemy & (bishops | queens);  // diagonal (Q+B) battery rears
+		uint64_t cand = enemy_line;
+		while (cand && batt_n < 8) {
+			uint8_t r = __builtin_ctzll(cand); cand &= cand - 1;
+			uint64_t real = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & occ]
+			              | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & occ];
+			if (real & zone) continue;                     // already a DIRECT zone attacker => in attackers_sq
+			uint64_t fronts = real & enemy_line;           // its first blocker(s) that are attacker-side R/Q
+			if (!fronts) continue;
+			uint64_t xray = BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & (occ ^ fronts)]
+			              | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & (occ ^ fronts)];
+			uint64_t revealed = (xray & ~real) & zone;     // NEW zone squares seen only past the battery front
+			if (revealed) { batt_xray[batt_n] = revealed; batt_sq[batt_n] = r; ++batt_n; }
+		}
+		cand = enemy_diag;
+		while (cand && batt_n < 8) {
+			uint8_t r = __builtin_ctzll(cand); cand &= cand - 1;
+			uint64_t real = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & occ];
+			if (real & zone) continue;
+			uint64_t fronts = real & enemy_diag;
+			if (!fronts) continue;
+			uint64_t xray = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & (occ ^ fronts)];
+			uint64_t revealed = (xray & ~real) & zone;
+			if (revealed) { batt_xray[batt_n] = revealed; batt_sq[batt_n] = r; ++batt_n; }
+		}
+	}
+
 	// Enemy attacker SET over the zone + own defender SET (the attacker-vs-defender balance detector) +
 	// count of zone squares the enemy attacks (additive pressure). attack_bitmasks[s] is the OR-mask of
 	// all pieces attacking s; intersect with each side to split attackers from defenders.
 	uint64_t attackers_sq = 0;
 	uint64_t defenders_sq = 0;
 	int attacked_zone_squares = 0;
+	int attacked_zone_grade = 0;   // contest-graded proximity count (KS_SQPRUNE_MODE 4), in KS_SQ_GRADE_UNIT-ths of a square
+	int king_adj_attacks = 0;      // attack instances on squares the king itself defends (KS_ADJACENCY)
 	int weak_squares = 0;
 	int weak_val_sum = 0;   // value-coupled weak count (KS_WEAK_VAL_MODE): each weak square weighted by its heaviest attacker
 	int overload_sum = 0;   // per-square sum of max(0, #attackers - #defenders): the discriminative breakthrough signal
@@ -5363,11 +5440,37 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		z &= z - 1;
 		uint64_t bm = attack_bitmasks[s];
 		uint64_t am = bm & enemy;  // enemy pieces attacking this zone square
+		// Battery overlay: add any recovered rear battery piece whose x-ray reaches this square, so it is
+		// seen by attackers_sq / attacked_zone_squares / overload / weak / contested as a first-class attacker.
+		if (batt_n) { for (int bi = 0; bi < batt_n; ++bi) if (batt_xray[bi] & BB_SQUARES[s]) am |= BB_SQUARES[batt_sq[bi]]; }
+		// Drop pinned enemy attackers that cannot reach THIS square along their pin line (after the battery
+		// overlay, since a recovered rear slider can itself be pinned).
+		if (pinatt_n && (am & pinatt_any))
+			for (int pi = 0; pi < pinatt_n; ++pi)
+				if ((am & pinatt_bit[pi]) && !(pinatt_line[pi] & BB_SQUARES[s])) am &= ~pinatt_bit[pi];
 		uint64_t dm = bm & own & ~own_pinned;    // own pieces covering this zone square (pinned defenders excluded when KS_PIN_MODE; own_pinned=0 off => byte-id)
 		defenders_sq |= dm;
 		if (am) {
 			attackers_sq |= am;
-			attacked_zone_squares++;
+			// How much does a merely-TOUCHED square contribute to the proximity + weak counts? Mode 2 drops
+			// SF's double-pawn-defended squares, mode 3 drops any square the value-aware square-control
+			// verdict says the attacker cannot break into (a strict superset of mode 2), mode 4 keeps every
+			// square but grades it by how contested it is. Modes 0/1 leave both counts alone => byte-identical
+			// (mode 1 has already pruned the zone itself, so it never reaches here on a pruned square).
+			bool count_sq = true;
+			if (Config::KS_SQPRUNE_MODE == 2)      count_sq = !(dbl_pawn_def & BB_SQUARES[s]);
+			else if (Config::KS_SQPRUNE_MODE == 3) count_sq = ks_sqc_breaks(am, dm);
+			else if (Config::KS_SQPRUNE_MODE == 4) {
+				int na = __builtin_popcountll(am), nd = __builtin_popcountll(dm);
+				attacked_zone_grade += (KS_SQ_GRADE_UNIT * na) / (na + nd);   // na >= 1 here, so the divisor is never 0
+			}
+			if (count_sq) attacked_zone_squares++;
+			// Adjacency (KS_ADJACENCY): attacks landing on squares the KING ITSELF defends are the geometry
+			// that actually separates a real attack from a piece merely grazing the zone extension. SF prices
+			// these per ATTACK INSTANCE and steeply (69 each) alongside its ring count; we charge one flat
+			// unit per zone square regardless. Counted here, priced below.
+			if (Config::KS_ADJACENCY && (BB_KING_ATTACKS[king_square] & BB_SQUARES[s]))
+				king_adj_attacks += __builtin_popcountll(am);
 			int ov = __builtin_popcountll(am) - __builtin_popcountll(dm);   // attackers minus defenders on this sq
 			if (ov > 0) { overload_sum += ov; breakthrough_sq++; }
 				// contested_zone (feeds KS_DEFAWARE): raw popcount contest (default) OR the value-aware
@@ -5384,7 +5487,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			if (Config::ENABLE_KS_WEAK_ATT2 && !weak
 				    && __builtin_popcountll(am) >= 2 && __builtin_popcountll(dm) <= 1)
 					weak = true;   // attackedBy2 (SF & Ethereal): double-attacked, <=1 defender square is weak. Off = byte-id.
-				if (weak) { weak_squares++;
+				if (weak && count_sq) { weak_squares++;
 					// value-coupling: a weak king-square a QUEEN/ROOK bears on is far more dangerous than
 					// one only a minor attacks. Weight the weak square by its heaviest attacker (redistributive:
 					// minor-weak unchanged, heavy-weak amplified). Consumed only when KS_WEAK_VAL_MODE is on.
@@ -5407,7 +5510,9 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	// fixed-size reference ring (KS_ZONE_NORM squares) so a king with a geometrically larger zone (e.g. the
 	// clamped corner ring) is not charged more merely for having more squares to be attacked. Default 0 = off
 	// = raw count = byte-identical.
-	int attack_count_units = Config::KS_ATTACK_COUNT * attacked_zone_squares;
+	int attack_count_units = (Config::KS_SQPRUNE_MODE == 4)
+	                       ? (Config::KS_ATTACK_COUNT * attacked_zone_grade) / KS_SQ_GRADE_UNIT
+	                       : Config::KS_ATTACK_COUNT * attacked_zone_squares;
 	if (Config::KS_ZONE_NORM) {
 		int zsz = __builtin_popcountll(zone);
 		if (zsz > 0) attack_count_units = attack_count_units * Config::KS_ZONE_NORM / zsz;
@@ -5438,6 +5543,7 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 
 	int units = attacker_units
 	          + attack_count_units
+	          + Config::KS_ADJACENCY * king_adj_attacks   // king-adjacent pressure, priced apart from generic zone squares; default 0 = byte-identical
 	          + Config::KS_WEAK * (Config::KS_WEAK_VAL_MODE ? weak_val_sum : weak_squares)
 	          + Config::KS_OVERLOAD * overload_sum   // per-square breakthrough (attackers-defenders); default 0 = byte-id
 	          - Config::KS_DEFENDER * __builtin_popcountll(defenders_sq & pieces_nk);
@@ -5465,10 +5571,14 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 			      : (pbit & rooks)   ? Config::KS_ATT_ROOK
 			      :                    Config::KS_ATT_QUEEN;   // queen (only remaining pieces_nk type)
 			int foot = 0, contested = 0;
+			// A recovered battery piece has NO entry in attack_bitmasks (its ray is occupancy-blocked), so its
+			// footprint is its x-ray overlay mask; without this it reads foot=0 and defaware cancels it (5477).
+			uint64_t px = 0;
+			if (batt_n) { for (int bi = 0; bi < batt_n; ++bi) if (batt_sq[bi] == ps) px |= batt_xray[bi]; }
 			uint64_t zz = zone;
 			while (zz) {
 				uint8_t s = __builtin_ctzll(zz); zz &= zz - 1;
-				if (attack_bitmasks[s] & pbit) { foot++; if (contested_zone & BB_SQUARES[s]) contested++; }
+				if ((attack_bitmasks[s] & pbit) || (px & BB_SQUARES[s])) { foot++; if (contested_zone & BB_SQUARES[s]) contested++; }
 			}
 			if (foot == 0) continue;   // piece bears on the OR-zone but not the (possibly clamped) scan zone
 			if (Config::KS_DEFAWARE_MODE == 1) daware += w * contested / foot;
@@ -5678,7 +5788,26 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		// which alone still threatens). This is the discriminator that lets KS_FLOOR come down without waking calm
 		// positions (0-1 attackers -> 0 danger). Default KS_MIN_ATTACKERS=0 => gate off => byte-identical.
 		if (Config::KS_MIN_ATTACKERS > 0) {
-			int att_pieces = __builtin_popcountll(attackers_sq & pieces_nk);
+			// Attacker count for the gate. ENABLE_KS_RING_GATE: count enemy pieces attacking the TIGHT king
+			// ring (ring-1 = king + neighbours) — the giants' kingAttackersCount, which separates quiet from
+			// attack. The default broad-zone count never binds (minor pieces near the king are ubiquitous).
+			int att_pieces;
+			if (Config::ENABLE_KS_RING_GATE) {
+				// SF's kingRing count: the king zone (ring-1 expanded one rank toward the enemy) MINUS squares two
+				// of our own pawns defend (a pawn-fortress square is not attackable, so pieces bearing on it are not
+				// real attackers). The raw-zone count never binds; the double-pawn exclusion is the discriminator
+				// that lets it separate quiet from attack. Pawn diag-attack wrap masks per colour (recurring bug shape).
+				uint64_t ring = white_king ? white_king_ks_zone[king_square] : black_king_ks_zone[king_square];
+				uint64_t l, r;
+				if (white_king) { l = (own_pawns & ~BB_FILES[0]) << 7; r = (own_pawns & ~BB_FILES[7]) << 9; }
+				else            { l = (own_pawns & ~BB_FILES[7]) >> 7; r = (own_pawns & ~BB_FILES[0]) >> 9; }
+				ring &= ~(l & r);
+				uint64_t ring_att = 0;
+				while (ring) { uint8_t s = __builtin_ctzll(ring); ring &= ring - 1; ring_att |= attack_bitmasks[s]; }
+				att_pieces = __builtin_popcountll(ring_att & enemy & pieces_nk);
+			} else {
+				att_pieces = __builtin_popcountll(attackers_sq & pieces_nk);
+			}
 			int min_att = (queens & enemy) ? std::max(1, Config::KS_MIN_ATTACKERS - 1) : Config::KS_MIN_ATTACKERS;
 			if (att_pieces < min_att) return 0;
 		}
@@ -5687,6 +5816,23 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		if (units < Config::KS_FLOOR) return 0;
 		if (units > KS_MAX_UNITS) units = KS_MAX_UNITS;
 		danger = ks_safety_table[units];
+		// Continuous onset (KS_ONSET_MODE): re-zero the curve at the gate so crossing it costs nothing and
+		// danger grows from there, instead of jumping straight to the table's value at KS_FLOOR. Keeps the
+		// deadzone's silencing, removes its step, and prices everything above the gate lower than before.
+		if (Config::KS_ONSET_MODE) {
+			int gate_val = ks_safety_table[std::clamp(Config::KS_FLOOR, 0, KS_MAX_UNITS)];
+			danger -= gate_val;
+			if (danger < 0) danger = 0;
+			// MODE 2 additionally RESCALES the shortened range back over the full one, so removing the step
+			// does not also shrink every firing position. Mode 1 shifts the curve down by gate_val, which
+			// under-reads exactly the attacks we already detect (we sit at ~0.45 of SF's magnitude); mode 2
+			// keeps the top of the range where it was and only re-zeroes the bottom.
+			if (Config::KS_ONSET_MODE == 2) {
+				int top = ks_safety_table[std::clamp(Config::KS_CAP, 0, KS_MAX_UNITS)];
+				int span = top - gate_val;
+				if (span > 0) danger = (int)(((long long)danger * top) / span);
+			}
+		}
 	}
 
 	// Per-king dynamic magnitude: the REALNESS of an attack is the CO-OCCURRENCE of independent danger
@@ -5721,7 +5867,9 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 	endgame where the taper is ~0 so the term costs nothing exactly where it does not matter.
 */
 inline int king_safety_score(uint8_t white_king_square, uint8_t black_king_square, int phase_score, bool turn){
-	if (phase_score >= Config::KS_PHASE_ZERO) return 0;  // deep-endgame early-out (high phase_score, taper ~ 0)
+	// Deep-endgame early-out (speed): above KS_PHASE_ZERO the taper is 0 so KS contributes nothing. Only valid
+	// when there is no residual floor; with KS_PHASE_FLOOR>0 the taper is nonzero there and we must NOT short-circuit.
+	if (Config::KS_PHASE_FLOOR == 0 && phase_score >= Config::KS_PHASE_ZERO) return 0;
 	// The side-to-move's OWN king is the "defensive" one (the over-confident/collapsing side we want cautious).
 	int danger_white = king_safety_danger(white_king_square, true, turn);
 	int danger_black = king_safety_danger(black_king_square, false, !turn);
@@ -7496,6 +7644,21 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
 			capg_lazy_probe(cg);
+				// King-attack realizability (CAPG_KS_DAMP): if the side this capture credit FAVOURS has its own
+				// king in real danger, the static melee that booked the material is unreliable (checks and
+				// deflections change what is actually capturable), so discount it. cg is Black-positive, so cg>0
+				// favours Black; key on that side's own king danger (same defensive convention as
+				// king_safety_score). Only the favoured side's king is scanned. 0 = OFF = byte-identical.
+				if (Config::CAPG_KS_DAMP && cg != 0) {
+					int dgr = (cg > 0)
+						? king_safety_danger(__builtin_ctzll(occupied_black & kings), false, !turn)
+						: king_safety_danger(__builtin_ctzll(occupied_white & kings), true,  turn);
+					if (dgr > 0) {
+						int cut = (Config::CAPG_KS_DAMP * dgr) / std::max(1, Config::CAPG_KS_DAMP_PIVOT);
+						if (cut > Config::CAPG_KS_DAMP) cut = Config::CAPG_KS_DAMP;
+						cg -= cg * cut / 100;
+					}
+				}
 				int cgs = capg_conditioned_scale();
 				// Realizability: discount the pre-booked capture material when the GAINING side can't convert it
 				// (under-backed / wrong phase), reusing the imbalance term's realizability_factor. cg is Black-
@@ -7823,6 +7986,21 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			PROF_BLOCK(PROF_CAPTURE_GAINS);
 			int cg = approximate_capture_gains(occupied & ~kings, turn, state, pawn_rank_bonuses);
 			capg_lazy_probe(cg);
+				// King-attack realizability (CAPG_KS_DAMP): if the side this capture credit FAVOURS has its own
+				// king in real danger, the static melee that booked the material is unreliable (checks and
+				// deflections change what is actually capturable), so discount it. cg is Black-positive, so cg>0
+				// favours Black; key on that side's own king danger (same defensive convention as
+				// king_safety_score). Only the favoured side's king is scanned. 0 = OFF = byte-identical.
+				if (Config::CAPG_KS_DAMP && cg != 0) {
+					int dgr = (cg > 0)
+						? king_safety_danger(__builtin_ctzll(occupied_black & kings), false, !turn)
+						: king_safety_danger(__builtin_ctzll(occupied_white & kings), true,  turn);
+					if (dgr > 0) {
+						int cut = (Config::CAPG_KS_DAMP * dgr) / std::max(1, Config::CAPG_KS_DAMP_PIVOT);
+						if (cut > Config::CAPG_KS_DAMP) cut = Config::CAPG_KS_DAMP;
+						cg -= cg * cut / 100;
+					}
+				}
 				int cgs = capg_conditioned_scale();
 				// Realizability: discount the pre-booked capture material when the GAINING side can't convert it
 				// (under-backed / wrong phase), reusing the imbalance term's realizability_factor. cg is Black-
@@ -7874,12 +8052,14 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		br_passed = total - br_run; br_run = total;
 		//std::cout << " after pp: " << total << std::endl;
 
-		// Deep-endgame KS extension (KS_EXTEND_EG): the attack-unit KS term is normally midgame-only (behind the
-		// !isEndGame gate at :7203), so it cliffs to 0 at phase_score=65 and the endgame has no king-danger model.
-		// Run the SAME term here so the existing taper (built to KS_PHASE_ZERO) fades it smoothly instead of
-		// cliffing. attack_bitmasks was reset at :7122 and repopulated by the endgame piece loops above, so its
-		// inputs are valid. Gated; default KS_EXTEND_EG=0 => not added => byte-identical.
-		if (Config::KS_EXTEND_EG && !g_eval_light
+		// Endgame arm of the unified king-safety term (the midgame arm runs at the KS site inside `!isEndGame`).
+		// The attack-unit KS term is normally midgame-only (behind the isEndGame branch), so it cliffs to 0 at
+		// phase_score=65 and the endgame has no king-danger model. Running the SAME term here lets the existing
+		// ks_phase_taper fade it smoothly (giant/SF shape: compute always, fade by phase) instead of cliffing.
+		// attack_bitmasks was reset (once, before the phase branch) and repopulated by the endgame piece loops
+		// above, so its inputs are valid. ENABLE_KS_UNIFIED makes this always-on; KS_EXTEND_EG is the legacy alias.
+		// Default (both 0) => not added => byte-identical.
+		if ((Config::KS_EXTEND_EG || Config::ENABLE_KS_UNIFIED) && !g_eval_light
 		    && (Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0)) {
 			total += evaluate_king_safety(__builtin_ctzll(occupied_white&kings), __builtin_ctzll(occupied_black&kings), phase_score, turn);
 		}

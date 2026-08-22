@@ -295,6 +295,22 @@ static long g_passer_exempt_fires = 0;
 // never claim a prune's behaviour again without one.
 static long g_qdelta_permove_fires = 0;
 static long g_qdelta_permove_seen = 0; // block REACHED (capture, non-ep, non-promo)
+// Quietness probe (ENABLE_QUIET_PROBE, diagnostic): how quiet are the positions qsearch RETURNS a static
+// eval from? tension = g_capg_tension (SEE>=0 captures both sides); tension>0 = "active" = pending captures.
+// horizon = forced stop at MAX_QDEPTH (high active here = qsearch under-resolves); standpat = fail-hi/lo
+// cutoff; quiet = no captures existed; searched = a capture improved the score. Byte-identical off.
+static long g_qterm_horizon = 0, g_qterm_horizon_active = 0, g_qterm_horizon_tsum = 0;
+static long g_qterm_standpat = 0, g_qterm_standpat_active = 0, g_qterm_standpat_tsum = 0;
+static long g_qterm_quiet = 0, g_qterm_searched = 0, g_qterm_searched_active = 0, g_qterm_searched_tsum = 0;
+// Bug (a): 'return best' with a non-empty move list where best fell SHORT of the stand-pat the mover could
+// have taken (max: best < static_eval; min: best > static_eval). SF seeds bestValue=static_eval; we don't,
+// so these returns are provably-wrong in-window values. bug_b = all-noisy-pruned => best stayed at ±mate.
+static long g_qbug_short = 0, g_qbug_short_gap = 0, g_qbug_fakemate = 0;
+// Main-search bug sizing (fable audit 2026-08-18): null-move returning an UNPROVEN mate score (the null line
+// contains a pass, so a mate found there is not a proof; SF clamps it to the bound). Root-adjacent hits
+// (cur_depth<=2) are the dangerous subset -- a phantom +mate freezes iterative deepening (get_engine_move
+// :2509), a phantom -mate can RESIGN (:2522). g_tt_exact_mislabel: a fail-soft re-search stored TT-EXACT.
+static long g_null_unproven_mate = 0, g_null_unproven_mate_root = 0, g_tt_exact_mislabel = 0;
 // Quiet moves dropped from the noisy list past the first q-ply under ENABLE_QCHECK_DEPTH0. The flag was
 // read as inert from a byte-identical fingerprint alone; this makes the branch's reachability observable.
 static long g_qcheck_d0_skipped = 0;
@@ -1139,6 +1155,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::NULLMOVE_PROGRESSIVE = env_flag("NULLMOVE_PROGRESSIVE", Config::NULLMOVE_PROGRESSIVE);
         Config::NULLMOVE_EXTRA = env_int("NULLMOVE_EXTRA", Config::NULLMOVE_EXTRA);
         Config::ENABLE_QDELTA = env_flag("ENABLE_QDELTA", true);
+        Config::ENABLE_QUIET_PROBE = env_flag("ENABLE_QUIET_PROBE", false);
+        Config::ENABLE_QSTANDPAT_SEED = env_flag("ENABLE_QSTANDPAT_SEED", false);
+        Config::ENABLE_TT_FLAG_FIX = env_flag("ENABLE_TT_FLAG_FIX", false);
+        Config::ENABLE_NULL_MATE_CLAMP = env_flag("ENABLE_NULL_MATE_CLAMP", false);
         Config::DELTA_MARGIN = env_int("DELTA_MARGIN", Config::DELTA_MARGIN);
         Config::MAX_QDEPTH = env_int("MAX_QDEPTH", Config::MAX_QDEPTH);
         Config::LMR_PROFILE = env_flag("LMR_PROFILE", false);
@@ -1426,6 +1446,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_ATT_QUEEN = env_int("KS_ATT_QUEEN", Config::KS_ATT_QUEEN);
         Config::KS_ATTACK_COUNT = env_int("KS_ATTACK_COUNT", Config::KS_ATTACK_COUNT);
         Config::KS_MIN_ATTACKERS = env_int("KS_MIN_ATTACKERS", Config::KS_MIN_ATTACKERS);
+        Config::ENABLE_KS_RING_GATE = env_flag("ENABLE_KS_RING_GATE", Config::ENABLE_KS_RING_GATE);
         Config::KS_ATT_PRODUCT = env_int("KS_ATT_PRODUCT", Config::KS_ATT_PRODUCT);
         Config::KS_COORD_GATE_MODE = env_int("KS_COORD_GATE_MODE", Config::KS_COORD_GATE_MODE);
         Config::KS_COORD_DIVISOR = env_int("KS_COORD_DIVISOR", Config::KS_COORD_DIVISOR);
@@ -1437,6 +1458,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_ACCUM_SQUARE = env_int("KS_ACCUM_SQUARE", Config::KS_ACCUM_SQUARE);
         Config::KS_ACCUM_DIV = env_int("KS_ACCUM_DIV", Config::KS_ACCUM_DIV);
         Config::KS_EXTEND_EG = env_int("KS_EXTEND_EG", Config::KS_EXTEND_EG);
+        Config::ENABLE_KS_UNIFIED = env_flag("ENABLE_KS_UNIFIED", Config::ENABLE_KS_UNIFIED);
         Config::KS_EG_MAT_GATE = env_int("KS_EG_MAT_GATE", Config::KS_EG_MAT_GATE);
         Config::KS_EG_MAT_LO = env_int("KS_EG_MAT_LO", Config::KS_EG_MAT_LO);
         Config::KS_EG_MAT_HI = env_int("KS_EG_MAT_HI", Config::KS_EG_MAT_HI);
@@ -1469,6 +1491,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_BATTERY = env_int("KS_BATTERY", Config::KS_BATTERY);
         Config::KS_ZONE2 = env_int("KS_ZONE2", Config::KS_ZONE2);
         Config::ENABLE_KS_ZONE_CLAMP = env_flag("ENABLE_KS_ZONE_CLAMP", Config::ENABLE_KS_ZONE_CLAMP);
+        Config::KS_ONSET_MODE = env_int("KS_ONSET_MODE", Config::KS_ONSET_MODE);
+        Config::KS_PIN_ATT = env_int("KS_PIN_ATT", Config::KS_PIN_ATT);
+        Config::KS_ADJACENCY = env_int("KS_ADJACENCY", Config::KS_ADJACENCY);
+        Config::CAPG_KS_DAMP = env_int("CAPG_KS_DAMP", Config::CAPG_KS_DAMP);
+        Config::CAPG_KS_DAMP_PIVOT = env_int("CAPG_KS_DAMP_PIVOT", Config::CAPG_KS_DAMP_PIVOT);
+        Config::KS_SQPRUNE_MODE = env_int("KS_SQPRUNE_MODE", Config::KS_SQPRUNE_MODE);
         Config::KS_ZONE_NORM = env_int("KS_ZONE_NORM", Config::KS_ZONE_NORM);
         Config::KS_ZONE_ATTACK_PCT = env_int("KS_ZONE_ATTACK_PCT", Config::KS_ZONE_ATTACK_PCT);
         Config::KS_CLAMP_SHELTER = env_int("KS_CLAMP_SHELTER", Config::KS_CLAMP_SHELTER);
@@ -1484,6 +1512,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_FLOOR = env_int("KS_FLOOR", Config::KS_FLOOR);
         Config::KS_PHASE_FULL = env_int("KS_PHASE_FULL", Config::KS_PHASE_FULL);
         Config::KS_PHASE_ZERO = env_int("KS_PHASE_ZERO", Config::KS_PHASE_ZERO);
+        Config::KS_PHASE_FLOOR = env_int("KS_PHASE_FLOOR", Config::KS_PHASE_FLOOR);
         Config::KS_NO_QUEEN = env_int("KS_NO_QUEEN", Config::KS_NO_QUEEN);
         Config::ENABLE_KS_SF_WEAK = env_flag("ENABLE_KS_SF_WEAK", Config::ENABLE_KS_SF_WEAK);
         Config::ENABLE_KS_SF_SAFECHECK = env_flag("ENABLE_KS_SF_SAFECHECK", Config::ENABLE_KS_SF_SAFECHECK);
@@ -1999,6 +2028,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_AIM_ROOK=" << Config::KS_AIM_ROOK
                   << " KS_AIM_QUEEN=" << Config::KS_AIM_QUEEN
                   << " KS_MIN_ATTACKERS=" << Config::KS_MIN_ATTACKERS
+                  << " ENABLE_KS_RING_GATE=" << Config::ENABLE_KS_RING_GATE
                   << " KS_ATT_PRODUCT=" << Config::KS_ATT_PRODUCT
                   << " KS_COORD_GATE_MODE=" << Config::KS_COORD_GATE_MODE
                   << " KS_COORD_DIVISOR=" << Config::KS_COORD_DIVISOR
@@ -2009,6 +2039,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_ACCUM_LIN=" << Config::KS_ACCUM_LIN
                   << " KS_ACCUM_SQUARE=" << Config::KS_ACCUM_SQUARE
                   << " KS_ACCUM_DIV=" << Config::KS_ACCUM_DIV
+                  << " ENABLE_KS_UNIFIED=" << Config::ENABLE_KS_UNIFIED
+                  << " KS_PHASE_FLOOR=" << Config::KS_PHASE_FLOOR
                   << " KS_EG_MAT_GATE=" << Config::KS_EG_MAT_GATE
                   << " KS_EG_MAT_HI=" << Config::KS_EG_MAT_HI
                   << " KS_EG_MAT_FLOOR=" << Config::KS_EG_MAT_FLOOR
@@ -2017,6 +2049,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_DEFAWARE_COUNT_SHR=" << Config::KS_DEFAWARE_COUNT_SHR
                   << " ENABLE_KS_WEAK_ATT2=" << Config::ENABLE_KS_WEAK_ATT2
                   << " KS_SQC_MODE=" << Config::KS_SQC_MODE
+                  << " KS_SQPRUNE_MODE=" << Config::KS_SQPRUNE_MODE
+                  << " CAPG_KS_DAMP=" << Config::CAPG_KS_DAMP
+                  << " CAPG_KS_DAMP_PIVOT=" << Config::CAPG_KS_DAMP_PIVOT
+                  << " KS_ONSET_MODE=" << Config::KS_ONSET_MODE
+                  << " KS_PIN_ATT=" << Config::KS_PIN_ATT
+                  << " KS_ADJACENCY=" << Config::KS_ADJACENCY
                   << " KS_PIN_MODE=" << Config::KS_PIN_MODE
                   << " KS_WEAK_VAL_MODE=" << Config::KS_WEAK_VAL_MODE
                   << " KS_FLANK_MODE=" << Config::KS_FLANK_MODE
@@ -2414,6 +2452,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     move_gen_visits = 0;
     move_gen_cache_hits = 0;
 
+    g_qterm_horizon = g_qterm_horizon_active = g_qterm_horizon_tsum = 0;
+    g_qterm_standpat = g_qterm_standpat_active = g_qterm_standpat_tsum = 0;
+    g_qterm_quiet = g_qterm_searched = g_qterm_searched_active = g_qterm_searched_tsum = 0;
+    g_qbug_short = g_qbug_short_gap = g_qbug_fakemate = 0;
+    g_null_unproven_mate = g_null_unproven_mate_root = g_tt_exact_mislabel = 0;
+
     tt_visits = 0;
     tt_probes = 0;
     tt_hits = 0;
@@ -2645,6 +2689,26 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     }
     std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires
               << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires << std::endl;
+    if (Config::ENABLE_QUIET_PROBE) {
+        long term_tot = g_qterm_horizon + g_qterm_standpat + g_qterm_quiet + g_qterm_searched;
+        std::cerr << "[qquiet] terminals=" << term_tot
+                  << " horizon=" << g_qterm_horizon << " (active=" << g_qterm_horizon_active
+                  << " meanT=" << (g_qterm_horizon ? (double)g_qterm_horizon_tsum / g_qterm_horizon : 0.0) << ")"
+                  << " standpat=" << g_qterm_standpat << " (active=" << g_qterm_standpat_active
+                  << " meanT=" << (g_qterm_standpat ? (double)g_qterm_standpat_tsum / g_qterm_standpat : 0.0) << ")"
+                  << " quiet=" << g_qterm_quiet
+                  << " searched=" << g_qterm_searched << " (active=" << g_qterm_searched_active
+                  << " meanT=" << (g_qterm_searched ? (double)g_qterm_searched_tsum / g_qterm_searched : 0.0) << ")"
+                  << "  horizon%=" << (term_tot ? 100.0 * g_qterm_horizon / term_tot : 0.0)
+                  << " horizon_active%=" << (g_qterm_horizon ? 100.0 * g_qterm_horizon_active / g_qterm_horizon : 0.0)
+                  << std::endl;
+        std::cerr << "[qbug] searched_returns=" << g_qterm_searched
+                  << " short_of_standpat=" << g_qbug_short << " (meanGap=" << (g_qbug_short ? (double)g_qbug_short_gap / g_qbug_short : 0.0) << ")"
+                  << " fake_mate=" << g_qbug_fakemate << std::endl;
+        std::cerr << "[searchbug] null_unproven_mate=" << g_null_unproven_mate
+                  << " (root_adjacent=" << g_null_unproven_mate_root << ")"
+                  << " tt_exact_mislabel=" << g_tt_exact_mislabel << std::endl;
+    }
     std::cerr << "[qcheck] quiet_checks_added=" << g_q_quiet_checks_added
               << " unsafe_rejected=" << g_q_quiet_checks_unsafe
               << " discovered=" << g_q_discovered_checks
@@ -3680,19 +3744,17 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         score = maximizer(cur_depth + 1, research_depth, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (cur_depth < research_depth - 1)
                         {
-                            TTFlag flag;
-                            if (score <= alpha_orig)
-                            {
-                                flag = TTFlag::UPPERBOUND;
-                            }
-                            else if (score >= beta_orig)
-                            {
-                                flag = TTFlag::LOWERBOUND;
-                            }
-                            else
-                            {
-                                flag = TTFlag::EXACT;
-                            }
+                            // The re-search actually ran on the DRIFTED (alpha,beta) -- earlier sibling cutoffs
+                            // raised alpha / lowered beta below the node's entry window. A fail-soft score that
+                            // lands outside the drifted window is only a BOUND, but the legacy flag is computed
+                            // vs (alpha_orig,beta_orig) and can mislabel it EXACT (later trusted unconditionally).
+                            // ENABLE_TT_FLAG_FIX flags vs the window actually searched. Off = legacy = byte-id.
+                            const int fa = Config::ENABLE_TT_FLAG_FIX ? alpha : alpha_orig;
+                            const int fb = Config::ENABLE_TT_FLAG_FIX ? beta  : beta_orig;
+                            TTFlag flag = (score <= fa) ? TTFlag::UPPERBOUND
+                                        : (score >= fb) ? TTFlag::LOWERBOUND
+                                        :                 TTFlag::EXACT;
+                            if (Config::ENABLE_QUIET_PROBE && flag == TTFlag::EXACT && (score <= alpha || score >= beta)) ++g_tt_exact_mislabel;
                             // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
                             addToSearchEvalCache(zobrist, state_history.size(), score, research_depth - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                         }
@@ -4059,19 +4121,17 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         score = minimizer(cur_depth + 1, research_depth, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (cur_depth < research_depth - 1)
                         {
-                            TTFlag flag;
-                            if (score <= alpha_orig)
-                            {
-                                flag = TTFlag::UPPERBOUND;
-                            }
-                            else if (score >= beta_orig)
-                            {
-                                flag = TTFlag::LOWERBOUND;
-                            }
-                            else
-                            {
-                                flag = TTFlag::EXACT;
-                            }
+                            // The re-search actually ran on the DRIFTED (alpha,beta) -- earlier sibling cutoffs
+                            // raised alpha / lowered beta below the node's entry window. A fail-soft score that
+                            // lands outside the drifted window is only a BOUND, but the legacy flag is computed
+                            // vs (alpha_orig,beta_orig) and can mislabel it EXACT (later trusted unconditionally).
+                            // ENABLE_TT_FLAG_FIX flags vs the window actually searched. Off = legacy = byte-id.
+                            const int fa = Config::ENABLE_TT_FLAG_FIX ? alpha : alpha_orig;
+                            const int fb = Config::ENABLE_TT_FLAG_FIX ? beta  : beta_orig;
+                            TTFlag flag = (score <= fa) ? TTFlag::UPPERBOUND
+                                        : (score >= fb) ? TTFlag::LOWERBOUND
+                                        :                 TTFlag::EXACT;
+                            if (Config::ENABLE_QUIET_PROBE && flag == TTFlag::EXACT && (score <= alpha || score >= beta)) ++g_tt_exact_mislabel;
                             // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
                             addToSearchEvalCache(zobrist, state_history.size(), score, research_depth - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                         }
@@ -4635,6 +4695,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
             if (null_move_score <= alpha)
             {
+                if (Config::ENABLE_QUIET_PROBE && null_move_score <= -9000000) { ++g_null_unproven_mate; if (cur_depth <= 2) ++g_null_unproven_mate_root; }
+                if (Config::ENABLE_NULL_MATE_CLAMP && null_move_score <= -9000000) return alpha; // unproven mate -> bound
                 return null_move_score; // fail-high cutoff
             }
         }
@@ -5282,6 +5344,8 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
         if (null_move_score >= beta)
         {
+            if (Config::ENABLE_QUIET_PROBE && null_move_score >= 9000000) { ++g_null_unproven_mate; if (cur_depth <= 2) ++g_null_unproven_mate_root; }
+            if (Config::ENABLE_NULL_MATE_CLAMP && null_move_score >= 9000000) return beta; // unproven mate -> bound
             return null_move_score; // fail-high cutoff
         }
     }
@@ -6450,6 +6514,10 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         int horizon_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
         if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
             horizon_eval += corrhist_correction(state_history.back(), is_maximizing ? 1 : 0);
+        if (Config::ENABLE_QUIET_PROBE) {
+            ++g_qterm_horizon; g_qterm_horizon_tsum += g_capg_tension;
+            if (g_capg_tension > 0) ++g_qterm_horizon_active;
+        }
         return horizon_eval;
     }
 
@@ -6552,10 +6620,15 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     int static_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
     if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
         static_eval += corrhist_correction(current_state, is_maximizing ? 1 : 0);
+    // Quietness probe: capture THIS node's tension before the move loop recurses and overwrites the global.
+    int qprobe_tension = Config::ENABLE_QUIET_PROBE ? g_capg_tension : 0;
     if (is_maximizing)
     {
         if (static_eval >= beta)
+        {
+            if (Config::ENABLE_QUIET_PROBE) { ++g_qterm_standpat; g_qterm_standpat_tsum += qprobe_tension; if (qprobe_tension > 0) ++g_qterm_standpat_active; }
             return static_eval; // Fail-hard beta cutoff
+        }
         if (static_eval > alpha)
             alpha = static_eval;
         if (Config::ENABLE_QDELTA && !Config::ENABLE_QDELTA_PERMOVE && static_eval < alpha - Config::DELTA_MARGIN)
@@ -6564,7 +6637,10 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     else
     {
         if (static_eval <= alpha)
+        {
+            if (Config::ENABLE_QUIET_PROBE) { ++g_qterm_standpat; g_qterm_standpat_tsum += qprobe_tension; if (qprobe_tension > 0) ++g_qterm_standpat_active; }
             return static_eval; // Fail-hard alpha cutoff
+        }
         if (static_eval < beta)
             beta = static_eval;
         if (Config::ENABLE_QDELTA && !Config::ENABLE_QDELTA_PERMOVE && static_eval > beta + Config::DELTA_MARGIN)
@@ -6572,6 +6648,12 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     }
 
     int best = is_maximizing ? -9999999 + moveNum : 9999999 - moveNum;
+    // Stand-pat seed (ENABLE_QSTANDPAT_SEED): SF seeds bestValue = static_eval so a node that searches
+    // captures but improves on nothing still returns the value the mover could get by STANDING PAT, and a
+    // node that futility-prunes every move never returns a phantom ±mate. Ours left `best` at ±mate, which
+    // (measured) returns short-of-standpat on 14% of searched nodes and a fake-mate on ~59%. Off = the
+    // ±mate init = byte-identical.
+    if (Config::ENABLE_QSTANDPAT_SEED) best = static_eval;
 
     std::vector<Move> &moves_list = buildNoisyMoveList(zobrist, state_history, cur_depth + qDepth, qDepth, prevMove);
 
@@ -6600,6 +6682,9 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
                 if (static_eval + pm_margin + victim <= alpha)
                 {
                     ++g_qdelta_permove_fires;
+                    // SF: a pruned move still contributes its optimistic bound to best (fail-soft correctness).
+                    if (Config::ENABLE_QSTANDPAT_SEED && static_eval + pm_margin + victim > best)
+                        best = static_eval + pm_margin + victim;
                     continue;
                 }
             }
@@ -6608,6 +6693,8 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
                 if (static_eval - pm_margin - victim >= beta)
                 {
                     ++g_qdelta_permove_fires;
+                    if (Config::ENABLE_QSTANDPAT_SEED && static_eval - pm_margin - victim < best)
+                        best = static_eval - pm_margin - victim;
                     continue;
                 }
             }
@@ -6678,7 +6765,16 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
     if (moves_list.empty())
     {
+        if (Config::ENABLE_QUIET_PROBE) ++g_qterm_quiet;   // no captures existed => genuinely quiet
         return static_eval;
+    }
+    if (Config::ENABLE_QUIET_PROBE) {
+        ++g_qterm_searched; g_qterm_searched_tsum += qprobe_tension; if (qprobe_tension > 0) ++g_qterm_searched_active;
+        // Bug (a)/(b) sizing: would SF's `bestValue=static_eval` seed have changed this return?
+        bool fake_mate = is_maximizing ? (best <= -9000000 + 100000) : (best >= 9000000 - 100000);
+        bool short_of_standpat = is_maximizing ? (best < static_eval) : (best > static_eval);
+        if (fake_mate) ++g_qbug_fakemate;
+        else if (short_of_standpat) { ++g_qbug_short; g_qbug_short_gap += std::abs(static_eval - best); }
     }
     return best;
 }

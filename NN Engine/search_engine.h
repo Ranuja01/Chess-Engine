@@ -258,6 +258,22 @@ namespace Config
     inline bool ENABLE_NULLMOVE = true; // null-move pruning
     inline bool NULLMOVE_PROGRESSIVE = false; // depth-scaled null-move reduction (-2 at d>=12, -3 at d>=14); off = flat -1
     inline int NULLMOVE_EXTRA = 2;      // extra plies off the null-move search depth (more aggressive null pruning); 0 = byte-id baseline, 2 = combo1
+    inline bool ENABLE_QUIET_PROBE = false;  // diagnostic: tally qsearch terminal quietness (g_capg_tension by
+                                             // termination reason). Off => no counters touched => byte-identical.
+    inline bool ENABLE_NULL_MATE_CLAMP = true; // clamp an UNPROVEN mate score returned by the null-move cutoff
+                                             // to the bound (the null line contains a pass, so a mate found in
+                                             // it is not a proof) -- SF's "do not return unproven mate scores".
+                                             // Measured latent (root_adjacent=0) but a root-reaching phantom
+                                             // could freeze iter-deepening / RESIGN. Off = byte-identical.
+    inline bool ENABLE_TT_FLAG_FIX = true;  // compute the TT bound flag of a PVS re-search against the window
+                                             // it ACTUALLY used (drifted alpha,beta), not the node's entry
+                                             // window -- stops fail-soft bounds being stored as EXACT (measured
+                                             // 61k/300pos on WAC). Off = legacy = byte-identical. Needs games.
+    inline bool ENABLE_QSTANDPAT_SEED = false; // seed qsearch `best` with the stand-pat eval (SF's
+                                             // bestValue=static_eval) + have futility-pruned moves contribute
+                                             // their optimistic bound. Fixes the measured short-of-standpat
+                                             // (14%) and fake-mate (~59%) fail-soft return bugs. Off = ±mate
+                                             // init = byte-identical. CHANGES SEARCH VALUES => needs games.
     inline bool ENABLE_QDELTA = true;   // delta pruning in quiescence
     inline int DELTA_MARGIN = 1500;     // qsearch delta-pruning margin (lower = prune more captures); EBF lever
     inline int MAX_QDEPTH = 10;         // qsearch depth cap (lower = shallower qsearch); EBF lever
@@ -560,8 +576,8 @@ namespace Config
     // exchange loses more than SEE_PRUNE_CAPTURE_MARGIN (pre-move see() from the mover's side). Captures bypass
     // do_lmr, so this is a separate branch; a checking capture is never pruned. Shares SEE_PRUNE_MAX_DEPTH;
     // independent of ENABLE_SEE_PRUNE (the quiet lever). Default off = byte-identical.
-    inline bool SEE_PRUNE_CAPTURES = false;
-    inline int SEE_PRUNE_CAPTURE_MARGIN = 0;  // prune a capture whose see() < -this (centipawns; piece=1000)
+    inline bool SEE_PRUNE_CAPTURES = true;
+    inline int SEE_PRUNE_CAPTURE_MARGIN = 1000;  // prune a capture whose see() < -this (centipawns; piece=1000)
 
     // Lazy cached-quiet re-sort: a move-gen cache hit replays an order frozen when the node was first
     // searched, so the late quiets LMP prunes may be stale. On a hit, re-rank the quiet tail against the
@@ -706,6 +722,14 @@ namespace Config
     inline bool ENABLE_CAPG_REALIZ = false; // discount the pre-booked capgains material when the gaining side can't
                                        // convert it, via the imbalance term's realizability_factor(material_edge,phase).
                                        // Off => byte-id; on with REALIZ_* still 0 => identity (needs REALIZ_MAT_K etc).
+    inline int CAPG_KS_DAMP       = 0;  // percent of capgains credit to remove when the side it FAVOURS has its own
+                                        // king in REAL danger. A 1-ply static capture melee around an attacked king
+                                        // is illusory -- checks/deflections change what is actually capturable, so
+                                        // the gaining side's "winning" captures do not happen (the measured ks_attack
+                                        // over-read). Ramps linearly from 0 to this cut as that king's danger rises
+                                        // to CAPG_KS_DAMP_PIVOT. Colour-safe (keys on the favoured side's own king).
+                                        // 0 = OFF = byte-identical.
+    inline int CAPG_KS_DAMP_PIVOT = 60; // king danger at which the full CAPG_KS_DAMP cut applies (linear below).
 
     // Eval: capture-gains legality/tempo awareness. approximate_capture_gains folds a full-magnitude,
     // pin-blind, tempo-blind SEE exchange into the static material/capture_gains terms, so it over-credits
@@ -1159,10 +1183,10 @@ namespace Config
     // UNITS and mapped through a PRECOMPUTED non-linear safety table (danger = clamp(units)^2 / KS_DIVISOR),
     // so two attackers are worth far more than twice one (additive pressure). king_safety = danger(white
     // king) - danger(black king) (Black-positive), PHASE-TAPERED to ~0 by the endgame. The master knob
-    // KING_SAFETY_MAG defaults 0 => the term is gated off at the call site => byte-identical; the component
-    // knobs only take effect once MAG > 0. Each component is additive into `units`, so any sub-knob at 0
-    // disables just that component (lets us build/tune one at a time; lets PACE/Texel tune them jointly).
-    inline int KING_SAFETY_MAG = 3000;  // master percent scale (0 = off = byte-identical)
+    // KING_SAFETY_MAG defaults to 3000 => midgame KS is LIVE by default, so the byte-identical baseline
+    // INCLUDES the midgame KS term (only endgame KS is off, behind the isEndGame branch). MAG=0 would gate the
+    // term off; component sub-knobs at 0 disable just that component (build/tune one at a time; PACE/Texel joint).
+    inline int KING_SAFETY_MAG = 3000;  // master percent scale (0 = off; DEFAULT 3000 = KS live in the midgame)
     // REPLACE the flat latent_threat with king_safety_score (the structural swap, not an additive run-beside).
     // Off (default) = byte-identical: latent_threat adds as today, king_safety only if MAG>0. On = skip the
     // latent_threat add entirely and route king danger through king_safety_score (no double-count); needs
@@ -1208,6 +1232,10 @@ namespace Config
     // the enemy has a queen the threshold drops by one (a lone queen still threatens). 0 = gate OFF = byte-
     // identical. This is what lets KS_FLOOR come down without waking calm positions (0-1 attackers -> 0 danger).
     inline int KS_MIN_ATTACKERS = 0;
+    // Count the KS_MIN_ATTACKERS gate on the TIGHT king ring (ring-1: king + neighbours), i.e. the giants'
+    // `kingAttackersCount`, instead of the broad zone. The broad zone count never binds (minor pieces near the
+    // king are ubiquitous); the ring count separates quiet from attack the way SF/Ethereal do. Off = byte-id.
+    inline bool ENABLE_KS_RING_GATE = false;
     // Optional SF-style attacker COORDINATION product added to units: KS_ATT_PRODUCT * attackerCount *
     // attackerWeightSum >> 4 (super-linear in the number of coordinating attackers). 0 = OFF = byte-identical.
     // Default off; the gate above is the LEADING (gentler, N^2) discriminator. Kept as a fit-testable variant.
@@ -1258,6 +1286,11 @@ namespace Config
     // Additive (KS where there was none) so validate carefully; but it fills an EMPTY slot, not on top of an over-read.
     // 0 = OFF = today's cliff = byte-identical.
     inline int KS_EXTEND_EG    = 0;
+    // Master unification: run the SAME attack-unit KS term in BOTH phase branches so king danger is ONE
+    // branch-independent, phase-tapered term (giant/SF shape: compute always, fade by phase — no isEndGame cliff).
+    // Subsumes KS_EXTEND_EG via OR at the endgame call site. OFF (default) = today's two-site behavior (midgame KS
+    // live; endgame KS only under KS_EXTEND_EG) = byte-identical. ON = endgame arm always fires, KS runs every eval.
+    inline bool ENABLE_KS_UNIFIED = false;
     inline int KS_EG_MAT_GATE  = 0;   // 0 = OFF = byte-id; 1 = deep-endgame material taper ON
     // Taper shape: KS scaled to KS_EG_MAT_FLOOR% for npm <= KS_EG_MAT_LO (FLAT strong cut across the harmful band),
     // ramps FLOOR->100% over (LO..HI], full (100%) for npm >= HI. This cuts KS where the harm is (npm<=12), unlike
@@ -1332,13 +1365,46 @@ namespace Config
                                         // already covers it). Games-tuned; conditional (0-danger kings unaffected).
     inline int KS_STORM        = 1;     // per rank of enemy pawn-storm advance on the king's three files
     inline int KS_OPEN_FILE    = 2;     // per open/semi-open file on/adjacent to the king file
-    inline int KS_BATTERY      = 3;     // per rook/queen battery (doubled on a file / Q+B diagonal) aimed at the zone
+    inline int KS_BATTERY      = 0;     // x-ray battery sight: recover a rear R/Q (file/rank) or Q/B (diagonal) battery
+                                        // piece the occupancy-blocked zone scan misses, priced as a first-class attacker
+                                        // via a local footprint overlay. 0 = OFF = byte-identical; nonzero = ON.
     inline int KS_ZONE2        = 0;     // widen the king-danger zone from ring1+one-rank to the full king_ring2
                                         // (2-ring), so attackers staging one square further out are detected.
                                         // 0 = narrow zone (byte-identical baseline); 1 = wide 2-ring.
     inline bool ENABLE_KS_ZONE_CLAMP = false;  // build the king-danger ring around a clamped center (file B..G,
                                         // rank 2..7) so a corner/edge king gets a full 9-square ring and sees the
                                         // attackers a raw corner ring misses. Off => raw ring = byte-identical.
+    inline int KS_ONSET_MODE   = 0;     // make the danger onset CONTINUOUS at the gate. The deadzone does two
+                                        // separable things: it silences small readings (its purpose) and it
+                                        // charges ks_safety_table[KS_FLOOR] as a STEP the instant it is crossed
+                                        // (an accident -- the table already reads 42 at unit 13, so the gate
+                                        // costs ~1.26 pawns of eval discontinuity that search feels through RFP,
+                                        // futility and stand-pat). Mode 1 subtracts the gate's own table value so
+                                        // danger starts at 0 where firing starts: the silencing is kept, the step
+                                        // is removed, and everything above the gate is scored LOWER than today
+                                        // (net-subtractive). SF's shape -- gate far below signal, soft onset.
+                                        // 0 = OFF = the hard step = byte-identical.
+    inline int KS_PIN_ATT      = 0;     // clip an ABSOLUTELY PINNED enemy attacker's king-zone attacks to its pin
+                                        // line, the way SF does at generation (b &= LineBB[ksq][s]). A piece tied to
+                                        // its own king cannot deliver the attack it appears to make off that line,
+                                        // so counting it is phantom offense. Removes credit only (subtractive).
+                                        // 0 = OFF = no pinned set built = byte-identical.
+    inline int KS_ADJACENCY    = 0;     // price attacks landing on squares the KING ITSELF defends separately from
+                                        // (and more steeply than) generic zone squares -- SF weighs this geometry
+                                        // at 69/instance while we charge a flat KS_ATTACK_COUNT per zone square.
+                                        // Meant REDISTRIBUTIVELY: raise this while lowering KS_ATTACK_COUNT so
+                                        // total volume holds and only the SHAPE changes. 0 = OFF = byte-identical.
+    inline int KS_SQPRUNE_MODE = 0;     // stop charging danger for king-zone squares the attacker cannot actually
+                                        // contest (the quiet-position over-read). 1 = SF11 reference control:
+                                        // drop squares defended twice by the king's OWN pawns from the whole zone.
+                                        // 2 = the same rule but only for the proximity/weak COUNTS, leaving the
+                                        // attacker/defender sets intact (isolates which consumer carries it).
+                                        // 3 = value-aware superset: drop a square from those counts when
+                                        // ks_sqc_breaks says the attacker does not break through (covers mode 2
+                                        // plus piece-vs-guarded-square cases). 4 = graded proximity count: weight
+                                        // each attacked square by its contested fraction instead of counting it
+                                        // whole (ceiling = the raw count, so it can only subtract).
+                                        // 0 = OFF = no mask built, every consumer byte-identical.
     inline int KS_ZONE_NORM    = 0;     // Ethereal-style density normalization: scale the attacked-square COUNT to
                                         // a KS_ZONE_NORM-square reference ring (count * KS_ZONE_NORM / popcount(zone))
                                         // so a larger zone isn't charged more for size alone. 0 = off = byte-id; 9 typ.
@@ -1381,6 +1447,9 @@ namespace Config
                                         // can't perturb non-king positions (the def1 passer bleed). Default 0 = byte-id.
     inline int KS_PHASE_FULL   = 48;    // phase_score AT/BELOW which king safety is full weight (0=full material/opening)
     inline int KS_PHASE_ZERO   = 104;   // phase_score AT/ABOVE which king safety is ~0 (128=bare kings/deep endgame)
+    inline int KS_PHASE_FLOOR  = 0;     // taper value (/256) AT/ABOVE KS_PHASE_ZERO. 0 = hard-0 = byte-identical.
+                                        // >0 = KS keeps a small residual weight in the deep endgame that never fully
+                                        // zeroes (SF keeps a tiny eg king-danger), instead of cliffing to 0 at ZERO.
     // King-danger definition-alignment toward classical SF11 (all default = byte-identical). SF encodes defense
     // IMPLICITLY (a defended square just isn't weak / a covered check isn't safe) rather than a blanket defender
     // subtraction, and heavily discounts attacks when the attacker has no queen.

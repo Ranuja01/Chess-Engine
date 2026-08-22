@@ -107,6 +107,11 @@ constexpr int KS_MAX_UNITS = 128;
 extern std::array<int, KS_MAX_UNITS + 1> ks_safety_table;  // attack-units -> danger (precomputed at init)
 extern std::array<int, 129>              ks_phase_taper;   // phase_score 0..128 -> /256 fade
 
+// Fixed-point unit for the contest-graded king-zone proximity count (Config::KS_SQPRUNE_MODE 4): one fully
+// uncontested zone square is worth KS_SQ_GRADE_UNIT, a contested one proportionally less. Sized so an even
+// 1-attacker-vs-1-defender square lands on an exact half and the sum stays well inside int.
+constexpr int KS_SQ_GRADE_UNIT = 16;
+
 // Define the file bitboards
 constexpr uint64_t BB_FILE_A = 0x0101010101010101ULL << 0;
 constexpr uint64_t BB_FILE_B = 0x0101010101010101ULL << 1;
@@ -451,6 +456,7 @@ struct PawnClampRec {
 extern PawnClampRec g_pawn_clamp_recs[16];
 extern int g_pawn_clamp_nrec;
 extern bool g_pawn_clamp_probe;
+extern int g_capg_tension;   // tactical tension (count of SEE>=0 captures both sides) of the last full eval
 
 void pawn_clamp_probe_begin();
 void pawn_clamp_probe_end();

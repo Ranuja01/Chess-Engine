@@ -1,5 +1,34 @@
 # Session handoff — 2026-08-14: the criticality-split reframe, the additive-hurts-critical verdict, and the data build
 
+> ## 🚨🚨🚨 LATEST STATE — READ THIS FIRST (this session went much further than the title)
+> **Order to read:** this block → `dev_notes/KS-3STAGE-AUDIT-2026-08-14.md` → `dev_notes/KING-PHASE-TRANSITION-ANALYSIS-2026-08-14.md` → memory [[diagnostic-harness-history-contamination]], [[three-stage-subsystem-audit]], [[bundle-ovd-central-defaware1-confirmed-plus20]], [[endgame-ks-hurt-is-material-not-queens]] → OPTIMIZATION_LOG top.
+>
+> ### SHIPPED / COMMITTED
+> - **Bundle +20.8 Elo SHIPPED as default** (arch `8f21a36`, ship `7743cad`). New clean baseline **250 / 36,651,879 / EBF 3.751 / STS 1771**.
+> - **Diagnostic-harness CONTAMINATION found + FIXED** (`clearSearchTables()`, commit `ad0e52f`; tooling `706267b`, docs `bb6beed`). In-process diagnostics (run_one + wac/sts/movematch/**regret**) carried move-ordering history across UNRELATED FENs → silently changed the chosen move, WORST at low material. Fixed with a per-position clear (DIAG-only, default on, `DIAG_NO_CLEAR=1` opts out); GAME ENGINE byte-identical (ship unaffected). Cost measured STS 1670→1771 (+3.3pp). **Every pre-fix search-based positional/regret number was confounded; games/static/symmetry/byte-id were NOT.**
+> - **UNCOMMITTED, ready to commit tonight:** the two fable docs (`KS-3STAGE-AUDIT`, `KING-PHASE-TRANSITION-ANALYSIS`), `diagnostics/_ks_live.py` (KS triangulation probe), `_ks_phase_split.py` additions (DUMP/QSPLIT/NQ_SUPP/per-side-queen).
+>
+> ### KS RE-DIAGNOSIS ON THE CLEAN INSTRUMENT — three hypotheses DIED (the method working)
+> - KS **HELPS** critical (lichess −2.01 / 616 pos) + queen attacks. **Endgame-hurt was a CONTAMINATION GHOST.** **Queenless-magnitude-inflation REFUTED** by triangulation (our KS 0..1 pawn vs SF11 0.12..2.19 — NOT bigger; live units ~14, far from the 80 clamp). The over-read is **SEARCH-INTEGRATED**, not root-magnitude — a utilization-shape + discontinuity problem.
+>
+> ### THE 3-STAGE AUDIT (reusable method + KS findings) — `dev_notes/KS-3STAGE-AUDIT-2026-08-14.md`
+> - **METHOD (reusable for ANY subsystem): Stage 1 FEEDERS (collection accuracy) → Stage 2 TRANSFORMATION (weights/curve) → Stage 3 OUTPUT/DOWNSTREAM (final score + prune consumers).** Audit Stage-3 margin arithmetic FIRST — cheapest, and it prices how much Stage-1/2 precision is even worth. See [[three-stage-subsystem-audit]].
+> - **Stage 2 flaws (flat/typeless/inverted):** proximity weights queen-HIGHEST (SF queen-LOWEST — its danger is in checks); flat typeless safe-checks (a queenless R+B out-scores a queen attack; typed `ENABLE_KS_CHECK_V2` built but OFF); flat `KS_WEAK`; flat `KS_NO_QUEEN=6` = haircut not gate.
+> - **Stage 3 = THE BLIND SPOT, and it's LIVE:** KS feeds RFP (+73 shipped) + futility + qsearch stand-pat via the FULL eval. **Discontinuities: `KS_FLOOR=13` is a 0→~1260 mp STEP (> futility margins); the `isEndGame` cliff drops 71%→0 of the term on ONE phase point, inside the search at every depth.** Derivative 180 mp/unit. THIS is the concrete mechanism turning a root-correct KS into a search distortion. (Null-move reads no static eval at defaults.)
+> - **Stage 1 = the UNDER-read tail (opposite direction):** `KS_BATTERY` declared but UNWIRED (no x-ray/battery sight); corner/castled-king zone shrinks (clamp built, off); "open file" tests OWN pawns only (enemy-rammed file scores as exposed); pinned defenders still count. These UNDER-read heavy attacks — the opposite tail from the over-read. So there are TWO problems pulling opposite ways (why single-knob tuning never converged).
+>
+> ### FIX DIRECTION ("how to make it behave"): strong engines DO prune on KS — do NOT remove it. Their KS is CONTINUOUS; ours has hard steps. **Make KS continuous (smooth `KS_FLOOR` into a ramp; replace the `isEndGame` cliff with the continuous taper via `KS_EXTEND_EG`) + correctly-shaped (Stage-2 fixes), so pruning-on-KS becomes an asset.** `FUTILITY/RFP_EVAL_MODE=2` is a DIAGNOSTIC (isolate the prune channel), NOT the fix.
+>
+> ### NEXT STEPS (queue — cores-free at night, JOBS≤4 one-at-a-time; validate on CLEAN regret + ours/SF11/SF18 triangulation, games decide):
+> 1. **Prune-transmission diagnostic:** `FUTILITY_EVAL_MODE=2 RFP_EVAL_MODE=2` (existing knobs, zero code) on the regret ruler — does the queenless over-read shrink? Sizes the Stage-3 channel and may reprioritize everything.
+> 2. **Continuity fixes:** smooth `KS_FLOOR` (ramp not 0→1260 step); complete the phase fade (`KS_EXTEND_EG`, kill the cliff).
+> 3. **Stage-2 shape:** `ENABLE_KS_CHECK_V2` (typed safe-checks); de-invert proximity (`KS_ATT_QUEEN` 5→3/2); multiplicative no-queen shear.
+> 4. **Stage-1 feeders (under-read lane):** wire `KS_BATTERY`, fix open-file predicate, pinned-defender.
+>
+> ### INSTRUMENTS (clean now): `_ks_live.py` (our KS term vs SF11 KS term, + live `KSD` units via KS_DEBUG_DUMP); `_ks_phase_split.py` KSMAG_TEST ruler + QSPLIT (per-side-queen×material) + DUMP (worst-hurt per-FEN, DUMP_NPM_MIN/QMAX filters) + NQ_SUPP sweep path; `probe_fens.py` = full ours/SF11/SF15/SF18 ladder. ⚠️ `ks_explain.py` prints a PREVIEW model + reads the retired `latent_threat` field (0 under REPLACE_LT) — do NOT trust its live number; use `_ks_live.py`.
+> ---
+
+
 > ## 🚨 READ THIS BLOCK FIRST  (UPDATED end-of-session — outcome CHANGED)
 > The bundle **SHIPPED**. The +15 bundle (OvD+central+defaware1) was CONFIRMED **+20.8 Elo** (pooled 1871 lightning
 > games, old sprt_bundle_ks 1362 g + two fresh batches; 95% CI [+6.9,+34.7] clears 0) and shipped as default —

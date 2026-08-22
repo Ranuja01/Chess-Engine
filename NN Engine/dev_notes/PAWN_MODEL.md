@@ -413,6 +413,33 @@ not a small effect — it is an absence of evidence.
 
 ---
 
+## 4b. ⚠️ LIVE-GAME COUNTEREXAMPLE (2026-08-18) — passer valuation may need REOPENING
+
+A standard-time-control loss produced a **4.55-pawn `passed_pawn_support` over-read** in a real middlegame:
+
+FEN `3r2k1/5p1p/6p1/pp6/2p5/5P2/nqB2BPP/3RQ1K1 b - - 2 32`
+- ours −2.88 (Black winning) · **SF11-static +0.64** · SF18-search +2.45 (White winning) ⇒ **3.5-pawn gap**
+- `passed_pawn_support = −4.55` for Black's a5/b5/c4 connected passers, dominating every other term.
+- Why SF disagrees: the passers are **unrealizable** — Black's knight is trapped on a2, White has the bishop
+  pair and a landing attack. Classic blockade/realizability blindness, i.e. exactly the mechanism §
+  `passer-defect-is-blockade-cost-blindness` describes — but that lane was recorded **VALUATION CLOSED**.
+  This is a live, multi-pawn instance found with the calibration methodology we did not have then.
+  ⇒ **treat the closure as provisional.** Re-test with `_ks_calibration.py`-style banded ratios applied to
+  the passer term before re-closing it.
+
+☠️ **PHANTOM-KNOB HAZARD — there is NO master off switch for passed pawns.** Measured on the FEN above:
+
+| knob | term after | removed |
+|---|---|---|
+| (none) | −4.55 | — |
+| `SCALE_PASSED_PAWN=0` | −3.75 | **18%** |
+| `PASSER_MAG_SCALE=0` | −3.09 | **32%** |
+
+The obvious knob removes less than a fifth of the term; ~68% is under neither. The channel has **at least
+three independent magnitude sources** (the same multi-channel structure the KS work found for king credit).
+⇒ **any past ablation of passed pawns via `SCALE_PASSED_PAWN` measured a fraction of the term and its null
+is not a null.** Find and document the full source list before trusting a passer ablation.
+
 ## 5. Known limits — read before quoting any number here
 
 - **Marginal, not total.** Every figure is the value of *adding one pawn*, so contexts that already contain

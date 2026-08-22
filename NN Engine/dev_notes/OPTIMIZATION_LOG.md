@@ -4,6 +4,30 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🏆 2026-08-22 — SHIPPED: SEE-capture pruning + C1 search-value fixes (+18 Elo / 2400g diverse UHO)
+
+    NEW default fingerprint:   243 / 31,764,817 / EBF 3.729 / STS 1703
+    Prior default:             250 / 36,651,879 / EBF 3.751 / STS 1771
+
+**Shipped (`f831263`):** four defaults flipped on — `SEE_PRUNE_CAPTURES=1`, `SEE_PRUNE_CAPTURE_MARGIN=1000`
+(skip a low-remaining-depth capture whose static exchange loses > 1000mp; checking captures exempt), plus the two
+C1 correctness fixes `ENABLE_TT_FLAG_FIX=1` (store the PVS re-search bound flag against the window it ACTUALLY used,
+not the entry window — stops fail-soft bounds mislabelled EXACT) and `ENABLE_NULL_MATE_CLAMP=1` (clamp an unproven
+null-move mate to the bound). SEE-pruning drives nodes **−13%** (36.65M→31.76M).
+
+**Validation = DIVERSE-OPENING games (the real arbiter).** Pooled six 400-game segments on `openings_uho.txt` (1000-book)
+with a **varied seed per segment**: W980 L853 D567 = 52.6% → **+18.4 Elo, 95% CI [+6, +31], six-for-six positive**
+(seg7 was a mid-run −16 partial = noise; folding it in still ~+16). ⚠️ This bundle first looked like +32 on the small
+fixed `openings.txt` — an ARTIFACT of the seed-0 replay bug (memory `fixed-openings-inflate-game-reads-and-maybe-d7`);
+diverse openings are now mandatory for any game A/B.
+
+**Fixed-depth WAC/STS both DROPPED** (WAC 250→243, STS 1771→1703) — expected for a node-reducer: at fixed depth you
+search fewer nodes so a few tactics/positional slip, but at fixed TIME the node savings buy depth (that is where the
++18 came from). Judge node-savers at fixed time, not fixed depth. No colour-symmetry gate needed (search, not eval).
+The C1 fixes were separately a confirmed practical null on fixed openings (+6/790g) but are shipped on **correctness**
+merit; the gain is carried by SEE-capture pruning. Also landed (gated, byte-id, off): the KS-unification refactor
+(`ENABLE_KS_UNIFIED`/`KS_PHASE_FLOOR`).
+
 ## ☠️★★★★ 2026-08-14 (later) — DIAGNOSTIC-HARNESS CONTAMINATION found + fixed; prior single-run positional/regret numbers were confounded
 
     CLEAN baseline (per-position clear):      250 / 36,651,879 / EBF 3.751 / STS 1771   <- USE THIS
@@ -35,6 +59,17 @@ contamination ghost (734→103 low-material changes; the endgame is help/neutral
 708). The real flaw is a **QUEENLESS OVER-READ at mid-high material** (sets A+B Qless +0.25..+0.37, Qon helps) ⇒ fix =
 reference-scale NO-QUEEN SUPPRESSOR (SF −873 analog), NOT the endgame taper. Supersedes the contaminated "material-not-queens"
 read. See memory `endgame-ks-hurt-is-material-not-queens` (corrected) + `dev_notes/KING-PHASE-TRANSITION-ANALYSIS-2026-08-14.md`.
+
+**3-STAGE KS AUDIT (`dev_notes/KS-3STAGE-AUDIT-2026-08-14.md`, reusable method — memory `three-stage-subsystem-audit`):**
+triangulation (`_ks_live.py`: our KS 0..1pw vs SF11 0.12..2.19) proved root KS is NOT inflated — the over-read is
+SEARCH-INTEGRATED. The audit located it in **STAGE 3 (downstream/pruning), never examined before:** KS feeds RFP(+73)/
+futility/qsearch-standpat via the full eval, and its discontinuities distort prunes — `KS_FLOOR=13`=0→~1260mp STEP
+(> futility margins), `isEndGame` cliff 71%→0 on one phase point, derivative 180mp/unit. STAGE 2 = flat/typeless/inverted
+weights (queen-HIGHEST proximity, flat typeless safe-checks, flat −6 no-queen). STAGE 1 = OPPOSITE under-read (KS_BATTERY
+unwired, corner-zone shrink, open-file own-pawns-only, pinned-defenders-count). FIX = make KS CONTINUOUS (smooth floor,
+kill cliff via KS_EXTEND_EG) + typed safe-checks (ENABLE_KS_CHECK_V2 built)/de-invert proximity — KEEP it in pruning (giants
+do). NEXT: (1) prune-transmission diag `FUTILITY_EVAL_MODE=2 RFP_EVAL_MODE=2` on the regret ruler; (2) continuity; (3) Stage-2
+shape; (4) Stage-1 feeders. Validate on CLEAN regret + ours/SF11/SF18. Details + full matrix in the audit doc + SESSION-HANDOFF-2026-08-14 top block.
 
 ## 🏆★★★★ 2026-08-14 — OvD+central+defaware BUNDLE **SHIPPED** (+20.8 Elo) · the CRITICALITY-SPLIT method
 

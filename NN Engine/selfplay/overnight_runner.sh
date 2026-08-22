@@ -941,15 +941,20 @@ PYEOF
     ;;
 
   gate)
-    # Generic lightning SPRT: a candidate ENV-knob config vs base. Args: '<p1cfg>' <label> [tag] [max_games] [elo1] [conc=4].
+    # Generic lightning SPRT: a candidate ENV-knob config vs base.
+    # Args: '<p1cfg>' <label> [tag] [max_games] [elo1] [conc=4] [openings_file=openings.txt] [seed=0].
     # p1cfg is a space-separated KEY=VAL string (quote it). The correct -lc wrapper passes =knobs prompt-free.
     # conc: default 4; use 3 when a parallel project holds cores (avoids the keras-worker OOM crash).
+    # openings_file (relative to selfplay/) + seed: VARY the seed across segments to sample DIVERSE openings
+    # (e.g. openings_uho.txt = 1000 lines). Default openings.txt + seed 0 reproduces the legacy fixed schedule.
     p1cfg="${1:?p1 config required}"; shift || true
     lbl="${1:-cand}"; shift || true
     ttag="${1:-sprt_${lbl}}"; shift || true
     maxg="${1:-600}"; shift || true
     e1="${1:-5}"; shift || true
     gconc="${1:-4}"; shift || true
+    oset="${1:-openings.txt}"; shift || true
+    gseed="${1:-0}"; shift || true
     export STOCKFISH_PATH="$SF"
     export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
            VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
@@ -957,7 +962,8 @@ PYEOF
         --p1-label "$lbl" --p1-config "$p1cfg" \
         --p2-label base --p2-config "" \
         --preset LIGHTNING --concurrency "$gconc" --elo0 0 --elo1 "$e1" --max-games "$maxg" \
-        --adjudicate-draw --quiet --tag "$ttag"
+        --adjudicate-draw --quiet --tag "$ttag" \
+        --openings "selfplay/$oset" --seed "$gseed"
     ;;
 
   spsa)

@@ -101,18 +101,12 @@ def cfg(**kw):
 
 BASE = ("bundle+defaware1 (the ship)", cfg(KS_DEFAWARE_MODE=1))
 CANDS = [
-    # Move-regret guardrail on the DETECTOR stack (NO compound yet). The detectors raise units broadly, so on the
-    # linear curve they push quiet positions over the floor -> expected to OVER-FIRE (positive regret = worse).
-    # This quantifies what the compound rebalance must fix. A/B the two flank modes (SF-raw vs ours-contest).
-    # COMPOUND on the now-discriminating units: raise the FLOOR to sit between quiet(~11-15) and attack(~21-26)
-    # unit means so quiet falls back under (kills the over-fire) while genuine clears; KNEE>floor so the attack
-    # range compounds; DIVISOR rescales the 3x unit blowup back toward the old sane danger magnitude. Floor from
-    # each flank mode's own quiet/attack separation (ours quiet 10.7/att 20.9 -> floor 15; SF quiet 14.7/att 25.6
-    # -> floor 19). A/B the flank modes. Gate = sign-consistent IMPROVEMENT (negative) on BOTH cross-sets.
-    ("compound OURS (flank2 floor15)", cfg(KS_DEFAWARE_MODE=1, KS_SQC_MODE=1, KS_PIN_MODE=1, KS_WEAK_VAL_MODE=1,
-                                            KS_FLANK_MODE=2, KS_FLOOR=15, KS_KNEE=40, KS_DIVISOR=8)),
-    ("compound SF (flank1 floor19)", cfg(KS_DEFAWARE_MODE=1, KS_SQC_MODE=1, KS_PIN_MODE=1, KS_WEAK_VAL_MODE=1,
-                                          KS_FLANK_MODE=1, KS_FLOOR=19, KS_KNEE=45, KS_DIVISOR=8)),
+    # KS move-decisiveness UNDER SEARCH: turn KS OFF and see whether our D7 move changes vs base, and on the
+    # positions it changes, whether the KS-ON move was better (positive delta) or worse (negative delta) per
+    # SF18. MAG=0 zeroes the KS contribution (verified: sibling_spread king_safety -> 0.0% flip at MAG=0).
+    # The MAG=3000 arm == base default => a determinism/noise-floor CONTROL: it must report ~0 changed moves,
+    # else the instrument itself is noisy and the KS-off delta is untrustworthy.
+    ("KS OFF (KING_SAFETY_MAG=0)", cfg(KING_SAFETY_MAG=0)),
 ]
 
 
@@ -152,6 +146,16 @@ for name, c in CANDS:
     rc = sum(cand[f][1] for f in changed) / len(changed)
     print("  %-38s %7d %7.1f%%   %10.4f %10.4f %+9.4f"
           % (name, len(changed), 100.0 * len(changed) / len(shared), rb, rc, rc - rb), flush=True)
+    # DUMP=<path>: per-position changed rows. delta = reg(cand=KS-off) - reg(base=KS-on):
+    #   delta > 0  => KS-off worse => KS-on move better => KS HELPED here
+    #   delta < 0  => KS-off better => KS-on move worse => KS HURT here (the damp target)
+    if os.environ.get("DUMP"):
+        with open(os.environ["DUMP"], "w", newline="") as _f:
+            _w = csv.writer(_f)
+            _w.writerow(["fen", "ks_on_move", "ks_off_move", "reg_ks_on", "reg_ks_off", "delta"])
+            for _fen in changed:
+                _w.writerow([_fen, base[_fen][0], cand[_fen][0], base[_fen][1], cand[_fen][1],
+                             cand[_fen][1] - base[_fen][1]])
 print("\n  read: on the positions the candidate CHANGES our move, reg_cand < reg_base (negative delta) means\n"
       "  the new move is genuinely better per SF18 -> a real structural gain where the unit acts. Positive =\n"
       "  the change makes our move worse. Confirm the sign replicates on the v2 cross-set before folding in.", flush=True)

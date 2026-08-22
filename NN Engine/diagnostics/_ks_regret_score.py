@@ -48,7 +48,7 @@ if os.environ.get("WORKER") == "1":
     cut = int(frac * len(rows))
     rows = rows[:cut] if which == "tune" else (rows[cut:] if which == "held" else rows)
     rows = rows[si::sn]
-    tot_reg = 0.0; n = 0; match = 0; miss = 0
+    tot_reg = 0.0; n = 0; match = 0; miss = 0; crit_reg = 0.0; crit_n = 0
     for r in rows:
         fen = r.get("fen"); best_uci = r.get("best_uci")
         try:
@@ -77,9 +77,15 @@ if os.environ.get("WORKER") == "1":
         if reg < 0:
             reg = 0.0
         tot_reg += reg; n += 1
+        others = [c for u, c in mm.items() if u != best_uci]
+        if others:
+            second = max(others) if stm_white else min(others)
+            sw = _winpct(second) if stm_white else (100.0 - _winpct(second))
+            if (bw - sw) >= 20.0:                    # CRITICAL: one clearly-best move (>20% win gap)
+                crit_reg += reg; crit_n += 1
         if our == best_uci:
             match += 1
-    print("SLICEOUT sum=%.6f n=%d match=%d miss=%d" % (tot_reg, n, match, miss))
+    print("SLICEOUT sum=%.6f n=%d match=%d miss=%d cs=%.6f cn=%d" % (tot_reg, n, match, miss, crit_reg, crit_n))
     sys.exit(0)
 
 # ---------------- DRIVER ----------------
@@ -102,12 +108,15 @@ def cfg(**kw):
 
 
 CONFIGS = [
-    ("default (all off)", {"OVD_BOUNDED_MODE": 0, "CENTRAL_BOUNDED_MODE": 0}),
-    ("bundle (OvD+central)", cfg()),
-    ("bundle + defaware1", cfg(KS_DEFAWARE_MODE=1)),
-    ("bundle + defaware1 + weakAtt2", cfg(KS_DEFAWARE_MODE=1, ENABLE_KS_WEAK_ATT2=1)),
-    ("bundle + defaware1 + SC8", cfg(KS_DEFAWARE_MODE=1, KS_SAFE_CHECK=8)),
-    ("bundle + defaware1 + weakAtt2 + SC8", cfg(KS_DEFAWARE_MODE=1, ENABLE_KS_WEAK_ATT2=1, KS_SAFE_CHECK=8)),
+    # 2026-08-18 FULL-SAMPLE sweep of the continuous-onset gate. AUC turned out MONOTONE in KS_FLOOR (it
+    # just wants 0), so AUC cannot choose this knob -- D7 is the TUNER here, not a confirmation gate.
+    # Mode 1 subtracts ks_safety_table[KS_FLOOR] so the gate costs no step and everything above it is
+    # priced lower (net-subtractive). Floor 6 is the lowest gate that does not raise danger magnitude
+    # over today; 4 and 9 bracket it.
+    ("bundle + defaware1 (base)", cfg(KS_DEFAWARE_MODE=1)),
+    ("onset1 floor6 (candidate)", cfg(KS_DEFAWARE_MODE=1, KS_ONSET_MODE=1, KS_FLOOR=6)),
+    ("onset1 floor4", cfg(KS_DEFAWARE_MODE=1, KS_ONSET_MODE=1, KS_FLOOR=4)),
+    ("onset1 floor9", cfg(KS_DEFAWARE_MODE=1, KS_ONSET_MODE=1, KS_FLOOR=9)),
 ]
 
 
@@ -120,26 +129,27 @@ def evaluate(config, split):
         procs.append(subprocess.Popen([PY, "-u", os.path.abspath(__file__)] + knob_args,
                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                       text=True, cwd=ENGINE, env=e))
-    tot = 0.0; n = 0; match = 0; miss = 0
+    tot = 0.0; n = 0; match = 0; miss = 0; cs = 0.0; cn = 0
     for p in procs:
         out, _ = p.communicate()
         for line in out.splitlines():
             if line.startswith("SLICEOUT"):
                 d = dict(tok.split("=") for tok in line.split()[1:])
                 tot += float(d["sum"]); n += int(d["n"]); match += int(d["match"]); miss += int(d["miss"])
-    return (tot / max(1, n)), match, n
+                cs += float(d.get("cs", 0)); cn += int(d.get("cn", 0))
+    return (tot / max(1, n)), match, n, (cs / max(1, cn)), cn
 
 
 print("SET=%s DEPTH=%s JOBS=%d MAXN=%s  (lower regret = better; match = top-1 vs SF18)" %
       (os.path.basename(SET), DEPTH, JOBS, MAXN or "full"), flush=True)
-print("  %-40s %9s %9s   %6s %6s" % ("config", "TUNEreg", "HELDreg", "Tmatch", "n"), flush=True)
-base_t = base_h = None
+print("  %-40s %8s %8s %8s %7s" % ("config", "TUNEreg", "HELDreg", "HELDcrit", "n_crit"), flush=True)
+base_t = base_h = base_hc = None
 for label, c in CONFIGS:
-    t, tm, tn = evaluate(c, "tune")
-    h, hm, hn = evaluate(c, "held")
+    t, tm, tn, tc, tcn = evaluate(c, "tune")
+    h, hm, hn, hc, hcn = evaluate(c, "held")
     if base_t is None:
-        base_t, base_h = t, h
-    print("  %-40s %9.4f %9.4f   %5d%% %6d   (dT=%+.4f dH=%+.4f)"
-          % (label, t, h, round(100.0 * tm / max(1, tn)), tn, t - base_t, h - base_h), flush=True)
+        base_t, base_h, base_hc = t, h, hc
+    print("  %-40s %8.4f %8.4f %8.4f %6d   (dH=%+.4f dHcrit=%+.4f)"
+          % (label, t, h, hc, hcn, h - base_h, hc - base_hc), flush=True)
 print("\n  read: a KS row with LOWER tune AND held regret than 'bundle' is a real move-quality gain layered\n"
       "  on the bundle. Held is the generalisation gate. dT/dH are vs 'default (all off)'.", flush=True)

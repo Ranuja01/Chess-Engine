@@ -26,3 +26,17 @@ diagnostics/results/
 selfplay/tune_data/*corpus*.csv
 selfplay/tune_data/smoke_cond.csv
 selfplay/evalscreen.csv
+
+# Diagnostics scratch / run-output (regenerable; the .py tools stay tracked).
+# Underscore-prefixed csv/txt in diagnostics/ are per-run scratch; ks_sets/ fixtures
+# WITHOUT a leading underscore (ks_archetypes.csv, game_regret_set*.csv, pawn_truth*.csv,
+# sf11_static_labels.csv, lichess_ks*.csv, diverse_corpus_wide.csv) stay tracked.
+diagnostics/*.out
+diagnostics/*.err
+diagnostics/*.tsv
+diagnostics/*.fens
+diagnostics/*.pgn
+diagnostics/_*.csv
+diagnostics/_*.txt
+diagnostics/ks_sets/_*.csv
+diagnostics/ks_sets/_*.txt

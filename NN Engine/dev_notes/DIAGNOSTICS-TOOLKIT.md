@@ -125,6 +125,37 @@ pawn's marginal value is low partly because its partner already carries it. Read
 | `compare_terms.py` | SF11-static vs our static term table for FENs on argv |
 | `breakdown_partition_check.py` | verifies the breakdown partition sums to `total` (⚠️ `pieces` already contains `material`; `pt_*`/`material` are SUB-VIEWS — do NOT sum them) |
 
+## King safety — the 2026-08-18 instrument set (see [`KING_SAFETY_MODEL.md`](KING_SAFETY_MODEL.md))
+⚠️ The old 82-position archetype bench (`_ks_bench_score.py`) is a WEAK instrument: at the default floor only
+35% of its positions are live, three archetypes are structurally dead, three more are a single position each,
+and it is NETTED between kings. Prefer the two below, and **always run bench arms with `KS_FLOOR=0`**.
+
+| script | what it gives |
+|---|---|
+| **`_ks_auc.py [KEY=VAL] [HI= LO= PHASE= DUMP=]`** | **DISCRIMINATION.** AUC over `ks_sets/diverse_corpus_wide.csv` (23,113 rows carrying SF's per-term `target_ks`; midgame n≈5,500), SE≈0.007. ☠️ **Run with `KS_FLOOR=0` and ALWAYS pair with the volume control `KS_ATTACK_COUNT=2`** — the floor manufactures mass ties so volume alone inflates AUC (+0.107 floored vs +0.007 floor-free). That control caught a false "detection win". |
+| **`_ks_calibration.py [KEY=VAL]`** | **MAGNITUDE.** ours/SF ratio per SF-|KS| band + Spearman. The dimension AUC is *structurally blind* to — a feeder defect that shrinks danger uniformly preserves order (AUC flat) while every number comes out too small. Found the 1-2 pawn hole and the overall 0.45 ratio. |
+| `_ks_bench_liveness.py` | how much of the archetype bench is non-zero + per-archetype top-1 concentration. **Run before trusting any bench delta.** |
+| `_ks_detect_dist.py [KEY=VAL]` | per-king unit means (attsq/weak/safe/attpc/units), DANGER vs QUIET vs STS_REGRESS, floor forced 0 |
+| `_ks_dblpawn_coverage.py` | pure python-chess geometry probe: how much of our zone an SF-style mask would actually remove |
+
+## Search internals (2026-08-18/19)
+⚠️ **`NODES` excludes the q-tree** (`qnodes=` on the `[search]` line is separate) — judge q-tree levers on
+`qnodes` + FIXED-TIME depth, never `NODES`. ⚠️ For node-reducers, fixed-time TACTICAL (`wac_timed_depth`)
+alone MISLEADS (rewards discarding positional nodes) — cross-check `sts_timed_depth`; only a both-instruments
+winner is real. Noise: mean DEPTH stable ±0.001 (rank on it); solves ±4; STS-score ±30-60 (repeat).
+| script / knob | what it gives |
+|---|---|
+| `ENABLE_QUIET_PROBE=1` (gated, byte-id) | stderr `[qquiet]` (qsearch terminal quietness by reason: horizon/standpat/quiet/searched + tension) + `[qbug]` (short-of-standpat, fake-mate counts) + `[searchbug]` (null unproven-mate, TT-EXACT-mislabel). |
+| `_qquiet_agg.py FILE=<err>` | aggregates the `[qquiet]` lines across a bench run |
+| `_capg_orient_check.py CLS=<classified.csv>` | is a term's collapse over-read REAL (oriented by collapsing side) or a White-POV colour artifact |
+| `_collapses_from_selfplay.py TAG=<gate/sprt tag>` | extract collapses post-hoc from gate/SPRT `game.jsonl` (they write no collapses.csv). ⚠️ A/B near-identical engines under-sample — vs_sf is stronger for collapse mining. |
+| `wac_timed_depth` / `sts_timed_depth` (runner subs) | FIXED-TIME: mean depth + solves/score — THE instrument for node-reducing search changes |
+
+## Game post-mortem (pasted PGN)
+| script | what it gives |
+|---|---|
+| **`_pgn_walk.py SIDE=black DEPTH=12 PGN=<file> [KEY=VAL]`** | walks a **hand-pasted** game (UI/bot game, not a harness `games/<tag>/` dir — that's `annotate`), SF-evaluates every ply, and ranks plies by cp lost **on our own move** — the blunder list, not the eval curve. Dumps our static total + king_safety at the worst plies to start the ours/SF11/SF18 triangulation. |
+
 ## Collapse corpora
 | script | what it gives |
 |---|---|

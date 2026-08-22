@@ -60,8 +60,9 @@ if os.environ.get("WORKER") == "1":
         # a move-swap costs ~nothing). Lets us separate real failures from benign reshuffles (the cross-set noise).
         _wps = sorted(((_winpct(c) if stm_white else 100.0 - _winpct(c)) for c in mm.values()), reverse=True)
         crit = (_wps[0] - _wps[1]) if len(_wps) >= 2 else 0.0
-        qc = sum(1 for c in board if c in "Qq")   # queens on the board (both sides) — disentangle no-queens from low-material
-        w.writerow([fen, our, "%.4f" % max(0.0, bw - ow), r.get("phase_bucket", "?"), npm, "%.4f" % crit, r.get("best_uci", "?"), qc])
+        qc = sum(1 for c in board if c in "Qq")   # queens on the board (both sides) — coarse count
+        qcls = (1 if "Q" in board else 0) + (1 if "q" in board else 0)   # per-SIDE queen PRESENCE (0/1/2) = the KS_NO_QUEEN gate semantics (!(queens & enemy) is per-king)
+        w.writerow([fen, our, "%.4f" % max(0.0, bw - ow), r.get("phase_bucket", "?"), npm, "%.4f" % crit, r.get("best_uci", "?"), qc, qcls])
     out.close(); sys.exit(0)
 
 THIS = os.path.dirname(os.path.abspath(__file__)); ENGINE = os.path.dirname(THIS); PY = sys.executable
@@ -88,6 +89,7 @@ _phasez = int(os.environ.get("PHASEZ", "0"))
 _detonly = int(os.environ.get("DETONLY", "0"))
 _egext = int(os.environ.get("EGEXT", "0"))
 _egmat = int(os.environ.get("EGMAT", "0"))
+_capgs = int(os.environ.get("CAPG_SCALE", "0"))
 if _detonly:
     # Detectors ALONE (no curve changes), criticality lens: do the discrimination-validated detectors help the
     # CRITICAL bands (where the compound+curve HURT)? Isolates detectors from the known-bad KS_FLOOR/KNEE/DIVISOR curve.
@@ -136,6 +138,14 @@ elif _ksmag:
     # instrument is largely blind to KS => the 13 KS nulls are uninformative, games are the only arbiter.
     BASE = cfg(KS_DEFAWARE_MODE=1, KING_SAFETY_MAG=0)
     CAND = cfg(KS_DEFAWARE_MODE=1)
+elif int(os.environ.get("NQ_SUPP", "0")):
+    # No-queen suppressor sweep (2026-08-14, CLEAN harness): base = shipped default (KS_NO_QUEEN=6); cand = + a bigger
+    # KS_NO_QUEEN. Fable-derived: floor 13 > knee 12 so firing = linear seg; KS_NO_QUEEN subtracts BEFORE the floor, so
+    # it raises the fire bar to 13+KS_NO_QUEEN (default 6 = bar 19 = haircut). Try 20 (bar 33) / 35 (SF-faithful zero).
+    # Read on the queen x material split (QSPLIT=1): expect Qless mid-high over-read (+0.25..0.37) -> <=0 (delta<0 = cand
+    # better), Qon UNTOUCHED (the gate is !(queens & enemy)). delta<0 = MORE suppression better.
+    BASE = cfg(KS_DEFAWARE_MODE=1)
+    CAND = cfg(KS_DEFAWARE_MODE=1, KS_NO_QUEEN=int(os.environ["NQ_SUPP"]))
 elif _proxctl:
     # CONTROL (2026-08-13): proximity demotion ALONE (KS_ATTACK_COUNT=A_ATTCOUNT, default 0), NO accum machinery,
     # vs the defaware bundle. Isolates whether the accum's opening win is just proximity removal or the
@@ -161,8 +171,17 @@ elif _accum:
     if os.environ.get("A_WEAK"):              _cand["KS_WEAK"] = int(os.environ["A_WEAK"])
     CAND = cfg(**_cand)
 elif _cdiv > 0:
-    BASE = cfg()                                              # bundle only: defaware OFF, flat attacker term
-    CAND = cfg(KS_COORD_GATE_MODE=1, KS_COORD_DIVISOR=_cdiv)  # product attacker term at this divisor
+    # NOTE: cfg() does not set KS_DEFAWARE_MODE, so both arms use the ENGINE DEFAULT (=1, the shipped bundle);
+    # defaware is ON here, not off (the older "defaware OFF" comment was stale). Empirically confirmed: forcing
+    # KS_DEFAWARE_MODE=1 in both arms is byte-identical to this.
+    BASE = cfg()                                              # shipped default (defaware on) + flat attacker term
+    CAND = cfg(KS_COORD_GATE_MODE=1, KS_COORD_DIVISOR=_cdiv)  # + product attacker term at this divisor
+elif _capgs:
+    # Redirect test (2026-08-15): pvb flags capture_gains as the top culprit dragging us onto materialistic
+    # quiet moves over SF's sacrifices. Does DAMPING it (SCALE_CAPTURE_GAINS<100) reduce SEARCHED regret, or does
+    # the D7 search already fix the static over-read (=> search-bound, not an eval win)? base=default vs cand=damped.
+    BASE = cfg(KS_DEFAWARE_MODE=1)
+    CAND = cfg(KS_DEFAWARE_MODE=1, SCALE_CAPTURE_GAINS=_capgs)
 else:
     BASE = cfg(KS_DEFAWARE_MODE=1)
     CAND = cfg(KS_DEFAWARE_MODE=1, KS_SQC_MODE=1, KS_PIN_MODE=1, KS_WEAK_VAL_MODE=1, KS_FLANK_MODE=2, KS_FLOOR=15, KS_KNEE=40, KS_DIVISOR=8)
@@ -186,7 +205,8 @@ def collect(config, tag):
                 crit = float(row[5]) if len(row) >= 6 else -1.0
                 best = row[6] if len(row) >= 7 else "?"
                 qc = int(row[7]) if len(row) >= 8 else 0
-                d[row[0]] = (row[1], float(row[2]), row[3], npm, crit, best, qc)
+                qcls = int(row[8]) if len(row) >= 9 else (2 if qc else 0)
+                d[row[0]] = (row[1], float(row[2]), row[3], npm, crit, best, qc, qcls)
     return d
 
 
@@ -255,21 +275,26 @@ if base and next(iter(base.values()))[4] >= 0:
 # is confined to LOW material regardless of queens => it's a material/endgame problem (a smooth material taper fixes it and
 # AUTO-handles promotion/multi-queen, since those just change material). If QUEENLESS positions hurt even at HIGH material,
 # OR queen-present LOW-material positions are FINE => it's a no-queens problem (needs a live queen-keyed suppressor). Gated QSPLIT.
-if int(os.environ.get("QSPLIT", "0")) and base and len(next(iter(base.values()))) >= 7:
+if int(os.environ.get("QSPLIT", "0")) and base and len(next(iter(base.values()))) >= 8:
     QMB = [(0, 12, "0-12 low"), (13, 27, "13-27 mid-low"), (28, 99, "28+  high")]
-    cellq = {(lab, q): [0, 0.0, 0.0] for _, _, lab in QMB for q in ("Qless", "Qon")}
+    # Per-SIDE queen presence (qcls): 0 = neither side has a queen (KS_NO_QUEEN fires for BOTH kings),
+    # 1 = one side has a queen (fires for the queenless side's enemy king), 2 = both have queens (suppressor INERT
+    # = the clean control that a KS_NO_QUEEN sweep must leave ~0). cell[(matlabel, qcls)] = [n, sum_base, sum_cand].
+    cellq = {(lab, q): [0, 0.0, 0.0] for _, _, lab in QMB for q in (0, 1, 2)}
     for f in changed:
-        npm = base[f][3]; qk = "Qon" if base[f][6] > 0 else "Qless"
+        npm = base[f][3]; q = base[f][7]
         for lo, hi, lab in QMB:
             if lo <= npm <= hi:
-                cellq[(lab, qk)][0] += 1; cellq[(lab, qk)][1] += base[f][1]; cellq[(lab, qk)][2] += cand[f][1]; break
-    print("  QUEEN x MATERIAL split (delta<0 = KS-on better; endgame-problem vs no-queens-problem):")
-    print("  %-14s %8s %10s   %8s %10s" % ("material band", "Qless n", "Qless d", "Qon n", "Qon d"))
+                cellq[(lab, q)][0] += 1; cellq[(lab, q)][1] += base[f][1]; cellq[(lab, q)][2] += cand[f][1]; break
+    print("  QUEEN(per-side presence) x MATERIAL split (delta<0 = cand better; 2Q = suppressor-INERT control):")
+    print("  %-14s %6s %8s   %6s %8s   %6s %8s" % ("material band", "0Q n", "0Q d", "1Q n", "1Q d", "2Q n", "2Q d"))
     for _, _, lab in QMB:
-        nl, bl, cl = cellq[(lab, "Qless")]; no, bo, co = cellq[(lab, "Qon")]
-        dl = (cl - bl) / nl if nl else 0.0; do = (co - bo) / no if no else 0.0
-        print("  %-14s %8d %+10.4f   %8d %+10.4f" % (lab, nl, dl, no, do))
-    print("  read: hurt(+) only in the Qless column at ALL material => no-queens problem; hurt only in the low row => endgame problem.", flush=True)
+        vals = []
+        for q in (0, 1, 2):
+            n, sb, sc = cellq[(lab, q)]
+            vals += [n, (sc - sb) / n if n else 0.0]
+        print("  %-14s %6d %+8.4f   %6d %+8.4f   %6d %+8.4f" % (lab, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]))
+    print("  read: a clean KS_NO_QUEEN sweep should HELP 0Q/1Q (delta<0) and leave 2Q ~0 (its gate is per-side !enemy-queen).", flush=True)
 
 # WORST-HURT DUMP (2026-08-14): list the individual positions where cand HURTS most inside a target material band,
 # so the pattern is eyeball-able (what KS over-reads). Gated by DUMP_NPM (max non-pawn material to include; 0 = off).
@@ -278,13 +303,15 @@ if int(os.environ.get("QSPLIT", "0")) and base and len(next(iter(base.values()))
 _dump_npm = int(os.environ.get("DUMP_NPM", "0"))
 if _dump_npm > 0 and base and next(iter(base.values()))[3] >= 0:
     _dn = int(os.environ.get("DUMP_N", "30"))
+    _dmin = int(os.environ.get("DUMP_NPM_MIN", "0"))
+    _dqmax = int(os.environ.get("DUMP_QMAX", "9"))   # max per-side queen presence (0 = queenless only, 1 = <=one side has a queen)
     hurt = []
     for f in changed:
-        if base[f][3] <= _dump_npm:
-            hurt.append((cand[f][1] - base[f][1], base[f][3], base[f][4], base[f][5], base[f][0], cand[f][0], cand[f][1], f))
-    hurt.sort(reverse=True)   # biggest positive delta first = most hurt by turning KS on
-    print("  WORST-HURT dump (npm<=%d, sorted most-hurt first; delta=KS-on minus KS-off regret in win%%):" % _dump_npm)
-    print("  %8s %4s %6s  %-6s %-6s %-6s %8s  %s" % ("delta", "npm", "crit", "SFbest", "off_mv", "on_mv", "on_reg", "fen"))
-    for delta, npm, crit, sfbest, offm, onm, onr, f in hurt[:_dn]:
-        print("  %+8.3f %4d %6.1f  %-6s %-6s %-6s %8.3f  %s" % (delta, npm, crit, sfbest, offm, onm, onr, f))
-    print("  (n=%d hurt-or-changed positions in band; showing top %d)" % (len(hurt), min(_dn, len(hurt))), flush=True)
+        if _dmin <= base[f][3] <= _dump_npm and base[f][7] <= _dqmax:
+            hurt.append((cand[f][1] - base[f][1], base[f][3], base[f][7], base[f][4], base[f][5], base[f][0], cand[f][0], cand[f][1], f))
+    hurt.sort(reverse=True)   # biggest positive delta first = most hurt by the cand config
+    print("  WORST-HURT dump (npm %d..%d, per-side-queens<=%d, most-hurt first; delta=cand-base regret win%%):" % (_dmin, _dump_npm, _dqmax))
+    print("  %8s %4s %2s %6s  %-6s %-6s %-6s %8s  %s" % ("delta", "npm", "Q", "crit", "SFbest", "off_mv", "on_mv", "on_reg", "fen"))
+    for delta, npm, q, crit, sfbest, offm, onm, onr, f in hurt[:_dn]:
+        print("  %+8.3f %4d %2d %6.1f  %-6s %-6s %-6s %8.3f  %s" % (delta, npm, q, crit, sfbest, offm, onm, onr, f))
+    print("  (n=%d in band; top %d)" % (len(hurt), min(_dn, len(hurt))), flush=True)

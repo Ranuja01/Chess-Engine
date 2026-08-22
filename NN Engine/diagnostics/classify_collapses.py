@@ -23,8 +23,15 @@ import os, sys, csv
 import chess
 
 THIS = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(THIS, "ks_sets", "collapse_dataset.csv")
-OUT = os.path.join(THIS, "ks_sets", "collapse_dataset_classified.csv")
+# The runner's `pyrun` sub forwards KEY=VAL as ARGV, not env, so lift them into the environment the way the
+# other diagnostics do -- otherwise an override is silently ignored and the DEFAULT corpus is rewritten.
+for _a in sys.argv[1:]:
+    if '=' in _a and not _a.startswith('-'):
+        _k, _v = _a.split('=', 1); os.environ[_k] = _v
+# DATA/OUT are overridable so an alternative corpus (e.g. one extracted post-hoc from gate games by
+# _collapses_from_selfplay.py) can be classified WITHOUT clobbering the preserved vs_sf dataset.
+DATA = os.environ.get("DATA") or os.path.join(THIS, "ks_sets", "collapse_dataset.csv")
+OUT = os.environ.get("OUT") or os.path.join(THIS, "ks_sets", "collapse_dataset_classified.csv")
 
 KZ_ATTACKERS = int(os.environ.get("KZ_ATTACKERS", "2"))   # distinct enemy attackers on the king ring -> "heavy"
 MAT_BLUNDER = float(os.environ.get("MAT_BLUNDER", "3.0"))  # pawns of material swing that marks a material give-away

@@ -172,7 +172,7 @@ if os.environ.get("FENS"):
     raise SystemExit
 
 # ---- collapse positions of the target class ----
-CLS = os.path.join(THIS, "ks_sets", "collapse_dataset_classified.csv")
+CLS = os.environ.get("CLS") or os.path.join(THIS, "ks_sets", "collapse_dataset_classified.csv")
 coll = [r["decision_fen"] for r in csv.DictReader(open(CLS))
         if r.get("ks_class") == CLASS and r.get("decision_fen")][:N]
 print("attributing %d '%s' collapses (SF11+SF15 classical references)" % (len(coll), CLASS))

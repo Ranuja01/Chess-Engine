@@ -123,14 +123,59 @@ static inline void log_prune_fire(const char *prune_id, const BoardState &st, in
 // side node, 0 = minimizer), the node-entry static eval (root-relative RFP frame), the node's backed-up best
 // score (same frame), and remaining depth. staticEval and bestScore share the fixed root-relative frame, so
 // (best - seval) is the correction-history training residual with NO sign flip. Recording only.
-static inline void corrhist_log(uint64_t pawn_key, int maxbit, int static_eval, int best_score, int rd)
+// Emits, per sampled record:
+//   [CORRLOG] pawn minor major nonPawnW nonPawnB maxbit seval best rd failtype
+// failtype classifies the backed-up score against the node's ORIGINAL window: 2 = fail-high
+// (best >= beta_orig), 1 = fail-low (best <= alpha_orig), 0 = exact (inside the window). It is logged
+// because a fail-soft bound is not the same observation as an exact score -- Weiss excludes the
+// uninformative ones from the learning stream, and this column lets the offline gate measure what those
+// guards would buy BEFORE we adopt them. The alternative structural keys let the same gate price
+// multi-keying without allocating a single extra table. All computed AFTER the stride check.
+static inline void corrhist_log(const BoardState &st, int maxbit, int static_eval, int best_score, int rd,
+                                int alpha_orig, int beta_orig)
 {
     static long seen = 0;
     if ((seen++ % std::max(1, Config::CORRHIST_LOG_STRIDE)) != 0)
         return;
-    std::cerr << "[CORRLOG] " << pawn_key << ' ' << maxbit << ' ' << static_eval << ' ' << best_score
-              << ' ' << rd << std::endl;
+    uint64_t ow = st.occupied_colour[true], ob = st.occupied_colour[false];
+    uint64_t pk = generatePawnKey(st.pawns, ow, ob);
+    uint64_t mnk = generateMinorKey(st.knights, st.bishops, ow, ob);
+    uint64_t mjk = generateMajorKey(st.rooks, st.queens, ow, ob);
+    uint64_t npw = generateNonPawnKey(st.knights, st.bishops, st.rooks, st.queens, st.kings, ow, true);
+    uint64_t npb = generateNonPawnKey(st.knights, st.bishops, st.rooks, st.queens, st.kings, ob, false);
+    int failtype = (best_score >= beta_orig) ? 2 : ((best_score <= alpha_orig) ? 1 : 0);
+    std::cerr << "[CORRLOG] " << pk << ' ' << mnk << ' ' << mjk << ' ' << npw << ' ' << npb << ' '
+              << maxbit << ' ' << static_eval << ' ' << best_score << ' ' << rd << ' ' << failtype
+              << std::endl;
 }
+
+// Correction-history EVAL-CALL accounting (Config::ENABLE_CORRHIST_LOG / ENABLE_CORR_HIST only, so the
+// default build never touches these). The corrhist update site needs the node's RAW node-entry static eval;
+// when the node already computed one for RFP/the null gate we REUSE it instead of calling eval_by_mode a
+// second time. These count which path was taken so the throughput cost of the mechanism is EXACTLY countable
+// rather than estimated -- node/eval counts are exact, NPS is not.
+static long g_corrhist_eval_reused = 0;   // node-entry eval was available and reused (no second eval)
+static long g_corrhist_eval_computed = 0; // no node-entry eval existed (rfp_want_eval false) => fresh eval
+
+// FUTILITY accounting. The eval at the futility site is computed BEFORE the ENABLE_FUTILITY test, so the
+// full static eval of the CHILD position is paid on every late quiet that reaches the gate whether or not
+// the prune can fire -- guaranteed cost, conditional benefit. These count the two separately so the
+// fire RATE (benefit) can be priced against the eval count (cost) instead of assumed. Counted on the TAKEN
+// branch; printed only under Config::ENABLE_PRUNE_LOG so the default build's output is unchanged.
+static long g_futility_evals = 0; // child static evals paid at the futility gate
+static long g_futility_fires = 0; // times the prune actually fired
+
+// Effective futility margins = FUTILITY_MARGINS scaled by FUTILITY_MARGIN_SCALE, computed ONCE at init.
+// ⚠️ The scale MUST NOT be applied in the gate itself: that put a global load + multiply + integer DIVIDE
+// on a path taken ~13M times per WAC suite. Precomputing keeps the hot gate a plain array index, so the
+// knob costs nothing when unused. Same reason the counters below are flag-gated -- instrumentation that
+// runs on the default path shows up as an NPS regression and gets misread as a failing candidate.
+int FUTILITY_MARGINS_EFF[4] = {200, 450, 650, 950};
+
+// Late-move reduction in plies for [remaining depth][move number], the classical Stockfish schedule
+// log(remaining) x log(move number). Built once at init because both logs are position-independent;
+// only read when Config::LMR_SHAPE == 1, so mode 0 stays byte-identical.
+int LMR_PRODUCT_RED[64][64] = {};
 
 // Correction-history index for a position: pawn-structure key folded into the table (power-of-two mask).
 static inline int corrhist_idx(const BoardState &st)
@@ -257,6 +302,21 @@ static long g_fh_first = 0;
 // Beta-cutoff move-index histogram (diagnostic): buckets 0, 1, 2, 3-7, 8+. Decides whether EBF headroom
 // is in pruning (mass at 0-2) or secondary move ordering (mass at 8+). Cumulative across the run.
 static long g_cutoff_histogram[5] = {0, 0, 0, 0, 0};
+
+#ifdef EVAL_PROFILE
+// Staged-generation sizing. A node that cuts on its first move still pays for every move the
+// generator produced, so the gap between the moves GENERATED and the moves actually EXAMINED bounds
+// what a lazy/staged generator could avoid. gen_* counts only true cache MISSES, since a move-gen
+// cache hit already costs no generation -- the cache is therefore part of the baseline, not part of
+// the prize. Compiled out entirely without -DEVAL_PROFILE so the shipped build cannot pay for it.
+static long g_mg_gen_calls = 0;
+static long g_mg_gen_moves = 0;
+static long g_mg_seen_nodes = 0;
+static long g_mg_seen_moves = 0;
+#define MG_COUNT(stmt) stmt
+#else
+#define MG_COUNT(stmt) do {} while (0)
+#endif
 
 // Diagnostic (Config::ENABLE_CUTOFF_CLASS, default off): classify each beta-cutoff move so we can see WHAT the
 // late-rank tail cutoffs actually are (already-LMP-exempt classes = capture/promo/killer/counter, vs plain
@@ -1142,6 +1202,23 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
     {
         Config::ENABLE_LMR = env_flag("ENABLE_LMR", true);
         Config::ENABLE_FUTILITY = env_flag("ENABLE_FUTILITY", true);
+        Config::FUTILITY_MARGIN_SCALE = env_int("FUTILITY_MARGIN_SCALE", Config::FUTILITY_MARGIN_SCALE);
+        for (int i = 0; i < 4; ++i)
+            FUTILITY_MARGINS_EFF[i] = (FUTILITY_MARGINS[i] * Config::FUTILITY_MARGIN_SCALE) / 100;
+        Config::LMR_SHAPE = env_int("LMR_SHAPE", Config::LMR_SHAPE);
+        Config::LMR_PRODUCT_K = env_int("LMR_PRODUCT_K", Config::LMR_PRODUCT_K);
+        Config::LMR_PRODUCT_DIV = env_int("LMR_PRODUCT_DIV", Config::LMR_PRODUCT_DIV);
+        {
+            // reductions[i] = (K/100) * ln(i); the schedule is the product of the two, divided down.
+            // Index 0 and 1 give ln <= 0, so the first moves and the horizon reduce by nothing.
+            double reductions[64];
+            for (int i = 0; i < 64; ++i)
+                reductions[i] = (i < 2) ? 0.0 : (Config::LMR_PRODUCT_K / 100.0) * std::log((double)i);
+            int div = std::max(1, Config::LMR_PRODUCT_DIV);
+            for (int d = 0; d < 64; ++d)
+                for (int m = 0; m < 64; ++m)
+                    LMR_PRODUCT_RED[d][m] = (int)((reductions[d] * reductions[m]) / div);
+        }
         Config::ENABLE_RAZORING = env_flag("ENABLE_RAZORING", true);
         Config::ROOT_RAZOR_CONTINUE = env_flag("ROOT_RAZOR_CONTINUE", false);
         Config::RAZOR_BASE_FIRST = env_int("RAZOR_BASE_FIRST", Config::RAZOR_BASE_FIRST);
@@ -1235,6 +1312,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PRESEARCH_CHUNK = env_int("PRESEARCH_CHUNK", Config::PRESEARCH_CHUNK);
         Config::PRESEARCH_TAIL_REDUCTION = env_int("PRESEARCH_TAIL_REDUCTION", Config::PRESEARCH_TAIL_REDUCTION);
         Config::ENABLE_ROOT_PRESEARCH = env_flag("ENABLE_ROOT_PRESEARCH", Config::ENABLE_ROOT_PRESEARCH);
+        Config::PRESEARCH_OFF_FILL = env_int("PRESEARCH_OFF_FILL", Config::PRESEARCH_OFF_FILL);
         Config::ENABLE_SEE_PRUNE = env_flag("ENABLE_SEE_PRUNE", Config::ENABLE_SEE_PRUNE);
         Config::SEE_PRUNE_MARGIN = env_int("SEE_PRUNE_MARGIN", Config::SEE_PRUNE_MARGIN);
         Config::SEE_PRUNE_MAX_DEPTH = env_int("SEE_PRUNE_MAX_DEPTH", Config::SEE_PRUNE_MAX_DEPTH);
@@ -1546,6 +1624,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_KRACE_MG_PCT = env_int("PASSER_KRACE_MG_PCT", Config::PASSER_KRACE_MG_PCT);
         Config::ENABLE_PASSER_V2 = env_flag("ENABLE_PASSER_V2", Config::ENABLE_PASSER_V2);
         Config::ENABLE_PASSER_V3 = env_flag("ENABLE_PASSER_V3", Config::ENABLE_PASSER_V3);
+        Config::ENABLE_PASSER_DETECT_SF = env_flag("ENABLE_PASSER_DETECT_SF", Config::ENABLE_PASSER_DETECT_SF);
+        Config::PASSER_CANDIDATE_DOCK = env_int("PASSER_CANDIDATE_DOCK", Config::PASSER_CANDIDATE_DOCK);
         Config::CAPG_PAWN_RANK_CLAMP = env_int("CAPG_PAWN_RANK_CLAMP", Config::CAPG_PAWN_RANK_CLAMP);
         Config::ENABLE_KAUFMAN_IMBALANCE = env_flag("ENABLE_KAUFMAN_IMBALANCE", Config::ENABLE_KAUFMAN_IMBALANCE);
         Config::KAUFMAN_SCALE = env_int("KAUFMAN_SCALE", Config::KAUFMAN_SCALE);
@@ -2021,6 +2101,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PASSER_KRACE_MG_PCT=" << Config::PASSER_KRACE_MG_PCT
                   << " ENABLE_PASSER_V2=" << Config::ENABLE_PASSER_V2
                   << " ENABLE_PASSER_V3=" << Config::ENABLE_PASSER_V3
+                  << " ENABLE_PASSER_DETECT_SF=" << Config::ENABLE_PASSER_DETECT_SF
+                  << " PASSER_CANDIDATE_DOCK=" << Config::PASSER_CANDIDATE_DOCK
                   << " ENABLE_KAUFMAN_IMBALANCE=" << Config::ENABLE_KAUFMAN_IMBALANCE
                   << " KAUFMAN_SCALE=" << Config::KAUFMAN_SCALE
                   << " ENABLE_KS_AIM=" << Config::ENABLE_KS_AIM
@@ -2204,6 +2286,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_SEE_CACHE=" << Config::ENABLE_SEE_CACHE
                   << " ENABLE_QSEE_RESORT=" << Config::ENABLE_QSEE_RESORT
                   << " LMR_EXTRA=" << Config::LMR_EXTRA
+                  << " LMR_SHAPE=" << Config::LMR_SHAPE
+                  << " LMR_PRODUCT_K=" << Config::LMR_PRODUCT_K
+                  << " LMR_PRODUCT_DIV=" << Config::LMR_PRODUCT_DIV
                   << " HISTORY_BONUS_SCALE=" << Config::HISTORY_BONUS_SCALE
                   << " HONEST_ROOT_TT=" << Config::HONEST_ROOT_TT
                   << " ASPIRATION_DELTA=" << Config::ASPIRATION_DELTA
@@ -2674,6 +2759,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << "% (" << g_q_fh_first << "/" << g_q_fh_total << ")"
                   << " qcut=" << (g_q_fh_total > 0 ? ((double)g_q_cut_idx_sum / g_q_fh_total) : 0.0) << std::endl;
     if (g_fh_total > 0)
+#ifdef EVAL_PROFILE
+        std::cerr << "[movegen_use] gen_calls=" << g_mg_gen_calls
+                  << " gen_moves=" << g_mg_gen_moves
+                  << " loop_nodes=" << g_mg_seen_nodes
+                  << " seen_moves=" << g_mg_seen_moves << std::endl;
+#endif
         std::cerr << "[cutoff_histogram] m0=" << g_cutoff_histogram[0] << " m1=" << g_cutoff_histogram[1]
                   << " m2=" << g_cutoff_histogram[2] << " m3-7=" << g_cutoff_histogram[3]
                   << " m8+=" << g_cutoff_histogram[4] << std::endl;
@@ -2689,6 +2780,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     }
     std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires
               << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires << std::endl;
+    // Futility cost/benefit: evals = full CHILD static evals paid at the gate (unconditional, before the
+    // ENABLE_FUTILITY test); fires = times the prune actually returned. A low rate means we are paying a
+    // per-move eval for nearly nothing, which is what a parent-eval (SF-style) futility would recover.
+    std::cerr << "[futility] evals=" << g_futility_evals << " fires=" << g_futility_fires
+              << " fire_rate=" << (g_futility_evals ? (100.0 * g_futility_fires / g_futility_evals) : 0.0)
+              << "%" << std::endl;
     if (Config::ENABLE_QUIET_PROBE) {
         long term_tot = g_qterm_horizon + g_qterm_standpat + g_qterm_quiet + g_qterm_searched;
         std::cerr << "[qquiet] terminals=" << term_tot
@@ -2829,6 +2926,14 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
     if (Config::ENABLE_CUTCAL_LOG)
         cutcal_profile_dump();
+
+    // Corrhist eval-call accounting: how many update-site evals were served by reusing the node-entry eval
+    // vs computed fresh. "computed" is the mechanism's true extra-eval cost (nodes where the search would
+    // not otherwise have evaluated at all); reused ones are free. Exact counts, not an NPS estimate.
+    if (Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG)
+        std::cout << "CORRHIST EVALS: reused=" << g_corrhist_eval_reused
+                  << " computed=" << g_corrhist_eval_computed
+                  << " total=" << (g_corrhist_eval_reused + g_corrhist_eval_computed) << std::endl;
 
 #ifdef EVAL_PROFILE
     eval_profile_dump("search"); // whole-search cycle breakdown (eval terms + MOVEGEN/MAKEUNMAKE/TT_PROBE)
@@ -3589,9 +3694,12 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     {
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, false);
+                        if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
 
-                        if (Config::ENABLE_FUTILITY && (early_score - FUTILITY_MARGINS[depth_limit - cur_depth - 1] > beta))
+                        if (Config::ENABLE_FUTILITY &&
+                            (early_score - FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] > beta))
                         {
+                            if (Config::ENABLE_PRUNE_LOG) g_futility_fires++;
                             if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                             {
                                 g_in_shadow = true;
@@ -3966,8 +4074,11 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     {
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, true);
-                        if (Config::ENABLE_FUTILITY && (early_score + FUTILITY_MARGINS[depth_limit - cur_depth - 1] < alpha))
+                        if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
+                        if (Config::ENABLE_FUTILITY &&
+                            (early_score + FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] < alpha))
                         {
+                            if (Config::ENABLE_PRUNE_LOG) g_futility_fires++;
                             if (Config::ENABLE_PRUNE_SHADOW && shadow_fire())
                             {
                                 g_in_shadow = true;
@@ -4207,6 +4318,11 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     // Leaky capture-chain density (for the capture-chain LMR guard): rise on a capture into this node,
     // decay on a quiet move so a forcing sequence keeps its score across the odd quiet interruption.
     g_captureChain[cur_depth] = last_move_was_capture ? g_captureChain[cur_depth - 1] + 1 : std::max(0, g_captureChain[cur_depth - 1] - 1);
+
+    // RAW (uncorrected) node-entry static eval, hoisted to function scope so the corrhist update at node
+    // exit can reuse it. The node-entry eval is computed inside the non-root branch below, whose scope ends
+    // before the update site; node entry and node exit are the same position, so the value stays valid.
+    int rfp_raw_eval = NO_STATIC_EVAL;
 
     /* if (depth_limit >= 24) {
         std::cout << "EE: " << std::endl;
@@ -4581,6 +4697,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                                          ? static_eval_for_improving(state_history, zobrist)
                                          : NO_STATIC_EVAL;
         // Node-entry static eval, shared by RFP and the null-move eval gate (computed only when needed).
+        // rfp_raw_eval keeps the UNCORRECTED value: the corrhist update at node exit trains the residual
+        // against the raw eval, and node exit is the SAME position as node entry, so holding the raw value
+        // here lets that site reuse it instead of calling eval_by_mode a second time.
         int rfp_static_eval = NO_STATIC_EVAL;
         bool rfp_want_eval = !currently_in_check &&
                              ((Config::ENABLE_RFP && (beta - alpha) == 1 &&
@@ -4589,6 +4708,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if (rfp_want_eval)
         {
             rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+            rfp_raw_eval = rfp_static_eval;
             if (Config::ENABLE_CORR_HIST)
                 rfp_static_eval += corrhist_correction(current_state, 0);
         }
@@ -4785,8 +4905,10 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 ++g_sing_eligible;
         }
 
+        MG_COUNT(++g_mg_seen_nodes);
         for (size_t i = 0; i < moves_list.size(); ++i)
         {
+            MG_COUNT(++g_mg_seen_moves);
             Move &move = moves_list[i];
             if (excluding && move == g_excluded_move[cur_depth])
                 continue;
@@ -5101,12 +5223,24 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG) && std::abs(lowest_score) < 9000000 &&
             !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
         {
-            int se = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+            // Reuse the RAW node-entry eval when this node already computed one (same position, and
+            // eval_by_mode is a deterministic function of the position, so the recompute could only ever
+            // return the same number). Falls back to a fresh eval on nodes that never needed one.
+            int se;
+            if (rfp_raw_eval != NO_STATIC_EVAL)
+            {
+                se = rfp_raw_eval;
+                g_corrhist_eval_reused++;
+            }
+            else
+            {
+                se = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+                g_corrhist_eval_computed++;
+            }
             if (Config::ENABLE_CORR_HIST)
                 corrhist_update(current_state, 0, se, lowest_score);
             if (Config::ENABLE_CORRHIST_LOG)
-                corrhist_log(generatePawnKey(current_state.pawns, current_state.occupied_colour[true], current_state.occupied_colour[false]),
-                             0, se, lowest_score, depth_limit - cur_depth);
+                corrhist_log(current_state, 0, se, lowest_score, depth_limit - cur_depth, alpha_orig, beta_orig);
         }
     }
 
@@ -5237,7 +5371,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                                      : NO_STATIC_EVAL;
 
     // Node-entry static eval, shared by RFP and the null-move eval gate (computed only when needed).
+    // rfp_raw_eval keeps the UNCORRECTED value for reuse by the corrhist update at node exit (same position).
     int rfp_static_eval = NO_STATIC_EVAL;
+    int rfp_raw_eval = NO_STATIC_EVAL;
     bool rfp_want_eval = !currently_in_check &&
                          ((Config::ENABLE_RFP && (beta - alpha) == 1 &&
                            (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
@@ -5245,6 +5381,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     if (rfp_want_eval)
     {
         rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+        rfp_raw_eval = rfp_static_eval;
         if (Config::ENABLE_CORR_HIST)
             rfp_static_eval += corrhist_correction(current_state, 1);
     }
@@ -5441,8 +5578,10 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             ++g_sing_eligible;
     }
 
+    MG_COUNT(++g_mg_seen_nodes);
     for (size_t i = 0; i < moves_list.size(); ++i)
     {
+        MG_COUNT(++g_mg_seen_moves);
         Move &move = moves_list[i];
         if (excluding && move == g_excluded_move[cur_depth])
             continue;
@@ -5775,12 +5914,22 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG) && std::abs(highest_score) < 9000000 &&
             !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
         {
-            int se = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+            // Reuse the RAW node-entry eval when this node already computed one (see the minimizer site).
+            int se;
+            if (rfp_raw_eval != NO_STATIC_EVAL)
+            {
+                se = rfp_raw_eval;
+                g_corrhist_eval_reused++;
+            }
+            else
+            {
+                se = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+                g_corrhist_eval_computed++;
+            }
             if (Config::ENABLE_CORR_HIST)
                 corrhist_update(current_state, 1, se, highest_score);
             if (Config::ENABLE_CORRHIST_LOG)
-                corrhist_log(generatePawnKey(current_state.pawns, current_state.occupied_colour[true], current_state.occupied_colour[false]),
-                             1, se, highest_score, depth_limit - cur_depth);
+                corrhist_log(current_state, 1, se, highest_score, depth_limit - cur_depth, alpha_orig, beta_orig);
         }
     }
 
@@ -5836,6 +5985,13 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
         size_t reuse = previous_search_data.moves_list.empty()
                            ? 0
                            : std::min(previous_search_data.scores.size(), moves_list.size());
+        // Mode 3 razors against STATIC EVAL for every root move rather than against carried-forward search
+        // scores. Reusing nothing sends every move through the fill loop below, and marking none of them
+        // synthetic leaves them all razorable -- the point being that a stale score from iteration N-1 is
+        // differenced against iteration N's alpha, which grows with depth, so the deficit is inflated by
+        // construction. A static eval is at least commensurate with itself at every iteration.
+        if (Config::PRESEARCH_OFF_FILL == 3)
+            reuse = 0;
         rd.scores.reserve(moves_list.size());
         int off_floor = 0;
         bool have_off_floor = false;
@@ -5866,7 +6022,15 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
             // -- we would try the moves we know least about first, exactly when losing. It also makes
             // alpha - top_score enormous, which is what razors the whole root loop away (the historical
             // "57/300 collapse" attributed to this path). Falls back to 0 only when nothing is known yet.
-            rs.top_score = have_off_floor ? off_floor : 0;
+            if (Config::PRESEARCH_OFF_FILL != 0)
+            {
+                // We are standing on the child (make_move above), so this is that move's own static eval --
+                // a real, current-depth number for a move the previous iteration never proved a value for.
+                int se = eval_by_mode(0, state_history, zobrist, num_iterations);
+                rs.top_score = (Config::PRESEARCH_OFF_FILL == 2) ? -se : se;
+            }
+            else
+                rs.top_score = have_off_floor ? off_floor : 0;
             rs.second_moves = buildMoveListFromReordered(state_history, zobrist, 1, move); // copies out of g_moveBuf[1]
             rd.scores.push_back(std::move(rs));
             unmake_move(state_history, position_count, zobrist);
@@ -5874,7 +6038,7 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
         }
         // Everything from `reuse` on carries a synthetic score. This path does NOT sort, so the boundary
         // survives to alpha_beta unchanged and root razoring can skip exactly those entries.
-        rd.synthetic_from = reuse;
+        rd.synthetic_from = (Config::PRESEARCH_OFF_FILL == 3) ? rd.scores.size() : reuse;
         dbg_searchdata("reorder_legal_moves(no-presearch)", rd);
         return rd;
     }
@@ -7347,6 +7511,26 @@ inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relav
     {
         return base;
     }
+    if (Config::LMR_SHAPE == 1)
+    {
+        // Classical Stockfish schedule: reduction = log(remaining) x log(move number), keyed on the node's
+        // OWN remaining depth. log(rem) collapses the reduction toward zero near the horizon by itself --
+        // which is what makes remaining-depth indexing affordable -- while the product amplifies it where
+        // there is depth left to give back. The phase modulation is kept, normalised so scale 2.0 is neutral.
+        int rem = std::clamp(depth_limit - cur_depth, 0, 63);
+        int red = LMR_PRODUCT_RED[rem][std::min(adjusted_move, 63)];
+        red = static_cast<int>(red * 2.0 / scale);
+        red = std::clamp(red, 0, std::max(rem - 2, 0));
+        int rp = depth_limit - red - Config::LMR_EXTRA;
+        if (is_in_relavent_pin)
+        {
+            if (rp <= cur_depth + 1)
+                rp = cur_depth + 2;
+            rp = std::min(depth_limit, rp);
+        }
+        return std::max(rp, 2);
+    }
+
     double move_factor = std::log2(adjusted_move);
     int r = static_cast<int>(base - (move_factor / scale)) - Config::LMR_EXTRA;
 
@@ -7526,8 +7710,14 @@ inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &st
             // Lazy re-sort of the stale quiet tail (everything after the pinned captures + killers/counter).
             // The cached order was frozen when this node was first searched; when LMP prunes the late quiets,
             // re-rank them against the CURRENT history so genuinely-good quiets escape the pruned tail. The
-            // cheap path bubbles the top-K to the front; a full stable_sort runs periodically. Both act on the
-            // returned copy only (the cached order is left intact and refreshed by beta-cutoff promotion).
+            // cheap path bubbles the top-K to the front. Both act on the returned copy only (the cached order
+            // is left intact and refreshed by beta-cutoff promotion).
+            //
+            // The full stable_sort never runs: RESORT_AFTER_REUSES defaults to a reuse count no node reaches.
+            // That is deliberate -- whenever it is lowered enough to fire it WORSENS ordering, costing nodes at
+            // fixed depth (4 reuses: WAC 243->241, +7.3% nodes; 16: 240, +0.8%; 64: byte-identical, never fires).
+            // The frozen cached order carries this node's own beta-cutoff promotions, which rank quiets better
+            // here than a global history table does; re-sorting discards that node-local signal.
             if (Config::ENABLE_LAZY_RESORT)
             {
                 uint64_t mvKey = make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square);
@@ -7645,6 +7835,9 @@ inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &st
     generateLegalMovesReordered(cached_moves, current_state.castling_rights, ~0ULL, ~0ULL,
                                 current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns, current_state.knights,
                                 current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn, cur_ply, prevMove);
+
+    MG_COUNT(++g_mg_gen_calls);
+    MG_COUNT(g_mg_gen_moves += (long)cached_moves.size());
 
     /* int num_plies = static_cast<int>(state_history.size());
     int max_cache_size;

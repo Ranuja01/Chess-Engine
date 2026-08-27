@@ -228,6 +228,10 @@ namespace Config
     // the default build is byte-identical.
     inline bool ENABLE_LMR = true;      // late move reductions
     inline bool ENABLE_FUTILITY = true; // futility pruning (inside the LMR block)
+    // Percent scale on FUTILITY_MARGINS (search_engine.h, {200,450,650,950} millipawns). 100 = unchanged =
+    // byte-identical. The margins were hand-picked and the gate fires on 86-88% of the moves it examines,
+    // which is high enough to ask whether it prunes real moves; a WIDER margin (>100) prunes LESS.
+    inline int FUTILITY_MARGIN_SCALE = 100;
     inline bool ENABLE_RAZORING = true; // razoring (alpha_beta root loop)
     inline bool ROOT_RAZOR_CONTINUE = false; // razor individual low root moves (continue) vs abandon the rest (break).
                                              // PROVABLY INERT: the root list is sorted score-descending before the loop,
@@ -565,6 +569,22 @@ namespace Config
     // tail + first iteration). The clean "is the pre-search worth its nodes?" test. true = byte-identical.
     inline bool ENABLE_ROOT_PRESEARCH = true;
 
+    // What the no-presearch path puts in an UNSCORED root move's top_score. Only read when the pre-search
+    // is off, so the shipped engine is unaffected.
+    //   0 = the original placeholder: the worst REAL score currently held (off_floor), or 0 if none. It is
+    //       an arbitrary sentinel -- it says nothing about the move, which is why root razoring cannot
+    //       safely difference alpha against it.
+    //   1 = the child's STATIC EVAL. We already stand on the child (make_move is done to build its reply
+    //       list), so this costs one eval per root move per iteration -- ~350 per search against millions.
+    //       Static eval is the reference SF razors against precisely because it is free, always
+    //       current-depth, and never a sentinel: unlike previous-iteration data it exists for EVERY move,
+    //       including the fail-lows that carry no value.
+    //   2 = as 1 with the sign negated.
+    // ⚠️ The engine is non-negamax with an absolute Black-positive eval flipped once at the root, so the
+    // polarity of top_score is not evident by inspection and a wrong sign would razor backwards. Modes 1
+    // and 2 exist so the experiment settles it: the wrong one collapses the solve count.
+    inline int PRESEARCH_OFF_FILL = 0;
+
     // SEE pruning (main search): at low remaining depth, skip a do_lmr-eligible quiet whose moved piece
     // can be profitably captured by the immediate recapture (post-move see() from the opponent's side >
     // SEE_PRUNE_MARGIN). The standard "don't search quiets that hang material" lever. Default off = byte-id.
@@ -605,6 +625,15 @@ namespace Config
     // optimum (WAC nodes -6.2% vs off, WAC 262/300, STS neutral); 4000 and 1000 both save less.
     inline bool ENABLE_CONT_HIST = true;
     inline int CONT_HIST_LMR_THRESH = 2000; // min continuation score to cancel the reduce-more
+
+    // ☠️ 2026-08-25: THREE movegen speed experiments were built here, all NODE-IDENTICAL, all measured and
+    // all REMOVED (attack-cache memo −1.7% · direct-emit ~0-3% inside noise · is_safe 16-arg fast path −1.9%).
+    // They are removed rather than left gated because each put a `Config::` branch on the hottest path in the
+    // engine (per piece / per move / per movegen call) -- a dead flag there is pure cost.
+    // WHY THEY FAILED: we build `-Ofast -march=native -flto`, is_safe is `inline` with loop-invariant args in
+    // ONE translation unit, so the compiler had ALREADY hoisted the work each "optimization" removed.
+    // ⇒ A PROF cycle share says where TIME goes, not what is REMOVABLE. Full record + numbers:
+    // memory/movegen-is-36-percent-of-search-not-a-non-lever.md. Read it before re-attempting.
 
     // Move-ordering experiments, each benched independently.
     inline bool ENABLE_CONT_HIST_2PLY = false; // 2-ply continuation history -- d10 LOSS at equal weight (WAC -3, +7% nodes); needs down-weight (b/4) + the bonus/malus rework before it's worth anything
@@ -1576,6 +1605,19 @@ namespace Config
     // midgame king-race. Shipped default 2026-08-01 as part of the material-fix bundle (+36.7 Elo, 503 games).
     inline bool ENABLE_PASSER_V3 = true;
 
+    // SF-style candidate-passer DETECTION (getPPIncrement). The stock rule flags a pawn passed only when NO
+    // enemy pawn occupies its three-file forward span. When on, this additionally flags Stockfish's contested
+    // candidate passers: every stopper is a pawn we attack; every stopper is a pawn our pushed pawn would
+    // attack (with phalanx support >= those levers); or a same-file blocker we out-support from the 5th rank.
+    // A DETECTION change only -- the newly-flagged pawns run the SAME passer scoring (mask + blockade/support
+    // docking), so they are still docked for being contested. Default off = byte-identical.
+    inline bool ENABLE_PASSER_DETECT_SF = false;
+
+    // Realizability dock (R units, 256=neutral) applied in evaluate_passers to an SF candidate passer only.
+    // A candidate still has an un-won stopper pawn that passer_realizability_R never accounts for (it docks
+    // enemy PIECES, not pawns), so it would otherwise be priced like a clean passer. Default 0 = byte-identical.
+    inline int PASSER_CANDIDATE_DOCK = 0;
+
     // Gap-P C1: blockade-QUALITY in getPPIncrement. When on, only a secure blockade (enemy minor on the
     // stop square) gets the full PP_BLOCKADE_PEN; a rook/queen merely contesting the file ahead gets only
     // PASSER_CONTEST_PCT of it (the pawn still advances; the contester is tied down). Un-zeroes a
@@ -2185,6 +2227,31 @@ namespace Config
     //   strength -> first-move-cutoff -> EBF). 100 = original `(depth_limit-cur_depth)^2`.
     inline int LMR_EXTRA = 0;
     inline int HISTORY_BONUS_SCALE = 100;
+
+    // LMR_SHAPE: how the late-move reduction combines remaining depth with move number.
+    //   0 = the original form: an absolute target from DEPTH_REDUCTION[depth_limit] (the ITERATION depth,
+    //       so the reduction is the same constant at every node of the iteration) MINUS log2(move)/scale.
+    //       Depth and move number are combined ADDITIVELY.
+    //   1 = the classical Stockfish schedule: reduction = log(remaining) x log(move number), keyed on the
+    //       node's OWN remaining depth. The product is what makes remaining-depth indexing affordable --
+    //       log(rem) collapses the reduction toward zero near the horizon on its own (no clamp needed),
+    //       while amplifying it where remaining depth is large. Re-indexing WITHOUT the product was
+    //       measured at +13% nodes for +1 solve, i.e. it sheds aggression everywhere; the product is the
+    //       other half of that form.
+    // The phase modulation is preserved in mode 1 (normalised so scale 2.0 leaves the reduction unchanged)
+    // so the comparison isolates the depth x move coupling rather than also deleting the phase term.
+    // LMR_PRODUCT_K: log coefficient x100 (SF11 uses 24.8). LMR_PRODUCT_DIV: divisor on the product.
+    // Calibrate DIV so mean reduction matches mode 0 -- a blanket aggression change is NOT the hypothesis
+    // (LMR_EXTRA=2, a flat +2 plies, measured about -55 Elo).
+    // SHIPPED: mode 1 with DIV=64 measured +20.7 +/-15.1 Elo over 2800 diverse-UHO games (7 segments,
+    // varied seeds; 6 of 7 positive, pooled LLR +2.807 against a +/-2.944 bound). Fixed depth reads
+    // 251 WAC / 34.3M nodes / STS 1795 against the old 243 / 31.8M / 1703 -- i.e. it costs ~8% more
+    // nodes and pays for them. Fixed-TIME benches read FLAT, so the gain does not come from depth;
+    // the likely mechanism is fewer catastrophic mis-reductions near the horizon, which costs games
+    // but barely moves a pass/fail tactical suite. Set LMR_SHAPE=0 to recover the previous schedule.
+    inline int LMR_SHAPE = 1;
+    inline int LMR_PRODUCT_K = 2480;
+    inline int LMR_PRODUCT_DIV = 64;
 
     // Honest bound flags at the root / preliminary-ordering TT stores. Those four stores
     // (alpha_beta and reorder_legal_moves) hardcode TTFlag::EXACT, which is only correct under

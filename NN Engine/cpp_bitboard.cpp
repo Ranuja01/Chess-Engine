@@ -77,6 +77,10 @@ std::vector<std::vector<uint64_t>> BB_RAYS;
 // Define global masks for piece placement
 uint64_t pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, occupied;
 
+// Passers flagged ONLY via the SF candidate path (ENABLE_PASSER_DETECT_SF) -- they still have an un-won
+// stopper pawn, so evaluate_passers docks their realizability. Reset per position alongside the passed masks.
+uint64_t candidate_passed_pawns = 0;
+
 // Define global variables for offensive, defensive and piece value scores
 int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
 int blackPieceVal, whitePieceVal;
@@ -161,6 +165,7 @@ alignas(64) int threatHist[2][2][2][64][64] = {};
 alignas(64) int pawnCorrHist[2][CORR_SIZE] = {};
 
 alignas(64) int captureHistory[2][64][64] = {};
+alignas(64) int captureHistoryV[2][7][7][64] = {};   // [side][attacker][victim][to] (CAPTURE_HIST_VICTIM)
 
 alignas(64) Move g_searchStack[MAX_PLY] = {};
 alignas(64) Move g_excluded_move[MAX_PLY] = {};
@@ -939,7 +944,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		
 		// Call the function to acquire an extra boost for passed and semi passed pawns
 		{ PROF_BLOCK(PROF_PAWN_PPINC);
-		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns); }
+		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns, true); }
 		ppIncrement = std::min(ppIncrement, 400); // cap runaway boosts
 
 		int rank = y;
@@ -1075,7 +1080,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 		total -= 125 * (__builtin_popcountll(BB_FILES[x] & (occupied_black & pawns)) > 1);
 		
 		{ PROF_BLOCK(PROF_PAWN_PPINC);
-		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns); }
+		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns, true); }
 		ppIncrement = std::min(ppIncrement, 400); // cap runaway boosts
 		
 		int rank = 7 - y;
@@ -1223,7 +1228,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 
 		if (colour){
 			
-			ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, square_file, square_rank, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns);
+			ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, square_file, square_rank, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns, true);
 			ppIncrement = std::min(ppIncrement, 400);
 			
 			ppIncrement_simd[count] = ppIncrement;
@@ -1248,7 +1253,7 @@ inline int evaluate_pawns_midgame(uint8_t square, uint64_t& white_passed_pawns, 
 			is_white[count] = true;
 
 		} else {
-			ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, square_file, square_rank, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns);
+			ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, square_file, square_rank, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns, true);
 			ppIncrement = std::min(ppIncrement, 400);
 			
 			ppIncrement_simd[count] = ppIncrement;
@@ -3238,7 +3243,7 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		// Only consider this if the pawn is above the 3rd rank
 		
 		{ PROF_BLOCK(PROF_PAWN_PPINC);
-		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns); }
+		ppIncrement = getPPIncrement(colour, (occupied_black & pawns), ppIncrement, x, y, occupied_black, occupied_white, white_passed_pawns, black_passed_pawns, true); }
 		ppIncrement = std::min(ppIncrement, 600); // cap runaway boosts
 
 		int rank = y;		
@@ -3350,7 +3355,7 @@ inline int evaluate_pawns_endgame(uint8_t square, uint64_t& white_passed_pawns, 
 		// Call the function to acquire an extra pawn squared based on the position of opposing pawns
 		// Only consider this if the pawn is below the 6th rank
 		{ PROF_BLOCK(PROF_PAWN_PPINC);
-		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns); }
+		ppIncrement = getPPIncrement(colour, (occupied_white & pawns), ppIncrement, x, y, occupied_white, occupied_black, white_passed_pawns, black_passed_pawns, true); }
 		ppIncrement = std::min(ppIncrement, 600); // cap runaway boosts
 
 		int rank = 7 - y;
@@ -6640,6 +6645,9 @@ inline int evaluate_passers(uint64_t white_passed_pawns, uint64_t black_passed_p
 		         + endgame_pawn_rank_bonus[rank] * phase_score) / 128) * Config::PASSER_MAG_SCALE / 100;
 		// Per-pawn realizability, upside kept conservative to start (over-valuation is the historical failure).
 		int R = std::min(passer_realizability_R(sq, white), Config::PASSER_R_CAP);
+		// Candidate passers (flagged only via the SF path) still face an un-won stopper pawn, which R never
+		// docks (it scores enemy pieces, not pawns); dock them here so they are not priced as clean passers.
+		if (candidate_passed_pawns & BB_SQUARES[sq]) R = std::max(0, R - Config::PASSER_CANDIDATE_DOCK);
 		// Floor-first for ADVANCED passers: SF11/SF15/Ethereal grant the rank table UNCONDITIONALLY (realizability
 		// is additive upside, never a total discount) -- a pawn one step from promotion stays dangerous even when
 		// contested. Our multiplicative R can drop to ~0, blinding us to enemy runners. Keep a rank-rising floor:
@@ -7276,6 +7284,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 
 	uint64_t white_passed_pawns = 0;
 	uint64_t black_passed_pawns = 0;
+	candidate_passed_pawns = 0;
 
 	pressure_white.fill(0);
 	support_white.fill(0);
@@ -9218,6 +9227,10 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
 						prb = pawn_rank_bonuses[cur_side_capture->to];
 						if (Config::ENABLE_PASSER_V2 || Config::ENABLE_PASSER_V3) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
+						// A CONTESTED SF candidate passer (ENABLE_PASSER_DETECT_SF) is still stopper-bound, so its
+						// speculative passer rank bonus must not price this capture: fed through the turn-order-
+						// dependent capture simulation it breaks colour symmetry. Bare pawn value only.
+						if (candidate_passed_pawns & BB_SQUARES[cur_side_capture->to]) prb = 0;
 						value_gained += prb;
 						fired = true;
 					}
@@ -9243,6 +9256,10 @@ inline int approximate_capture_gains(uint64_t bb, bool turn, const BoardState& s
 					if(pieceTypeLookUp[cur_side_capture->to] == PAWN && pieceTypeLookUp[cur_side_capture->from] != PAWN){
 						prb = pawn_rank_bonuses[cur_side_capture->to];
 						if (Config::ENABLE_PASSER_V2 || Config::ENABLE_PASSER_V3) prb = std::clamp(prb, -Config::CAPG_PAWN_RANK_CLAMP, Config::CAPG_PAWN_RANK_CLAMP);
+						// A CONTESTED SF candidate passer (ENABLE_PASSER_DETECT_SF) is still stopper-bound, so its
+						// speculative passer rank bonus must not price this capture: fed through the turn-order-
+						// dependent capture simulation it breaks colour symmetry. Bare pawn value only.
+						if (candidate_passed_pawns & BB_SQUARES[cur_side_capture->to]) prb = 0;
 						value_gained += (Config::ENABLE_CAPGAIN_PAWN_FIX ? -prb : prb);
 						fired = true;
 					}
@@ -9616,7 +9633,7 @@ void printLayers(){
 	
 }
 
-inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns) {
+inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns, bool track_candidate) {
 	
 	/*
 		Function to acquire the increment for a pawn being or having the potential to be a passed pawn
@@ -9659,31 +9676,77 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 	bitmask = colour ? passed_span_white[span_sq] : passed_span_black[span_sq];
 	infrontMask = bitmask & BB_FILES[file];
 
-	// Of the squares in front of pawn, filter to only include opposing pawns
-    bitmask &= opposingPawnMask;	
-		
+	// Of the squares in front of pawn, filter to only include opposing pawns. After this, `bitmask` is exactly
+	// Stockfish's `stoppers` set: enemy pawns on the pawn's own or neighbouring files, strictly ahead of it.
+    bitmask &= opposingPawnMask;
+
+	// SF-style candidate-passer detection (gated). The stock rule below flags a pawn passed only when this
+	// stopper set is EMPTY; Stockfish additionally accepts three contested cases -- (a) every stopper is a
+	// pawn this pawn attacks, (b) every stopper is a pawn its pushed self would attack and the phalanx is at
+	// least as large as those levers, (c) the only stopper is a same-file blocker this pawn out-supports from
+	// the 5th rank up. Computed ONLY when the gate is on, so the default hot path is untouched.
+	bool sf_passed = false;
+	if (Config::ENABLE_PASSER_DETECT_SF) {
+		constexpr int SF_PASSER_MIN_RANK = 5;   // SF grants the blocked-stopper case only from the 5th rank up
+		uint64_t stoppers  = bitmask;
+		uint64_t own_pawns = curSidePieces & pawns;
+		uint64_t pawn_bb   = BB_SQUARES[rank * 8 + file];
+		int rank_owner     = colour ? (rank + 1) : (8 - rank);
+
+		// Same-rank neighbours (phalanx); colour-relative attack squares (lever), one-rank-back neighbours
+		// (support), the square directly ahead (front), and the squares the pushed pawn would attack (leverPush)
+		uint64_t phalanx = (((pawn_bb << 1) & ~BB_FILE_A) | ((pawn_bb >> 1) & ~BB_FILE_H)) & own_pawns;
+		uint64_t lever, support, front, leverPush;
+		if (colour) {
+			lever     = (((pawn_bb << 7) & ~BB_FILE_H) | ((pawn_bb << 9) & ~BB_FILE_A)) & opposingPawnMask;
+			support   = (((pawn_bb >> 9) & ~BB_FILE_H) | ((pawn_bb >> 7) & ~BB_FILE_A)) & own_pawns;
+			front     = pawn_bb << 8;
+			leverPush = (((front << 7) & ~BB_FILE_H) | ((front << 9) & ~BB_FILE_A)) & opposingPawnMask;
+		} else {
+			lever     = (((pawn_bb >> 9) & ~BB_FILE_H) | ((pawn_bb >> 7) & ~BB_FILE_A)) & opposingPawnMask;
+			support   = (((pawn_bb << 7) & ~BB_FILE_H) | ((pawn_bb << 9) & ~BB_FILE_A)) & own_pawns;
+			front     = pawn_bb >> 8;
+			leverPush = (((front >> 9) & ~BB_FILE_H) | ((front >> 7) & ~BB_FILE_A)) & opposingPawnMask;
+		}
+		uint64_t blocked           = front & opposingPawnMask;
+		uint64_t support_push_safe = (colour ? (support << 8) : (support >> 8)) & ~opposingPawnMask;
+
+		bool case_lever     = ((stoppers ^ lever) == 0);
+		bool case_leverpush = ((stoppers ^ leverPush) == 0)
+		                      && (__builtin_popcountll(phalanx) >= __builtin_popcountll(leverPush));
+		bool case_blocked   = (stoppers == blocked) && (stoppers != 0)
+		                      && (rank_owner >= SF_PASSER_MIN_RANK) && (support_push_safe != 0);
+		bool rear_doubled   = (infrontMask & pawns & (colour ? occupied_white : occupied_black)) != 0;
+		sf_passed = (case_lever || case_leverpush || case_blocked) && !rear_doubled;
+	}
+	// A candidate passer must be flagged and scored even though the stock rule (below) would reject it for
+	// having stoppers, so it bypasses the two early-return guards without disturbing the default path.
+	bool sf_candidate = Config::ENABLE_PASSER_DETECT_SF && sf_passed;
+
 	//std::cout << "PPMASK: " << bitmask << std::endl;
-	// Loop through the bitmask 
+	// Loop through the bitmask
 	uint8_t r = 0;
 	uint64_t bb = bitmask;
 	while (bb) {
 		r = __builtin_ctzll(bb);
-		
-		// If there is a blocker directly in front of the pawn, then it has no potential to be a passed pawn
-		if ((r & 7) == x){
-			return 0;			
+
+		// If there is a blocker directly in front of the pawn, then it has no potential to be a passed pawn.
+		// A gated SF candidate keeps going and takes the contest docking instead of returning empty-handed.
+		if ((r & 7) == x && !sf_candidate){
+			return 0;
 		}
-		
+
 		// Otherwise there is an opposing pawn defending the promotion path, thereby lowering the increment
 		ppIncrement -= Config::PP_OPP_PAWN_PEN;
 		bb &= bb - 1;
 	}
 	//if (y == 4 && x == 2){std::cout << bitmask  << " " << ppIncrement << " " << incrementCopy << std::endl;}
-	// The minimum increment is 0
-	if (ppIncrement < 0) {
-		return 0;	
-	// Otherwise check if the increment does not suffer a decrement, this suggests the pawn is a passed pawn
-	} else if (ppIncrement == incrementCopy){
+	// The minimum increment is 0 (a gated SF candidate is scored even when the contest docking drives it there)
+	if (ppIncrement < 0 && !sf_candidate) {
+		return 0;
+	// Otherwise the increment survived un-docked (an un-contested passed pawn) or the pawn qualifies as a
+	// contested SF candidate: either way, flag it passed and run the passed-pawn scoring block.
+	} else if (ppIncrement == incrementCopy || sf_candidate){
 
 		// A REAR doubled pawn (a friendly pawn stands ahead on its own file) can never promote, so it is not a
 		// passer: skip the passed flag and route it to the default (non-passed) rank table. Gated; default off.
@@ -9694,6 +9757,14 @@ inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncremen
 			white_passed_pawns |= BB_SQUARES[y * 8 + x];
 		}else{
 			black_passed_pawns |= BB_SQUARES[y * 8 + x];
+		}
+
+		// Flagged passed ONLY via the SF candidate path (a stopper pawn remains, i.e. `bitmask` non-empty):
+		// mark it so evaluate_passers can dock its realizability for the un-won stopper. Only the main pawn
+		// loop (track_candidate) sets this: the king-race helpers reuse getPPIncrement with throwaway masks
+		// and must not write the shared global, or the write order (square-indexed) breaks colour symmetry.
+		if (sf_candidate && bitmask && track_candidate){
+			candidate_passed_pawns |= BB_SQUARES[y * 8 + x];
 		}
 
 		// Check if there exists a non-pawn blocker infront of the passed pawn
@@ -9822,7 +9893,8 @@ static const char* PROF_TERM_NAMES[NUM_PROF_TERMS] = {
 	"SEE", "BISHOP_ACTIVITY", "BISHOP_COLOUR",
 	"PAWN_PPINC", "PAWN_ATKLOOP",
 	"MOVEGEN", "MAKEUNMAKE", "TT_PROBE",
-	"MG_GEN", "MG_SCORE", "MG_SORT"
+	"MG_GEN", "MG_SCORE", "MG_SORT",
+	"MG_PSEUDO", "MG_ISSAFE"
 };
 
 // Terms PROF_PAWNS..PROF_ADV_ENDGAME are the top-level, mutually-exclusive call

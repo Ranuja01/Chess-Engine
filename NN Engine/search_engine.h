@@ -637,6 +637,10 @@ namespace Config
 
     // Move-ordering experiments, each benched independently.
     inline bool ENABLE_CONT_HIST_2PLY = false; // 2-ply continuation history -- d10 LOSS at equal weight (WAC -3, +7% nodes); needs down-weight (b/4) + the bonus/malus rework before it's worth anything
+    // Re-key captureHistory from [side][from][to] to [side][attacker][victim][to]. See capture_hist_ref
+    // in cache_management.h for the rationale (Ethereal/Caissa both carry the victim and drop from).
+    // 0 = OFF = the old from-square table = byte-identical.
+    inline int CAPTURE_HIST_VICTIM = 0;
     inline bool ENABLE_CAPTURE_HIST = true;    // SHIPPED 2026-07-30 as part of gravcap (+33.0 Elo, 1203 games).
                                                // Looked "marginal" pre-gravity (+0.7 STS/+1 WAC, +2.6% nodes) because
                                                // capture history, like every history consumer, only discriminates once

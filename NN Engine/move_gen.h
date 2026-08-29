@@ -31,6 +31,11 @@ extern std::vector<std::vector<uint64_t>> BB_RAYS;
 extern long g_static_order_eligible;
 extern long g_static_order_fires;
 
+// NOTE 2026-08-25: a per-node attacks_mask memo was built and REMOVED here. It was node-identical but
+// measured −1.7% NPS (−3.6% with thread_local) -- attacks_mask is a bare table index for knights/kings and
+// 2-3 ops for sliders, so the validity test + store cost more than the recompute. Full record:
+// memory/movegen-is-36-percent-of-search-not-a-non-lever.md. Do not re-add without reading it.
+
 // Runtime (SCALE_PLACE_*-scaled) placement tables, defined in cpp_bitboard.cpp and previously file-local
 // there. Declared here so move ordering can score a quiet by the SAME table the eval uses -- an ordering
 // tiebreaker built on different numbers than the eval would rank moves the search then disagrees with.
@@ -172,6 +177,10 @@ inline void generateLegalMovesPre(std::vector<uint8_t> &startPos_filtered, std::
 						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn,
 						uint8_t king, uint64_t blockers, uint64_t checkers){
 
+	// NOTE 2026-08-25: a DIRECT-EMIT path (generate into the caller's arrays, compact survivors in place,
+	// avoiding the scratch round-trip) was built and REMOVED here. Node-identical but only ~0-3% NPS, inside
+	// the instrument noise. Same record as the attacks memo above.
+	//
 	// Per-call scratch reused across nodes (cleared, capacity kept) to avoid a fresh allocation on
 	// every piece-type pair.
 	thread_local std::vector<uint8_t> startPos;
@@ -182,9 +191,13 @@ inline void generateLegalMovesPre(std::vector<uint8_t> &startPos_filtered, std::
 	promotions.clear();
 
 	if (checkers != 0){
+		{
+		PROF_BLOCK(PROF_MG_PSEUDO);
 		generateEvasions(startPos, endPos, promotions, preliminary_castling_mask, king, checkers, from_mask, to_mask, occupiedMask,occupiedWhite,
 			             opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn);
+		}
 
+		PROF_BLOCK(PROF_MG_ISSAFE);
 		for (size_t i = 0; i < startPos.size(); i++){
 			if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
 				knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
@@ -196,10 +209,14 @@ inline void generateLegalMovesPre(std::vector<uint8_t> &startPos_filtered, std::
 			}
 		}
 	} else {
+		{
+		PROF_BLOCK(PROF_MG_PSEUDO);
 		generatePseudoLegalMoves(startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask,
 	 						     kingsMask & ourPieces, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
 							     rooksMask, queensMask, kingsMask, ep_square, turn);
+		}
 
+		PROF_BLOCK(PROF_MG_ISSAFE);
 		for (size_t i = 0; i < startPos.size(); i++){
 			if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
 				knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn)){
@@ -331,7 +348,7 @@ inline void generatePieceMoves(std::vector<uint8_t> &startPos, std::vector<uint8
 		
 		
 		// Define the moves as a bitwise and between the squares attacked from the starting square and the starting mask
-		uint64_t moves = (attacks_mask(bool((mask) & occupiedWhite),occupiedMask,r,piece_type) & ~our_pieces) & to_mask;		
+		uint64_t moves = (attacks_mask(bool((mask) & occupiedWhite),occupiedMask,r,piece_type) & ~our_pieces) & to_mask;
 		
 		// Loop through the possible destinations
 		uint8_t r_inner = 0;
@@ -826,7 +843,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			int move_freq_bonus = moveFrequency[turn][from][to];
 			// Capture history refines ordering WITHIN the static capture tiers; bad captures rarely
 			// accumulate it, so they stay below quiets in practice. Gated, default off = byte-identical.
-			int cap_hist = Config::ENABLE_CAPTURE_HIST ? captureHistory[turn][from][to] : 0;
+			int cap_hist = Config::ENABLE_CAPTURE_HIST ? capture_hist_ref_bb(turn, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask) : 0;
 			//return 15000 + value_captured - value_attacker + promo_bonus;
 			if (value_captured >= value_attacker) {
 				// Clearly good capture, skip SEE

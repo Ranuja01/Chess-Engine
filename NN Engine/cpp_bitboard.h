@@ -579,6 +579,13 @@ enum ProfTerm {
 	// Drill-only subsets of PROF_MOVEGEN: pseudo-legal generation, the scoring loop, and the
 	// sort + Move rebuild. Nested, so excluded from the %-base; their sum ~= PROF_MOVEGEN.
 	PROF_MG_GEN, PROF_MG_SCORE, PROF_MG_SORT,
+	// Drill-only subsets of PROF_MG_GEN, inside generateLegalMovesPre (which processMaskPairs invokes
+	// ONCE PER PIECE-TYPE PAIR -- 12 attack + 4 quiet = 16 passes per node). PSEUDO = the pseudo-legal /
+	// evasion generation itself (recomputes attack sets for any piece set appearing in several pairs);
+	// ISSAFE = the per-move is_safe() legality filter. Their split decides WHICH movegen fix is worth
+	// building: collapsing the 16 passes into 1 (if PSEUDO dominates) vs pin-aware legal generation that
+	// removes the per-move check (if ISSAFE dominates). Nested, so excluded from the %-base.
+	PROF_MG_PSEUDO, PROF_MG_ISSAFE,
 	NUM_PROF_TERMS
 };
 
@@ -614,7 +621,7 @@ void initializePieceValues(uint64_t bb);
 uint8_t piece_type_at(uint8_t square);
 inline void setAttackingLayer(int increment, bool isEndGame);
 void printLayers();
-inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns);
+inline int getPPIncrement(bool colour, uint64_t opposingPawnMask, int ppIncrement, uint8_t x, uint8_t y, uint64_t opposingPieces, uint64_t curSidePieces, uint64_t& white_passed_pawns, uint64_t& black_passed_pawns, bool track_candidate = false);
 
 /*
 	Set of functions used to generate moves

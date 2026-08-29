@@ -1786,6 +1786,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CONT_HIST_LMR_THRESH = env_int("CONT_HIST_LMR_THRESH", Config::CONT_HIST_LMR_THRESH);
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
         Config::ENABLE_CAPTURE_HIST = env_flag("ENABLE_CAPTURE_HIST", Config::ENABLE_CAPTURE_HIST);
+        Config::CAPTURE_HIST_VICTIM = env_int("CAPTURE_HIST_VICTIM", Config::CAPTURE_HIST_VICTIM);
         Config::ENABLE_CHECK_ORDER = env_flag("ENABLE_CHECK_ORDER", Config::ENABLE_CHECK_ORDER);
         Config::ENABLE_TT_MOVE = env_flag("ENABLE_TT_MOVE", Config::ENABLE_TT_MOVE);
         Config::TT_MOVE_POLICY = env_int("TT_MOVE_POLICY", Config::TT_MOVE_POLICY);
@@ -2255,6 +2256,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CONT_HIST_LMR_THRESH=" << Config::CONT_HIST_LMR_THRESH
                   << " ENABLE_CONT_HIST_2PLY=" << Config::ENABLE_CONT_HIST_2PLY
                   << " ENABLE_CAPTURE_HIST=" << Config::ENABLE_CAPTURE_HIST
+                  << " CAPTURE_HIST_VICTIM=" << Config::CAPTURE_HIST_VICTIM
                   << " ENABLE_CHECK_ORDER=" << Config::ENABLE_CHECK_ORDER
                   << " ENABLE_HISTORY_SATURATION=" << Config::ENABLE_HISTORY_SATURATION
                   << " ENABLE_HISTORY_MALUS=" << Config::ENABLE_HISTORY_MALUS
@@ -2490,6 +2492,8 @@ void clearSearchTables()
 {
 	std::fill(&historyHeuristics[0][0][0],     &historyHeuristics[0][0][0]     + 2LL * 64 * 64,     0);
 	std::fill(&moveFrequency[0][0][0],         &moveFrequency[0][0][0]         + 2LL * 64 * 64,     0);
+	std::fill(&captureHistory[0][0][0],        &captureHistory[0][0][0]        + 2LL * 64 * 64,     0);
+	std::fill(&captureHistoryV[0][0][0][0],    &captureHistoryV[0][0][0][0]    + 2LL * 7 * 7 * 64,  0);
 	std::fill(&counterMoveHeuristics[0][0][0], &counterMoveHeuristics[0][0][0] + 2LL * 4096 * 4096, 0);
 	std::fill(&killerMoves[0][0],  &killerMoves[0][0]  + 64 * 2,  Move{});
 	std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
@@ -4644,9 +4648,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 {
                     int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                     if (Config::ENABLE_HISTORY_SATURATION)
-                        hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
+                        hist_update(capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state), b);
                     else
-                        captureHistory[current_state.turn][move.from_square][move.to_square] += b;
+                        capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state) += b;
                     if (Config::ENABLE_HISTORY_MALUS)
                     {
                         for (const Move &q : searched_captures)
@@ -4654,9 +4658,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                             if (q == move)
                                 continue;
                             if (Config::ENABLE_HISTORY_SATURATION)
-                                hist_update(captureHistory[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                                hist_update(capture_hist_ref(current_state.turn, q.from_square, q.to_square, current_state), -b / Config::MALUS_DIV);
                             else
-                                captureHistory[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                                capture_hist_ref(current_state.turn, q.from_square, q.to_square, current_state) -= b / Config::MALUS_DIV;
                         }
                     }
                 }
@@ -5164,9 +5168,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 {
                     int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                     if (Config::ENABLE_HISTORY_SATURATION)
-                        hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
+                        hist_update(capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state), b);
                     else
-                        captureHistory[current_state.turn][move.from_square][move.to_square] += b;
+                        capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state) += b;
                     if (Config::ENABLE_HISTORY_MALUS)
                     {
                         for (const Move &q : searched_captures)
@@ -5174,9 +5178,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                             if (q == move)
                                 continue;
                             if (Config::ENABLE_HISTORY_SATURATION)
-                                hist_update(captureHistory[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                                hist_update(capture_hist_ref(current_state.turn, q.from_square, q.to_square, current_state), -b / Config::MALUS_DIV);
                             else
-                                captureHistory[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                                capture_hist_ref(current_state.turn, q.from_square, q.to_square, current_state) -= b / Config::MALUS_DIV;
                         }
                     }
                 }
@@ -5856,9 +5860,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             {
                 int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
                 if (Config::ENABLE_HISTORY_SATURATION)
-                    hist_update(captureHistory[current_state.turn][move.from_square][move.to_square], b);
+                    hist_update(capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state), b);
                 else
-                    captureHistory[current_state.turn][move.from_square][move.to_square] += b;
+                    capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state) += b;
                 if (Config::ENABLE_HISTORY_MALUS)
                 {
                     for (const Move &q : searched_captures)
@@ -5866,9 +5870,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                         if (q == move)
                             continue;
                         if (Config::ENABLE_HISTORY_SATURATION)
-                            hist_update(captureHistory[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+                            hist_update(capture_hist_ref(current_state.turn, q.from_square, q.to_square, current_state), -b / Config::MALUS_DIV);
                         else
-                            captureHistory[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+                            capture_hist_ref(current_state.turn, q.from_square, q.to_square, current_state) -= b / Config::MALUS_DIV;
                     }
                 }
             }
@@ -6449,7 +6453,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                         }
                         else if (Config::ENABLE_CAPTURE_HIST)
                         {
-                            captureHistory[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
+                            capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state) += cur_depth * cur_depth;
                         }
 
                         pv_table[cur_depth][0] = move;
@@ -6613,7 +6617,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
             }
             else if (Config::ENABLE_CAPTURE_HIST)
             {
-                captureHistory[current_state.turn][move.from_square][move.to_square] += (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                capture_hist_ref(current_state.turn, move.from_square, move.to_square, current_state) += (depth_limit - cur_depth) * (depth_limit - cur_depth);
             }
 
             return lowest_score;

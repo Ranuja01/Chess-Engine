@@ -251,6 +251,32 @@ inline int cont_ctx_key_bb(const Move &prev, uint64_t, uint64_t, uint64_t, uint6
     return prev.from_square * 64 + prev.to_square;
 }
 extern int captureHistory[2][64][64];
+extern int captureHistoryV[2][7][7][64];
+// Capture-history keying. Ours is [side][from][to], which cannot tell Rxe5-takes-a-PAWN from
+// Rxe5-takes-a-QUEEN -- the victim, the single most informative fact about a capture, is absent.
+// Ethereal keys [piece][threat_from][threat_to][to][captured] and Caissa [stm][piece][captured][to]:
+// both carry the VICTIM and both DROP the from-square, i.e. the exact inverse of our choice.
+// CAPTURE_HIST_VICTIM=1 switches to [side][attacker][victim][to] -- 24.5KB vs 32KB, smaller AND denser.
+// BOTH arrays are kept and EVERY access funnels through these two refs so the keyings cannot drift.
+// Default 0 => the old table is used verbatim => byte-identical.
+// NOTE: en-passant reads victim 0 at `to` (the pawn sits elsewhere); it shares the [.][.][0][to] slot.
+inline int &capture_hist_ref(int side, uint8_t from, uint8_t to, const BoardState &st)
+{
+    if (Config::CAPTURE_HIST_VICTIM)
+        return captureHistoryV[side][piece_type_at(st, from)][piece_type_at(st, to)][to];
+    return captureHistory[side][from][to];
+}
+// Mask-based twin for the ordering READ in move_gen.h (no BoardState in scope there). Keys are computed
+// identically to the BoardState form so an ordering read lands on the slot the search write used.
+inline int &capture_hist_ref_bb(int side, uint8_t from, uint8_t to, uint64_t pawnsM, uint64_t knightsM,
+                                uint64_t bishopsM, uint64_t rooksM, uint64_t queensM, uint64_t kingsM)
+{
+    if (Config::CAPTURE_HIST_VICTIM)
+        return captureHistoryV[side]
+                              [piece_type_at_bb(from, pawnsM, knightsM, bishopsM, rooksM, queensM, kingsM)]
+                              [piece_type_at_bb(to,   pawnsM, knightsM, bishopsM, rooksM, queensM, kingsM)][to];
+    return captureHistory[side][from][to];
+}
 
 // Per-ply move stack (single-threaded search): g_searchStack[d] = the move played to descend from
 // depth d to d+1. A node at depth `ply` reads g_searchStack[ply-2] as the move 2 plies back (the
@@ -531,6 +557,45 @@ inline uint64_t generatePawnKey(uint64_t pawnsMask, uint64_t occupied_whiteMask,
 		bp &= bp - 1;
 	}
 	return key;
+}
+
+/*
+	Structural sub-keys for correction history, in the SAME style as generatePawnKey: XOR the shared
+	zobristTable randoms over one piece subset, side-to-move deliberately excluded. Index convention matches
+	generateZobristHash — white piece = piece_type-1 (P0 N1 B2 R3 Q4 K5), black = piece_type+5.
+
+	These exist so the offline signal gate can ask WHICH key family carries predictable static-eval residual
+	BEFORE any table is allocated for it. Multi-keying is the expensive hypothesis; this makes it a log
+	column instead of an implementation. Unused unless the corrhist logger is on => default byte-identical.
+*/
+inline uint64_t corr_xor_mask(uint64_t mask, int zobristIndex) {
+	uint64_t key = 0;
+	while (mask) {
+		key ^= zobristTable[zobristIndex][__builtin_ctzll(mask)];
+		mask &= mask - 1;
+	}
+	return key;
+}
+
+// Minor pieces (knights + bishops), both colours.
+inline uint64_t generateMinorKey(uint64_t knightsMask, uint64_t bishopsMask, uint64_t occW, uint64_t occB) {
+	return corr_xor_mask(knightsMask & occW, 1) ^ corr_xor_mask(bishopsMask & occW, 2)
+	     ^ corr_xor_mask(knightsMask & occB, 7) ^ corr_xor_mask(bishopsMask & occB, 8);
+}
+
+// Major pieces (rooks + queens), both colours.
+inline uint64_t generateMajorKey(uint64_t rooksMask, uint64_t queensMask, uint64_t occW, uint64_t occB) {
+	return corr_xor_mask(rooksMask & occW, 3) ^ corr_xor_mask(queensMask & occW, 4)
+	     ^ corr_xor_mask(rooksMask & occB, 9) ^ corr_xor_mask(queensMask & occB, 10);
+}
+
+// All non-pawn material of ONE colour (knights, bishops, rooks, queens, king) -- Weiss keys these per side.
+inline uint64_t generateNonPawnKey(uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+                                   uint64_t queensMask, uint64_t kingsMask, uint64_t occSide, bool white) {
+	int base = white ? 0 : 6; // white N=1..K=5 ; black N=7..K=11
+	return corr_xor_mask(knightsMask & occSide, base + 1) ^ corr_xor_mask(bishopsMask & occSide, base + 2)
+	     ^ corr_xor_mask(rooksMask   & occSide, base + 3) ^ corr_xor_mask(queensMask  & occSide, base + 4)
+	     ^ corr_xor_mask(kingsMask   & occSide, base + 5);
 }
 
 inline int accessCache(uint64_t key) {
@@ -1161,6 +1226,13 @@ inline void decayCaptureHistory() {
                 captureHistory[side][from][to] >>= DECAY_FACTOR;
             }
         }
+    }
+    if (Config::CAPTURE_HIST_VICTIM) {
+        for (int side = 0; side < 2; ++side)
+            for (int a = 0; a < 7; ++a)
+                for (int v = 0; v < 7; ++v)
+                    for (int to = 0; to < 64; ++to)
+                        captureHistoryV[side][a][v][to] >>= DECAY_FACTOR;
     }
 }
 

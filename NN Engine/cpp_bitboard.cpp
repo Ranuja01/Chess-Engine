@@ -157,6 +157,8 @@ alignas(64) int historyHeuristics[2][64][64] = {};
 alignas(64) int moveFrequency[2][64][64] = {};
 
 alignas(64) int contHist2[2][4096][4096] = {};
+alignas(64) int counterMoveHeuristicsP[2][PCONT_DIM][PCONT_DIM] = {};  // piece x to twin (CONT_HIST_PIECE_KEY)
+alignas(64) int contHist2P[2][PCONT_DIM][PCONT_DIM] = {};              // piece x to twin (CONT_HIST_PIECE_KEY)
 
 alignas(64) int pieceContHist[2][PCONT_DIM][PCONT_DIM] = {};
 

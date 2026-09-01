@@ -868,7 +868,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		{
 			Move p2 = g_searchStack[ply - 2];
 			if (p2.from_square != p2.to_square)
-				cont2 = contHist2[turn][cont_ctx_key_bb(p2, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][cont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)];
+				cont2 = ch2_ref_bb(turn, p2, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask);
 		}
 		// Ordering bonus for a quiet move that gives a DIRECT check (the mover, landing on `to`, attacks
 		// the enemy king). Misses discovered checks. Gated, default off = byte-identical.
@@ -903,7 +903,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			if (static_tb != 0) ++g_static_order_fires;
 		}
 		return bh + static_tb + killerBonus(ply, cur)
-			   + counterMoveBonus + counterMoveHeuristics[turn][cont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][cont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)]
+			   + counterMoveBonus + cmh_ref_bb(turn, prevMove, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)
 			   + cont2 + check_bonus + pcont
 			   + promo_bonus + moveFrequency[turn][from][to];
 	};
@@ -956,7 +956,7 @@ inline int score_quiet(uint8_t from, uint8_t to, uint8_t promo, bool turn, int p
 	{
 		Move p2 = g_searchStack[ply - 2];
 		if (p2.from_square != p2.to_square)
-			cont2 = contHist2[turn][cont_ctx_key_bb(p2, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][cont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)];
+			cont2 = ch2_ref_bb(turn, p2, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask);
 	}
 	int check_bonus = 0;
 	if (Config::ENABLE_CHECK_ORDER && enemy_king_sq >= 0)
@@ -989,7 +989,7 @@ inline int score_quiet(uint8_t from, uint8_t to, uint8_t promo, bool turn, int p
 		if (static_tb != 0) ++g_static_order_fires;
 	}
 	return bh + static_tb + killerBonus(ply, cur)
-		   + counterMoveBonus + counterMoveHeuristics[turn][cont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][cont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)]
+		   + counterMoveBonus + cmh_ref_bb(turn, prevMove, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)
 		   + cont2 + check_bonus + pcont
 		   + promo_bonus + moveFrequency[turn][from][to];
 }
@@ -1134,7 +1134,7 @@ inline void generateLegalMovesReordered1(std::vector<uint8_t>& startPos, std::ve
 			pcont = pieceContHist[turn][pcont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][pcont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)] >> Config::PIECE_CONTHIST_SHIFT;
 		int bh = Config::ENABLE_THREAT_HIST ? threat_hist_term(turn, node_threats, from, to) : historyHeuristics[turn][from][to];
 		return bh + killerBonus(ply, Move(quietStartPos[i], quietEndPos[i], quietPromotions[i]))
-			   + counterMoveBonus + counterMoveHeuristics[turn][cont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][cont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)]
+			   + counterMoveBonus + cmh_ref_bb(turn, prevMove, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)
 			   + pcont + quietPromotions[i] * 5000 + moveFrequency[turn][from][to];
 	};
 

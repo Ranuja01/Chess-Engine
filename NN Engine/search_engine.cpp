@@ -657,12 +657,67 @@ namespace
         return (++g_shadow.sampler % Config::SHADOW_N) == 0;
     }
 
+    // Emit one labelled shadow event for the offline discrimination pass. `ent`/`cut` are the outcome
+    // labels; the remaining fields are the signals that WERE available when the prune decision was made,
+    // so a guard built from them is implementable at the decision site (no hindsight features).
+    // The SHIPPED statScore sum, recomputed for logging so the discriminator can compare the COMBINED
+    // score against its individual parts -- if a part beats the sum, the weights are misallocated.
+    inline long shadow_statscore(const Move &move, const Move &previousMove, const BoardState &cs, int ply)
+    {
+        long ss = (long)Config::STATSCORE_MAIN_W * historyHeuristics[cs.turn][move.from_square][move.to_square];
+        if (previousMove.from_square != previousMove.to_square)
+            ss += (long)Config::STATSCORE_CONT1_W * cmh_ref(cs.turn, previousMove, move, cs);
+        if (ply >= 2)
+        {
+            Move p2 = g_searchStack[ply - 2];
+            if (p2.from_square != p2.to_square)
+                ss += (long)Config::STATSCORE_CONT2_W * ch2_ref(cs.turn, p2, move, cs);
+        }
+        return ss;
+    }
+
+    inline void log_shadow_event(const char *kind, int ent, int cut, int i, int rd, int hist,
+                                 int alpha, int beta, int sv, const Move &move, const Move &previousMove,
+                                 const BoardState &cs, int ply, int aow, int bow, int cap, int chk, int nullsrch)
+    {
+        long ss  = shadow_statscore(move, previousMove, cs, ply);
+        int  cmh = (previousMove.from_square != previousMove.to_square)
+                       ? cmh_ref(cs.turn, previousMove, move, cs) : 0;
+        int  ch2 = 0;
+        if (ply >= 2)
+        {
+            Move p2 = g_searchStack[ply - 2];
+            if (p2.from_square != p2.to_square)
+                ch2 = ch2_ref(cs.turn, p2, move, cs);
+        }
+        int kc = (ply < MAX_PLY && (killerMoves[ply][0] == move || killerMoves[ply][1] == move)) ||
+                 (counterMoves[previousMove.from_square][previousMove.to_square] == move);
+        int cchain = (ply >= 0 && ply < MAX_PLY) ? g_captureChain[ply] : 0;
+        // Static placement delta -- the SAME table move ordering uses. Logged because it is defined for
+        // every move regardless of search history, so it is the natural complement to the history family
+        // in the statScore~0 population where those markers are blind.
+        int sps = staticPlacementScore(cs.turn, move.from_square, move.to_square,
+                                       cs.pawns, cs.knights, cs.bishops, cs.rooks, cs.queens);
+        std::cerr << "[SHADOWEV] kind=" << kind << " ent=" << ent << " cut=" << cut
+                  << " i=" << i << " rd=" << rd << " hist=" << hist
+                  << " a=" << alpha << " b=" << beta << " sv=" << sv
+                  << " ss=" << ss << " cmh=" << cmh << " ch2=" << ch2 << " kc=" << kc
+                  << " ply=" << ply << " aow=" << aow << " bow=" << bow
+                  << " cap=" << cap << " chk=" << chk << " ns=" << nullsrch
+                  << " cc=" << cchain << " sps=" << sps << " asps=" << (sps < 0 ? -sps : sps) << std::endl;
+    }
+
     // Record a shadow result. minimizer: entered window if shadow < beta, cutoff if shadow <= alpha.
     // maximizer (mirror): entered if shadow > alpha, cutoff if shadow >= beta.
-    inline void shadow_record(bool is_lmp, bool minimizer, int shadow, int alpha, int beta)
+    inline void shadow_record(bool is_lmp, bool minimizer, int shadow, int alpha, int beta,
+                              int i, int rd, int hist, const Move &move, const Move &previousMove,
+                              const BoardState &cs, int ply, int aow, int bow, int cap, int chk, int ns)
     {
         bool entered = minimizer ? (shadow < beta) : (shadow > alpha);
         bool cut = minimizer ? (shadow <= alpha) : (shadow >= beta);
+        if (Config::ENABLE_SHADOW_EVENTS)
+            log_shadow_event(is_lmp ? "LMP" : "FUT", entered, cut, i, rd, hist, alpha, beta, shadow,
+                             move, previousMove, cs, ply, aow, bow, cap, chk, ns);
         if (is_lmp)
         {
             g_shadow.lmp_seen++;
@@ -684,9 +739,14 @@ namespace
     // Record one LMR shadow: `full` is the full-depth, full-window value of a move the search reduced
     // and then dropped. Same bound sense as shadow_record -- the reduction was WRONG when the honest
     // search would have improved the node's bound.
-    inline void lmr_shadow_record(bool minimizer, int full, int alpha, int beta, int cur_depth)
+    inline void lmr_shadow_record(bool minimizer, int full, int alpha, int beta, int cur_depth,
+                                  int i, int rd, int hist, const Move &move, const Move &previousMove,
+                                  const BoardState &cs, int aow, int bow, int cap, int chk, int ns)
     {
         bool wrong = minimizer ? (full < beta) : (full > alpha);
+        if (Config::ENABLE_SHADOW_EVENTS)
+            log_shadow_event("LMR", wrong, 0, i, rd, hist, alpha, beta, full,
+                             move, previousMove, cs, cur_depth, aow, bow, cap, chk, ns);
         int lvl = cur_depth < SHADOW_LVL ? (cur_depth < 0 ? 0 : cur_depth) : SHADOW_LVL - 1;
         int side = minimizer ? 1 : 0;
         g_shadow.lmr_seen++;
@@ -729,9 +789,9 @@ namespace
     {
         long s = historyHeuristics[turn][m.from_square][m.to_square];
         if (pm.from_square != pm.to_square)
-            s += counterMoveHeuristics[turn][cont_ctx_key(pm, st)][cont_ent_key(m, st)];
+            s += cmh_ref(turn, pm, m, st);
         if (p2.from_square != p2.to_square)
-            s += contHist2[turn][cont_ctx_key(p2, st)][cont_ent_key(m, st)];
+            s += ch2_ref(turn, p2, m, st);
         return s;
     }
 
@@ -918,15 +978,13 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
         long statScore = (long)Config::STATSCORE_MAIN_W * historyHeuristics[cs.turn][move.from_square][move.to_square];
         if (previousMove.from_square != previousMove.to_square)
             statScore += (long)Config::STATSCORE_CONT1_W *
-                         counterMoveHeuristics[cs.turn][cont_ctx_key(previousMove, cs)]
-                                              [cont_ent_key(move, cs)];
+                         cmh_ref(cs.turn, previousMove, move, cs);
         if (ply >= 2)
         {
             Move p2 = g_searchStack[ply - 2];
             if (p2.from_square != p2.to_square)
                 statScore += (long)Config::STATSCORE_CONT2_W *
-                             contHist2[cs.turn][cont_ctx_key(p2, cs)]
-                                      [cont_ent_key(move, cs)];
+                             ch2_ref(cs.turn, p2, move, cs);
         }
         if (Config::ENABLE_QCUT)
             statScore += (long)Config::QCUT_LAMBDA * g_qcut[cs.turn][move.from_square][move.to_square] / 256;
@@ -962,8 +1020,7 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
     if (tier == 0)
     {
         if (Config::ENABLE_CONT_HIST && previousMove.from_square != previousMove.to_square &&
-            counterMoveHeuristics[cs.turn][cont_ctx_key(previousMove, cs)]
-                                 [cont_ent_key(move, cs)] >= Config::CONT_HIST_LMR_THRESH)
+            cmh_ref(cs.turn, previousMove, move, cs) >= Config::CONT_HIST_LMR_THRESH)
             return 0;
         // A strong 2-ply continuation (move 2 plies back x this move) also rescues a tier-0 quiet
         // from reduce-more. Gated; reuses the 1-ply threshold.
@@ -971,8 +1028,7 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
         {
             Move p2 = g_searchStack[ply - 2];
             if (p2.from_square != p2.to_square &&
-                contHist2[cs.turn][cont_ctx_key(p2, cs)]
-                         [cont_ent_key(move, cs)] >= Config::CONT_HIST_LMR_THRESH)
+                ch2_ref(cs.turn, p2, move, cs) >= Config::CONT_HIST_LMR_THRESH)
                 return 0;
         }
         return -Config::HISTORY_LMR_MORE_CAP;
@@ -1243,8 +1299,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LMR_MIN_REM = env_int("LMR_MIN_REM", Config::LMR_MIN_REM);
         Config::ENABLE_LMR_REMDEPTH = env_flag("ENABLE_LMR_REMDEPTH", Config::ENABLE_LMR_REMDEPTH);
         Config::LMR_REMDEPTH_SCALE = env_int("LMR_REMDEPTH_SCALE", Config::LMR_REMDEPTH_SCALE);
-        Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", false);
-        Config::PROTECT_PV = env_flag("PROTECT_PV", false);
+        Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", Config::PROTECT_KILLERS);
+        Config::PROTECT_PV = env_flag("PROTECT_PV", Config::PROTECT_PV);
         Config::PROTECT_MAX_IDX = env_int("PROTECT_MAX_IDX", Config::PROTECT_MAX_IDX);
         // History-aware LMR (default off = byte-identical). CAP = plies removed for good quiets;
         // MORE_CAP = plies added for never-cut quiets (0 = reduce-less only, the prior behavior).
@@ -1266,6 +1322,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::STATSCORE_KILLER_BONUS = env_int("STATSCORE_KILLER_BONUS", Config::STATSCORE_KILLER_BONUS);
         Config::ENABLE_STATSCORE_PROFILE = env_flag("ENABLE_STATSCORE_PROFILE", Config::ENABLE_STATSCORE_PROFILE);
         Config::ENABLE_PRUNE_SHADOW = env_flag("ENABLE_PRUNE_SHADOW", Config::ENABLE_PRUNE_SHADOW);
+        Config::ENABLE_SHADOW_EVENTS = env_flag("ENABLE_SHADOW_EVENTS", Config::ENABLE_SHADOW_EVENTS);
         Config::SHADOW_N = env_int("SHADOW_N", Config::SHADOW_N);
         Config::ENABLE_CUTCAL_LOG = env_flag("ENABLE_CUTCAL_LOG", Config::ENABLE_CUTCAL_LOG);
         Config::ENABLE_QCUT = env_flag("ENABLE_QCUT", Config::ENABLE_QCUT);
@@ -1787,6 +1844,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_CONT_HIST_2PLY = env_flag("ENABLE_CONT_HIST_2PLY", Config::ENABLE_CONT_HIST_2PLY);
         Config::ENABLE_CAPTURE_HIST = env_flag("ENABLE_CAPTURE_HIST", Config::ENABLE_CAPTURE_HIST);
         Config::CAPTURE_HIST_VICTIM = env_int("CAPTURE_HIST_VICTIM", Config::CAPTURE_HIST_VICTIM);
+        Config::CONT_HIST_PIECE_KEY = env_int("CONT_HIST_PIECE_KEY", Config::CONT_HIST_PIECE_KEY);
         Config::ENABLE_CHECK_ORDER = env_flag("ENABLE_CHECK_ORDER", Config::ENABLE_CHECK_ORDER);
         Config::ENABLE_TT_MOVE = env_flag("ENABLE_TT_MOVE", Config::ENABLE_TT_MOVE);
         Config::TT_MOVE_POLICY = env_int("TT_MOVE_POLICY", Config::TT_MOVE_POLICY);
@@ -2257,6 +2315,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_CONT_HIST_2PLY=" << Config::ENABLE_CONT_HIST_2PLY
                   << " ENABLE_CAPTURE_HIST=" << Config::ENABLE_CAPTURE_HIST
                   << " CAPTURE_HIST_VICTIM=" << Config::CAPTURE_HIST_VICTIM
+                  << " CONT_HIST_PIECE_KEY=" << Config::CONT_HIST_PIECE_KEY
                   << " ENABLE_CHECK_ORDER=" << Config::ENABLE_CHECK_ORDER
                   << " ENABLE_HISTORY_SATURATION=" << Config::ENABLE_HISTORY_SATURATION
                   << " ENABLE_HISTORY_MALUS=" << Config::ENABLE_HISTORY_MALUS
@@ -2494,11 +2553,17 @@ void clearSearchTables()
 	std::fill(&moveFrequency[0][0][0],         &moveFrequency[0][0][0]         + 2LL * 64 * 64,     0);
 	std::fill(&captureHistory[0][0][0],        &captureHistory[0][0][0]        + 2LL * 64 * 64,     0);
 	std::fill(&captureHistoryV[0][0][0][0],    &captureHistoryV[0][0][0][0]    + 2LL * 7 * 7 * 64,  0);
-	std::fill(&counterMoveHeuristics[0][0][0], &counterMoveHeuristics[0][0][0] + 2LL * 4096 * 4096, 0);
+	if (Config::CONT_HIST_PIECE_KEY)
+		std::fill(&counterMoveHeuristicsP[0][0][0], &counterMoveHeuristicsP[0][0][0] + 2LL * PCONT_DIM * PCONT_DIM, 0);
+	else
+		std::fill(&counterMoveHeuristics[0][0][0], &counterMoveHeuristics[0][0][0] + 2LL * 4096 * 4096, 0);
 	std::fill(&killerMoves[0][0],  &killerMoves[0][0]  + 64 * 2,  Move{});
 	std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
 	if (Config::ENABLE_CONT_HIST_2PLY)
-		std::fill(&contHist2[0][0][0], &contHist2[0][0][0] + 2LL * 4096 * 4096, 0);
+		{ if (Config::CONT_HIST_PIECE_KEY)
+			std::fill(&contHist2P[0][0][0], &contHist2P[0][0][0] + 2LL * PCONT_DIM * PCONT_DIM, 0);
+		else
+			std::fill(&contHist2[0][0][0], &contHist2[0][0][0] + 2LL * 4096 * 4096, 0); }
 	if (Config::ENABLE_PIECE_CONTHIST)
 		std::fill(&pieceContHist[0][0][0], &pieceContHist[0][0][0] + 2LL * PCONT_DIM * PCONT_DIM, 0);
 	if (Config::ENABLE_THREAT_HIST)
@@ -3650,7 +3715,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                             g_in_shadow = true;
                             int shadow = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                             g_in_shadow = false;
-                            shadow_record(true, true, shadow, alpha, beta);
+                            shadow_record(true, true, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
                         }
                         return 9999999; // non-improving sentinel for the minimizer (never the new min, no false cutoff)
                     }
@@ -3709,7 +3774,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 g_in_shadow = true;
                                 int shadow = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                                 g_in_shadow = false;
-                                shadow_record(false, true, shadow, alpha, beta);
+                                shadow_record(false, true, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
                             }
                             using_fp = true;
                             return early_score;
@@ -3880,7 +3945,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     g_in_shadow = true;
                     int full = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                     g_in_shadow = false;
-                    lmr_shadow_record(true, full, alpha, beta, cur_depth);
+                    lmr_shadow_record(true, full, alpha, beta, cur_depth, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
                 }
             }
         }
@@ -4030,7 +4095,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                             g_in_shadow = true;
                             int shadow = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                             g_in_shadow = false;
-                            shadow_record(true, false, shadow, alpha, beta);
+                            shadow_record(true, false, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
                         }
                         return -9999999; // non-improving sentinel for the maximizer (never the new max, no false cutoff)
                     }
@@ -4088,7 +4153,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 g_in_shadow = true;
                                 int shadow = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                                 g_in_shadow = false;
-                                shadow_record(false, false, shadow, alpha, beta);
+                                shadow_record(false, false, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
                             }
                             using_fp = true;
                             return early_score;
@@ -4260,7 +4325,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     g_in_shadow = true;
                     int full = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                     g_in_shadow = false;
-                    lmr_shadow_record(false, full, alpha, beta, cur_depth);
+                    lmr_shadow_record(false, full, alpha, beta, cur_depth, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
                 }
             }
         }
@@ -4601,18 +4666,18 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     if (Config::ENABLE_HISTORY_SATURATION)
                     {
                         hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
-                        hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)], b);
+                        hist_update(cmh_ref(current_state.turn, previousMove, move, current_state), b);
                         if (p2v)
-                            hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)], b / Config::CONT2_GRAVITY_DIV);
+                            hist_update(ch2_ref(current_state.turn, p2, move, current_state), b / Config::CONT2_GRAVITY_DIV);
                         if (Config::ENABLE_PIECE_CONTHIST)
                             hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)], b);
                     }
                     else
                     {
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
-                        counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                        cmh_ref(current_state.turn, previousMove, move, current_state) += 4 * b;
                         if (p2v)
-                            contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                            ch2_ref(current_state.turn, p2, move, current_state) += 4 * b;
                         if (Config::ENABLE_PIECE_CONTHIST)
                             pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)] += 4 * b;
                     }
@@ -4626,18 +4691,18 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                             if (Config::ENABLE_HISTORY_SATURATION)
                             {
                                 hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
-                                hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
+                                hist_update(cmh_ref(current_state.turn, previousMove, q, current_state), -b / Config::MALUS_DIV);
                                 if (p2v)
-                                    hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                                    hist_update(ch2_ref(current_state.turn, p2, q, current_state), -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
                                 if (Config::ENABLE_PIECE_CONTHIST)
                                     hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
                             }
                             else
                             {
                                 historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
-                                counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                cmh_ref(current_state.turn, previousMove, q, current_state) -= 4 * b / Config::MALUS_DIV;
                                 if (p2v)
-                                    contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                    ch2_ref(current_state.turn, p2, q, current_state) -= 4 * b / Config::MALUS_DIV;
                                 if (Config::ENABLE_PIECE_CONTHIST)
                                     pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
                             }
@@ -5121,18 +5186,18 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                     if (Config::ENABLE_HISTORY_SATURATION)
                     {
                         hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
-                        hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)], b);
+                        hist_update(cmh_ref(current_state.turn, previousMove, move, current_state), b);
                         if (p2v)
-                            hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)], b / Config::CONT2_GRAVITY_DIV);
+                            hist_update(ch2_ref(current_state.turn, p2, move, current_state), b / Config::CONT2_GRAVITY_DIV);
                         if (Config::ENABLE_PIECE_CONTHIST)
                             hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)], b);
                     }
                     else
                     {
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
-                        counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                        cmh_ref(current_state.turn, previousMove, move, current_state) += 4 * b;
                         if (p2v)
-                            contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                            ch2_ref(current_state.turn, p2, move, current_state) += 4 * b;
                         if (Config::ENABLE_PIECE_CONTHIST)
                             pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)] += 4 * b;
                     }
@@ -5146,18 +5211,18 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                             if (Config::ENABLE_HISTORY_SATURATION)
                             {
                                 hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
-                                hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
+                                hist_update(cmh_ref(current_state.turn, previousMove, q, current_state), -b / Config::MALUS_DIV);
                                 if (p2v)
-                                    hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                                    hist_update(ch2_ref(current_state.turn, p2, q, current_state), -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
                                 if (Config::ENABLE_PIECE_CONTHIST)
                                     hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
                             }
                             else
                             {
                                 historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
-                                counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                cmh_ref(current_state.turn, previousMove, q, current_state) -= 4 * b / Config::MALUS_DIV;
                                 if (p2v)
-                                    contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                    ch2_ref(current_state.turn, p2, q, current_state) -= 4 * b / Config::MALUS_DIV;
                                 if (Config::ENABLE_PIECE_CONTHIST)
                                     pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
                             }
@@ -5813,18 +5878,18 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 if (Config::ENABLE_HISTORY_SATURATION)
                 {
                     hist_update(historyHeuristics[current_state.turn][move.from_square][move.to_square], b);
-                    hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)], b);
+                    hist_update(cmh_ref(current_state.turn, previousMove, move, current_state), b);
                     if (p2v)
-                        hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)], b / Config::CONT2_GRAVITY_DIV);
+                        hist_update(ch2_ref(current_state.turn, p2, move, current_state), b / Config::CONT2_GRAVITY_DIV);
                     if (Config::ENABLE_PIECE_CONTHIST)
                         hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)], b);
                 }
                 else
                 {
                     historyHeuristics[current_state.turn][move.from_square][move.to_square] += b;
-                    counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                    cmh_ref(current_state.turn, previousMove, move, current_state) += 4 * b;
                     if (p2v)
-                        contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += 4 * b;
+                        ch2_ref(current_state.turn, p2, move, current_state) += 4 * b;
                     if (Config::ENABLE_PIECE_CONTHIST)
                         pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(move, current_state)] += 4 * b;
                 }
@@ -5838,18 +5903,18 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                         if (Config::ENABLE_HISTORY_SATURATION)
                         {
                             hist_update(historyHeuristics[current_state.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
-                            hist_update(counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
+                            hist_update(cmh_ref(current_state.turn, previousMove, q, current_state), -b / Config::MALUS_DIV);
                             if (p2v)
-                                hist_update(contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)], -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+                                hist_update(ch2_ref(current_state.turn, p2, q, current_state), -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
                             if (Config::ENABLE_PIECE_CONTHIST)
                                 hist_update(pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)], -b / Config::MALUS_DIV);
                         }
                         else
                         {
                             historyHeuristics[current_state.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
-                            counterMoveHeuristics[current_state.turn][cont_ctx_key(previousMove, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                            cmh_ref(current_state.turn, previousMove, q, current_state) -= 4 * b / Config::MALUS_DIV;
                             if (p2v)
-                                contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
+                                ch2_ref(current_state.turn, p2, q, current_state) -= 4 * b / Config::MALUS_DIV;
                             if (Config::ENABLE_PIECE_CONTHIST)
                                 pieceContHist[current_state.turn][pcont_ctx_key(previousMove, current_state)][pcont_ent_key(q, current_state)] -= 4 * b / Config::MALUS_DIV;
                         }
@@ -6442,13 +6507,13 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                             historyHeuristics[current_state.turn][move.from_square][move.to_square] += cur_depth * cur_depth;
                             if (Config::ENABLE_THREAT_HIST) threat_hist_update(current_state.turn, node_threats_of(current_state), move.from_square, move.to_square, cur_depth * cur_depth, false);
                             counterMoves[prevMove.from_square][prevMove.to_square] = move;
-                            counterMoveHeuristics[current_state.turn][cont_ctx_key(prevMove, current_state)][cont_ent_key(move, current_state)] += cur_depth * cur_depth * cur_depth;
+                            cmh_ref(current_state.turn, prevMove, move, current_state) += cur_depth * cur_depth * cur_depth;
                             if (Config::ENABLE_PIECE_CONTHIST) pieceContHist[current_state.turn][pcont_ctx_key(prevMove, current_state)][pcont_ent_key(move, current_state)] += cur_depth * cur_depth * cur_depth;
                             if (Config::ENABLE_CONT_HIST_2PLY && cur_depth >= 2)
                             {
                                 Move p2 = g_searchStack[cur_depth - 2];
                                 if (p2.from_square != p2.to_square)
-                                    contHist2[current_state.turn][cont_ctx_key(p2, current_state)][cont_ent_key(move, current_state)] += cur_depth * cur_depth * cur_depth;
+                                    ch2_ref(current_state.turn, p2, move, current_state) += cur_depth * cur_depth * cur_depth;
                             }
                         }
                         else if (Config::ENABLE_CAPTURE_HIST)
@@ -6611,7 +6676,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                 if (Config::ENABLE_THREAT_HIST)
                     threat_hist_update(current_state.turn, node_threats_of(current_state), move.from_square, move.to_square, (depth_limit - cur_depth) * (depth_limit - cur_depth), false);
                 counterMoves[prevMove.from_square][prevMove.to_square] = move;
-                counterMoveHeuristics[current_state.turn][cont_ctx_key(prevMove, current_state)][cont_ent_key(move, current_state)] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
+                cmh_ref(current_state.turn, prevMove, move, current_state) += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
                 if (Config::ENABLE_PIECE_CONTHIST)
                     pieceContHist[current_state.turn][pcont_ctx_key(prevMove, current_state)][pcont_ent_key(move, current_state)] += 4 * (depth_limit - cur_depth) * (depth_limit - cur_depth);
             }

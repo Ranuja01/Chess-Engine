@@ -240,6 +240,30 @@ inline int pcont_ctx_key_bb(const Move &prev, uint64_t pawnsM, uint64_t knightsM
 {
     return piece_type_at_bb(prev.to_square, pawnsM, knightsM, bishopsM, rooksM, queensM, kingsM) * 64 + prev.to_square;
 }
+extern int counterMoveHeuristicsP[2][PCONT_DIM][PCONT_DIM];
+extern int contHist2P[2][PCONT_DIM][PCONT_DIM];
+// Continuation-history keying. counterMoveHeuristics/contHist2 are [side][from x to][from x to] =
+// 4096x4096 = 134MB EACH: 16.7M contexts of which only a handful occur in any one search, and a working
+// set far beyond any L3. CONT_HIST_PIECE_KEY=1 re-keys both to piece x to (PCONT_DIM=512), 2MB each --
+// 114x smaller, and every context is one that actually recurs. Same argument that made the capture-history
+// victim re-key pay: denser keys generalise, and a resident table is not a cache miss on every probe.
+// NOTE this is a RE-KEYING of the existing terms, distinct from ENABLE_PIECE_CONTHIST which adds a
+// SEPARATE piece x to term alongside them (measured neutral twice, closed).
+// Both tables are kept and every access funnels through these refs so the keyings cannot drift.
+// Default 0 => the from x to tables are used verbatim => byte-identical.
+inline int &cmh_ref(int side, const Move &ctx, const Move &ent, const BoardState &st)
+{
+    if (Config::CONT_HIST_PIECE_KEY)
+        return counterMoveHeuristicsP[side][pcont_ctx_key(ctx, st)][pcont_ent_key(ent, st)];
+    return counterMoveHeuristics[side][cont_ctx_key(ctx, st)][cont_ent_key(ent, st)];
+}
+inline int &ch2_ref(int side, const Move &ctx, const Move &ent, const BoardState &st)
+{
+    if (Config::CONT_HIST_PIECE_KEY)
+        return contHist2P[side][pcont_ctx_key(ctx, st)][pcont_ent_key(ent, st)];
+    return contHist2[side][cont_ctx_key(ctx, st)][cont_ent_key(ent, st)];
+}
+
 // from×to keys for counterMoveHeuristics/contHist2 in the ordering path (mask args unused; present for a
 // uniform call shape with the pcont_* variants). Unconditionally from×to = byte-identical to the inline form.
 inline int cont_ent_key_bb(uint8_t from, uint8_t to, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)
@@ -1180,7 +1204,34 @@ inline void decayHistoryHeuristics() {
     }
 }
 
+// Mask-based twins for the ordering path (move_gen.h has no BoardState in scope).
+inline int &cmh_ref_bb(int side, const Move &ctx, uint8_t from, uint8_t to, uint64_t pM, uint64_t nM,
+                       uint64_t bM, uint64_t rM, uint64_t qM, uint64_t kM)
+{
+    if (Config::CONT_HIST_PIECE_KEY)
+        return counterMoveHeuristicsP[side][pcont_ctx_key_bb(ctx, pM, nM, bM, rM, qM, kM)]
+                                          [pcont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM)];
+    return counterMoveHeuristics[side][cont_ctx_key_bb(ctx, pM, nM, bM, rM, qM, kM)]
+                                     [cont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM)];
+}
+inline int &ch2_ref_bb(int side, const Move &ctx, uint8_t from, uint8_t to, uint64_t pM, uint64_t nM,
+                       uint64_t bM, uint64_t rM, uint64_t qM, uint64_t kM)
+{
+    if (Config::CONT_HIST_PIECE_KEY)
+        return contHist2P[side][pcont_ctx_key_bb(ctx, pM, nM, bM, rM, qM, kM)]
+                               [pcont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM)];
+    return contHist2[side][cont_ctx_key_bb(ctx, pM, nM, bM, rM, qM, kM)]
+                          [cont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM)];
+}
+
 inline void decayCounterMoveHeuristics() {
+    if (Config::CONT_HIST_PIECE_KEY) {
+        for (int side = 0; side < 2; ++side)
+            for (int c = 0; c < PCONT_DIM; ++c)
+                for (int e = 0; e < PCONT_DIM; ++e)
+                    counterMoveHeuristicsP[side][c][e] >>= DECAY_FACTOR;
+        return;
+    }
     for (int side = 0; side < 2; ++side) {
         for (int from = 0; from < 4096; ++from) {
             for (int to = 0; to < 4096; ++to) {
@@ -1191,6 +1242,13 @@ inline void decayCounterMoveHeuristics() {
 }
 
 inline void decayContHist2() {
+    if (Config::CONT_HIST_PIECE_KEY) {
+        for (int side = 0; side < 2; ++side)
+            for (int c = 0; c < PCONT_DIM; ++c)
+                for (int e = 0; e < PCONT_DIM; ++e)
+                    contHist2P[side][c][e] >>= DECAY_FACTOR;
+        return;
+    }
     for (int side = 0; side < 2; ++side) {
         for (int from = 0; from < 4096; ++from) {
             for (int to = 0; to < 4096; ++to) {

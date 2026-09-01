@@ -42,7 +42,13 @@ def load_fens(path):
                 continue
             parts = line.split()
             if len(parts) >= 4:
-                fens.append(' '.join(parts[:6]) if len(parts) >= 6 else ' '.join(parts[:4]))
+                # EPD carries operations after the 4 board fields (`bm Qg6; id "WAC.001";`), so fields
+                # 5/6 are only the halfmove/fullmove counters when they are actually numeric -- taking
+                # them blindly turns every EPD line into an invalid FEN.
+                if len(parts) >= 6 and parts[4].isdigit() and parts[5].isdigit():
+                    fens.append(' '.join(parts[:6]))
+                else:
+                    fens.append(' '.join(parts[:4]) + ' 0 1')
     return fens
 
 
@@ -53,16 +59,22 @@ def main():
           (os.path.basename(corpus), len(fens), os.environ['MAX_DEPTH'], os.environ['PRUNE_LOG_STRIDE']),
           file=sys.stderr)
     done = 0
+    skipped = 0
     for f in fens:
         try:
             chess.Board(f)             # validate
             run_one(f, [])
-        except Exception:
+        except Exception as e:
+            # Count and report skips: a bare `continue` here once hid a loader bug that silently
+            # discarded all 300 positions and reported "0 searched" as if it were a clean run.
+            skipped += 1
+            if skipped <= 3:
+                print("[prune_collect] SKIP %s: %s" % (f[:40], e), file=sys.stderr)
             continue
         done += 1
         if done % 200 == 0:
             print("[prune_collect] %d/%d searched" % (done, len(fens)), file=sys.stderr)
-    print("[prune_collect] done: %d searched" % done, file=sys.stderr)
+    print("[prune_collect] done: %d searched, %d skipped" % (done, skipped), file=sys.stderr)
 
 
 if __name__ == '__main__':

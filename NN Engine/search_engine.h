@@ -329,14 +329,14 @@ namespace Config
     // Sound-LMR exemptions (default OFF = current behavior). Stop reducing the
     // moves most likely to be the critical misses; env-gated so the A/B needs no
     // recompile and the default build stays byte-identical.
-    inline bool PROTECT_KILLERS = false; // don't LMR-reduce killer / counter moves
+    inline bool PROTECT_KILLERS = true;  // SHIPPED 2026-08-31: +12.4 +/-9.4 Elo over 5276 diverse-UHO games
     inline bool PROTECT_PV = false;      // don't LMR-reduce at PV nodes (beta - alpha > 1)
     // Only apply the PV/killer protection to EARLY moves (index i <= this): move 0 is already never
     // reduced (base_lmr requires i != 0), so the value is in protecting the 2nd/3rd, where a strong
     // move is not yet guaranteed. A killer/PV appearing deep in the list is likely stale and can be
     // reduced. Bounds the (otherwise large) node cost of blanket protection. Default 64 = protect
     // everywhere (the original behavior when PROTECT_* is on); PROTECT_* default off keeps this byte-id.
-    inline int PROTECT_MAX_IDX = 64;
+    inline int PROTECT_MAX_IDX = 8;
 
     // History-aware LMR ("reduce-less"): search known-good late quiets a little less reduced (toward,
     // never beyond, full depth). Categorical signal — killer/counter membership + a coarse history
@@ -393,6 +393,12 @@ namespace Config
     // not change the search decisions. Off (ENABLE_PRUNE_SHADOW=false) = byte-identical. Run it alone; the
     // extra nodes make node counts non-comparable, so read only the wrong-prune RATES it prints.
     inline bool ENABLE_PRUNE_SHADOW = false;
+    // Emit one labelled [SHADOWEV] record per sampled shadow event (requires ENABLE_PRUNE_SHADOW): the
+    // wrong/right label plus the cheap signals available AT THE DECISION POINT. Feeds the offline AUC
+    // pass -- if some signal separates wrong prunes from right ones (AUC >~0.6) a conditional GUARD is
+    // buildable and we know its form; if nothing separates, the over-prunes are not cheaply
+    // distinguishable and a guard cannot work. Off = byte-identical (and no stderr).
+    inline bool ENABLE_SHADOW_EVENTS = false;
     inline int SHADOW_N = 256; // sample 1 in N prune sites (deterministic; larger = cheaper, coarser)
 
     // Cutoff-calibration logger (diagnostic; measure-first gate for reviving gravity/malus): at each quiet
@@ -640,6 +646,9 @@ namespace Config
     // Re-key captureHistory from [side][from][to] to [side][attacker][victim][to]. See capture_hist_ref
     // in cache_management.h for the rationale (Ethereal/Caissa both carry the victim and drop from).
     // 0 = OFF = the old from-square table = byte-identical.
+    // Re-key counterMoveHeuristics/contHist2 from [from x to][from x to] (4096^2, 134MB each) to
+    // piece x to (PCONT_DIM^2, 2MB each). See cmh_ref in cache_management.h. 0 = OFF = byte-identical.
+    inline int CONT_HIST_PIECE_KEY = 0;
     inline int CAPTURE_HIST_VICTIM = 0;
     inline bool ENABLE_CAPTURE_HIST = true;    // SHIPPED 2026-07-30 as part of gravcap (+33.0 Elo, 1203 games).
                                                // Looked "marginal" pre-gravity (+0.7 STS/+1 WAC, +2.6% nodes) because

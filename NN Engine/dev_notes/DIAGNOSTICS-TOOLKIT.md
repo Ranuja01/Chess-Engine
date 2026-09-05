@@ -150,6 +150,10 @@ winner is real. Noise: mean DEPTH stable ±0.001 (rank on it); solves ±4; STS-s
 | `_capg_orient_check.py CLS=<classified.csv>` | is a term's collapse over-read REAL (oriented by collapsing side) or a White-POV colour artifact |
 | `_collapses_from_selfplay.py TAG=<gate/sprt tag>` | extract collapses post-hoc from gate/SPRT `game.jsonl` (they write no collapses.csv). ⚠️ A/B near-identical engines under-sample — vs_sf is stronger for collapse mining. |
 | `wac_timed_depth` / `sts_timed_depth` (runner subs) | FIXED-TIME: mean depth + solves/score — THE instrument for node-reducing search changes |
+| ⭐ **`depth_nps_bench.py --n 60 MAX_DEPTH=10 PRESET=LONG_FORMAT`** | **THE NODE JUDGE.** Median nodes/position on the game-representative quiet corpus; baseline **249,014**. ☠️ WAC's node column reversed SIGN against this on 4 of 6 configs (2026-09-03) — **a WAC-only node claim is UNVERIFIED.** |
+| ⭐ **`depth_nps_bench.py --n 60 PRESET=LIGHTNING`** | **DEPTH reached at ~1s** (baseline median **12**, mean 12.2) — the cheapest honest proxy for what a change is worth in play. Use it whenever a node saving is claimed. |
+| `_search_stability.py` | move-flip rate between two knob settings across N corpus FENs, one process per arm. 🔬 the SHIPPED engine flips its move on **20.8%** of quiet positions when only `ASPIRATION_DELTA` changes — this bounds what any single-position comparison can prove. ⚠️ `_move_change_arms.py` is a one-ply STATIC proxy and CANNOT see search behaviour. |
+| **`_sts_reference.py --engine sf11\|sf15\|sf18 [--depth N \| --nodes N]`** | scores a REFERENCE engine on **our** `sts300.epd` with **our** scoring (reuses `sts_test.load_sts_epd`), so the SF gap can be re-measured after a change instead of quoting a stale anchor. ⚠️ `--depth` is NOT equal work (SF's d10 tree is far smaller and better ordered) — use `--nodes 249014` for the equal-cost reading. |
 
 ## Game post-mortem (pasted PGN)
 | script | what it gives |

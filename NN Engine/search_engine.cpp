@@ -38,6 +38,49 @@ std::atomic<int> qsearchVisits;
 Move pv_table[MAX_PLY][MAX_PLY];
 int pv_length[MAX_PLY];
 
+// Derived node type per ply for the accuracy map: 0 = PV, 1 = CUT, 2 = ALL. Written ONLY under
+// Config::ENABLE_CUTNODE_PROBE at minimizer/maximizer entry, read only by log_shadow_event, so the default
+// build never touches it. See ENABLE_CUTNODE_PROBE in search_engine.h for why a 3-state is needed.
+int g_node_type[MAX_PLY] = {};
+
+// Deterministic per-position eval perturbation, in millipawns, for the margin-sensitivity experiment.
+// THE QUESTION: does the OPTIMAL pruning margin widen as eval error grows? The project's central theory is
+// that our margins are ~2.5x SF11's because they are sized for OUR eval noise (corpus error 245.5 vs 95.3),
+// and that a truer eval would therefore buy pruning headroom -- but that causal link has never been
+// measured, only argued from one bundle. Sweeping RFP_MARGIN at several sigmas tests it directly: if the
+// optimum moves with sigma, the chain is causal and its SLOPE prices the whole eval lane; if it does not
+// move, the chain is wrong and the 30M-barrier story needs rewriting.
+// ⚠️ Keyed on the ZOBRIST so a position always receives the SAME offset. Per-call randomness would be a
+// different (and incoherent) experiment: it would break the eval cache's consistency and make the search
+// disagree with itself about the same position.
+// ⚠️ Unbiased Gaussian-ish noise is a FIRST-ORDER proxy -- real eval error is structured, not white.
+inline int eval_noise(uint64_t zob, int sigma)
+{
+    uint64_t h = zob * 0x9E3779B97F4A7C15ULL;
+    h ^= h >> 29;
+    h *= 0xBF58476D1CE4E5B9ULL;
+    h ^= h >> 32;
+    // Sum of 4 uniforms ~ approximately normal (CLT is plenty here); centred, then scaled to sigma.
+    int s = 0;
+    for (int k = 0; k < 4; ++k)
+        s += (int)((h >> (k * 12)) & 0xFFF) - 2048;
+    return (int)(((long long)s * sigma) / 4096);
+}
+
+// Classify this node from its entry window and its parent's type, and record it. is_pv is the ORIGINAL
+// window at entry (a narrowed alpha later in the loop must not be mistaken for a null window).
+inline void note_node_type(int ply, int alpha, int beta)
+{
+    if (ply < 0 || ply >= MAX_PLY)
+        return;
+    if ((beta - alpha) > 1)          // PV: full window
+        g_node_type[ply] = 0;
+    else if (ply == 0)
+        g_node_type[ply] = 1;
+    else                              // child of PV or of ALL is a CUT node; child of CUT is an ALL node
+        g_node_type[ply] = (g_node_type[ply - 1] == 1) ? 2 : 1;
+}
+
 // Read a boolean search-ablation toggle from the environment. "0" disables;
 // unset or any non-"0" value keeps the supplied default. Used to flip pruning
 // mechanisms off at runtime for the eval-vs-search diagnostic without recompiling.
@@ -351,6 +394,27 @@ static inline int cutoff_move_class(const Move &m, const BoardState &st, int ply
 // Passed-pawn LMP/LMR exemption fires (diagnostic): how often an otherwise-reducible advanced pawn push
 // was exempted from pruning/reduction. Cumulative across the run; printed beside the histogram.
 static long g_passer_exempt_fires = 0;
+// LMR bet accounting, to settle WHY a reduction guard can REDUCE node count. A reduction is a bet:
+// win => only the reduced search is paid; lose => the reduced search is thrown away AND the full
+// re-search is paid, so a wrong reduction costs MORE than never reducing. If a guard that declines
+// bad bets saves nodes, `researches` must fall roughly in step with the guard's fire count.
+// `applied` is also the denominator the guard's breadth needs -- it was previously only ESTIMATED
+// from the shadow sampler, which disagreed with the fire count by ~6x.
+// ⚠️ Gated on ENABLE_LMR_COUNTERS at the INCREMENT, not just the print: these sit in the per-move helpers
+// and run millions of times per search, so an unconditional load-add-store costs more than a
+// predicted-false branch. Byte-identity CANNOT see that cost -- node counts stay identical while NPS
+// moves (an unguarded getenv in a hot loop once cost 7.5% peak NPS at unchanged node counts), so any
+// probe on a per-move path needs a wac_speed re-check before its numbers are trusted.
+static long g_lmr_applied = 0;
+static long g_lmr_researches = 0;
+// LMR reductions skipped because the node's TT entry was already deep enough (PROTECT_TT_DEPTH).
+// Counted so the guard's BREADTH is measured directly rather than inferred: the accuracy map put it at
+// 13.8% of reductions, far wider than the killer guard, and guard cost scales with breadth.
+static long g_tt_depth_guard_fires = 0;
+// Root depth decays taken (ENABLE_ROOT_ALPHA_DECAY). Counted because the mechanism's whole value is how
+// OFTEN a root move improves alpha -- if move 0 almost always does it and nothing else ever does, the
+// tail is decayed exactly once per iteration and the saving is bounded by that.
+static long g_root_alpha_decays = 0;
 // Per-move qsearch futility fire count. Its predecessor was believed inert with no counter to prove it;
 // never claim a prune's behaviour again without one.
 static long g_qdelta_permove_fires = 0;
@@ -486,6 +550,14 @@ inline void root_table_store(RootScore &slot, int score, RootScore &&searched, b
         // sink to the sentinel block and keep their prior relative order under the stable sort.
         slot.top_score = score;
         slot.verified = true;
+        // The most recent PROVEN value, surviving iterations in which the move only failed low. This is
+        // what `last_real`'s comment describes but does not deliver: `last_real` is written above on every
+        // store, so for an unproven move it holds a fail-soft BOUND measured against that attempt's alpha,
+        // and ordering on it makes the root order a function of the aspiration widening history.
+        // `prev_score` is clean but resets to the sentinel every call, so it is too sparse to order by.
+        // This field is both persistent AND proof-only, which is what a revival key needs to be.
+        slot.last_proven = score;
+        slot.last_proven_depth = searched_depth;
         ++g_root_table_verified;
     }
     else
@@ -678,7 +750,8 @@ namespace
 
     inline void log_shadow_event(const char *kind, int ent, int cut, int i, int rd, int hist,
                                  int alpha, int beta, int sv, const Move &move, const Move &previousMove,
-                                 const BoardState &cs, int ply, int aow, int bow, int cap, int chk, int nullsrch)
+                                 const BoardState &cs, int ply, int aow, int bow, int cap, int chk, int nullsrch,
+                                 uint64_t zob, const BoardState &child_state)
     {
         long ss  = shadow_statscore(move, previousMove, cs, ply);
         int  cmh = (previousMove.from_square != previousMove.to_square)
@@ -698,26 +771,55 @@ namespace
         // in the statScore~0 population where those markers are blind.
         int sps = staticPlacementScore(cs.turn, move.from_square, move.to_square,
                                        cs.pawns, cs.knights, cs.bishops, cs.rooks, cs.queens);
+        // Transposition-table markers for THIS node -- the family every strong engine keys its reduce-less
+        // terms on (SF18 ttPv/ttMove/ttDepth, Obsidian and Caissa `r -= (ttDepth >= depth)`). They are logged
+        // rather than assumed useful: our accuracy map has never scored them, because ttm in particular is
+        // only ever populated when ENABLE_NODE_TT fills TTEntry::move.
+        // ⚠️ Probed at the DECISION point, not at node entry: a child's store can evict this node's slot
+        // mid-loop, so tth is a conservative (under-reporting) read of what the table held on arrival. That
+        // matches the file's no-hindsight rule -- a guard built here would probe at the same place.
+        // ⚠️ ttd/tts are raw; the eval is ABSOLUTE (Black-positive), so any direction taken on tts must be
+        // derived per-side offline. ttdge is a depth comparison and carries no sign.
+        // `zob` is the CHILD's key, so the castling/ep half of the cache key must come from the CHILD too
+        // (make_move_cache_key XORs both in). Keying it on `cs` -- the parent, which is what the history
+        // lookups above correctly use -- silently missed on every move that alters castling or the ep
+        // square, and produced the ~7.6% hit rate that the first TT-marker AUC pass was measured on.
+        const TTEntry *tte = accessSearchEvalCache(zob, child_state.castling_rights, child_state.ep_square);
+        int tth   = (tte != nullptr);
+        int ttdge = (tte != nullptr && tte->depth >= rd);
+        int ttm   = (tte != nullptr && tte->move.from_square != tte->move.to_square);
+        int ttd   = (tte != nullptr) ? tte->depth : -1;
+        int tts   = (tte != nullptr) ? tte->score : 0;
+        // Derived node type (0=PV, 1=CUT, 2=ALL) for THIS node. `cn` is the cut-node indicator SF's biggest
+        // reduce-more terms key on; `an` is the all-node twin. Distinct from `cut` above, which is the shadow
+        // search's LABEL (did it actually cut off), not a node classification.
+        int ntype = (ply >= 0 && ply < MAX_PLY && Config::ENABLE_CUTNODE_PROBE) ? g_node_type[ply] : -1;
+        int cn = (ntype == 1);
+        int an = (ntype == 2);
         std::cerr << "[SHADOWEV] kind=" << kind << " ent=" << ent << " cut=" << cut
+                  << " cn=" << cn << " an=" << an << " nt=" << ntype
                   << " i=" << i << " rd=" << rd << " hist=" << hist
                   << " a=" << alpha << " b=" << beta << " sv=" << sv
                   << " ss=" << ss << " cmh=" << cmh << " ch2=" << ch2 << " kc=" << kc
                   << " ply=" << ply << " aow=" << aow << " bow=" << bow
                   << " cap=" << cap << " chk=" << chk << " ns=" << nullsrch
-                  << " cc=" << cchain << " sps=" << sps << " asps=" << (sps < 0 ? -sps : sps) << std::endl;
+                  << " cc=" << cchain << " sps=" << sps << " asps=" << (sps < 0 ? -sps : sps)
+                  << " tth=" << tth << " ttdge=" << ttdge << " ttm=" << ttm
+                  << " ttd=" << ttd << " tts=" << tts << std::endl;
     }
 
     // Record a shadow result. minimizer: entered window if shadow < beta, cutoff if shadow <= alpha.
     // maximizer (mirror): entered if shadow > alpha, cutoff if shadow >= beta.
     inline void shadow_record(bool is_lmp, bool minimizer, int shadow, int alpha, int beta,
                               int i, int rd, int hist, const Move &move, const Move &previousMove,
-                              const BoardState &cs, int ply, int aow, int bow, int cap, int chk, int ns)
+                              const BoardState &cs, int ply, int aow, int bow, int cap, int chk, int ns,
+                              uint64_t zob, const BoardState &child_state)
     {
         bool entered = minimizer ? (shadow < beta) : (shadow > alpha);
         bool cut = minimizer ? (shadow <= alpha) : (shadow >= beta);
         if (Config::ENABLE_SHADOW_EVENTS)
             log_shadow_event(is_lmp ? "LMP" : "FUT", entered, cut, i, rd, hist, alpha, beta, shadow,
-                             move, previousMove, cs, ply, aow, bow, cap, chk, ns);
+                             move, previousMove, cs, ply, aow, bow, cap, chk, ns, zob, child_state);
         if (is_lmp)
         {
             g_shadow.lmp_seen++;
@@ -741,12 +843,13 @@ namespace
     // search would have improved the node's bound.
     inline void lmr_shadow_record(bool minimizer, int full, int alpha, int beta, int cur_depth,
                                   int i, int rd, int hist, const Move &move, const Move &previousMove,
-                                  const BoardState &cs, int aow, int bow, int cap, int chk, int ns)
+                                  const BoardState &cs, int aow, int bow, int cap, int chk, int ns,
+                                  uint64_t zob, const BoardState &child_state)
     {
         bool wrong = minimizer ? (full < beta) : (full > alpha);
         if (Config::ENABLE_SHADOW_EVENTS)
             log_shadow_event("LMR", wrong, 0, i, rd, hist, alpha, beta, full,
-                             move, previousMove, cs, cur_depth, aow, bow, cap, chk, ns);
+                             move, previousMove, cs, cur_depth, aow, bow, cap, chk, ns, zob, child_state);
         int lvl = cur_depth < SHADOW_LVL ? (cur_depth < 0 ? 0 : cur_depth) : SHADOW_LVL - 1;
         int side = minimizer ? 1 : 0;
         g_shadow.lmr_seen++;
@@ -1302,6 +1405,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PROTECT_KILLERS = env_flag("PROTECT_KILLERS", Config::PROTECT_KILLERS);
         Config::PROTECT_PV = env_flag("PROTECT_PV", Config::PROTECT_PV);
         Config::PROTECT_MAX_IDX = env_int("PROTECT_MAX_IDX", Config::PROTECT_MAX_IDX);
+        Config::PROTECT_TT_DEPTH = env_flag("PROTECT_TT_DEPTH", Config::PROTECT_TT_DEPTH);
+        Config::ENABLE_LMR_COUNTERS = env_flag("ENABLE_LMR_COUNTERS", Config::ENABLE_LMR_COUNTERS);
+        Config::TT_GUARD_DEPTH_MARGIN = env_int("TT_GUARD_DEPTH_MARGIN", Config::TT_GUARD_DEPTH_MARGIN);
         // History-aware LMR (default off = byte-identical). CAP = plies removed for good quiets;
         // MORE_CAP = plies added for never-cut quiets (0 = reduce-less only, the prior behavior).
         Config::ENABLE_HISTORY_LMR = env_flag("ENABLE_HISTORY_LMR", Config::ENABLE_HISTORY_LMR);
@@ -1370,6 +1476,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PRESEARCH_TAIL_REDUCTION = env_int("PRESEARCH_TAIL_REDUCTION", Config::PRESEARCH_TAIL_REDUCTION);
         Config::ENABLE_ROOT_PRESEARCH = env_flag("ENABLE_ROOT_PRESEARCH", Config::ENABLE_ROOT_PRESEARCH);
         Config::PRESEARCH_OFF_FILL = env_int("PRESEARCH_OFF_FILL", Config::PRESEARCH_OFF_FILL);
+        Config::ENABLE_PRESEARCH_OFF_SORT = env_flag("ENABLE_PRESEARCH_OFF_SORT", Config::ENABLE_PRESEARCH_OFF_SORT);
+        Config::PRESEARCH_OFF_SORT_MODE = env_int("PRESEARCH_OFF_SORT_MODE", Config::PRESEARCH_OFF_SORT_MODE);
+        Config::ENABLE_ROOT_BEST_REQUIRES_ALPHA = env_flag("ENABLE_ROOT_BEST_REQUIRES_ALPHA", Config::ENABLE_ROOT_BEST_REQUIRES_ALPHA);
+        Config::ENABLE_KILLER_CHILD_CLEAR = env_flag("ENABLE_KILLER_CHILD_CLEAR", Config::ENABLE_KILLER_CHILD_CLEAR);
+        Config::ENABLE_ROOT_ALPHA_DECAY = env_flag("ENABLE_ROOT_ALPHA_DECAY", Config::ENABLE_ROOT_ALPHA_DECAY);
+        Config::ROOT_ALPHA_DECAY_PLIES = env_int("ROOT_ALPHA_DECAY_PLIES", Config::ROOT_ALPHA_DECAY_PLIES);
+        Config::ROOT_ALPHA_DECAY_MAX_DEPTH = env_int("ROOT_ALPHA_DECAY_MAX_DEPTH", Config::ROOT_ALPHA_DECAY_MAX_DEPTH);
         Config::ENABLE_SEE_PRUNE = env_flag("ENABLE_SEE_PRUNE", Config::ENABLE_SEE_PRUNE);
         Config::SEE_PRUNE_MARGIN = env_int("SEE_PRUNE_MARGIN", Config::SEE_PRUNE_MARGIN);
         Config::SEE_PRUNE_MAX_DEPTH = env_int("SEE_PRUNE_MAX_DEPTH", Config::SEE_PRUNE_MAX_DEPTH);
@@ -1770,6 +1883,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SINGULAR_MARGIN = env_int("SINGULAR_MARGIN", Config::SINGULAR_MARGIN);
         Config::SINGULAR_MIN_DEPTH = env_int("SINGULAR_MIN_DEPTH", Config::SINGULAR_MIN_DEPTH);
         Config::SINGULAR_MAX_EXT = env_int("SINGULAR_MAX_EXT", Config::SINGULAR_MAX_EXT);
+        Config::ENABLE_CUTNODE_PROBE = env_flag("ENABLE_CUTNODE_PROBE", Config::ENABLE_CUTNODE_PROBE);
+        Config::EVAL_NOISE_SIGMA = env_int("EVAL_NOISE_SIGMA", Config::EVAL_NOISE_SIGMA);
         Config::ENABLE_IIR = env_flag("ENABLE_IIR", Config::ENABLE_IIR);
         Config::IIR_MIN_DEPTH = env_int("IIR_MIN_DEPTH", Config::IIR_MIN_DEPTH);
         Config::ENABLE_SIMPL_BIAS = env_flag("ENABLE_SIMPL_BIAS", Config::ENABLE_SIMPL_BIAS);
@@ -1987,6 +2102,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PROTECT_KILLERS=" << Config::PROTECT_KILLERS
                   << " PROTECT_PV=" << Config::PROTECT_PV
                   << " PROTECT_MAX_IDX=" << Config::PROTECT_MAX_IDX
+                  << " PROTECT_TT_DEPTH=" << Config::PROTECT_TT_DEPTH
+                  << " TT_GUARD_DEPTH_MARGIN=" << Config::TT_GUARD_DEPTH_MARGIN
                   << " ENABLE_HISTORY_LMR=" << Config::ENABLE_HISTORY_LMR
                   << " HISTORY_LMR_CAP=" << Config::HISTORY_LMR_CAP
                   << " HISTORY_LMR_MORE_CAP=" << Config::HISTORY_LMR_MORE_CAP
@@ -2913,6 +3030,15 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << "%" << std::endl;
     if (Config::ENABLE_NODE_TT)
         std::cerr << "[node_tt] stores=" << g_node_tt_stores << std::endl;
+    if (Config::PROTECT_TT_DEPTH)
+        std::cerr << "[tt_depth_guard] fires=" << g_tt_depth_guard_fires << std::endl;
+    if (Config::ENABLE_ROOT_ALPHA_DECAY)
+        std::cerr << "[root_decay] fires=" << g_root_alpha_decays << std::endl;
+    if (Config::ENABLE_LMR_COUNTERS)
+        std::cerr << "[lmr_bets] applied=" << g_lmr_applied
+                  << " researches=" << g_lmr_researches
+                  << " lost_pct=" << (g_lmr_applied > 0 ? (100.0 * g_lmr_researches / g_lmr_applied) : 0.0)
+                  << std::endl;
     if (Config::ENABLE_STATIC_ORDER)
         std::cerr << "[static_order] eligible=" << g_static_order_eligible
                   << " fires=" << g_static_order_fires
@@ -3143,9 +3269,16 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
     if (depth_limit >= 13)
     {
+        // top_score carries ROOT_SCORE_UNPROVEN for any move not PROVEN this iteration (SF's rule), so it
+        // cannot answer "what carried forward?". last_real/depth/age are the revival evidence the tiered
+        // sort and the razor actually read, and are printed alongside it.
         std::cout << 0 << " "
                   << score << " "
                   << current_search_data.scores[0].top_score << " "
+                  << "lr=" << current_search_data.scores[0].last_real
+                  << "@d" << current_search_data.scores[0].last_real_depth
+                  << " age=" << current_search_data.scores[0].age
+                  << " v=" << current_search_data.scores[0].verified << " "
                   << "(" << ((current_search_data.moves_list[0].from_square & 7) + 1) << ","
                   << ((current_search_data.moves_list[0].from_square >> 3) + 1) << ") -> ("
                   << ((current_search_data.moves_list[0].to_square & 7) + 1) << ","
@@ -3196,6 +3329,10 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             // The last proven value survives an iteration that only failed low; only its age advances.
             slot.last_real = had ? current_search_data.scores[k].last_real : ROOT_SCORE_UNPROVEN;
             slot.last_real_depth = had ? current_search_data.scores[k].last_real_depth : 0;
+            // The proven-only twin inherits the same way, so a move keeps the last score a search actually
+            // PROVED for it however many iterations ago -- the revival evidence mode 5 orders on.
+            slot.last_proven = had ? current_search_data.scores[k].last_proven : ROOT_SCORE_UNPROVEN;
+            slot.last_proven_depth = had ? current_search_data.scores[k].last_proven_depth : 0;
             slot.age = (had && current_search_data.scores[k].age < ROOT_AGE_NEVER)
                            ? current_search_data.scores[k].age + 1
                            : ROOT_AGE_NEVER;
@@ -3430,7 +3567,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         } */
         updated_state = state_history.back();
         // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
-        addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit, root_tt_flag(score, alpha, beta), alpha, beta /* , line */, updated_state.castling_rights, updated_state.ep_square);
+        addToSearchEvalCache(zobrist, state_history.size(), score, searched_depth, root_tt_flag(score, alpha, beta), alpha, beta /* , line */, updated_state.castling_rights, updated_state.ep_square);
         unmake_move(state_history, position_count, zobrist);
 
         if (time_up.load(std::memory_order_relaxed))
@@ -3458,6 +3595,11 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             std::cout << i << " "
                       << score << " "
                       << current_search_data.scores[i].top_score << " "
+                      << "lr=" << current_search_data.scores[i].last_real
+                      << "@d" << current_search_data.scores[i].last_real_depth
+                      << " age=" << current_search_data.scores[i].age
+                      << " v=" << current_search_data.scores[i].verified
+                      << (i < current_search_data.synthetic_from ? " REAL " : " SYNTH ")
                       << "(" << ((move.from_square & 7) + 1) << ","
                       << ((move.from_square >> 3) + 1) << ") -> ("
                       << ((move.to_square & 7) + 1) << ","
@@ -3468,7 +3610,11 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         // Check if the current move's score is better than the existing best move
         uint64_t simpl_move_to = 1ULL << move.to_square;
         bool move_is_simpl = capture_move && (simpl_move_to & current_state.occupied_colour[!current_state.turn]) && !(simpl_move_to & current_state.pawns);
-        if (score > best_score)
+        // On a fail-low pass alpha stays at the window bound while best_score sits below it, so
+        // `score > best_score` alone lets a move that never beat alpha take best_move on bound evidence.
+        // Move 0 always sets it, so a fail-low pass still returns a legal move to widen around.
+        bool best_beats_alpha = !Config::ENABLE_ROOT_BEST_REQUIRES_ALPHA || i == 0 || score > alpha;
+        if (score > best_score && best_beats_alpha)
         {
             best_move = move;
             best_score = score;
@@ -3476,7 +3622,23 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             best_is_simpl = move_is_simpl;
 
             if (score > alpha)
+            {
                 updatePV(move, cur_depth);
+                // Once a root move has proved an improvement, the remaining moves only have to BEAT it --
+                // a cheaper question than measuring each exactly. Shortening the rest of the loop is SF's
+                // answer to an expensive root tail (SF18 search.cpp:1379-1381, no rootNode guard) and is
+                // keyed on the improvement itself, so a move is never reduced for merely sitting late in
+                // the list. The tail is still SEARCHED, only shallower.
+                if (Config::ENABLE_ROOT_ALPHA_DECAY && depth_limit > 2 &&
+                    depth_limit < Config::ROOT_ALPHA_DECAY_MAX_DEPTH &&
+                    score > -9000000 && score < 9000000)
+                {
+                    depth_limit -= Config::ROOT_ALPHA_DECAY_PLIES;
+                    if (depth_limit < cur_depth + 2)
+                        depth_limit = cur_depth + 2;
+                    ++g_root_alpha_decays;
+                }
+            }
         }
         else if (Config::ENABLE_SIMPL_BIAS && score >= best_score - Config::SIMPL_MARGIN && best_score > Config::SIMPL_AHEAD_THRESH && best_score < 9000000 // clearly ahead, not a mate score
                  && move_is_simpl && !best_is_simpl)
@@ -3668,7 +3830,26 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 bool guard_pv = Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX;
                 bool guard_killer = Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move);
                 bool guard_capchain = Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH;
-                bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain;
+                // TT-depth exemption: this node is already resolved to at least the depth we are about to
+                // spend, so reducing here discards a move the table says deserves an honest look. Marker
+                // measured on our own accuracy map at AUC 0.6275 +/- 0.021 against the wrong-reduction
+                // label (LMR-specific; LMP and futility are null), direction matching SF18's ttDepth term.
+                bool guard_ttdepth = false;
+                if (Config::PROTECT_TT_DEPTH && lmr_eligible)
+                {
+                    // Key on `updated_state`, not `current_state`: `zobrist` here is already the CHILD's key,
+                    // and make_move_cache_key XORs castling rights and the ep square into it. Probing with the
+                    // parent's rights misses on every move that changes them -- any double push, king/rook
+                    // move, or rook capture -- which is a silent under-fire, not an error. Every other probe
+                    // in this function uses updated_state; this one was the outlier.
+                    const TTEntry *tte_g = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
+                    if (tte_g != nullptr && tte_g->depth >= (depth_limit - cur_depth) + Config::TT_GUARD_DEPTH_MARGIN)
+                    {
+                        guard_ttdepth = true;
+                        g_tt_depth_guard_fires++;
+                    }
+                }
+                bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain && !guard_ttdepth;
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
                 // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
@@ -3699,6 +3880,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // re-searched subtree so the buried refutation is examined at honest depth. Inert (no-op) while
                 // g_verify_no_reduce_until < 0 -- always so in the default build -> byte-identical.
                 do_lmr = do_lmr && !(g_verify_no_reduce_until >= 0 && cur_depth <= g_verify_no_reduce_until);
+                if (Config::ENABLE_LMR_COUNTERS && do_lmr)
+                    g_lmr_applied++;
 
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
@@ -3715,7 +3898,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                             g_in_shadow = true;
                             int shadow = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                             g_in_shadow = false;
-                            shadow_record(true, true, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
+                            shadow_record(true, true, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                         }
                         return 9999999; // non-improving sentinel for the minimizer (never the new min, no false cutoff)
                     }
@@ -3774,7 +3957,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 g_in_shadow = true;
                                 int shadow = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                                 g_in_shadow = false;
-                                shadow_record(false, true, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
+                                shadow_record(false, true, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                             }
                             using_fp = true;
                             return early_score;
@@ -3910,6 +4093,10 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 if ((score > alpha && score < beta) ||
                     (Config::VERIFY_MARGIN > 0 && do_lmr && score <= alpha && (alpha - score) < Config::VERIFY_MARGIN))
                 {
+                    // Only a re-search that FOLLOWS a reduction is a lost bet; a PVS re-search at an
+                    // unreduced node would have happened regardless and is not the guard's business.
+                    if (Config::ENABLE_LMR_COUNTERS && do_lmr)
+                        g_lmr_researches++;
                     using_tt = false;
 
                     if (!using_tt)
@@ -3945,7 +4132,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     g_in_shadow = true;
                     int full = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                     g_in_shadow = false;
-                    lmr_shadow_record(true, full, alpha, beta, cur_depth, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
+                    lmr_shadow_record(true, full, alpha, beta, cur_depth, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                 }
             }
         }
@@ -4048,7 +4235,26 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 bool guard_pv = Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX;
                 bool guard_killer = Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX && (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previousMove.from_square][previousMove.to_square] == move);
                 bool guard_capchain = Config::ENABLE_LMR_CAPCHAIN && Config::CAPCHAIN_REDUCE_LESS == 0 && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH;
-                bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain;
+                // TT-depth exemption: this node is already resolved to at least the depth we are about to
+                // spend, so reducing here discards a move the table says deserves an honest look. Marker
+                // measured on our own accuracy map at AUC 0.6275 +/- 0.021 against the wrong-reduction
+                // label (LMR-specific; LMP and futility are null), direction matching SF18's ttDepth term.
+                bool guard_ttdepth = false;
+                if (Config::PROTECT_TT_DEPTH && lmr_eligible)
+                {
+                    // Key on `updated_state`, not `current_state`: `zobrist` here is already the CHILD's key,
+                    // and make_move_cache_key XORs castling rights and the ep square into it. Probing with the
+                    // parent's rights misses on every move that changes them -- any double push, king/rook
+                    // move, or rook capture -- which is a silent under-fire, not an error. Every other probe
+                    // in this function uses updated_state; this one was the outlier.
+                    const TTEntry *tte_g = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
+                    if (tte_g != nullptr && tte_g->depth >= (depth_limit - cur_depth) + Config::TT_GUARD_DEPTH_MARGIN)
+                    {
+                        guard_ttdepth = true;
+                        g_tt_depth_guard_fires++;
+                    }
+                }
+                bool base_lmr = lmr_eligible && !guard_pv && !guard_killer && !guard_capchain && !guard_ttdepth;
                 // Passed-pawn exemption: an otherwise-reducible ADVANCED pawn push (the moved piece landed as a
                 // pawn; advancement toward promotion inferred from the push direction) is kept un-pruned/un-reduced,
                 // so a slow passer march stays above the LMP/LMR horizon. Folding it into do_lmr covers the LMP,
@@ -4079,6 +4285,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // re-searched subtree so the buried refutation is examined at honest depth. Inert (no-op) while
                 // g_verify_no_reduce_until < 0 -- always so in the default build -> byte-identical.
                 do_lmr = do_lmr && !(g_verify_no_reduce_until >= 0 && cur_depth <= g_verify_no_reduce_until);
+                if (Config::ENABLE_LMR_COUNTERS && do_lmr)
+                    g_lmr_applied++;
 
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
@@ -4095,7 +4303,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                             g_in_shadow = true;
                             int shadow = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                             g_in_shadow = false;
-                            shadow_record(true, false, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
+                            shadow_record(true, false, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                         }
                         return -9999999; // non-improving sentinel for the maximizer (never the new max, no false cutoff)
                     }
@@ -4153,7 +4361,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 g_in_shadow = true;
                                 int shadow = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                                 g_in_shadow = false;
-                                shadow_record(false, false, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
+                                shadow_record(false, false, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                             }
                             using_fp = true;
                             return early_score;
@@ -4290,6 +4498,10 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 if ((score > alpha && score < beta) ||
                     (Config::VERIFY_MARGIN > 0 && do_lmr && score <= alpha && (alpha - score) < Config::VERIFY_MARGIN))
                 {
+                    // Only a re-search that FOLLOWS a reduction is a lost bet; a PVS re-search at an
+                    // unreduced node would have happened regardless and is not the guard's business.
+                    if (Config::ENABLE_LMR_COUNTERS && do_lmr)
+                        g_lmr_researches++;
                     using_tt = false;
 
                     if (!using_tt)
@@ -4325,7 +4537,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     g_in_shadow = true;
                     int full = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                     g_in_shadow = false;
-                    lmr_shadow_record(false, full, alpha, beta, cur_depth, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search);
+                    lmr_shadow_record(false, full, alpha, beta, cur_depth, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                 }
             }
         }
@@ -4355,6 +4567,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
               RootScore &out_entry, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove,
               int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search)
 {
+    // Classify this node for the accuracy map before the window is narrowed by the move loop.
+    if (Config::ENABLE_CUTNODE_PROBE)
+        note_node_type(cur_depth, alpha, beta);
 
     if (time_up.load(std::memory_order_relaxed))
     {
@@ -4975,6 +5190,15 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         }
 
         MG_COUNT(++g_mg_seen_nodes);
+        // Killers are refutations of THIS node's position, so a child ply's slots must not still hold a
+        // sibling subtree's. Ours are cleared only at search start, so a killer can survive across
+        // unrelated siblings and dilute the marker `guard_killer` keys on (AUC 0.750 pre-ship). Caissa
+        // clears ply+1 at every node entry; this is that.
+        if (Config::ENABLE_KILLER_CHILD_CLEAR && cur_depth + 1 < MAX_PLY)
+        {
+            killerMoves[cur_depth + 1][0] = Move{};
+            killerMoves[cur_depth + 1][1] = Move{};
+        }
         for (size_t i = 0; i < moves_list.size(); ++i)
         {
             MG_COUNT(++g_mg_seen_moves);
@@ -5320,6 +5544,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count,
               uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search)
 {
+    // Classify this node for the accuracy map before the window is narrowed by the move loop.
+    if (Config::ENABLE_CUTNODE_PROBE)
+        note_node_type(cur_depth, alpha, beta);
 
     BoardState current_state = state_history.back();
 
@@ -5648,6 +5875,13 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     }
 
     MG_COUNT(++g_mg_seen_nodes);
+    // Maximizer twin of the minimizer's child-ply killer clear. Missing it left only EVEN plies cleared,
+    // so the knob measured a half-applied feature.
+    if (Config::ENABLE_KILLER_CHILD_CLEAR && cur_depth + 1 < MAX_PLY)
+    {
+        killerMoves[cur_depth + 1][0] = Move{};
+        killerMoves[cur_depth + 1][1] = Move{};
+    }
     for (size_t i = 0; i < moves_list.size(); ++i)
     {
         MG_COUNT(++g_mg_seen_moves);
@@ -6105,8 +6339,147 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
             unmake_move(state_history, position_count, zobrist);
             zobrist = cur_hash;
         }
-        // Everything from `reuse` on carries a synthetic score. This path does NOT sort, so the boundary
-        // survives to alpha_beta unchanged and root razoring can skip exactly those entries.
+        // Restore the root ordering the pre-search would otherwise have supplied. Stockfish stable-sorts
+        // its root list after EVERY root search (SF18 search.cpp:383, again at :424; SF11 :462/:506), so
+        // move 0 is always the previous iteration's best. This path returned the list untouched, leaving
+        // move 0 arbitrary: the one full-window search went to a move that is usually not best, and every
+        // scout afterwards ran against an alpha seeded by it. Only the REAL-scored prefix [0, reuse) is
+        // permuted, so `synthetic_from` keeps its meaning and root razoring still skips exactly the fill
+        // entries. Ranking by the carried-forward score is SF's `previousScore` key.
+        if (Config::ENABLE_PRESEARCH_OFF_SORT && reuse > 1)
+        {
+            std::vector<size_t> order(reuse);
+            for (size_t i = 0; i < reuse; ++i)
+                order[i] = i;
+            // MODE 1 ranks on `top_score` alone. That key carries a sentinel whenever a move was not proved
+            // this iteration, so it ranks fail-low bounds against measured values -- the same defect that
+            // makes root razoring unsound on bounds.
+            // MODE 2 tiers by PROVENANCE instead, and never compares across depths (the invariant the
+            // prev_score field documents): moves proved this iteration first, then moves revivable from an
+            // earlier proof (deeper proof ranked first, since a shallow score must never outrank a deep
+            // one), then moves nothing has ever measured -- which keep the move-gen heuristic order they
+            // arrived in, because stable_sort preserves it. Tier 2 is the pre-search's REVIVAL role: a move
+            // razored away at a later iteration still carries the score it earned at an earlier one.
+            // ⚠️ Tiers 1-2 need `verified` / `last_real` / `last_real_depth`, which are only maintained
+            // under ENABLE_ROOT_TABLE; without it every move falls to tier 3 and mode 2 is inert.
+            std::stable_sort(order.begin(), order.end(),
+                             [&rd](size_t a, size_t b)
+                             {
+                                 if (Config::PRESEARCH_OFF_SORT_MODE < 2)
+                                     return rd.scores[a].top_score > rd.scores[b].top_score;
+                                 // ⚠️ MODE 2 RANKS TIER 1 ON `last_real`, WHICH IS A FAIL-SOFT BOUND.
+                                 // root_table_store writes last_real/last_real_depth UNCONDITIONALLY, before
+                                 // its `proven` check -- kept that way so the razor has a value to read, with
+                                 // the sort expected to keep treating the move as unproven. Ranking on it
+                                 // breaks that: an unproven move sorts by whatever bound the LAST aspiration
+                                 // attempt produced against THAT attempt's alpha, so the root order becomes a
+                                 // function of the widening history. Mode 4 ranks tier 1 on `prev_score`
+                                 // instead -- the previous call's top_score, i.e. a PROOF or the sentinel --
+                                 // so proven moves sort by evidence and unproven ones tie and keep their
+                                 // prior order under the stable sort. That is SF's previousScore semantics.
+                                 // Mode 5 ranks the revival tier on `last_proven`: the proof-only twin of
+                                 // `last_real`, written only under root_table_store's `proven` branch and
+                                 // inherited across iterations. It exists because modes 2 and 4 fail in
+                                 // OPPOSITE ways -- `last_real` is dense but dirty (bounds), `prev_score` is
+                                 // clean but resets to the sentinel every call, so most moves collapse into
+                                 // tier 3 and the revival tier is too sparse to rank. `last_proven` is both
+                                 // persistent AND proof-only, so a move keeps the last score a search actually
+                                 // PROVED for it however many iterations ago, which is the evidence the tier
+                                 // was designed around. Depth stays the primary key, preserving the
+                                 // never-compare-across-depths invariant -- now over proofs rather than bounds.
+                                 const int sort_mode = Config::PRESEARCH_OFF_SORT_MODE;
+                                 auto revival_key = [&rd, sort_mode](size_t i) -> int
+                                 {
+                                     if (sort_mode >= 5)
+                                         return rd.scores[i].last_proven;
+                                     if (sort_mode >= 4)
+                                         return rd.scores[i].prev_score;
+                                     return rd.scores[i].last_real;
+                                 };
+                                 auto tier = [&rd, &revival_key](size_t i) -> int
+                                 {
+                                     if (rd.scores[i].verified)
+                                         return 0;
+                                     if (revival_key(i) != ROOT_SCORE_UNPROVEN)
+                                         return 1;
+                                     return 2;
+                                 };
+                                 const int ta = tier(a), tb = tier(b);
+                                 if (ta != tb)
+                                     return ta < tb;
+                                 if (ta == 0)
+                                     return rd.scores[a].top_score > rd.scores[b].top_score;
+                                 if (ta == 1)
+                                 {
+                                     if (sort_mode >= 5)
+                                     {
+                                         if (rd.scores[a].last_proven_depth != rd.scores[b].last_proven_depth)
+                                             return rd.scores[a].last_proven_depth > rd.scores[b].last_proven_depth;
+                                         return rd.scores[a].last_proven > rd.scores[b].last_proven;
+                                     }
+                                     if (sort_mode >= 4)
+                                         return rd.scores[a].prev_score > rd.scores[b].prev_score;
+                                     if (rd.scores[a].last_real_depth != rd.scores[b].last_real_depth)
+                                         return rd.scores[a].last_real_depth > rd.scores[b].last_real_depth;
+                                     return rd.scores[a].last_real > rd.scores[b].last_real;
+                                 }
+                                 // Tier 3 has no measured value. Mode 2 keeps the move-gen heuristic order it
+                                 // arrived in; mode 3 ranks it on `top_score`, which under PRESEARCH_OFF_FILL
+                                 // 1/2 carries that move's own STATIC EVAL. A static eval cannot license
+                                 // razoring (zero-ply vs an iteration-depth alpha is the 39/300 commensurability
+                                 // failure), but ORDERING only needs a ranking, so the two questions are
+                                 // separable and this tests the ordering half alone.
+                                 if (Config::PRESEARCH_OFF_SORT_MODE >= 3)
+                                     return rd.scores[a].top_score > rd.scores[b].top_score;
+                                 return false;
+                             });
+            std::vector<Move> sorted_moves;
+            std::vector<RootScore> sorted_scores;
+            sorted_moves.reserve(reuse);
+            sorted_scores.reserve(reuse);
+            for (size_t i = 0; i < reuse; ++i)
+            {
+                sorted_moves.push_back(rd.moves_list[order[i]]);
+                sorted_scores.push_back(std::move(rd.scores[order[i]]));
+            }
+            for (size_t i = 0; i < reuse; ++i)
+            {
+                rd.moves_list[i] = sorted_moves[i];
+                rd.scores[i] = std::move(sorted_scores[i]);
+            }
+        }
+        // Mode 3+ additionally ranks the SYNTHETIC region [reuse, N) among itself, by the fill value --
+        // under PRESEARCH_OFF_FILL 1/2 that is each move's own static eval. Sorting this region SEPARATELY
+        // is what keeps `synthetic_from` meaningful: the boundary stays at `reuse`, so razoring still skips
+        // exactly the unproven entries, while the moves nothing has ever measured are at least ordered by a
+        // real (if zero-ply) signal instead of raw move-gen order.
+        if (Config::ENABLE_PRESEARCH_OFF_SORT && Config::PRESEARCH_OFF_SORT_MODE >= 3 &&
+            rd.scores.size() - reuse > 1)
+        {
+            const size_t tail_n = rd.scores.size() - reuse;
+            std::vector<size_t> torder(tail_n);
+            for (size_t i = 0; i < tail_n; ++i)
+                torder[i] = reuse + i;
+            std::stable_sort(torder.begin(), torder.end(),
+                             [&rd](size_t a, size_t b) { return rd.scores[a].top_score > rd.scores[b].top_score; });
+            std::vector<Move> tmoves;
+            std::vector<RootScore> tscores;
+            tmoves.reserve(tail_n);
+            tscores.reserve(tail_n);
+            for (size_t i = 0; i < tail_n; ++i)
+            {
+                tmoves.push_back(rd.moves_list[torder[i]]);
+                tscores.push_back(std::move(rd.scores[torder[i]]));
+            }
+            for (size_t i = 0; i < tail_n; ++i)
+            {
+                rd.moves_list[reuse + i] = tmoves[i];
+                rd.scores[reuse + i] = std::move(tscores[i]);
+            }
+        }
+        // Everything from `reuse` on carries a synthetic score. Both sorts above permute only WITHIN their
+        // own region, so the boundary survives to alpha_beta unchanged and root razoring can skip exactly
+        // those entries.
         rd.synthetic_from = (Config::PRESEARCH_OFF_FILL == 3) ? rd.scores.size() : reuse;
         dbg_searchdata("reorder_legal_moves(no-presearch)", rd);
         return rd;
@@ -6536,6 +6909,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                 bool do_lmr = Config::ENABLE_LMR && (i != 0 && !capture_move && !move_is_check && !currently_in_check && move.promotion == 1);
                 // Keep reductions off inside an OTV verification window (inert while g_verify_no_reduce_until < 0).
                 do_lmr = do_lmr && !(g_verify_no_reduce_until >= 0 && cur_depth <= g_verify_no_reduce_until);
+                if (Config::ENABLE_LMR_COUNTERS && do_lmr)
+                    g_lmr_applied++;
 
                 if (do_lmr)
                 {
@@ -8335,6 +8710,11 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 
     if (Config::side_to_play)
         total = -total;
+
+    // Margin-sensitivity experiment (see eval_noise). Applied BEFORE the cache store so the hit and miss
+    // paths agree. Mate scores are exempt -- perturbing a proven mate is not an eval-accuracy question.
+    if (Config::EVAL_NOISE_SIGMA > 0 && total < 9000000 && total > -9000000)
+        total += eval_noise(zobrist, Config::EVAL_NOISE_SIGMA);
 
     /* if(total == 23939){
         std::cout << create_fen(current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,

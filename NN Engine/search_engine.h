@@ -338,6 +338,25 @@ namespace Config
     // everywhere (the original behavior when PROTECT_* is on); PROTECT_* default off keeps this byte-id.
     inline int PROTECT_MAX_IDX = 8;
 
+    // Exempt from LMR a node whose TT entry is already at least as deep as the remaining depth --
+    // the marker every strong engine keys a reduce-less term on (SF18 search.cpp:1191-1213 ttDepth;
+    // Obsidian and Caissa both `r -= (ttDepth >= depth)`). Measured on our own accuracy map
+    // (WAC d10, SHADOW_N=64, 366k events): AUC 0.6275 +/- 0.021 against the wrong-reduction label,
+    // LMR-SPECIFIC (LMP 0.503 / futility 0.511 are null), replicated across two samples.
+    // Contingency: 13.8% of reductions carry ttdge, they hold 39% of all wrong reductions, and the
+    // wrong-rate inside them is 2.08% vs 0.52% outside = 4.0x enrichment.
+    // ⚠️ Breadth is 13.8% of reductions -- far broader than PROTECT_KILLERS (~3 moves/node, +1.16%
+    // nodes), so by the guard-cost law the node cost must be MEASURED, not assumed small.
+    // Probed at the DECISION point, matching how the AUC was measured: an entry-time probe would
+    // fire on a different population than the one the 0.6275 was established on.
+    inline bool PROTECT_TT_DEPTH = false;
+    // Print the LMR bet counters ([lmr_bets] applied / researches). Diagnostic output only -- the
+    // counters themselves always increment, so enabling this cannot change a search decision.
+    inline bool ENABLE_LMR_COUNTERS = false;
+    // Guard fires when tt_entry->depth >= remaining_depth + this. 0 reproduces the measured marker;
+    // raising it narrows the guard (less breadth, higher precision) the way PROTECT_MAX_IDX does.
+    inline int TT_GUARD_DEPTH_MARGIN = 0;
+
     // History-aware LMR ("reduce-less"): search known-good late quiets a little less reduced (toward,
     // never beyond, full depth). Categorical signal — killer/counter membership + a coarse history
     // tier — not an absolute score threshold, so it is robust to the unbounded/uneven history values
@@ -400,6 +419,29 @@ namespace Config
     // distinguishable and a guard cannot work. Off = byte-identical (and no stderr).
     inline bool ENABLE_SHADOW_EVENTS = false;
     inline int SHADOW_N = 256; // sample 1 in N prune sites (deterministic; larger = cheaper, coarser)
+
+    // Node-type (cutNode/allNode) tracking for the accuracy map. SF's largest LMR reduce-more terms key on
+    // cutNode, and SF17 gates IIR itself on (PvNode || cutNode); we have no analogue -- the only grep hit in
+    // this engine is a comment. Threading a real flag would touch 42 recursive call sites, so this DERIVES
+    // the type instead, which is enough to score the MARKER before committing to that refactor:
+    //   PV node          -> type 0   (window wider than one unit at node entry)
+    //   child of PV      -> type 1   CUT   (the null-window scout we expect to fail high)
+    //   child of CUT     -> type 2   ALL
+    //   child of ALL     -> type 1   CUT   (the alternation continues)
+    // A 3-state is required, not a bool: PV and ALL both "are not cut nodes" but have different children.
+    // ⚠️ This is the PVS-recursion parity, NOT SF's flag verbatim -- SF also flips it at null-move and
+    // ProbCut sites. Adequate for an AUC, not for a guard. Off = byte-identical (no array writes at all).
+    inline bool ENABLE_CUTNODE_PROBE = false;
+
+    // Millipawn sigma of a deterministic, zobrist-keyed perturbation added to every non-mate static eval.
+    // EXPERIMENT ONLY (0 = off = byte-identical). Purpose: measure whether the OPTIMAL pruning margin widens
+    // with eval error. The project's 30M-barrier theory says our margins are ~2.5x SF11's because they are
+    // sized for our eval noise (corpus error 245.5 vs its 95.3) -- so a truer eval should buy pruning
+    // headroom. That link has been ARGUED, never MEASURED. Sweep RFP_MARGIN at sigma 0/100/200/400 and read
+    // where the node/accuracy optimum sits: if it moves with sigma, the chain is causal and the slope prices
+    // the eval lane; if it does not, the story is wrong. ⚠️ White noise is a first-order proxy -- real eval
+    // error is structured and one-sided per position, so treat a positive result as directional, not exact.
+    inline int EVAL_NOISE_SIGMA = 0;
 
     // Cutoff-calibration logger (diagnostic; measure-first gate for reviving gravity/malus): at each quiet
     // beta-cutoff, log the cutting move as CUT and the tried-and-failed quiets as FAILED, bucketed by their
@@ -590,6 +632,43 @@ namespace Config
     // polarity of top_score is not evident by inspection and a wrong sign would razor backwards. Modes 1
     // and 2 exist so the experiment settles it: the wrong one collapses the solve count.
     inline int PRESEARCH_OFF_FILL = 0;
+    // Sort the carried-forward root prefix by score when the pre-search is off. Without this the hard-off
+    // path returns the previous iteration's list UNSORTED (reorder_legal_moves' "this path does NOT sort"
+    // branch), so the previous winner is never moved to index 0 -- meaning every pre-search-off number on
+    // record was taken with no root ordering at all, and part of the measured cost is a frozen-order PVS
+    // penalty rather than the loss of the pre-search's scores. Stockfish stable-sorts its root list after
+    // every root search, so a fair "no pre-search" comparison requires this. Default off = byte-identical.
+    inline bool ENABLE_PRESEARCH_OFF_SORT = false;
+    // Which key the pre-search-off root sort ranks on. 1 = `top_score` alone (ranks fail-low BOUNDS and
+    // sentinels against measured values). 2 = provenance tiers: proved-this-iteration, then revivable from
+    // an earlier proof (deeper proof first), then never-measured (keeps the move-gen heuristic order).
+    // Mode 2 needs ENABLE_ROOT_TABLE for `verified`/`last_real`/`last_real_depth` to be maintained.
+    inline int PRESEARCH_OFF_SORT_MODE = 1;
+    // Require a root move to BEAT ALPHA before it can become best_move (move 0 excepted, which always
+    // sets it). Alpha only ever rises at the root, so on an aspiration FAIL-LOW pass alpha stays pinned
+    // at the window bound while best_score sits below it -- and every later move that merely improves on
+    // a worse fail-low bound replaces best_move on bound evidence, then becomes root_prev_best so the
+    // best-move exemption guards the wrong move next iteration. SF sets the score unconditionally only
+    // for moveCount == 1 and requires `value > alpha` for the rest. Default off = byte-identical.
+    inline bool ENABLE_ROOT_BEST_REQUIRES_ALPHA = false;
+    // Clear the CHILD ply's killer slots at node entry, so a killer is only ever a refutation learned in
+    // this node's own subtree. `killerMoves` is cleared solely at search start (search_engine.cpp, the two
+    // clearSearchTables fills), so today a killer set in one sibling subtree is still visible in the next
+    // -- which both mis-orders and, since PROTECT_KILLERS ships, mis-EXEMPTS on a stale marker. Default
+    // off = byte-identical. Judge on the LMR wrong-reduction count and the [lmr_bets] loss rate, not solves.
+    inline bool ENABLE_KILLER_CHILD_CLEAR = false;
+    // Root depth decay on an alpha improvement -- SF's actual mechanism for making the root tail cheap,
+    // and the one thing our root loop has no analogue of (we search every root move at full depth or
+    // razor it away outright; there is no middle setting). SF18 search.cpp:1379-1381:
+    //     if (depth > 2 && depth < 14 && !is_decisive(value)) depth -= 2;
+    // with NO rootNode guard, so once move 1 raises alpha every later root move is searched two plies
+    // shallower, and two more per further raise. Present since SF15.1; SF16 annotates it "~2 Elo".
+    // ⚠️ Keyed on a PROVEN EVENT (alpha rose), not on list index -- so it is outside the 2026-09-03
+    // fixed-node closure of index-keyed root LMR, which failed because the index carried no information.
+    // The moves are still SEARCHED, matching the finding that root tail moves cannot simply be pruned.
+    inline bool ENABLE_ROOT_ALPHA_DECAY = false;
+    inline int ROOT_ALPHA_DECAY_PLIES = 2;      // plies removed per alpha improvement (SF: 2)
+    inline int ROOT_ALPHA_DECAY_MAX_DEPTH = 14; // only while depth_limit < this (SF: 14)
 
     // SEE pruning (main search): at low remaining depth, skip a do_lmr-eligible quiet whose moved piece
     // can be profitably captured by the immediate recapture (post-move see() from the opponent's side >
@@ -2427,6 +2506,12 @@ struct RootScore
     // deeper" fault that invalidated ROOT_PRESEARCH_REDUCTION, and it is why SF refuses to store reduced
     // scores at all. We do store them, so the depth travels with the value and pruning checks both.
     int last_real_depth;
+    // The most recent PROVEN score and the depth it came from, surviving iterations in which the move only
+    // failed low. Distinct from `last_real`, which is written on EVERY store and therefore holds a
+    // fail-soft bound for an unproven move -- ordering on that makes root order depend on the aspiration
+    // widening history. Written only under `if (proven)` in root_table_store; the revival sort key.
+    int last_proven;
+    int last_proven_depth;
     // Was top_score produced by a search that actually proved something this iteration? SF stores a real
     // value only when `moveCount == 1 || value > alpha` and writes -VALUE_INFINITE otherwise. An unproven
     // entry is a sentinel, never a measured value, and must never be pruned on.
@@ -2435,7 +2520,7 @@ struct RootScore
     // consults this so it can fire on recent evidence and skip (not abandon) everything staler.
     int age;
 
-    RootScore() : top_score(0), prev_score(ROOT_SCORE_UNPROVEN), last_real(ROOT_SCORE_UNPROVEN), last_real_depth(0), verified(false), age(ROOT_AGE_NEVER) {}
+    RootScore() : top_score(0), prev_score(ROOT_SCORE_UNPROVEN), last_real(ROOT_SCORE_UNPROVEN), last_real_depth(0), last_proven(ROOT_SCORE_UNPROVEN), last_proven_depth(0), verified(false), age(ROOT_AGE_NEVER) {}
 
     RootScore(int top_score_, std::vector<Move> second_moves_, std::vector<int> second_scores_)
         : top_score(top_score_),
@@ -2444,6 +2529,8 @@ struct RootScore
           prev_score(ROOT_SCORE_UNPROVEN),
           last_real(ROOT_SCORE_UNPROVEN),
           last_real_depth(0),
+          last_proven(ROOT_SCORE_UNPROVEN),
+          last_proven_depth(0),
           verified(false),
           age(ROOT_AGE_NEVER) {}
 };

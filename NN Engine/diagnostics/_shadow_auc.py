@@ -73,6 +73,24 @@ for kind, rs in sorted(rows.items()):
         'staticPlace'  : [g(r,'sps') for r in rs],
         '-staticPlace' : [-g(r,'sps') for r in rs],
         'abs_statPlace': [g(r,'asps') for r in rs],
+        # TT markers -- the family SF18/Obsidian/Caissa key their reduce-less terms on. Both polarities
+        # are ranked because our sign convention is not SF's: an AUC of 0.40 is as informative as 0.60,
+        # it just means the marker points the other way.
+        'tt_hit'       : [g(r,'tth') for r in rs],
+        '-tt_hit'      : [-g(r,'tth') for r in rs],
+        'tt_depth_ge'  : [g(r,'ttdge') for r in rs],
+        '-tt_depth_ge' : [-g(r,'ttdge') for r in rs],
+        'tt_has_move'  : [g(r,'ttm') for r in rs],
+        '-tt_has_move' : [-g(r,'ttm') for r in rs],
+        'tt_depth'     : [g(r,'ttd',-1) for r in rs],
+        '-tt_depth'    : [-g(r,'ttd',-1) for r in rs],
+        # Node type (ENABLE_CUTNODE_PROBE): SF's largest reduce-more terms key on cutNode, and SF17 gates
+        # IIR itself on (PvNode || cutNode). We have no analogue, so this asks whether the slot is worth
+        # the 42-call-site refactor a real threaded flag would cost.
+        'cut_node'     : [g(r,'cn') for r in rs],
+        '-cut_node'    : [-g(r,'cn') for r in rs],
+        'all_node'     : [g(r,'an') for r in rs],
+        '-all_node'    : [-g(r,'an') for r in rs],
     }
     for name, sc in sorted(feats.items()):
         a, p, n = auc(sc, label)
@@ -102,6 +120,18 @@ for kind, rs in sorted(rows.items()):
         '-rd'          : [-g(r, 'rd') for r in sub],
         'killer_or_cm' : [g(r, 'kc') for r in sub],
         'window_ORIG'  : [g(r, 'bow') - g(r, 'aow') for r in sub],
+        # TT markers are position-keyed, not move-keyed, so they are exactly the kind of signal that can
+        # still speak in the statScore~0 population where the history family is blind.
+        'tt_hit'       : [g(r, 'tth') for r in sub],
+        '-tt_hit'      : [-g(r, 'tth') for r in sub],
+        'tt_depth_ge'  : [g(r, 'ttdge') for r in sub],
+        '-tt_depth_ge' : [-g(r, 'ttdge') for r in sub],
+        'tt_has_move'  : [g(r, 'ttm') for r in sub],
+        '-tt_has_move' : [-g(r, 'ttm') for r in sub],
+        'cut_node'     : [g(r, 'cn') for r in sub],
+        '-cut_node'    : [-g(r, 'cn') for r in sub],
+        'all_node'     : [g(r, 'an') for r in sub],
+        '-all_node'    : [-g(r, 'an') for r in sub],
     }
     for name, sc in sorted(feats.items()):
         a, p_, n_ = auc(sc, label)

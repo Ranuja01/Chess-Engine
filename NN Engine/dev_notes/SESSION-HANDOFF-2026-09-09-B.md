@@ -155,7 +155,46 @@ written). It is **SUBTRACTIVE**, the only shape with a winning record in this su
 sizes the prize: recovering the opening's +2.2 without giving back the endgame's −3.4.
 ⚠️ Prerequisite named in the record: re-derive attempt #24's opening split on the CLEAN instrument.
 
-☠️☠️ **ONE CORPUS. NOT CALLED.** §F2's rule applies to results I like: **run v2 before concluding anything.**
+### ✅ v2 IS IN — IT REPLICATED, AND IT NARROWED THE STORY
+Read against the **measured** v2 null (§3), `ks_off_v2`, 3281 changed (27.5%):
+
+| stratum | primary Δ | v2 Δ | verdict |
+|---|---|---|---|
+| aggregate | +0.1 | −0.4 | ✅ both ≈ 0 |
+| **`.opening` (≥26 pieces)** | **+2.2** | **+2.9** | ✅ **REPLICATES, stronger** |
+| **ps2 mid_EDGE (58-64)** | **−3.9** | **−5.3** | ✅ **REPLICATES** |
+| ps1 ≤53 | ±0.0 | −0.3 | ✅ both ≈ 0 |
+| midgame | −0.5 | −3.2 | partial |
+| endgame | −3.4 | **+2.8** | ❌ **REVERSED — my "endgame KS helps" reading is DEAD** |
+| ps4 ≥80 | −1.8 | +1.7 | ❌ reversed |
+| ps3 | +6.6 (n=59) | +8.4 (n=70) | sparse — ignore |
+
+**Pooled (inverse-variance): `.opening` +2.5 ± 1.39 (1.8σ) · ps2 −4.5 ± 2.46 (1.8σ).** Neither is 2σ alone,
+but two independent corpora agreeing in **sign AND magnitude** is what cross-set replication exists to
+establish — and it is exactly what arm A failed to do.
+
+⇒ ★★★★ **THE REPLICATED FINDING, narrower than the primary-only reading:**
+> **KS OVER-FIRES WHEN THE BOARD IS CROWDED (≥26 pieces) AND EARNS ITS KEEP AT THE MID/END MATERIAL EDGE
+> (`phase_score` 58-64).** Deleting the whole term is net-zero on both corpora because those cancel.
+
+☠️ **We are not "behind the giants on KS" — we effectively DO NOT HAVE working king safety.** It fires on
+26-28% of positions and its contributions cancel to zero. **You cannot improve a net-zero term by ADDING to
+it**, which is a mechanism for the 0-for-11 rather than a tally.
+☠️ **And the cancellation runs along an axis our phase machinery CANNOT SEE**: `phase_bucket=opening` is
+`len(piece_map()) >= 26` — a **pawn-inclusive TOTAL piece count** (write site: `_build_game_regret_set.py:56`)
+— while `phase_score` counts only `4Q+2R+1(B|N)` and ignores pawns entirely. Every prior KS attempt
+conditioned on the axis that is blind to the boundary. ⚠️ ps1 (high Q/R/B/N) reads **±0.0** — so a
+`phase_score`-keyed gate would target the split that says there is nothing there. **Key any gate on
+`popcount(occupied)`, free at the eval site.**
+
+### 📉 THE HONEST ARITHMETIC — this is a BUNDLE COMPONENT, not a candidate
+`.opening` is ~32% of changed moves and the aggregate is ~0 ⇒ gating KS off there buys roughly
+**0.32 × 2.5 ≈ +0.8pp aggregate**, *below* the ~2-2.5pp bar. It is replicated, localised, mechanistically
+explained, and **SUBTRACTIVE** (the only shape with a winning record in KS) — but it does not stand alone.
+
+📌 Registered prediction was "sign replicates but WEAKER, ~65%". Sign replicated for `.opening` and ps2 and
+got **stronger**, not weaker; the endgame cell reversed. Partially right, and the half I leaned on hardest
+in the write-up was the half that died.
 
 ## 9. 🔄 IN FLIGHT AT HANDOFF
 **KS ablation v2 pair — NOT YET RUN. This is the next command:**

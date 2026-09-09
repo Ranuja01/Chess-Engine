@@ -68,6 +68,31 @@ SF18 win%-regret on the CHANGED-MOVE subset. **This is the instrument that ranks
 | **the whole prize** | a complete eval replacement (SF15c oracle) reads **57.0%** ⇒ **+7pp is ALL there is** |
 | ☠️ `n_crit` | **27 / 43** ⇒ criticality **UNMEASURABLE**; quote it every time |
 
+#### 📌 MEASURED PER-STRATUM NULL — `game_regret_set`, d7, `ASPIRATION_DELTA=300` (2026-09-09)
+**Do not re-measure this; read candidates against THESE numbers, not against 50.** The aggregate band hides
+a ±1.6pp spread across strata, and reading a stratum against a flat 50 misleads in BOTH directions — on the
+09-09 threat arm it inflated ps1 (+2.5 apparent vs **+1.8** true) and understated ps2 (−4.7 apparent vs
+**−6.3** true).
+
+| stratum | n changed | **null win%** |
+|---|---|---|
+| aggregate | 5212 (34.7%) | **50.0** |
+| opening | 1572 | **51.1** |
+| midgame | 2397 | **49.4** |
+| endgame | 1243 | **49.8** |
+| **ps1 mid_far (≤53)** | 2971 | **50.7** |
+| ps2 mid_EDGE (58-64) | 428 | **51.6** |
+| ps3 end_EDGE (69-74) | 281 | **49.2** |
+| ps4 end_far (≥80) | 1532 | **48.4** |
+| cr1 benign | 4340 | 49.7 |
+| cr2 minor | 669 | 52.6 |
+| cr3 moderate | 180 | 47.4 |
+| ☠️ cr4 CRITICAL | **23** | 60.9 — **unreadable, never adjudicate here** |
+
+⚠️ Binomial SE on a stratum difference: ~1.3pp at ps1 (n≈2900 both arms), ~3.7pp at ps2 (n≈300-400). A
+2pp reading at ps2 is noise; the same 2pp at ps1 is ~1.5σ. **Size the cell before believing the cell.**
+⚠️ `game_regret_set_v2`'s aggregate null is **50.7**; its per-stratum profile is not yet measured.
+
 **How it lies:**
 - ☠️ **The MEAN's null is large, negative, and ARM-SPECIFIC.** Two Elo-neutral arms at the *same* flip rate
   read **−0.1389 and −0.0619** — a 2.2× spread that cannot be divided out. Mechanism: conditioning on "the

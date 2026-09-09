@@ -833,6 +833,27 @@ namespace Config
     // scores as a full threat. Costs nothing to test: na/nd are already counted at the same site.
     // Default false = byte-identical.
     inline bool THREAT_ATT2_PROTECT = false;
+    // ── The two SHAPE corrections to threats_by, found by contrasting SF11 at high material (2026-09-09).
+    // Aimed at ps<=53, the one stratum a measurement localised: SF11's entire remaining shortfall vs
+    // SF15-classical sits there, and our own base regret is worst there (4.4-4.6 vs 2.4 deep-endgame).
+    // ☠️ BOTH change the MECHANISM of a term whose constants (THREAT_PER_TARGET_CAP=800, THREAT_SAFE_PAWN,
+    // the THREAT_* tables) were fitted against the CURRENT mechanism. A term's value is constant x
+    // mechanism: shipping either at the old constants is exactly what sank ENABLE_ROOK_LATENT_RAY_FIX and
+    // ENABLE_CAPG_ROOK_SQVAL on 09-09. SWEEP THE MAGNITUDE, do not flip on correctness.
+    //
+    // (1) COVERAGE. SF pays ThreatByMinor over `defended | weak` (evaluate.cpp:504-508) -- a minor attacking
+    // a pawn-defended piece still scores -- while ThreatByRook/ByKing/Hanging are `weak`-only (:510-519).
+    // We drop the whole target on either strongly-protected clause, losing the minor leg with it. On: keep
+    // the target and pay the MINOR leg only. Off = byte-identical (the continue fires at the same point).
+    inline bool THREAT_MINOR_ON_DEFENDED = false;
+    // (2) OVER-FIRE. SF's ThreatBySafePawn requires the attacking PAWN to stand on a safe square
+    // (~attackedBy[Them] | attackedBy[Us], evaluate.cpp:530-535). We have no such test, so THREAT_SAFE_PAWN
+    // -- the largest single contribution in the stack (1600mp; SF's S(173,94) is the same magnitude) -- is
+    // paid for pawns that are themselves hanging and cannot make the threat good. On: require safety.
+    // A RESTRICTION, which is the only shape that has ever won in this family. Off = byte-identical.
+    // ⚠️ Costs up to 2 extra attackersMask calls per pawn-attacked target when ON; re-check NPS, not just
+    // node counts -- byte-identity cannot see cost.
+    inline bool THREAT_SAFE_PAWN_REQUIRE_SAFE = false;
     // SF adds mg(mobility[Them] - mobility[Us]) into kingDanger (evaluate.cpp:452) — mobility is a FEEDER
     // into king safety there, not only a score term. Our mobility stays inside each per-piece evaluator's
     // local total and reaches no other term, so the edge does not exist. This adds

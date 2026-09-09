@@ -36,9 +36,25 @@ cmd="${1:-}"; shift || true
 case "$cmd" in
   build)
     # Force-clean production rebuild (no PROFILE_EVAL). Same clean step used all session.
+    # NOTE: the clean DELETES the working .so before compiling, so a failed build leaves no engine at all.
+    # It used to pipe the compiler through `tail -n 5`, which throws away the part of a g++ diagnostic that
+    # says what is wrong -- you were left with no .so and no error. Full output now goes to a log; a failure
+    # prints enough of it to act on and names the file. Success prints the same 5 lines as before.
     touch cpp_bitboard.cpp cpp_bitboard.h search_engine.cpp search_engine.h ChessAI.pyx
     rm -rf build ChessAI.cpp ChessAI.*.so
-    "$PY" setupAI.py build_ext --inplace 2>&1 | tail -n 5
+    _blog="${TMPDIR:-/tmp}/build_$$.log"
+    if "$PY" setupAI.py build_ext --inplace > "$_blog" 2>&1; then
+      tail -n 5 "$_blog"
+    else
+      _rc=$?
+      echo "☠️ BUILD FAILED (exit $_rc) — the .so was deleted by the clean step and NOT rebuilt."
+      echo "--- first error ---"
+      grep -m1 -n -E 'error:|Error [0-9]+' "$_blog" || true
+      echo "--- last 40 lines ---"
+      tail -n 40 "$_blog"
+      echo "--- full log: $_blog ---"
+      exit "$_rc"
+    fi
     ;;
 
   probe)

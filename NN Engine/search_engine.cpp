@@ -1640,6 +1640,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SCALE_THREATS = env_int("SCALE_THREATS", Config::SCALE_THREATS);
         Config::THREATS_STANDING_ONLY = env_flag("THREATS_STANDING_ONLY", Config::THREATS_STANDING_ONLY);
         Config::THREAT_ATT2_PROTECT = env_flag("THREAT_ATT2_PROTECT", Config::THREAT_ATT2_PROTECT);
+        Config::THREAT_MINOR_ON_DEFENDED = env_flag("THREAT_MINOR_ON_DEFENDED", Config::THREAT_MINOR_ON_DEFENDED);
+        Config::THREAT_SAFE_PAWN_REQUIRE_SAFE = env_flag("THREAT_SAFE_PAWN_REQUIRE_SAFE", Config::THREAT_SAFE_PAWN_REQUIRE_SAFE);
         Config::KS_MOB_EDGE = env_int("KS_MOB_EDGE", Config::KS_MOB_EDGE);
         Config::ENABLE_ROOK_LATENT_RAY_FIX = env_flag("ENABLE_ROOK_LATENT_RAY_FIX", Config::ENABLE_ROOK_LATENT_RAY_FIX);
         Config::ENABLE_CAPG_ROOK_SQVAL = env_flag("ENABLE_CAPG_ROOK_SQVAL", Config::ENABLE_CAPG_ROOK_SQVAL);
@@ -2290,6 +2292,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_THREATS=" << Config::ENABLE_THREATS
                   << " SCALE_THREATS=" << Config::SCALE_THREATS
                   << " THREATS_STANDING_ONLY=" << Config::THREATS_STANDING_ONLY
+                  << " THREAT_ATT2_PROTECT=" << Config::THREAT_ATT2_PROTECT
+                  << " THREAT_MINOR_ON_DEFENDED=" << Config::THREAT_MINOR_ON_DEFENDED
+                  << " THREAT_SAFE_PAWN_REQUIRE_SAFE=" << Config::THREAT_SAFE_PAWN_REQUIRE_SAFE
                   << " SCALE_CENTRAL=" << Config::SCALE_CENTRAL
                   << " SCALE_CAPTURE_GAINS=" << Config::SCALE_CAPTURE_GAINS
                   << " PP_OPP_PAWN_PEN=" << Config::PP_OPP_PAWN_PEN

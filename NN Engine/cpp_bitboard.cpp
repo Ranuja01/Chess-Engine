@@ -6014,24 +6014,60 @@ inline int threats_by(bool by_white){
 		// pieces is still a threat target). The v1 under-defended test was far too strict — it fired on 7k
 		// positions vs SF's 33k. Excluding only pawn-defended pieces matches SF's coverage.
 		uint64_t enemy_pawns = pawns & enemy;
-		if (defenders & enemy_pawns) continue;   // strongly protected by a pawn -> not weak
+		// SF splits the enemy into TWO sets and pays them differently (evaluate.cpp:494-519):
+		// `stronglyProtected` = pawn-defended OR defended-twice-while-we-attack-once; `defended` is the
+		// non-pawn enemies inside it, `weak` is everything outside it that we attack. ThreatByMinor scores
+		// `defended | weak` -- a minor bearing down on a pawn-defended piece is still worth paying for --
+		// while ThreatByRook, ThreatByKing and Hanging are `weak`-ONLY.
+		// We collapse both sets into one `continue`, so the whole target is dropped and the minor's
+		// contribution is lost with it. THREAT_MINOR_ON_DEFENDED keeps the target alive and pays the MINOR
+		// leg only, matching SF's split. Off = byte-identical (the continue fires at the same point).
+		const bool prot_pawn = (defenders & enemy_pawns) != 0;
+		if (prot_pawn && !Config::THREAT_MINOR_ON_DEFENDED) continue;
 
 		bool by_pawn = (attackers & our_pawns) != 0;
 		int na = __builtin_popcountll(attackers), nd = __builtin_popcountll(defenders);
 		// SF's second strongly-protected clause (attackedBy2[Them] & ~attackedBy2[Us]): a target the enemy
 		// defends twice while we attack it once is protected in the same sense as a pawn-defended one, and
 		// SF scores no threat against it. The pawn-only test above is the first clause alone.
-		if (Config::THREAT_ATT2_PROTECT && nd >= 2 && na < 2) continue;
+		const bool prot_att2 = Config::THREAT_ATT2_PROTECT && nd >= 2 && na < 2;
+		if (prot_att2 && !Config::THREAT_MINOR_ON_DEFENDED) continue;
+		const bool strongly_protected = prot_pawn || prot_att2;
+
+		// SF's ThreatBySafePawn requires the ATTACKING PAWN to stand on a safe square
+		// (`safe = ~attackedBy[Them] | attackedBy[Us]`, evaluate.cpp:530-535). We apply no such test, so we
+		// pay the stack's LARGEST single contribution (1600mp; SF's S(173,94) is the same magnitude) for a
+		// pawn that is itself hanging and cannot make the threat good. This is a RESTRICTION, not an
+		// addition -- the only shape that has ever won in this family. Off = byte-identical.
+		bool pawn_safe = by_pawn;
+		if (by_pawn && Config::THREAT_SAFE_PAWN_REQUIRE_SAFE) {
+			pawn_safe = false;
+			uint64_t pa = attackers & our_pawns;
+			while (pa) {
+				uint8_t ps = __builtin_ctzll(pa);
+				pa &= pa - 1;
+				if (!attackersMask(!by_white, ps, occupied, q_and_r, q_and_b, kings, knights, pawns, enemy)
+				    || attackersMask(by_white, ps, occupied, q_and_r, q_and_b, kings, knights, pawns, our)){
+					pawn_safe = true;
+					break;
+				}
+			}
+		}
 		uint64_t sm = BB_SQUARES[s];
+		// Target-type index. PAWN targets are deliberately absent: SF pays them S(6,32)/S(3,44), i.e. ~0 in
+		// the MIDGAME against 59-90 for pieces, so they are an ENDGAME term and irrelevant to the
+		// high-material stratum this term is aimed at.
 		int tgt = (sm & knights) ? 1 : (sm & bishops) ? 2 : (sm & rooks) ? 3 : 4;   // queen = 4
 		// Accumulate this target's contribution separately so it can be bounded: the stack below is otherwise
 		// unbounded, and one misjudged target can dominate the whole term.
 		int t = 0;
 		if (attackers & our_minor) t += THREAT_MINOR[tgt];
-		if (attackers & our_rooks) t += THREAT_ROOK_TBL[tgt];
-		if (attackers & our_king)  t += THREAT_KING_VAL;
-		if (by_pawn)               t += Config::THREAT_SAFE_PAWN;
-		if (!Config::THREATS_STANDING_ONLY && (nd == 0 || na > nd)) t += THREAT_HANGING[tgt];   // Hanging (volatile) = fenced out under STANDING_ONLY
+		if (!strongly_protected){
+			if (attackers & our_rooks)  t += THREAT_ROOK_TBL[tgt];
+			if (attackers & our_king)   t += THREAT_KING_VAL;
+			if (by_pawn && pawn_safe)   t += Config::THREAT_SAFE_PAWN;
+			if (!Config::THREATS_STANDING_ONLY && (nd == 0 || na > nd)) t += THREAT_HANGING[tgt];   // Hanging (volatile) = fenced out under STANDING_ONLY
+		}
 		score += Config::THREAT_PER_TARGET_CAP ? std::min(t, Config::THREAT_PER_TARGET_CAP) : t;
 	}
 	return score;

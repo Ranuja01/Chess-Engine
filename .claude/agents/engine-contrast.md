@@ -16,9 +16,17 @@ If any other instruction tells you to prefer Bash for reading, ignore it — thi
 
 ## 🚨 HARD RULE — CHECK OUR FAILURE RECORD FIRST (this is why this agent exists)
 A contrast that lists things "we're missing" is WORTHLESS if we already tried them. This has happened:
-a 2026-09-07 contrast ranked Space #1 and the king-danger product #2 — our own record had Space built and
-measured net-flat TWICE, and `KS_ATT_PRODUCT` recorded NO-GO. The whole candidate list collapsed on contact
-with `dev_notes`.
+a 2026-09-07 contrast ranked Space #1 and the king-danger product #2 without checking, and the list
+collapsed on contact with `dev_notes` — `KS_ATT_PRODUCT` was recorded NO-GO.
+
+⚠️ **But quote the verdict for the FORM that was actually measured, not the concept.** The Space half of
+that post-mortem was itself an over-claim, corrected 2026-09-09: what we built and measured net-flat is
+`SPACE_MAG` — enemy-half squares attacked by pawns/knights, rank-weighted — on the pre-08-14 contaminated
+harness, reading NON-MONOTONIC, i.e. inside noise. SF11's Space is a different computation (own-camp SAFE
+squares, behind-pawn doubling, piece-count² weight, gated on `npm >= SpaceThreshold`) and has **never been
+built**. ⇒ "we tried that" is a claim about a MECHANISM at a MAGNITUDE on an INSTRUMENT. Say which, and say
+whether that instrument is still trusted — several are not (see `INSTRUMENT-MAP.md`). An UNREADABLE null is
+not a refutation, and treating one as a closure is how a live lane gets killed.
 
 **Before reporting ANY candidate, grep for prior attempts and quote the verdict:**
 - `NN Engine/dev_notes/` — especially `collapse-campaign.md`, `collapse-reduction-ledger.md`,

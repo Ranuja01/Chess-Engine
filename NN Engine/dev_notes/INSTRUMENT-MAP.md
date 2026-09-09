@@ -198,6 +198,16 @@ null at its natural magnitude may be readable at 4×; quote **eval + re-cranked 
 - ☠️ **`sts`/`wac` take `<tag>` FIRST, knobs after.** Reversing it is the tag artifact — and the harness
   discards the guard's output (`2>/dev/null`), so it fails silently. **A guard whose output the harness
   discards is not a guard.**
+- ☠️ **THE JUDGE IS THE TARGET COLUMN — never change it incrementally.** Every number here is scored
+  against **SF18 multi-PV @ d14**: the null bands, the +7pp prize, SF11's 0.08 gap, the heat map's 1.3pp.
+  **SF19 (on disk since 2026-09-09, ~+44 Elo) must NOT relabel or extend an existing corpus** — mixed
+  labels put two truth standards in one column and destroy comparability silently, with no error and no
+  visible wrongness. The 08-06 rebuild avoided exactly this by labelling at d13 to match, rather than the
+  script's d18 default. Any corpus enlargement uses **SF18 @ d14**. A move to SF19 as judge is a deliberate
+  re-baselining of the entire program in one pass, never a swap. SF19 IS safe as a reference-ladder rung
+  (`_sts_reference.py` scores a reference on OUR suite; it relabels nothing) and is NOT a better roadmap
+  target — there has been no classical eval since SF15.1, so it prices the net ceiling, not the
+  hand-writable one.
 - ☠️ **Canonical byte-identity command: `MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`.** Without
   `LONG_FORMAT` the default `STANDARD` has a 45s limit, so hard positions time-abort and node counts become
   **machine-load dependent** (256,518,458 idle vs 260,131,069 under load — pure timing, looked like a leak).

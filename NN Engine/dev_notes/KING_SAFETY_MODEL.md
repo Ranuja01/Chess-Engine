@@ -249,6 +249,40 @@ over-production. **Always run bench arms with `KS_FLOOR=0`** (liveness 35% → 7
 
 ## 4. REFUTATION RECORD — measured and killed (do not re-propose)
 
+### 4a. 2026-09-06 → 09-09 ADDITIONS (this doc was STALE from 08-18 to 09-09)
+- ☠️ **`KS_FLOOR` < `KS_KNEE` — REFUTED.** The register's #1 never-run item, finally swept (d8, STS,
+  baseline 1676, reproduced at both ends): **every lowered floor is 70-190 STS WORSE** (floor 0/3/6/9 ×
+  knee 12/20/30/40). Making the quadratic band reachable HURTS. ★ The 08-31 refusal to run it reached the
+  RIGHT conclusion on BAD EVIDENCE. 📄 [[taper-and-ks-floor-knee-both-refuted-on-clean-instruments]]
+- ☠️ **`KS_CAP` is INERT above 40** — caps 80/120/160 give BYTE-IDENTICAL nodes (60,447). The units never
+  reach 80. That is why it was "never swept": there was nothing there.
+- ☠️ **`KS_ZONE_ATTACK_PCT=0`** (removing the heat table's king-zone slice) — primary +1.1 to +1.6pp,
+  **v2 +0.0 with the phase pattern REVERSED** ⇒ does not replicate. ⚠️ But it does support the reading that
+  the **king-attack part of the heat is redundant with KS**, while the rest of the map is not.
+- ☠️ **`KS_MOB_EDGE` (SF's `mobility → kingDanger`, `evaluate.cpp:452`) — BUILT AND REFUTED.** Added
+  `(K × (attacked-squares[Them] − [Us])) >> 6` to a king's attack units at the same site SF uses.
+  **Null across a 4× range (16 → 49.9%, 64 → 50.6%) including a magnitude that DOMINATES the 0..80 unit
+  scale**, while live (23-31% of moves changed). Only structure: a mild NEGATIVE in endgames at both
+  magnitudes. 📄 [[the-wiring-thesis-was-tested-and-is-unsupported]]
+- ☠️ **`KS_ATT_PRODUCT` was already NO-GO** (`collapse-reduction-ledger.md:251-271`: "over-fires: wrongsign
+  1→13, controls break") — do not re-propose the SF coordination product.
+- 🔑 **KS is NOT collinear with the heat channels.** `king_safety_danger` reads `attack_bitmasks` and has
+  **zero heat reads**; measured r(heat, OvD)=+0.42 with all pairs under the 0.5 duplication threshold ⇒
+  **KS carries distinct information; consolidating king-pressure channels would SHED SIGNAL.**
+  📄 [[heat-map-is-load-bearing-and-its-channels-are-NOT-collinear]]
+- ⚠️ **Shelter is scored at THREE-to-FOUR sites, not once** (`cpp_bitboard.cpp:3129-3147` +185/+75 and the
+  `baseIncrement` multipliers · `KS_SHIELD` at `:5632` · the heat's own pawn-shield reduction at `:9524`).
+  `h:1351`'s "so shelter is scored ONCE" describes the never-shipped `KS_CONSOLIDATE` ON state.
+- ⚠️ **`h:1345`'s "latent_threat adds as today" is STALE** — `ENABLE_KS_REPLACE_LT=true` by default, so
+  `get_latent_threat_score` is NOT called; and the comment at `cpp_bitboard.cpp:7746` claiming KS is
+  "Default-off (KING_SAFETY_MAG=0)" was wrong (it ships at **3000**) — corrected 09-08.
+- ⚠️ **KS's phase cliff is REAL but FREE.** At `phase_score` 64→69 KS drops from 71% of its taper to **0**
+  (≥435mp, up to ~9,450) — but the measured eval-quality change across that step is **+0.35/+0.33 pp, i.e.
+  no cost**. 📄 [[phase-is-a-3-way-boolean-and-everything-cliffs-at-one-material-step]]
+- 📏 **The instrument that closed these**: win% of changed moves vs a per-corpus neutral band (49.8-50.4
+  primary / 50.7 v2), cross-set replication mandatory, **bar ~2-2.5pp**. ☠️ `n_crit`=27 ⇒ **no KS claim
+  about decisive positions is measurable on current corpora.**
+
 - ☠️ **SF's `kingRing &= ~dblAttackByPawn` is INERT for us.** Only 0.09 (danger) / 0.32 (quiet)
   double-own-pawn-defended squares intersect our zone per position, and half are not enemy-attacked.
   Quiet units 5.08 → 5.03. Mechanism is GEOMETRY — such squares are simply rare. Billed as the "biggest

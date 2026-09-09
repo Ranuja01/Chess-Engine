@@ -4,6 +4,80 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 📏★★★★ 2026-09-06→09 — THE EVAL LANE PRICED, THREE THESES REFUTED, NOTHING SHIPPED
+
+    Fingerprint UNCHANGED throughout:  250 / 35,310,778 / EBF 3.784 / STS 1796  (verified after 5 builds)
+
+**The prize is now a measured number.** Substituting SF15-classical's ENTIRE eval into our search wins
+**57.0%** of the moves it changes vs a **49.8-50.4** null ⇒ **+7pp total available**, worth **3-4 plies**.
+**SF11 — purely hand-written — reaches ~90% of it** (aggregate gap 0.08 on BOTH corpora); the entire
+shortfall is ONE stratum, **high material (ps≤53)**. ⇒ **HCE-first is validated numerically.**
+☠️ **And the bar closes term-at-a-time work by arithmetic**: single-corpus SE is 0.7pp, but two arms cleared
+the primary band by ~+1pp and then died on cross-set ⇒ **the real bar is ~2-2.5pp**, i.e. a single term must
+be worth a third of a whole-eval upgrade. **~15 items measured 09-07/09; all at or below the null.**
+
+**Three theses refuted, each on its own designated test:**
+1. **WIRING** — built SF's `mobility→kingDanger` edge (`evaluate.cpp:452`) at the same site as
+   `KS_MOB_EDGE`: **null across a 4× range including cranked**, while live (23-31% of moves changed).
+2. **CONSOLIDATION** — `_ks_channel_collinearity.py MODE=heat`: the three heat consumers are **NOT
+   collinear** (heat×central +0.389, heat×OvD +0.420, central×OvD +0.131 — all under the 0.5 threshold)
+   ⇒ **de-dup would SHED SIGNAL**. `central` is NOT a free re-sum (215.9mp); OvD is free to remove because
+   it is **TINY (22.7mp)**, not redundant.
+3. **CORRECTNESS COMPOSES FREE** — see the 09-09 entry below.
+
+**The `attackingLayer` heat map is load-bearing and correctly weighted.** `SCALE_ATTACK_LAYER` 0/50/100/150
+→ win% 48.9 / 49.4 / baseline / 49.9 ⇒ **−1.3pp to remove (replicated), monotone to 100 then FLAT** — a real
+plateau check, and no cycles trade exists. ⚠️ This measures the current build's DEPENDENCE, not necessity.
+
+🔧 **Instrument repairs (these outlast the findings):** the move-regret gate's null is large, arm-specific
+AND corpus-specific ⇒ **use win%**, band measured per corpus and per stratum; `_ks_footprint_regret`'s `/tmp`
+worker paths were **unqualified**, so every concurrent run in its history was silently wrong (now PID-keyed,
+same defect fixed in 3 sibling tools); added `BY_PHASE`/`BY_PS`/`BY_CRIT`/`win%`/`DUMP=`.
+☠️ **`n_crit` = 27** ⇒ criticality is unmeasurable on both corpora; no result above speaks to decisive
+positions.
+📄 [[eval-lane-state-2026-09-09]] · `SESSION-HANDOFF-2026-09-09.md` · `EVAL-TERM-REVIEW-TABLE-2026-09-08.md`
+
+## ☠️ 2026-09-09 — TWO REAL BUGS: SHIPPED, MEASURED NEGATIVE, REVERTED
+
+    Shipped fingerprint:   247 / 34,851,192 / EBF 3.779
+    REVERTED back to:      250 / 35,310,778 / EBF 3.784   (exact match — clean revert)
+
+Both defects are genuine: `get_latent_rook_activity_score` scanned **DIAGONAL** rays for a ROOK
+(`cpp_bitboard.cpp:2285`, copy-pasted from the bishop version, while the same function is correct at
+`:2237/:2242`); and the rook **MIDGAME** loop never writes `square_values` (`:7534`) though the endgame loop
+does (`:7921`), so a midgame rook reads as **value 0** and `get_least_valuable_attacker` picks it as the
+CHEAPEST attacker in the capture-gains gather (`:9031`, live since `ENABLE_CAPG_LVA_STATIC=false`).
+
+**Leave-one-out on ONE binary:** baseline **250** · ray-fix only **248** · sqval-fix only **247** · both
+**247**. Regret gate: ray **48.7%** (n=1410), sqval **49.2%** (n=2056) — each ~1σ below the band.
+⇒ **FOUR aligned weak negatives ⇒ reverted.** ★ *Three unresolvable signals the same way are a result.*
+☠️ **THE LAW: a correctness fix into a system whose constants ABSORBED the defect is NOT free.** A term's
+value is `constant × mechanism`; the latent rook's `10`/`5` literals were hand-set against the WRONG
+geometry. ⚠️ The symmetry precedent does not transfer (those were harmful in expectation AND had a mirrored
+control). ★ **Run the leave-one-out BEFORE flipping a default.**
+Both knobs remain, default-off, with the re-fit prerequisite in their comments.
+📄 [[a-correctness-fix-into-absorbed-tuning-is-not-free]]
+
+## 🏆 2026-08-31 — SHIPPED: `PROTECT_KILLERS` (+12.4 ±9.4 Elo / 5276 games)
+
+    NEW default fingerprint:   250 / 35,310,778 / EBF 3.784 / STS 1796
+    Prior (PROTECT_KILLERS=0): 249 / 34,362,161 / EBF 3.767 / STS 1657
+
+The accuracy-map method's first ship: killers protected from LMR reduction. Also delivered the shadow-AUC
+instrumentation (LMR markers: −move_index **0.886**, −rd 0.798, statScore 0.718).
+🐛 **Called 'flat' at n=242 off a −8.6 that finished +17.4** — the origin of *never call a direction on
+partial data*. 📄 [[protect-killers-games-result-and-my-premature-flat-call]] · [[shadow-auc-evidence-map-and-protect-killers]]
+
+## 🏆 2026-08-27 — SHIPPED: the SF-style LMR product schedule (+20.7 Elo / 2800 games)
+
+Replaced the reduction schedule with SF's log-product form as the default.
+☠️ **Later found to be SATURATED against the `rem-2` clamp** — it is really a flat *"reduce every late move
+to 2 plies left"*; `LMR_PRODUCT_K` 2200→3200 is **byte-identical**, and the live range was swept with
+nothing beating baseline on `depth@1s` ⇒ **the saturation sits AT the optimum**.
+⚠️ `LMR_PRODUCT_K=400` holds the record on BOTH fixed-depth suites (WAC 256 / STS 1865) and is **2 plies
+worse in play** — the sharpest example of the fixed-depth benches misleading.
+📄 [[lmr-product-schedule-is-fully-saturated-against-the-rem-2-clamp]] · [[lmr-shape-increased-wrong-reductions-yet-won-20-elo]]
+
 ## 🏆 2026-08-22 — SHIPPED: SEE-capture pruning + C1 search-value fixes (+18 Elo / 2400g diverse UHO)
 
     NEW default fingerprint:   243 / 31,764,817 / EBF 3.729 / STS 1703

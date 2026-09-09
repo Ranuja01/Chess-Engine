@@ -310,6 +310,23 @@ freely on the corpus and the game-relevant mixture is unidentified.
   `ENABLE_CAPG_INVARIANT_ORDER=true`, `ENABLE_CAPGAIN_PAWN_FIX=true`, `ENABLE_SEE_FIX=true`.
 - Inert-by-value: `THREATS_QUIET_PCT=100` (tension gate), `SCALE_*=100` family.
 
+## ☠️ F-0. 2026-09-09 — THE TOP REDUNDANCY WAS MEASURED AND IS NOT A REDUNDANCY
+
+The heat-derived channels are labelled REDUNDANT below (§B, §D, §F). **Measured, they are not.**
+`_ks_channel_collinearity.py MODE=heat` (744 positions): heat **433.3mp** / central **215.9mp** / OvD
+**22.7mp**; r(heat,central) **+0.389**, r(heat,OvD) **+0.420**, r(central,OvD) **+0.131** — **all under the
+0.5 duplication threshold ⇒ distinct information ⇒ de-dup would SHED SIGNAL.**
+Ablations agree: OvD removal is **free on both corpora** (it is TINY, not redundant); `central` removal costs
+up to **−1.6pp** (so it is NOT a free re-sum); the two **compose additively**; and removing the whole map
+costs **~1.3pp replicated**, with the magnitude **at its optimum**.
+⇒ **Read §B/§D/§F as a map of SHARED FEEDERS, not of shared signals.** Ranking by "expected joint-fit
+distortion" below is a HYPOTHESIS that failed its test for the largest cluster.
+★ Run the collinearity measurement before acting on any redundancy row here.
+📄 [[heat-map-is-load-bearing-and-its-channels-are-NOT-collinear]]
+🐛 Also corrected 09-08: this doc's line ~176 claim that "all 24 `update_pressure_and_support_tables` call
+sites are commented" is wrong — the black midgame rook leg calls it **live** at `cpp_bitboard.cpp:2677`
+while the white twin at `:2444` is commented (score-neutral; one colour pays for dead work every rook).
+
 ## F. Top-5 redundancies ranked by expected joint-fit distortion
 
 Ranking principle: how freely can a fit trade this channel against its twin on a quiet-position corpus

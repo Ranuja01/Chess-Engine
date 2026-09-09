@@ -482,6 +482,36 @@ Do not build on these without re-measuring:
 
 ## 8. Refutation record — kept permanently
 
+### 8a. 2026-09-06 → 09-09 ADDITIONS
+- ☠️ **The pawn mg/eg TAPER — REFUTED, and the earlier test was a PROXY.** Motivation was four-way
+  convergent (SF's pawn tapers 128mg→213eg while ours is flat at 1000; our measured marginal pawn by rank
+  is 249/221/225/232/245/340 vs SF18's 96/67/56/80/190/424; the 63-knob descent independently picked
+  `SCALE_PAWN_RANK` 100→30; and the taper had been closed on corpus MSE, the anti-correlated metric).
+  Swept `SCALE_PAWN_RANK`/`SCALE_ENDGAME_RANK` (d8, STS, baseline 1676): **1579 / 1621 / 1538 / 1498 / 1595
+  — NON-MONOTONIC and every arm below baseline.** ☠️ **THE KILL: its move-regret win did not replicate** —
+  −0.3044 on `game_regret_set`, **+0.1675 (SIGN REVERSED)** on `_v2`.
+  ⚠️★ **That test moved `SCALE_PAWN_RANK`, a PLACEMENT bonus — it is a PROXY for the pawn VALUE taper, and
+  it was recorded as if it closed the mechanism.** 📄 [[bound-the-mechanism-not-a-proxy]]
+- ☠️ **The pawn VALUE taper has a DIRECT lever and it is at its optimum.** `EG_EXIST_{N 200, B 250, R 350,
+  Q 900}` (`search_engine.h:1161-1164`) is added by the endgame evaluators only and **there is no
+  `EG_EXIST_PAWN`** ⇒ our effective pawn:knight ratio goes 0.308 (mg) → 0.290 (eg), i.e. **the pawn LOSES
+  5.8% relative to pieces where SF's GAINS 52% — opposite sign.** Swept across 12× (×0 / ×0.25 / ×0.5 / ×1 /
+  ×1.5 / ×2 / ×3 → STS d8 1540 / 1584 / 1644 / **1676** / 1586 / 1645 / 1614): **the SHIPPED value is the
+  PEAK, and the peak is interior** — a genuine plateau check. Below baseline the ladder is cleanly monotone;
+  above it is noise. **Do not re-propose a pawn-value taper without new evidence.**
+- ⚠️ **`PASSER_ENEMY_CREDIT_PCT = 0`** (`h:1645`) already zeroes the enemy-side half of
+  `boost_pieces_for_supporting_passed_pawns`, so it credits own-side support/blocking only; the enemy
+  contest dock lives solely in `passer_realizability_R`. The two are **complementary today**, overlapping
+  only on own-side path pieces (`:6381-6387` vs `:6558-6562`).
+- 🐛 **`priced_passer` is written (`cpp_bitboard.cpp:6714`) and NEVER READ.** Its comment (`:6654`) calls it
+  "the single source of truth capgains reads" — false. The wiring was blocked by ORDERING (capgains runs at
+  `:7678`, `evaluate_passers` at `:7741`) and `passer-doubled-hce-comparison-2026-07-22.md:180` records the
+  obstacle with two proposed fixes, neither done. `g_passer_*_deferred` likewise written-never-read.
+- 📏 **Instrument note**: every pre-09-06 passer/pawn move-regret number was read against an implicit zero
+  when the gate's null is large, arm-specific AND corpus-specific. **Re-read any "regret win" in this
+  document against a rate-matched neutral band before citing it.**
+  📄 [[move-regret-tool-null-is-large-negative-and-arm-specific]] · [[win-pct-is-the-honest-statistic-and-a-whole-eval-is-worth-7pp]]
+
 - ☠️ **"Our rank curve is flat (1.5×) where SF's is steep (7.6×)."** Manufactured artifact. Real positions:
   **1.9× vs 2.1×**. Retracted 2026-08-05.
 - ☠️ **"We underpay rank 7 by 83 cp."** Real positions say **overpaid by 88 cp**. Retracted same day.

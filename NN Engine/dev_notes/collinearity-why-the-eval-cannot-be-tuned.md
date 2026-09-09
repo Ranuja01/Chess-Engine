@@ -46,6 +46,32 @@ We hit three stacked flattening pressures, which is why every retune we ran wash
 the wrong tool: it trades identifiability for flattening. Remove the redundancy structurally and the fit is
 identifiable *without* ridge — so no forced shrink.
 
+## ☠️ 2026-09-09 BOUND — the de-dup prescription was TESTED on its designated instrument and REFUTED for the heat cluster
+
+The doc's prescription (re-express collinear channels rather than delete them) presumes the channels ARE
+collinear. **For the three `attackingLayer` consumers — the largest suspected cluster — they are not.**
+
+`_ks_channel_collinearity.py MODE=heat`, 744 positions, contribution = `base_total − channel_off`:
+
+| channel | mean \|contribution\| | | pair | r |
+|---|---|---|---|---|
+| ALL heat (`SCALE_ATTACK_LAYER`) | **433.3 mp** | | heat × central | **+0.389** |
+| central re-sum (`SCALE_CENTRAL`) | **215.9 mp** | | heat × OvD | **+0.420** |
+| OvD (`OVD_CAP`) | **22.7 mp** | | central × OvD | **+0.131** |
+
+**All under the 0.5 duplication threshold ⇒ the channels carry DISTINCT information ⇒ de-dup would SHED
+SIGNAL.** The tool's own designated verdict is STOP.
+Corroborated by ablation: removing central and OvD **composes additively** (−0.7/−1.2 and −1.2 vs −1.3 for
+all three) rather than the sub-additivity duplicates would show; and **removing the whole map costs ~1.3pp,
+replicated on both corpora**, with its magnitude sitting **at the optimum** (0/50/100/150 → 48.9/49.4/base/49.9).
+
+★ **A shared FEEDER does not imply a shared SIGNAL.** The three consumers read the same heat cells and then
+transform them differently enough to be near-independent.
+⚠️ **This BOUNDS the degeneracy claim; it does not refute it in general.** "~30 terms carrying ~2 signals"
+may still hold elsewhere — but it demonstrably does NOT hold for the cluster we were most confident about,
+and **the same measurement should be run before any future de-dup is attempted.**
+📄 [[heat-map-is-load-bearing-and-its-channels-are-NOT-collinear]] · `SESSION-HANDOFF-2026-09-09.md`
+
 ## The fix: bounded / saturating re-expression (not deletion)
 
 Deleting a collinear term is usually wrong — collinearity is a **tuning** problem, not automatically a

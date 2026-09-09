@@ -120,6 +120,25 @@ CONFIGS = [
 ]
 
 
+# ARMS lets a caller supply its own arms without forking this file, since the regret ruler is not
+# KS-specific:  ARMS="label:KNOB=VAL[,KNOB=VAL];label2:..."   The BUNDLE above (today's shipped OVD/
+# CENTRAL defaults) is still applied underneath, so an arm expresses only its DELTA from defaults.
+_ARMS = os.environ.get("ARMS", "").strip()
+if _ARMS:
+    parsed = []
+    for spec in _ARMS.split(";"):
+        if not spec.strip():
+            continue
+        label, _, kvs = spec.partition(":")
+        kw = {}
+        for kv in kvs.split(","):
+            if "=" in kv:
+                k, v = kv.split("=", 1)
+                kw[k.strip()] = v.strip()
+        parsed.append((label.strip(), cfg(**kw)))
+    CONFIGS = parsed
+
+
 def evaluate(config, split):
     env = dict(os.environ, SET=SET, DEPTH=DEPTH, SPLIT=split, SPLIT_FRAC=SPLIT_FRAC, MAXN=str(MAXN))
     knob_args = ["%s=%s" % (k, v) for k, v in config.items()]

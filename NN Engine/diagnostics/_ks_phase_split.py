@@ -182,6 +182,37 @@ elif _capgs:
     # the D7 search already fix the static over-read (=> search-bound, not an eval win)? base=default vs cand=damped.
     BASE = cfg(KS_DEFAWARE_MODE=1)
     CAND = cfg(KS_DEFAWARE_MODE=1, SCALE_CAPTURE_GAINS=_capgs)
+elif int(os.environ.get("EGCAND", "0")):
+    # GATED endgame-KS candidate (2026-08-22, de-biased UHO set): base = shipped defaware bundle (KS cliffs at ps=65);
+    # cand = same + endgame extension (KS_EXTEND_EG) GATED by the no-queen suppressor + deep-endgame material taper, so
+    # KS fires in the piece-heavy transition (npm 20-40, where the raw EGEXT gained) but is suppressed in bare-king /
+    # queenless endings (npm 0-6, where raw EGEXT hurt). Env: NQ (KS_NO_QUEEN, default 20), EG_FLOOR (default 25).
+    BASE = cfg(KS_DEFAWARE_MODE=1)
+    _cc = dict(KS_DEFAWARE_MODE=1, KS_EXTEND_EG=1,
+               KS_NO_QUEEN=int(os.environ.get("NQ", "20")),
+               KS_EG_MAT_GATE=1, KS_EG_MAT_LO=12, KS_EG_MAT_HI=20,
+               KS_EG_MAT_FLOOR=int(os.environ.get("EG_FLOOR", "25")))
+    if int(os.environ.get("CAPGD", "0")):   # + capgains-damp-in-KS support lever (channel-law: clear the competing channel)
+        _cc["CAPG_KS_DAMP"] = int(os.environ["CAPGD"])
+    CAND = cfg(**_cc)
+elif int(os.environ.get("BUNDLE", "0")):
+    # Passer definition unit (detect+dock) + KS endgame candidate — distinct detectors (passed pawns vs king-zone
+    # attackers). Expect ~additive composition (KS solo -0.16 + passer solo -0.015 ~= -0.17). Destructive interaction
+    # would show as a much smaller (or positive) ALL delta than the sum of solos.
+    BASE = cfg(KS_DEFAWARE_MODE=1)
+    CAND = cfg(KS_DEFAWARE_MODE=1, KS_EXTEND_EG=1, KS_NO_QUEEN=20, KS_EG_MAT_GATE=1, KS_EG_MAT_LO=12,
+               KS_EG_MAT_HI=20, KS_EG_MAT_FLOOR=25, ENABLE_PASSER_DETECT_SF=1, PASSER_CANDIDATE_DOCK=64)
+elif int(os.environ.get("PDETECT", "0")):
+    # SF candidate-passer DETECTION extension (2026-08-22): base = shipped defaware; cand = + ENABLE_PASSER_DETECT_SF
+    # (flags SF's candidate passers our occupancy predicate misses -- concentrated ranks 5-6). Detection is symmetric;
+    # expect the move-regret drift where advanced/candidate passers live (endgame + piece-heavy). This is an OFFENSE
+    # test: does seeing the forming passer earlier make us pick the SF-best push/support/clearance move.
+    BASE = cfg(KS_DEFAWARE_MODE=1)
+    _pc = dict(KS_DEFAWARE_MODE=1, ENABLE_PASSER_DETECT_SF=1)
+    if int(os.environ.get("PDOCK", "0")):     _pc["PASSER_CANDIDATE_DOCK"] = int(os.environ["PDOCK"])
+    if int(os.environ.get("PRESID", "0")):    _pc["PASSER_RESID_PCT"] = int(os.environ["PRESID"])
+    if int(os.environ.get("PORDFLOOR", "0")): _pc["ENABLE_PASSER_ORD_FLOOR"] = 1
+    CAND = cfg(**_pc)
 else:
     BASE = cfg(KS_DEFAWARE_MODE=1)
     CAND = cfg(KS_DEFAWARE_MODE=1, KS_SQC_MODE=1, KS_PIN_MODE=1, KS_WEAK_VAL_MODE=1, KS_FLANK_MODE=2, KS_FLOOR=15, KS_KNEE=40, KS_DIVISOR=8)

@@ -41,6 +41,97 @@ case "$cmd" in
     "$PY" setupAI.py build_ext --inplace 2>&1 | tail -n 5
     ;;
 
+  probe)
+    # Run the WAC suite with arbitrary env knobs and surface stderr counter lines matching a pattern.
+    # Most in-engine probes print to stderr on a stride, which `wac` filters away and /tmp loses between
+    # calls -- this keeps them. Args: <tag> <grep-pattern> [KEY=VAL ...]. Prints the LAST 3 matches
+    # (engine counters are typically cumulative, so the last line is the running total).
+    tag="${1:?tag required}"; shift || true
+    pat="${1:?grep pattern required}"; shift || true
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" diagnostics/tactical_test.py wac.epd "$tag" > "/tmp/pr_${tag}.out" 2> "/tmp/pr_${tag}.err" || true
+    echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/pr_${tag}.out" || echo "?"
+    grep -hoE "${pat}.*" "/tmp/pr_${tag}.err" | tail -3 || echo "(no match)"
+    ;;
+
+  evalprofile_mid)
+    # Same aggregation as `evalprofile` but over the MIDGAME corpus (depth_nps_bench's stratified FENs)
+    # instead of the WAC tactical suite. ☠️ REQUIRED CONTROL: WAC shots run deeper forcing lines with more
+    # captures, so a tactical profile can badly misstate movegen's share for real play -- and the historical
+    # "eval = 65-84% of node cost" figure came from THIS workload. Requires a `build_profile` binary.
+    # Args: <tag> [n] [KEY=VAL ...].
+    tag="${1:?tag required}"; shift || true
+    n="${1:-40}"; shift || true
+    env MAX_DEPTH=12 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" -u diagnostics/depth_nps_bench.py --n "$n" > "/tmp/epm_${tag}.out" 2> "/tmp/epm_${tag}.err" || true
+    grep -hoE 'NPS: median [0-9,]+' "/tmp/epm_${tag}.out" || echo "NPS: (none)"
+    echo "TERM                      CYCLES        CALLS"
+    awk '/^[ \t]+[A-Z_]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]/ {c[$1]+=$2; n[$1]+=$3}
+         END {for (k in c) printf "%-18s %15.0f %12.0f\n", k, c[k], n[k]}' "/tmp/epm_${tag}.err" \
+      | sort -k2 -nr
+    ;;
+
+  evalprofile)
+    # Aggregate the EVAL_PROFILE cycle breakdown over the whole WAC suite. Requires a `build_profile` binary
+    # (NOT byte-id -- run `build` afterwards). The PROF counters RESET per get_engine_move, so each position
+    # prints its own [eval_profile] block; this sums cycles+calls per term across ALL blocks.
+    # Sizes the real prize for speed work: eval terms vs MOVEGEN/MAKEUNMAKE/TT_PROBE. Args: <tag> [KEY=VAL...].
+    tag="${1:?tag required}"; shift || true
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" diagnostics/tactical_test.py wac.epd "$tag" > "/tmp/ep_${tag}.out" 2> "/tmp/ep_${tag}.err" || true
+    echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/ep_${tag}.out" || echo "?"
+    echo "TERM                      CYCLES        CALLS"
+    awk '/^[ \t]+[A-Z_]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]/ {c[$1]+=$2; n[$1]+=$3}
+         END {for (k in c) printf "%-18s %15.0f %12.0f\n", k, c[k], n[k]}' "/tmp/ep_${tag}.err" \
+      | sort -k2 -nr
+    ;;
+
+  razoraudit)
+    # Aggregate ROOT-RAZOR wrong-prune rate over the WAC suite. The [razor_audit] counters are cumulative
+    # per PROCESS, so the LAST line is the whole-suite total. Answers: how often was the move that eventually
+    # WON already razored away? (Two incidental positions showed 26-42%; this establishes the real rate.)
+    # Args: <tag> [KEY=VAL ...].
+    tag="${1:?tag required}"; shift || true
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 "$@" \
+        "$PY" diagnostics/tactical_test.py wac.epd "$tag" > "/tmp/wac_${tag}.out" 2> "/tmp/wac_${tag}.err" || true
+    echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/wac_${tag}.out" || echo "?"
+    echo -n "NODES: ";  grep -hoP '\(nodes=\K[0-9]+' "/tmp/wac_${tag}.err" | awk '{s+=$1} END{print s+0}'
+    echo -n "RAZOR_AUDIT (cumulative, last line = suite total): "
+    grep -hoE '\[razor_audit\] .*' "/tmp/wac_${tag}.err" | tail -1 || echo "(none)"
+    echo -n "TAIL_MODE (razor_fires, cumulative): "
+    grep -hoE '\[tail_mode\] .*' "/tmp/wac_${tag}.err" | tail -1 || echo "(none)"
+    ;;
+
+  corrlog)
+    # Capture correction-history training records for the offline signal gate.
+    # Args: <corpus.csv|suite.epd> <n> <out-file> [KEY=VAL ...].
+    # STRIDE=1 on purpose: the offline replay simulates the table from the logged stream, so a strided log
+    # under-trains the simulated table and UNDERSTATES the reduction the live mechanism could reach.
+    # The engine writes [CORRLOG] to stderr; stdout (progress) is discarded.
+    src="${1:?corpus required}"; shift || true
+    n="${1:-400}"; shift || true
+    out="${1:-diagnostics/corrlog.txt}"; shift || true
+    env MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+        VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1 \
+        ENABLE_CORRHIST_LOG=1 CORRHIST_LOG_STRIDE=1 "$@" \
+        "$PY" diagnostics/_corrlog_capture.py "$src" "$n" > /dev/null 2> "$out" || true
+    echo -n "CORRLOG ROWS: "; grep -c '\[CORRLOG\]' "$out" || echo 0
+    ;;
+
+  corrsignal)
+    # Offline correction-history go/no-go gate over a captured log. Args: <log-file> [--lambda N] [--seed N].
+    "$PY" diagnostics/corrhist_signal.py "$@"
+    ;;
+
   unit_trace)
     # FIXED diagnostic: KS units distribution + proximity/discriminating composition (reads default KS config).
     # Only free arg is N=<count>. Same blast-radius profile as the benches (a fixed script + KEY=VAL knobs).

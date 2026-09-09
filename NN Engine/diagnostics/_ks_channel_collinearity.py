@@ -54,15 +54,27 @@ if os.environ.get("WORKER") == "1":
             pass
     out.close(); sys.exit(0)
 
-CONFIGS = {
-    "base": {},
-    "ch1_off": {"KING_SAFETY_MAG": 0},
-    "ch3_off": {"KS_ZONE_ATTACK_PCT": 0},
-    "ch4_off": {"IMBALANCE_SCALE": 0},
-}
+# MODE=heat (default) targets the attackingLayer CONSUMERS -- the question "does the heat table soak up
+# variance that PSTs/placement should explain, i.e. does it hurt the TUNABILITY of everything it touches".
+# MODE=ks reproduces the original king-channel set.
+# 🐛 The original ch4 ablated with IMBALANCE_SCALE=0, which only affects OvD MODE 0 and has been INERT since
+# OVD_BOUNDED_MODE=2 shipped -- that channel silently contributed nothing to every earlier run of this tool.
+# OVD_CAP=0 is the correct ablation for the shipped mode.
+if os.environ.get("MODE", "heat") == "ks":
+    CONFIGS = {"base": {}, "ch1_off": {"KING_SAFETY_MAG": 0},
+               "ch2_off": {"KS_ZONE_ATTACK_PCT": 0}, "ch3_off": {"OVD_CAP": 0}}
+    LABELS = [("ch1", "unit-KS (KING_SAFETY_MAG)"),
+              ("ch2", "attackingLayer king slice (KS_ZONE_ATTACK_PCT)"),
+              ("ch3", "OvD imbalance (OVD_CAP)")]
+else:
+    CONFIGS = {"base": {}, "ch1_off": {"SCALE_ATTACK_LAYER": 0},
+               "ch2_off": {"SCALE_CENTRAL": 0}, "ch3_off": {"OVD_CAP": 0}}
+    LABELS = [("ch1", "ALL attackingLayer heat (SCALE_ATTACK_LAYER)"),
+              ("ch2", "central re-sum (SCALE_CENTRAL)"),
+              ("ch3", "OvD imbalance (OVD_CAP)")]
 tot = {}
 for tag, knobs in CONFIGS.items():
-    outp = "/tmp/_col_%s.csv" % tag
+    outp = "/tmp/_col_%d_%s.csv" % (os.getpid(), tag)  # PID-unique: concurrent runs must not share /tmp
     env = dict(os.environ, WORKER="1", OUT=outp, **{k: str(v) for k, v in knobs.items()})
     subprocess.run([PY, "-u", os.path.abspath(__file__)], cwd=ENGINE, env=env,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -71,14 +83,14 @@ for tag, knobs in CONFIGS.items():
 fens = [f for f in tot["base"] if all(f in tot[t] for t in CONFIGS)]
 # Per-channel contribution = base - ablated. Restrict to positions where unit-KS actually fires (|d1|>0),
 # i.e. a king is genuinely under attack — the regime the thesis is about.
-D = {"ch1": [], "ch3": [], "ch4": []}
+D = {"ch1": [], "ch2": [], "ch3": []}
 for f in fens:
     d1 = tot["base"][f] - tot["ch1_off"][f]
+    d2 = tot["base"][f] - tot["ch2_off"][f]
     d3 = tot["base"][f] - tot["ch3_off"][f]
-    d4 = tot["base"][f] - tot["ch4_off"][f]
-    if abs(d1) < 1:   # unit-KS inert here -> not an attacked-king position
+    if abs(d1) < 1:   # gate channel inert here -> not a position this question is about
         continue
-    D["ch1"].append(d1); D["ch3"].append(d3); D["ch4"].append(d4)
+    D["ch1"].append(d1); D["ch2"].append(d2); D["ch3"].append(d3)
 
 
 def pear(a, b):
@@ -92,16 +104,16 @@ def pear(a, b):
 
 
 n = len(D["ch1"])
-print("KS channel collinearity over %d attacked-king positions  (contribution = base_total - channel_off)\n" % n)
-print("  channel                              mean|contribution| (mp)")
-for c, lbl in (("ch1", "unit-KS (KING_SAFETY_MAG)"), ("ch3", "attackingLayer king (KS_ZONE_ATTACK_PCT)"),
-               ("ch4", "OvD imbalance (IMBALANCE_SCALE)")):
+print("channel collinearity (MODE=%s) over %d positions  (contribution = base_total - channel_off)\n"
+      % (os.environ.get("MODE", "heat"), n))
+print("  channel                                       mean|contribution| (mp)")
+for c, lbl in LABELS:
     v = D[c]
-    print("  %-38s %8.1f" % (lbl, sum(abs(x) for x in v)/max(1, len(v))))
+    print("  %-45s %8.1f" % (lbl, sum(abs(x) for x in v)/max(1, len(v))))
 print("\n  pairwise correlation of per-position contributions (collinearity):")
-print("    ch1 x ch3 (unit-KS vs attackingLayer-king): %+.3f" % pear(D["ch1"], D["ch3"]))
-print("    ch1 x ch4 (unit-KS vs OvD):                  %+.3f" % pear(D["ch1"], D["ch4"]))
-print("    ch3 x ch4 (attackingLayer-king vs OvD):      %+.3f" % pear(D["ch3"], D["ch4"]))
+print("    %s x %s: %+.3f" % (LABELS[0][1][:28], LABELS[1][1][:24], pear(D["ch1"], D["ch2"])))
+print("    %s x %s: %+.3f" % (LABELS[0][1][:28], LABELS[2][1][:24], pear(D["ch1"], D["ch3"])))
+print("    %s x %s: %+.3f" % (LABELS[1][1][:28], LABELS[2][1][:24], pear(D["ch2"], D["ch3"])))
 print("\n  read: HIGH positive correlations (~>0.5) => the channels DUPLICATE one proximity signal => consolidate-\n"
       "  then-compound thesis HOLDS (green light). LOW/mixed => channels carry distinct info => de-dup sheds\n"
       "  signal => STOP + bank the bundle. Also weigh the magnitudes: a tiny-magnitude channel can't be the noise.", flush=True)

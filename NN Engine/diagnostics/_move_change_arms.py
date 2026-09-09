@@ -93,7 +93,9 @@ if not ARM:
 
 # One process per arm: knobs latch at engine init, so there is no way to flip a gate inside a run.
 # Both files are written under this process's lifetime because /tmp does not survive between calls.
-base_out, arm_out = "/tmp/_mc_base.csv", "/tmp/_mc_arm.csv"
+# PID-qualified: fixed names collide across concurrent invocations, silently returning one run's worker
+# output to another (observed 2026-09-06 in _ks_footprint_regret: two arms byte-identical for different knobs).
+base_out, arm_out = "/tmp/_mc_%d_base.csv" % os.getpid(), "/tmp/_mc_%d_arm.csv" % os.getpid()
 for out_path, knobs in ((base_out, []), (arm_out, ARM.split(","))):
     cmd = [sys.executable, "-u", os.path.abspath(__file__), "WORKER=1", "OUT=" + out_path,
            "N=" + str(N), "IN=" + IN, "QUIET_ONLY=" + ("1" if QUIET_ONLY else "0")] + knobs

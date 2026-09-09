@@ -91,7 +91,7 @@ def collect(config, tag):
     ka = ["%s=%s" % (k, v) for k, v in config.items()]
     procs = []
     for i in range(JOBS):
-        outp = "/tmp/_drift_%s_%d.csv" % (tag, i)
+        outp = "/tmp/_drift_%d_%s_%d.csv" % (os.getpid(), tag, i)  # PID-unique: concurrent runs must not share /tmp
         e = dict(env, WORKER="1", SLICE="%d/%d" % (i, JOBS), OUT=outp)
         procs.append((subprocess.Popen([PY, "-u", os.path.abspath(__file__)] + ka,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True, cwd=ENGINE, env=e), outp))

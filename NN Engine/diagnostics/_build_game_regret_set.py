@@ -61,7 +61,8 @@ def phase_of(board):
 
 
 # Sample positions spread across MANY distinct games (diversity) and across plies within each game.
-files = sorted(glob.glob(os.path.join(GAMES, "*", "*.jsonl")))
+_gg = os.environ.get("GAMES_GLOB", os.path.join("*", "*.jsonl"))
+files = sorted(glob.glob(os.path.join(GAMES, _gg)))
 files = [f for f in files if "_archive" not in f and "_bak" not in f]
 stride_f = max(1, len(files) // 2500)          # spread over up to ~2500 distinct games
 sel_files = files[::stride_f]

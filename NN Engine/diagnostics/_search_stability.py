@@ -91,6 +91,52 @@ def arm_moves(knobs, delta):
     return None
 
 
+# ---------------------------------------------------------------------------------------------------
+# VS=1 -- CROSS-ARM mode: diff baseline against each ARM at ONE delta, and DUMP the positions that flipped.
+#
+# The default mode above diffs a config against ITSELF across aspiration widths (a stability question).
+# This mode asks a different one: WHERE DOES A DIFFERENT EVAL CHOOSE A DIFFERENT MOVE? Point it at
+# ENABLE_ORACLE_EVAL=1 and the dump is an empirical inventory of the positions where our eval's deficiency
+# actually costs us a decision -- as opposed to merely differing numerically.
+#
+# ⚠️ That distinction is the whole point. Ranking positions by raw eval difference has failed here before:
+# 52% of sampled positions had a bad eval but a FINE move ([[most-eval-error-is-move-neutral]]), and the
+# static-eval "top culprits" turned out to be search-absorbed. Filtering on a CHANGED MOVE removes that
+# entire class.
+# ⚠️ The baseline flip rate under a pure aspiration-width change is ~20.8% on quiet positions, so a raw
+# flip count means little on its own -- score the dumped positions (win% loss vs an SF judge) before
+# drawing conclusions, and rank by WIN%, never centipawns ([[rank-by-winpct-not-cp-it-inverts-conclusions]]).
+if OPTS.get("VS") == "1":
+    delta = DELTAS[0]
+    dump = OPTS.get("DUMP", "")
+    base = arm_moves("", delta)
+    if base is None:
+        sys.exit("baseline arm failed")
+    rows = []
+    print(f"positions={len(fens)}  delta={delta}  preset={PRESET}  MAXD={MAXD}  (cross-arm mode)")
+    for i, a in enumerate(ARMS):
+        cand = arm_moves(a, delta)
+        if cand is None:
+            print(f"  arm{i+1:<5} SKIPPED (failed)   {a}")
+            continue
+        flips = scored = 0
+        for j, f in enumerate(fens):
+            if base[j] is None or cand[j] is None:
+                continue
+            scored += 1
+            if base[j] != cand[j]:
+                flips += 1
+                rows.append({"arm": f"arm{i+1}", "fen": f, "base_move": base[j], "cand_move": cand[j]})
+        pct = (100.0 * flips / scored) if scored else 0.0
+        print(f"  arm{i+1:<5} flips={flips:>3}/{scored:<3} ({pct:5.1f}%)   {a}")
+    if dump and rows:
+        with open(dump, "w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=["arm", "fen", "base_move", "cand_move"])
+            w.writeheader()
+            w.writerows(rows)
+        print(f"dumped {len(rows)} flipped positions -> {dump}")
+    sys.exit(0)
+
 configs = [("baseline", "")] + [(f"arm{i+1}", a) for i, a in enumerate(ARMS)]
 print(f"positions={len(fens)}  deltas={DELTAS}  preset={PRESET}  (control = baseline flip rate)")
 for name, knobs in configs:

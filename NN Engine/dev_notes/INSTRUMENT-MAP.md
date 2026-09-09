@@ -202,6 +202,68 @@ null at its natural magnitude may be readable at 4×; quote **eval + re-cranked 
 
 ---
 
+## § F2 — ☠️★★★★ THE GATE IS A VETO, NOT A SELECTOR (2026-09-09)
+
+An instrument with SE ≈ 1pp **cannot choose** among candidates whose true effects are 0-1pp. That is
+arithmetic, not carelessness. But the same instrument rejects reliably: a −2pp reading is real information,
+a +1.3pp reading is almost none. **We were using it as a selector.**
+
+### The artifact this produced — three arms, one shape
+Every arm was run on the primary corpus, looked good, and was *therefore* promoted to the cross-set. So
+**every v2 reading we hold is conditioned on the primary having looked good.**
+
+| arm | primary | v2 |
+|---|---|---|
+| `KS_ZONE_ATTACK_PCT=0` | +1.1 to +1.6 | +0.0 |
+| `PIECEVAL_RECOMPUTE_LATE=1` | +0.7 to +1.2 | −1.5 |
+| `THREAT_MINOR_ON_DEFENDED=1` (09-09) | +1.3 | −1.4 |
+
+If all three have a TRUE effect of **zero**, conditioning on "we noticed it" predicts a primary reading of
+about +1σ ≈ +1pp — observed +1.1 / +0.7-1.2 / +1.3 — while v2, unconditioned, should read ~0; observed
+0.0 / −1.5 / −1.4, mean −1.0 against SE-of-mean ≈ 0.6. **It fits.**
+⇒ ☠️ **"Cleared one corpus then reversed" is what a ZERO-effect knob looks like after you select on the
+first corpus.** It has twice been recorded as evidence that the two corpora want different evals. That is
+the more interesting explanation, not the more likely one. Real composition effects exist — but a
+SEQUENTIAL FILTER cannot distinguish them from selection, because the signature is identical.
+▶️ **Run BOTH corpora before looking at either, and pool.** Free, removes the selection step entirely, and
+gives one reading at SE ≈ 0.7pp instead of two 1pp readings conditioned on each other.
+⚠️ It rescues nothing: pooled, the 09-09 arm reads ~50.3% — still null. What changes is that we stop
+narrating three nulls as a live mechanism.
+
+### ⇒ THE THREE-WAY TRIAGE (replaces "it failed")
+| reading | status | why |
+|---|---|---|
+| clearly negative, multi-σ | **VETOED — dead** | a veto is robust to the winner's curse |
+| null **at CRANKED magnitude** | **REFUTED — dead** | ★ cranking separates INVISIBLE from INERT. Null at 4× is the mechanism not mattering, and no bundle rescues it (`KS_MOB_EDGE`) |
+| null at natural magnitude, never cranked | **REOPENABLE as bundle material** | never tested at a resolvable size; this is MOST of the ~85-attempt record |
+
+### ⇒ CONSEQUENCES FOR HOW WE WORK
+1. **Kill on the gate; never promote on it.** Nothing advances for reading positive.
+2. **Choose BUNDLES, not knobs.** If nothing single is worth 2pp, no protocol can choose a single knob — the
+   object is not resolvable. Four disjoint 0.5pp changes are one 2pp object that IS. Attribute by
+   leave-one-out only AFTER a bundle wins.
+   ⚠️ Bundling manufactures no effect: if the parts are truly zero the bundle is zero. The win is finding
+   that out in ONE run instead of eleven — and a null bundle is a far stronger closure than eleven null
+   singles, because it closes the set at a resolvable size.
+   ⚠️ **Check disjointness FIRST** — `Hanging` was ~87% a subset of capture gains and was never independent.
+   The `DUMP=` changed-set overlap is the test.
+3. **Keep the candidate count SMALL.** The winner's curse scales with how many things you screen. Thirty
+   swept knobs guarantee a fake winner near +1.5pp; four you can each explain mechanistically barely bias at
+   all. ★ That is the real argument for reading a reference engine over sweeping — fewer, better-motivated
+   candidates, not smarter ones.
+4. **Never quote the SCREENING number as the estimate.** A set used to select is inflated by construction.
+5. **GAMES choose. The proxy's job is to stop us wasting games**, not to pick the winner.
+
+### ⚠️ AND THE AGGREGATE READ THE RULE DOES NOT EXCUSE
+Individually a null is uninformative. **A long RUN of them is not.** Outposts, whole-board mobility, piece
+mobility, Hanging, the att2 clause, the mobility→kingDanger wiring — ~15 SF ports, all null to negative,
+while what carries value here is OURS (heat map 1.3pp; `MOD_KS_REALIZ` inside the +36.7 bundle). Same logic
+as THREE UNRESOLVABLE SIGNALS THE SAME WAY ARE A RESULT. ⇒ **SF-porting has a poor track record in this
+engine**, and the reframe does not rescue it: a term tuned inside SF's search and eval does not
+automatically fit outside them. ★ Prefer fixing what OUR term does wrong over adding a foreign one beside
+it — and note that KS's failure is DIRECTIONAL (additive 0-for-11, only subtractive wins), which better
+resolution does not change.
+
 ## § G — ▶️ PROTOCOL — before you spend anything
 
 1. **`record-check` first.** Has this been tried? Was it **RESOLVED**, or merely **UNREADABLE**? ~85 eval

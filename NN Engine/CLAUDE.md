@@ -1,278 +1,208 @@
 # Chess Engine (C++) — Claude Code Instructions
 
-## Scope / Orientation
+**This file holds only what must be known BEFORE acting.** Everything else is a pointer, so it is read
+on demand rather than loaded every session.
 
-This repo (`Chess-Engine`) is a large, loosely-organized hobby project, and **most of it is inactive**. All active development lives in this `NN Engine/` directory.
+| you need | read |
+| --- | --- |
+| file map · data flow · what the search already has · symmetry defect shapes · triangulation | [`dev_notes/ENGINE-ORIENTATION.md`](dev_notes/ENGINE-ORIENTATION.md) |
+| which probe exists (~200 of them) | [`dev_notes/DIAGNOSTICS-TOOLKIT.md`](dev_notes/DIAGNOSTICS-TOOLKIT.md) |
+| **what a probe can RESOLVE and how it LIES** | [`dev_notes/INSTRUMENT-MAP.md`](dev_notes/INSTRUMENT-MAP.md) |
+| has this been tried, and was it RESOLVED or just UNREADABLE | memory `KNOWLEDGE-MAP.md` (all 274) — or the `record-check` agent |
+| where the program stands today | memory `eval-lane-state-2026-09-09` → `dev_notes/SESSION-HANDOFF-2026-09-09.md` |
+| the ship record | [`dev_notes/OPTIMIZATION_LOG.md`](dev_notes/OPTIMIZATION_LOG.md) |
 
-Despite the name, the current engine is **not** the neural-network engine the directory was originally built for. Recent work is a **(mostly) standalone C++ chess engine**, driven through a Cython entry point and compiled/run under WSL. The older NN engine, the rest of the repo, and most other files in this directory are legacy.
+## Scope
 
-**Default assumption:** work concerns the C++ engine files listed in the file map below. Treat only those as the active engine. Anything outside that set — flag it, don't silently touch it. If the user wants to expand scope (e.g. revive the NN side, or add a new subsystem), map it out here first before working on it.
+This repo is a large, loosely-organized hobby project and **most of it is inactive**. All active work lives
+in `NN Engine/`. Despite the name the current engine is **not** the neural-network engine the directory was
+built for — it is a (mostly) standalone **C++ engine** driven through a Cython entry point, compiled under
+WSL. The older NN engine and the rest of the repo are legacy. **Default assumption:** work concerns the C++
+files in the orientation doc's file map; anything outside that set — flag it, don't silently touch it.
+
+🎯 **Roadmap:** strongest single-threaded **hand-written** eval first, then train our own NN from it — now
+validated numerically, since SF11 (purely hand-written) reaches ~90% of a modern classical eval's gain.
+⚠️ The owner does not want an SF clone: **strength while staying distinctive.** Ours with no SF analogue —
+the attacking-layer heat map, `ovd_imbalance`, `approximate_capture_gains`, latent bishop/rook activity, the
+multiplicative passer R, `piece_value_boost`, `EG_EXIST_*`, material-as-realizability-conditioner.
 
 ---
 
-## Build & Run (WSL workflow)
+## Build & run (WSL)
 
-Everything compiles and runs under **WSL** (Anaconda `base` env). From this `NN Engine/` directory:
+Everything compiles and runs under **WSL** (Anaconda `base` env), from this directory:
 
 ```bash
-# Navigate (from a fresh WSL shell)
 cd "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/"
-
-# Compile the Cython + C++ extension (produces ChessAI*.so)
-python setupAI.py build_ext --inplace
-
-# Run the playable UI (pygame)
-python ChessUI/chess_ui_v2.py
-
-# Run an isolated single-position test
-python main.py
+python setupAI.py build_ext --inplace     # compile Cython + C++ → ChessAI*.so
+python ChessUI/chess_ui_v2.py             # playable UI (pygame)
+python main.py                            # isolated single-position test
 ```
 
-- To test a specific position with `main.py`, edit the `chess.Board("...")` FEN near the top of [main.py](main.py#L31).
-- `setupAI.py` compiles with `-Ofast -march=native -flto -fopenmp -mpopcnt -mbmi2`, C++20, `-fno-rtti`. It is tuned for the host CPU (`-march=native`), so the built `.so` is machine-specific.
-- `main.py` still loads two keras models at startup only because the `ChessAI` constructor signature requires them — the engine logic itself is C++.
+- To test a position with `main.py`, edit the `chess.Board("...")` FEN near [main.py:31](main.py#L31).
+- `setupAI.py` uses `-Ofast -march=native -flto -fopenmp -mpopcnt -mbmi2`, C++20, `-fno-rtti`. The `.so` is
+  **machine-specific**. ☠️ **Do not hand-optimize against `-Ofast -flto`** — and note that adding code at
+  all can move NPS by tens of percent through layout alone.
+- `main.py` loads two keras models at startup only because the `ChessAI` constructor requires them.
 
-### Unattended / autonomous runs — the ONLY prompt-free invocation form
+🚨 **BASELINE — reverify every build:** `250 / 35,310,778 / EBF 3.784 / STS 1796` · quiet **249,014**
+(marginal EBF 1.914) · depth@1s **12** · STS d8 **1676**. NPS 450,201 is the **LIGHTNING** mean
+(LONG_FORMAT ~386k). Canonical byte-identity command: `MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`
+— without `LONG_FORMAT` hard positions time-abort and node counts become machine-load dependent.
 
-For overnight/unattended work, calls MUST auto-approve or they hang waiting on a prompt. The
-`.claude/settings.local.json` allowlist is a **prefix match**: `wsl.exe -e bash -lc "bash '<abs overnight_runner.sh>'` followed by `*` (any suffix). So:
+### The ONLY prompt-free invocation form
 
-- ✅ **Auto-approved** — the command *begins* with, verbatim:
+Unattended calls MUST auto-approve or they hang on a prompt. The `.claude/settings.local.json` allowlist is
+a **prefix match**: `wsl.exe -e bash -lc "bash '<abs overnight_runner.sh>'` followed by `*`.
+
+- ✅ **Auto-approved** — begins verbatim with:
   `wsl.exe -e bash -lc "bash '/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/selfplay/overnight_runner.sh' <sub> <args…>"`
-  The trailing `*` also covers `KEY=VALUE` knobs after the sub **and** a trailing `… 2>&1 | grep … >> '<literal path>'`.
-- ❌ **Prompts (hangs unattended)** — anything that does NOT start with `bash '<runner>'` right after `-lc "`: a leading `R='…';`/`cd`/`export` wrapper, `wsl.exe bash -c` (missing `-e`/`-lc`), or raw commands (`pgrep`, `pkill`, `env … python`, `find`, `wsl.exe --shutdown`).
+  The trailing `*` also covers `KEY=VALUE` knobs after the sub **and** a trailing
+  `… 2>&1 | grep … >> '<literal path>'`.
+- ❌ **Prompts (hangs)** — anything not starting with `bash '<runner>'` right after `-lc "`: a leading
+  `R='…';`/`cd`/`export` wrapper, `wsl.exe bash -c` (missing `-e`/`-lc`), or raw commands (`pgrep`,
+  `pkill`, `env … python`, `find`, `wsl.exe --shutdown`).
 
-**Rules for unattended sequences:** (1) launch **each** run as its own auto-approved `bash '<runner>' …`
-call (background for long ones) — do NOT chain them in one `R='…'` wrapper (that prompts); (2) write
-paths/knobs **literally** — shell vars (`$R`) expand empty in this wrapper; (3) read results **with the
-Read tool** on the Windows-path results file (no shell → no prompt), not via `grep`; (4) never `pgrep`/
-`pkill` unattended. To adapt between runs, go step-by-step: launch → Read the result file → decide → launch next.
+**Rules:** (1) launch **each** run as its own auto-approved call — never chain them in one `R='…'` wrapper;
+(2) write paths and knobs **literally** — shell vars expand empty here; (3) read results with the **Read
+tool** on the Windows path; (4) never `pgrep`/`pkill` unattended. Adapt step-by-step: launch → Read →
+decide → launch next.
 
-**Waiting on long runs — do NOT use `ScheduleWakeup` to poll.** It is unreliable here (the timed wakeup
-often never fires). Instead launch the run as a **background Bash task** and wait for the harness's
-automatic completion notification — a background task pings you when it exits, so no self-scheduled poll is
-needed. For a *mid-run* directional read (e.g. an SPRT that runs to a game cap), just `Read` the task's
-output file when you're next active; the interim lines (running Elo/LLR) are all there. Never sit on a
-`ScheduleWakeup` timer expecting it to wake you.
+☠️ **`sts`/`wac` take `<tag>` FIRST, knobs after.** Reversing it is the tag artifact, and the harness
+discards the guard's output — it fails **silently**.
+☠️ **conc ≤4 · never `nohup` (it orphans the job and a relaunch double-books cores → OOM) · never rebuild
+while a job runs · never `| tail` a long run** (output buffers until exit, so a crash is indistinguishable
+from a slow run — this once cost 47 minutes waiting on a dead job).
+⚠️ **RAM, not cores, is the binding constraint** — cap ~2 engine-loading runs.
+⚠️ The owner games ~9pm–midnight and weekend afternoons: **fixed-depth work is safe then, timed work is
+not**, and machine suspend corrupts fixed-time games.
 
----
-
-## C++ Engine File Map
-
-| File | Role | Key contents |
-| --- | --- | --- |
-| `ChessAI.pyx` | Cython entry point / Python↔C++ bridge | `ChessAI` class; `alphaBetaWrapper()` is called from the pygame UI to get a move; opening-book lookup; `extern` declarations into the three C++ headers; converts results back to `chess.Move` (UCI) |
-| `setupAI.py` | Build script | Compiles `cpp_bitboard.cpp`, `threadpool.cpp`, `search_engine.cpp`, `ChessAI.pyx` into the `ChessAI` extension; OpenMP + C++20 + native-arch flags |
-| `search_engine.cpp` / `search_engine.h` | Search entry point & core algorithm | `get_engine_move()` (C++ entry from Cython); iterative deepening; `alpha_beta()`, `minimizer()` / `maximizer()`, `qSearch()`; PVS, null-move pruning, LMR, futility, razoring; structs `BoardState`, `MoveData`, `SearchData`, `TTEntry`; search constants (`MAX_QDEPTH`, `MIN_MATERIAL_FOR_NULL_MOVE`, futility margins, time-check interval) |
-| `move_gen.h` | Legal move generation + ordering | `generateLegalMoves()`, `generatePseudoLegalMoves()`, `generateEvasions()`, castling / en-passant / pawn move gen; `generateLegalMovesReordered()` — scores captures by MVV-LVA + SEE and quiets by history / killer / counter-move / move-frequency heuristics; precomputed attack masks |
-| `cache_management.h` | Hashing, caches, heuristics | Zobrist hashing (`generateZobristHash`, incremental update); transposition table (`searchEvalCache` + `TTEntry`, depth-preferred replacement); eval / quiescence / move-gen caches; killer / counter-move / history / move-frequency tables and their decay functions |
-| `cpp_bitboard.cpp` / `cpp_bitboard.h` | Evaluation function (+ bitboard ops & move-gen impl) | `placement_and_piece_eval()` — main static eval; per-piece midgame/endgame evaluators (pawns, knights, bishops, rooks, queens, kings); placement / attacking layers; passed pawns, king safety, bishop color complexity, rook open files; `advanced_endgame_eval()`, `get_latent_threat_score()`; piece values and most engine constants |
-| `ThreadPool.cpp` / `ThreadPool.h` | Worker thread pool | `enqueue()` / `wait()` work-stealing pool. Compiled in (`setupAI.py` lists it as `threadpool.cpp`, which resolves on the case-insensitive `/mnt/c` mount), but **not currently wired into the active search** — treat as latent / future SMP. |
+**Waiting on long runs — do NOT use `ScheduleWakeup` to poll**; it is unreliable here. Launch as a
+**background task** and wait for the harness's completion notification. For a mid-run read, `Read` the
+task's output file.
 
 ---
 
-## Data Flow
+## 🚨 NEVER USE A SHELL TO READ — it prompts, and a prompt BLOCKS THE QUEUE
 
-```
-pygame UI (ChessUI/chess_ui_v2.py)
-  → ChessAI.alphaBetaWrapper()           [ChessAI.pyx — Cython bridge]
-  → get_engine_move()                    [search_engine.cpp — C++ entry]
-  → iterative deepening
-  → alpha_beta()  →  minimizer()/maximizer()   (+ transposition table, LMR,
-                                                  null-move/futility/razoring,
-                                                  qSearch at the horizon)
-  → placement_and_piece_eval()           [cpp_bitboard.cpp — static eval]
-  → best MoveData  →  UCI  →  chess.Move back to Python
-```
+Read / Grep / Glob never prompt. Any shell invocation that is not the exact allowlisted runner prefix does,
+and while the owner is asleep that stalls every job behind it. One careless read can cost an overnight block.
 
-Move ordering at each node comes from `generateLegalMovesReordered()` (`move_gen.h`), backed by the heuristic tables in `cache_management.h`.
+| need | ✅ use | ❌ never |
+|---|---|---|
+| read a file or task output | **Read** | `cat`, `tail`, `pyrun -c "print(open(...))"` |
+| search contents | **Grep** | `grep`, `rg`, `Select-String` |
+| find files | **Glob** | `find`, `ls -R`, `Get-ChildItem -Recurse` |
+| file size / existence | **Read it, or don't check** | `Get-Item .Length`, `stat`, `wc` |
 
----
-
-## Search Techniques Already Present
-
-Know what exists before adding anything — **reuse, don't reinvent**:
-
-- Alpha-beta (fail-soft) with Principal Variation Search (null-window scout + re-search)
-- Iterative deepening with time control
-- Transposition table (depth-preferred replacement)
-- Null-move pruning, Late Move Reduction (LMR), futility pruning, razoring
-- Quiescence search (captures/checks at the horizon)
-- Killer-move, history, and counter-move heuristics + move-frequency PV bonus
-- SEE-based capture ordering (MVV-LVA fallback)
-- Zobrist hashing for position identity
+☠️ **PowerShell prompts, always.** ☠️ **Multi-line `pyrun -c` prompts** — the allowlist needs a SINGLE-LINE
+command; put logic in a `.py` file and run `pyrun diagnostics/<file>.py`.
+★ **Before any Bash call, ask: "is this reading something?" If yes, it is the wrong tool.**
 
 ---
 
-## Development Rules & Code Style
+## 🚨 Three pre-flight checks — run the check, don't rely on care
 
-### 🚨 THREE PRE-FLIGHT CHECKS — these mistakes recur, so run the check, don't rely on care
+All three recurred in one 2026-08-08 session *after* two were already written down. Memory:
+`three-recurring-self-check-failures`.
 
-Memory: [[three-recurring-self-check-failures]]. All three happened again in one 2026-08-08 session
-*after* two of them were already written down, which is why they live here as checks rather than notes.
+**1. Before concluding anything from a code fragment, prove it EXECUTES at defaults.** Check the enclosing
+branch, the gate, and the phase. Removing a queen "proved the queen was involved" when it actually pushed
+`phase_score` past the endgame threshold and switched *evaluators*; a `forward_mask` fix landed behind
+`ENABLE_CHEAP_BISHOP_COMPLEX` and changed **0 of 1200 positions**.
+✅ Then verify the knob MOVES the engine — **changed-rate, not byte-identity**. A null from a knob you have
+not proven live is worthless. ☠️ Byte-identical-to-control is the signature of a **silent fallback**.
 
-**1. Before concluding anything from a code fragment, prove it EXECUTES at defaults.**
-Check the enclosing branch, the gate, and the phase. Three failures in one session: removing a queen
-"proved the queen was involved" when it actually pushed `phase_score` past the endgame threshold and
-switched *evaluators*; "single rook" probes used rook+kings, which is deep endgame, while chasing a
-midgame defect; and a `forward_mask` fix landed in code unreachable behind `ENABLE_CHEAP_BISHOP_COMPLEX`
-and changed **0 of 1200 positions**.
-✅ Then verify the knob MOVES the engine — dump evals on/off and diff. A null from a knob you have not
-proven live is worthless, and this is the check that caught the inert "fix".
-
-**2. To explain WHY a number moved, ABLATE — do not read.**
-Reading is the best tool for *finding* defects (5 of 9 symmetry defects came from reading). It is
-unreliable for *explaining measurements*: four such stories were falsified in one session. Zero each
-candidate knob in turn and watch the metric instead.
+**2. To explain WHY a number moved, ABLATE — do not read.** Reading is the best tool for *finding* defects
+(5 of 9 symmetry defects came from reading) and unreliable for *explaining measurements*: four such stories
+were falsified in one session.
 ★ **When a violation magnitude is CONSTANT, divide it by the candidate knobs.** 30 mp = rounding ×
 `KING_SAFETY_MAG`; 50 = `ROOK_ENEMY_PAWN_PEN`; 85 = `EG_SUPPORT − EG_LATENT`; 24 = 2×`CHEAP_BISHOP_KING`.
 Four for four.
 
-**3. Every diagnostic print goes behind the existing flag guard FIRST, `getenv` second.**
-Use `if (g_capture_eval_breakdown && std::getenv("X"))` — the flag is false in the search path and
-short-circuits the `getenv` away. An unguarded `getenv` in the capture loop cost **7.5% peak NPS**
-(424,755 → 456,765) and inflated run-to-run spread from 0.8% to 6.7%. ☠️ **Byte-identity cannot see
-this** — node counts were identical throughout. Re-read `wac_speed` peak after adding any probe.
+**3. Every diagnostic print goes behind the existing flag guard FIRST, `getenv` second.** Use
+`if (g_capture_eval_breakdown && std::getenv("X"))` — the flag is false in the search path and
+short-circuits the `getenv` away. An unguarded `getenv` in the capture loop cost **7.5% peak NPS** and
+inflated run-to-run spread from 0.8% to 6.7%. ☠️ **Byte-identity cannot see this** — node counts were
+identical throughout.
 
-### 🚨 COLOUR-SYMMETRY IS A SHIP GATE, NOT A DEBUGGING TOOL
+## 🚨 Colour symmetry is a SHIP GATE, not a debugging tool
 
 **Any new or modified EVAL term must pass the mirror test before it ships.** `eval(board.mirror())` must
-equal `-eval(board)` — mirror flips ranks, swaps colours AND swaps side-to-move, so a *correctly*
-implemented side-to-move term still passes. Run it mid-development or at the end of a run, but run it:
+equal `-eval(board)` — mirror flips ranks, swaps colours AND side-to-move, so a correctly implemented
+side-to-move term still passes.
 
 ```
 pyrun diagnostics/_eval_symmetry.py N=800 [TERMS=1] [<your knobs>]
 ```
 
-**Why this is a hard gate.** A 2026-08-08 sweep found **seven** colour defects and cut violations from
-74.5% to 1.4%. Two of them were introduced *by recent, game-validated ships*: the signed-shift rounding
-bug rode in with `MOD_KS_REALIZ` (+36.7 Elo bundle), and the rook `DBLCOUNT` contradiction rode in with
-capped threats (+45 Elo bundle). **Winning Elo is no protection against carrying a colour bug in**, and
-every constant fitted afterwards silently absorbs the breakage.
+Zero Stockfish, seconds, exact. A 2026-08-08 sweep found **eleven** defects and cut violations 74.5% → 1.4%;
+**two rode in with game-validated ships**, so winning Elo is no protection, and every constant fitted
+afterwards silently absorbs the breakage. Defect shapes and the mirrored-bench rule:
+[`dev_notes/ENGINE-ORIENTATION.md`](dev_notes/ENGINE-ORIENTATION.md).
 
-The recurring shapes, so they can be recognised while writing rather than months later:
-- **Wrong constant per colour** — one branch pays 10, its twin pays 15.
-- **Swapped wrap guards** — `<<9` wraps onto file A, `<<7` onto file H; getting them backwards both
-  admits the wrap AND deletes a legitimate neighbour.
-- **Non-mirrored rank windows** — White `> 4` (ranks 5-7) must mirror to Black `< 3`, not `< 5`.
-- **Two alternative fixes both shipped** — they are alternatives, not a bundle; shipping both recreates
-  the defect inverted. Grep the sibling knob's default before flipping either.
-- **`>>` on a SIGNED value** — an arithmetic shift rounds toward −∞, so `v>>8` and `(-v)>>8` are not
-  negatives of each other. Use `/ 256`, which truncates toward zero. ⚠️ A one-unit rounding error is not
-  automatically small: `KING_SAFETY_MAG=3000` amplified one unit into exactly 30 mp on 68 positions.
-- **Unstable sort with no tie-break** — `std::sort` leaves ties in insertion order, and insertion order
-  is usually square order, which reverses under a mirror. Tie-break on something colour-relative.
+## 🚨 Diagnostic-harness contamination
 
-⚠️ **Colour is the invariant axis; PHASE is not.** A white/black difference *inside one function* is
-presumptively a bug. A midgame/endgame difference is a legitimate design choice — the two evaluators
-exist so the phases can price things differently. Sweep white-branch vs black-branch, never midgame vs
-endgame.
+Any diagnostic searching MANY positions in ONE process (`run_one` and everything on it — `wac`/`sts`/
+`movematch`/the regret rulers) shares the engine's file-scope C++ learning tables ACROSS positions. A fresh
+`ChessAI` per FEN does **not** reset them; `get_engine_move` clears only per-ply scratch, so
+`historyHeuristics`/`counterMoveHeuristics`/`moveFrequency` bleed ordering from unrelated prior FENs and
+silently change the chosen move. Worst at low material. This FAKED an entire "endgame KS hurt".
 
-⚠️ **Both benches are colour-skewed** (`sts300` 177w/123b, `wac` 190w/110b), so neither can judge a
-colour change alone — the skewed STS once ranked two candidate fixes *backwards*. Use the mirrored twins
-and score `orig + mirror`:
-`sts_suite sts300_mirror.epd <tag>` · `wac_suite wac_mirror.epd <tag>`.
+- `run_one` now calls `ai.clear_search_tables()` per position. Default ON; **`DIAG_NO_CLEAR=1`** opts out
+  (pure-timing NPS benches, or to reproduce old numbers).
+- **DIAGNOSTIC-ONLY** — the game path never clears, so the shipped engine is byte-unchanged.
+- Cost of the bug (contaminated→clean): **STS 1670→1771**. ⇒ **any search-based POSITIONAL/REGRET number
+  from before 2026-08-14 is confounded.** Games/SPRT, static-eval diagnostics and byte-id are unaffected —
+  but "byte-id cancels" holds only for a LITERAL-identical eval, never for a real-change DELTA.
 
-★ When symmetry alone cannot choose (both repair directions are symmetric, e.g. 10-vs-15), it is a
-TUNING question — decide it on balanced STS, and choose on the balanced TOTAL, never the colour gap.
+---
 
-- **Build & run via the WSL workflow above.** Don't invent new build steps or compile flags. On Windows, use PowerShell syntax for any host-side commands.
-- **Reuse, don't redefine.** Call the existing eval / move-gen / cache / hashing helpers rather than reimplementing detection or scoring logic. Define a piece of logic once.
-- **Match the existing C++ style** (lifted from the codebase, not invented):
-  - Functions: `camelCase` (e.g. `generateLegalMoves`, `placement_and_piece_eval` — note some eval functions use `snake_case`; follow the neighbouring code).
-  - Local/global variables and struct members: `snake_case`.
-  - Constants / macros: `UPPER_SNAKE_CASE`.
-  - Type aliases / structs: `PascalCase` (`BoardState`, `MoveData`, `TTEntry`).
-  - **Tabs** for indentation.
-  - `uint64_t` for bitboards; prefer explicit types over `auto`; `constexpr` for compile-time constants.
-  - `/* ... */` block header comments documenting parameters/returns on non-trivial functions; keep the `@author: Ranuja Pinnaduwage` file banner on new C++ files.
-- **Comment guidelines:** explain *what* the code does and *why*, never *that it was added*. No `// Phase 7 fix`, `// ISSUE 15 FIX`, `// NEW:`, or AI-dialogue comments. Good: `// Skip pinned defenders when scoring captures`.
-- **No magic numbers** for evaluation or search thresholds. Use (or add to) the named constants in `cpp_bitboard.h` / `search_engine.h` — piece values, futility margins, `MAX_QDEPTH`, `MIN_MATERIAL_FOR_NULL_MOVE`, time-check interval, etc. — rather than inlining literals.
-- **Performance-critical code.** Eval and move generation run millions of times per search. Avoid heap allocations and any logging inside hot loops; respect and use the existing caches instead of recomputing.
-- 🚨 **NEVER USE A SHELL TO READ — it prompts, and a prompt BLOCKS THE QUEUE.** Read / Grep / Glob never
-  prompt. Any shell invocation that is not the exact allowlisted runner prefix does, and while the owner
-  is asleep that stalls every job behind it until a human wakes up. One careless read can cost a whole
-  overnight block.
+## Before you measure anything — full protocol in `INSTRUMENT-MAP.md` §G
 
-  | need | ✅ use | ❌ never |
-  |---|---|---|
-  | read a file or task output | **Read** | `cat`, `tail`, `pyrun -c "print(open(...))"` |
-  | search contents | **Grep** | `grep`, `rg`, `Select-String` |
-  | find files | **Glob** | `find`, `ls -R`, `Get-ChildItem -Recurse` |
-  | file size / existence | **Read it, or don't check** | `Get-Item .Length`, `stat`, `wc` |
+**`record-check`** (tried already? and was it RESOLVED or merely UNREADABLE — the record is ~85 eval
+attempts, mostly unresolved nulls) → **`knob-audit`** (live at defaults? ECHOED ≠ WIRED) → **look up the
+instrument's resolution and count the resolvable effect BEFORE calling a null** → **measure the null**
+(rate-matched neutral arm, per corpus AND per stratum) → **register the prediction** → run.
+★ **Cross-set or it didn't happen** — one corpus at +1pp is noise. ★ **Play games after any search
+change.** ★ Knobs latch at init ⇒ **one process per setting**.
 
-  ☠️ **PowerShell prompts, always** — there is no read-only PowerShell command worth running here.
-  ☠️ **Multi-line `pyrun -c` prompts** — the allowlist needs a SINGLE-LINE command; embedded newlines break
-  the prefix match. Put logic in a `.py` file and run `pyrun diagnostics/<file>.py`.
-  ☠️ **Never pipe a long run through `| tail`** — output buffers until exit, so a crash is indistinguishable
-  from a slow run (this cost 47 minutes waiting on an already-dead job).
-  ★ **Before any Bash call, ask: "is this reading something?" If yes, it is the wrong tool.**
-  Detail + incident log: memory `never-shell-for-reading-it-prompts`.
+## 📐 Subsystem model docs — read before changing that subsystem
 
-## 🚨 DIAGNOSTIC-HARNESS CONTAMINATION — in-process loops clear learning tables per position
-
-Any diagnostic that searches MANY positions in ONE process (`run_one` and everything on it — `wac`/`sts`/`movematch`/
-the low-depth **regret** ruler `_ks_phase_split`) shares the engine's file-scope C++ learning tables ACROSS positions.
-A fresh `ChessAI` per FEN does NOT reset them, and `get_engine_move` clears only per-ply scratch — the ACCUMULATING
-move-indexed tables (`historyHeuristics`/`counterMoveHeuristics`/`moveFrequency`) persist (only decayed), so ordering
-history from UNRELATED prior FENs bleeds in and silently changes the chosen move. **Worst at low material / quiet
-positions** (few candidates, ordering decides); this FAKED an entire "endgame KS hurt" (KS was provably inert there).
-
-- `run_one` now calls `ai.clear_search_tables()` per position (→ `clearSearchTables()`, search_engine.cpp). Default ON;
-  **`DIAG_NO_CLEAR=1`** opts out (pure-timing NPS benches — the 134MB clear adds wall time — or to reproduce old numbers).
-- **DIAGNOSTIC-ONLY**: the GAME path never clears, so within-game learning + the shipped engine are byte-unchanged.
-- Cost of the bug (same build, contaminated→clean): **STS 1670→1771 (+101, +3.3pp)**; tactical WAC ~0.5%. Positional/regret
-  numbers were the ones distorted. ⇒ **any search-based POSITIONAL/REGRET number from before 2026-08-14 is confounded**
-  (re-baseline first). GAMES/SPRT, STATIC-eval (symmetry, per-term gap, collapse), and BYTE-ID are NOT affected — but
-  "byte-id cancels" holds ONLY for a LITERAL-identical eval, NOT for a real-change DELTA. Detail: memory
-  `diagnostic-harness-history-contamination`. Clean bundle baseline: `250 / 36,651,879 / 3.751 / STS 1771`.
-
-## 🧰 Diagnostics toolkit — READ BEFORE WRITING ANY NEW PROBE
-
-`diagnostics/` already holds ~200 scripts and nearly every question we ask has a tool for it. **Check
-[`dev_notes/DIAGNOSTICS-TOOLKIT.md`](dev_notes/DIAGNOSTICS-TOOLKIT.md) first** — it is the index of what
-exists, what each script answers, and the conventions. Rebuilding a probe wastes time and usually produces a
-weaker version (the rebuilt one lacks the *control set* that made the original trustworthy).
-
-- **Extend the canonical tool, do not fork it.** `probe_fens.py` is THE per-FEN probe (ours + SF11 +
-  SF15.1 classical + SF15.1 NNUE + SF18 static + SF18 search, `--table` for one row per FEN).
-- **Rank eval errors by win% (Lichess k=0.00368208), not centipawns** — the same logistic the fit scripts
-  use. Two pawns of error at +8 barely matters; two pawns at 0.0 flips the game.
-- **Carry the whole reference ladder.** The SF versions are a progression: whichever generation is closest
-  to truth for a situation is the source to read for that concept.
-
-## 📐 Subsystem model docs — READ BEFORE CHANGING THAT SUBSYSTEM
-
-Each records the measured system, the principles behind it, the evidence, and **what would falsify each
-claim**. Read the relevant one before touching that area of the eval, and **update it if you change the
-system** — a stale model doc is worse than none. These are canonical: they hold knowledge that does not
-expire, and superseded claims are struck through and kept, never deleted.
+Each records the measured system, the evidence, and **what would falsify each claim**. Update the doc if you
+change the system — a stale model doc is worse than none, because it reads as authoritative. Superseded
+claims are struck through and kept, never deleted.
 
 - **Pawns → [`dev_notes/PAWN_MODEL.md`](dev_notes/PAWN_MODEL.md)** — rank/file tables, chain & wall,
-  isolated/backward, passer detection and realizability, the per-pawn clamp. Includes a **refutation
-  record** of ideas already measured and killed; check it before re-proposing one.
-- **Before ANY eval RETUNE or adding a comparative term → [`dev_notes/collinearity-why-the-eval-cannot-be-tuned.md`](dev_notes/collinearity-why-the-eval-cannot-be-tuned.md).**
-  The eval is DEGENERATE (~30 terms, ~2 signals, collinear channels) — that, not the corpus, is why every
-  retune flattens (the −85.6-Elo fit). ★ The fix for collinearity is STRUCTURAL (de-dup / bounded re-shape),
-  **never ridge** (ridge resolves it *by* shrinking). Collinearity is a TUNING problem, not a PLAY problem:
-  de-dup by *removal* sheds load-bearing terms — re-shape (saturating/bounded) instead. Make comparative
-  terms bounded, never a linear re-sum of the base cells. Full code map: `eval-architecture-degeneracy-map.md`.
-- **To TUNE/VALIDATE eval → use the LOW-DEPTH REGRET method, NOT static corpus fit** (corpus is anti-correlated
-  with Elo; constants are tapped out). Score our fixed-**depth-7** search's chosen move by `winpct(SF18_best) −
-  winpct(SF18_of_our_move)` on **`diagnostics/ks_sets/game_regret_set.csv`** (~15k game-representative FENs, SF18
-  multi-PV @d14 cached; builder `_build_game_regret_set.py`; tools `_regret_tune.py` / `_regret_tune_broad.py`).
-  ⚠️ Seeded-SHUFFLE the train/held split (an index split over the multi-config game dirs fakes universal
-  overfitting). Method + data + depths: memory `low-depth-regret-tuning-method`, `dev_notes/SESSION-HANDOFF-2026-08-11.md`.
-  ★ Program: accumulate STRUCTURAL fixes (de-noise / detector-redesign) one unit at a time, confirm the BUNDLE in one tournament.
-- *(King safety → memory `ks-twelve-attempt-history-and-the-channel-law` + `dev_notes/KS-DETECTOR-REBALANCE-PLAN-2026-08-11.md`; other subsystems to follow.)*
+  isolated/backward, passer detection and realizability, the per-pawn clamp, plus a **refutation record**
+  (§8a). Check it before re-proposing a killed idea.
+- **King safety → [`dev_notes/KING_SAFETY_MODEL.md`](dev_notes/KING_SAFETY_MODEL.md)** (§4a refutation
+  record) and memory `ks-twelve-attempt-history-and-the-channel-law`. ☠️ Additive KS changes are **0-for-11**;
+  only subtractive ones have won.
+- **Before ANY eval RETUNE →
+  [`collinearity-why-the-eval-cannot-be-tuned.md`](dev_notes/collinearity-why-the-eval-cannot-be-tuned.md)**
+  (code map: `eval-architecture-degeneracy-map.md`). The eval is DEGENERATE (~30 terms, ~2 signals) — that,
+  not the corpus, is why every retune flattens (the −85.6-Elo fit). ★ The fix is STRUCTURAL re-shaping,
+  **never ridge** (it resolves collinearity *by* shrinking) and **never removal** (that sheds load-bearing
+  terms). ⚠️ **Bounded 09-09:** it does *not* hold for the three heat channels (max r=0.42).
+- **To TUNE/VALIDATE eval → the LOW-DEPTH REGRET method, not static corpus fit** (which is anti-correlated
+  with Elo). Score our fixed-**d7** search's move by `winpct(SF18_best) − winpct(SF18_of_our_move)` on
+  `diagnostics/ks_sets/game_regret_set.csv` (~15k FENs, SF18 multi-PV @d14 cached). ⚠️ Read **win%**, not
+  the mean, against a **measured** null band, and replicate on `_v2`. ⚠️ It is a d7 EVAL screen — **blind to
+  anything gated at depth ≥6**. Full protocol: `INSTRUMENT-MAP.md` §B.
 
-## Eval diagnosis — the three-way triangulation (ours / SF11-static / SF18-search)
+## Code style
 
-The standing method for hunting eval bugs: for a suspect position compare **ours** (`ai.ev_breakdown(board)`,
-a clean partition — fields sum to `total`), **SF11-static** (classical HCE `eval` with a labeled per-term
-table — the hand-fixable ceiling; compare our term vs SF11's same term), and **SF18-search** (the truth, but
-includes tactics we can't encode statically). Act on positions where **SF11-static agrees with SF18 but ours is
-wrong** (statically fixable → read SF11's classical source); skip where SF11 also misses (search's job); leave
-alone where we already beat SF11. Tools live in `diagnostics/`: `probe_fens.py` (explicit FEN list),
-`sf11_collapse_gap.py` (corpus per-term over-read), `ks_failure_hunt.py`. SF11 binary + full recipe:
-memory `sf11-sf18-triangulation-method`.
+- **Reuse, don't redefine.** Call the existing eval / move-gen / cache / hashing helpers. Define logic once.
+- Functions `camelCase` (some eval functions are `snake_case` — follow the neighbouring code); locals,
+  globals and struct members `snake_case`; constants `UPPER_SNAKE_CASE`; types `PascalCase`. **Tabs** for
+  indentation. `uint64_t` for bitboards; explicit types over `auto`; `constexpr` for compile-time constants.
+  `/* ... */` header comments on non-trivial functions; keep the `@author: Ranuja Pinnaduwage` banner.
+- **Comments explain *what* and *why*, never *that it was added*.** No `// Phase 7 fix`, `// NEW:`, or
+  AI-dialogue comments. Good: `// Skip pinned defenders when scoring captures`.
+- **No magic numbers** for eval or search thresholds — use (or add to) the named constants in
+  `cpp_bitboard.h` / `search_engine.h`. **In persistent docs cite STABLE symbols**, not line numbers.
+- **Hot code.** Eval and move generation run millions of times per search: no heap allocations or logging in
+  hot loops; use the existing caches rather than recomputing.
+- **New experiment knobs default OFF and byte-identical**, with the rationale and the measured result in the
+  comment beside them.

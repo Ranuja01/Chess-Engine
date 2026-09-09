@@ -91,7 +91,28 @@ a ±1.6pp spread across strata, and reading a stratum against a flat 50 misleads
 
 ⚠️ Binomial SE on a stratum difference: ~1.3pp at ps1 (n≈2900 both arms), ~3.7pp at ps2 (n≈300-400). A
 2pp reading at ps2 is noise; the same 2pp at ps1 is ~1.5σ. **Size the cell before believing the cell.**
-⚠️ `game_regret_set_v2`'s aggregate null is **50.7**; its per-stratum profile is not yet measured.
+
+#### 📌 MEASURED PER-STRATUM NULL — `game_regret_set_v2`, d7, `ASPIRATION_DELTA=300` (2026-09-09)
+| stratum | n changed | **null win%** |
+|---|---|---|
+| aggregate | 4278 (35.8%) | **49.8** |
+| opening | 1296 | **47.4** |
+| midgame | 1987 | **51.6** |
+| endgame | 995 | **49.2** |
+| **ps1 mid_far (≤53)** | 2431 | **49.5** |
+| ps2 mid_EDGE (58-64) | 356 | **53.4** |
+| ps3 end_EDGE (69-74) | 262 | **53.1** |
+| ps4 end_far (≥80) | 1229 | **48.6** |
+| ☠️ cr4 CRITICAL | **19** | 47.4 — **unreadable** |
+
+☠️★★★★ **THE NULL IS ITSELF A MEASUREMENT WITH ERROR — do not treat these as exact.** At n≈4,000-5,000 a
+null cell carries SE ≈ 0.75pp, so `arm − null` has SE ≈ **1.1pp**, not 0.7. The previously DOCUMENTED v2
+aggregate null was **50.7**; this measurement reads **49.8** (1.2σ apart, consistent) ⇒ **the v2 aggregate
+null is a BAND of 49.8-50.7**, and the primary band 49.8-50.4 likewise comes from three neutral arms, not
+one. ★ Two neutral points minimum; one gives a number, two give the band.
+☠️ **The two corpora's per-stratum nulls diverge sharply** — opening is **51.1 primary vs 47.4 on v2**
+(~2σ, n≈1300-1600 each), ps1 is 50.7 vs 49.5, ps2 is 51.6 vs 53.4. A stratum label denotes a materially
+DIFFERENT population in each set. ⇒ per-corpus AND per-stratum nulls are mandatory, never interchangeable.
 
 **How it lies:**
 - ☠️ **The MEAN's null is large, negative, and ARM-SPECIFIC.** Two Elo-neutral arms at the *same* flip rate
@@ -216,11 +237,16 @@ Every arm was run on the primary corpus, looked good, and was *therefore* promot
 |---|---|---|
 | `KS_ZONE_ATTACK_PCT=0` | +1.1 to +1.6 | +0.0 |
 | `PIECEVAL_RECOMPUTE_LATE=1` | +0.7 to +1.2 | −1.5 |
-| `THREAT_MINOR_ON_DEFENDED=1` (09-09) | +1.3 | −1.4 |
+| `THREAT_MINOR_ON_DEFENDED=1` (09-09) | +1.3 (ps1 +1.8) | **−0.5** (ps1 **+0.2**) |
 
 If all three have a TRUE effect of **zero**, conditioning on "we noticed it" predicts a primary reading of
 about +1σ ≈ +1pp — observed +1.1 / +0.7-1.2 / +1.3 — while v2, unconditioned, should read ~0; observed
-0.0 / −1.5 / −1.4, mean −1.0 against SE-of-mean ≈ 0.6. **It fits.**
+0.0 / −1.5 / −0.5, mean ≈ −0.7 against SE-of-mean ≈ 0.6. **It fits.**
+🐛 **This row was first recorded as −1.4, computed against the DOCUMENTED v2 null (50.7) instead of a
+MEASURED one (49.8)** — the exact error this section exists to prevent, committed within the hour by its
+own author. Arm A went **FLAT on replication (ps1 +1.8 → +0.2)**, not reversed. The verdict is unchanged
+(null, not a candidate) but "reversed" and "flat" are different claims and only one was true.
+★ **A correction rule is not self-applying. Re-read your own numbers against it before publishing them.**
 ⇒ ☠️ **"Cleared one corpus then reversed" is what a ZERO-effect knob looks like after you select on the
 first corpus.** It has twice been recorded as evidence that the two corpora want different evals. That is
 the more interesting explanation, not the more likely one. Real composition effects exist — but a

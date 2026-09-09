@@ -14,6 +14,136 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <unistd.h>
+#include <sys/wait.h>
+
+// ---------------------------------------------------------------------------------------------------
+// SF-ORACLE STATIC EVAL -- experiment only, gated on Config::ENABLE_ORACLE_EVAL (off = byte-identical,
+// no process is spawned and no FEN is ever built).
+//
+// WHY. Every search-side lane is closed (margins, LMR magnitude, node type, futility calibration,
+// presearch removal) and the measured gap is tree size: SF11 reaches depth 15 on the node budget where we
+// reach 10, venue-matched EBF 1.914 vs 1.452. The standing theory is that our margins are sized for our
+// eval noise, so a truer eval would buy pruning headroom -- but that link has only ever been ARGUED. This
+// substitutes a REFERENCE engine's evaluation into OUR search so the question can be measured directly,
+// in the IMPROVING direction, with a real structured eval rather than injected white noise.
+//
+// ⚠️ SIGN/SCALE IS THE FAILURE MODE. SF's `eval` reports PAWNS, White-POV. Ours is MILLIPAWNS, ABSOLUTE
+// Black-positive, with the side_to_play flip applied by the caller AFTER this. Hence ours = -(sf * 1000).
+// Reversed, the experiment still runs and still produces plausible numbers -- it is simply inverted. This
+// engine has an 11-defect history of exactly that class, so the mirror-symmetry check on the oracle path
+// is a HARD GATE before any number from here is quoted.
+// ⚠️ SF refuses to evaluate when the side to move is IN CHECK (~7% of eval calls in a real search). Those
+// fall back to OUR eval and are COUNTED -- an uncounted fallback would silently mix two eval systems at
+// precisely the tactical nodes where evaluation matters most.
+// Engine binary comes from the ORACLE_ENGINE_PATH environment variable.
+// ---------------------------------------------------------------------------------------------------
+namespace Oracle
+{
+    static FILE *g_in = nullptr;   // read from child
+    static FILE *g_out = nullptr;  // write to child
+    static pid_t g_pid = -1;
+    static bool g_tried = false;
+    static std::unordered_map<uint64_t, int> g_memo;   // zobrist -> our-convention millipawns
+    long g_calls = 0, g_hits = 0, g_fallbacks = 0, g_fails = 0;
+
+    // Launch the reference engine once and complete the UCI handshake. Returns false if unavailable, in
+    // which case every call falls back to our own eval (and is counted).
+    static bool start()
+    {
+        if (g_tried)
+            return g_pid > 0;
+        g_tried = true;
+        const char *path = std::getenv("ORACLE_ENGINE_PATH");
+        if (!path || !*path)
+            return false;
+
+        int to_child[2], from_child[2];
+        if (pipe(to_child) != 0 || pipe(from_child) != 0)
+            return false;
+        pid_t pid = fork();
+        if (pid < 0)
+            return false;
+        if (pid == 0)
+        {
+            dup2(to_child[0], STDIN_FILENO);
+            dup2(from_child[1], STDOUT_FILENO);
+            close(to_child[1]);
+            close(from_child[0]);
+            execl(path, path, (char *)nullptr);
+            _exit(127);
+        }
+        close(to_child[0]);
+        close(from_child[1]);
+        g_pid = pid;
+        g_out = fdopen(to_child[1], "w");
+        g_in = fdopen(from_child[0], "r");
+        if (!g_in || !g_out)
+            return false;
+
+        char line[8192];
+        std::fputs("uci\n", g_out);
+        std::fflush(g_out);
+        while (std::fgets(line, sizeof line, g_in))
+            if (std::strncmp(line, "uciok", 5) == 0)
+                break;
+        // SF15/SF18 need NNUE switched off to expose the CLASSICAL (hand-written) eval, which is the
+        // ceiling relevant to an HCE roadmap. SF11 has no net and ignores this.
+        if (Config::ORACLE_CLASSICAL)
+        {
+            std::fputs("setoption name Use NNUE value false\n", g_out);
+            std::fflush(g_out);
+        }
+        return true;
+    }
+
+    // One static eval, in PAWNS White-POV. Synchronises on `isready`/`readyok` so the pipe can never be
+    // left holding unread output -- a desynchronised reader returns the PREVIOUS position's score, which
+    // is fast, plausible, and wrong (this exact bug appeared in the Python latency prototype).
+    static bool eval_pawns(const std::string &fen, double &out)
+    {
+        std::fprintf(g_out, "position fen %s\neval\nisready\n", fen.c_str());
+        std::fflush(g_out);
+        char line[8192];
+        bool got = false;
+        double val = 0.0;
+        while (std::fgets(line, sizeof line, g_in))
+        {
+            if (std::strncmp(line, "readyok", 7) == 0)
+                break;
+            // ⚠️ SF11 prints "Total evaluation: 0.34 (white side)" WITH a colon; SF15/SF18 print
+            // "Final evaluation       +0.25 (white side)" WITHOUT one. Requiring the colon made every
+            // SF15 query fail and fall back to OUR eval -- and the arms then came out byte-identical to
+            // the control, which is exactly what a silent 100% fallback looks like. Match the label only,
+            // then scan forward to the first sign/digit.
+            // For the CLASSICAL arm prefer SF15/18's own "Classical evaluation" line: it reports the
+            // hand-written eval directly and does not depend on `setoption Use NNUE false` having taken
+            // effect. SF11 has no such line and falls through to "Total evaluation".
+            const char *p = nullptr;
+            if (Config::ORACLE_CLASSICAL)
+                p = std::strstr(line, "Classical evaluation");
+            if (!p)
+                p = std::strstr(line, "Total evaluation");
+            if (!p && !Config::ORACLE_CLASSICAL)
+                p = std::strstr(line, "Final evaluation");
+            if (p)
+            {
+                if (std::strstr(p, "none"))   // "none (in check)" -- SF declines to evaluate
+                    continue;
+                const char *c = p;
+                while (*c && *c != '+' && *c != '-' && !(*c >= '0' && *c <= '9'))
+                    ++c;
+                if (*c)
+                {
+                    val = std::atof(c);
+                    got = true;
+                }
+            }
+        }
+        out = val;
+        return got;
+    }
+} // namespace Oracle
 
 std::atomic<bool> time_up;
 std::atomic<bool> use_q_precautions;
@@ -1509,6 +1639,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_THREATS = env_flag("ENABLE_THREATS", Config::ENABLE_THREATS);
         Config::SCALE_THREATS = env_int("SCALE_THREATS", Config::SCALE_THREATS);
         Config::THREATS_STANDING_ONLY = env_flag("THREATS_STANDING_ONLY", Config::THREATS_STANDING_ONLY);
+        Config::THREAT_ATT2_PROTECT = env_flag("THREAT_ATT2_PROTECT", Config::THREAT_ATT2_PROTECT);
+        Config::KS_MOB_EDGE = env_int("KS_MOB_EDGE", Config::KS_MOB_EDGE);
+        Config::ENABLE_ROOK_LATENT_RAY_FIX = env_flag("ENABLE_ROOK_LATENT_RAY_FIX", Config::ENABLE_ROOK_LATENT_RAY_FIX);
+        Config::ENABLE_CAPG_ROOK_SQVAL = env_flag("ENABLE_CAPG_ROOK_SQVAL", Config::ENABLE_CAPG_ROOK_SQVAL);
         Config::THREAT_PER_TARGET_CAP = env_int("THREAT_PER_TARGET_CAP", Config::THREAT_PER_TARGET_CAP);
         Config::THREAT_SAFE_PAWN = env_int("THREAT_SAFE_PAWN", Config::THREAT_SAFE_PAWN);
         Config::THREATS_QUIET_PCT = env_int("THREATS_QUIET_PCT", Config::THREATS_QUIET_PCT);
@@ -1885,6 +2019,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SINGULAR_MAX_EXT = env_int("SINGULAR_MAX_EXT", Config::SINGULAR_MAX_EXT);
         Config::ENABLE_CUTNODE_PROBE = env_flag("ENABLE_CUTNODE_PROBE", Config::ENABLE_CUTNODE_PROBE);
         Config::EVAL_NOISE_SIGMA = env_int("EVAL_NOISE_SIGMA", Config::EVAL_NOISE_SIGMA);
+        Config::ENABLE_ORACLE_EVAL = env_flag("ENABLE_ORACLE_EVAL", Config::ENABLE_ORACLE_EVAL);
+        Config::ORACLE_CLASSICAL = env_flag("ORACLE_CLASSICAL", Config::ORACLE_CLASSICAL);
+        Config::ORACLE_SCALE = env_int("ORACLE_SCALE", Config::ORACLE_SCALE);
         Config::ENABLE_IIR = env_flag("ENABLE_IIR", Config::ENABLE_IIR);
         Config::IIR_MIN_DEPTH = env_int("IIR_MIN_DEPTH", Config::IIR_MIN_DEPTH);
         Config::ENABLE_SIMPL_BIAS = env_flag("ENABLE_SIMPL_BIAS", Config::ENABLE_SIMPL_BIAS);
@@ -2928,6 +3065,21 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     score = completed_score;
 
     // Cumulative aspiration diagnostics; the last line of a single-process suite run = suite totals.
+    // Oracle accounting. The fallback rate is part of every oracle result, not a footnote: a run where 7%
+    // of evals silently came from OUR eval is a MIXED-eval measurement, and it is mixed exactly at
+    // in-check (tactical) nodes.
+    if (Config::ENABLE_ORACLE_EVAL)
+        std::cerr << "[oracle] calls=" << Oracle::g_calls
+                  << " memo_hits=" << Oracle::g_hits
+                  << " unique=" << Oracle::g_memo.size()
+                  << " fallbacks=" << Oracle::g_fallbacks
+                  << " parse_fails=" << Oracle::g_fails
+                  << " fallback_pct="
+                  << (Oracle::g_calls + Oracle::g_hits > 0
+                          ? (100.0 * Oracle::g_fallbacks / (double)(Oracle::g_calls + Oracle::g_hits))
+                          : 0.0)
+                  << std::endl;
+
     if (Config::ASPIRATION_DELTA > 0)
         std::cerr << "[aspiration] windows=" << g_asp_windows
                   << " fails=" << g_asp_fails
@@ -8704,8 +8856,48 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
     }
     else
     {
-        total = placement_and_piece_eval(moveNum, current_state.turn, current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
-                                         current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.occupied);
+        // SF-oracle substitution (see namespace Oracle). Memoized by zobrist so only cache MISSES pay a
+        // UCI round trip. An in-check position, an unavailable binary, or an unparsable reply all fall
+        // back to our own eval and are counted -- never silently mixed.
+        bool used_oracle = false;
+        if (Config::ENABLE_ORACLE_EVAL)
+        {
+            auto it = Oracle::g_memo.find(zobrist);
+            if (it != Oracle::g_memo.end())
+            {
+                total = it->second;
+                used_oracle = true;
+                ++Oracle::g_hits;
+            }
+            else if (Oracle::start())
+            {
+                std::string fen = create_fen(current_state.pawns, current_state.knights, current_state.bishops,
+                                             current_state.rooks, current_state.queens, current_state.kings,
+                                             current_state.occupied, current_state.occupied_colour[true],
+                                             current_state.occupied_colour[false], current_state.promoted,
+                                             current_state.castling_rights, current_state.ep_square,
+                                             current_state.turn);
+                double sf_pawns = 0.0;
+                ++Oracle::g_calls;
+                if (Oracle::eval_pawns(fen, sf_pawns))
+                {
+                    // SF: pawns, White-POV. Ours: millipawns, ABSOLUTE Black-positive (the side_to_play
+                    // flip is applied below, by the shared path). Hence the negation.
+                    // ORACLE_SCALE re-expresses SF's value on OUR eval's scale, so that our absolute
+                    // pruning margins bite the same way they do on our own eval (see the knob's comment).
+                    total = -(int)(sf_pawns * 1000.0 * (double)Config::ORACLE_SCALE / 100.0);
+                    Oracle::g_memo[zobrist] = total;
+                    used_oracle = true;
+                }
+                else
+                    ++Oracle::g_fails;
+            }
+            if (!used_oracle)
+                ++Oracle::g_fallbacks;
+        }
+        if (!used_oracle)
+            total = placement_and_piece_eval(moveNum, current_state.turn, current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
+                                             current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.occupied);
     }
 
     if (Config::side_to_play)

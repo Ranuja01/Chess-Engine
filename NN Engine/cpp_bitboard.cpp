@@ -84,6 +84,12 @@ uint64_t candidate_passed_pawns = 0;
 // Define global variables for offensive, defensive and piece value scores
 int whiteOffensiveScore, blackOffensiveScore, whiteDefensiveScore, blackDefensiveScore;
 int blackPieceVal, whitePieceVal;
+// Per-side attacked-square counts, populated from attack_bitmasks after the piece loops when
+// KS_MOB_EDGE is on. SF adds mg(mobility[Them] - mobility[Us]) into kingDanger (evaluate.cpp:452):
+// a king is in more danger when the attacker's pieces are freer than its own defenders. Our mobility
+// currently stays inside each per-piece evaluator's local total and reaches no other term, so this
+// edge does not exist here. Zero and unread when the knob is off.
+int g_mob_white = 0, g_mob_black = 0;
 
 // Per-piece MOBILITY (Config::ENABLE_PIECE_MOBILITY). "Safe" mobility area (own K/Q/pawns + enemy-pawn-attacked
 // squares excluded) is computed once per side per eval; each piece adds MobilityBonus[popcount(attacks & area)]
@@ -2276,7 +2282,13 @@ inline int get_latent_rook_activity_score(uint8_t square){
 			if (bool(~opposingPieces & square_mask)){
 
 				uint64_t simulatedOccupied = (occupied & ~BB_SQUARES[square]) | square_mask;
-				uint64_t secondAttackMask = BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
+				// 🐛 This second-order scan used BB_DIAG_ATTACKS — DIAGONAL rays, copy-pasted from
+				// get_latent_bishop_activity_score — for a ROOK. The same function computes rook rays
+				// correctly at :2237/:2242 (BB_RANK_ATTACKS | BB_FILE_ATTACKS). Off = byte-identical.
+				uint64_t secondAttackMask = Config::ENABLE_ROOK_LATENT_RAY_FIX
+					? (BB_RANK_ATTACKS[r][BB_RANK_MASKS[r] & simulatedOccupied]
+					 | BB_FILE_ATTACKS[r][BB_FILE_MASKS[r] & simulatedOccupied])
+					: BB_DIAG_ATTACKS[r][BB_DIAG_MASKS[r] & simulatedOccupied];
 		
 				while (secondAttackMask) {
 		
@@ -5765,6 +5777,17 @@ inline int king_safety_danger(uint8_t king_square, bool white_king, bool defensi
 		units += (Config::KS_ATT_PRODUCT * att_pieces * att_wsum) >> 4;
 	}
 
+	// SF's mobility -> kingDanger edge (evaluate.cpp:452). Them = the side attacking THIS king. Danger rises
+	// when the attacker's pieces are freer than the defender's; a cramped attacker is less dangerous at the
+	// same attacker count. Scaled down hard: our units run 0..KS_CAP(80) behind a KS_FLOOR(13) deadzone where
+	// SF's danger is a 0..~1500 scale, so a raw square-count difference would swamp every other feeder.
+	// KS_MOB_EDGE=0 => no contribution => byte-identical.
+	if (Config::KS_MOB_EDGE) {
+		int mob_them = white_king ? g_mob_black : g_mob_white;
+		int mob_us   = white_king ? g_mob_white : g_mob_black;
+		units += (Config::KS_MOB_EDGE * (mob_them - mob_us)) >> 6;
+	}
+
 	if (units < 0) units = 0;
 	if (g_capture_eval_breakdown) { if (white_king) g_ks_units_white = units; else g_ks_units_black = units; }
 
@@ -5995,6 +6018,10 @@ inline int threats_by(bool by_white){
 
 		bool by_pawn = (attackers & our_pawns) != 0;
 		int na = __builtin_popcountll(attackers), nd = __builtin_popcountll(defenders);
+		// SF's second strongly-protected clause (attackedBy2[Them] & ~attackedBy2[Us]): a target the enemy
+		// defends twice while we attack it once is protected in the same sense as a pawn-defended one, and
+		// SF scores no threat against it. The pawn-only test above is the first clause alone.
+		if (Config::THREAT_ATT2_PROTECT && nd >= 2 && na < 2) continue;
 		uint64_t sm = BB_SQUARES[s];
 		int tgt = (sm & knights) ? 1 : (sm & bishops) ? 2 : (sm & rooks) ? 3 : 4;   // queen = 4
 		// Accumulate this target's contribution separately so it can be bounded: the stack below is otherwise
@@ -7272,6 +7299,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	// Initialize the global piece values
 	blackPieceVal = 0;
 	whitePieceVal = 0;
+	g_mob_white = 0; g_mob_black = 0;
 
 	// Initialize central score
 	central_score = 0;
@@ -7509,7 +7537,11 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 			}else{
 				blended_score = std::min(blended_score, 5600);
 			}
-			//square_values[r] = abs(blended_score);
+			// 🐛 The rook MIDGAME loop is the only piece/phase that never writes square_values (the endgame
+			// rook loop does, :7921). After the per-eval fill(0) at :7321 a midgame rook therefore reads as
+			// value 0, so get_least_valuable_attacker picks it as the CHEAPEST attacker in the capture-gains
+			// gather (:9031 — live, since ENABLE_CAPG_LVA_STATIC=false). Off = byte-identical.
+			if (Config::ENABLE_CAPG_ROOK_SQVAL) square_values[r] = abs(blended_score);
 			total += blended_score;
 			br_pt_rooks += blended_score;
 			//std::cout << "ROOKS: " << int(r) << " | " << blended_score << std::endl;
@@ -7739,9 +7771,20 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 		// (threats moved to the both-phase region after capture_gains — immediate threats are all-phase, unlike
 		//  the midgame-only king terms above. See the get_static_threats_score() call further down.)
 
-		// Attack-unit king safety. Default-off (KING_SAFETY_MAG=0, ENABLE_KS_REPLACE_LT=false) => byte-identical
-		// and runs BESIDE latent_threat. With ENABLE_KS_REPLACE_LT it REPLACES latent_threat (skipped above) and
-		// is the sole king-danger term — the structural swap (needs KING_SAFETY_MAG>0 to contribute).
+		// Attack-unit king safety. SHIPPED LIVE: KING_SAFETY_MAG=3000 and ENABLE_KS_REPLACE_LT=true, so this
+		// REPLACES latent_threat (skipped above) and is the sole attack-unit king-danger term. (The previous
+		// comment here claimed "Default-off (KING_SAFETY_MAG=0, ENABLE_KS_REPLACE_LT=false)" — stale since the
+		// structural swap shipped.)
+		// Per-side attacked-square counts for the SF mobility->kingDanger edge, computed once here because
+		// attack_bitmasks is fully populated only after the piece loops and KS is the first consumer.
+		if (Config::KS_MOB_EDGE) {
+			for (int sq = 0; sq < 64; ++sq){
+				uint64_t a = attack_bitmasks[sq]; if (!a) continue;
+				uint64_t bit = 1ULL << sq;
+				if ((a & occupied_white) && !(bit & occupied_white)) g_mob_white++;
+				if ((a & occupied_black) && !(bit & occupied_black)) g_mob_black++;
+			}
+		}
 		if (!g_eval_light) {
 			bool ks_active = Config::ENABLE_KS_REPLACE_LT || Config::KING_SAFETY_MAG != 0; if (ks_active || g_capture_eval_breakdown) {
 				PROF_BLOCK(PROF_KING_SAFETY);

@@ -443,6 +443,27 @@ namespace Config
     // error is structured and one-sided per position, so treat a positive result as directional, not exact.
     inline int EVAL_NOISE_SIGMA = 0;
 
+    // Substitute a REFERENCE engine's static evaluation for ours inside get_board_evaluation, so "what is
+    // an accurate eval worth in OUR search?" can be measured instead of argued. Binary comes from the
+    // ORACLE_ENGINE_PATH env var; SF11 and SF15-classical bracket what a HAND-WRITTEN eval can reach (the
+    // roadmap's real target), SF18 answers the separate curiosity of what a net would buy.
+    // EXPERIMENT ONLY -- one UCI round trip (~0.16 ms) per eval-cache miss, memoized by zobrist. Off =
+    // byte-identical: no process spawned, no FEN built. ⚠️ Read the sign/scale and in-check warnings on
+    // namespace Oracle in search_engine.cpp before trusting any number this produces.
+    inline bool ENABLE_ORACLE_EVAL = false;
+    inline bool ORACLE_CLASSICAL = false; // SF15/SF18: force NNUE off to expose the classical eval
+
+    // Percent multiplier on the oracle's returned value. 100 = raw.
+    // WHY IT IS NEEDED: our pruning thresholds (RFP_MARGIN, FUTILITY_MARGINS, RAZOR_*) are ABSOLUTE
+    // millipawn numbers tuned to OUR eval's distribution, and SF's evals are COMPRESSED relative to ours
+    // (a queen: ours 14.86 / SF11 12.74 / SF15c 6.63 pawns). A compressed eval crosses a fixed margin less
+    // often, so it prunes LESS -- measured 2026-09-05 as +3.6% nodes for SF11 and +53.7% for SF15c at
+    // fixed depth d10, with EBF worsening 1.869 -> 2.118. That is a SCALE artifact, not an accuracy
+    // result, and it confounds any "does a better eval shrink the tree?" reading.
+    // Sweeping this to the point where oracle NODE COUNT matches our baseline puts both evals on the same
+    // tree size, so the remaining STS difference is attributable to ACCURACY alone.
+    inline int ORACLE_SCALE = 100;
+
     // Cutoff-calibration logger (diagnostic; measure-first gate for reviving gravity/malus): at each quiet
     // beta-cutoff, log the cutting move as CUT and the tried-and-failed quiets as FAILED, bucketed by their
     // statScore -> reliability curve P(cut|statScore) + 0-bucket composition. Populates the searched_quiets
@@ -806,6 +827,41 @@ namespace Config
     // co-occur, corr 0.60), which resolves the same en-prise facts properly via SEE -- and qsearch resolves
     // them a third time. Keep only the standing underdefended-piece pressure.
     inline bool THREATS_STANDING_ONLY = true;
+    // Second half of SF's "stronglyProtected" test. SF excludes a target when it is pawn-defended OR
+    // (attackedBy2[Them] & ~attackedBy2[Us]) -- i.e. the enemy defends it twice and we attack it only once.
+    // threats_by implements the pawn clause only, so a piece defended twice and attacked once currently
+    // scores as a full threat. Costs nothing to test: na/nd are already counted at the same site.
+    // Default false = byte-identical.
+    inline bool THREAT_ATT2_PROTECT = false;
+    // SF adds mg(mobility[Them] - mobility[Us]) into kingDanger (evaluate.cpp:452) — mobility is a FEEDER
+    // into king safety there, not only a score term. Our mobility stays inside each per-piece evaluator's
+    // local total and reaches no other term, so the edge does not exist. This adds
+    // (KS_MOB_EDGE * (attacked-square count of Them - of Us)) >> 6 to the king's attack units.
+    // Shift 6 because our units are 0..KS_CAP(80) behind a KS_FLOOR(13) deadzone while SF's danger scale is
+    // 0..~1500; an unscaled square-count difference would dominate every other feeder. 0 = off = byte-identical.
+    inline int KS_MOB_EDGE = 0;
+    // 🐛 BUG FIX (gated). get_latent_rook_activity_score's second-order scan used BB_DIAG_ATTACKS —
+    // diagonal rays copy-pasted from the bishop version — for a ROOK (cpp_bitboard.cpp:2285), while the
+    // same function uses the correct rank|file idiom at :2237/:2242. On = rook rays. Off = byte-identical.
+    // ☠️ SHIPPED THEN REVERTED 2026-09-09. The CODE FIX IS CORRECT (a rook was scanning bishop rays) but it
+    // measures NEGATIVE in the current tuning: regret 48.7% vs a 49.8-50.4 null (n=1410, ~1σ) AND WAC
+    // 250 -> 248 alone, with nodes UP 1.7%. Two aligned weak negatives.
+    // ⚠️ WHY: the latent rook's 10/5 literals (cpp_bitboard.cpp:2280, :2294) were hand-set against the WRONG
+    // geometry, so the term's VALUE = constant x geometry was fitted to the bug. Correcting the geometry
+    // without re-fitting the constants is not an improvement. RE-FIT 10/5 FIRST, then re-test.
+    inline bool ENABLE_ROOK_LATENT_RAY_FIX = false;
+    // 🐛 BUG FIX (gated). The rook MIDGAME loop never writes square_values (cpp_bitboard.cpp:7534,
+    // commented out) while the rook ENDGAME loop does (:7921) and every other piece writes its own,
+    // so after the per-eval fill(0) a MIDGAME rook reads as value 0 and
+    // get_least_valuable_attacker selects it as the CHEAPEST attacker in the capture-gains gather
+    // (:9031 — live, since ENABLE_CAPG_LVA_STATIC=false). On = rooks write theirs. Off = byte-identical.
+    // ☠️ SHIPPED THEN REVERTED 2026-09-09. The CODE FIX IS CORRECT (a midgame rook was priced at 0 and so
+    // selected as the CHEAPEST attacker) but it measures NEGATIVE: regret 49.2% vs a 49.8-50.4 null
+    // (n=2056, ~1σ) AND WAC 250 -> 247 alone. Two aligned weak negatives.
+    // ⚠️ WHY (hypothesis): the capture-gains gather's ordering, and everything fitted downstream of it, has
+    // always seen rooks-as-cheapest. Correcting the ordering changes which exchanges capg resolves.
+    // Re-test alongside a capgains re-fit, not in isolation.
+    inline bool ENABLE_CAPG_ROOK_SQVAL = false;
     // Per-target contribution cap (millipawns, 0 = uncapped/byte-identical). threats_by sums an unbounded
     // stack of per-target bonuses (minor + rook + king + safe-pawn), so one misjudged target can dominate
     // the whole term; SF's threat terms each contribute within a bounded band instead. This bounds the
@@ -1665,7 +1721,6 @@ namespace Config
     // is unchanged, so unlike every unconditional-base arm this adds nothing to healthy passers.
     // Default false = byte-identical.
     inline bool ENABLE_PASSER_ORD_FLOOR = false;
-
 
     // Gap-P P2: run the per-passer king-race realizability (advanced_endgame_eval's passer block,
     // extracted to passer_realizability_delta) in ALL phases, not just deep endgame, so an advancing

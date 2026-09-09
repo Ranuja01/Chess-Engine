@@ -1,0 +1,59 @@
+{
+  // Workspace-local, deliberately not global -- these exclusions are specific to this tree.
+  //
+  // WHY: `selfplay/games/` is large enough that a plain `find` file-count TIMED OUT after two
+  // minutes, and the repo sits inside OneDrive, so every commit and every generated dump also
+  // fires sync events the editor then watches. Re-evaluating ignore status across that tree on
+  // each .gitignore change is the likeliest cause of VS Code growing ~4GB -> ~6.8GB over one
+  // working session. Owner browses selfplay output through Windows Explorer, not the editor,
+  // so it is hidden from the tree entirely rather than merely unwatched.
+
+  // Hidden from the file tree. Generated run output only -- nothing here is ever hand-edited.
+  "files.exclude": {
+    "**/selfplay/games": true,
+    "**/selfplay/crashcheck": true,
+    "**/diagnostics/results": true,
+    "**/build": true,
+    "**/__pycache__": true
+  },
+
+  // Not watched for changes. The watcher is the expensive part on a tree this size.
+  "files.watcherExclude": {
+    "**/selfplay/games/**": true,
+    "**/selfplay/crashcheck/**": true,
+    "**/diagnostics/results/**": true,
+    "**/build/**": true,
+    "**/__pycache__/**": true,
+    "**/NN Engine/ChessAI.cpp": true
+  },
+
+  // Kept OUT of search: generated output only.
+  // ⚠️ `selfplay/old CE/` is deliberately NOT excluded here -- it is a real archive of the older
+  // engine and is worth grepping by eye. It is excluded from C++ indexing below instead.
+  "search.exclude": {
+    "**/selfplay/games/**": true,
+    "**/selfplay/crashcheck/**": true,
+    "**/build/**": true,
+    "**/__pycache__/**": true
+  },
+
+  // C++ IntelliSense. This block earns its place even ignoring memory:
+  //   - `selfplay/old CE/` is a COMPLETE DUPLICATE of the engine (cpp_bitboard.cpp,
+  //     search_engine.cpp, move_gen.h, two cache_management.h variants). Indexing both trees
+  //     makes go-to-definition ambiguous and can land you in the DEAD copy while editing the
+  //     live one -- a genuine correctness hazard, not just an index-size one.
+  //   - `ChessAI.cpp` is the Cython-generated translation unit, regenerated on every build and
+  //     gitignored. Nothing is lost by not indexing 21k generated lines.
+  "C_Cpp.files.exclude": {
+    "**/selfplay/old CE/**": true,
+    "**/build/**": true,
+    "**/NN Engine/ChessAI.cpp": true
+  },
+
+  // The engine is C++20 with tabs; match the file map's conventions so the editor does not
+  // fight the existing style.
+  "[cpp]": {
+    "editor.insertSpaces": false,
+    "editor.detectIndentation": false
+  }
+}

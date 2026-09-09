@@ -4,6 +4,11 @@
 and rebuilding wastes time, fragments conventions, and produces weaker versions (a rebuilt probe usually
 lacks the *control set* that makes the original trustworthy). **Search this file first.**
 
+🧭 **This file says which probe EXISTS. [`INSTRUMENT-MAP.md`](INSTRUMENT-MAP.md) says what each probe can
+RESOLVE and how it LIES — read it before designing any screen.** Picking the right tool is the second
+question; the first is whether any tool we own can see the effect you are predicting. When you measure a
+new null, noise floor, or failure mode, add the row THERE as well as here.
+
 Run everything through the prompt-free wrapper:
 `wsl.exe -e bash -lc "bash '<abs overnight_runner.sh>' pyrun diagnostics/<script>.py [ARGS] [KEY=VAL]"`
 

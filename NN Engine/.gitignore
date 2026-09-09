@@ -40,3 +40,10 @@ diagnostics/_*.csv
 diagnostics/_*.txt
 diagnostics/ks_sets/_*.csv
 diagnostics/ks_sets/_*.txt
+
+# Run-output dumps that escaped the underscore convention above (regenerable, bulky:
+# corrlog_main.txt alone is 76 MB). The tools that WRITE them stay tracked.
+diagnostics/corrlog_*.txt
+selfplay/*.out
+selfplay/tune_data/moves_*.csv
+selfplay/tune_data/collapse_smoke.csv

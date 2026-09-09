@@ -1,4 +1,7 @@
 /NN Engine/M11.2.bin
 
-# Claude Code harness runtime
-.claude/
+# Claude Code harness runtime. The agent DEFINITIONS are project knowledge -- each one
+# encodes a mistake that cost us a measurement -- so they are tracked; settings.local.json
+# and everything else under .claude/ is machine-local.
+.claude/*
+!.claude/agents/

@@ -47,3 +47,11 @@ diagnostics/corrlog_*.txt
 selfplay/*.out
 selfplay/tune_data/moves_*.csv
 selfplay/tune_data/collapse_smoke.csv
+
+# Corpora: WHITELIST. The fixtures the live tooling actually reads are tracked (added with
+# `git add -f`, so these rules do not affect them); everything else here is a per-run dump, a
+# stale pre-symmetry-sweep snapshot (*_pre0806*, *_preship*) or a one-off variant, and is
+# regenerable. ⚠️ If you add a corpus a tool reads BY DEFAULT, `git add -f` it -- otherwise no
+# result measured on it is reproducible on another machine.
+diagnostics/ks_sets/*.csv
+diagnostics/*.csv

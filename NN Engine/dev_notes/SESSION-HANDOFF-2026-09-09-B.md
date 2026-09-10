@@ -230,6 +230,57 @@ not the subsystem (the king-directed heat boost, king-zone weighting, shelter an
 king-directed boost was TRIPLE-counted and halving it won. That is the heat-map lever; my result says the
 dedicated term it overlapped carries no independent mean signal. Same picture from two directions.
 
+## 8c. 🌅 09-10 MORNING — THE OVERNIGHT RE-SCREEN, READ THROUGH PAIRED NULLS
+⚠️ Windows restarted ~06:00. **19 of 48 dumps survived, INCLUDING ALL 9 NULLS** — the nulls-first ordering
+was designed for exactly this and paid off. Resumed; screen completes ~13:20.
+
+### Paired reads (3 nulls per corpus, `_paired_null.py`)
+| arm | primary | v2 | x4 | sign-consistent? |
+|---|---|---|---|---|
+| **A+B corner** (`MINOR_ON_DEFENDED`+`SAFE_PAWN_REQUIRE_SAFE`) | **+1.7** | **+1.7** | **+0.5** | ✅ |
+| **`thr_hanging`** (`THREATS_STANDING_ONLY=0`) | **+0.9** | **+0.8** | **+0.5** | ✅ tightest spreads (0.8-0.9) |
+| A alone | +2.0 | −0.1 | +0.0 | ❌ |
+| B alone (`SAFE_PAWN`) | +1.9 | +0.0 | −2.2 | ❌ |
+| `thr_att2` | +1.7 | +0.9 | −0.8 | ❌ |
+| `mobility` | +1.6 | +0.8 | pending | — |
+⚠️ Stratum-controlled (≥26 pieces) does NOT collapse the two survivors: corner +2.5/+3.4/+0.4,
+hanging +1.7/+0.6/+1.3. Spreads there are wide (to 4.3pp) — the PATTERN is the signal, not the cells.
+
+### ☠️ THE CORPORA ARE NOT EQUIVALENT DRAWS — measured, not suspected
+| corpus | endgame | midgame | opening | mean\|cp\| |
+|---|---|---|---|---|
+| primary | 27.7% | 47.9% | 24.4% | 3797 |
+| v2 | 25.3% | 48.8% | 25.8% | — |
+| **x4** | **21.3%** | 49.2% | **29.5%** | 3607 |
+x4 is **5pp more opening, 6pp less endgame** and less lopsided. ⇒ **pooled point estimates mix
+non-exchangeable populations** and are weaker than they look. But sign-consistency across three
+COMPOSITIONALLY DIFFERENT sets is a STRONGER test than three draws from one population, so the two
+survivors are better supported than a raw pooled number suggests.
+⚠️ Six of seven arms are positive on primary and decay through v2 → x4. If x4 (built as primary's
+complement) is the honest draw, **primary readings are systematically optimistic** and the survivors are
+whatever stays positive ON x4.
+
+### 🐛 A mechanism I got wrong, then right
+The corner beats BOTH its components on 2 of 3 corpora — contradicting "changes are antagonistic". Proposed
+mechanism: A ADDS threat mass, B REMOVES it, so together they cancel in magnitude while both improving
+SHAPE, leaving the term near its fitted level (the constant × mechanism trap avoided).
+🐛 I tested it against **A alone** (corner 28.8% vs A 28.2% flips — higher, apparently refuting it) and
+retracted. **Wrong baseline.** Against **A∪B** the corner is consistently ~10% SMALLER (4313 vs 4772;
+3642 vs 4154; 4416 vs 4887) ⇒ ~460-490 positions that either change alone would flip are RESTORED to the
+base move when both are applied. **The mechanism holds; my first test of it did not.**
+
+### 🔗 DISJOINTNESS — the bundle arithmetic is thinner than hoped
+- **A ∩ B = 62-64% of B** ⇒ A and B are ONE reshaped component, not two.
+- **corner ∩ hanging = 51-55% of hanging** ⇒ partially independent; ~half of hanging lies outside.
+⇒ ▶️ **NEXT EXPERIMENT: the 3-way** `THREAT_MINOR_ON_DEFENDED=1 THREAT_SAFE_PAWN_REQUIRE_SAFE=1
+THREATS_STANDING_ONLY=0` measured DIRECTLY on all three corpora, rather than inferred from components.
+
+### ⚠️ STATUS OF THE SURVIVORS — leads, not candidates
+Corner ~+1.3pp pooled (~1.1σ); hanging ~+0.7pp. **Neither clears the bar.** ★ Both are THREATS-term
+changes, and `Hanging` is separately recorded as **~87% a subset of capture_gains** — so its independence
+from a term we already have is unverified. ☠️ `thr_hanging` was recorded **"49.9% NULL" on 09-08** against
+the global null: the re-screen's first vindication, and the correction went UPWARD exactly as §F3 warns.
+
 ## 9. 🔄 IN FLIGHT AT HANDOFF
 **KS ablation v2 pair — NOT YET RUN. This is the next command:**
 ```

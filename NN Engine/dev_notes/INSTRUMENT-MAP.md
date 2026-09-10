@@ -361,6 +361,15 @@ cannot settle a ~2.5pp stratum effect either way.** That is the case for the 4×
 
 ★ **RE-READ ANY PAST win% RESULT THROUGH `_paired_null.py` BEFORE CITING IT.** The global-null comparison
 has been the screening method for months, and candidates systematically flip fewer moves than neutral arms.
+☠️★★★★ **THE CORRECTION IS NOT ONE-DIRECTIONAL — do not re-read only the flattering results.** It DEFLATED
+the KS aggregate (+0.1/+0.4/+1.4 → +0.6) and **INFLATED** the threat-coverage arm on the primary corpus
+(+1.3 → **+2.0**). Whether pairing helps or hurts depends on how the arm's changed set sits relative to the
+null's, which is not predictable from the flip rate alone. ⇒ **a past NULL may be hiding a result just as
+easily as a past WIN may be hiding an artifact.**
+📌 Worked example — threat coverage, `THREAT_MINOR_ON_DEFENDED=1`: paired **+2.0** on primary (3 nulls,
+spread 1.4) and **+0.0** on v2 (one null, so a point without a band ⇒ read as ±1.4). Pooled ~+1.0. The
+cross-set failure SURVIVES the better comparison, so the verdict is unchanged — but only the numbers, not
+the conclusion, were safe to assume.
 
 ## § G — ▶️ PROTOCOL — before you spend anything
 

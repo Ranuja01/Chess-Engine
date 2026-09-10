@@ -196,6 +196,40 @@ explained, and **SUBTRACTIVE** (the only shape with a winning record in KS) — 
 got **stronger**, not weaker; the endgame cell reversed. Partially right, and the half I leaned on hardest
 in the write-up was the half that died.
 
+## 8b. ☠️☠️ THE INSTRUMENT CORRECTION THAT GRADES EVERYTHING ABOVE — `INSTRUMENT-MAP.md` §F3
+**win% is POPULATION-dependent.** The record's *"win% needs no per-arm band"* was verified on two neutral
+arms flipping 35.3% and 33.2%, and I extended it to arms flipping 40% less often. Neutral arms cluster at
+**35-38% flips / `reg_base` ~3.63**; every candidate clusters at **21-27% / ~4.03**. A knob that flips fewer
+moves flips only where the base's top two were closest — where the base is worst and any perturbation
+regresses toward better. **Candidates were being read against a null measured on an easier population.**
+☠️ Cannot be fixed by dialling a neutral arm down — `EVAL_NOISE_SIGMA` **saturates** (30 → 34.8%,
+100 → 37.9%). Two attempts failed.
+🧰 **`_paired_null.py` (new, zero CPU)** — reads the arm against the null on the FENs where BOTH changed the
+move. Needs only the `DUMP=` files, so it re-reads history for free. ★ Pass SEVERAL nulls: they disagree by
+~1pp globally and **2.3pp on identical positions**.
+
+| reading | global null | **paired, 3 nulls** |
+|---|---|---|
+| KS ladder, aggregate | +0.1 / +0.4 / +1.4 | **+0.6, spread 1.7 ⇒ ARTIFACT** |
+| KS, ≥26 pieces | +2.2 … +3.4 | **+2.4, spread 1.5, all three positive ⇒ SURVIVES** |
+
+☠️ **The KS MAGNITUDE LADDER WAS AN ARTIFACT** — every magnitude "beat" base because each was read against
+an easier population, which is why `MAG=4500` appeared to win. **Magnitude is closed, for a boring reason.**
+✅ **The crowded-board over-fire SURVIVES** the most rigorous check available: +2.4pp, positive against three
+mechanistically different neutral arms on identical positions, after replicating across two corpora and two
+magnitudes. **It is the only claim today that survived every attempt to kill it.**
+⚠️ Each pairing is 0.6-1.2σ and the nulls disagree 2.3pp on the same positions ⇒ **this corpus cannot settle
+a ~2.5pp stratum effect either way.** That is the case for the 4× corpus, as a number.
+★ **RE-READ ANY PAST win% RESULT THROUGH `_paired_null.py` BEFORE CITING IT** — the global-null comparison
+has been the screening method for months. Arm A and the threat knobs have NOT yet been re-read this way.
+🐛 Also withdrawn: "endgame KS helps" (reversed on v2) and the ps2 recovery at `MAG=1500` (did not
+replicate, was 0.46σ). And "KS is net-zero" was overstated twice — the gate measures the MEAN while KS's
+signature is a TAIL (#1 over-read on 92 `ks_attack` collapses), and `KING_SAFETY_MAG=0` removes ONE term,
+not the subsystem (the king-directed heat boost, king-zone weighting, shelter and `MOD_KS_REALIZ` stay live).
+✅ Consistent with the shipped wins: de-king (`KS_ZONE_ATTACK_PCT=50`, ≈+50 Elo, 3 seeds) found the
+king-directed boost was TRIPLE-counted and halving it won. That is the heat-map lever; my result says the
+dedicated term it overlapped carries no independent mean signal. Same picture from two directions.
+
 ## 9. 🔄 IN FLIGHT AT HANDOFF
 **KS ablation v2 pair — NOT YET RUN. This is the next command:**
 ```

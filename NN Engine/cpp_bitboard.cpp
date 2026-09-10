@@ -90,6 +90,12 @@ int blackPieceVal, whitePieceVal;
 // currently stays inside each per-piece evaluator's local total and reaches no other term, so this
 // edge does not exist here. Zero and unread when the knob is off.
 int g_mob_white = 0, g_mob_black = 0;
+// Castling rights for the position under evaluation (python-chess rook-square bitboard), published once per
+// eval by placement_and_piece_eval. SF11 reads castling rights in three places that are live only at high
+// material -- shelter's MAX over both castling destinations, TrappedRook's doubling, and the
+// shelter->kingDanger discount -- and our eval has never had access to any of it. Currently WRITTEN ONLY:
+// no consumer reads it yet, so it costs one store per eval and changes nothing.
+uint64_t g_castling_rights = 0;
 
 // Per-piece MOBILITY (Config::ENABLE_PIECE_MOBILITY). "Safe" mobility area (own K/Q/pawns + enemy-pawn-attacked
 // squares excluded) is computed once per side per eval; each piece adds MobilityBonus[popcount(attacks & area)]
@@ -7275,7 +7281,11 @@ int cheap_eval(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, u
 	return total;
 }
 
-int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
+int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights){
+	// PLUMBING ONLY (2026-09-09): published for consumers, read by NOTHING yet, so this is byte-identical.
+	// The gate that uses it ships separately -- bundling the plumbing with its first consumer would make a
+	// layout-driven NPS shift and an accuracy change arrive together, and neither would be attributable.
+	g_castling_rights = castlingRights;
 
 	/*
 		Function to acquire a positional evaluation
@@ -8713,7 +8723,7 @@ int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_
 	return total;
 }
 
-EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask){
+EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights){
 
 	/*
 		Diagnostic wrapper: run the REAL static eval with term capture enabled and return the per-term
@@ -8722,7 +8732,7 @@ EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawnsMask,
 	*/
 	g_eval_breakdown = {};
 	g_capture_eval_breakdown = true;
-	int total = placement_and_piece_eval(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask);
+	int total = placement_and_piece_eval(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
 	g_capture_eval_breakdown = false;
 	g_eval_breakdown.total = total;
 	return g_eval_breakdown;
@@ -10020,7 +10030,7 @@ void eval_profile_dump(const char* label)
 #endif
 }
 
-void eval_profile_run(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, int reps)
+void eval_profile_run(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights, int reps)
 {
 #ifdef EVAL_PROFILE
 	// The rep loop sits outside every ProfScope, so only the per-term work inside
@@ -10029,7 +10039,8 @@ void eval_profile_run(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knigh
 	int acc = 0;
 	for (int i = 0; i < reps; ++i) {
 		acc += placement_and_piece_eval(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask,
-		                                queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask);
+		                                queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask,
+		                                castlingRights);
 	}
 	volatile int sink = acc;
 	(void)sink;

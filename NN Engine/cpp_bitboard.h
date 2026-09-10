@@ -381,7 +381,15 @@ inline void loop_and_update(uint64_t bb, uint8_t attacking_piece_type, bool atta
 inline void adjust_pressure_and_support_tables_for_pins(uint64_t bb);
 inline int advanced_endgame_eval(int total, bool turn);
 inline void update_global_central_scores(int base_increment, uint64_t square_mask);
-int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+// castling_rights: python-chess's rook-square bitboard, carried on BoardState. The eval has NEVER received
+// it (noted 2026-07-04 and deferred), which blocks three SF11 terms that are live ONLY at high material:
+// shelter's MAX over the king's square AND both castling destinations (pawns.cpp:233-237), TrappedRook
+// doubling when castling is gone (evaluate.cpp:351), and the shelter->kingDanger discount (:455).
+// It also blocks conditioning KS on castling STATE, which the 09-09 dumps favour over the piece-count proxy.
+// ⚠️ Passed as a parameter rather than set through a global: this is written ONCE per eval into
+// g_castling_rights, so consumers read it a handful of times instead of putting a mutable global in the
+// per-square inner loop (see byte-identity-does-not-imply-speed-identity).
+int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights);
 int cheap_eval(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black);
 
 /*
@@ -529,7 +537,7 @@ struct EvalBreakdown {
 };
 extern EvalBreakdown g_eval_breakdown;
 extern bool g_capture_eval_breakdown;
-EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied);
+EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights);
 
 /*
 	Compile-gated per-term eval profiler (PROFILE_EVAL=1 build only).
@@ -550,7 +558,7 @@ void eval_profile_reset();
 void eval_profile_dump(const char* label);
 // Tight driver: evaluate one position `reps` times so the per-term accumulators
 // gather signal; the rep loop lives outside every ProfScope.
-void eval_profile_run(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, int reps);
+void eval_profile_run(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castling_rights, int reps);
 // Accessors so the Python harness can read the accumulators and build its own
 // per-term x per-phase table without parsing stderr. All return 0 / "" in a
 // production (non-EVAL_PROFILE) build.

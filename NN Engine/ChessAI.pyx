@@ -133,7 +133,7 @@ cdef extern from "cpp_bitboard.h":
     void setAttackingLayer(uint64_t occupied_white, uint64_t occupied_black, uint64_t kings, int increment);
     int placement_and_piece_midgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
     int placement_and_piece_endgame(uint8_t square, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
-    int placement_and_piece_eval(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
+    int placement_and_piece_eval(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights)
 
     # Diagnostic-only per-PASSER attribution (see PasserRec in cpp_bitboard.h). Localises a passer
     # misvaluation to a stage: not flagged / small magnitude / collapsed realizability.
@@ -213,12 +213,12 @@ cdef extern from "cpp_bitboard.h":
         int det_ks_units_b
         int det_w_mobility
         int det_b_mobility
-    EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied)
+    EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights)
 
     # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
     void eval_profile_reset()
     void eval_profile_dump(const char* label)
-    void eval_profile_run(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, int reps)
+    void eval_profile_run(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights, int reps)
     int eval_profile_num_terms()
     unsigned long long eval_profile_cycles(int term)
     unsigned long long eval_profile_calls(int term)
@@ -514,7 +514,7 @@ cdef class ChessAI:
             return (9999999 - moveNum) if board.turn else (-9999999 + moveNum)
 
         return placement_and_piece_eval(moveNum, board.turn, pawns, knights, bishops,
-                                        rooks, queens, kings, occupied_white, occupied_black, occupied)
+                                        rooks, queens, kings, occupied_white, occupied_black, occupied, board.castling_rights)
 
 
     # Diagnostic: per-PASSER attribution for one position. Runs the REAL eval with the probe flag set and
@@ -541,7 +541,7 @@ cdef class ChessAI:
         cdef PasserRec pr
         passer_probe_begin()
         eval_breakdown_capture(moveNum, board.turn, pawns, knights, bishops,
-                               rooks, queens, kings, occupied_white, occupied_black, occupied)
+                               rooks, queens, kings, occupied_white, occupied_black, occupied, board.castling_rights)
         passer_probe_end()
 
         out = []
@@ -580,7 +580,7 @@ cdef class ChessAI:
         cdef PawnClampRec pc
         pawn_clamp_probe_begin()
         eval_breakdown_capture(moveNum, board.turn, pawns, knights, bishops,
-                               rooks, queens, kings, occupied_white, occupied_black, occupied)
+                               rooks, queens, kings, occupied_white, occupied_black, occupied, board.castling_rights)
         pawn_clamp_probe_end()
 
         out = []
@@ -617,7 +617,7 @@ cdef class ChessAI:
                     "total": (9999999 - moveNum) if board.turn else (-9999999 + moveNum)}
 
         cdef EvalBreakdown b = eval_breakdown_capture(moveNum, board.turn, pawns, knights, bishops,
-                                                      rooks, queens, kings, occupied_white, occupied_black, occupied)
+                                                      rooks, queens, kings, occupied_white, occupied_black, occupied, board.castling_rights)
         return {
             "total": b.total,
             "pieces": b.pieces,
@@ -713,7 +713,7 @@ cdef class ChessAI:
             return
 
         eval_profile_run(moveNum, board.turn, pawns, knights, bishops,
-                         rooks, queens, kings, occupied_white, occupied_black, occupied, reps)
+                         rooks, queens, kings, occupied_white, occupied_black, occupied, board.castling_rights, reps)
 
 
     # Function for opening book moves

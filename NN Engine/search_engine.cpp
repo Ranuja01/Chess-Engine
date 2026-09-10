@@ -1170,7 +1170,8 @@ inline int static_eval_for_improving(std::vector<BoardState> &state_history, uin
         return cached;
     int moveNum = static_cast<int>(state_history.size());
     int total = placement_and_piece_eval(moveNum, cs.turn, cs.pawns, cs.knights, cs.bishops, cs.rooks,
-                                         cs.queens, cs.kings, cs.occupied_colour[true], cs.occupied_colour[false], cs.occupied);
+                                         cs.queens, cs.kings, cs.occupied_colour[true], cs.occupied_colour[false], cs.occupied,
+                                         cs.castling_rights);
     // Match get_board_evaluation's Config::side_to_play flip so this (miss) path agrees in sign with
     // the cache-hit path above, which returns the already-flipped stored value. Without this the
     // improving comparison mixes flipped and unflipped evals when side_to_play is true.
@@ -8902,7 +8903,8 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
         }
         if (!used_oracle)
             total = placement_and_piece_eval(moveNum, current_state.turn, current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
-                                             current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.occupied);
+                                             current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.occupied,
+                                             current_state.castling_rights);
     }
 
     if (Config::side_to_play)

@@ -105,6 +105,31 @@ a ±1.6pp spread across strata, and reading a stratum against a flat 50 misleads
 | ps4 end_far (≥80) | 1229 | **48.6** |
 | ☠️ cr4 CRITICAL | **19** | 47.4 — **unreadable** |
 
+#### 📌 MEASURED NULL — `variant_regret_set` (whacky/960-no-castle), d7, `ASPIRATION_DELTA=300` (2026-09-09)
+| stratum | n changed | null win% |
+|---|---|---|
+| aggregate | 1219 (20.3% of 6000) | **48.0** |
+| `.opening` | **1200 — 98.4% of changed** | **47.6** |
+| ps1 ≤53 | 1215 (99.7%) | 47.9 |
+| `.midgame` | 19 | unusable |
+| ps2 | **4** | unusable |
+| ps3 / ps4 / `.endgame` | **absent** | — |
+
+☠️ **This corpus is ~98% ONE STRATUM** — the generator's short walks bucket everything as `opening`/ps1
+(caveat already recorded in [[whacky-variant-corpus-for-structure-independent-validation]], now confirmed by
+measurement). ⇒ it can test the CROWDED-BOARD half of a finding and **nothing else**: no ps2, no endgame.
+⚠️ It also cannot SEPARATE `.opening` from ps1 (1200 vs 1215 of the same 1219) where the standard corpora
+can — so a positive reading confirms transfer but cannot localise further.
+▶️ A re-gen with `WALK_MAX≈45` would buy midgame/endgame spread and make it a general third cross-set.
+⚠️ Power: n≈1200 per side ⇒ difference SE ≈ **2.0pp**. A **directional transfer check**, not a significance
+test.
+
+☠️★★★★ **THE SAME STRATUM LABEL HAS A 3.7pp NULL SPREAD ACROSS CORPORA.** `.opening` reads
+**51.1 (primary) · 47.4 (v2) · 47.6 (variant)** — primary is the outlier. Reading the variant set against a
+flat 50 would score it 2.4pp negative before measuring anything at all. **This is the single strongest
+argument for measuring the null per corpus; it is not a refinement, it is the difference between a result
+and an artifact.**
+
 ☠️★★★★ **THE NULL IS ITSELF A MEASUREMENT WITH ERROR — do not treat these as exact.** At n≈4,000-5,000 a
 null cell carries SE ≈ 0.75pp, so `arm − null` has SE ≈ **1.1pp**, not 0.7. The previously DOCUMENTED v2
 aggregate null was **50.7**; this measurement reads **49.8** (1.2σ apart, consistent) ⇒ **the v2 aggregate
@@ -289,6 +314,53 @@ engine**, and the reframe does not rescue it: a term tuned inside SF's search an
 automatically fit outside them. ★ Prefer fixing what OUR term does wrong over adding a foreign one beside
 it — and note that KS's failure is DIRECTIONAL (additive 0-for-11, only subtractive wins), which better
 resolution does not change.
+
+## § F3 — ☠️☠️★★★★ win% IS POPULATION-DEPENDENT — a GLOBAL null is the wrong comparator (2026-09-09)
+
+The record says *"win% needs no PER-ARM band — unlike the mean, whose null is arm-specific."* **That is too
+strong.** It was verified on two neutral arms flipping 35.3% and 33.2% — a 2pp range. It does NOT hold
+across populations with different flip rates, and **every candidate we screen has a different flip rate
+from every neutral arm we own.**
+
+### The confound, visible in six arms' own output
+| arm | flip% | `reg_base` |
+|---|---|---|
+| noise100 (neutral) | 37.9% | 3.633 |
+| asp300 (neutral) | 34.7% | 3.652 |
+| noise30 (neutral) | 34.8% | 3.617 |
+| threats coverage | 26.7% | 3.938 |
+| KS off | 25.9% | 4.029 |
+| KS 1500 / 4500 | 21.6 / 21.7% | 4.073 |
+
+**Lower flip rate ⇒ systematically HIGHER base regret.** A knob that flips fewer moves flips only where the
+base's top two were closest — where the base is most likely wrong and ANY perturbation regresses toward
+better. Neutral arms cluster at 35-38%; candidates cluster at 21-27%. **They are different populations.**
+☠️ **You cannot fix this by dialling a neutral arm down.** `EVAL_NOISE_SIGMA` SATURATES (30 → 34.8%,
+100 → 37.9%): a large pool of near-tied moves flips under any perturbation. Two attempts failed.
+
+### 🧰 THE FIX: `_paired_null.py` — match the POPULATION, not the rate. Zero CPU.
+Read the arm against the null **on the FENs where BOTH changed the move**. Same positions, same selection.
+Needs only the `DUMP=` files, so it re-reads history for free.
+▶️ `pyrun diagnostics/_paired_null.py [MINPC=26] ARM=<dump> NULLS=<a>,<b>,<c>`
+⚠️ The intersection is biased toward EASY-TO-FLIP positions — closer to matched than a global null, not
+perfect. ★ **Pass SEVERAL nulls: the neutral arms disagree by ~1pp globally and by 2.3pp on identical
+positions.** One paired null gives a number; three give the band.
+
+### 📏 What it measured
+☠️ **On the paired population every arm — candidates AND all three neutrals — reads 52-56%, not 50%.** The
+"natural" win rate where both arms found the position marginal is **~2.5pp above the global null** — the
+same size as the effects being reported.
+| reading | global null | **paired (3 nulls)** |
+|---|---|---|
+| KS ablation, aggregate | +0.1 / +0.4 / +1.4 across the ladder | **+0.6, spread 1.7 ⇒ NULL** |
+| KS ablation, ≥26 pieces | +2.2 … +3.4 | **+2.4, spread 1.5, all three positive** |
+⇒ **The KS magnitude ladder was an ARTIFACT** — every magnitude "beat" the base because each was read
+against an easier population. The crowded-board result SURVIVES, barely.
+⚠️ Each pairing is only 0.6-1.2σ and the nulls disagree by 2.3pp on the same positions ⇒ **this corpus
+cannot settle a ~2.5pp stratum effect either way.** That is the case for the 4× corpus, stated as a number.
+
+★ **RE-READ ANY PAST win% RESULT THROUGH `_paired_null.py` BEFORE CITING IT.** The global-null comparison
+has been the screening method for months, and candidates systematically flip fewer moves than neutral arms.
 
 ## § G — ▶️ PROTOCOL — before you spend anything
 

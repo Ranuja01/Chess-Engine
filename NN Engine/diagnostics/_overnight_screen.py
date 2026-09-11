@@ -68,6 +68,16 @@ ARMS = [
     # --- the two that "cleared primary then died on v2": now readable against matched populations ---
     ("ks_zone_off",   "KS_ZONE_ATTACK_PCT=0"),
     ("pieceval_late", "PIECEVAL_RECOMPUTE_LATE=1"),
+    # --- 2026-09-10 ROUND 2: the three sign-consistent survivors, measured TOGETHER. -------------------
+    # Screen result: 13 candidate arms, 3 survive sign-consistency across all three corpora --
+    #   thr_corner +1.7/+1.7/+0.5 (pooled +1.3) · mobility +1.6/+0.8/+1.1 (+1.2) · thr_hanging
+    #   +0.9/+0.8/+0.5 (+0.7). ☠️ Two of them (mobility, hanging) were recorded NULL on 09-08 against the
+    #   global comparator -- ENABLE_MOBILITY at exactly 50.0% -- and BOTH corrections went UPWARD.
+    # ⚠️ They are NOT disjoint: corner∩mobility ~50%, hanging∩mobility ~61%, corner∩hanging ~51%. So the
+    #   bundle cannot be inferred from the parts and has to be measured directly. If it reads like the
+    #   largest single, they are re-scoring the same positions and we have ONE effect, not three.
+    ("thr_3way",      "THREAT_MINOR_ON_DEFENDED=1 THREAT_SAFE_PAWN_REQUIRE_SAFE=1 THREATS_STANDING_ONLY=0"),
+    ("bundle3",       "THREAT_MINOR_ON_DEFENDED=1 THREAT_SAFE_PAWN_REQUIRE_SAFE=1 THREATS_STANDING_ONLY=0 ENABLE_MOBILITY=1"),
 ]
 
 only = [s.strip() for s in os.environ.get("ONLY", "").split(",") if s.strip()]

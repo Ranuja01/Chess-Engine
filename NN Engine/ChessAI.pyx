@@ -25,6 +25,13 @@ from timeit import default_timer as timer
 from functools import lru_cache
 import Cython_Chess
 import multiprocessing
+import sys
+
+# One-shot guards so the eval-arm banners are printed once per process, not once per position. Separate
+# flags because ev() and ev_breakdown() are independent doors -- a run may use only one of them, and the
+# banner has to fire on whichever door that run actually walks through.
+_EV_ARM_BANNER_SHOWN = False
+_EV_ARM_BANNER_SHOWN_RAW = False
 import time
 import itertools
 from typing import Iterator
@@ -105,6 +112,13 @@ cdef extern from "search_engine.h":
 #     int run_inference(const uint64_t* bitboards)
 #     void load_model()
 #     int run_inference_quantized(const uint64_t* bitboards)
+
+
+# Which static eval is live. Read only to LABEL diagnostic output -- never to branch on. The value latches
+# once per process inside initialize_engine, so it is constant for the life of a ChessAI.
+cdef extern from "search_engine.h" namespace "Config":
+    int EVAL_ARM
+    int EVAL_V2_RUNG
 
 
 cdef extern from "cache_management.h":
@@ -213,6 +227,9 @@ cdef extern from "cpp_bitboard.h":
         int det_ks_units_b
         int det_w_mobility
         int det_b_mobility
+        # Arm provenance. APPEND-ONLY, and the field ORDER above must stay identical to the C++ struct.
+        int arm
+        uint64_t terms_valid
     EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights)
 
     # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
@@ -513,6 +530,23 @@ cdef class ChessAI:
         if board.is_checkmate():
             return (9999999 - moveNum) if board.turn else (-9999999 + moveNum)
 
+        # ⚠️ ev() returns a bare int, so unlike ev_breakdown() it has no dict to carry an `arm` field and no
+        # key to omit -- a caller would receive v2's total with nothing in its output distinguishing it from
+        # v1's. That is the same silent-false-pass class the breakdown's terms_valid scheme exists to
+        # prevent, so announce the arm once per process. One-shot, so a loop over a corpus pays nothing.
+        global _EV_ARM_BANNER_SHOWN_RAW
+        if EVAL_ARM != 0 and not _EV_ARM_BANNER_SHOWN_RAW:
+            _EV_ARM_BANNER_SHOWN_RAW = True
+            if EVAL_ARM == 2:
+                # ⚠️ Arm 2 is SHADOW: both evals run but the value returned is v1's. Saying "returning v2"
+                # here would be exactly backwards, and would invite a reader to attribute v1's numbers to v2.
+                sys.stderr.write("⚠️ EVAL_ARM=2 (SHADOW): both evals ran; ChessAI.ev returned the SHIPPED "
+                                 "eval's value, not v2's.\n")
+            else:
+                sys.stderr.write("⚠️ EVAL_ARM=%d EVAL_V2_RUNG=%d: ChessAI.ev is returning the v2 arm, "
+                                 "not the shipped eval.\n" % (EVAL_ARM, EVAL_V2_RUNG))
+            sys.stderr.flush()
+
         return placement_and_piece_eval(moveNum, board.turn, pawns, knights, bishops,
                                         rooks, queens, kings, occupied_white, occupied_black, occupied, board.castling_rights)
 
@@ -618,53 +652,82 @@ cdef class ChessAI:
 
         cdef EvalBreakdown b = eval_breakdown_capture(moveNum, board.turn, pawns, knights, bishops,
                                                       rooks, queens, kings, occupied_white, occupied_black, occupied, board.castling_rights)
-        return {
-            "total": b.total,
-            "pieces": b.pieces,
-            "material": b.material,
-            "capture_gains": b.capture_gains,
-            "passed_pawn_support": b.passed_pawn_support,
-            "latent_threat": b.latent_threat,
-            "threats": b.threats,
-            "king_safety": b.king_safety,
-            "central": b.central,
-            "imbalance_white": b.imbalance_white,
-            "imbalance_black": b.imbalance_black,
-            "pair_bonus": b.pair_bonus,
-            "piece_value_boost": b.piece_value_boost,
-            "kaufman_imbalance": b.kaufman_imbalance,
-            "pawn_majority": b.pawn_majority,
-            "pawn_struct": b.pawn_struct,
-            "outpost": b.outpost,
-            "space": b.space,
-            "mobility": b.mobility,
-            "rook_cond": b.rook_cond,
-            "phase_score": b.phase_score,
-            "advanced_endgame_total": b.advanced_endgame_total,
-            "is_endgame": b.is_endgame,
-            "advanced_endgame_fired": b.advanced_endgame_fired,
-            "pt_pawns": b.pt_pawns,
-            "pt_knights": b.pt_knights,
-            "pt_bishops": b.pt_bishops,
-            "pt_rooks": b.pt_rooks,
-            "pt_queens": b.pt_queens,
-            "pt_kings": b.pt_kings,
-            "ae_input": b.ae_input,
-            "ae_matedrive": b.ae_matedrive,
-            "ae_passer": b.ae_passer,
-            "det_w_offense": b.det_w_offense,
-            "det_b_offense": b.det_b_offense,
-            "det_w_defense": b.det_w_defense,
-            "det_b_defense": b.det_b_defense,
-            "det_w_pieceval": b.det_w_pieceval,
-            "det_b_pieceval": b.det_b_pieceval,
-            "det_central": b.det_central,
-            "det_pawn_count": b.det_pawn_count,
-            "det_ks_units_w": b.det_ks_units_w,
-            "det_ks_units_b": b.det_ks_units_b,
-            "det_w_mobility": b.det_w_mobility,
-            "det_b_mobility": b.det_b_mobility,
-        }
+        # Term keys in EB_* BIT ORDER -- see enum EvalBreakdownBit in cpp_bitboard.h. ☠️ The order is
+        # load-bearing and duplicated there: bit i names pairs[i]. Append only, never insert.
+        #
+        # A term is included ONLY if its bit is set in terms_valid. The shipped eval (arm 0) sets every bit,
+        # so its dict is exactly what it has always been and all ~172 consumers are untouched. A v2 rung
+        # publishes only what it genuinely computes, so asking for an absent term raises KeyError instead of
+        # silently reading 0 and reporting "no asymmetry" / "no gap" -- which, on a term-attribution tool, is
+        # a false PASS rather than a visible failure.
+        # ⚠️ Residual: a caller using .get(key, 0) still reads 0 quietly. Nothing cheap fixes that; the
+        # banner below is what makes it noticeable.
+        cdef uint64_t tv = b.terms_valid
+        pairs = [
+            ("total", b.total),
+            ("pieces", b.pieces),
+            ("material", b.material),
+            ("capture_gains", b.capture_gains),
+            ("passed_pawn_support", b.passed_pawn_support),
+            ("latent_threat", b.latent_threat),
+            ("threats", b.threats),
+            ("king_safety", b.king_safety),
+            ("central", b.central),
+            ("imbalance_white", b.imbalance_white),
+            ("imbalance_black", b.imbalance_black),
+            ("pair_bonus", b.pair_bonus),
+            ("piece_value_boost", b.piece_value_boost),
+            ("kaufman_imbalance", b.kaufman_imbalance),
+            ("pawn_majority", b.pawn_majority),
+            ("pawn_struct", b.pawn_struct),
+            ("outpost", b.outpost),
+            ("space", b.space),
+            ("mobility", b.mobility),
+            ("rook_cond", b.rook_cond),
+            ("phase_score", b.phase_score),
+            ("advanced_endgame_total", b.advanced_endgame_total),
+            ("is_endgame", b.is_endgame),
+            ("advanced_endgame_fired", b.advanced_endgame_fired),
+            ("pt_pawns", b.pt_pawns),
+            ("pt_knights", b.pt_knights),
+            ("pt_bishops", b.pt_bishops),
+            ("pt_rooks", b.pt_rooks),
+            ("pt_queens", b.pt_queens),
+            ("pt_kings", b.pt_kings),
+            ("ae_input", b.ae_input),
+            ("ae_matedrive", b.ae_matedrive),
+            ("ae_passer", b.ae_passer),
+            ("det_w_offense", b.det_w_offense),
+            ("det_b_offense", b.det_b_offense),
+            ("det_w_defense", b.det_w_defense),
+            ("det_b_defense", b.det_b_defense),
+            ("det_w_pieceval", b.det_w_pieceval),
+            ("det_b_pieceval", b.det_b_pieceval),
+            ("det_central", b.det_central),
+            ("det_pawn_count", b.det_pawn_count),
+            ("det_ks_units_w", b.det_ks_units_w),
+            ("det_ks_units_b", b.det_ks_units_b),
+            ("det_w_mobility", b.det_w_mobility),
+            ("det_b_mobility", b.det_b_mobility),
+        ]
+
+        cdef int n_terms = len(pairs)
+        cdef int i
+        out = {"arm": b.arm, "terms_available": int(tv)}
+        for i in range(n_terms):
+            if tv & ((<uint64_t>1) << i):
+                out[pairs[i][0]] = pairs[i][1]
+
+        global _EV_ARM_BANNER_SHOWN
+        if b.arm != 0 and not _EV_ARM_BANNER_SHOWN:
+            _EV_ARM_BANNER_SHOWN = True
+            sys.stderr.write(
+                "⚠️ EVAL_ARM=%d: %d/%d breakdown terms published by this eval; "
+                "ABSENT keys are NOT zero -- they were never computed.\n"
+                % (b.arm, len(out) - 2, n_terms))
+            sys.stderr.flush()
+
+        return out
 
 
     # Compile-gated eval-profiler hooks. These call the C++ entry points, which are

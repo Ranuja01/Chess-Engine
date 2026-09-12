@@ -49,7 +49,11 @@ SWAP_PAIRS = [("det_w_pieceval", "det_b_pieceval"), ("det_w_defense", "det_b_def
 SIGNED_SWAP_PAIRS = [("imbalance_white", "imbalance_black")]
 SWAP_MEMBERS = {k for pair in SWAP_PAIRS + SIGNED_SWAP_PAIRS for k in pair}
 # Not signed quantities at all -- antisymmetry does not apply.
-SKIP_TERMS = {"phase_score", "is_endgame", "advanced_endgame_fired", "det_pawn_count", "det_central"}
+# ⚠️ `arm` and `terms_available` are ARM PROVENANCE METADATA (added 2026-09-11 with the eval-v2 arm), not
+# eval terms: `arm` is a knob value and `terms_available` is a BIT MASK, so summing |x + y| over them
+# produces meaningless rows (terms_available read 2.4e15 on its first run, swamping the table).
+SKIP_TERMS = {"phase_score", "is_endgame", "advanced_endgame_fired", "det_pawn_count", "det_central",
+              "arm", "terms_available"}
 
 N = int(os.environ.get("N", "800"))
 TOL = int(os.environ.get("TOL", "0"))          # millipawns; 0 = demand exactness

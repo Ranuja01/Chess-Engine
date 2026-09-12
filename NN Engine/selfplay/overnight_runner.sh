@@ -40,7 +40,7 @@ case "$cmd" in
     # It used to pipe the compiler through `tail -n 5`, which throws away the part of a g++ diagnostic that
     # says what is wrong -- you were left with no .so and no error. Full output now goes to a log; a failure
     # prints enough of it to act on and names the file. Success prints the same 5 lines as before.
-    touch cpp_bitboard.cpp cpp_bitboard.h search_engine.cpp search_engine.h ChessAI.pyx
+    touch cpp_bitboard.cpp cpp_bitboard.h search_engine.cpp search_engine.h ChessAI.pyx eval_v2.cpp eval_v2.h
     rm -rf build ChessAI.cpp ChessAI.*.so
     _blog="${TMPDIR:-/tmp}/build_$$.log"
     if "$PY" setupAI.py build_ext --inplace > "$_blog" 2>&1; then
@@ -179,7 +179,7 @@ case "$cmd" in
   build_profile)
     # NON-production profiler build (PROFILE_EVAL=1 => -DEVAL_PROFILE). Enables the PROF_BLOCK cycle
     # counters; the resulting .so is NOT byte-id 247. ALWAYS run `build` afterwards to restore production.
-    touch cpp_bitboard.cpp cpp_bitboard.h search_engine.cpp search_engine.h ChessAI.pyx
+    touch cpp_bitboard.cpp cpp_bitboard.h search_engine.cpp search_engine.h ChessAI.pyx eval_v2.cpp eval_v2.h
     rm -rf build ChessAI.cpp ChessAI.*.so
     PROFILE_EVAL=1 "$PY" setupAI.py build_ext --inplace 2>&1 | tail -n 5
     ;;

@@ -29,7 +29,7 @@ eval_profile_args = ["-DEVAL_PROFILE", "-g"] if os.environ.get("PROFILE_EVAL") =
 extensions = [
     Extension(
         "ChessAI",
-        sources=["cpp_bitboard.cpp", "threadpool.cpp", "search_engine.cpp", "ChessAI.pyx"],
+        sources=["cpp_bitboard.cpp", "eval_v2.cpp", "threadpool.cpp", "search_engine.cpp", "ChessAI.pyx"],
         language="c++",
         extra_compile_args=[
             "-Ofast",                      # Safe high optimization

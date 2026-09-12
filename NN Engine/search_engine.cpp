@@ -1151,6 +1151,45 @@ static inline void lmr_profile_event(int depth_limit, int cur_depth, int move_nu
 // Non-counting static eval for the improving heuristic: probe the eval cache, else compute
 // placement_and_piece_eval directly WITHOUT incrementing the node counter (so ENABLE_IMPROVING does
 // not inflate search-node counts). Only called for non-in-check nodes, so checkmate handling is skipped.
+/*
+	Eval-cache key, arm-aware. Returns `zobrist` unchanged on the default arm, so arm 0 is byte-identical.
+
+	TWO PROBLEMS, one fix. (1) evalCacheNew is keyed on the zobrist ALONE, validated by a full-key compare,
+	and is NEVER cleared for the life of the process (cache_management.h:647-668) -- so two eval arms sharing
+	a process would serve each other's values. That cannot happen today because the arm latches once at init
+	and every harness forks per arm, which is exactly why it is the kind of invariant that gets broken later
+	by a change that looks unrelated. (2) ☠️ generateZobristHash (cache_management.h:370) hashes pieces and
+	side-to-move ONLY -- no castling rights, no en passant. That is sound for v1, which reads neither, but v2
+	is expected to read the castling rights plumbed in on 2026-09-09, and the moment it does, two genuinely
+	different positions collide on a full-key match and return each other's eval. No crash, no warning, just
+	position-dependent wrong numbers.
+
+	⚠️ EVAL CACHE ONLY. The search TT and qcache keys are NOT touched: generateZobristHash also drives
+	repetition detection via position_count, and its mask is constexpr in the hottest path, so widening it
+	would move three subsystems at once. We reuse make_move_cache_key (cache_management.h:758), which the
+	movegen cache already uses to mix exactly castling + ep.
+
+	Cost on arm 0: one predicted compare, no hashing.
+*/
+static constexpr uint64_t EVAL_ARM_SALT = 0x9E3779B97F4A7C15ULL;
+
+static inline uint64_t eval_cache_key(uint64_t zobrist, uint64_t castling_rights, int ep_square)
+{
+    // ☠️ ARM 2 USES V1's KEY, and the reason is subtler than "it returns v1's value" -- it is that THE
+    // EVAL'S GLOBAL SIDE EFFECTS ARE LOAD-BEARING AND A CACHE HIT SKIPS THEM. placement_and_piece_eval_v1
+    // republishes the file-scope board state (pawns/occupied/pieceTypeLookUp/attack_bitmasks/square_values
+    // ...) every call; get_board_evaluation returns EARLY on a cache hit and never runs it, so downstream
+    // readers see the PREVIOUS position's globals. Changing the key changes the hit/miss pattern, which
+    // changes WHEN those globals are refreshed, which changes search -- deterministically, with no eval
+    // VALUE ever differing. Measured 2026-09-11: arm 2 on the mixed key read 249 / 35,328,099 twice,
+    // against baseline 250 / 35,310,778, while _eval_arm_purity.py showed 0/1500 value divergences.
+    // ⇒ Any arm that must reproduce v1's BEHAVIOUR must reproduce v1's KEY, not merely v1's value.
+    if (__builtin_expect(Config::EVAL_ARM == 0 || Config::EVAL_ARM == 2, 1))
+        return zobrist;
+    return make_move_cache_key(zobrist, castling_rights, ep_square)
+           ^ (EVAL_ARM_SALT * (uint64_t)Config::EVAL_ARM);
+}
+
 inline int static_eval_for_improving(std::vector<BoardState> &state_history, uint64_t zobrist)
 {
     BoardState cs = state_history.back();
@@ -1166,7 +1205,7 @@ inline int static_eval_for_improving(std::vector<BoardState> &state_history, uin
         return total;
     }
     int cached;
-    if (accessCacheNew(zobrist, cached))
+    if (accessCacheNew(eval_cache_key(zobrist, cs.castling_rights, cs.ep_square), cached))
         return cached;
     int moveNum = static_cast<int>(state_history.size());
     int total = placement_and_piece_eval(moveNum, cs.turn, cs.pawns, cs.knights, cs.bishops, cs.rooks,
@@ -2025,6 +2064,48 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_ORACLE_EVAL = env_flag("ENABLE_ORACLE_EVAL", Config::ENABLE_ORACLE_EVAL);
         Config::ORACLE_CLASSICAL = env_flag("ORACLE_CLASSICAL", Config::ORACLE_CLASSICAL);
         Config::ORACLE_SCALE = env_int("ORACLE_SCALE", Config::ORACLE_SCALE);
+
+        Config::EVAL_ARM = env_int("EVAL_ARM", Config::EVAL_ARM);
+        Config::EVAL_V2_RUNG = env_int("EVAL_V2_RUNG", Config::EVAL_V2_RUNG);
+        Config::EVAL_V2_PAWN_MG = env_int("EVAL_V2_PAWN_MG", Config::EVAL_V2_PAWN_MG);
+        Config::KS_V2_MAX = env_int("KS_V2_MAX", Config::KS_V2_MAX);
+        Config::KS_V2_HALF = env_int("KS_V2_HALF", Config::KS_V2_HALF);
+        Config::KS_V2_COORD = env_int("KS_V2_COORD", Config::KS_V2_COORD);
+        Config::KS_V2_ATT_PROFILE = env_int("KS_V2_ATT_PROFILE", Config::KS_V2_ATT_PROFILE);
+        Config::KS_V2_WEAK = env_int("KS_V2_WEAK", Config::KS_V2_WEAK);
+        Config::KS_V2_ADJ = env_int("KS_V2_ADJ", Config::KS_V2_ADJ);
+        Config::KS_V2_CHK_Q = env_int("KS_V2_CHK_Q", Config::KS_V2_CHK_Q);
+        Config::KS_V2_CHK_R = env_int("KS_V2_CHK_R", Config::KS_V2_CHK_R);
+        Config::KS_V2_CHK_B = env_int("KS_V2_CHK_B", Config::KS_V2_CHK_B);
+        Config::KS_V2_CHK_N = env_int("KS_V2_CHK_N", Config::KS_V2_CHK_N);
+        Config::KS_V2_NO_QUEEN = env_int("KS_V2_NO_QUEEN", Config::KS_V2_NO_QUEEN);
+        Config::KS_V2_CHK_PROFILE = env_int("KS_V2_CHK_PROFILE", Config::KS_V2_CHK_PROFILE);
+        Config::KS_V2_CHK_COUNT = env_int("KS_V2_CHK_COUNT", Config::KS_V2_CHK_COUNT);
+        Config::KS_V2_ONSET = env_int("KS_V2_ONSET", Config::KS_V2_ONSET);
+        Config::KS_V2_ZONE_SF = env_int("KS_V2_ZONE_SF", Config::KS_V2_ZONE_SF);
+        Config::KS_V2_XRAY = env_int("KS_V2_XRAY", Config::KS_V2_XRAY);
+        Config::KS_V2_PAWN_ATT = env_int("KS_V2_PAWN_ATT", Config::KS_V2_PAWN_ATT);
+        if (Config::KS_V2_HALF < 1){
+            std::cerr << "☠️ KS_V2_HALF must be >= 1 (it is a denominator) -- restoring 900." << std::endl;
+            Config::KS_V2_HALF = 900;
+        }
+        Config::EVAL_V2_MG_LIMIT = env_int("EVAL_V2_MG_LIMIT", Config::EVAL_V2_MG_LIMIT);
+        Config::EVAL_V2_EG_LIMIT = env_int("EVAL_V2_EG_LIMIT", Config::EVAL_V2_EG_LIMIT);
+        if (Config::EVAL_V2_MG_LIMIT <= Config::EVAL_V2_EG_LIMIT){
+            std::cerr << "☠️ EVAL_V2_MG_LIMIT (" << Config::EVAL_V2_MG_LIMIT << ") must exceed EVAL_V2_EG_LIMIT ("
+                      << Config::EVAL_V2_EG_LIMIT << ") -- phase would divide by <=0. Restoring defaults." << std::endl;
+            Config::EVAL_V2_MG_LIMIT = 40000;
+            Config::EVAL_V2_EG_LIMIT = 10000;
+        }
+        // ☠️ env_int is std::atoi, so a typo'd value (EVAL_ARM=one, EVAL_ARM=true) yields 0 SILENTLY and the
+        // run measures the shipped eval while the log claims otherwise. Refuse quietly-wrong input loudly.
+        if (Config::EVAL_ARM < 0 || Config::EVAL_ARM > 2){
+            std::cerr << "☠️ EVAL_ARM=" << Config::EVAL_ARM << " invalid (expected 0|1|2) -- forced to 0 (v1)" << std::endl;
+            Config::EVAL_ARM = 0;
+        }
+        if (Config::ENABLE_ORACLE_EVAL && Config::EVAL_ARM != 0)
+            std::cerr << "☠️ ENABLE_ORACLE_EVAL with EVAL_ARM=" << Config::EVAL_ARM
+                      << " is unsupported: the oracle intercepts BEFORE the arm dispatch, so v2 never runs." << std::endl;
         Config::ENABLE_IIR = env_flag("ENABLE_IIR", Config::ENABLE_IIR);
         Config::IIR_MIN_DEPTH = env_int("IIR_MIN_DEPTH", Config::IIR_MIN_DEPTH);
         Config::ENABLE_SIMPL_BIAS = env_flag("ENABLE_SIMPL_BIAS", Config::ENABLE_SIMPL_BIAS);
@@ -2195,7 +2276,17 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             : Config::ACTIVE == &Configs::STANDARD    ? "STANDARD"
             : Config::ACTIVE == &Configs::LONG_FORMAT ? "LONG_FORMAT"
                                                       : "custom";
-        std::cerr << "[toggles] LMR=" << Config::ENABLE_LMR
+        // ⚠️ EVAL_ARM leads the dump deliberately: it decides WHICH EVAL produced every number that
+        // follows, and a grepped or truncated stderr must still answer that question.
+        std::cerr << "[toggles] EVAL_ARM=" << Config::EVAL_ARM
+                  << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
+                  << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
+                  << " KS_V2_MAX=" << Config::KS_V2_MAX
+                  << " KS_V2_HALF=" << Config::KS_V2_HALF
+                  << " KS_V2_COORD=" << Config::KS_V2_COORD
+                  << " KS_V2_CHK_PROFILE=" << Config::KS_V2_CHK_PROFILE
+                  << " KS_V2_ATT_PROFILE=" << Config::KS_V2_ATT_PROFILE
+                  << " LMR=" << Config::ENABLE_LMR
                   << " FUTILITY=" << Config::ENABLE_FUTILITY
                   << " RAZORING=" << Config::ENABLE_RAZORING
                   << " ROOT_RAZOR_CONTINUE=" << Config::ROOT_RAZOR_CONTINUE
@@ -8834,7 +8925,7 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 
     eval_visits++;
     // cache_result = accessCache(zobrist);
-    if (!g_eval_light && accessCacheNew(zobrist, cache_result))
+    if (!g_eval_light && accessCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), cache_result))
     {
         eval_cache_hits++;
         return cache_result;
@@ -8945,6 +9036,6 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 
     // addToCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, total);
     if (!g_eval_light)
-        addToCacheNew(zobrist, total);
+        addToCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), total);
     return total;
 }

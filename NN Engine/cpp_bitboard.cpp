@@ -11,6 +11,7 @@ Code augmented from python-chess: https://github.com/niklasf/python-chess/tree/5
 #include "cpp_bitboard.h"
 #include "search_engine.h"
 #include "cache_management.h"
+#include "eval_v2.h"
 #include <vector>
 #include <array>
 #include <cstddef>
@@ -7281,7 +7282,47 @@ int cheap_eval(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, u
 	return total;
 }
 
+/*
+	Static-eval ARM dispatch (Config::EVAL_ARM). Returns ABSOLUTE Black-positive milli-pawns for a
+	NON-TERMINAL position, exactly as v1 always has -- mate/stalemate are resolved by the caller and the
+	single side-to-move flip happens once, outside, at search_engine.cpp:8910.
+
+	WHY THE DISPATCH LIVES HERE and not at get_board_evaluation, where the oracle intercepts: search reaches
+	the eval through get_board_evaluation, but ~172 files in diagnostics/ and selfplay/ reach it through
+	ChessAI.ev / ChessAI.ev_breakdown instead. Gating at the search seam would leave every one of those
+	instruments measuring v1 while reporting "no change" -- a silent false pass on the very tools that judge
+	the rebuild. Dispatching here switches BOTH doors with one knob and needs no call-site edits.
+
+	Arm 0 is byte-identical: v1's body below is unchanged text, this dispatcher writes nothing and allocates
+	nothing, and Config::EVAL_ARM is assigned only inside initialize_engine's once-guard, before any eval.
+
+	⚠️ A plain branch, deliberately, not a function pointer: we build -Ofast -flto
+	-fno-semantic-interposition so cross-TU calls stay direct and IPA-visible, and an indirect call through a
+	mutable global is opaque at all 16 search call sites -- that would risk cost in the arm required to be
+	free, to buy an immutability the initialize_engine once-guard already provides.
+
+	Cost: one predicted compare per eval on the default arm.
+*/
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights){
+
+	if (__builtin_expect(Config::EVAL_ARM == 0, 1))
+		return placement_and_piece_eval_v1(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
+
+	if (Config::EVAL_ARM == 2){
+		// SHADOW. v1 runs FIRST and its value is what we return, so search behaviour is v1's exactly; v2 is
+		// then run purely for the delta record. ☠️ If v2 writes any global v1 reads, v1's result moves and
+		// the bench falls off 35,310,778 -- that divergence IS the purity test, so never "fix" it by
+		// reordering these two calls or by snapshotting state between them.
+		int v1 = placement_and_piece_eval_v1(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
+		int v2 = placement_and_piece_eval_v2(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
+		eval_v2_shadow_record(v1, v2);
+		return v1;
+	}
+
+	return placement_and_piece_eval_v2(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
+}
+
+int placement_and_piece_eval_v1(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights){
 	// PLUMBING ONLY (2026-09-09): published for consumers, read by NOTHING yet, so this is byte-identical.
 	// The gate that uses it ships separately -- bundling the plumbing with its first consumer would make a
 	// layout-driven NPS shift and an accuracy change arrive together, and neither would be attributable.
@@ -8735,6 +8776,12 @@ EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawnsMask,
 	int total = placement_and_piece_eval(moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
 	g_capture_eval_breakdown = false;
 	g_eval_breakdown.total = total;
+	// Arm provenance. v1 owns the full term taxonomy, so arm 0 declares every field published; a v2 rung
+	// sets its own, narrower mask in its publish helper and that survives untouched here. ⚠️ On arm 2
+	// (SHADOW) the returned value is v1's and so is the breakdown -- v2 deliberately does not publish.
+	g_eval_breakdown.arm = Config::EVAL_ARM;
+	if (Config::EVAL_ARM != 1)
+		g_eval_breakdown.terms_valid = EB_ALL;
 	return g_eval_breakdown;
 }
 

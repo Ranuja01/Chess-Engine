@@ -421,3 +421,123 @@ not only to the memory that records the finding. A resolution number that lives 
 reachable only by whoever remembers its name.
 ⚠️ **THE HEADER IS NOT THE RECORD** — this applies to this document too. Every number above carries the
 measurement it came from; if you cannot find the measurement, treat the number as unverified.
+
+---
+
+## §H — ☠️ STS IS CHAOTICALLY SENSITIVE ON A COARSE EVAL (measured 2026-09-11, eval v2 rung 0.5)
+
+**Question it answers:** can STS tune a constant inside an early v2 rung? **No.**
+
+Measured on v2 rung 0.5 (material + PST only), sweeping `EVAL_V2_PAWN_MG`, all runs fixed-depth d10:
+
+| PAWN_MG | 999 | **1000** | 1001 | 995 | 1010 | 1200 | 900 | 800 | 700 | 650 | 600 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| STS | 1362 | **1364** | **1433** | 1410 | 1407 | 1429 | 1412 | 1432 | 1472 | 1441 | 1353 |
+
+★ **STS is EXACTLY deterministic here** — 1000 re-ran twice at 1364/1364, so the usual ±30-60 repeatability
+band does NOT apply and every difference above is reproducible.
+☠️ **And a 0.1% eval change (1000 → 1001) moves it 69 points.** 1001 = +69, 999 = −2, 995 = +46,
+1010 = +43. Large, **non-monotone**, and not sign-symmetric.
+
+⚠️ The first hypothesis — symmetric tie-breaking in a coarse eval — was FALSIFIED: it predicted 999 would
+jump like 1001, and 999 sat on the baseline. What the data supports is weaker and messier: **chaotic
+sensitivity of a fixed-depth search to a coarse eval**, where a sub-millipawn input change reshuffles move
+choices unpredictably.
+
+### ▶️ THE RULE
+**Reproducible ≠ attributable.** A deterministic instrument can still be unusable, because determinism only
+means the same input gives the same output — not that the output tracks the thing you varied.
+- ✅ STS is fine for **rung-level** questions ("is this feature worth having?"), where the expected move is
+  hundreds of points — v1's whole eval is +432 over v2 rung 0.
+- ☠️ STS is USELESS for **constant-tuning inside an early rung**: local scatter from a ±0.5% input change
+  (~70 pts) is comparable to the entire trend across a 2x sweep (~110 pts).
+- ⇒ Tune constants on the **d7 regret gate** (thousands of positions vs a measured null band, so tie
+  reshuffling averages out), then confirm the rung with games.
+
+### ⚠️ AND IT SHRINKS AS THE LADDER GROWS
+The floor is a property of eval COARSENESS, so it is worst at rung 0 and falls as terms are added and exact
+ties become rare. ⇒ **Early rungs are the HARDEST to measure, not the easiest** — the opposite of the
+intuition that a thin eval gives clean readings. Re-measure this floor at each checkpoint rather than
+assuming the rung-0 number holds.
+
+### §H2 — ☠️ A THIN EVAL WIDENS THE REGRET GATE'S NULL BAND TOO (measured 2026-09-11)
+
+§H showed STS going chaotic on a coarse eval. The regret gate degrades the same way, independently:
+
+| base | neutral arms | band | width |
+|---|---|---|---|
+| v1 (shipped eval) | asp300 / asp800 / noise30 | 50.1 - 51.6 | **1.5pp** |
+| **v2 rung 0.5** (material + PST) | asp300 **47.9** / noise30 **51.8** | 47.9 - 51.8 | **3.9pp** |
+
+⇒ **The null band is ~2.6x wider on the thin eval.** Both of our cheap instruments lose resolution at the
+bottom of the ladder, for the same underlying reason: a coarse eval leaves many near-ties, so any
+perturbation reshuffles move choice more violently.
+
+★ **Early rungs are the HARDEST to measure, not the easiest.** The intuition that a barebones eval gives
+clean readings is exactly backwards, and it is now confirmed on two independent instruments.
+
+☠️ **WORKED EXAMPLE — why this is not academic.** The rung-0.5 pawn sweep read
+`pmg650/700/800 = 49.3 / 50.5 / 51.3`. Against the **borrowed v1 band** (50.1-51.6), 800 looked like it was
+at the top and nearly clearing — a shippable-looking signal. Against its **own measured band** (47.9-51.8)
+it is interior, and in fact BELOW the noise30 null. Same numbers, opposite conclusion.
+⇒ `A HARNESS'S NULL IS NOT ZERO UNTIL MEASURED` extends to: **it is not the SAME null when the BASE changes.**
+Re-measure the band whenever the base arm changes, not only when the corpus does.
+
+### ▶️ CONSEQUENCES FOR THE LADDER
+1. Do not attempt fine constant-tuning at rungs 0-2. Nothing cheap can resolve it.
+2. Quote every early-rung result against a band measured **on that rung's own base**.
+3. ⇒ Reinforces the checkpoint-games structure: accumulate 3-4 rungs, then decide with games, because the
+   cheap instruments are at their weakest exactly where the ladder starts.
+4. Re-measure both floors (STS scatter, gate band) at each checkpoint — they should SHRINK as the eval
+   gains resolution, and that shrinkage is itself a progress signal.
+
+---
+
+## ★★★ §I — EVAL ACCURACY vs SF18: the instrument that CAN resolve early rungs
+
+🧰 `diagnostics/_eval_accuracy_arms.py` · **question:** how close is our STATIC eval to SF18's assessment?
+**No search, no move choice, no null band needed, deterministic.**
+
+Measured 2026-09-11 on `ks_sets/lichess_ks_labelled.csv` (n=2609 after dropping mates/terminals):
+
+| arm | win%-MSE | vs ref |
+|---|---|---|
+| v2 rung 0.5, no KS | 1908.38 | — |
+| + pawn_mg 1001 (**null**) | 1908.53 | **+0.01%** |
+| + pawn_mg 995 (**null**) | 1907.53 | **−0.04%** |
+| + KS-A (product) | 1785.61 | **−6.43%** |
+
+### ★★ RESOLUTION: noise floor ≈ 0.05%; the KS effect is ~130x it
+☠️ **The SAME 1-millipawn change that moved STS by 69 points moves this by 0.01%.**
+⇒ This instrument is ~1000x less sensitive to irrelevant perturbation than a fixed-depth move bench,
+because it never routes through search tie-breaking (§H) or the changed-move population (§F2).
+
+### ▶️ WHY IT MATTERS FOR THE LADDER
+§H and §H2 concluded that NOTHING we owned could tune a constant at early rungs — STS goes chaotic
+(~70 pts from a 0.1% change) and the gate's null band widens to 3.9pp on a thin eval. **§I reopens that.**
+Constants and shapes CAN be resolved at rung 0-2, on accuracy, at a floor of ~0.05%.
+
+| question | instrument |
+|---|---|
+| is the eval TRUER? | ★ §I accuracy — resolves at ~0.05% |
+| does it change the MOVE? | d7 regret gate — ⚠️ blind to KS, needs a matched null band |
+| does anything else break? | STS — regression guard only, ~70 pt floor at early rungs |
+| is it ELO? | ☠️ games. Nothing above predicts Elo |
+
+### ⚠️ BOUNDS — do not over-read
+- Closeness to SF18 is **not Elo**; `corpus-fit-is-anti-correlated-with-elo` still applies. §I RANKS arms,
+  it does not promote one.
+- SF18 SEARCHES, so no static eval reaches 0. Only DIFFERENCES between arms on one corpus are meaningful
+  (see `_reference_ceiling.py` for the achievable floor).
+- Both nulls used were TINY perturbations (1mp, 5mp). They are the right control for demonstrating the
+  contrast with STS, but a larger irrelevant change would test the floor more harshly.
+- ☠️ Units are load-bearing: `ev()` is ABSOLUTE BLACK-POSITIVE MILLIPAWNS, `best_cp` is WHITE-POV
+  CENTIPAWNS. A sign or scale slip yields a plausible loss that means nothing.
+
+### 📌 The day's lesson that produced it
+The KS shape question was answered "better", then "worse", then "better" by three different instruments
+within an hour — 1-D STS sweep (+114), 8-config STS screen (worse in 3 of 4 cells), then §I (consistently
+better, 40x the floor). ★ The move-choice instruments disagreed with each other; the accuracy instrument
+agreed with itself and had a floor 1000x lower. **When instruments disagree, prefer the one that measures
+the quantity you actually changed** — we changed the EVAL, so measure the EVAL, not a move three plies of
+search downstream of it.

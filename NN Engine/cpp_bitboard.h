@@ -390,6 +390,10 @@ inline void update_global_central_scores(int base_increment, uint64_t square_mas
 // g_castling_rights, so consumers read it a handful of times instead of putting a mutable global in the
 // per-square inner loop (see byte-identity-does-not-imply-speed-identity).
 int placement_and_piece_eval(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights);
+// The shipped eval's body. placement_and_piece_eval above is now a thin arm dispatch on Config::EVAL_ARM;
+// this is what it calls on the default arm, unchanged. Called directly by nothing else -- go through the
+// dispatcher so the static (ChessAI.ev / ev_breakdown) and search doors stay on the same arm.
+int placement_and_piece_eval_v1(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights);
 int cheap_eval(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black);
 
 /*
@@ -534,7 +538,33 @@ struct EvalBreakdown {
 	int det_ks_units_b;
 	int det_w_mobility;   // squares each side attacks that are not its own (cheap mobility/control proxy)
 	int det_b_mobility;
+	// ARM PROVENANCE. ☠️ APPEND-ONLY: inserting a field anywhere above shifts every subsequent offset for
+	// anything that reads this struct positionally through Cython.
+	int arm;              // Config::EVAL_ARM that produced this: 0 = v1, 1 = v2, 2 = shadow (value is v1's)
+	uint64_t terms_valid; // bit EB_* set = that field was genuinely published. Arm 0 sets EB_ALL.
 };
+
+// Bit index per EvalBreakdown field, in the SAME ORDER as ChessAI.ev_breakdown builds its dict.
+// WHY: v2 is a ground-up eval and deliberately does NOT share v1's term taxonomy -- forcing it to fill all
+// 44 fields would pre-commit it to the very decomposition the rebuild exists to escape. So a v2 rung
+// publishes only what it actually computes and sets the matching bits; ev_breakdown then OMITS unpublished
+// keys, and a consumer asking for one raises KeyError instead of silently reading 0 and reporting
+// "no asymmetry / no gap". ~172 files read this struct, so a silent zero is the expensive failure mode.
+// ⚠️ Residual, stated rather than papered over: a call site using .get(key, 0) still reads 0 quietly.
+// ☠️ The order is load-bearing and duplicated in ChessAI.pyx. Append at the END, never insert.
+enum EvalBreakdownBit {
+	EB_TOTAL = 0, EB_PIECES, EB_MATERIAL, EB_CAPTURE_GAINS, EB_PASSED_PAWN_SUPPORT, EB_LATENT_THREAT,
+	EB_THREATS, EB_KING_SAFETY, EB_CENTRAL, EB_IMBALANCE_WHITE, EB_IMBALANCE_BLACK, EB_PAIR_BONUS,
+	EB_PIECE_VALUE_BOOST, EB_KAUFMAN_IMBALANCE, EB_PAWN_MAJORITY, EB_PAWN_STRUCT, EB_OUTPOST, EB_SPACE,
+	EB_MOBILITY, EB_ROOK_COND, EB_PHASE_SCORE, EB_ADVANCED_ENDGAME_TOTAL, EB_IS_ENDGAME,
+	EB_ADVANCED_ENDGAME_FIRED, EB_PT_PAWNS, EB_PT_KNIGHTS, EB_PT_BISHOPS, EB_PT_ROOKS, EB_PT_QUEENS,
+	EB_PT_KINGS, EB_AE_INPUT, EB_AE_MATEDRIVE, EB_AE_PASSER, EB_DET_W_OFFENSE, EB_DET_B_OFFENSE,
+	EB_DET_W_DEFENSE, EB_DET_B_DEFENSE, EB_DET_W_PIECEVAL, EB_DET_B_PIECEVAL, EB_DET_CENTRAL,
+	EB_DET_PAWN_COUNT, EB_DET_KS_UNITS_W, EB_DET_KS_UNITS_B, EB_DET_W_MOBILITY, EB_DET_B_MOBILITY,
+	EB_NUM_FIELDS
+};
+static constexpr uint64_t EB_ALL = ~0ULL;
+
 extern EvalBreakdown g_eval_breakdown;
 extern bool g_capture_eval_breakdown;
 EvalBreakdown eval_breakdown_capture(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights);

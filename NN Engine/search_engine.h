@@ -464,6 +464,178 @@ namespace Config
     // tree size, so the remaining STS difference is attributable to ACCURACY alone.
     inline int ORACLE_SCALE = 100;
 
+    // Static-eval ARM selector. The ground-up second eval (eval_v2.cpp) is compiled in alongside the
+    // original and chosen here, so the shipped eval stays byte-identical and is literally the control arm
+    // in the same binary -- an A/B is a knob flip and every existing instrument works unchanged.
+    //   0 = v1, the shipped eval (DEFAULT, byte-identical: 250 / 35,310,778 / EBF 3.784 / STS 1796)
+    //   1 = v2 returned; v1 not run
+    //   2 = SHADOW: run BOTH, return v1's value, accumulate the v2-v1 delta distribution to stderr
+    // ★ Arm 2 is why this is an int and not a bool. It buys a full v2-vs-v1 comparison over the real search
+    // distribution at ZERO risk (the returned value is v1's), and it is the only MECHANICAL purity test we
+    // have: v2 is required to write no global, the compiler cannot enforce that (cpp_bitboard.h exposes
+    // every one of them), but if v2 writes anything v1 reads then v1's own result moves inside the same
+    // node and the bench falls off 35,310,778. ⇒ arm 2 MUST reproduce the baseline node count exactly.
+    // ⚠️ Dispatch is at the top of placement_and_piece_eval, NOT at get_board_evaluation: ~172 files in
+    // diagnostics/ and selfplay/ reach the eval through ChessAI.ev / ev_breakdown rather than through
+    // search, and gating at the search seam would leave every one of them measuring v1 while reporting
+    // "no change" -- a silent false pass on the exact tools that judge the rebuild.
+    // ⚠️ Latches once per process (initialize_engine); one process per arm. Never make it runtime-mutable:
+    // evalCacheNew is keyed on the zobrist alone and is never cleared (see eval_cache_key).
+    inline int EVAL_ARM = 0;
+
+    // ── eval v2, rung 0.5: MATERIAL, owned and phase-tapered ──────────────────────────────────────
+    // v2 keeps its OWN material scalars. ☠️ Do NOT retune Config `values[]` for this: that table also
+    // feeds see() (cpp_bitboard.h:1579), a move-ordering comparator (search_engine.cpp:7796) and the
+    // null-move material threshold (:8086), so changing it would be a SEARCH change wearing an eval
+    // costume -- and search changes are antagonistic, not additive.
+    //
+    // WHY A MIDGAME PAWN AT ALL. Measured against three engines across two lineages: OUR values ARE the
+    // consensus ENDGAME ratios (ours 1:3.25:3.45:5.00:10.00 vs Ethereal endgame 1:3.30:3.54:5.58:11.27)
+    // -- applied in every phase. And all three raise the PAWN faster than the pieces into the endgame
+    // (SF1 +25%, SF11 +66%, Ethereal +76%, pieces flat-to-+28%) while we hold the pawn flat and push the
+    // pieces UP via EG_EXIST_*. ⇒ we plausibly under-price pieces in the midgame and over-price them in
+    // the endgame: two errors in OPPOSITE directions, which no uniform rescale can find.
+    //
+    // Expressed as a LOWER MIDGAME PAWN rather than higher midgame pieces, deliberately: raising the
+    // pieces x1.5 inflates full-army midgame material 41,400 -> 57,100 (+38%) and our pruning margins
+    // (RFP_MARGIN, FUTILITY_MARGINS, razor) are ABSOLUTE millipawns, so that would measure margin
+    // compression, not accuracy. Lowering the pawn instead moves it 41,400 -> 38,600 (-6.8%).
+    // At 650 the midgame ratios land at 1:5.00:5.31:7.69:15.38, ~= Ethereal's 1:5.20:5.38:7.65:15.76.
+    // DEFAULT 1000 = flat = byte-identical to rung 0. This knob IS the rung-0.5 experiment.
+    inline int EVAL_V2_PAWN_MG = 1000;
+
+    // Phase interpolation endpoints for v2, in non-pawn material summed over BOTH sides (our units, so a
+    // full army is 43,400). Scaled from SF11's MidgameLimit/EndgameLimit as a fraction of its own full
+    // npm (0.919 / 0.236). v2 owns its phase: v1's phase_score is INVERTED (0 = opening) and consumed as
+    // a 3-way boolean, and v2 should not inherit a convention it does not use.
+    inline int EVAL_V2_MG_LIMIT = 40000;
+    inline int EVAL_V2_EG_LIMIT = 10000;
+
+    // ── eval v2, rung 1: KING SAFETY (KS-A) ───────────────────────────────────────────────────────
+    // Scope: king zone · attacker accounting · weak squares · safe checks · no-queen suppressor · the
+    // danger curve. ⚠️ Shelter/storm (KS-B) is NOT here -- it reads pawn structure, which arrives at rung 2.
+    //
+    // ☠️ WHY A RESHAPE AND NOT MORE TUNING. v1's KS record is 12 attempts, additive 0-for-11, with only
+    // SUBTRACTIVE changes ever winning. Its danger transform is a four-stage clamp stack
+    // (FLOOR -> KNEE -> DIVISOR -> CAP) in which we measured KS_FLOOR=13 sitting ABOVE KS_KNEE=12, so the
+    // entire quadratic band was inside the deadzone and never fired, and KS_CAP inert above 40. Every one
+    // of our ~15 failed SF ports moved a NUMBER inside our existing shape; none changed the shape.
+    //
+    // ★ THE CURVE IS BOUNDED BY CONSTRUCTION: danger = MAX * u^2 / (u^2 + HALF^2).
+    // Zero at u=0 (soft deadzone, nothing to mis-order against a knee), quadratic onset, saturating at MAX
+    // as a LIMIT rather than a std::min. Both v1 defects become structurally impossible, and a sweep of
+    // either constant is continuous -- so a flat reading means "no signal", never "saturated".
+    inline int KS_V2_MAX  = 0;    // ☠️ 0 = KS-A ABSENT = rung 0.5 byte-identical. The rung IS this knob.
+    inline int KS_V2_HALF = 900;  // attack units at half of MAX (SF-scale units; see the weights below)
+
+    // Attacker accounting. ★ SF forms the attacker term as a PRODUCT (kingAttackersCount x
+    // kingAttackersWeight), so a lone heavy attacker contributes little until a second piece joins --
+    // COORDINATION IS BUILT INTO THE SHAPE. v1 SUMS weights, so a lone queen already scores. This is very
+    // likely more important than the weight values, and it explains them: under a product a queen-heavy
+    // weighting double-counts far less, which is how SF affords queen=10.
+    // ⇒ Expressed as a CONTINUOUS coordination parameter rather than a binary switch, so the optimum can
+    // be FOUND instead of chosen between two points:
+    //     u = weightSum * COORD_MUL[count] >> 8,  COORD_MUL[n] = 256 + (n-1) * KS_V2_COORD
+    //   0   = multiplier 256 at every count = PURE SUM      (v1's shape)
+    //   256 = multiplier 256*n              = PURE PRODUCT  (SF/Ethereal shape)
+    // ★ This matters because the v1 record's verdict on the product was "necessary-but-insufficient,
+    // NOT a solo ship" (collapse-reduction-ledger: KS_ATT_PRODUCT over-fires, wrongsign 1->13; the
+    // coordination gate fixes the target band 3-4x but nets ~0 in games via OPENING COLLATERAL). If the
+    // real answer is partial coordination, a binary switch could never have found it.
+    inline int KS_V2_COORD = 256; // default = product = the shape KS-A was first measured with
+
+    // ⚠️ Attacker weights are a DESIGN SPLIT, not a defect: SF11 (N81/B52/R44/Q10) and Ethereal
+    // (N48/B24/R36/Q30) rank the KNIGHT top; Weiss (N36/B22/R23/Q78) ranks the QUEEN top, as we do.
+    // Two against one ⇒ ours is legitimate and knight-high is a CANDIDATE to test, never a correction.
+    inline int KS_V2_ATT_PROFILE = 0; // 0 = ours (queen-high) · 1 = knight-high (SF/Ethereal shape)
+
+    inline int KS_V2_WEAK     = 185;  // per weak square in the king ring (SF's 185)
+    inline int KS_V2_ADJ      = 69;   // per enemy attack on a square adjacent to the king (SF's 69)
+    inline int KS_V2_CHK_Q    = 780;  // safe checks, priced as a SEPARATE channel -- the one thing SF,
+    inline int KS_V2_CHK_R    = 1080; // Ethereal AND Weiss all do independently ⇒ universally superior.
+    inline int KS_V2_CHK_B    = 635;  // A lone queen that can check safely is dangerous with no second
+    inline int KS_V2_CHK_N    = 790;  // attacker, which an attacker-COUNT model cannot express.
+    inline int KS_V2_NO_QUEEN = 873;  // units SUBTRACTED when the attacking side has no queen (SF's -873)
+
+    // ⚠️ SAFE-CHECK ORDERING IS ALSO A DESIGN SPLIT, and it was silently taken from SF until 2026-09-11.
+    // SF11 ranks ROOK clearly highest (R1080 > N790 > Q780 > B635); v1 TIES queen and rook at the top
+    // (Q14 = R14 > N9 > B7). Adopting SF's ordering without marking it violates the standing rule, which
+    // says a reference disagreement leaves OUR way legitimate and theirs a CANDIDATE -- so it becomes a
+    // switch, exactly as the attacker profile did one channel earlier.
+    //   0 = SF11 ordering, i.e. the KS_V2_CHK_* values above. ⚠️ Default because it is what the +148 STS
+    //       reading was measured with; keeping it preserves continuity of every prior rung-1 number.
+    //   1 = OUR ordering, rescaled to SF magnitude so the two are compared at equal total scale
+    //       (14:14:7:9 x 3285/44 ⇒ Q1046 R1046 B523 N672).
+    // ☠️ NEITHER IS TESTED. This is an open question, not a resolved one.
+    inline int KS_V2_CHK_PROFILE = 0;
+
+    // ☠️ FORM vs MAGNITUDE, the coupling that bit us three times on 2026-09-11. SF11 fires each safe-check
+    // term ONCE (`if (rookChecks) kingDanger += RookSafeCheck`); Ethereal adds PER SQUARE
+    // (`SafetySafeRookCheck * popcount(rookChecks)`). Their constants are calibrated to their own form, so
+    // Ethereal's 90-112 assumes a term that typically fires 1-3 times. We run Ethereal's MAGNITUDES in
+    // SF11's FORM, which under-weights checks by roughly the mean check-square count.
+    //   0 = boolean, fires once   (SF11 form — what rung 1 was measured with)
+    //   1 = popcount, per square  (Ethereal form — matches the constants we now use)
+    inline int KS_V2_CHK_COUNT = 0;
+
+    // ☠️★ ONSET THRESHOLD — the channel EVERY reference has and we did not (added 2026-09-11 after KS-A
+    // measured HARMFUL on the general corpus: +8.5% to +20% eval error, while helping 4-11% on a
+    // KS-SELECTED corpus. Perfect anti-correlation = the term was over-firing in quiet positions).
+    //   SF11:     `if (kingDanger > 100)` — nothing below the threshold contributes.
+    //   Ethereal: `SafetyAdjustment = -74` then `MAX(0, mg)` — the same mechanism as a shifted zero point.
+    // Applied as `u_eff = max(0, u - ONSET)` BEFORE the curve, so quiet positions contribute EXACTLY zero
+    // rather than the small-but-nonzero value a Hill curve returns (at u=100, HALF=300 it returns 400mp --
+    // across thousands of quiet positions that is pure added error).
+    // ⚠️ I originally removed the deadzone because v1's was broken (KS_FLOOR=13 sat ABOVE KS_KNEE=12, so
+    // the quadratic band was unreachable). That is a defect in v1's IMPLEMENTATION, not evidence against
+    // the CONCEPT -- discarding the mechanism because our version of it was broken.
+    // 0 = no onset (what rung 1 was first measured with, and what made it harmful).
+    inline int KS_V2_ONSET = 0;
+
+    // ── FEEDERS (stage 1 of feeders -> transformation -> output) ──────────────────────────────────
+    // ☠️ Audited against SF11 on 2026-09-11 and found to differ in three ways. Everything tuned before
+    // that audit (WEAK/ADJ/CHK magnitudes, HALF, ONSET) was fitted ON TOP of these defects, i.e. the
+    // constants are COMPENSATING for wrong inputs. Fix the feeders, then re-derive stages 2 and 3 --
+    // tuning first would be `a-correctness-fix-into-absorbed-tuning-is-not-free` by construction.
+    // All default 0 = current behaviour, so each can be attributed separately.
+
+    // King zone shape. SF11:239-247 clamps BOTH axes (file B..G, rank 2..7), takes ring+centre with NO
+    // forward extension, and REMOVES squares defended by two of our own pawns. Ours clamps only the file
+    // and ADDS a forward rank ⇒ our zone is materially LARGER, which inflates the per-square WEAK and ADJ
+    // channels and is the likely reason their constants had to be shrunk so hard.
+    // ⚠️ Ethereal instead normalises by zone size (scaledAttackCounts = 9 * count / popcount(kingArea)) --
+    // two different fixes for the same problem, and we currently do neither.
+    //   0 = ours (file clamp + forward extension) · 1 = SF shape (both clamps, no extension, minus dbl-pawn)
+    inline int KS_V2_ZONE_SF = 0;
+
+    // Slider x-ray. SF11:268-271 computes BISHOP attacks through ALL QUEENS and ROOK attacks through ALL
+    // QUEENS AND ITS OWN ROOKS -- "including x-ray attacks" -- so BATTERIES see through each other. We use
+    // plain occupancy, so a queen behind a bishop, or doubled rooks, do NOT register the rear piece as
+    // attacking the king zone at all. That is the canonical attacking formation going undetected.
+    //   0 = plain occupancy · 1 = SF x-ray
+    inline int KS_V2_XRAY = 0;
+
+    // Pawn attackers. SF seeds kingAttackersCount with popcount(kingRing & enemy pawn attacks) -- a pawn
+    // bearing on the ring counts toward the COORDINATION count (though with zero weight). We ignore pawns
+    // entirely, so a pawn-storm attacker never contributes to the attacker count that drives the product.
+    //   0 = ignore pawns · 1 = pawn attacks on the zone add to n_att (weight 0, as SF)
+    inline int KS_V2_PAWN_ATT = 0;
+
+    // ★ NO PHASE GATE, deliberately. v1 hard-zeros KS in the deep endgame (KS_PHASE_ZERO=104 +
+    // KS_PHASE_FLOOR=0 + a skip-the-computation early-out). SF has no such gate: kingDanger is always
+    // computed and the phase-dependence lives in the transform, whose ENDGAME leg is linear but NON-ZERO.
+    // Owner's reasoning agrees and is correct -- pressure decays INHERENTLY with fewer pieces, and the
+    // product form makes that decay steeper still, so an explicit gate is redundant AND blinds us to real
+    // endgame danger (back-rank mates, mating nets, a queenless middlegame our 3-way phase already calls
+    // "endgame"). ⚠️ The gate was also a SPEED optimisation; if removing it costs measurable NPS, take it
+    // back as a cheap ATTACKER-COUNT precondition, never as a phase gate.
+
+    // Which rung of v2's build-up ladder to evaluate. v2 is grown one feature at a time and each rung is
+    // read against the PREVIOUS rung -- a candidate-vs-candidate comparison, which is null-independent and
+    // is the one comparison our instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora).
+    // 0 = material + PST. Ignored when EVAL_ARM == 0.
+    inline int EVAL_V2_RUNG = 0;
+
     // Cutoff-calibration logger (diagnostic; measure-first gate for reviving gravity/malus): at each quiet
     // beta-cutoff, log the cutting move as CUT and the tried-and-failed quiets as FAILED, bucketed by their
     // statScore -> reliability curve P(cut|statScore) + 0-bucket composition. Populates the searched_quiets

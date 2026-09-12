@@ -102,7 +102,7 @@ evidence. Gate any arm as **eval + re-cranked margins together**, never a standa
   raw read −0.6681).
 
 ## 6. STATE
-`c41db45` committed the search instrumentation + SF reference tooling (engine unchanged, all knobs
+`273aebf` committed the search instrumentation + SF reference tooling (engine unchanged, all knobs
 default-off, fingerprint verified). Since then, uncommitted: `ENABLE_ORACLE_EVAL`/`ORACLE_SCALE`/
 `ORACLE_CLASSICAL`, `EVAL_NOISE_SIGMA` (parked; injected in the SEARCH eval path so it cannot be calibrated
 against the corpus metric), the `_search_stability` VS mode, the `_ks_footprint_regret` arm override, and

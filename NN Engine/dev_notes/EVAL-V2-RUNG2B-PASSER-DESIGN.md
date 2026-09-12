@@ -149,3 +149,73 @@ this whenever a v1 passer result is cited as evidence.
 3. ⏳ Which of the ten piece evaluators genuinely need the passer masks in v2? In v1 all ten take them; that
    is the coupling that makes the pawn layer un-cacheable, and most of it is probably rook-behind-passer
    (rung 6) plus blockade (here).
+
+---
+
+## 7. FIVE-ENGINE COMPARATIVE REVIEW (2026-09-12)
+
+Sources: SF1 (2008), SF11, SF15.1 read LOCALLY; Ethereal and Weiss FETCHED (see
+[[reference-engine-sources]] -- they are not on disk). Conversions: SF mg x7.81 / eg x4.69, Ethereal
+mg x12.20 / eg x6.94. ⚠️ **Weiss is UNCONVERTED** -- its piece values are macros we have never resolved,
+so only its SHAPE is comparable, never its magnitudes.
+
+### FORM -- and it is UNANIMOUS
+| engine | base | granted how | safety handled by |
+|---|---|---|---|
+| SF1 (2008) | formula `20*tr` mg / `10+10r^2` eg, `tr = max(0, r(r-1))` | unconditional | additive king-distance, scaled by `tr` |
+| SF11 | `PassedRank[rank]` | **unconditional** | upside WITHHELD inside `if (empty(blockSq))`, never subtracted |
+| SF15.1 | `PassedRank[rank]` | **unconditional** | same |
+| Ethereal | `PassedPawn[canAdvance][safeAdvance][rank]` | **unconditional** | ★ safety SELECTS WHICH TABLE, never scales |
+| Weiss | `PawnPassed[rank]` | **unconditional** | additive `PassedBlocked[4]` / `PassedFreeAdv[4]` |
+| **v1** | `passed_rank[r]` **x R/256** | ☠️ **MULTIPLIED**, R in [0,320] | multiplicative realizability |
+| **v2 (proposed)** | `table[rank]` | unconditional | additive |
+
+★ ★ **4 of 4 references grant unconditionally and modify ADDITIVELY. NOT ONE multiplies by a
+realizability factor.** Universal under `adopt-reference-methods-only-if-universally-superior` => adopt
+without further debate. This confirms the graveyard's law from FIVE independent sources rather than one.
+★ Ethereal's 2x2 table indexing is a fourth distinct way to express safety and the most interesting:
+**safety picks a table, it does not scale a value** -- so a "stopped" passer still gets a full, separately
+tuned number rather than a fraction of another one.
+
+### MAGNITUDE -- in our milli-pawns
+| rel rank | SF11 mg/eg | Ethereal [1][1] mg/eg | Weiss (RAW, unconverted) | **v1 mg/eg** |
+|---|---|---|---|---|
+| 2 | 78 / 131 | **-342** / 160 | **-14** / 25 | **65** / 90 |
+| 3 | 133 / 155 | **-488** / 243 | **-19** / 40 | **160** / 210 |
+| 4 | 117 / 192 | **-671** / 416 | **-72** / 115 | **285** / 360 |
+| 5 | 484 / 338 | 98 / 618 | -38 / 146 | 625 / 750 |
+| 6 | 1312 / 830 | 1159 / 1152 | 60 / 175 | 840 / 990 |
+| 7 | **2156** / 1219 | 1513 / **2033** | 311 / 218 | **1085** / 1260 |
+
+☠️ ★ **Ethereal AND Weiss both price an UNADVANCED passer as a MIDGAME LIABILITY** (negative through
+ranks 2-4/5). Mechanically sensible: it is a pawn no neighbour can defend, so it is a target, and it is far
+from promoting. SF11 is mildly positive. **v1 pays 65/160/285 at exactly those ranks, and then UNDER-pays
+at the top (1085mg at rank 7 where SF11 gives 2156).**
+=> **v1's passer taper is COMPRESSED AT BOTH ENDS: too generous where two references go negative, too
+stingy where all of them go large.** This is INDEPENDENT of the multiplicative defect and would still be
+wrong after fixing it. => v2 seeds a taper that is flat-or-negative at low rank and steep at high rank.
+
+### ★ ★ Q1 ANSWERED -- and Weiss supplies a better form than either engine previously checked
+| engine | does a connected / defended PASSER earn extra? |
+|---|---|
+| SF11 | YES -- `Connected[]` applies to every connected pawn including passers, additively |
+| Ethereal | NO -- the `else if` explicitly denies connected to passed pawns |
+| **Weiss** | **YES -- via a DEDICATED `PassedDefended[RANK_NB]` table**: `S(0,0) S(0,0) S(3,-14) S(3,-10) S(0,33) S(32,103) S(158,96) S(0,0)` |
+
+=> **2 of 3 say YES**, so the owner's chess intuition holds and Ethereal is the dissenter.
+★ ★ More useful than the vote: **Weiss owns the interaction in a SEPARATE TERM** rather than reusing
+the connected bonus. That is a third design neither SF nor Ethereal offers, and it fits our one-owner rule
+exactly -- **the parked connected term STAYS parked, and a new `PassedDefended[rank]` owns the
+passer-x-defence interaction outright.** It also sidesteps the no-5th-valuation-mechanism instruction,
+because it is not a passer VALUATION mechanism: it is a detector-conditioned table, like every other one.
+⚠️ Note the shape: Weiss's PassedDefended is ~0 below rank 4 and explodes at 5-6. Defence only matters
+once the pawn is close enough for the defence to be decisive.
+
+### Also worth stealing / noting
+- **Weiss `PassedRookBack = S(21,46)`** -- a dedicated rook-behind-passer term. v1 has `ROOK_PASSER_OWN=50`
+  / `ROOK_PASSER_ENEMY=25` inside the ROOK evaluator. => v2 owns it at rung 6, reading 2b's `passed` mask.
+- **Weiss `PassedSquare = S(-26,422)`** -- the square rule (unstoppable passer), a near-pure ENDGAME term.
+  v1's `passer_king_race_one` is our version and it ☠️ writes board globals (scan 3); the concept
+  survives, that implementation does not.
+- **SF1's `tr = max(0, r(r-1))` scaling of the king-distance terms** -- king proximity matters more the
+  further advanced the pawn. All later engines keep this shape; ours does not express it.

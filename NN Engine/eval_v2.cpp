@@ -888,8 +888,8 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c)
 				eg = eg * Config::PASSER_V2_CAND_PCT / 100;
 			}
 
-			side_mg[s] += mg;
-			side_eg[s] += eg;
+			side_mg[s] += mg * Config::PASSER_V2_MG_PCT / 100;
+			side_eg[s] += eg * Config::PASSER_V2_EG_PCT / 100;
 		}
 	}
 

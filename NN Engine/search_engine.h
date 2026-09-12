@@ -771,6 +771,22 @@ namespace Config
     // SF halves the bonus for pawns that need more than one push, or have a pawn in front.
     inline int PASSER_V2_CAND_PCT = 50;
 
+    // Separate percent scales on the MIDGAME and ENDGAME legs. ★ Added because the first sweep showed a
+    // huge, systematic corpus split: the term is worth -9.27% on UHO openings (monotone to full magnitude)
+    // and +16.74% on our own self-play corpus. Passers are archetypally an ENDGAME term, and our converted
+    // table is MIDGAME-HEAVY by construction -- SF's S(276,260) at rank 7 becomes mg 2156 / eg 1219,
+    // because SF's endgame pawn is worth more (213 vs 128) while OURS IS FLAT AT 1000 IN BOTH PHASES.
+    // ⚠️ The conversion is arithmetically faithful ("2.16 pawns in mg, 1.22 in eg"), but it inherits SF's
+    // phase-dependent pawn value, which we do not have -- `EG_EXIST_*` tapers PIECES up in the endgame
+    // with no pawn entry. These knobs isolate whether the harm is the midgame leg.
+    // ☠️ DEFAULTS TO 0 -- the MIDGAME leg is the harmful half, measured 2026-09-12. At equal mean it
+    // roughly DOUBLES the worst case (mag 6: worst +0.52% with it, +0.11% without; mag 12: +1.11% vs
+    // +0.25%). Passers are archetypally an endgame term and our converted table is midgame-heavy by
+    // construction, because SF's endgame pawn is worth more (213 vs 128) while ours is FLAT at 1000 in
+    // both phases -- so the faithful conversion inherits a phase relationship we do not have.
+    inline int PASSER_V2_MG_PCT = 0;
+    inline int PASSER_V2_EG_PCT = 100;
+
     // Which rung of v2's build-up ladder to evaluate. v2 is grown one feature at a time and each rung is
     // read against the PREVIOUS rung -- a candidate-vs-candidate comparison, which is null-independent and
     // is the one comparison our instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora).

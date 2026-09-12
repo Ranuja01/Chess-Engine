@@ -426,3 +426,69 @@ a universal design choice and a v2-specific need have pointed the same way.
 The base passer table may survive at NEAR-REFERENCE magnitude **because of the rank gate**. ⚠️ Sweep
 `PASSER_MAG` from the first run regardless -- I have now been wrong three times about reference magnitudes
 transferring (SF's doubled taper, the 2a magnitude optimum, rank-flat connected).
+
+---
+
+## 11. 2b BUILT AND MEASURED (2026-09-12)
+
+### Gates -- all pass
+arm 0 byte-identical `250 / 35,310,778 / EBF 3.784` - 2b off `249 / 62,014,960` - 2b on
+`250 / 60,474,175` (differs => live) - **detector oracle 11/11 predicates, 66,000 masks, ZERO mismatches**
+- colour invariance **0/800 at TOL=0** - file mirror `21 (3.2%) worst 5mp`, unchanged from baseline.
+
+### Detection gap CLOSED and quantified
+`candidate` fires on **1.54%** of pawns against `passed` at **11.72%** => the SF rule finds **13.1% more
+passers**, independently reproducing the recorded ~14% figure by a different route.
+
+### ☠️ The oracle earned itself
+`initialize_attack_tables()` runs in `ChessAI.__cinit__` -- at ENGINE CONSTRUCTION, not module import. The
+module-level probe read `passed_span_white` as ALL ZEROS, so `stoppers` was empty and **every pawn was
+flagged passed, back-rank pawns included**: 2,735 `passed` + 362 `candidate` mismatches from one cause.
+★ A detector reading a zero mask does not crash and does not look wrong -- more passers, higher eval,
+plausible numbers. Recorded as [[runtime-tables-are-empty-outside-an-engine-instance]].
+
+### ☠️ The MIDGAME leg is the harmful half
+| arm | mean% | worst% |
+|---|---|---|
+| mag 6, both legs | -0.15 | +0.52 |
+| **mag 6, eg only** | -0.15 | **+0.11** |
+| mag 12, both legs | -0.25 | +1.11 |
+| **mag 12, eg only** | -0.29 | **+0.25** |
+
+Killing the mg leg roughly HALVES the worst case at equal mean. => `PASSER_V2_MG_PCT` now defaults to 0.
+⚠️ Cause: our converted table is midgame-heavy BY CONSTRUCTION. SF's `S(276,260)` becomes mg 2156 /
+eg 1219 because SF's endgame pawn is worth more (213 vs 128) while **ours is FLAT at 1000 in both phases**.
+The conversion is arithmetically faithful; it inherits a phase relationship our eval does not have.
+
+### The eg-only frontier
+| mag | 6 | 12 | 20 | 30 | 45 | **60** | 110 |
+|---|---|---|---|---|---|---|---|
+| mean% | -0.15 | -0.29 | -0.44 | -0.58 | -0.71 | **-0.72** | -0.02 |
+| worst% | +0.11 | +0.25 | +0.47 | +0.81 | +1.46 | +2.27 | +6.16 |
+
+★ ★ **Same shape as rung 1's ONSET frontier -- which we MEASURED to be worth +0.1 +/- 50 Elo, i.e.
+FLAT.** The rung-1 law applies: *adding the channel pays; tuning where it fires does not.*
+=> **Stop optimising this frontier. Pick a conservative point and go to games.**
+
+### ☠️ The corpus split, which is the largest we have seen
+At full magnitude the SAME term is **-9.27% on `game_regret_set_uho`** (monotone, still improving) and
+**+16.74% on `game_regret_set`**. Both large, opposite signs. ⚠️ Unexplained -- I stopped theorising
+after two hypotheses failed to survive contact (phase distribution, baseline fit). It is a real,
+systematic, reproducible split and it is the most interesting open question of the rung.
+
+### Predictions scorecard
+WRONG -- "the base table may survive at near-reference magnitude because of the rank gate". The optimum is
+mag ~20-60 eg-only, i.e. **a fifth to a half of reference scale**. Fourth consecutive miss in the same
+direction: assuming reference magnitudes transfer.
+☠️ **The rank-gate test was a NO-OP** -- `PASSER_V2_MIN_RANK=0` produced output IDENTICAL digit-for-digit
+to the default, because SF's own `w = 5r - 13` is already <= 0 below the 4th rank and we clamp `w < 0 -> 0`.
+The gate is a SPEED early-out, not a behavioural one. **Second time I built a test that could not
+discriminate** (the 2a exclusivity test was the first). => Before running an arm, check whether the knob
+can change the output AT ALL.
+RIGHT -- king distance helps (removing it costs 0.9pp) and the candidate discount helps slightly (0.17pp).
+
+### => RECOMMENDED and OPEN
+Ship **eg-only at mag 20-30** (worst +0.47 to +0.81%) and take 2a+2b to GAMES. §I demonstrably cannot price
+this class: it read KS at -1.44% and games said **+101 Elo**.
+⚠️ 2b never reaches worst <= 0, unlike 2a (-0.66% / -0.00%). That is a real difference and the games run
+must be read with it in mind.

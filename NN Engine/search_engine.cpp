@@ -2107,6 +2107,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_V2_KING_THEM = env_int("PASSER_V2_KING_THEM", Config::PASSER_V2_KING_THEM);
         Config::PASSER_V2_KING_US = env_int("PASSER_V2_KING_US", Config::PASSER_V2_KING_US);
         Config::PASSER_V2_CAND_PCT = env_int("PASSER_V2_CAND_PCT", Config::PASSER_V2_CAND_PCT);
+        Config::PASSER_V2_MG_PCT = env_int("PASSER_V2_MG_PCT", Config::PASSER_V2_MG_PCT);
+        Config::PASSER_V2_EG_PCT = env_int("PASSER_V2_EG_PCT", Config::PASSER_V2_EG_PCT);
         if (Config::PASSER_V2_MIN_RANK < 0 || Config::PASSER_V2_MIN_RANK > 7){
             std::cerr << "☠️ PASSER_V2_MIN_RANK must be 0..7 -- restoring 3." << std::endl;
             Config::PASSER_V2_MIN_RANK = 3;

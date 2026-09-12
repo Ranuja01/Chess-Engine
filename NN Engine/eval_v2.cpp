@@ -800,6 +800,104 @@ constexpr long long SHADOW_REPORT_STRIDE = 1LL << 20;
 // internal by construction -- that is what enforces the zero-global contract -- but this one is
 // called from Cython, so internal linkage would (and did) fail the link with an undefined symbol.
 
+// ===================================================================================================
+// RUNG 2b -- PASSED PAWNS
+// ===================================================================================================
+
+// SF11 PassedRank[] converted to our milli-pawns (mg x7.81, eg x4.69), indexed by RELATIVE rank, 0-based,
+// so index 6 is the 7th rank. ⚠️ SF's own pawn PST (PBonus) has essentially NO rank ramp -- tiny and
+// non-monotonic -- and neither does ours (flat ~25mp from rank 3, ZERO at rank 7). So this table is the
+// WHOLE advancement price in both engines, and adding it over our PST is structurally correct rather than
+// a double-count. That was verified before a constant was chosen; it is the check skipped at rung 2a.
+static constexpr int PS_PASSED_MG[8] = {0,  78, 133, 117, 484, 1312, 2156, 0};
+static constexpr int PS_PASSED_EG[8] = {0, 131, 155, 192, 338,  830, 1219, 0};
+
+/* Chebyshev (king-move) distance between two squares, capped at 5 as SF caps king_proximity.
+ * @return 0..5
+ */
+static inline int ps_kdist(int a, int b) noexcept
+{
+	const int dx = ((a & 7) > (b & 7)) ? (a & 7) - (b & 7) : (b & 7) - (a & 7);
+	const int dy = ((a >> 3) > (b >> 3)) ? (a >> 3) - (b >> 3) : (b >> 3) - (a >> 3);
+	const int d  = dx > dy ? dx : dy;
+	return d > 5 ? 5 : d;
+}
+
+/* LAYER C -- passed-pawn value. Piece/king dependent, so NOT part of the cacheable pawn entry.
+ * Returns Black-positive milli-pawns: White's passers subtract, Black's add.
+ *
+ * ★ THE FORM IS THE POINT. The rank table is granted UNCONDITIONALLY and every modifier is ADDITIVE.
+ * All five references agree on this (SF1, SF11, SF15.1, Ethereal, Weiss) and NOT ONE multiplies by a
+ * realizability factor. v1 computes `mag * R / 256` with R in [0,320], and v1's own comment records the
+ * measured consequence: below R ~21/256 a passer collects LESS than the same pawn would have earned for
+ * NOT being passed -- 6mp where the ordinary rank bonus is 90. Being recognised as passed must never make
+ * a pawn worth less. There is no R here, and no clamp chain.
+ *
+ * ⚠️ The EXTRAS are rank-gated at PASSER_V2_MIN_RANK (default 3 = the 4th rank), which is universal:
+ * SF11 gates on `r > RANK_3`, Weiss on `if (rank < RANK_4) continue`. Below it a passer gets the table and
+ * nothing else. v1 runs its whole machinery at every rank.
+ *
+ * @param e  detector output; reads passed[] and candidate[] only
+ * @param c  context; kings, occupancy and phase256
+ * @return   Black-positive milli-pawns, phase-blended and scaled by PASSER_V2_MAG
+ *
+ * Gating: PASSER_V2_MAG == 0 returns 0 => byte-identical to the rung-2a baseline.
+ * Cost: one bit loop per side over passers only (11.72% of pawns), two distance computations each.
+ */
+static inline int passer_value_mp(const PawnEntry &e, const V2Context &c)
+{
+	if (Config::PASSER_V2_MAG == 0) return 0;
+
+	const int wk = (c.kings & c.white) ? __builtin_ctzll(c.kings & c.white) : 0;
+	const int bk = (c.kings & c.black) ? __builtin_ctzll(c.kings & c.black) : 0;
+
+	int side_mg[2] = {0, 0};
+	int side_eg[2] = {0, 0};
+
+	for (int s = 0; s < 2; ++s){
+		const bool white  = (s == 0);
+		const int  ourK   = white ? wk : bk;
+		const int  theirK = white ? bk : wk;
+
+		uint64_t bb = e.passed[s] | e.candidate[s];
+		while (bb){
+			const int sq = __builtin_ctzll(bb);
+			bb &= bb - 1;
+			const uint64_t m = 1ULL << sq;
+			const int r = white ? (sq >> 3) : (7 - (sq >> 3));
+
+			int mg = PS_PASSED_MG[r];
+			int eg = PS_PASSED_EG[r];
+
+			if (r >= Config::PASSER_V2_MIN_RANK){
+				// SF's rank weight: king proximity matters more the further advanced the pawn.
+				int w = 5 * r - 13;
+				if (w < 0) w = 0;
+				const int stop = white ? (sq + 8) : (sq - 8);
+				if (stop >= 0 && stop < 64){
+					// ENDGAME leg only, as SF: make_score(0, ...). ★ Their king's distance outweighs ours
+					// ~2.4x in SF and ~2.7x in v1 -- the one passer ratio v1 already has right.
+					eg += (ps_kdist(theirK, stop) * Config::PASSER_V2_KING_THEM
+					     - ps_kdist(ourK,   stop) * Config::PASSER_V2_KING_US) * w / 100;
+				}
+			}
+
+			// SF scales candidates down: they still face a stopper and need more than one push.
+			if (m & e.candidate[s]){
+				mg = mg * Config::PASSER_V2_CAND_PCT / 100;
+				eg = eg * Config::PASSER_V2_CAND_PCT / 100;
+			}
+
+			side_mg[s] += mg;
+			side_eg[s] += eg;
+		}
+	}
+
+	const int w = (side_mg[0] * c.phase256 + side_eg[0] * (256 - c.phase256)) >> 8;
+	const int b = (side_mg[1] * c.phase256 + side_eg[1] * (256 - c.phase256)) >> 8;
+	return ((b - w) * Config::PASSER_V2_MAG) / 100;
+}
+
 /* DETECTOR ORACLE PROBE -- exports Layer A's raw masks so they can be compared against the independent
  * Python implementation in diagnostics/_pawn_term_overlap.py, which is validated 8/8 on hand-checked
  * positions and colour-symmetric 3/3.
@@ -925,12 +1023,15 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// passed games at ~+101 Elo. ★ The detector is built here and RETURNS its masks; nothing about it is
 	// published as a side effect, which is what will let the whole of Layer A+B move behind a pawnKey cache
 	// at 2b without any downstream consumer reading stale state.
-	int ps_mp = 0;
+	// ★ ONE detector build serves both 2a and 2b -- the masks are a pure function of the two pawn
+	// bitboards, so whichever rung is on, the entry is computed once and both scorers read it.
+	int ps_mp = 0, pp_mp = 0;
 	PawnEntry pe;
-	if (Config::PS_V2_MAG != 0){
+	if (Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0){
 		build_pawn_entry(pe, c);
-		ps_mp = pawn_structure_mp(pe, c);
-		total += ps_mp;
+		ps_mp = pawn_structure_mp(pe, c);   // returns 0 when PS_V2_MAG == 0
+		pp_mp = passer_value_mp(pe, c);     // returns 0 when PASSER_V2_MAG == 0
+		total += ps_mp + pp_mp;
 	}
 
 	// Later rungs accumulate here, each gated on its own knob.

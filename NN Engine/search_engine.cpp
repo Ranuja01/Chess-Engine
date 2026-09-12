@@ -2101,6 +2101,16 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PS_V2_ISOLATED_EG = env_int("PS_V2_ISOLATED_EG", Config::PS_V2_ISOLATED_EG);
         Config::PS_V2_BACKWARD_MG = env_int("PS_V2_BACKWARD_MG", Config::PS_V2_BACKWARD_MG);
         Config::PS_V2_BACKWARD_EG = env_int("PS_V2_BACKWARD_EG", Config::PS_V2_BACKWARD_EG);
+        // ── rung 2b: passed pawns ──────────────────────────────────────────────────────────────
+        Config::PASSER_V2_MAG = env_int("PASSER_V2_MAG", Config::PASSER_V2_MAG);
+        Config::PASSER_V2_MIN_RANK = env_int("PASSER_V2_MIN_RANK", Config::PASSER_V2_MIN_RANK);
+        Config::PASSER_V2_KING_THEM = env_int("PASSER_V2_KING_THEM", Config::PASSER_V2_KING_THEM);
+        Config::PASSER_V2_KING_US = env_int("PASSER_V2_KING_US", Config::PASSER_V2_KING_US);
+        Config::PASSER_V2_CAND_PCT = env_int("PASSER_V2_CAND_PCT", Config::PASSER_V2_CAND_PCT);
+        if (Config::PASSER_V2_MIN_RANK < 0 || Config::PASSER_V2_MIN_RANK > 7){
+            std::cerr << "☠️ PASSER_V2_MIN_RANK must be 0..7 -- restoring 3." << std::endl;
+            Config::PASSER_V2_MIN_RANK = 3;
+        }
         // ☠️ Range-check the two that index tables: PS_CONN_FILE_256 and PS_CONN_RANK_MP are 8 entries and
         // the rank compare is `r >= PS_V2_TILT_MIN_RANK`, so a negative value would tilt every rank and a
         // value > 7 would silently disable the tilt while the toggles line still advertised it.
@@ -2308,6 +2318,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         std::cerr << "[toggles] EVAL_ARM=" << Config::EVAL_ARM
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
+                  << " PASSER_V2_MAG=" << Config::PASSER_V2_MAG
                   << " PS_V2_MAG=" << Config::PS_V2_MAG
                   << " PS_V2_CONN_FORM=" << Config::PS_V2_CONN_FORM
                   << " PS_V2_FILE_TILT=" << Config::PS_V2_FILE_TILT

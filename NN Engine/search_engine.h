@@ -732,6 +732,45 @@ namespace Config
     inline int PS_V2_BACKWARD_MG = 0;
     inline int PS_V2_BACKWARD_EG = 113;
 
+    // ===============================================================================================
+    // RUNG 2b -- PASSED PAWNS (eval v2). PASSER_V2_MAG = 0 => the rung is ABSENT and byte-identical.
+    // Design, five-engine comparison and the experiment list: dev_notes/EVAL-V2-RUNG2B-PASSER-DESIGN.md.
+    // ===============================================================================================
+
+    // Master percent scale. ☠️ 0 = absent. ⚠️ SWEEP THIS FROM THE FIRST RUN rather than trusting 100:
+    // reference magnitudes are calibrated to a DENSE eval, and rung 2a proved a large, FREQUENT term
+    // overwhelms a thin one (connected at ~50x our pawn placement signal, harmful at every magnitude).
+    // ★ Passers fire on 11.72% of pawns and the rank gate cuts that further, so the odds are better here
+    // than they were for connected -- but I have been wrong three times about reference magnitudes.
+    inline int PASSER_V2_MAG = 0;
+
+    // ★ THE FORM IS UNCONDITIONAL AND ADDITIVE. 4 of 4 references (SF1, SF11, SF15.1, Ethereal, Weiss)
+    // grant the rank table outright and modify it with ADDITIVE terms; NOT ONE multiplies by a
+    // realizability factor. v1 alone computes `mag * R / 256`, and v1's own comment records the measured
+    // consequence: below R ~21/256 a passer collects LESS than the same pawn would earn for NOT being
+    // passed (6mp where the ordinary rank bonus is 90). Both of v1's repairs for that are default-off
+    // because they measured worse INSIDE v1 -- the accidental-load-bearing signature. There is no `R` here
+    // and no clamp chain; that is the whole point of the rung.
+
+    // Rank at or above which the EXTRAS apply (0-based relative rank, so 3 == the 4th rank).
+    // ★ Universal: SF11 gates on `r > RANK_3` and Weiss on `if (rank < RANK_4) continue` -- both the 4th
+    // rank. Below it a passer gets the base table and NOTHING else. v1 runs its entire R machinery at
+    // every rank, which is the one place v1 is unambiguously more expensive than every reference.
+    inline int PASSER_V2_MIN_RANK = 3;
+
+    // King distance to the STOP square, ENDGAME leg only, weighted by SF's `w = 5r - 13` so it matters
+    // more the further advanced the pawn (SF1's `tr = max(0, r(r-1))` is the ancestor of this shape).
+    // Units: milli-pawns per (distance x w), x100. SF11 uses 19/4 and 2 in its own eg units; converted at
+    // x4.69 that is 22.28 and 9.38.
+    // ★ All four references weight "their king cannot get there" FAR above "our king escorts" -- SF 2.4x,
+    // and v1's KING_FAR:KING_HELP = 16:6 = 2.7x already agrees. We port the RATIO, not the placement.
+    inline int PASSER_V2_KING_THEM = 2228;
+    inline int PASSER_V2_KING_US   = 938;
+
+    // Percent paid to a CANDIDATE passer (one still facing a stopper it out-lever/out-supports).
+    // SF halves the bonus for pawns that need more than one push, or have a pawn in front.
+    inline int PASSER_V2_CAND_PCT = 50;
+
     // Which rung of v2's build-up ladder to evaluate. v2 is grown one feature at a time and each rung is
     // read against the PREVIOUS rung -- a candidate-vs-candidate comparison, which is null-independent and
     // is the one comparison our instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora).

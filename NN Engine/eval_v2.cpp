@@ -626,7 +626,8 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
 			// FORM 0 = 2D rank x file (target) - FORM 1 = rank only (SF11 exactly).
 			// FORM 2 (v1's additive rank+file) is reserved and currently behaves as FORM 1; it exists so
 			// the refuted form can be reinstated deliberately rather than reconstructed from memory.
-			int base = PS_CONN_RANK_MP[r];
+			// FORM 2 is RANK-FLAT: the PST owns rank, this owns only "is it connected".
+			int base = (Config::PS_V2_CONN_FORM == 2) ? Config::PS_V2_CONN_FLAT : PS_CONN_RANK_MP[r];
 			if (Config::PS_V2_CONN_FORM == 0 && r >= Config::PS_V2_TILT_MIN_RANK){
 				const int tilt = 256 + ((PS_CONN_FILE_256[f] - 256) * Config::PS_V2_FILE_TILT) / 256;
 				base = (base * tilt) >> 8;
@@ -645,7 +646,11 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
 			// constant directly because our mg and eg conversions differ (x7.81 vs x4.69), so
 			// PS_V2_EG_RATIO carries that difference EXPLICITLY instead of burying it in a table.
 			// ☠️ All three unit-scale errors during rung 1 came from mixing conversion bases silently.
-			side_eg[s] += ((v * (r - 2)) / 4) * Config::PS_V2_EG_RATIO / 100;
+			// ⚠️ FORM 2's endgame leg must be flat too. Deriving it as v*(r-2)/4 would smuggle the rank
+			// dependence straight back in through the eg half, which is the very thing form 2 removes.
+			side_eg[s] += (Config::PS_V2_CONN_FORM == 2)
+			              ? v
+			              : ((v * (r - 2)) / 4) * Config::PS_V2_EG_RATIO / 100;
 		}
 
 		// --- doubled: v1 HAS this (hardcoded 125 mg / 150 eg); the defect was the FLAT taper -----------

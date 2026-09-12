@@ -458,3 +458,66 @@ the Python oracle first, because a detector bug and a cache bug are indistinguis
 ★ **The hash is then folded in AFTER 2b** -- it applies to passer DETECTION too, so building it once
 after both halves exist is cheaper than retrofitting it twice -- and **before** the games / final
 verification runs. Gate: byte-identity between cached and uncached (E7).
+
+---
+
+## 12. RUNG 2a RESULT (2026-09-12) -- three terms ship, connected is PARKED
+
+### SHIPPED: `PS_V2_MAG=100` with `PS_V2_CONN_MAG=0`
+**-0.66% mean, worst -0.00% -- negative or zero on ALL SIX corpora.**
+
+| arm | mean% | worst% |
+|---|---|---|
+| doubled + isolated + backward | **-0.66** | **-0.00** |
+| only_doubled | -0.33 | -0.02 |
+| only_isolated | -0.22 | +0.11 |
+| only_backward | -0.16 | -0.00 |
+| everything incl. connected | +2.66 | +8.37 |
+
+### PARKED: connected / support -- harmful at EVERY magnitude and BOTH shapes
+| probe | result |
+|---|---|
+| rank-keyed, MAG sweep 3..100 | monotone, no positive optimum |
+| rank-flat (FORM 2), FLAT 30..250 | WORSE than rank-keyed (+2.06% at 30) |
+| support isolated, 10..80 | monotone to zero; support OFF is best |
+| base30 + sup10 | -0.33%, still worse than dropping it |
+
+☠️ Decomposition: `flat_90` +2.85% vs `flat_90_nosupport` +0.35% ⇒ **`PS_V2_SUPPORT` was ~71% of the
+damage.** And the reason is already on record from the same day: **v1's `pawn_chain_file_bonus` IS the
+support term** (it fires inside the pawn's attack loop on own pawns). Our PSTs and structure already price
+supported pawns, so SF's `21 * popcount(support)` -> 164mp per supporter is a straight double-count, up to
+328mp on a doubly-supported pawn against a base of 90.
+
+★ The ladder protocol's next escalation step after "tune its own constants" is "retune the NEIGHBOURS",
+which it marks as a RED FLAG -- the fitted-around-neighbours signature the whole rebuild exists to escape.
+So we stop and park rather than tune outward. **Re-try after 2b**: a feature can look worthless before its
+companion exists, and the isolated<->passed lift of 2.57x says passers are the missing companion for the
+whole pawn layer.
+
+### ★★ THE GENERALISABLE RULE, and it is not about pawns
+Three predictions failed in this rung, all in the same direction -- assuming a reference-derived term works
+once rescaled: SF's doubled taper would win (it did not; v1's was marginally better), a magnitude optimum
+existed (monotone to zero), rank-flat would fix it (worse than rank-keyed).
+But rung 1 PAID, at ~+101 Elo. The difference is not shape and not scale:
+
+**KS priced something the core had NO representation of. Connected/support prices what the PST ALREADY
+carries** -- both answer "is this pawn on a good square with friends".
+⇒ **The predictor of whether a rung pays is whether the core already REPRESENTS that information, not
+whether the giants have the term.** ⚠️ The overlap matrix cannot see this: it compares terms WITHIN a rung,
+never against the PST. A pre-rung check against the existing core is the missing instrument.
+
+### ✅ The structural/positional CAP question (owner, 2026-09-12) -- answered from source
+**Neither giant caps pawn scores.** SF11 adds `score += pe->pawn_score(WHITE) - pe->pawn_score(BLACK)` RAW
+(`evaluate.cpp:788`); the only `min`/`max` in `pawns.cpp` pick the best king-shelter square and a distance
+minimum, not score bounds. Ethereal likewise: bounded tables, no cap.
+They achieve the same goal by keeping constants small and letting values be large only where large is
+CORRECT -- SF genuinely lets a connected 7th-rank pawn reach ~2 pawns. ★ **A cap cannot distinguish
+"correctly large" from "mis-scaled large".**
+⇒ **No cap in v2**, and today is the argument: connected was ~13x too large and the cap-free design
+surfaced it in ONE run, where v1's clamp had hidden the equivalent for years (chain/struct masked 14x/23x
+with their signs INVERTED). A cap bounds the OUTPUT instead of fixing the INPUT.
+⚠️ The owner's underlying concern is still real and is met three targeted ways instead: small a-priori
+reference constants, the E-series loop (which just caught a 13x error), and per-term magnitude knobs so any
+single term can be bounded alone. ★ And the real pathology in v1 was never "a clamp" -- it was a clamp on a
+**SUM OF TWO COMPETING QUANTITIES**. Bounding one term is defensible; bounding a sum is what made it
+pathological.

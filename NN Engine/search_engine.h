@@ -647,8 +647,12 @@ namespace Config
     inline int PS_V2_MAG = 0;
 
     // Which connected-pawn FORM to use. E1 in the design doc -- the headline experiment of this rung.
-    // 0 = 2D rank x file (default target) - 1 = rank only (SF11's exact shape) - 2 = v1's additive
-    // rank + file, kept only so the refuted form can be re-measured on demand.
+    // 0 = 2D rank x file - 1 = rank only (SF11's exact shape) - 2 = RANK-FLAT (ours).
+    // ★ FORM 2 is the redesign the E-series pointed to. Forms 0 and 1 are both rank-keyed, and a rank-keyed
+    // connected bonus competes with the rank ramp our PSTs already carry: SF's Connected[] converts to
+    // 1343mp at rank 7 where our whole non-passed pawn rank bonus tops out at 105mp. Form 2 pays a FLAT
+    // bonus for being connected and lets the PST own rank outright -- the one-owner-per-concept rule
+    // applied to the axis that actually collided.
     // ☠️ v1's form is `rank_table[r] + chain_file[f]`, which is ADDITIVE and therefore SEPARABLE: it
     // structurally CANNOT express "file matters at rank 7 but not rank 3", which is exactly what Ethereal's
     // PawnConnected32 does. That is the defect, not file-sensitivity itself.
@@ -682,6 +686,11 @@ namespace Config
     inline int PS_V2_TILT_MIN_RANK = 5;
 
     // Per-supporter bonus, milli-pawns (SF11 pawns.cpp:136 uses 21 in its own units => ~164mp).
+    // Flat connected bonus in milli-pawns, FORM 2 only. Seeded at our own scale, not SF's: v1 prices a
+    // merely-connected (non-passed) pawn at ~105mp maximum, so this starts in that neighbourhood rather
+    // than at SF's rank-7 figure.
+    inline int PS_V2_CONN_FLAT = 90;
+
     inline int PS_V2_SUPPORT = 164;
 
     // Endgame leg of the connected bonus, percent of `v * (r-2) / 4`. SF derives its eg leg from the same

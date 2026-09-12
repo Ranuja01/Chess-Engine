@@ -2092,6 +2092,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PS_V2_FILE_TILT = env_int("PS_V2_FILE_TILT", Config::PS_V2_FILE_TILT);
         Config::PS_V2_TILT_MIN_RANK = env_int("PS_V2_TILT_MIN_RANK", Config::PS_V2_TILT_MIN_RANK);
         Config::PS_V2_SUPPORT = env_int("PS_V2_SUPPORT", Config::PS_V2_SUPPORT);
+        Config::PS_V2_CONN_FLAT = env_int("PS_V2_CONN_FLAT", Config::PS_V2_CONN_FLAT);
         Config::PS_V2_EG_RATIO = env_int("PS_V2_EG_RATIO", Config::PS_V2_EG_RATIO);
         Config::PS_V2_DOUBLED_MG = env_int("PS_V2_DOUBLED_MG", Config::PS_V2_DOUBLED_MG);
         Config::PS_V2_DOUBLED_EG = env_int("PS_V2_DOUBLED_EG", Config::PS_V2_DOUBLED_EG);

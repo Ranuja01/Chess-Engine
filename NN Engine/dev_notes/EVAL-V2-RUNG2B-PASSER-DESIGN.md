@@ -292,3 +292,137 @@ ENDGAME ONLY, while piece support applies in both phases.
 4. **Piece support is NOT universal** -> build it, but screen it; Ethereal wins without it entirely.
 5. **King distance: port v1's ratio (2.7x), not its placement** -- and make it endgame-weighted like SF.
 6. ⏳ `PassedFile` (edge > centre) is SF-only -> CANDIDATE, not adoption.
+
+---
+
+## 9. DECISION TABLE + VERIFICATION PLAN (2026-09-12)
+
+### The ordering principle
+Rung 2a produced the only predictor we have validated: **a rung pays when the core has NO REPRESENTATION of
+that information.** KS paid (+101 Elo) because v2 could not express "this king is in danger". Connected
+failed because square-quality was already represented. Everything below is ranked by what v2 currently
+cannot express at all.
+
+### TIER 1 -- build, high confidence
+| item | why | risk |
+|---|---|---|
+| **Detection correctness** (~14% SF gap) | if a passer is not detected, no valuation matters. ★ It is also OUTSIDE the valuation graveyard -- the graveyard names DETECTION as one of two genuinely-untested boxes | none: a predicate, verified against the oracle with no constant involved |
+| **Unconditional additive base table** | 4/4 references, no dissent. v2 has ZERO passer representation today | magnitude, not form |
+| **King distance, both kings, enemy ~2.5x** | 3/3 universal; v2 has NO king-pawn interaction of any kind | low -- v1's 16:6 already matches, so port the RATIO not the placement |
+| **Rank gating of the extras** | 2/2 universal (SF `r > RANK_3`, Weiss `rank < RANK_4 continue`); v1 violates it | none -- a restriction, can only reduce firing |
+
+### TIER 2 -- build, then SCREEN. The references disagree, so nothing here is inheritable.
+| item | split |
+|---|---|
+| Blockade | withhold (SF) / table-select (Ethereal) / subtract (Weiss + v1) |
+| Connected passer | yes (SF, Weiss) / no (Ethereal) -- use **Weiss's SEPARATE `PassedDefended[rank]`**, which keeps connected parked and gives the interaction its own owner |
+| Piece support | SF lumped / Weiss rook-only / Ethereal NONE |
+| `PassedFile` (edge > centre) | SF only. Lowest priority |
+
+### TIER 3 -- ☠️ cheap AND invisible, which is the trap
+**Computationally all of 2b is cheap**: rung 1 already pays for the attack maps, so path safety, blockade
+and support are lookups, and king distance is two `distance()` calls per passer.
+★ ★ But **"small aggregate effect" and "invisible to §I" are the SAME SET**. `doubled` fires on 1.48%
+of pawns (~4mp aggregate) yet is SF's LARGEST pawn penalty. The **square rule** is the extreme: Weiss gates
+`PassedSquare = S(-26,422)` to PAWNLESS endgames -- it almost never fires and is DECISIVE when it does.
+=> Judge rare-but-decisive terms by **whether the position class exists**, never by aggregate accuracy.
+Otherwise we park exactly the terms that win won endgames.
+
+### HARMFUL PATTERNS -- from measurement, not speculation
+| pattern | evidence |
+|---|---|
+| multiplicative forms that can reach zero | v1's `R` makes a passer worth LESS than a non-passer (6mp vs 90mp, measured). 4/4 references avoid it |
+| terms duplicating existing representation | connected at 2a: harmful at every magnitude AND both shapes |
+| magnitudes imported without conversion | connected 13x; rung 1 safe checks 7-12x |
+| re-crediting what another term already docked | `PASSER_ENEMY_CREDIT_PCT` -- its zeroing shipped **+38.7 Elo**. Turning it on is an UN-FIX |
+| clamps on sums of competing quantities | `PAWN_CLAMP` masked two terms 14x/23x, signs INVERTED |
+
+### ☠️ THE DOUBLE-COUNT MAP
+1. ★ ★ **Passer table x PST rank ramp -- the connected failure, scaled up 10x.** The PST already
+   prices advancement; a passer table of 1085-2156mp on top is the same double-count that killed connected,
+   at an order of magnitude more money.
+   ✅ **Mitigating fact: SF's `PassedRank[]` is ALREADY a delta over SF's own psqt**, so porting it as an
+   additive bonus over our PST is structurally correct -- **PROVIDED our PST's pawn rank ramp is comparable
+   in scale to SF's.** ⚠️ That comparison is open item #2 from the 2a design, which I SKIPPED, and which
+   would have predicted connected's failure. **It is now a Tier-1 pre-check, run before any constant.**
+   ✅ v1 already solves its own version via `ENABLE_PASSER_V3` deferral (a flagged passer does not collect
+   the ordinary rank bonus). v2 must make the same decision explicitly.
+2. **Passer x isolated** -- 2.57x lift, opposite signs, same pawn. Decide explicitly (Q2); do not let it
+   happen by default.
+3. ★ **Blockade x free-to-advance are the SAME BINARY.** Rewarding "free" AND penalising "blocked"
+   prices one question twice. Weiss does both but in an `if / else if`, i.e. ONE two-valued term. Additive
+   both would be the convolution.
+4. **Piece support x king distance** -- partial overlap (SF's king term is endgame-only and keyed to the
+   stop square; piece support is both-phase). Keep both, measure the overlap once both exist.
+5. **Rook-behind x rook-on-open-file** -- a scheduled collision with rung 6, not a 2b problem.
+
+### THE ANTI-CONVOLUTION RULE
+**Price each QUESTION once, and put the answer in exactly ONE table.**
+- *How advanced is this pawn?* -> PST **or** passer table, never both.
+- *Is it defended?* -> one term (`PassedDefended`), not connected-plus-support.
+- *Can it advance?* -> ONE two-valued branch, not a reward and a penalty.
+- *Where are the kings?* -> one term per king.
+★ And this is now CHECKABLE rather than asserted: the detector exposes every firing set as a bitboard,
+so the overlap matrix answers "do these two terms answer the same question" BEFORE a constant is chosen.
+⚠️ The missing instrument is the same overlap check run against the **PST's contribution** -- exactly the
+comparison that would have predicted connected's failure.
+
+### VERIFICATION -- three layers (owner, 2026-09-12)
+| layer | what it proves |
+|---|---|
+| **A. Pawn-rule correctness** | the detector is right under ALL legal pawn configurations, not just typical ones. Mask-for-mask against the Python oracle over the corpora, PLUS hand-built edge cases: rank-2 and rank-7 pawns, fully blocked chains, doubled passers, a passer with an enemy pawn on an adjacent file behind it. ⚠️ en passant does NOT affect passed-ness (it is a capture right, not a structural property) -- state it so nobody "fixes" it later |
+| **B. Aggregate accuracy** | §I over the six general corpora. ☠️ Ranks arms; does NOT decide -- it mispriced KS by two orders of magnitude |
+| **C. ★ Passer corpus as a FALSIFIER** | `ks_sets/passer_corpus.csv`, 288 positions: `blowup_guard` 140 / `control` 79 / `under_fire` 69, spread opening->adveg |
+
+☠️ **The passer corpus is a GUARD, NOT AN OPTIMIZER.** The graveyard proves tuning to `under_fire` is
+anti-correlated with Elo (`MAG=150` read as a win on corpus AND movematch while costing -54 STS).
+★ ★ **But that warning is about MAGNITUDE knobs, which trade `under_fire` against `blowup_guard` by
+construction (two-sided error). 2b is a STRUCTURAL change, and a structural fix CAN improve both tiers at
+once where no magnitude knob can.**
+=> **"Does it improve `under_fire` AND `blowup_guard` TOGETHER?" is a question only a genuine structural fix
+can answer yes to.** That is a falsifier for the structural claim, not a tuning target -- a legitimate and
+stronger use of the corpus than aggregate §I, and it does not violate the standing rule.
+⚠️ A change that improves `under_fire` while worsening `blowup_guard` is the KNOWN TRAP and is rejected
+regardless of its mean.
+
+---
+
+## 10. TIER-1 PRE-CHECK RUN (2026-09-12) -- and it corrects the rung-2a diagnosis
+
+This is open item #2 from the 2a design, which I SKIPPED there and which was supposed to predict
+connected's failure. Run properly now, before any 2b constant.
+
+### Neither PST ramps with rank
+```
+SF11 PBonus (pawn PST), mg mean by rank:   r2 ~+9  r3 ~+5  r4 ~+5  r5 ~0  r6 ~-6  r7 ~-3
+OUR  whitePlacementLayerBase[0], by rank:  0, 13.8, 11.8, 23.0, 25.5, 25.0, 25.0, 0
+```
+Both price FILE / CENTRE, not advancement; ours is flat at ~25mp from rank 3 and **zero at rank 7**.
+✅ => **The passer x PST double-count I called the biggest risk DOES NOT EXIST.** Porting `PassedRank[]` as
+an additive bonus over our PST is structurally correct -- and for a STRONGER reason than section 9 gave:
+not "SF's is already a delta", but "neither PST prices advancement at all".
+
+### ☠️ ☠️ This corrects the rung-2a diagnosis of CONNECTED
+The 2a log says connected was "~13x our scale", comparing `PS_CONN_RANK_MP` (1343mp) against v1's
+non-passed rank bonus (105mp). ⚠️ **That table lives in `evaluate_pawns_*` and DOES NOT EXIST IN v2.**
+Against v2's actual pawn placement signal (~25mp) connected was **~50x**.
+=> **Connected did not DOUBLE-COUNT. It OVERWHELMED** -- one pawn relation outweighing the entire placement
+layer of a three-term eval.
+
+### ★ ★ THE LAW THAT EXPLAINS BOTH RUNGS: magnitude x FIRING RATE
+| rung | magnitude | firing rate | outcome |
+|---|---|---|---|
+| KS (rung 1) | up to 4000mp | gated by ONSET to positions with real danger | **+101 Elo** |
+| connected (2a) | up to 1343mp | **~45% of pawns** (phalanx 30.6% u supported 26.7%) | harmful at every magnitude |
+| passers (2b) | up to 2156mp | **11.72%**, and the universal RANK GATE cuts it much further | ? |
+
+=> A thin eval has no other terms to absorb a large, FREQUENT contribution. Large-and-rare is fine
+(KS proves it); large-and-frequent is not (connected proves it).
+✅ **For 2b the two constraints CONVERGE**: the rank gate every reference applies is also exactly what
+solves our thin-eval magnitude problem, and it cuts firing precisely where the table is largest. First time
+a universal design choice and a v2-specific need have pointed the same way.
+
+### Registered prediction
+The base passer table may survive at NEAR-REFERENCE magnitude **because of the rank gate**. ⚠️ Sweep
+`PASSER_MAG` from the first run regardless -- I have now been wrong three times about reference magnitudes
+transferring (SF's doubled taper, the 2a magnitude optimum, rank-flat connected).

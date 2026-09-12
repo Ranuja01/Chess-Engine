@@ -639,6 +639,7 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
 			const uint64_t sup = own & (white ? ps_batt(m) : ps_watt(m));
 			if (sup) v += Config::PS_V2_SUPPORT * __builtin_popcountll(sup);
 
+			if (Config::PS_V2_CONN_MAG != 100) v = v * Config::PS_V2_CONN_MAG / 100;
 			side_mg[s] += v;
 			// SF derives its endgame leg from the SAME v, as `v * (r - 2) / 4`. ⚠️ We cannot reuse its
 			// constant directly because our mg and eg conversions differ (x7.81 vs x4.69), so

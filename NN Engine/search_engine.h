@@ -654,6 +654,23 @@ namespace Config
     // PawnConnected32 does. That is the defect, not file-sensitivity itself.
     inline int PS_V2_CONN_FORM = 0;
 
+    // Percent scale on the CONNECTED term alone. 0 = connected absent, the rest of the rung intact.
+    // ⚠️ Added 2026-09-12 because the E-series could not decompose the rung without it: doubled, isolated
+    // and backward all have zeroable constants and connected did not. The magnitude sweep showed the whole
+    // rung is monotonically harmful in MAG with no positive optimum, while doubled/isolated/backward each
+    // measured mildly HELPFUL -- so the question is whether connected is the sole offender, and that
+    // question is unanswerable without this knob.
+    // ☠️ DEFAULTS TO 0: the connected term MEASURED HARMFUL AT EVERY MAGNITUDE (2026-09-12). With it off,
+    // rung 2a is -0.66% mean / worst -0.00% (negative or zero on all six corpora); with it on at 100 the
+    // rung is +2.66% / +8.37%, and even at CONN_MAG=10 the worst case is +0.34%. Scaling it down scales
+    // the signal down with the damage, so there is no magnitude at which it pays.
+    // ★ The DETECTOR is verified correct -- 54,000 masks bit-identical to an independent Python reference
+    // -- so per the ladder protocol this is "detector accurate, transformation wrong": REDESIGN the
+    // transformation, do not park the feature. The likely cause is that a rank-keyed connected bonus
+    // duplicates what our PST already prices; the untried form is a RANK-FLAT connected bonus that lets
+    // the PST own rank entirely. See dev_notes/EVAL-V2-RUNG2-PAWN-DESIGN.md.
+    inline int PS_V2_CONN_MAG = 0;
+
     // Strength of the file tilt on the connected bonus, in /256. 0 = flat (rank only, SF11);
     // 256 = Ethereal's measured shape; >256 exaggerates it. ⚠️ v1's effective tilt is ~15x centre:edge
     // where Ethereal's is 2.16x and SF's is 1.0x -- ours is the outlier against BOTH references.

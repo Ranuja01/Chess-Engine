@@ -2088,6 +2088,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // ── rung 2a: pawn structure (eval v2) ──────────────────────────────────────────────────
         Config::PS_V2_MAG = env_int("PS_V2_MAG", Config::PS_V2_MAG);
         Config::PS_V2_CONN_FORM = env_int("PS_V2_CONN_FORM", Config::PS_V2_CONN_FORM);
+        Config::PS_V2_CONN_MAG = env_int("PS_V2_CONN_MAG", Config::PS_V2_CONN_MAG);
         Config::PS_V2_FILE_TILT = env_int("PS_V2_FILE_TILT", Config::PS_V2_FILE_TILT);
         Config::PS_V2_TILT_MIN_RANK = env_int("PS_V2_TILT_MIN_RANK", Config::PS_V2_TILT_MIN_RANK);
         Config::PS_V2_SUPPORT = env_int("PS_V2_SUPPORT", Config::PS_V2_SUPPORT);

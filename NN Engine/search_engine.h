@@ -508,8 +508,19 @@ namespace Config
     // full army is 43,400). Scaled from SF11's MidgameLimit/EndgameLimit as a fraction of its own full
     // npm (0.919 / 0.236). v2 owns its phase: v1's phase_score is INVERTED (0 = opening) and consumed as
     // a 3-way boolean, and v2 should not inherit a convention it does not use.
-    inline int EVAL_V2_MG_LIMIT = 40000;
-    inline int EVAL_V2_EG_LIMIT = 10000;
+    // ★ LOCKED IN 2026-09-12 to SF's SHAPE, scaled to our piece values. SF11's limits are 92.3% and 23.7%
+    // of its STARTING non-pawn material (16,536 vs MidgameLimit 15,258 / EndgameLimit 3,915). Ours starts
+    // at 66,800, so the same ratios give 61,700 / 15,800.
+    // ☠️ The OLD 40,000/10,000 pinned the phase at FULL MIDGAME until 40% of all non-pawn material was
+    // gone, where SF's starts moving after 7.7% -- so every mg/eg blend in v2 was dead through the whole
+    // opening and much of the middlegame, then compressed into the back half.
+    // ⚠️ Fixed NOW rather than later on purpose: `a-correctness-fix-into-absorbed-tuning-is-not-free`. If
+    // rungs 3-11 were built under a broken phase curve, every one of their mg/eg constants would be fitted
+    // around it and the later repair would measure WORSE -- which is v1's defining failure and the entire
+    // reason this is a rebuild. ✅ Free to do today: verified byte-identical (limits alone read 0.00% on
+    // all six corpora), because nothing reads phase until a phase-dependent term exists.
+    inline int EVAL_V2_MG_LIMIT = 61700;
+    inline int EVAL_V2_EG_LIMIT = 15800;
 
     // ── eval v2, rung 1: KING SAFETY (KS-A) ───────────────────────────────────────────────────────
     // Scope: king zone · attacker accounting · weak squares · safe checks · no-queen suppressor · the

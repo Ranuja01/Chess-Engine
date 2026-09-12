@@ -219,3 +219,76 @@ once the pawn is close enough for the defence to be decisive.
   survives, that implementation does not.
 - **SF1's `tr = max(0, r(r-1))` scaling of the king-distance terms** -- king proximity matters more the
   further advanced the pawn. All later engines keep this shape; ours does not express it.
+
+---
+
+## 8. FULL PASSER MECHANISM REVIEW (owner, 2026-09-12) -- beyond the base table
+
+⚠️ **Correction to section 1 and section 7: v1 is RICHER on these dimensions than I implied. It has every
+one of these concepts.** Its problems are FORM (multiplicative) and MAGNITUDE, not absence.
+
+### 1. CONNECTION between passers
+| | how |
+|---|---|
+| SF11 | no term in `passed()`, but `Connected[]` from pawns.cpp applies to passers too. Plus `bonus /= 2` if the square ahead is not itself passed |
+| Ethereal | NO -- excluded. `if (several(forwardFileMasks(US, sq) & myPassers)) continue;` is an ANTI-DOUBLE-COUNT for two passers on one file, not a bonus |
+| Weiss | YES -- `PassedDefended[rank]`, passer defended by a friendly PAWN |
+| **v1** | **YES** -- `PP_DIAG_SUPPORT=75`, `PP_HORIZ_SUPPORT=225` (phalanx), `PP_FILE_CLEAR=150`, inside `getPPIncrement` |
+
+★ ★ **MAGNITUDE is the finding.** Weiss rank 6: `PassedDefended` 158 vs `PawnPassed` 311 => **defence
+adds ~51% on top of the base passer bonus** (~53% at rank 5). That RATIO transfers even though Weiss's
+units do not. In v1, `PP_HORIZ_SUPPORT=225` raises `ppIncrement`, which reaches the score only as
+`(ppIncrement >> 3)` ~ **+28mp on a base of 840-1085mp: about 3%.**
+=> **v1 UNDER-PRICES connected passers by roughly 17x.** The owner's intuition is not just right, it is
+quantifiable, and it explains why the concept reads as absent despite being implemented.
+
+### 2. SUPPORT FROM FRIENDLY PIECES -- NOT universal
+| | definition of "support" |
+|---|---|
+| SF11 | our ROOK/QUEEN BEHIND on the file **OR** ANY friendly piece attacking the STOP SQUARE -> one flat `k += 5`, then scaled by `w = 5r-13` |
+| Ethereal | **NONE AT ALL** |
+| Weiss | `PassedRookBack` -- friendly RO✅ anywhere behind on the file (via `Fill`). Rooks only, not queens |
+| **v1** | richest: `PPS_OWN_BLOCK=75`, `PPS_OWN_ATTACK=60`, rank-scaled, plus `ROOK_PASSER_OWN=50` |
+
+### 3. ☠️ BLOCKADING -- I OVER-CLAIMED IN SECTION 1. THE REFERENCES DISAGREE THREE WAYS.
+| | how |
+|---|---|
+| SF11 | **WITHHOLDS** -- the whole `k` bonus is inside `if (pos.empty(blockSq))`; never subtracts. Also: an enemy ROOK/QUEEN BEHIND our passer makes the ENTIRE span count unsafe |
+| Ethereal | **SELECTS A DIFFERENT TABLE** -- `canAdvance` is an INDEX, so a blocked passer gets its own separately tuned number |
+| Weiss | **SUBTRACTS** -- `PassedBlocked[4] = S(1,-4) S(-6,6) S(-11,-11) S(-54,-52)`, genuinely negative when advanced |
+| **v1** | subtracts -- `PP_BLOCKADE_PEN=100`, `PPS_ENEMY_BLOCK=100`, `passer_block_quality` |
+
+=> Section 1 said "SF WITHHOLDS and never SUBTRACTS" as though it settled the design. **It does not: Weiss
+subtracts, exactly as v1 does.** Three-way split = ours to choose by measurement, not to inherit.
+
+### 4. KING PLACEMENT -- UNIVERSAL, and v1 GETS THIS RIGHT
+| | form | enemy : friendly weight |
+|---|---|---|
+| SF11 | `(enemyDist(blockSq)*19/4 - ourDist(blockSq)*2) * w`, **ENDGAME ONLY**, plus a second-push term | **2.4x** |
+| Ethereal | `dist * PassedFriendlyDistance[rank]` and `* PassedEnemyDistance[rank]` (distance to the PAWN) | enemy larger |
+| Weiss | `Dist(forward, ourK) * PassedDistUs[r]`; `(rank-3) * Dist(forward, theirK) * PassedDistThem` | enemy larger |
+| **v1** | `PASSER_KING_FAR=16`, `PASSER_KING_HELP=6` | **2.7x** ✅ |
+
+★ All four weight **"their king cannot get there" far above "our king escorts"**. ✅ v1's 16:6 already
+matches. ⚠️ It only PARTLY absorbs piece support: SF applies king distance to the STOP SQUARE and in the
+ENDGAME ONLY, while piece support applies in both phases.
+
+### 5. ★ WHAT WAS MISSING FROM MY EARLIER REVIEW
+- ★ ★ **RANK GATING is universal and we violate it.** SF11 gates every extra at `r > RANK_3`; Weiss
+  does `if (rank < RANK_4) continue;`. **Low-rank passers get the base table and NOTHING else.** v1 runs the
+  entire `R` machinery -- contest, path, king race, blockade -- on every passer at every rank.
+- ★ **`PassedFile`** (SF only): `- S(11,8) * map_to_queenside(file)` => **EDGE passers are worth MORE
+  than central ones**, because the defending king is usually central. v1 has no passer file term.
+- ★ **Enemy ROOK/QUEEN BEHIND our passer** (SF only) -- flips the whole span to unsafe.
+- ★ **The SQUARE RULE**: Weiss `PassedSquare = S(-26,422)`, gated to PAWNLESS endgames. v1's
+  `passer_king_race_one` is the analogue; scan 3 caught it writing board globals.
+- ★ **SF's candidate halving**: `bonus /= 2` when the pawn ahead is not itself passed.
+
+### => CONSEQUENCES FOR THE 2b DESIGN
+1. **Rank-gate the extras** (universal, and we violate it): base table at all ranks, machinery only at 5+.
+2. **Connected-passer bonus seeded at ~50% of the base at ranks 5-6** (Weiss ratio), not v1's ~3%.
+3. **Blockade is an OPEN CHOICE, not settled** -- withhold (SF) vs table-select (Ethereal) vs subtract
+   (Weiss/v1). Add it to the 2b experiment list.
+4. **Piece support is NOT universal** -> build it, but screen it; Ethereal wins without it entirely.
+5. **King distance: port v1's ratio (2.7x), not its placement** -- and make it endgame-weighted like SF.
+6. ⏳ `PassedFile` (edge > centre) is SF-only -> CANDIDATE, not adoption.

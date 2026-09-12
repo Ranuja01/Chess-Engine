@@ -756,3 +756,34 @@ magnitude does not — and which one you have is measurable in ONE arm** (open i
 it never bound). Scan 4 stands, but its output is "which clamps BIND", not "every clamp invalidates".
 ✅ The 47-arm veto screen's nulls are NOT broadly invalidated. Invalidated only: ablations of terms feeding
 `structural_bonus`/`positional_bonus` inside `evaluate_pawns_*` (chain, wall, struct, pawn PST/heat-map).
+
+---
+
+## 2026-09-12 — CROSS-RUNG NOTES from the per-piece scan (not rung 2; recorded so they are not lost)
+
+Scan 2 over each per-piece evaluator. v1's per-piece functions each mix **placement + mobility +
+king-safety** content; the giants instead run ONE per-piece pass (SF `pieces<Us, Pt>()`) computing mobility,
+placement AND the king-attack counts together off the shared attack maps.
+
+| piece | what v1 actually has | v2 disposition |
+|---|---|---|
+| **king** | ☠️ `KS_SHELTER_FULL=185`, `KS_SHELTER_PARTIAL=75`, `KS_SHELTER_MAG=100` live **inside `evaluate_kings_midgame`** — i.e. shelter sits in KING PLACEMENT, not in `king_safety_danger` | ★ **owner: shelter belongs in KS.** Move to rung 2d. ⇒ King placement then reduces to **PST + phase-dependent king activity/mobility**, nothing more. ✅ We inherit 185/75 as a tuned prior rather than starting cold |
+| **bishop** | `ENABLE_CHEAP_BISHOP_COMPLEX=true` is a **3-in-1**: `CHEAP_BISHOP_BLOCK=30` (own pawns on the bishop's colour = bad bishop), `CHEAP_BISHOP_MOB=6` (diagonal squares), `CHEAP_BISHOP_KING` (king zone), `CHEAP_BISHOP_FWD`. ⚠️ The FLOODFILL survives as `BISHOP_MOB_SECONDARY=5` ("per second-order diagonal square reachable after simulation") + `BISHOP_MOB_PAWN_ATTACK=15` but is **UNREACHABLE at defaults** (`search_engine.h:1144`) — the cheap path replaced it | decompose to THREE owners: colour complex to piece placement (rung 4), diagonal count to mobility (rung 4), king zone to **KS (already built)**. ★ owner: bishops are "mostly a unique set of mobility rules" — agreed, that is rung 4. Floodfill is a rung-4 CANDIDATE, not dead |
+| **knight** | `CHEAP_KNIGHT_MOB` only; `OUTPOST_KNIGHT = 0` | rung 4: mobility + outposts (outposts need rung 2's `PawnEntry`) |
+| **rook** | **19 knobs**, richest by far: `ROOK_OPEN_BASE=250`, `ROOK_SEMI=125`, `ROOK_7TH=150`, `ROOK_CONNECTED=150`, `ROOK_MINOR_BLOCK=15`, `ROOK_ROOK_BLOCK`, `ROOK_PASSER_OWN/ENEMY`, `ROOK_OWN_PAWN_BASE/RAMP`, `ROOK_ENEMY_PAWN_PEN`, `ROOK_ENEMY_RANKWIN_MODE`, `CHEAP_ROOK_MOB/FWD` | rung 6, implemented inside rung 4's pass. Needs `PawnEntry.openFiles/halfOpen` from rung 2 |
+| **queen** | `CHEAP_QUEEN_MOB_MG`, `QUEEN_MOB_SAFE_MG` | ★ owner: consolidate into the rung-4 mobility pass |
+| **pairs** | ✅ `BISHOP_PAIR_BONUS=300` / `KNIGHT_PAIR_BONUS=200` are **inside `if (!ENABLE_KAUFMAN_IMBALANCE)`**, which is `true` by default. The comment is explicit: *"Kaufman imbalance (below) owns bishop-pair + knight-redundancy"* | ✅ **Kaufman owns pairs** — answers the owner's question. Rung 5, no separate pair term |
+
+### ▶️ RUNG LIST AMENDMENT
+
+The agreed order had "mobility" (4) and "rook files" (6) but **no home for outposts, bishop colour complex,
+bishop long diagonal, minor-behind-pawn, trapped rook or queen weakness.**
+⇒ **Rung 4 widens to "the per-piece pass: mobility + piece placement"**, built as ONE loop over the shared
+attack maps (the giants' structure, and the owner's own attack-map amortisation argument one level up).
+★ **Rungs are an ATTRIBUTION unit, not a code-structure unit** — implement in one pass, gate each term
+behind its own `EVAL_V2_RUNG` value, and we get the giants' efficiency WITH per-term attribution.
+
+Amended order: 1 KS ✅ · 2 pawns + passers + shelter · 3 central + space · **4 per-piece pass (mobility +
+placement: outposts, minor-behind-pawn, bishop colour complex, bishop long diagonal, trapped rook, queen
+weak)** · 5 Kaufman (owns pairs) · 6 rook files (in rung 4's pass, gated separately) · 7 corrhist ·
+8 threats · 9 winnability · 10 capgains (parked-but-live) · 11 OvD.

@@ -492,3 +492,77 @@ Ship **eg-only at mag 20-30** (worst +0.47 to +0.81%) and take 2a+2b to GAMES. �
 this class: it read KS at -1.44% and games said **+101 Elo**.
 ⚠️ 2b never reaches worst <= 0, unlike 2a (-0.66% / -0.00%). That is a real difference and the games run
 must be read with it in mind.
+
+---
+
+## 12. ★ ★ HOLISTIC PAWN CLOSE (owner, 2026-09-12) -- the material TAPER dominates the rung
+
+Prompted by the owner: "since it's all related, do a final look at pawns holistically."
+
+### The observation that started it
+**Every pawn term that SHIPS is endgame-weighted; every midgame-heavy one FAILED.**
+| term | phase weighting | outcome |
+|---|---|---|
+| doubled 86mg / 263eg | eg-heavy | SHIPS |
+| isolated 0mg / 100eg | eg-only | SHIPS |
+| backward 0mg / 113eg | eg-only | SHIPS |
+| connected (rank table, both legs) | mg-heavy | FAILED at every magnitude |
+| passers, both legs (2156 / 1219) | mg-heavy | FAILED |
+| passers, eg-only | eg-only | WORKS |
+
+Six terms, no exceptions. Mechanism: **our pawn is FLAT at 1000 in both phases while `EG_EXIST_*` tapers
+PIECES up in the endgame with no pawn entry** -- so relative to pieces our pawn gets CHEAPER toward the
+endgame where SF's gets 52% DEARER (128:764 -> 213:848).
+
+### The test, and the parked-feature law firing exactly as written
+`EVAL_V2_PAWN_MG` was built at rung 0.5, measured **NULL**, and parked with an explicit trigger:
+*"re-test after rung 2 -- a thin eval has no pawn structure for it to act on."* We are at rung 2.
+
+| arm | mean% | worst% |
+|---|---|---|
+| pawn layer alone (2a + 2b@25) | -0.97 | +1.86 |
+| taper alone (MG 900) | **-1.67** | +0.47 |
+| taper alone (MG 700) | -4.21 | +2.20 |
+| layer + taper 900 | -2.77 | **-0.72** |
+| layer + taper 700 | -5.57 | -1.81 |
+| layer + taper 570 | -6.81 | -0.80 |
+| **layer@60 + taper 600** | **-6.59** | **-2.05** |
+
+★ ★ ★ **The taper alone outweighs the ENTIRE pawn layer** (-1.67 vs -0.97), and they are
+**SYNERGISTIC, not redundant** -- additive would be -2.64, actual -2.77. I predicted redundancy if the
+terms were compensating for the missing taper; **wrong, and informatively so.**
+★ **The taper FIXES the layer's worst case**: layer alone +1.86% (on `game_regret_set`), with taper
+-0.72%. => **The pawn layer was being blamed for a MATERIAL defect.** The +16.74% on `game_regret_set` at
+high passer magnitude -- the corpus split section 11 could not explain -- was the FLAT PAWN VALUE amplified.
+★ **And the correction is MUTUAL**: taper alone is -5.07% mean but **+3.47% worst** (it hurts UHO); the
+pawn layer fixes that. Each patches what the other breaks.
+★ **With the taper in, the passer term wants to be BIGGER**: at MG 600, mag 25 gives -6.57/-1.19 and
+mag 60 gives -6.59/**-2.05**. Its optimum was being SUPPRESSED by the material defect.
+✅ **A reference magnitude finally transferred**: SF's pawn ratio is 128/213 = **0.60**, Ethereal's
+82/144 = **0.57**, and the measured sweet spot is **570-600**. First transfer after four straight misses.
+
+### ☠️ ☠️ THE CAVEAT, and it is the big one
+| gate | result |
+|---|---|
+| arm 0 | 250 / 35,310,778 ✅ byte-identical |
+| colour invariance | 0/800 at TOL=0 ✅ |
+| file mirror | 21 (3.2%) worst 5mp, unchanged ✅ |
+| **WAC** | **245/300, 68.8M nodes** (rung 1: 250 / 35.3M; 2a+2b: ~250 / 60M) |
+
+**The config with the best §I accuracy solves FIVE FEWER WAC positions and uses 11% more nodes.**
+A -6.59% corpus improvement paired with a tactical-suite regression is EXACTLY the
+`corpus-fit-is-anti-correlated-with-elo` signature. ⚠️ This is simultaneously the strongest candidate the
+rebuild has produced AND the one most likely to be a corpus artifact. **Games decide. Nothing here ships on
+§I.**
+⚠️ `EVAL_V2_PAWN_MG` changes MATERIAL, which moves the eval's SPREAD far more than any positional term --
+so `RFP_MARGIN`, `FUTILITY_MARGINS` and the razor constants are now mis-sized against it. Per the plan,
+quote **eval + margins together** and re-sweep margins at the checkpoint. The WAC node rise may be exactly
+this rather than a decision-quality loss.
+
+### => RECOMMENDED for the 2a+2b GAMES RUN
+```
+EVAL_ARM=1  PS_V2_MAG=100  PASSER_V2_MAG=60  EVAL_V2_PAWN_MG=600
+(+ the rung-1 KS config)
+```
+with a second arm at `EVAL_V2_PAWN_MG=1000` (taper off) to separate the taper from the pawn layer, because
+§I says the taper is the larger half and that claim has never seen a game.

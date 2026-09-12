@@ -336,7 +336,9 @@ KS_V2_ATT_PROFILE=0  KS_V2_CHK_PROFILE=0  KS_V2_CHK_COUNT=0
    <half; worst SF11 −7.62 vs ours −1.14). Diagnosed as a MISSING-CHANNEL problem (shelter), not
    mis-tuning — raising MAX to close it costs +9.7% elsewhere. ★ Also structural: our curve SATURATES at
    MAX while SF/Ethereal stay quadratic, so we cannot exceed 4 pawns by construction.
-   ▶️ Revisit shape: "quadratic longer before saturating" is untried.
+   ☠️ **SUPERSEDED 09-12 — "quadratic longer before saturating" was TRIED AND REFUTED** (see the 09-12
+   entry): moving the ceiling out is dominated by lowering the onset at equal worst-case cost. The
+   saturation half of this finding is WITHDRAWN; the missing-channel half (shelter) still stands.
 
 ### Gates (all passing at the final config)
 arm 0 byte-identical 250 / 35,310,778 / EBF 3.784 · `KS_V2_MAX=0` reproduces rung 0.5 exactly ·
@@ -352,3 +354,405 @@ colour symmetry 0/800 at TOL=0 · KS-A adds zero file asymmetry.
 - `diagnostics/eval_vs_sf11.py` CRASHES on a v2 arm (`KeyError: 'capture_gains'`) because `ev_breakdown`
   now omits unpublished terms. ★ That is the honest-breakdown design working as intended; the tool needs a
   `.get(t, None)` and an "absent" marker. The KS-FIT line prints before the crash, so it is still usable.
+
+---
+
+## 2026-09-12 (00:24-00:26) — The KS shape is SETTLED: one dial, no shape freedom
+
+⚠️ Two batteries of `_eval_accuracy_multi.py`, 8 + 7 arms x 6 corpora x 2000 rows, ~1 min each. The
+anchor `g450_h600` reproduced the 09-11 record digit-for-digit on all six columns, so both runs are valid.
+Scripts: `scratchpad/ks_shape_battery.sh`, `ks_ratio_battery.sh`.
+
+### ☠️ REFUTED — "quadratic longer before saturating"
+Finding 5 above named our saturating curve as a structural defect vs SF's unbounded `kingDanger^2/4096`
+and marked the fix untried. It is now tried, by raising MAX and HALF together at constant `MAX/HALF^2`
+(small-`u` slope identical, ceiling moved out 2.25x and 4x):
+
+| arm | mean% | worst% |
+|---|---|---|
+| `g450_h600` (MAX 4000, HALF 600) | −1.44 | **+0.48** |
+| `q_m9k_h900` (ceiling 2.25x out) | −1.46 | +0.68 |
+| `q_m16k_h1200` (ceiling 4x out) | −1.41 | +0.79 |
+| `both350` (ceiling UNCHANGED, onset 450→350) | **−2.02** | +0.71 |
+
+★ The decisive pair is `q_m9k_h900` vs `both350`: **at the same worst-case cost (+0.68 vs +0.71),
+lowering the onset buys 0.56pp more mean than raising the ceiling.** Both ceiling arms are off the
+Pareto frontier. ⇒ The saturation ceiling is NOT the binding constraint; the ONSET is. Finding 5's
+structural half is withdrawn; its missing-channel half (shelter) stands untested.
+
+### ★★ The output stage has ONE free parameter
+ONSET, HALF and MAX all trace the SAME monotone mean-vs-worst frontier — `HALF=400` behaves as a lower
+onset (−1.77/+0.90), `HALF=900` as a higher one (−0.96/+0.24). Nothing reaches a point the onset cannot.
+
+| frontier point | mean% | worst% |
+|---|---|---|
+| ours (no SF feeders), on650 | −0.70 | +0.05 |
+| x-ray only, on550 | −1.09 | +0.18 |
+| both feeders, on500 | −1.17 | +0.38 |
+| **both, on450** (recorded config) | −1.44 | +0.48 |
+| both, on350 | −2.02 | +0.71 |
+
+⇒ "Which KS config" is not a shape question. It is one scalar — *how often does KS fire* — trading mean
+accuracy against a variant-corpus regression, and no instrument we have prices that trade. **Games do.**
+
+### ☠️ Matching SF's CHANNEL RATIO is a monotone DEGRADATION
+SF11 weights weak squares to king-adjacency `185:69 = 2.68`; our tuned values are `57:61 = 0.93`. Swept at
+matched total channel weight (`WEAK+ADJ = 118` held constant throughout):
+
+| WEAK:ADJ | 0.37 | 0.93 (ours) | 1.57 | 2.68 (SF) | 5.6 |
+|---|---|---|---|---|---|
+| mean% | **−1.53** | −1.44 | −1.39 | −1.33 | −1.29 |
+| worst% | +0.47 | +0.48 | +0.48 | +0.48 | +0.49 |
+
+☠️ **Perfectly monotone, and pointing AWAY from SF.** Moving to SF's ratio costs 0.11pp; the best point is
+the one furthest from it. Worst% is flat to ±0.02 across a 15x range. ⇒ Third instance of
+`matching-a-reference-term-is-not-being-right`, now at the RATIO level and not just the magnitude level.
+★ Mechanically coherent: SF prices proximity through shelter / flank / blockers-for-king channels we do
+not have, so SF can afford a light adjacency weight. Ours carries that load, so it wants MORE. **Our ratio
+is not a defect — it is the correct compensation for our channel set.**
+⚠️ Correction to the 09-11 entry: "channel balance was worth 4.83%" measured the CHECK-channel weight
+(the 7-12x oversized import), not WEAK:ADJ. Those are different balances; only the first was ever large.
+
+### `KS_V2_CHK_COUNT=1` — tested, and it does not move the frontier
+Ethereal's per-square `popcount` safe-check form: **−1.66% / +0.60%**. Best mean of any arm outside
+`both350`, and it *looks* like a win on a raw ranking. But interpolating the onset frontier at worst
++0.60 gives mean ≈ −1.74 — so it is ON or just INSIDE the frontier, buying mean at a price the onset dial
+sells more cheaply. ⇒ Not a regression, not an improvement: another point on the same dial.
+★ This is what the frontier framing is for. A "best mean%" ranking would have shipped it as a win.
+
+### Predictions scorecard (registered before each run)
+✅ `half400` +0.90 worst called exactly · ✅ `half900` · ✅ `both350` · ✅ ratio span < 0.3pp (0.24pp)
+❌ `q_m9k_h900` and `q_m16k_h1200` — I predicted the ceiling arms would WIN; they lost on both columns.
+❌ `ratio_sf_2p68` — I predicted SF's ratio would beat ours; it is 0.11pp worse, monotonically.
+★ Both misses are in the same direction: **I expected the reference's shape to be right and it was not,
+twice in one hour.** The adopt-only-if-universal rule keeps being the thing that saves this, not the
+instinct to converge.
+
+### ▶️ What the cheap instruments can still say: NOTHING
+Every knob in the transformation and output stages now lands on one monotone frontier. The remaining
+untested items are a different stage or a different rung: the variant-corpus regression has never been
+LOCALIZED (which positions?), and shelter (rung 2) is the diagnosed missing channel. ⇒ Further accuracy
+screening at rung 1 has no decision left to inform. **Go to games.**
+
+---
+
+## 2026-09-12 (00:38) — v1 vs v2 HEAD-TO-HEAD, the first one ever run
+
+⚠️ Until now every v2 number was measured **within v2** (KS-A vs v2-noKS). The claim "v2's three subsystems
+match v1's thirty" was assembled from two separate runs on different baselines and **was never one table**.
+It is now. Arm #1 = the shipped v1 eval, so every % reads "vs the engine we actually have".
+`KING_SAFETY_MAG=0` (`search_engine.h:1559`, master percent scale) is the clean v1 KS ablation.
+
+```
+  arm                    grs      grs_v2   grs_x4   grs_uho  variant  ks_lab    mean%   WORST%
+  v1_full                463.85   417.11   378.21   213.95   272.27   2145.52   (base)  (base)
+  v1_noKS                -9.71%  -13.23%   -2.07%    1.39%   -6.41%    0.62%   -4.90%   1.39%
+  v2_r0_matPST          -13.64%  -11.09%    8.28%   21.05%  140.77%   -8.27%   22.85% 140.77%
+  v2_r1_on450           -15.10%  -11.51%    4.97%   19.28%  141.93%  -10.50%   21.51% 141.93%
+  v2_r1_on350           -15.19%  -11.22%    3.58%   18.37%  142.47%  -12.23%   20.96% 142.47%
+```
+
+### ★★ The "matches thirty" claim, corrected
+v2 rung 1 is **21.5% WORSE than v1 overall**, and it is **entirely one corpus**. Excluding `variant`:
+
+| arm | mean% vs v1, five standard-structure corpora |
+|---|---|
+| v2 rung 0 (material + PST) | **−0.73%** |
+| v2 rung 1 (+ KS-A, onset 450) | **−2.57%** |
+| v2 rung 1, onset 350 | −3.34% |
+
+⇒ The precise claim: **on standard structure, TWO terms already edge out THIRTY and three beat them by
+2.6%. On the structure-independent variant/960 set v2 is 2.4x worse** (655.54 vs 272.27).
+★ That is diagnostic, not merely bad: v2's positional knowledge is almost entirely PST, which encodes
+STANDARD-CHESS PLACEMENT PRIORS and collapses when pieces start elsewhere, while v1's pawn-structure,
+mobility and threat terms are position-RELATIVE and generalize. ⇒ The variant column stops being a
+nuisance worst%-guard and becomes **the specific quantity rungs 2-4 (pawns/passers, central+space,
+mobility) have to move**. It is the sharpest target the ladder has been given so far.
+
+### ☠️ v1's king safety reads NET-NEGATIVE on this instrument
+`KING_SAFETY_MAG=0` improves v1 by **4.90% mean** — −9.71% and −13.23% on the two primary corpora, −6.41%
+on variant — while reading **invisible on the KS-labelled set (+0.62%)**, the one corpus where it should
+prove itself. I predicted removing it would hurt: **wrong sign.**
+
+⚠️ **Do NOT read this as "v1's KS is harmful."** The same instrument scored v2's KS at −1.44%; if it is
+good enough to credit v2's it is good enough to condemn v1's, and we already know it is good enough for
+NEITHER — `MOD_KS_REALIZ` ablates a **+36.7 Elo** term and reads invisible here, and
+`corpus-fit-is-anti-correlated-with-elo` says any "switch off" winner is suspect by default. ★ The correct
+reading is the instrument's own limit: **§I does not price king safety in Elo.** This is the strongest
+evidence yet for the standing decision to send rung 1 to GAMES rather than to more screening.
+⇒ ★ It also retro-explains the 0-for-11 additive KS record: every one of those attempts was layered onto
+a term that this instrument says was already pulling the wrong way inside v1.
+
+### Predictions scorecard
+❌ `v1_noKS` — predicted +0.5..+4% (hurt), actual −4.90% (helped). Sign wrong.
+❌ `v2_r1` overall — predicted −3..+3%, actual +21.5%.
+✅ `v2_r1` on standard corpora — −2.57%, inside the predicted parity band.
+✅ `on350` slightly better than `on450`.
+★ The overall miss is mine twice over: I wrote the "matches thirty" claim AND predicted parity from it,
+without ever having put the two arms in one table. **A claim assembled from two runs on different
+baselines is a hypothesis, not a measurement.**
+
+---
+
+## 2026-09-12 (00:47-05:47) — RUNG 1 PASSES IN GAMES: +95 to +103 Elo
+
+`node_ab`, LONG_FORMAT, conc 4, `openings_uho.txt` (1000 openings), SF arbiter + draw adjudication.
+Both arms `EVAL_ARM=1` — this is v2-with-KS vs v2-WITHOUT-KS, one subsystem apart.
+☠️ Note for reuse: EVERY `sprt` sub in the runner hardcodes `--p2-config ""`, which would have made the
+baseline **v1** and answered a different question. `node_ab` is the only vetted sub that sets both sides.
+
+| segment | onset | nodes | games | score | Elo |
+|---|---|---|---|---|---|
+| 1 | 450 | 100k | 1223 | 64.4% | **+102.9 ±22.9** |
+| 2 | 450 | 300k | 501 | 63.4% | **+95.2 ±35.7** |
+| 3 | 350 | 300k | 497 | 63.4% | **+95.3 ±35.9** |
+
+✅ **Rung 1 is a PASS.** Far outside the harness null (+4.6) and the true candidate spread (~16), and
+stable across a 3x node budget ⇒ no equal-work step-shape artifact. **Rung 2 opens.**
+
+### ★★★ The result that outlives the rung: accuracy% does NOT convert linearly to Elo
+Segments 2 and 3 are the SAME arm at two ends of the onset frontier — the only free parameter in the KS
+output stage, spanning **−1.44% to −2.02%** eval accuracy (a 40% difference in the metric the whole 09-12
+screening session mapped). In games they are **+95.2 vs +95.3 Elo: one tenth of an Elo apart.**
+
+| change | Δ accuracy | Δ Elo |
+|---|---|---|
+| add the KS channel at all | −1.44pp | **~+100** |
+| slide the onset along the frontier | −0.58pp further | **+0.1 ±50** |
+
+Linear conversion would have priced the second row at ~40 Elo. It is zero.
+⇒ ★ **ADDING THE CHANNEL PAYS; TUNING WHERE IT FIRES DOES NOT — *at this rung, at this resolution*.** This is
+`every-eval-term-error-is-bidirectional` (*add SIGNAL, don't correct the MEAN*) arriving from an
+independent direction: moving the onset only changes how OFTEN KS fires, which shifts a mean; adding KS
+adds signal.
+
+☠️ **CORRECTED SAME DAY (owner's catch) — this was an UNRESOLVED measurement reported as a NULL.** The CI
+is **±50 Elo**; a 40-Elo frontier difference would have been invisible. What is established is a BOUND —
+*the onset frontier is worth less than ~50 Elo at rung 1 on a three-term eval* — not a zero. Writing
+"+0.1" and then reasoning from 0 is precisely
+`the-eval-failure-record-is-mostly-unresolved-nulls-not-refutations`, the failure that steered two months
+off 07-25's "eval->EBF disconfirmed".
+⚠️ And our own law points the other way here: **a feature measured where it is redundant looks worthless.**
+The frontier is currently measured where a huge MISSING-SIGNAL gap dominates (v2 is still 21.5% behind v1
+on §I). Once the eval is dense and we are fighting for the last 20 Elo, a 20-Elo tuning gain is decisive
+and is today below the floor.
+
+### ▶️ The rule that actually follows: DEFER frontier tuning, do not ABANDON it
+- **Channel gains are unbounded; tuning gains are bounded by the frontier span** ⇒ spend early effort on
+  channels, where the ceiling is open.
+- **§I costs minutes, games cost hours** ⇒ keep MAPPING the frontier every rung and RECORD it. That is
+  nearly free and builds the map. Do not spend the GAMES budget adjudicating it.
+- **Cash the accumulated maps at checkpoints**, when channels run out and differences clear the floor.
+- ★ Accuracy also has value INDEPENDENT of Elo in this project: the roadmap is HCE -> the owner's own NN
+  trained on its self-play, and a more accurate eval yields better-labelled training positions even at
+  equal playing strength. The frontier is partly a DATA-QUALITY instrument, and that value survives even
+  if the Elo bound stays flat.
+
+### ⚠️ What this does NOT license
+- **Node-limited charges KS nothing for its cost.** A pass here is necessary, not sufficient; v2 needs a
+  TIME-based gate before it could ship. (Held at both 100k and 300k, but that is decision quality only.)
+- **The baseline is v2-noKS, NOT v1.** v2 rung 1 remains 21.5% worse than v1 on §I overall and 2.4x worse
+  on the variant/960 set. This says "rung 1 works", not "v2 is good".
+- **Both arms are thin evals** where KS carries an outsized share. Expect this +100 to shrink sharply by
+  rung 6.
+- ☠️ **Do NOT now conclude v1's king safety is bad.** §I read v1's KS as net-NEGATIVE (−4.90% when
+  ablated) and read v2's KS at only −1.44%, which games price at +100 Elo. §I understated KS by roughly
+  two orders of magnitude in Elo terms. That is the third independent demonstration that **§I does not
+  price king safety** (`MOD_KS_REALIZ` = +36.7 Elo reads invisible; the d7 gate is blind to KS).
+  ⇒ The v1-KS-is-harmful reading is an INSTRUMENT artifact and must not be acted on.
+
+### Predictions scorecard
+✅ Owner predicted "this will pass handily" — +100 Elo.
+❌ I framed the run's purpose as "establishing what 0.8-1.4% eval accuracy is worth in Elo". The run
+   refuted the premise that such a conversion factor exists. ★ The calibration failed in the most useful
+   possible way: it bounded the frontier's Elo value at ~0 instead of measuring a slope.
+
+### 2026-09-12 (10:19-11:34) — TIME GATE: +99.4 ±63.6. No cost appeared.
+New runner sub **`time_ab <minutes> '<p1cfg>' '<p2cfg>' [conc] [tag]`** — LIGHTNING (~1s hard cap), both
+sides configurable. It fills a real gap: every other timed sub (`gate`, `gate_blitz`, `tournament`,
+`tournament_seeded`) pins ONE side to `""` = the default eval, so none could compare two v2 arms.
+
+| control | games | score | Elo |
+|---|---|---|---|
+| 100k nodes, on450 | 1223 | 64.4% | +102.9 ±22.9 |
+| 300k nodes, on450 | 501 | 63.4% | +95.2 ±35.7 |
+| 300k nodes, on350 | 497 | 63.4% | +95.3 ±35.9 |
+| **~1s TIME, on450** | 158 | **63.9%** | **+99.4 ±63.6** |
+
+★★ The score rate holds inside a **1.0pp band across a 3x node range AND across the node/time boundary**.
+Four agreements beat any single CI; pooling the three on450 runs gives **~+101 Elo over 1,882 games**.
+⇒ **Rung 1 passes under literal playing strength, not just equal work.** KS-A's cost does not eat the gain
+(`half-a-ply-is-elo-neutral` — one subsystem of three inside an eval that is ~35% of node cost).
+
+### ☠️ SPREAD COUPLING IS COMMON-MODE IN A WITHIN-v2 A/B — I expected the bill one comparison too early
+I predicted +60..+95, charging KS for mis-sized margins (`RFP_MARGIN`, `FUTILITY_MARGINS`, razor constants
+are absolute millipawns fitted to **v1's** spread). Actual +99.4. The reasoning error: **both arms run the
+same margins, so both are equally mis-served and the mismatch CANCELS.** A timed v2-vs-v2 gate cannot see
+spread coupling at all. ⇒ The margin bill is real but falls due at the **v2-vs-v1** comparison, which is
+exactly where the plan put it ("hold margins fixed across rungs, re-sweep at checkpoints, quote eval +
+margins TOGETHER"). ★ Generalises: **a confound shared by both arms of an A/B is invisible to that A/B** —
+ask which comparison a cost actually shows up in before budgeting a measurement for it.
+
+---
+
+## 2026-09-12 (12:09) — The variant/960 gap is ONE TERM: capture gains
+
+13 v1 ablations x 6 corpora, arm #1 = full v1. Read the VARIANT column.
+
+| ablation | variant% | mean% | note |
+|---|---|---|---|
+| `SCALE_CAPTURE_GAINS=0` | **+176.89%** | +41.86% | ☠️ the whole gap |
+| `ENABLE_KAUFMAN_IMBALANCE=0` | −4.50% | +7.22% | helps general, HURTS variant |
+| `ENABLE_PASSER_V3=0` | +0.66% | **+5.91%** | real signal, but NOT on variant |
+| `ENABLE_THREATS=0` | +2.65% | +1.98% | small, positive everywhere |
+| `SCALE_PAWN_WALL=0` | +0.75% | +0.15% | ~null |
+| `STRUCT_OPPOSED_*_PCT=0` | +0.26% | −0.06% | ~null |
+| `SCALE_PAWN_CHAIN=0` | −0.24% | −0.16% | ~null |
+| `KS_ZONE_ATTACK_PCT=0` | −2.83% | −2.75% | switch-off winner, 5/6 corpora |
+| `PV_BOOST_MAG=0` | −4.19% | **−6.13%** | switch-off winner, **6/6 corpora** |
+
+Strip capgains and v1's variant MSE goes **272.27 -> ~754**, while v2 rung 1 sits at **~659** ⇒
+**v1-MINUS-CAPGAINS IS WORSE THAN v2 ON VARIANT.** The entire 2.4x gap is the one term v2 deliberately omits.
+★ This locates the owner's standing capgains mystery ("we should rarely be in positions where it is
+load-bearing"): **960 / piece-replacement positions**, where pieces start somewhere unfamiliar and static
+positional knowledge does not transfer. Capgains is a tactical safety net covering for that.
+
+### ☠️ WITHDRAWN: "the variant column is the target for rungs 2-4"
+I wrote that this morning off the head-to-head, calling the gap a POSITIONAL-KNOWLEDGE problem. It is not.
+§I scores a **static** eval against a **search-based** oracle, and capgains' whole job is to statically
+pre-book material that search finds unaided ⇒ textbook `static-eval-top-culprits-are-search-absorbed`:
+the term that most flatters a static eval against a searching reference is exactly the one search makes
+redundant in play. **The variant gap is substantially an instrument artifact and must not aim the ladder.**
+⇒ Rungs 2-4 are judged on the general corpora and on games; the variant column is DISCOUNTED as a known
+capgains artifact until someone tests whether it survives search.
+
+### ★ It strengthens the corrhist plan rather than reopening capgains
+The plan's position (owner's): capgains is computed, expensive and no giant has one; **corrhist is the
+learned replacement for the same job** — capgains pre-books tactics statically, corrhist learns the
+residual between static eval and what search actually found. Today's number **quantifies that residual**
+(~2.8x the variant error) and **locates it** (unfamiliar structure). ⚠️ And NPS was never the argument:
+eval is ~35% of node cost. ⇒ Capgains stays PARKED-BUT-LIVE for a later rung, not closed.
+
+---
+
+## 2026-09-12 (12:58) — RUNG 2 PREWORK: the pawn clamp is HIDING HARM, and the chain bonus is a double-count
+
+⚠️ Found only because the owner pushed back on a survey I had built by **grepping names I guessed**.
+`getPPIncrement` contains no pawn-ish word and was missed; so were the two scoring entry points.
+★ **METHOD FIX, adopt for every rung: enumerate a subsystem's consumers by DATA DEPENDENCY (who reads the
+bitboard), never by name.** That sweep found **24 functions** touching pawn state, not the ~8 I listed.
+
+### The dependency shape: passers are GLOBAL, not pawn-local
+**Every piece evaluator takes `white_passed_pawns`/`black_passed_pawns` as parameters** (N/B/R/Q/K x
+mid/end = 10), plus `boost_pieces_for_supporting_passed_pawns`, `passer_danger`, `evaluate_passers`,
+`position_complexity`, `endgame_convertibility_scale`, `approximate_capture_gains` and the bishop/rook
+latent-activity helpers. ⇒ `getPPIncrement` must run BEFORE every piece evaluator: a hard sequencing
+constraint on v2's structure.
+
+### `getPPIncrement` is SEVEN jobs fused, with SIDE EFFECTS
+detect passed · detect SF candidates (`ENABLE_PASSER_DETECT_SF`) · detect rear-doubled (`ENABLE_PASSER_V3`)
+· dock per stopper (`PP_OPP_PAWN_PEN`) · blockade quality (`PP_BLOCKADE_PEN`, `PASSER_CONTEST_PCT`,
+`PP_UNBLOCKED`) · diagonal support (`PP_DIAG_SUPPORT`, `PP_FILE_CLEAR`) · ☠️ **publishes the passed-pawn
+and candidate masks as a SIDE EFFECT.**
+☠️ That last one **kills the naive pawn-hash plan**: caching the score skips the mask publication — the same
+family as `eval-global-side-effects-are-skipped-by-a-cache-hit`. ⇒ **In v2 the detector must RETURN the
+masks and the scorer must CONSUME them.** Structural split, not conventional.
+★ **OWNER ORIGINAL TO KEEP DELIBERATELY: graded passed-ness.** `ppIncrement` is a CONTINUOUS obstruction
+score (base, docked per stopper) feeding `passer_table_weight` as an interpolation input. **No giant does
+this** — SF's `passed` is a boolean, priced afterwards by rank and blockers. Ours distinguishes one distant
+stopper from three near ones; the `:893` comment records a pawn at 75 (below the 100 threshold) worth about
+as much as one above it. Do not flatten this to SF's boolean.
+
+### ☠️☠️ THE PAWN CLAMP HIDES HARM — and it explains every null structural ablation
+`evaluate_pawns_midgame` ends: `total -= std::min(PAWN_CLAMP_MID, structural_bonus + positional_bonus)`.
+**Structural and positional/heat-map bonuses share ONE clamp** (225 mg / 175 eg) and compete for headroom.
+`clamp4x` (900/700) and `clamp_open` (100000) are **numerically IDENTICAL** ⇒ the clamp is fully open by 4x
+and therefore genuinely BINDS at the default. Opening it costs **+3.20%** (constants were fitted under it).
+Each ablation vs ITS OWN baseline:
+
+| term | delta @ default clamp | delta @ open clamp | sign consistency |
+|---|---|---|---|
+| **chain** | −0.16% | **−2.29%** | **6/6 corpora** |
+| **struct (opposed)** | −0.06% | **−1.38%** | **6/6 corpora** |
+| wall | +0.15% | +0.25% | 3/3 split = neutral |
+
+⇒ The clamp masked **14x (chain) and 23x (struct)** — not hidden VALUE but **hidden HARM**. The layer does
+not "produce zero"; it produces harm plus damage-control that cancel. **`PAWN_CLAMP_*` is load-bearing
+BECAUSE the terms under it are wrong** — accidental-load-bearing in its purest form.
+
+### ★★ The central double-count is CONFIRMED, and it is the chain bonus
+`pawn_chain_file_bonus[x]` is **FILE-keyed** (`cpp_bitboard.cpp:414`, `:1053`), and the SAME loop also calls
+`update_global_central_scores`. So the chain bonus prices centrality a SECOND time — and once the clamp
+stops hiding it, that double-count is **the most harmful pawn term in v1, 6/6 corpora**.
+⇒ SF's rank-only connected bonus is VINDICATED; Ethereal's file weighting is the outlier we do NOT follow.
+This closes the open question the plan listed as "decide by measurement, not argument".
+
+### ▶️ Rung 2 decisions that follow
+- ❌ **Do not port the file-keyed chain bonus.** Build SF's rank-keyed connected term
+  (`{0,7,8,12,29,48,86} * (2 + phalanx - opposed) + 21 * popcount(support)`); price centrality ONCE.
+- ❌ **Do not port `STRUCT_OPPOSED_*_PCT`** — SF's `opposed` lives INSIDE the connected formula, not as a
+  post-hoc percentage on an already-computed bonus.
+- ⚠️ `SCALE_PAWN_WALL` is a coin flip (3/3): build only if it earns its own place.
+- ☠️ **v2 inherits NO pawn clamp.** Bounded-by-construction, per the plan — this is the concrete case why.
+- ⚠️ **Pawns PRODUCE the heat map, OvD and central scores** in v1 (the attack-mask loop at `:1030-1053`).
+  v2 dropped the heat map ⇒ rung 2 must decide what replaces the pawn→central/space contribution.
+
+⚠️ Caveat: §I, and switch-off winners are suspect (`corpus-fit-is-anti-correlated-with-elo`). But 6/6 sign
+consistency on two independent terms WITH a mechanism identified in the source is as strong as §I gets
+short of games.
+
+---
+
+## ☠️★★★★ MANDATORY PRE-RUNG SCAN — run ALL FOUR before designing ANY rung (added 2026-09-12)
+
+**Owner's standing instruction:** *"not just for pawns but for literally everything. I may forget some
+things, but you with the ability to perform blanket scans should not be missing them."*
+
+The rung-2 survey was built by **grepping names I guessed at**. That method is structurally blind to
+anything named differently — `getPPIncrement` contains no pawn-ish word — and it found ~8 of 24 functions,
+missed a side effect that invalidated the caching plan, and missed a shared clamp that inverted the
+conclusion. **Guessing names is not a scan.** These four are exhaustive and name-independent:
+
+| # | scan | what it catches | what it caught here |
+|---|---|---|---|
+| 1 | **Consumers by DATA DEPENDENCY** — every function reading the subsystem's bitboards/globals, found by the DATA's name, never the function's | functions named nothing like the subsystem | 24 pawn-touching functions, not 8; every piece evaluator takes the passer masks |
+| 2 | **Full knob inventory INSIDE those functions** — `grep -oE 'Config::[A-Z_0-9]+'` over each span, with defaults, flagged live / zeroed / gated-off | knobs that exist but are dead, and knobs of the wrong TYPE | `STRUCT_R_MG_PCT`/`_EG_PCT` are rank-indexed ARRAYS, not scalars; ~12 pawn knobs sit at 0 |
+| 3 | **Producers and SIDE EFFECTS** — what each function WRITES: globals, by-reference params, shared accumulators | anything that a cache would silently skip | `getPPIncrement` publishes the passed/candidate masks ⇒ killed the naive pawn-hash design |
+| 4 | **Clamps and SHARED BUDGETS** — every `min`/`max`/`clamp` the output passes through, and WHAT ELSE shares that budget | terms whose ablation reads null because a neighbour expands into the freed headroom | `PAWN_CLAMP_MID/EG` masked chain 14x and struct 23x — and INVERTED the sign of both |
+
+⇒ Scan 4 is the one that changes conclusions most cheaply, and it generalises past pawns: **any term
+sharing a clamp with another term cannot be ablated honestly.** Before trusting ANY null ablation, ask what
+budget the term shares. ★ Related: `CLAMP STACKS MAKE KNOBS STEP-SHAPED` and
+`count-the-resolvable-effect-before-calling-a-null`.
+⚠️ **Retroactive debt:** rung 1 (KS) was designed before this protocol existed. Scans 3 and 4 have not been
+run against the KS path.
+
+### 2026-09-12 (13:02) — Scan 4 run BLANKET across the whole eval: the masking is LOCALIZED, my generalisation was wrong
+Having found `PAWN_CLAMP` inverting two terms, I claimed the per-piece `total` clamps contaminate **every**
+ablation we have ever run (incl. the 47-arm veto screen). ❌ **Tested and false.**
+
+```
+  arm                grs      grs_v2   grs_x4   grs_uho  variant  ks_lab    mean%
+  clamps_open        2.61%    5.64%    3.77%    1.82%    7.15%    2.66%    3.94%
+  egclamp_open       0.00%    0.00%    0.00%    0.00%    0.00%    0.00%    0.00%
+  ab_bishcomplex_op  1.66%    5.11%    2.83%    1.81%    9.45%    3.26%    4.02%
+  ab_rookmob_op      2.84%    5.42%    3.51%    1.99%    7.65%    2.89%    4.05%
+  ab_threats_op      6.05%    8.96%    6.49%    3.81%    6.20%   -0.28%    5.21%
+```
+Deltas vs their OWN baseline: bishop-complex −0.10% -> +0.08%, rook-mobility +0.08% -> +0.11%, threats
++1.98% -> +1.27%. **No amplification anywhere except pawns** (chain 14x, struct 23x).
+
+**Mechanism, stated correctly:** `PAWN_CLAMP` bounds a **SUM OF TWO COMPETING QUANTITIES**
+(`structural_bonus + positional_bonus`) at **225mp**, which both routinely exceed. The piece clamps bound a
+whole piece `total` at **3750-4000mp**, far above typical scores, so they almost never bind. Of the +3.94%
+from opening everything, **+3.20% is the pawn clamp alone**; all piece clamps together ~0.7%.
+
+✅ **`EG_CLAMP_KNIGHT/BISHOP/ROOK/QUEEN = 0` are INERT** — 0.00% on all six corpora. ⚠️ Verified all four are
+`env_int`-wired first, because byte-identical-to-control is also the silent-fallback signature. My worry
+that `= 0` was deleting endgame piece evaluation is REFUTED.
+
+⇒ ★ **CORRECTED RULE: a clamp on a SUM OF COMPETING QUANTITIES masks; a clamp on a total far above typical
+magnitude does not — and which one you have is measurable in ONE arm** (open it; if the eval does not move,
+it never bound). Scan 4 stands, but its output is "which clamps BIND", not "every clamp invalidates".
+✅ The 47-arm veto screen's nulls are NOT broadly invalidated. Invalidated only: ablations of terms feeding
+`structural_bonus`/`positional_bonus` inside `evaluate_pawns_*` (chain, wall, struct, pawn PST/heat-map).

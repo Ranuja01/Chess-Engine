@@ -933,6 +933,27 @@ PYEOF
         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
+  time_ab)
+    # TIMED two-sided A/B -- the missing counterpart to `node_ab`/`fast_ab`. Every other timed sub
+    # (`gate`, `gate_blitz`, `tournament`, `tournament_seeded`) pins ONE side to "" = the DEFAULT eval,
+    # so none of them can compare two eval-v2 arms against each other. This one sets BOTH sides.
+    # ★ LIGHTNING (~1s hard cap) is literal PLAYING STRENGTH: unlike node_ab it charges a term for its
+    # own COST, which is the whole point -- eval-v2 KS-A builds attack maps and node_ab gives that away.
+    # WARNING: it also charges the term for SPREAD COUPLING -- RFP_MARGIN / FUTILITY_MARGINS / razor
+    # constants are absolute millipawns fitted to the OLD eval's spread, so a term that widens the spread
+    # pays a margin-mismatch penalty that a checkpoint re-sweep would recover. A drop here is therefore
+    # UNATTRIBUTED between real cost and mis-sized margins; quote eval + margins TOGETHER.
+    # Args: <minutes> '<p1cfg>' '<p2cfg>' [conc=4] [tag=time_ab].
+    mins="${1:?minutes required}"; shift || true
+    p1cfg="${1:-}"; shift || true
+    p2cfg="${1:-}"; shift || true
+    conc="${1:-4}"; shift || true
+    ttag="${1:-time_ab}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1            VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/tournament.py         --p1-label A --p1-config "$p1cfg"         --p2-label B --p2-config "$p2cfg"         --preset LIGHTNING --concurrency "$conc" --max-minutes "$mins"         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
+    ;;
+
   ks_nab_battery)
     # Overnight KS conversion battery: each candidate vs base at a DEEP fixed-node budget (jitter-free, deterministic,
     # conservative for KS since equal-node ignores the +3.2% speed win). Maps decision-quality across MAG x RFP at

@@ -673,6 +673,7 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
 	return ((b - w) * Config::PS_V2_MAG) / 100;
 }
 
+
 // ===================================================================================================
 // BREAKDOWN PUBLICATION
 // ===================================================================================================
@@ -735,6 +736,60 @@ long long g_shadow_bucket[6] = {0,0,0,0,0,0};   // |delta| < 100, 300, 1000, 300
 constexpr long long SHADOW_REPORT_STRIDE = 1LL << 20;
 
 } // anonymous namespace
+
+// ⚠️ pawn_entry_probe lives OUTSIDE the anonymous namespace deliberately. Everything above is
+// internal by construction -- that is what enforces the zero-global contract -- but this one is
+// called from Cython, so internal linkage would (and did) fail the link with an undefined symbol.
+
+/* DETECTOR ORACLE PROBE -- exports Layer A's raw masks so they can be compared against the independent
+ * Python implementation in diagnostics/_pawn_term_overlap.py, which is validated 8/8 on hand-checked
+ * positions and colour-symmetric 3/3.
+ *
+ * ★ WHY A PROBE AND NOT A SCORE CHECK. A detector bug and a scoring bug are indistinguishable from
+ * outside: both show up as "the eval moved". Comparing MASKS against an independently-written reference
+ * separates them completely, and it is the one correctness check available to us that does not depend on
+ * any constant being right. ⚠️ It exists because of the 2026-09-12 near-miss where a transcription defect
+ * (Ethereal's file-asymmetric isolated table) was caught by a symmetry gate rather than by reading code.
+ *
+ * Layout, 2 entries per predicate, [White, Black]:
+ *   0-1 isolated - 2-3 doubled - 4-5 backward - 6-7 phalanx - 8-9 supported - 10-11 opposed
+ *   12-13 lever - 14-15 blocked - 16-17 stop_held - 18-19 attacks - 20 openFiles - 21-22 halfOpen
+ *
+ * @param pawnsMask  all pawns
+ * @param whiteMask  all White occupancy
+ * @param blackMask  all Black occupancy
+ * @param out        caller-provided, at least 24 entries; fully written
+ *
+ * Gating: none -- diagnostic only, never called from search.
+ * Cost: one detector build. Not on any hot path.
+ */
+void pawn_entry_probe(uint64_t pawnsMask, uint64_t whiteMask, uint64_t blackMask, uint64_t *out)
+{
+	V2Context c{};
+	c.pawns = pawnsMask;
+	c.white = whiteMask;
+	c.black = blackMask;
+
+	PawnEntry e;
+	build_pawn_entry(e, c);
+
+	for (int s = 0; s < 2; ++s){
+		out[0  + s] = e.isolated[s];
+		out[2  + s] = e.doubled[s];
+		out[4  + s] = e.backward[s];
+		out[6  + s] = e.phalanx[s];
+		out[8  + s] = e.supported[s];
+		out[10 + s] = e.opposed[s];
+		out[12 + s] = e.lever[s];
+		out[14 + s] = e.blocked[s];
+		out[16 + s] = e.stop_held[s];
+		out[18 + s] = e.attacks[s];
+		out[21 + s] = (uint64_t)e.halfOpen[s];
+	}
+	out[20] = (uint64_t)e.openFiles;
+	out[23] = 0;
+}
+
 
 void eval_v2_shadow_record(int v1, int v2)
 {

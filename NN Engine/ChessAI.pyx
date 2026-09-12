@@ -130,6 +130,12 @@ cdef extern from "cache_management.h":
     int printCacheStats()
         
 
+# eval v2 -- diagnostic surface only. The evaluation itself is reached through the SAME two doors as v1
+# (get_board_evaluation for search, ev/ev_breakdown for static tools); nothing here is on a hot path.
+cdef extern from "eval_v2.h":
+    void pawn_entry_probe(uint64_t pawns, uint64_t occupied_white, uint64_t occupied_black, uint64_t *out)
+
+
 # Import functions from c++ file
 cdef extern from "cpp_bitboard.h":
     bool get_horizon_mitigation_flag()
@@ -278,6 +284,28 @@ values[3] = 3250   # Bishop
 values[4] = 5000   # Rook
 values[5] = 9000   # Queen
 values[6] = 0      # King
+
+def pawn_masks(pawns, occupied_white, occupied_black):
+    """Rung 2a detector ORACLE probe. Returns eval v2's raw Layer A masks for one position.
+
+    Diagnostic only -- module level, needs no engine instance and reads no knob, because the detector is
+    a pure function of the two pawn bitboards. Compared mask-for-mask against the independently written
+    Python implementation in diagnostics/_pawn_term_overlap.py by _pawn_detector_oracle.py.
+
+    Returns a dict keyed by predicate, each value a (white_mask, black_mask) pair.
+    """
+    cdef uint64_t out[24]
+    pawn_entry_probe(<uint64_t>pawns, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
+    cdef int i
+    names = ["isolated", "doubled", "backward", "phalanx", "supported", "opposed",
+             "lever", "blocked", "stop_held", "attacks"]
+    res = {}
+    for i in range(10):
+        res[names[i]] = (int(out[2 * i]), int(out[2 * i + 1]))
+    res["openFiles"] = int(out[20])
+    res["halfOpen"] = (int(out[21]), int(out[22]))
+    return res
+
 
 # Define class for the chess engine
 @cython.cclass

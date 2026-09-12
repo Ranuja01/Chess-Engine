@@ -27,6 +27,17 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawns, uint64_t
 	the v2-v1 disagreement distribution so a full arm comparison can be taken over the real search
 	distribution at zero risk. No-ops on every other arm.
 */
+/*
+	DETECTOR ORACLE PROBE (diagnostic; never called from search). Exports rung 2a's Layer A masks so they
+	can be compared mask-for-mask against the independent Python implementation in
+	diagnostics/_pawn_term_overlap.py. A detector bug and a scoring bug are indistinguishable from outside
+	-- both read as "the eval moved" -- and this is the only correctness check we have that does not
+	depend on any constant being right.
+
+	`out` must have room for 24 entries; layout is documented at the definition in eval_v2.cpp.
+*/
+void pawn_entry_probe(uint64_t pawns, uint64_t occupied_white, uint64_t occupied_black, uint64_t *out);
+
 void eval_v2_shadow_record(int v1, int v2);
 void eval_v2_shadow_report();
 

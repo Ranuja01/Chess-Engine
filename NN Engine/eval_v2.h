@@ -34,7 +34,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawns, uint64_t
 	-- both read as "the eval moved" -- and this is the only correctness check we have that does not
 	depend on any constant being right.
 
-	`out` must have room for 24 entries; layout is documented at the definition in eval_v2.cpp.
+	`out` must have room for 27 entries; layout is documented at the definition in eval_v2.cpp.
 */
 void pawn_entry_probe(uint64_t pawns, uint64_t occupied_white, uint64_t occupied_black, uint64_t *out);
 

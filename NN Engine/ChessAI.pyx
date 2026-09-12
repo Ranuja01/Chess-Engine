@@ -285,6 +285,9 @@ values[4] = 5000   # Rook
 values[5] = 9000   # Queen
 values[6] = 0      # King
 
+_PAWN_PROBE_TABLES_READY = False
+
+
 def pawn_masks(pawns, occupied_white, occupied_black):
     """Rung 2a detector ORACLE probe. Returns eval v2's raw Layer A masks for one position.
 
@@ -294,7 +297,16 @@ def pawn_masks(pawns, occupied_white, occupied_black):
 
     Returns a dict keyed by predicate, each value a (white_mask, black_mask) pair.
     """
-    cdef uint64_t out[24]
+    # ☠️ initialize_attack_tables() runs in ChessAI.__cinit__, i.e. at ENGINE CONSTRUCTION, not at module
+    # import. A module-level diagnostic that never builds an engine therefore reads `passed_span_white` as
+    # ALL ZEROS -- which silently marks EVERY pawn passed, back-rank pawns included, and the detector looks
+    # catastrophically broken when it is correct. Caught by the oracle 2026-09-12; self-init here so the
+    # probe is valid for ANY caller. ⚠️ The same trap applies to any future probe touching a runtime table.
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef uint64_t out[27]
     pawn_entry_probe(<uint64_t>pawns, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
     cdef int i
     names = ["isolated", "doubled", "backward", "phalanx", "supported", "opposed",
@@ -304,6 +316,8 @@ def pawn_masks(pawns, occupied_white, occupied_black):
         res[names[i]] = (int(out[2 * i]), int(out[2 * i + 1]))
     res["openFiles"] = int(out[20])
     res["halfOpen"] = (int(out[21]), int(out[22]))
+    res["passed"] = (int(out[23]), int(out[24]))
+    res["candidate"] = (int(out[25]), int(out[26]))
     return res
 
 

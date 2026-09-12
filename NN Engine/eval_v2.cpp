@@ -466,6 +466,7 @@ inline int ks_danger_mp(int u)
  * that makes it fast. Index 0 = White, 1 = Black throughout.
  */
 struct PawnEntry {
+	uint64_t passed[2], candidate[2];
 	uint64_t isolated[2], doubled[2], backward[2];
 	uint64_t phalanx[2], supported[2], opposed[2], lever[2];
 	uint64_t blocked[2], stop_held[2];
@@ -543,6 +544,55 @@ static inline void build_pawn_entry(PawnEntry &e, const V2Context &c) noexcept
 		// produces entirely plausible numbers, which is why the oracle checks it rather than review alone.
 		const uint64_t rear_nb = own & (white ? ps_nfill(adj) : ps_sfill(adj));
 		e.backward[s]  = own & ~rear_nb & (e.blocked[s] | e.stop_held[s]);
+
+		// ── RUNG 2b: passed and candidate ────────────────────────────────────────────────────────
+		// passed: no enemy pawn anywhere in the forward three-file span. `passed_span_*` is precomputed
+		// at init and is the same mask shape getPPIncrement uses, so this is one lookup per pawn.
+		uint64_t pb = 0, cb = 0;
+		uint64_t it = own;
+		while (it){
+			const uint8_t sq = (uint8_t)__builtin_ctzll(it);
+			it &= it - 1;
+			const uint64_t m    = 1ULL << sq;
+			const uint64_t span = white ? passed_span_white[sq] : passed_span_black[sq];
+			const uint64_t st   = span & enemy;            // SF's `stoppers`
+			if (!st){ pb |= m; continue; }
+
+			// ★ SF CANDIDATE passers -- the block v1 hides behind ENABLE_PASSER_DETECT_SF, which is FALSE,
+			// which is why we miss ~14% of SF's passers. A pawn with stoppers still counts as passed when
+			// every stopper is a pawn WE attack (lever), or every stopper is a pawn our PUSHED self would
+			// attack and our phalanx is at least as large (leverPush), or the only stopper is a same-file
+			// blocker we out-support from the 5th rank up (blocked).
+			uint64_t lev, sup, front, lpush, sps, rear;
+			int rank_owner;
+			const uint64_t phal = (ps_east(m) | ps_west(m)) & own;
+			if (white){
+				lev   = (((m & ~BB_FILE_A) << 7) | ((m & ~BB_FILE_H) << 9)) & enemy;
+				sup   = (((m & ~BB_FILE_H) >> 7) | ((m & ~BB_FILE_A) >> 9)) & own;
+				front = m << 8;
+				lpush = (((front & ~BB_FILE_A) << 7) | ((front & ~BB_FILE_H) << 9)) & enemy;
+				sps   = (sup << 8) & ~enemy;
+				rear  = ps_nfill(front) & ps_nfill(ps_sfill(m)) & own;
+				rank_owner = (sq >> 3) + 1;
+			} else {
+				lev   = (((m & ~BB_FILE_A) >> 9) | ((m & ~BB_FILE_H) >> 7)) & enemy;
+				sup   = (((m & ~BB_FILE_H) << 9) | ((m & ~BB_FILE_A) << 7)) & own;
+				front = m >> 8;
+				lpush = (((front & ~BB_FILE_A) >> 9) | ((front & ~BB_FILE_H) >> 7)) & enemy;
+				sps   = (sup >> 8) & ~enemy;
+				rear  = ps_sfill(front) & ps_nfill(ps_sfill(m)) & own;
+				rank_owner = 8 - (sq >> 3);
+			}
+			const uint64_t blk = front & enemy;
+			const bool ok = ((st ^ lev) == 0)
+			             || (((st ^ lpush) == 0) && __builtin_popcountll(phal) >= __builtin_popcountll(lpush))
+			             || (st == blk && st != 0 && rank_owner >= 5 && sps != 0);
+			// ⚠️ A REAR-DOUBLED pawn (a friendly pawn AHEAD on its own file) can never promote, so it is
+			// never a candidate however favourable its stoppers look.
+			if (ok && !rear) cb |= m;
+		}
+		e.passed[s]    = pb;
+		e.candidate[s] = cb;
 	}
 
 	// File occupancy: detected HERE, consumed at rung 6 (rook files). Two fills we are already paying for,
@@ -763,11 +813,12 @@ constexpr long long SHADOW_REPORT_STRIDE = 1LL << 20;
  * Layout, 2 entries per predicate, [White, Black]:
  *   0-1 isolated - 2-3 doubled - 4-5 backward - 6-7 phalanx - 8-9 supported - 10-11 opposed
  *   12-13 lever - 14-15 blocked - 16-17 stop_held - 18-19 attacks - 20 openFiles - 21-22 halfOpen
+ *   23-24 passed - 25-26 candidate
  *
  * @param pawnsMask  all pawns
  * @param whiteMask  all White occupancy
  * @param blackMask  all Black occupancy
- * @param out        caller-provided, at least 24 entries; fully written
+ * @param out        caller-provided, at least 27 entries; fully written
  *
  * Gating: none -- diagnostic only, never called from search.
  * Cost: one detector build. Not on any hot path.
@@ -794,9 +845,10 @@ void pawn_entry_probe(uint64_t pawnsMask, uint64_t whiteMask, uint64_t blackMask
 		out[16 + s] = e.stop_held[s];
 		out[18 + s] = e.attacks[s];
 		out[21 + s] = (uint64_t)e.halfOpen[s];
+		out[23 + s] = e.passed[s];
+		out[25 + s] = e.candidate[s];
 	}
 	out[20] = (uint64_t)e.openFiles;
-	out[23] = 0;
 }
 
 

@@ -74,6 +74,17 @@ def west(b):
     return (b & ~FILE_A) >> 1
 
 
+def _file_of(b):
+    """Full-board mask of every file that b occupies."""
+    return nfill(sfill(b))
+
+
+def _span3(b, white):
+    """The forward three-file span (own + both neighbours, strictly ahead) of every bit in b."""
+    f = (nfill((b << 8) & FULL) if white else sfill(b >> 8))
+    return f | east(f) | west(f)
+
+
 def terms(own, enemy, white):
     """Every structural predicate as a bitboard of OWN pawns that it fires on.
 
@@ -111,6 +122,43 @@ def terms(own, enemy, white):
     t["backward"]  = own & ~has_rear_nb & (t["blocked"] | t["stop_held"])
     # passed: no enemy pawn anywhere in the forward three-file span (exact, per-pawn)
     t["passed"]    = own & ~_stopped(own, enemy, white)
+    # ★ SF candidate passers (getPPIncrement's ENABLE_PASSER_DETECT_SF block, which is OFF in v1 -- this
+    # is the ~14% of SF's passers we do not currently detect). A pawn whose stoppers are ALL pawns it
+    # attacks (lever), or all pawns its pushed self would attack with a phalanx at least as large
+    # (leverPush), or a single same-file blocker it out-supports from the 5th rank up (blocked).
+    # ⚠️ A REAR-DOUBLED pawn is excluded: a friendly pawn ahead on its own file can never promote.
+    cand = 0
+    b = own
+    while b:
+        sq = (b & -b).bit_length() - 1
+        b &= b - 1
+        m = 1 << sq
+        st = _span3(m, white) & enemy
+        if st == 0:
+            continue                      # already passed by the stock rule
+        phal = ((east(m) | west(m))) & own
+        if white:
+            lev = (((m & ~FILE_A) << 7) | ((m & ~FILE_H) << 9)) & enemy
+            sup = (((m & ~FILE_H) >> 7) | ((m & ~FILE_A) >> 9)) & own
+            front = (m << 8) & FULL
+            lpush = (((front & ~FILE_A) << 7) | ((front & ~FILE_H) << 9)) & enemy
+            sps = ((sup << 8) & FULL) & ~enemy
+            rank_owner = (sq >> 3) + 1
+            rear = (nfill(front) & _file_of(m)) & own
+        else:
+            lev = (((m & ~FILE_A) >> 9) | ((m & ~FILE_H) >> 7)) & enemy
+            sup = (((m & ~FILE_H) << 9) | ((m & ~FILE_A) << 7)) & own
+            front = m >> 8
+            lpush = (((front & ~FILE_A) >> 9) | ((front & ~FILE_H) >> 7)) & enemy
+            sps = (sup >> 8) & ~enemy
+            rank_owner = 8 - (sq >> 3)
+            rear = (sfill(front) & _file_of(m)) & own
+        blocked_m = front & enemy
+        ok = ((st ^ lev) == 0)              or (((st ^ lpush) == 0) and bin(phal).count("1") >= bin(lpush).count("1"))              or (st == blocked_m and st != 0 and rank_owner >= 5 and sps != 0)
+        if ok and not rear:
+            cand |= m
+    t["candidate"] = cand
+
     t["weak"]       = t["isolated"] | t["backward"]
     t["weak_unopp"] = t["weak"] & ~t["opposed"]
     return t
@@ -155,7 +203,7 @@ def main():
         print("corpus not found: %s" % CORPUS); return 2
 
     names = ["isolated", "doubled", "backward", "phalanx", "supported", "opposed",
-             "lever", "blocked", "stop_held", "passed", "weak", "weak_unopp"]
+             "lever", "blocked", "stop_held", "passed", "candidate", "weak", "weak_unopp"]
     counts = {n: 0 for n in names}
     pair = {(a, b): 0 for a in names for b in names}
     total_pawns = 0

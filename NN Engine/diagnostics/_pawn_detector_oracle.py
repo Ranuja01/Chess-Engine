@@ -33,7 +33,7 @@ N = int(os.environ.get("N", "3000"))
 CORPUS = os.environ.get("CORPUS", "ks_sets/game_regret_set.csv")
 
 PREDS = ["isolated", "doubled", "backward", "phalanx", "supported",
-         "opposed", "lever", "blocked", "stop_held"]
+         "opposed", "lever", "blocked", "stop_held", "passed", "candidate"]
 
 
 def main():

@@ -610,7 +610,10 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
 		const uint64_t own   = c.pawns & (white ? c.white : c.black);
 
 		// --- connected: ONE term, rank-primary, phalanx/opposed/support as modifiers ------------------
+		// ★ Ethereal applies connected as an else-if AFTER backward, so the two are mutually exclusive;
+		// SF stacks them. PS_V2_CONN_EXCL selects which, because the references disagree.
 		uint64_t bb = own & (e.phalanx[s] | e.supported[s]);
+		if (Config::PS_V2_CONN_EXCL >= 1) bb &= ~e.backward[s];
 		while (bb){
 			const uint8_t  sq = (uint8_t)__builtin_ctzll(bb);
 			bb &= bb - 1;

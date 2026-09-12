@@ -675,6 +675,16 @@ namespace Config
     // the PST own rank entirely. See dev_notes/EVAL-V2-RUNG2-PAWN-DESIGN.md.
     inline int PS_V2_CONN_MAG = 0;
 
+    // ☠️ TERM EXCLUSIVITY. 0 = ADDITIVE (ours today: a pawn can collect isolated AND backward AND doubled
+    // AND connected simultaneously). 1 = connected EXCLUDES backward pawns. 2 = also excludes passers (2b).
+    // ★ Ethereal's pawn terms are an if / else-if CHAIN -- candidate-passer, else backward, else connected
+    // -- so its categories are MUTUALLY EXCLUSIVE, and it explicitly denies the connected bonus to passed
+    // pawns. SF stacks them additively instead. The two references DISAGREE, so this is ours to settle.
+    // ⚠️ Our overlap matrix measured isolated/backward/doubled co-occurring at 2.47-2.85x lift, so additive
+    // stacking fires constantly -- a far better candidate explanation for connected's measured harm than
+    // the PST-double-count story, which cannot be right anyway: a PST prices a SQUARE, never a RELATION.
+    inline int PS_V2_CONN_EXCL = 0;
+
     // Strength of the file tilt on the connected bonus, in /256. 0 = flat (rank only, SF11);
     // 256 = Ethereal's measured shape; >256 exaggerates it. ⚠️ v1's effective tilt is ~15x centre:edge
     // where Ethereal's is 2.16x and SF's is 1.0x -- ours is the outlier against BOTH references.

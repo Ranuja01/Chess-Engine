@@ -521,3 +521,58 @@ reference constants, the E-series loop (which just caught a 13x error), and per-
 single term can be bounded alone. ★ And the real pathology in v1 was never "a clamp" -- it was a clamp on a
 **SUM OF TWO COMPETING QUANTITIES**. Bounding one term is defensible; bounding a sum is what made it
 pathological.
+
+---
+
+## 13. CORRECTION (owner, 2026-09-12) -- the rule in section 12 was OVER-STATED
+
+### A PST prices a SQUARE. It cannot price a RELATION.
+Section 12 concluded "connected/support prices what the PST already carries". ☠️ **That cannot be right.**
+A PST says "a pawn on e4 is worth X"; it structurally cannot say "a pawn on e4 DEFENDED BY d3 is worth
+more than one that is not". It captures only the correlated part (supported pawns tend to sit on decent
+squares). **The measurement stands; the explanation does not**, and it was written into the log and memory
+as if settled. Owner caught it.
+
+### ★★ The better candidate: TERM EXCLUSIVITY. The references DISAGREE.
+Ethereal's pawn terms are an **if / else-if CHAIN** -- candidate-passer, else backward, else connected --
+so its categories are MUTUALLY EXCLUSIVE, and it **explicitly denies the connected bonus to PASSED pawns**:
+```c
+else if (pawnConnectedMasks(US, sq) & myPawns)
+    pkeval += PawnConnected32[relativeSquare32(US, sq)];
+```
+SF11 instead applies `Connected[]` to EVERY connected pawn including passers, and its `passed()` reads
+rank / king proximity / path safety / blocker defence / file but NOT support or phalanx -- so in SF a
+connected passer collects BOTH bonuses **additively**.
+
+| | a connected PASSER receives |
+|---|---|
+| SF11 | passer bonus + connected bonus, ADDITIVE |
+| Ethereal | passer bonus ONLY -- connected excluded by the else-if |
+
+⇒ ★ The owner's intuition (connected passers, and phalanxes of passers, are worth more) is **backed by SF
+and contradicted by Ethereal**. Per `adopt-reference-methods-only-if-universally-superior` that is a genuine
+two-way split, so it is OURS TO SETTLE BY MEASUREMENT at 2b -- not a closed question.
+
+### ⚠️ The exclusivity test run today was a NO-OP, and that is itself a result
+`PS_V2_CONN_EXCL=1` (connected excludes backward) produced output **identical digit-for-digit** to the
+additive arm on all six corpora. Reason: **`backward` and `connected` are ALREADY mutually exclusive by
+construction** -- backward requires NO friendly neighbour at or behind, connected requires exactly such a
+neighbour. Their intersection is empty, as is `isolated` with `connected`.
+✅ So our detector already matches Ethereal's else-if semantics for those pairs for free.
+☠️ But it means **the exclusivity hypothesis is UNTESTED, not refuted** -- I chose the one pair that could
+not discriminate. The stacking that actually occurs in 2a is `isolated + backward` (lift 2.85x) and
+`doubled + anything`; and since `best_no_conn` with both stacking is our BEST arm, that stacking is not
+hurting. ⇒ **The real test requires passers. It belongs to 2b.**
+
+### Connected remains PARKED -- nothing beat `best_no_conn`
+| arm | mean% | worst% |
+|---|---|---|
+| `best_no_conn` | **-0.66** | **-0.00** |
+| `conn_EXCL_m20` | -0.35 | +0.72 |
+| `conn_EXCL_rank_sup0` | +0.36 | +4.55 |
+| `conn_EXCL_flat90_sup0` | +0.35 | +2.42 |
+
+### ▶️ What 2b must now settle (added by this correction)
+1. **Connected x passed**: does a connected/phalanx PASSER earn extra (SF) or nothing (Ethereal)?
+2. **Exclusivity for real**: with passers present, do our terms want to be a chain or a sum?
+3. The parked connected term gets its re-try inside BOTH of those, not as a standalone retest.

@@ -566,3 +566,66 @@ EVAL_ARM=1  PS_V2_MAG=100  PASSER_V2_MAG=60  EVAL_V2_PAWN_MG=600
 ```
 with a second arm at `EVAL_V2_PAWN_MG=1000` (taper off) to separate the taper from the pawn layer, because
 §I says the taper is the larger half and that claim has never seen a game.
+
+---
+
+## 13. PHASE BLENDING AUDIT (owner, 2026-09-12) -- a real defect in the LIMITS
+
+Owner: "are you still doing phase-based blending akin to the giants so things transition smoothly?"
+
+### ✅ The blending itself is correct and SF-shaped
+`phase256` is a CONTINUOUS linear interpolation on non-pawn material between the limits, clamped at both
+ends -- **257 possible values against v1's 25 reachable** -- and every mg/eg blend in v2 uses the same
+`(mg*p + eg*(256-p)) >> 8`: `v2_piece_value`, pawn structure, passers. v2 did NOT inherit v1's 3-way cliff
+(`phase-is-a-3-way-boolean-and-everything-cliffs-at-one-material-step`).
+
+### ☠️ But the LIMITS are wrong, and the error is large
+```
+EVAL_V2_MG_LIMIT = 40000, EVAL_V2_EG_LIMIT = 10000
+our starting npm = 2 x (2*3250 + 2*3450 + 2*5000 + 10000) = 66,800
+```
+| | phase starts falling after |
+|---|---|
+| SF11 (npm 16,536 vs MidgameLimit 15,258) | **7.7%** of npm traded |
+| **v2 (ours)** | **40%** of npm traded |
+
+=> **Our phase is pinned at full-midgame for the entire opening and much of the middlegame**, then the whole
+transition is compressed into the back half. ⚠️ This handicaps EVERY future rung's mg/eg split (central,
+space, mobility, threats) identically, and §I at rung 2 cannot see it because only two terms use phase yet.
+SF's limits are 92.3% / 23.7% of its starting npm => scaled to ours: **61,700 / 15,800**.
+
+### ✅ Consistency check that passed
+`sflim_only` (limits changed, nothing else) reads **0.00% on all six corpora**. Correct, not a dead knob:
+at rung 1 `v2_piece_value` short-circuits when mg == eg, KS-A has no phase gate by design, and the PST does
+not blend -- so phase genuinely affects nothing until a phase-dependent term exists.
+
+### ☠️ I MISREAD IT FIRST -- a coupled-knob artifact
+At fixed `PAWN_MG=600` the SF-scaled limits look WORSE (-5.27% vs -6.59%), and I reported that. Wrong:
+earlier phase onset means the SAME mg value yields a WEAKER average taper, so the two knobs are coupled.
+Re-tuned:
+| arm | mean% | worst% |
+|---|---|---|
+| `cur_t600` (our limits) | -6.59 | -2.05 |
+| **`sflim_t380`** | **-6.89** | **-2.60** |
+| `sflim_t300` | -7.30 | -2.58 |
+
+**The principled limits win on BOTH columns once the taper is re-tuned under them.**
+★ ★ **I compared two designs at a fixed value of a COUPLED knob, which measures the coupling, not the
+design.** Second instance (the 2a feeder-vs-onset confound was the first).
+=> **Rule: when two knobs are coupled, never compare designs at a fixed value of either. Re-optimise the
+partner inside each arm.**
+
+### ⚠️ Corpus optimum vs principled value now DIVERGE
+With FLAT piece values, reproducing SF's relative pawn/piece shift (pawn +66% vs knight +11% => 1.50x
+relative) implies **`PAWN_MG` ~ 667**. The corpus wants **<= 300** -- a 3.3x rise, far outside anything any
+reference does. Textbook `corpus-fit-is-anti-correlated-with-elo`.
+=> **Take BOTH to games**: reference-matched (`t650`) and corpus-optimal (`t380`), under SF-scaled limits.
+
+### => REVISED games recommendation
+```
+common: EVAL_ARM=1 + rung-1 KS + PS_V2_MAG=100 PASSER_V2_MAG=60
+        EVAL_V2_MG_LIMIT=61700 EVAL_V2_EG_LIMIT=15800
+A: EVAL_V2_PAWN_MG=650   (reference-matched)
+B: EVAL_V2_PAWN_MG=380   (corpus-optimal)
+C: EVAL_V2_PAWN_MG=1000  (taper OFF -- isolates the taper from the pawn layer)
+```

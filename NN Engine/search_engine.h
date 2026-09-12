@@ -630,6 +630,72 @@ namespace Config
     // "endgame"). ⚠️ The gate was also a SPEED optimisation; if removing it costs measurable NPS, take it
     // back as a cheap ATTACKER-COUNT precondition, never as a phase gate.
 
+    // ===============================================================================================
+    // RUNG 2a -- PAWN STRUCTURE (eval v2).  Every knob 0/off => the rung is ABSENT and v2 is
+    // byte-identical to the rung-1 result that passed games at ~+101 Elo.
+    // Full derivation, the four-engine mapping and the E1-E7 experiment list:
+    // dev_notes/EVAL-V2-RUNG2-PAWN-DESIGN.md.
+    // ===============================================================================================
+
+    // Master percent scale on the whole structure score. 0 = rung absent (byte-identical). 100 = identity.
+    // ★ There is deliberately NO clamp anywhere in this rung. v1 ends evaluate_pawns_* with
+    // `total -= min(PAWN_CLAMP_MID, structural_bonus + positional_bonus)` -- two competing quantities in
+    // one 225mp budget -- and on 2026-09-12 that clamp was measured to be MASKING HARM, not value: opening
+    // it grew the chain ablation 14x and the opposed ablation 23x and INVERTED both signs (harmful 6/6
+    // corpora). A clamp whose job is hiding bad terms is accidental-load-bearing; v2 is bounded by
+    // construction instead.
+    inline int PS_V2_MAG = 0;
+
+    // Which connected-pawn FORM to use. E1 in the design doc -- the headline experiment of this rung.
+    // 0 = 2D rank x file (default target) - 1 = rank only (SF11's exact shape) - 2 = v1's additive
+    // rank + file, kept only so the refuted form can be re-measured on demand.
+    // ☠️ v1's form is `rank_table[r] + chain_file[f]`, which is ADDITIVE and therefore SEPARABLE: it
+    // structurally CANNOT express "file matters at rank 7 but not rank 3", which is exactly what Ethereal's
+    // PawnConnected32 does. That is the defect, not file-sensitivity itself.
+    inline int PS_V2_CONN_FORM = 0;
+
+    // Strength of the file tilt on the connected bonus, in /256. 0 = flat (rank only, SF11);
+    // 256 = Ethereal's measured shape; >256 exaggerates it. ⚠️ v1's effective tilt is ~15x centre:edge
+    // where Ethereal's is 2.16x and SF's is 1.0x -- ours is the outlier against BOTH references.
+    inline int PS_V2_FILE_TILT = 256;
+
+    // Relative rank (0-based, so 5 == the 6th rank) below which NO file tilt is applied. ★ Ethereal's tilt
+    // is a rank-6/7 PHENOMENON, not a centre preference: 2.16x at r7, 1.42x at r6, and pure noise at r2-5
+    // (the raw table reads 6, 20, 6, 14 across the files there). v1 applied its tilt at every rank.
+    inline int PS_V2_TILT_MIN_RANK = 5;
+
+    // Per-supporter bonus, milli-pawns (SF11 pawns.cpp:136 uses 21 in its own units => ~164mp).
+    inline int PS_V2_SUPPORT = 164;
+
+    // Endgame leg of the connected bonus, percent of `v * (r-2) / 4`. SF derives its eg leg from the same
+    // `v`; we cannot reuse its number directly because our mg and eg conversions differ (x7.81 vs x4.69),
+    // so this ratio (60 = 4.69/7.81) carries that difference EXPLICITLY rather than burying it.
+    // ☠️ Three unit-scale errors in one day during rung 1 all came from mixing conversion bases silently.
+    inline int PS_V2_EG_RATIO = 60;
+
+    // Doubled pawns. ⚠️ NOT a new term -- v1 HAS this, as hardcoded literals (cpp_bitboard.cpp:958/:1095
+    // midgame 125, :3261/:3374 endgame 150). The defect is the TAPER: ours runs 1.2x mg->eg where SF11 runs
+    // 3.1x (86 -> 263) and Ethereal goes from ~0 to -201. Both references make doubled overwhelmingly an
+    // ENDGAME term; ours is nearly flat AND has the largest midgame value of the three.
+    // ⚠️ Fires on only 1.48% of pawns => ~4mp/pawn in aggregate, INVISIBLE to any aggregate instrument.
+    inline int PS_V2_DOUBLED_MG = 86;
+    inline int PS_V2_DOUBLED_EG = 263;
+
+    // Isolated pawns, as a FILE table scaled by these. ☠️ SF11 and Ethereal DISAGREE IN SIGN in the
+    // midgame: SF charges -39mp flat, Ethereal PAYS +85mp on the e-file and charges only on the wings.
+    // Per adopt-reference-methods-only-if-universally-superior, where they disagree ours is legitimate and
+    // theirs is a CANDIDATE -- so v1's ISOLATED_PAWN_PEN = 0 may be a defensible compromise rather than an
+    // omission, and the midgame leg DEFAULTS TO ZERO. They agree only that the endgame is negative.
+    // ⚠️ isolated <-> passed lift is 2.57x: an isolated pawn is 2.6x likelier than chance to be a PASSER,
+    // so this penalty and 2b's passer bonus fire on the same pawn in opposite directions.
+    inline int PS_V2_ISOLATED_MG = 0;
+    inline int PS_V2_ISOLATED_EG = 100;
+
+    // Backward pawns, as a RANK table scaled by these. Both references agree the endgame leg is negative
+    // and the midgame is contested (Ethereal's midgame row even contains +29 in its units).
+    inline int PS_V2_BACKWARD_MG = 0;
+    inline int PS_V2_BACKWARD_EG = 113;
+
     // Which rung of v2's build-up ladder to evaluate. v2 is grown one feature at a time and each rung is
     // read against the PREVIOUS rung -- a candidate-vs-candidate comparison, which is null-independent and
     // is the one comparison our instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora).

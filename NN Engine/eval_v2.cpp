@@ -454,6 +454,226 @@ inline int ks_danger_mp(int u)
 }
 
 // ===================================================================================================
+// RUNG 2a -- PAWN STRUCTURE
+// ===================================================================================================
+
+/* LAYER A output. Every mask is a pure function of the two pawn bitboards -- no piece, no king, no side
+ * to move is read to produce any of it.
+ *
+ * ★ That purity is not incidental. It is simultaneously (a) what will make this layer cacheable on
+ * pawnKey, and (b) the owner's DETECTOR stage, separable from scoring. Those two boundaries turning out
+ * to be the same line is the structural gift of this rung: the split that makes it testable is the split
+ * that makes it fast. Index 0 = White, 1 = Black throughout.
+ */
+struct PawnEntry {
+	uint64_t isolated[2], doubled[2], backward[2];
+	uint64_t phalanx[2], supported[2], opposed[2], lever[2];
+	uint64_t blocked[2], stop_held[2];
+	uint64_t attacks[2], attacks2[2];
+	uint8_t  openFiles, halfOpen[2];
+};
+
+/* Set-wise helpers. Deliberately tiny and side-agnostic: every predicate below is a fill or a shift, not
+ * a per-square loop, which is what keeps the detector a pure function of two bitboards.
+ */
+static inline uint64_t ps_nfill(uint64_t b) noexcept { b |= b << 8; b |= b << 16; b |= b << 32; return b; }
+static inline uint64_t ps_sfill(uint64_t b) noexcept { b |= b >> 8; b |= b >> 16; b |= b >> 32; return b; }
+static inline uint64_t ps_east(uint64_t b)  noexcept { return (b & ~BB_FILE_H) << 1; }
+static inline uint64_t ps_west(uint64_t b)  noexcept { return (b & ~BB_FILE_A) >> 1; }
+static inline uint64_t ps_watt(uint64_t p)  noexcept { return ((p & ~BB_FILE_A) << 7) | ((p & ~BB_FILE_H) << 9); }
+static inline uint64_t ps_batt(uint64_t p)  noexcept { return ((p & ~BB_FILE_A) >> 9) | ((p & ~BB_FILE_H) >> 7); }
+
+/* LAYER A -- the DETECTOR.
+ *
+ * ☠️ The detector RETURNS its masks and must NEVER publish them as a side effect. v1's getPPIncrement
+ * writes white_passed_pawns / black_passed_pawns / candidate_passed_pawns as it goes, which is exactly
+ * what makes a pawn hash unsafe there: a cache hit would skip the write and every downstream piece
+ * evaluator -- all ten of them take the passer masks as parameters -- would read stale state. Same failure
+ * family as eval-global-side-effects-are-skipped-by-a-cache-hit.
+ *
+ * ✅ Every predicate here is mirrored in diagnostics/_pawn_term_overlap.py, which is validated 8/8 on
+ * hand-checked positions and colour-symmetric 3/3. That file is this function's ORACLE -- compare
+ * mask-for-mask over the corpus before trusting any score built on top, because a detector bug and a
+ * scoring bug are indistinguishable from outside.
+ *
+ * @param e  output; fully overwritten
+ * @param c  context; only c.pawns, c.white, c.black are read
+ *
+ * Gating: none -- the caller gates on PS_V2_MAG before invoking.
+ * Cost: ~30 shift/fill ops, no loops over squares, no allocation.
+ */
+static inline void build_pawn_entry(PawnEntry &e, const V2Context &c) noexcept
+{
+	const uint64_t wp = c.pawns & c.white;
+	const uint64_t bp = c.pawns & c.black;
+
+	e.attacks[0]  = ps_watt(wp);
+	e.attacks[1]  = ps_batt(bp);
+	e.attacks2[0] = ((wp & ~BB_FILE_A) << 7) & ((wp & ~BB_FILE_H) << 9);
+	e.attacks2[1] = ((bp & ~BB_FILE_A) >> 9) & ((bp & ~BB_FILE_H) >> 7);
+
+	for (int s = 0; s < 2; ++s){
+		const bool     white = (s == 0);
+		const uint64_t own   = white ? wp : bp;
+		const uint64_t enemy = white ? bp : wp;
+		const uint64_t adj   = ps_east(own) | ps_west(own);
+
+		// isolated: no own pawn anywhere on an adjacent file
+		e.isolated[s]  = own & ~ps_nfill(ps_sfill(adj));
+		// doubled: an own pawn directly AHEAD on the same file (the rear pawn of the pair carries it)
+		e.doubled[s]   = own & (white ? (own >> 8) : (own << 8));
+		// phalanx: an own pawn beside it on the same rank.  ★ This is v1's "pawn wall".
+		e.phalanx[s]   = own & adj;
+		// supported: defended by one of our own pawns.      ★ This is v1's "chain".
+		e.supported[s] = own & e.attacks[s];
+		// opposed: an enemy pawn anywhere ahead on our OWN file
+		e.opposed[s]   = own & (white ? ps_sfill(enemy) : ps_nfill(enemy));
+		// lever: WE attack an enemy pawn. A white pawn on sq attacks sq+7/sq+9, so the squares attacking
+		// an enemy pawn at X are exactly {X-9, X-7} = ps_batt(X). Mirrored for Black.
+		e.lever[s]     = own & (white ? ps_batt(enemy) : ps_watt(enemy));
+
+		const uint64_t stop = white ? (own << 8) : (own >> 8);
+		const uint64_t eatt = white ? e.attacks[1] : e.attacks[0];
+		e.blocked[s]   = own & (white ? ((stop & enemy) >> 8) : ((stop & enemy) << 8));
+		e.stop_held[s] = own & (white ? ((stop & eatt)  >> 8) : ((stop & eatt)  << 8));
+
+		// backward (SF's condition): NO friendly neighbour on an adjacent file at or BEHIND our rank, and
+		// the push is blocked or contested. ⚠️ ps_nfill smears NORTH, so bit (f,r) is set iff a source sits
+		// at r' <= r -- "a neighbour at or behind us" for White. Mirrored for Black. Getting this backwards
+		// produces entirely plausible numbers, which is why the oracle checks it rather than review alone.
+		const uint64_t rear_nb = own & (white ? ps_nfill(adj) : ps_sfill(adj));
+		e.backward[s]  = own & ~rear_nb & (e.blocked[s] | e.stop_held[s]);
+	}
+
+	// File occupancy: detected HERE, consumed at rung 6 (rook files). Two fills we are already paying for,
+	// and it saves the rook pass re-deriving what the pawn pass already knows.
+	const uint64_t wfiles = ps_nfill(ps_sfill(wp));
+	const uint64_t bfiles = ps_nfill(ps_sfill(bp));
+	e.openFiles   = (uint8_t)(~(wfiles | bfiles) & 0xFFULL);
+	e.halfOpen[0] = (uint8_t)(~wfiles & 0xFFULL);
+	e.halfOpen[1] = (uint8_t)(~bfiles & 0xFFULL);
+}
+
+// SF11 Connected[] = {0,7,8,12,29,48,86} in SF units, pre-multiplied by its neutral modifier (2) and
+// converted at mg x7.81. Indexed by RELATIVE rank, 0-based, so index 6 is the 7th rank.
+static constexpr int PS_CONN_RANK_MP[8] = {0, 109, 125, 187, 453, 750, 1343, 0};
+
+// Ethereal PawnConnected32's rank-7 file shape {108,214,216,233}, mirrored and normalised so the mean is
+// 256 (= neutral). ★ Its centre:edge ratio is 2.16x. v1's pawn_chain_file_bonus runs 15.0x AND applies at
+// every rank -- the outlier against BOTH references, on both axes independently.
+static constexpr int PS_CONN_FILE_256[8] = {143, 284, 287, 309, 309, 287, 284, 143};
+
+// Ethereal PawnIsolated[FILE], converted (mg x12.20, eg x6.94). ☠️ POSITIVE = a BONUS to the owner.
+// Note the midgame row is positive in the CENTRE: Ethereal PAYS for a central isolated pawn and charges
+// only on the wings, where SF11 charges -39mp flat everywhere. That sign disagreement between two tuned
+// references is why PS_V2_ISOLATED_MG defaults to 0.
+//
+// ☠️ MIRROR-SYMMETRISED, and this was caught by the gate, not by review. Ethereal's raw table is itself
+// file-ASYMMETRIC (a-file -13 vs h-file -4 in mg; -83 vs -118 in eg). Transcribed verbatim it made an
+// a-file isolated pawn worth something different from an h-file one, which has no justification in a game
+// whose rules are file-mirror symmetric -- and _eval_symmetry.py's file-mirror check went from 21 to 344
+// violations (52.8%) the moment the rung was switched on. Each file is now averaged with its mirror.
+// ★ Doing so also shows the ENDGAME row is essentially FLAT once symmetrised (-101..-129): Ethereal's
+// apparent endgame file structure was tuner noise, and only the MIDGAME row carries real shape.
+static constexpr int PS_ISO_FILE_MG[8] = {-104,  -31,   25,   61,   61,   25,  -31, -104};
+static constexpr int PS_ISO_FILE_EG[8] = {-101, -104, -108, -129, -129, -108, -104, -101};
+
+/* LAYER B -- the structure SCORE. Reads ONLY Layer A's masks, so it caches alongside them.
+ * Returns Black-positive milli-pawns: White's structure subtracts, Black's adds.
+ *
+ * WHY THIS SHAPE. v1 scores the same information as `chain_file[f] * support + wall_file[f'] * phalanx` --
+ * two separate FILE-keyed terms, no rank term anywhere. SF11 (pawns.cpp:43/:135) uses ONE RANK-keyed term
+ * with phalanx and support as MODIFIERS; Ethereal uses one rank-AND-file table whose tilt is a rank-6/7
+ * phenomenon. ★ v1's form is additive and therefore SEPARABLE: it structurally cannot express "file
+ * matters at rank 7 but not rank 3", which is precisely what Ethereal's table says. Merging the two terms
+ * into one 2D-keyed term is what makes that expressible -- the owner's file concept survives, its
+ * representation changes.
+ * ⚠️ Measured 2026-09-12: v1's file-keyed chain bonus is harmful on 6/6 corpora once PAWN_CLAMP stops
+ * masking it (-2.29%), as is the post-hoc opposed multiplier (-1.38%).
+ *
+ * @param e  detector output
+ * @param c  context; only c.pawns/white/black and c.phase256 are read
+ * @return   Black-positive milli-pawns, phase-blended and scaled by PS_V2_MAG
+ *
+ * Gating: PS_V2_MAG == 0 returns 0 => byte-identical to the rung-1 baseline.
+ * Cost: one bit loop per side over connected pawns plus one over isolated; three popcounts. NO CLAMP.
+ */
+static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
+{
+	if (Config::PS_V2_MAG == 0) return 0;
+
+	int side_mg[2] = {0, 0};
+	int side_eg[2] = {0, 0};
+
+	for (int s = 0; s < 2; ++s){
+		const bool     white = (s == 0);
+		const uint64_t own   = c.pawns & (white ? c.white : c.black);
+
+		// --- connected: ONE term, rank-primary, phalanx/opposed/support as modifiers ------------------
+		uint64_t bb = own & (e.phalanx[s] | e.supported[s]);
+		while (bb){
+			const uint8_t  sq = (uint8_t)__builtin_ctzll(bb);
+			bb &= bb - 1;
+			const uint64_t m  = 1ULL << sq;
+			const int      f  = sq & 7;
+			const int      r  = white ? (sq >> 3) : (7 - (sq >> 3));   // relative rank, 0-based
+
+			// SF's (2 + phalanx - opposed), expressed in /256 so the neutral case is exactly 256.
+			int mod = 256;
+			if (m & e.phalanx[s]) mod += 128;
+			if (m & e.opposed[s]) mod -= 128;
+
+			// FORM 0 = 2D rank x file (target) - FORM 1 = rank only (SF11 exactly).
+			// FORM 2 (v1's additive rank+file) is reserved and currently behaves as FORM 1; it exists so
+			// the refuted form can be reinstated deliberately rather than reconstructed from memory.
+			int base = PS_CONN_RANK_MP[r];
+			if (Config::PS_V2_CONN_FORM == 0 && r >= Config::PS_V2_TILT_MIN_RANK){
+				const int tilt = 256 + ((PS_CONN_FILE_256[f] - 256) * Config::PS_V2_FILE_TILT) / 256;
+				base = (base * tilt) >> 8;
+			}
+
+			int v = (base * mod) >> 8;
+
+			// Supporter COUNT, not a boolean: the squares from which our pawns defend sq are exactly
+			// ps_batt(sq) for White (mirrored for Black) -- the same inversion trick as `lever` above.
+			const uint64_t sup = own & (white ? ps_batt(m) : ps_watt(m));
+			if (sup) v += Config::PS_V2_SUPPORT * __builtin_popcountll(sup);
+
+			side_mg[s] += v;
+			// SF derives its endgame leg from the SAME v, as `v * (r - 2) / 4`. ⚠️ We cannot reuse its
+			// constant directly because our mg and eg conversions differ (x7.81 vs x4.69), so
+			// PS_V2_EG_RATIO carries that difference EXPLICITLY instead of burying it in a table.
+			// ☠️ All three unit-scale errors during rung 1 came from mixing conversion bases silently.
+			side_eg[s] += ((v * (r - 2)) / 4) * Config::PS_V2_EG_RATIO / 100;
+		}
+
+		// --- doubled: v1 HAS this (hardcoded 125 mg / 150 eg); the defect was the FLAT taper -----------
+		const int nd = __builtin_popcountll(e.doubled[s]);
+		side_mg[s] -= nd * Config::PS_V2_DOUBLED_MG;
+		side_eg[s] -= nd * Config::PS_V2_DOUBLED_EG;
+
+		// --- isolated: FILE table, because a scalar cannot express wing-penalty / centre-bonus ---------
+		uint64_t ib = e.isolated[s];
+		while (ib){
+			const int f = (int)(__builtin_ctzll(ib) & 7);
+			ib &= ib - 1;
+			side_mg[s] += PS_ISO_FILE_MG[f] * Config::PS_V2_ISOLATED_MG / 100;
+			side_eg[s] += PS_ISO_FILE_EG[f] * Config::PS_V2_ISOLATED_EG / 100;
+		}
+
+		// --- backward: both references agree the ENDGAME leg is negative; the midgame is contested -----
+		const int nb = __builtin_popcountll(e.backward[s]);
+		side_mg[s] -= nb * Config::PS_V2_BACKWARD_MG;
+		side_eg[s] -= nb * Config::PS_V2_BACKWARD_EG;
+	}
+
+	// Phase-blend each side, then combine Black-positive. c.phase256: 256 = full midgame, 0 = deep endgame.
+	const int w = (side_mg[0] * c.phase256 + side_eg[0] * (256 - c.phase256)) >> 8;
+	const int b = (side_mg[1] * c.phase256 + side_eg[1] * (256 - c.phase256)) >> 8;
+	return ((b - w) * Config::PS_V2_MAG) / 100;
+}
+
+// ===================================================================================================
 // BREAKDOWN PUBLICATION
 // ===================================================================================================
 
@@ -582,6 +802,19 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		// it is the historic failure mode -- so the colour ship-gate runs on every KS-A build.
 		ks_mp = ks_danger_mp(ks_w) - ks_danger_mp(ks_b);
 		total += ks_mp;
+	}
+
+	// ── rung 2a: pawn structure ──────────────────────────────────────────────────────────────────
+	// Gated on PS_V2_MAG, so 0 = the rung is absent and this is byte-identical to the rung-1 result that
+	// passed games at ~+101 Elo. ★ The detector is built here and RETURNS its masks; nothing about it is
+	// published as a side effect, which is what will let the whole of Layer A+B move behind a pawnKey cache
+	// at 2b without any downstream consumer reading stale state.
+	int ps_mp = 0;
+	PawnEntry pe;
+	if (Config::PS_V2_MAG != 0){
+		build_pawn_entry(pe, c);
+		ps_mp = pawn_structure_mp(pe, c);
+		total += ps_mp;
 	}
 
 	// Later rungs accumulate here, each gated on its own knob.

@@ -2085,6 +2085,30 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_V2_ZONE_SF = env_int("KS_V2_ZONE_SF", Config::KS_V2_ZONE_SF);
         Config::KS_V2_XRAY = env_int("KS_V2_XRAY", Config::KS_V2_XRAY);
         Config::KS_V2_PAWN_ATT = env_int("KS_V2_PAWN_ATT", Config::KS_V2_PAWN_ATT);
+        // ── rung 2a: pawn structure (eval v2) ──────────────────────────────────────────────────
+        Config::PS_V2_MAG = env_int("PS_V2_MAG", Config::PS_V2_MAG);
+        Config::PS_V2_CONN_FORM = env_int("PS_V2_CONN_FORM", Config::PS_V2_CONN_FORM);
+        Config::PS_V2_FILE_TILT = env_int("PS_V2_FILE_TILT", Config::PS_V2_FILE_TILT);
+        Config::PS_V2_TILT_MIN_RANK = env_int("PS_V2_TILT_MIN_RANK", Config::PS_V2_TILT_MIN_RANK);
+        Config::PS_V2_SUPPORT = env_int("PS_V2_SUPPORT", Config::PS_V2_SUPPORT);
+        Config::PS_V2_EG_RATIO = env_int("PS_V2_EG_RATIO", Config::PS_V2_EG_RATIO);
+        Config::PS_V2_DOUBLED_MG = env_int("PS_V2_DOUBLED_MG", Config::PS_V2_DOUBLED_MG);
+        Config::PS_V2_DOUBLED_EG = env_int("PS_V2_DOUBLED_EG", Config::PS_V2_DOUBLED_EG);
+        Config::PS_V2_ISOLATED_MG = env_int("PS_V2_ISOLATED_MG", Config::PS_V2_ISOLATED_MG);
+        Config::PS_V2_ISOLATED_EG = env_int("PS_V2_ISOLATED_EG", Config::PS_V2_ISOLATED_EG);
+        Config::PS_V2_BACKWARD_MG = env_int("PS_V2_BACKWARD_MG", Config::PS_V2_BACKWARD_MG);
+        Config::PS_V2_BACKWARD_EG = env_int("PS_V2_BACKWARD_EG", Config::PS_V2_BACKWARD_EG);
+        // ☠️ Range-check the two that index tables: PS_CONN_FILE_256 and PS_CONN_RANK_MP are 8 entries and
+        // the rank compare is `r >= PS_V2_TILT_MIN_RANK`, so a negative value would tilt every rank and a
+        // value > 7 would silently disable the tilt while the toggles line still advertised it.
+        if (Config::PS_V2_TILT_MIN_RANK < 0 || Config::PS_V2_TILT_MIN_RANK > 7){
+            std::cerr << "☠️ PS_V2_TILT_MIN_RANK must be 0..7 -- restoring 5.\n";
+            Config::PS_V2_TILT_MIN_RANK = 5;
+        }
+        if (Config::PS_V2_CONN_FORM < 0 || Config::PS_V2_CONN_FORM > 2){
+            std::cerr << "☠️ PS_V2_CONN_FORM must be 0 (2D), 1 (rank-only) or 2 (reserved) -- restoring 0.\n";
+            Config::PS_V2_CONN_FORM = 0;
+        }
         if (Config::KS_V2_HALF < 1){
             std::cerr << "☠️ KS_V2_HALF must be >= 1 (it is a denominator) -- restoring 900." << std::endl;
             Config::KS_V2_HALF = 900;
@@ -2281,6 +2305,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         std::cerr << "[toggles] EVAL_ARM=" << Config::EVAL_ARM
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
+                  << " PS_V2_MAG=" << Config::PS_V2_MAG
+                  << " PS_V2_CONN_FORM=" << Config::PS_V2_CONN_FORM
+                  << " PS_V2_FILE_TILT=" << Config::PS_V2_FILE_TILT
                   << " KS_V2_MAX=" << Config::KS_V2_MAX
                   << " KS_V2_HALF=" << Config::KS_V2_HALF
                   << " KS_V2_COORD=" << Config::KS_V2_COORD

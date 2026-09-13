@@ -859,3 +859,49 @@ Calibration: in PAWN units SF's knight falls 6.10 (mg) -> 4.01 (eg), so preservi
 values and adding only the relative shift gives **152%**.
 ★ Prediction: if the taper's harm is the unit-of-account side effect rather than the material ratio
 itself, the piece-side version should hold or improve STS where the pawn-side version lost 84-176 points.
+
+---
+
+## 2026-09-12 -- ☠️ I RANKED INSIDE THE NOISE BAND TWICE IN ONE HOUR
+
+Owner: *"even STS is just one bench -- there are many error testers, real game tests, single eval tests
+with MSE and more."* Checking INSTRUMENT-MAP resolutions AFTER making claims, which is the wrong order:
+
+| reading | delta | floor | verdict |
+|---|---|---|---|
+| WAC 250 -> 245 | -5 | **+/-5-6** | ☠️ inside noise -- NOT EVIDENCE |
+| STS 1698 -> 1614 (pawn taper 550) | -84 | **+/-150** | ☠️ inside noise -- NOT EVIDENCE |
+| STS 1698 -> 1522 (pawn taper 700) | -176 | +/-150 | marginal, weak |
+| STS 1698 -> 1629 / 1553 / 1568 (piece taper 120/152/180) | -69 / -145 / -130 | +/-150 | ☠️ inside noise, and NON-MONOTONE at the tail |
+| **STS 1480 -> 1698 (pawn layer)** | **+218** | +/-150 | ✅ RESOLVABLE -- real |
+
+★ ★ **I called the taper a "monotone regression" on two readings that were both inside their floors,
+did it with WAC, was corrected, then did the identical thing with STS within the hour.** The map states
+"do not rank inside +/-150" explicitly.
+
+### The corrected evidential state
+- **Pawn layer**: §I -0.97% (floor 0.05%) AND STS +218 (floor 150) => **two independent instruments, same
+  sign, both resolvable. CORROBORATED.**
+- **Taper (either implementation)**: §I -6.59% is resolvable at 130x its floor and says LARGE WIN; every
+  move-level instrument is INSIDE its floor. => **UNDECIDED, not refuted.** Against it stands only the
+  prior `corpus-fit-is-anti-correlated-with-elo`, which is a prior and not a measurement.
+
+### ☠️ The unit-of-account hypothesis is REFUTED
+I predicted the PIECE-side taper would hold or improve where the pawn-side lost, because it keeps the pawn
+at 1000 as the unit of account. It trends down by comparable amounts (-69 at 120% vs -84 for pawn-side 550,
+comparable ratio shifts). Two independent implementations of the same shift behave the same
+=> the harm, if any, is the MATERIAL RATIO itself and not the side effect on positional constants.
+⚠️ Fifth consecutive magnitude/shape prediction wrong, every one in the same direction: expecting a
+principled correction to pay.
+
+### ★ VENUE POWER -- run before spending games, as §A requires
+```
++40 Elo vs SF18   273 games      KP paired  131
++20 Elo          1,087           KP paired  521
++10 Elo          4,344           KP paired 2,083
+ +5 Elo         17,370           KP paired 8,331
+```
+**One night (~1,200 games) resolves ~+20 Elo and nothing smaller.** => If the taper is a +/-10 Elo effect,
+no single night settles it either, and the decision would have to rest on principle rather than
+measurement. ⇒ **Spend tonight on the CORROBORATED change (the pawn layer), not on a taper arm that three
+instruments already cannot separate.**

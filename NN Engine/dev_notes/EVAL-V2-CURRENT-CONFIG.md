@@ -70,7 +70,7 @@ Everything else is at its default, and the defaults encode the decisions below.
 | `pawn_majority`, `latent_threat` | dead at defaults / measured 0 of 5,000 |
 
 ### ⏳ NOT YET BUILT — the remaining ladder
-See `EVAL-V2-REBUILD-LOG.md` for the slice plan. Components: mobility + per-piece placement · central + space ·
+Slice plan in §5 below. Components: mobility + per-piece placement · central + space ·
 threats · Kaufman + pairs · rook files · **tempo (absent from BOTH v1 and v2)** · **draw classifier (9 cases,
 live in v1)** · mate drive · convertibility scale · corrhist · winnability · capgains · OvD.
 ☠️ **Contempt: absent everywhere, and unmeasurable in self-play** — it needs a different opponent.

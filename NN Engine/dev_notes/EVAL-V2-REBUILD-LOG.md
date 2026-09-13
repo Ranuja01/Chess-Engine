@@ -905,3 +905,56 @@ principled correction to pay.
 no single night settles it either, and the decision would have to rest on principle rather than
 measurement. ⇒ **Spend tonight on the CORROBORATED change (the pawn layer), not on a taper arm that three
 instruments already cannot separate.**
+
+---
+
+## 2026-09-12 -- PROTOCOL: WHEN TO BUNDLE RUNGS (owner), and the boundary of the bundling refutation
+
+Owner: *"pawns like KS are a huge part of the eval, which is mostly bare bones -- surely it still adds up.
+If things start getting small though we may have to start bundling rungs eventually."*
+
+### The first half is supported by our own numbers
+| rung | STS | gain | games |
+|---|---|---|---|
+| 0 (material + PST) | 1364 | -- | -- |
+| 1 (+ KS) | 1480 | **+116** | **+101 Elo** |
+| 2 (+ pawns) | 1698 | **+218** | pending |
+
+The pawn layer's STS gain is ~1.9x KS's, and KS was worth +101 Elo.
+⚠️ Not extrapolated to a number -- no statistic of ours predicts Elo and STS->Elo is not linear -- but it
+is a strong prior that this is a LARGE effect, comfortably above the ~20 Elo one night resolves. In a
+barebones eval each subsystem is a large fraction of everything the engine knows, so the EARLY rungs should
+keep clearing the bar. The question is what happens when they stop.
+
+### ☠️ The bundling refutation has a BOUNDARY, and it is important
+`bundling-is-refuted-components-cancel-26-percent` was measured **ON v1**, where ~30 terms overlapped
+50-64% and three individually sign-consistent components combined to **+0.47pp -- BELOW every one of them
+alone** while cancelling ~26% of each other's move changes.
+★ **That refutation is about DEGENERACY, not about bundling as such.** v2 is built to make bundling safe
+in the way v1 could not be: terms are constructed disjoint, and the firing-set overlap matrix is checked
+BEFORE any constant is chosen. The refutation does not automatically transfer -- but it supplies the
+PRECONDITION.
+
+### ★ ★ THE RULE (venue power turns this into a number)
+```
++40 Elo vs SF18   273 games      KP paired  131
++20 Elo          1,087           KP paired  521
++10 Elo          4,344           KP paired 2,083
+```
+One night (~1,200 games) resolves **~+20 Elo and nothing smaller**.
+
+> **Test a rung ALONE if its expected effect is >= ~20 Elo. Below that, BUNDLE until the bundle clears
+> ~20 Elo -- and before bundling, check pairwise overlap / contribution correlation between the members.**
+
+⚠️ **The honest cost: a bundle that passes tells you the BUNDLE works, not which member did it.** That is
+acceptable when the alternative is an UNRESOLVED result -- which is how most of the "nulls" in our record
+were actually created (`the-eval-failure-record-is-mostly-unresolved-nulls-not-refutations`: of "KS
+0-for-11" only ~4 were RESOLVED).
+★ This supersedes the fixed "games at checkpoints every 3-4 rungs" cadence with a MEASURED trigger: bundle
+when the expected effect falls below what the venue can resolve, not on a fixed count.
+
+### ⇒ Applied right now
+- **Pawn layer: test ALONE tonight.** Expected large (STS +218, ~1.9x KS's +116), two instruments agree.
+- **Taper: do NOT spend a night on it.** Three move-level instruments read it inside their floors; if it is
+  a +/-10 Elo effect the venue cannot resolve it in one night, and the result would be another unresolved
+  null in the record. Carry it as an open question into a later checkpoint bundle.

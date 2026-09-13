@@ -933,6 +933,29 @@ PYEOF
         --openings selfplay/openings_uho.txt --adjudicate-draw --quiet --tag "$ttag"
     ;;
 
+  sprt_ab)
+    # SPRT with BOTH sides configurable -- the early-stopping counterpart to `time_ab`.
+    # Every other SPRT sub (`gate`, `gate_blitz`) pins p2 to "" = the DEFAULT eval, so none of them can
+    # compare two eval-v2 arms against each other; both arms here are EVAL_ARM=1.
+    # WARNING: SPRT buys speed by sacrificing MAGNITUDE precision. It stops when a bound is crossed, so a
+    # large effect returns a confident PASS on few games and a wide CI on HOW MUCH. The bundling rule needs
+    # the magnitude (test a rung alone if >= ~20 Elo, else bundle), so when it stops early, spend the freed
+    # box time on a fixed-length run or a second venue rather than banking the point estimate.
+    # Args: '<p1cfg>' '<p2cfg>' [tag] [max_games=1200] [elo1=5] [conc=4] [openings=openings_uho.txt] [seed=0].
+    # NOTE seed: `gate` defaults to 0 and that is a known read-inflater -- VARY IT across segments.
+    p1cfg="${1:?p1 config required}"; shift || true
+    p2cfg="${1:-}"; shift || true
+    ttag="${1:-sprt_ab}"; shift || true
+    maxg="${1:-1200}"; shift || true
+    e1="${1:-5}"; shift || true
+    gconc="${1:-4}"; shift || true
+    oset="${1:-openings_uho.txt}"; shift || true
+    gseed="${1:-0}"; shift || true
+    export STOCKFISH_PATH="$SF"
+    export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1            VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
+    "$PY" selfplay/sprt.py         --p1-label A --p1-config "$p1cfg"         --p2-label B --p2-config "$p2cfg"         --preset LIGHTNING --concurrency "$gconc" --elo0 0 --elo1 "$e1" --max-games "$maxg"         --adjudicate-draw --quiet --tag "$ttag"         --openings "selfplay/$oset" --seed "$gseed"
+    ;;
+
   time_ab)
     # TIMED two-sided A/B -- the missing counterpart to `node_ab`/`fast_ab`. Every other timed sub
     # (`gate`, `gate_blitz`, `tournament`, `tournament_seeded`) pins ONE side to "" = the DEFAULT eval,

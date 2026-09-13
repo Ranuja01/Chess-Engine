@@ -2128,6 +2128,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             std::cerr << "☠️ KS_V2_HALF must be >= 1 (it is a denominator) -- restoring 900." << std::endl;
             Config::KS_V2_HALF = 900;
         }
+        Config::EVAL_V2_PIECE_MG_PCT = env_int("EVAL_V2_PIECE_MG_PCT", Config::EVAL_V2_PIECE_MG_PCT);
         Config::EVAL_V2_MG_LIMIT = env_int("EVAL_V2_MG_LIMIT", Config::EVAL_V2_MG_LIMIT);
         Config::EVAL_V2_EG_LIMIT = env_int("EVAL_V2_EG_LIMIT", Config::EVAL_V2_EG_LIMIT);
         if (Config::EVAL_V2_MG_LIMIT <= Config::EVAL_V2_EG_LIMIT){

@@ -504,6 +504,16 @@ namespace Config
     // DEFAULT 1000 = flat = byte-identical to rung 0. This knob IS the rung-0.5 experiment.
     inline int EVAL_V2_PAWN_MG = 1000;
 
+    // ★ PIECE-SIDE taper: percent of a NON-PAWN piece's value applied in the FULL MIDGAME (100 = flat).
+    // Same material RATIO shift as tapering the pawn, but the PAWN STAYS THE UNIT OF ACCOUNT -- which is
+    // the whole point. `EVAL_V2_PAWN_MG` below 1000 silently inflates EVERY positional constant relative
+    // to material in the midgame (KS_V2_MAX=4000 stops being "4 pawns" and becomes ~7.3 midgame pawns),
+    // and STS measured that as a monotone regression: 1698 flat -> 1614 at PAWN_MG 550 -> 1522 at 700.
+    // ⚠️ Calibration: in PAWN units SF's knight falls 781/128 = 6.10 (mg) to 854/213 = 4.01 (eg), i.e.
+    // pieces are relatively DEARER in the midgame. Preserving our shipped endgame values and adding only
+    // the relative shift gives 6.10/4.01 = 152%. So 152 reproduces SF's ratio movement with our material.
+    inline int EVAL_V2_PIECE_MG_PCT = 100;
+
     // Phase interpolation endpoints for v2, in non-pawn material summed over BOTH sides (our units, so a
     // full army is 43,400). Scaled from SF11's MidgameLimit/EndgameLimit as a fraction of its own full
     // npm (0.919 / 0.236). v2 owns its phase: v1's phase_score is INVERTED (0 = opening) and consumed as

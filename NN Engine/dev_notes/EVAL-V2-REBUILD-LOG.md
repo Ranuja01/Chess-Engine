@@ -787,3 +787,75 @@ Amended order: 1 KS ✅ · 2 pawns + passers + shelter · 3 central + space · *
 placement: outposts, minor-behind-pawn, bishop colour complex, bishop long diagonal, trapped rook, queen
 weak)** · 5 Kaufman (owns pairs) · 6 rook files (in rung 4's pass, gated separately) · 7 corrhist ·
 8 threats · 9 winnability · 10 capgains (parked-but-live) · 11 OvD.
+
+---
+
+## 2026-09-12 -- PROTOCOL CLARIFICATION: when retuning an earlier rung is legitimate (owner)
+
+Owner: *"if we do end up needing to retune previous rungs as we go or after everything is done, that's not
+something to be ashamed of, so these values could change slightly by then."*
+
+This resolves an apparent contradiction in the plan. The escalation table marks **"retune the NEIGHBOURS"**
+as a ☠️ RED FLAG, while the tuning cadence says **"feature-local per rung, FULL RETUNE at checkpoints"**.
+Both are right; they answer different questions.
+
+| case | what is being asked | verdict |
+|---|---|---|
+| ☠️ **Rescue** -- retune neighbours so ONE new term starts paying | "can I make this term look good?" | RED FLAG. It means the term has no independent value and is being propped up. This IS the fitted-around-neighbours signature the rebuild exists to escape |
+| ✅ **Checkpoint retune** -- all constants move together because the eval's COMPOSITION changed | "given this eval now has N terms, what are the right constants?" | LEGITIMATE and PLANNED |
+| ✅ **Revision** -- a later rung reveals an EARLIER rung's constant was wrong | "was the earlier value an artifact of what was missing then?" | LEGITIMATE. ★ This is the ladder working, not a failure |
+
+★ The pawn taper is exactly the third case: `EVAL_V2_PAWN_MG` measured NULL at rung 0.5 and is the largest
+single result of the rebuild at rung 2. Its earlier value was an artifact of having no pawn structure for
+it to act on -- which is precisely why it was PARKED with a re-test trigger rather than refuted.
+
+⇒ **Immediate consequence: the rung-1 KS constants were tuned against a FLAT 1000 pawn.** If a taper ships,
+`KS_V2_MAX=4000` stops being "4 pawns" in the midgame and becomes ~7.3 midgame pawns. Under this
+clarification, re-checking KS after the taper is **expected**, not an admission that rung 1 was wrong.
+⚠️ The discipline that still applies: a revision must be driven by a STRUCTURAL reason (the unit of account
+changed), never by "the number looks better if I move it".
+
+---
+
+## 2026-09-12 -- STS OVERTURNS THE TAPER, AND THE PAWN RUNG IS A BIG WIN
+
+Owner: *"WAC at d10 is a bit weird -- we were beating SF with it despite being definitively inferior.
+They crushed in STS though, which is probably what we should be measuring with."*
+=> Re-measured the whole pawn rung on STS. Recorded as
+[[wac-at-d10-does-not-discriminate-strength]]; WAC remains valid ONLY as a byte-identity fingerprint.
+
+```
+v1 (arm 0)              1796/3000
+rung 1 only             1480/3000
+2a+2b, NO taper         1698/3000     +218 over rung 1
+2a+2b + pawn taper 550  1614/3000     -84
+2a+2b + pawn taper 700  1522/3000     -176
+```
+
+### ★ ★ ★ The pawn rung is worth +218 STS -- 3x the ~70-point chaotic floor
+And **v2 with FOUR subsystems (material, PST, KS, pawns) is now 98 points from v1's ~30 terms**, down from
+a 432-point gap at rung 0. => **The rebuild has closed 77% of the STS gap to v1.**
+
+### ☠️ ☠️ The taper is a MONOTONE REGRESSION on STS, and §I said the opposite
+§I called the pawn taper the single biggest win of the rebuild (-6.59% mean, worst -2.05%, negative on all
+six corpora). STS calls it -84 / -176. **Two instruments, opposite signs, both large.**
+=> `corpus-fit-is-anti-correlated-with-elo` with a SECOND instrument confirming rather than a suspicion.
+⚠️ §I is a STATIC accuracy measure against SF18; STS is a MOVE-CHOICE measure. When they disagree this
+hard, the change is altering the eval's SCALE rather than its ordering -- which is exactly what a material
+change does.
+
+### ★ The mechanism survived even though my evidence for it did not
+I first flagged the taper using a WAC drop (245/300), which the owner then showed is worthless -- WAC at
+d10 does not discriminate strength. **But the HYPOTHESIS was right**: tapering the pawn inflates every
+positional constant relative to material in the midgame (`KS_V2_MAX=4000` stops being "4 pawns" and becomes
+~7.3 midgame pawns), and STS confirms the direction on better evidence.
+=> ⚠️ Worth separating: *the hypothesis was sound, the evidence I cited for it was not, and I should have
+said so when I quoted it.*
+
+### => THE DECISIVE TEST: taper the PIECES, not the pawn
+Same material RATIO shift, but the pawn stays the UNIT OF ACCOUNT so every positional constant keeps its
+meaning. New knob `EVAL_V2_PIECE_MG_PCT` (percent of a piece's value in the full midgame).
+Calibration: in PAWN units SF's knight falls 6.10 (mg) -> 4.01 (eg), so preserving our shipped endgame
+values and adding only the relative shift gives **152%**.
+★ Prediction: if the taper's harm is the unit-of-account side effect rather than the material ratio
+itself, the piece-side version should hold or improve STS where the pawn-side version lost 84-176 points.

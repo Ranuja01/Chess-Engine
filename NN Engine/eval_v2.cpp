@@ -125,8 +125,17 @@ struct V2Context {
 */
 inline int v2_piece_value(int t, int phase256)
 {
-	if (t != 0)                                        // pieces are flat for now; the endgame leg is
-		return values[t + 1];                          // already the consensus endgame ratio
+	if (t != 0){
+		// Non-pawn pieces. ★ The PIECE-SIDE taper: relative to PAWNS, pieces are DEARER in the midgame
+		// (SF's knight is 781/128 = 6.10 pawns mg, 854/213 = 4.01 eg). Applying the shift HERE instead of
+		// to the pawn keeps the pawn at 1000 as the UNIT OF ACCOUNT, so every positional constant keeps
+		// its meaning. ☠️ Tapering the pawn instead inflates them all in the midgame: STS measured
+		// 1698 flat -> 1614 at PAWN_MG 550 -> 1522 at 700, monotone.
+		const int peg = values[t + 1];
+		if (Config::EVAL_V2_PIECE_MG_PCT == 100) return peg;   // identity short-circuit
+		const int pmg = peg * Config::EVAL_V2_PIECE_MG_PCT / 100;
+		return (pmg * phase256 + peg * (256 - phase256)) >> 8;
+	}
 	const int mg = Config::EVAL_V2_PAWN_MG;
 	const int eg = values[1];
 	if (mg == eg) return eg;                           // identity short-circuit: the default path is free

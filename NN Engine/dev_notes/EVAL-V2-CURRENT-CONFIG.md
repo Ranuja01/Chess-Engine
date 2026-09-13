@@ -98,3 +98,66 @@ slice it is games-tested in. Rung 2 ran exactly this way: 2a and 2b were attribu
 −1.44% where games said +101. If a slice fails, the per-component §I numbers are weaker evidence than they
 look; the mitigation is a leave-one-out games run on the most suspect member, paid only when needed.
 ⚠️ This limit exists in EITHER ordering. It is a cost of bundling, not of any particular sequence.
+
+---
+
+## 5. THE SLICE PLAN (2026-09-13) -- games budget, not design order
+
+★ **The RUNG is the design/attribution unit; the SLICE is only the GAMES unit.** Every component below
+still gets its own four scans, design doc, knob, gates and §I/STS attribution. Only games are bundled.
+
+**Why bundling at all:** measured venue power -- one night (~1,200 games at ~116 games/hr, conc 4)
+resolves **~+20 Elo and nothing smaller**; +10 needs ~4 nights; +5 needs ~16. And the ladder is shrinking:
+KS **+101** -> pawns **+60.4**.
+
+| slice | components | rationale |
+|---|---|---|
+| **1** | tempo - draw classifier - mate drive - Kaufman + pairs - rook files | order-INVARIANT terms that cannot cancel (a categorical classifier and a side-to-move constant overlap with nothing). Thickens the eval before the big measurements |
+| **2** | mobility + per-piece placement (outposts, bishop colour complex, bishop long diagonal, minor-behind-pawn, trapped rook, queen weak) | largest remaining missing channel -- test ALONE while that is still possible |
+| **3** | central + space + threats | shared attack maps, coherent unit |
+| **4** | ☠️ corrhist - winnability - capgains - OvD | **LAST BY NECESSITY** -- see below |
+
+### ☠️ WHY THE RESIDUAL-CORRECTORS MUST BE LAST (the owner proposed running them first; this is why not)
+Owner's argument: low-value slices get harder to pass as the eval grows, so run them while they are a
+larger fraction. **Correct for REDUNDANCY-limited terms, and it backfires for RESIDUAL-CORRECTORS.**
+`corrhist` corrects the residual between static eval and what search found. On a four-term eval that
+residual is enormous, so corrhist would look EXCELLENT -- and that value evaporates as real terms land.
+Same for winnability and capgains.
+★ It is the same law pointed the other way: *"a feature measured where it is redundant looks worthless"*
+<=> *"a residual-corrector measured where the residual is huge looks essential."*
+=> Reversing the order does not escape the measurement bias, it INVERTS it.
+✅ **What survives from the owner's proposal: the SMALL ORDER-INVARIANT terms (slice 1) genuinely can go
+early**, and doing so means the big rungs are measured against a fuller eval, closer to what ships.
+
+⚠️ **The bundling-attribution cost exists in EITHER ordering** -- it is a cost of bundling, not of a
+sequence. §I does not reliably predict which member carries the Elo (it read KS at -1.44%; games said
++101). Mitigation when a slice fails: a leave-one-out games run on the most suspect member.
+
+---
+
+## 6. ☠️ DRAW DETECTION ALREADY HAS HISTORY -- CONSULT IT BEFORE DESIGNING
+
+⚠️ **Found 2026-09-13 by auditing `HANDOFF.md`, AFTER I had discussed draw detection as new work.**
+A record-check would have found it first. See memory [[endgame-draw-detection]].
+
+| already done (v1) | |
+|---|---|
+| `is_practically_drawn` | **9 cases, LIVE and unconditional** in the endgame branch; returns 0 outright |
+| KPvK rook-pawn case | SHIPPED 2026-06-27, from a real external loss (engine traded INTO a dead draw reading **+4870**) |
+| R+N-vs-R, KRKN, KRKB | SHIPPED 2026-06-08; the `+1N` endgame over-read went **461 -> 142** |
+| 🧰 `diagnostics/_kpk_oracle.py` | **83,238 states, 0 false-draws.** The oracle tooling EXISTS |
+| ⭐ the standing GATE (owner, June) | *"a self-play tournament is uninformative for a self-play-invisible fix -> ship on verifiable position-fix + no bench regression"* |
+
+★ ★ **That gate IS today's "verification is proportionate" rule -- the owner set it three months ago.**
+=> For v2's draw classifier: re-derive (do NOT port -- v1's reads globals and returns via control flow),
+verify each case against the oracle for **NO FALSE POSITIVES**, measure firing rate and NPS, and ship on
+that. No games attribution required or expected.
+
+### ⚠️ A NAMED UNFINISHED FOLLOW-UP, still open
+From the 2026-06-08 entry: *"a **graded drawishness scale** (oppo-bishops / R-vs-2-minors /
+R+N-vs-R-WITH-pawn -- the cases the binary detector cannot express), which would also subsume the
+mate-drive knob."*
+=> That is **`endgame_convertibility_scale`**, which was BUILT (3 concepts: <=1 minor with no pawns /
+opposite-coloured bishops / a winning passer pulling back toward 1) and left at `ENABLE_ENDGAME_SCALE=false`.
+★ It belongs in slice 1 alongside the classifier, and the June note says it may SUBSUME the mate drive --
+so build them together and test whether the mate-drive knob is still needed.

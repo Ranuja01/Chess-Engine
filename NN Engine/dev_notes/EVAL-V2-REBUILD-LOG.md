@@ -958,3 +958,57 @@ when the expected effect falls below what the venue can resolve, not on a fixed 
 - **Taper: do NOT spend a night on it.** Three move-level instruments read it inside their floors; if it is
   a +/-10 Elo effect the venue cannot resolve it in one night, and the result would be another unresolved
   null in the record. Carry it as an open question into a later checkpoint bundle.
+
+---
+
+## 2026-09-13 (07:26) -- ★ ★ RUNG 2 PASSES IN GAMES: +60.4 +/-25.5 Elo
+
+`sprt_ab` (new), LIGHTNING, conc 4, `openings_uho.txt` **seed 7** (not the default 0 -- that is a known
+read-inflater). Both arms `EVAL_ARM=1`, differing ONLY in the pawn layer.
+```
+A = rung-1 KS + PS_V2_MAG=100 PASSER_V2_MAG=60
+B = rung-1 KS
++495 -325 =167 of 987  (58.6%)   elo ~ +60.4 +/-25.5   LLR +2.926
+DECISION: H1 accepted -- P1 is stronger
+```
+✅ Control re-verified after the run: arm 0 = **250 / 35,310,778 / EBF 3.784**, byte-identical. v1 is
+untouched despite a full day of eval work.
+
+### ★ ★ THREE INSTRUMENTS AGREED, AND THEY WERE RIGHT
+| instrument | reading | floor | verdict |
+|---|---|---|---|
+| §I eval accuracy | -0.97% | 0.05% | helps |
+| STS300 | **+218** | 150 | helps |
+| **games** | **+60.4 +/-25.5** | ~20 | **helps** |
+
+=> The "corroboration" rule that chose this candidate over the taper was CORRECT: when two independent
+instruments agree, trust it; when they conflict, do not spend a night. The taper had §I strongly positive
+and every move-level instrument inside its floor -- had we run that instead, the night would most likely
+have produced another unresolved null.
+
+### ⚠️ Early SPRT readings were badly misleading, exactly as warned
+| games | elo | |
+|---|---|---|
+| 125 | ~+6 | looked flat; I said "not behaving like a large effect" |
+| 239 | ~+28 | drifting |
+| **987** | **+60.4** | true |
+★ At 125 games SE is ~+/-90 Elo -- the reading carried no information. **Do not report an SPRT point
+estimate before the LLR is a meaningful fraction of its bound.**
+
+### The ladder so far
+| rung | content | games |
+|---|---|---|
+| 1 | king safety | **+101 Elo** |
+| 2 | pawn structure + passers | **+60.4 Elo** |
+
+⚠️ **The rungs are shrinking (101 -> 60), exactly as the owner anticipated.** +60 still clears the ~20 Elo
+the venue resolves, so rung 3 can still be tested alone -- but the bundling trigger is now visibly
+approaching rather than hypothetical.
+
+### STS attribution, for rung-3 planning
+rung1 1480 -> 2a only 1579 (+99) -> +2b@25 1626 (+146) -> +2b@60 **1698 (+218)**.
+⚠️ Only the full config cleared STS's +/-150 floor; the components individually did not. The bundling
+rule already fired in miniature at rung 2.
+
+☠️ **`OPTIMIZATION_LOG.md` still NOT touched.** This is rung 2 vs rung 1 -- a v2-internal comparison.
+v2 earns a canonical entry only by beating **v1** in games, and it is still ~98 STS points behind.

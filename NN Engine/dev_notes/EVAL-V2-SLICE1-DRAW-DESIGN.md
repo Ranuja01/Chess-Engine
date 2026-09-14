@@ -2,7 +2,9 @@
 
 @author: Ranuja Pinnaduwage (maintained with Claude)
 
-Date: **2026-09-13**. Status: **designed, not yet built.**
+Date: **2026-09-13**. Status: ✅ **BUILT AND GATED — all four gates pass, `DRAW_V2_CLASS` default off; awaits the owner’s
+sign-off on the gate.** ⚠️ This document records the design AS IT EVOLVED through the day. Where an early section and a
+later measurement disagree, **the LATER measurement stands** — read §2b-§2d and the final tables before trusting §1.
 History that governs this: `EVAL-V2-CURRENT-CONFIG.md` §6 · memory [[endgame-draw-detection]].
 
 ★ **One sentence:** v1 already ships a binary draw detector and a built-but-disabled graded scale; the v2
@@ -90,9 +92,9 @@ which is a different mechanism. v2's scale gets measured on its own.
 | 1 | `no_king_mask == 0` (KvK) | `:6803` | ✅ **PROVABLE** |
 | 2 | KB vs K / KN vs K | `:6780-6784` | ✅ **PROVABLE** |
 | 3 | equal count, only bishops or only knights (KBvKB, KNvKN) | `:6774-6777` | ✅ **PROVABLE** |
-| 4 | K + lone rook pawn vs K, chebyshev opposition | `:6813` | ✅ **oracle-validated** (`_kpk_oracle.py`, 0 false-draws) |
+| 4 | K + lone rook pawn vs K, chebyshev opposition | `:6813` | ☠️ **NOT clean as shipped — measured 6.2% FP** despite the June `_kpk_oracle.py` claim; the race test ignores side to move. v2: OFF in `DRAW_V2_KPK`; fix = exact KPK bitbase |
 | 5 | wrong-coloured bishop + rook pawn, opposition | `:6838` | ☠️ **NOT ground truth — measured 9.1% FP** (see below) |
-| 6 | bishop vs lone pawn (can't promote) | `:6929` | ✅ 0 FP measured |
+| 6 | bishop vs lone pawn (can't promote) | `:6929` | ⚠️ 0/62 at first, then **1/80 (1.2%) on a fresh seed**; 0/304 with v2’s tempo term. OFF in `DRAW_V2_KPK` |
 | 7 | knight vs lone pawn | `:6978` | ⚠️ unproven — my Python mirror is approximate here |
 | 8 | **R+B vs R** | `:6882` | ☠️ **NOT ground truth** — the code's own comment says *"known theoretical draw in most cases"* |
 | 9 | **R+N vs R** | `:6899` | ☠️ **NOT ground truth** — same comment |
@@ -331,10 +333,12 @@ like any positional term.
 
 ⚠️ They pass the **proposed** DTM-weighted gate (§2d), which awaits the owner's sign-off — not literal zero-FP,
 which the constructed KNvKN mate-in-1 shows no sampler can certify.
-⚠️ **KNN vs K is a case where the references disagree** (Weiss draws, SF scales to 4/64). The tablebase sided with
-Weiss here; the rationale is that two knights cannot force mate against correct defence.
-★ The wrong-bishop case enters in SF's **fortress** form. v1's **race** form of the same idea measured 10% FP. ⚠️ SF scales KNN vs K to 4/64 rather than drawing it, while Weiss draws it:
-the references *disagree*, so the tablebase decides.
+✅ **KNN vs K: the references AGREE** — SF’s named `Endgame<KNNK>` returns `VALUE_DRAW`, Weiss draws it. ⚠️ *Corrected
+2026-09-13*: this row first said SF “scales to 4/64” — that is only the generic material rule, which a named handler
+overrides. Lesson: check for a NAMED handler before citing SF’s generic rule for any specific ending.
+★ The wrong-bishop case enters in SF's **fortress** form. v1's **race** form of the same idea measured 10% FP. ✅ Every reference draws KNN vs K: SF’s named `Endgame<KNNK>` returns `VALUE_DRAW` (SF11 `endgame.cpp:329`,
+SF15.1 `:313`) and overrides the generic scale; Weiss draws it too. ⚠️ *Corrected 2026-09-13* — this line first
+claimed SF scales it to 4/64, having read only the generic material rule.
 
 ## 2d. ☠️ "ZERO FALSE POSITIVES" IS UNATTAINABLE FOR MINOR-PIECE DRAWS — PROPOSED: WEIGHT BY DTM
 

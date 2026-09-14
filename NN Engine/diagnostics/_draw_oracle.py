@@ -177,7 +177,7 @@ SIGS = {
     "N_vs_P_maybe":    ([chess.KNIGHT], [chess.PAWN]),
     # 2026-09-13 candidates for v2, adopted from the references and checked here before any C++:
     "KBvKN":           ([chess.BISHOP], [chess.KNIGHT]),          # Weiss draws it; v2 misses it
-    "KNNvK":           ([chess.KNIGHT, chess.KNIGHT], []),        # Weiss draws, SF scales 4/64 -- they DISAGREE
+    "KNNvK":           ([chess.KNIGHT, chess.KNIGHT], []),        # every reference draws it (SF named Endgame<KNNK> = VALUE_DRAW; Weiss)
     "sf_wrongB":       ([chess.BISHOP, chess.PAWN], []),          # SF KBPsK fortress form, not v1's race
 }
 
@@ -214,7 +214,8 @@ def v2_case(bd):
     # KB vs KN (Weiss draws it): one bishop, one knight, opposite sides, nothing else.
     if n_b == 1 and n_n == 1 and nk == (bi | kn) and bool(bi & w) != bool(kn & w):
         return "KBvKN"
-    # KNN vs K: Weiss draws it, SF scales it to 4/64 -- the references DISAGREE, so the TB decides.
+    # KNN vs K: every reference draws it -- SF named Endgame<KNNK> returns VALUE_DRAW (overrides the 4/64
+    # generic scale an earlier comment wrongly cited); Weiss TrivialDraw.
     if n_n == 2 and nk == kn and (kn & w) in (0, kn):
         return "KNNvK"
     # SF KBPsK fortress form (endgame.cpp:356): bishop + rook pawn on the same side, wrong-coloured

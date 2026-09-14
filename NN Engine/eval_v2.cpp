@@ -1072,8 +1072,11 @@ static bool draw_class(const V2Context &c) noexcept
 	    ((c.bishops & c.white) != 0) != ((c.knights & c.white) != 0))
 		return true;
 
-	// KNN vs bare K. ⚠️ The references DISAGREE: Weiss draws it, SF scales it to 4/64. The tablebase sided with
-	// Weiss (0/400), and two knights cannot force mate against correct defence.
+	// KNN vs bare K. Every reference draws it: SF's named handler `Endgame<KNNK>` returns VALUE_DRAW (SF11
+	// endgame.cpp:329, SF15.1 :313) and named handlers override the material scale factor; Weiss TrivialDraw.
+	// Tablebase 0/400, and two knights cannot force mate against correct defence.
+	// ⚠️ Corrected 2026-09-13: an earlier comment here said SF "scales it to 4/64" -- that read only the generic
+	// material rule and missed that the named KNNK handler takes precedence.
 	if (n_n == 2 && nk == c.knights &&
 	    ((c.knights & c.white) == 0 || (c.knights & c.white) == c.knights))
 		return true;

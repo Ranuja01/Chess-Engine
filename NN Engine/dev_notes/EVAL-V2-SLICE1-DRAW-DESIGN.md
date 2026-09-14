@@ -2,7 +2,7 @@
 
 @author: Ranuja Pinnaduwage (maintained with Claude)
 
-Date: **2026-09-13**. Status: ✅ **BUILT AND GATED — all four gates pass, `DRAW_V2_CLASS` default off; awaits the owner’s
+Date: **2026-09-13**. Status: ✅ **BUILT AND GATED — all four gates pass, and ENABLED in the shipped v2 config (`DRAW_V2_CLASS=1`) on the owner’s conditional
 sign-off on the gate.** ⚠️ This document records the design AS IT EVOLVED through the day. Where an early section and a
 later measurement disagree, **the LATER measurement stands** — read §2b-§2d and the final tables before trusting §1.
 History that governs this: `EVAL-V2-CURRENT-CONFIG.md` §6 · memory [[endgame-draw-detection]].

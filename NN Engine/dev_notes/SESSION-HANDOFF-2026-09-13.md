@@ -13,17 +13,22 @@ slice plan) → memory `eval-v2-rebuild-state` → only then the design docs it 
 |---|---|
 | Rungs 0–2 | ✅ done, passed games: KS **+101**, pawns **+60.4 ±25.5**. v2 STS **1698** vs v1 **1796** |
 | Slice 1 — tempo | ☠️ **PARKED at 0** with two re-test triggers (§4). Proven correct by exact identity; magnitude ladder unordered; reference constant was pawn-converted to 8× v2's positional spread. `EVAL-V2-SLICE1-TEMPO-DESIGN.md` |
-| Slice 1 — draw classifier | ✅ **BUILT, ALL FOUR GATES PASS**, `DRAW_V2_CLASS` **default OFF**. `EVAL-V2-SLICE1-DRAW-DESIGN.md` |
+| Slice 1 — draw classifier | ✅ **BUILT, ALL FOUR GATES PASS, and ENABLED in the shipped v2 config** (`DRAW_V2_CLASS=1`, owner’s conditional sign-off; STS, WAC solves and §I all unchanged). `EVAL-V2-SLICE1-DRAW-DESIGN.md` |
 | v1 defect (documented, NOT fixed — frozen control) | 5 of 10 `is_practically_drawn` cases flag forced wins (10–28%); K+R+B vs K+R (TB win in 21) evals 0 in the shipped engine |
-| Git | `cc6a143` (slice 1 work) + `6918579` (KNN-vs-K correction, doc header) + the docs commit made with this file. **Branch ahead of remote; NOT pushed** |
+| Git | `cc6a143` (slice 1 work) + `6918579` (KNN-vs-K correction, doc header) + the docs commit made with this file. **Pushed to origin** (`f16cb74..0ef3272`); the recount + draw-enable commit follows |
 
 **Leftover from the previous handoff, now ANSWERED:** "does +218 STS hold at passer mag 25?" — measured the same day:
 rung1 1480 · 2a only 1579 · 2a+2b **mag 25 → 1626** · **mag 60 → 1698** (shipped). Mag 60 stands.
 
 ---
 
-## 2. PENDING OWNER DECISIONS
+## 2. OWNER DECISIONS — RESOLVED 2026-09-13
 
+✅ **Draw gate: signed off conditionally** (“if cleanly revertible and non-detrimental as the giants AND tests showcase”). All three
+conditions met → `DRAW_V2_CLASS=1` is in the shipped v2 config. ✅ **Push: done.** Full v1-vs-v2 recount with benches:
+`EVAL-V2-VS-V1-RECOUNT-2026-09-13.md`.
+
+(Original wording, kept for the record:)
 1. **Draw gate sign-off** — tolerate SHORT false positives (search plays them), forbid LONG ones. ★ This is not a new
    standard: SF, Ethereal and Weiss all draw KBvKB/KNvKN/KBvKN/KNNvK despite rare immediate mates, and never hard-zero
    technique-winnable endings. If signed off: set `DRAW_V2_CLASS=1` in the shipped v2 config (§1 of the register).

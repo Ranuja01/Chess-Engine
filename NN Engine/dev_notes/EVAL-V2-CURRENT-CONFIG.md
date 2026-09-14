@@ -116,7 +116,41 @@ look; the mitigation is a leave-one-out games run on the most suspect member, pa
 
 ---
 
-## 5. THE SLICE PLAN (2026-09-13) -- games budget, not design order
+## 5. THE SLICE PLAN -- games budget, not design order
+
+### ★★ CURRENT: REVISED PLAN (agreed with the owner, end of 2026-09-13) -- supersedes the original table below
+⚠️ **Naming:** RUNGS 0-2 (material+PST, king safety +101, pawns +60.4) are DONE. On 09-13 the *remaining* ladder was
+regrouped into SLICES, numbered from 1 again -- so "slice 1" is NOT "rung 1".
+
+| slice | contents | games |
+|---|---|---|
+| **1** | ✅ **draw classifier** (`DRAW_V2_CLASS`, built + gated, awaits gate sign-off) · ☠️ tempo PARKED | none -- classifications ship on oracle proof + no bench regression |
+| **2** ▶️ **NEXT** | **mobility + per-piece placement** (outposts, bishop colour complex, long diagonal, minor-behind-pawn, trapped rook, queen weak) **+ rook files** (they ARE per-piece placement) | **ALONE** -- likely the last term big enough to read solo |
+| **3** | central + space + threats **+ Kaufman/pairs** | bundle, tested for REGRESSION |
+| **4** ★ NEW | **ENDGAME CONVERSION**: exact KPK bitbase · corner-drive value for KR vs minor (SF tier 2b) · endgame-leg scale incl. SF's generic pawnless rule and Ethereal's lone-minor rule · mate drive · fifty-move plumbing · **+ winnability** | bundle, tested for REGRESSION |
+| **5** | ☠️ **corrhist + capture gains + OvD** -- LAST BY NECESSITY (residual correctors) | bundle |
+
+**Why it moved:**
+- Tempo parked; the draw classifier ships through the oracle, not games; the leftover endgame work turned out to be one
+  coherent unit. Mate drive + convertibility scale moved from slice 1 to slice 4; Kaufman to 3; rook files to 2.
+- ★ **Winnability moved from the correctors (old slice 4) into endgame conversion.** It was MIS-CATEGORISED as a residual
+  corrector: it is STRUCTURAL (passers, pawn flanks, infiltration, npm), not learned from search residual, and it is the
+  same family as scale factors -- SF11 applies `score += initiative(score)` immediately before `scale_factor(eg_value(score))`.
+  Designing it WITH the endgame scale is the point: both reshape the eg leg and share detectors (OCB, pawn count), so the
+  overlap check has to see them together or they double-count.
+- Endgame conversion goes AFTER the middlegame channels: it fires almost only in endgames, so order does not bias either
+  measurement, while mobility/central/space get harder to read alone as the eval grows.
+- The KPK bitbase can FLOAT -- oracle-gated like the classifier, build it in any idle gap.
+- Slice 5 is not "too weak" -- strength is not an ordering criterion (bundles are tested for regression), and capture
+  gains alone is the entire v1-v2 variant gap (+176.89%).
+
+**Tempo triggers (parked, NOT permanent):** (1) after slice 2 mobility lands -- an STS ladder at POSITIONALLY-scaled
+magnitudes ~25/50/100 mp (mobility is the biggest missing quiet-move responder, the untested half of the owner's richness
+hypothesis); (2) at the checkpoint margin re-sweep. Low prior: SF itself deleted tempo.
+
+---
+
+### (original 2026-09-13 table, SUPERSEDED by the block above -- kept as history)
 
 ★ **The RUNG is the design/attribution unit; the SLICE is only the GAMES unit.** Every component below
 still gets its own four scans, design doc, knob, gates and §I/STS attribution. Only games are bundled.

@@ -2109,6 +2109,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_V2_CAND_PCT = env_int("PASSER_V2_CAND_PCT", Config::PASSER_V2_CAND_PCT);
         Config::PASSER_V2_MG_PCT = env_int("PASSER_V2_MG_PCT", Config::PASSER_V2_MG_PCT);
         Config::PASSER_V2_EG_PCT = env_int("PASSER_V2_EG_PCT", Config::PASSER_V2_EG_PCT);
+        Config::TEMPO_V2_MG = env_int("TEMPO_V2_MG", Config::TEMPO_V2_MG);
+        Config::TEMPO_V2_EG = env_int("TEMPO_V2_EG", Config::TEMPO_V2_EG);
+        Config::DRAW_V2_CLASS = env_flag("DRAW_V2_CLASS", Config::DRAW_V2_CLASS);
+        Config::DRAW_V2_KPK = env_flag("DRAW_V2_KPK", Config::DRAW_V2_KPK);
         if (Config::PASSER_V2_MIN_RANK < 0 || Config::PASSER_V2_MIN_RANK > 7){
             std::cerr << "☠️ PASSER_V2_MIN_RANK must be 0..7 -- restoring 3." << std::endl;
             Config::PASSER_V2_MIN_RANK = 3;
@@ -2322,6 +2326,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
                   << " PASSER_V2_MAG=" << Config::PASSER_V2_MAG
+                  << " TEMPO_V2_MG=" << Config::TEMPO_V2_MG
+                  << " TEMPO_V2_EG=" << Config::TEMPO_V2_EG
+                  << " DRAW_V2_CLASS=" << Config::DRAW_V2_CLASS
+                  << " DRAW_V2_KPK=" << Config::DRAW_V2_KPK
                   << " PS_V2_MAG=" << Config::PS_V2_MAG
                   << " PS_V2_CONN_FORM=" << Config::PS_V2_CONN_FORM
                   << " PS_V2_FILE_TILT=" << Config::PS_V2_FILE_TILT

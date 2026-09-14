@@ -808,6 +808,62 @@ namespace Config
     inline int PASSER_V2_MG_PCT = 0;
     inline int PASSER_V2_EG_PCT = 100;
 
+    // Slice 1 / component 1 -- TEMPO: a bonus for simply being the side to move, phase-blended and added
+    // to v2's Black-positive total. Design + the five-engine table: dev_notes/EVAL-V2-SLICE1-TEMPO-DESIGN.md.
+    // 4 of our 5 references carry one (SF1.1 50/20 phased, SF11 flat 28, Ethereal 20, Weiss 18); SF15.1
+    // REMOVED it from eval and search together, in the generation where NNUE -- natively side-to-move-aware
+    // -- became the real eval. So this is a CANDIDATE under the "adopt only what all references do" rule,
+    // not a mandate.
+    // ★ The three flat-constant engines get a mg:eg taper of ~1.7-2.0 FOR FREE, because their pawn is worth
+    // more in the endgame (128->213, 82->144, 104->204) while the tempo constant is not. OUR pawn is FLAT at
+    // 1000 in both phases, so copying the flat form would give us a flat-in-pawns tempo that none of them
+    // has. We take SF1's SHAPE (an explicit phased pair) with the others' MAGNITUDES -- reference medians
+    // converted into our units are mg 200 / eg 110.
+    // ☠️ The mirror gate CANNOT check this term: _eval_symmetry.py mirrors `turn` too, so a backwards sign
+    // passes clean. Its gate is diagnostics/eval_symmetry.py's TEMPO swing, which is an EXACT identity here
+    // (v2 is otherwise 100% side-to-move-blind): the swing must equal exactly 2*t on every position.
+    // ⚠️ Order-invariant WITHIN a node (all siblings share the resulting side to move, so it cannot reorder
+    // at fixed depth) but NOT margin-invariant: 200 mp is ~13% of RFP_MARGIN's 1500/ply, and those margins
+    // were fitted against a side-to-move-blind eval. Screen node count BEFORE ranking it on accuracy.
+    // Both default 0 == byte-identical.
+    inline int TEMPO_V2_MG = 0;
+    inline int TEMPO_V2_EG = 0;
+
+    // Slice 1 -- BINARY DRAW CLASSIFIER. Returns 0 for the whole eval on positions that are dead draws.
+    // Design + the oracle measurement: dev_notes/EVAL-V2-SLICE1-DRAW-DESIGN.md.
+    // ☠️ Membership is MEASURED, not reasoned. v1's is_practically_drawn carries ten cases and FIVE of them
+    // flag forced WINS -- R+B-vs-R 28%, R+N-vs-R 22%, bare-R-vs-bare-minor 24/28%, wrong-coloured-bishop
+    // rook pawn 10% (🧰 diagnostics/_draw_oracle.py vs the Lichess 7-piece tablebase, two seeds). v2 keeps
+    // only the cases that came back 0-for-62: KvK/KBvK/KNvK, KBvKB/KNvKN, the oracle-validated lone rook
+    // pawn, and bishop-vs-lone-rook-pawn.
+    // ⚠️ UPDATE 2026-09-13: the lone-pawn cases later moved to DRAW_V2_KPK (6.2% FP). Added from the references
+    // after oracle checks (uniform + corner-biased, 2 seeds): KBvKN 0/400, KNNvK 0/400, and the wrong-bishop
+    // rook pawn in SF's FORTRESS form (king already beside the queening corner) 0/286 -- NOT v1's race (10% FP).
+    // These pass the PROPOSED DTM-weighted gate, which awaits the owner's sign-off. The rest are "usually drawn, sometimes won" -- a MAGNITUDE a bool
+    // cannot express -- and belong in the convertibility scale (DRAW_V2_SCALE, not yet built).
+    // ★ Owner's rule, June: a won position flagged drawn is CATASTROPHIC; a missed draw only forfeits an
+    // opportunity. Target NO FALSE POSITIVES, never coverage.
+    // ⭐ Ships on oracle proof + no bench regression, NOT on a games SPRT -- the owner's standing gate for a
+    // self-play-invisible fix. Expect it to fire on well under 1% of positions.
+    // 0 = off == byte-identical.
+    inline bool DRAW_V2_CLASS = false;
+
+    // Slice 1 -- the LONE-PAWN draw cases (K + rook pawn vs K; bishop vs a lone rook pawn), split off from
+    // DRAW_V2_CLASS because they are NOT clean and must not ride on it.
+    // ☠️ MEASURED: v1's chebyshev-opposition test ignores whose move it is -- 6.2% false positives on KPvK.
+    // v2 adds the missing tempo term (the pawn's side on move gains one), which cuts it to 0.6% over 320
+    // samples across 4 seeds. A 10x improvement, and STILL NOT ZERO, so it stays off.
+    // ⚠️ The June claim "validated against a full KPvK retrograde oracle" does NOT hold for the rule as
+    // shipped -- whatever that oracle checked, it was not this condition.
+    // ★ The real fix is an EXACT KPK BITBASE (zero false positives by construction, covers all of KPvK not
+    // just rook pawns). SF ships one at stockfish_11/src/bitbase.cpp, ~24KB packed, built at init; we
+    // already own the retrograde tooling in diagnostics/_kpk_oracle.py (83,238 states). Turn this on only
+    // when that exists, or to reproduce the 0.6% measurement.
+    // ⚠️ CROSS-EFFECT: this is the only other place in v2 that reads `turn`, so enabling it DEGRADES the
+    // tempo identity gate from exact to statistical (see EVAL-V2-SLICE1-TEMPO-DESIGN.md §4). At the default
+    // OFF the gate stays exact.
+    inline bool DRAW_V2_KPK = false;
+
     // Which rung of v2's build-up ladder to evaluate. v2 is grown one feature at a time and each rung is
     // read against the PREVIOUS rung -- a candidate-vs-candidate comparison, which is null-independent and
     // is the one comparison our instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora).

@@ -996,6 +996,147 @@ void eval_v2_shadow_report()
 // ENTRY POINT -- RUNG DISPATCH
 // ===================================================================================================
 
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SLICE 1 -- BINARY DRAW CLASSIFIER
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/* Uncapped Chebyshev (king-move) distance between two squares.
+ * ⚠️ Deliberately NOT ps_kdist, which CAPS at 5 because SF caps king_proximity there. The rook-pawn
+ * opposition test compares true distances to a promotion square and needs the full 0..7 range; reusing
+ * the capped helper would silently equalise every distance above 5 and flag won positions as drawn.
+ */
+static inline int dv_dist(int a, int b) noexcept
+{
+	const int dx = ((a & 7) > (b & 7)) ? (a & 7) - (b & 7) : (b & 7) - (a & 7);
+	const int dy = ((a >> 3) > (b >> 3)) ? (a >> 3) - (b >> 3) : (b >> 3) - (a >> 3);
+	return dx > dy ? dx : dy;
+}
+
+/* True iff `sq` is a light square. Matches v1's is_white_square (cpp_bitboard.cpp:1665) exactly. */
+static inline bool dv_light(int sq) noexcept { return (((sq & 7) + (sq >> 3)) & 1) != 0; }
+
+/* Binary draw classifier: true => this position is a dead draw and the eval must return 0 outright.
+ *
+ * ☠️ MEMBERSHIP HERE IS MEASURED, NOT REASONED. v1's is_practically_drawn carries ten cases; five of them
+ * flag positions that are FORCED WINS, at rates of 10-28% (🧰 diagnostics/_draw_oracle.py vs the Lichess
+ * 7-piece tablebase, two seeds). Only these survived at 0 false positives in 62 samples each, and they
+ * are the only ones here:
+ *     KvK / KBvK / KNvK   -- insufficient material, provable by argument
+ *     KBvKB, KNvKN        -- equal count, only minors of one type
+ *     K + lone rook pawn vs K -- ALSO validated on _kpk_oracle.py (83,238 states, 0 false draws)
+ *     bishop vs a lone rook pawn it cannot stop
+ * ☠️ NOT here, and deliberately: R+B-vs-R (28% FP) · R+N-vs-R (22%) · bare-R-vs-bare-minor (24/28%) ·
+ * wrong-coloured-bishop + rook pawn (10%). Those are "usually drawn, sometimes won" -- a MAGNITUDE, which
+ * a bool cannot express. They belong in the convertibility scale. See EVAL-V2-SLICE1-DRAW-DESIGN.md §1.
+ * ★ The rule this obeys is the owner's, from June: a won position flagged drawn is CATASTROPHIC, while a
+ * missed draw only forfeits an opportunity -- so the target is NO FALSE POSITIVES, never coverage.
+ *
+ * ⚠️ NARROWER THAN v1 ON PURPOSE: the `n_nk > 2` early-out means multi-minor equal-material endings
+ * (KBBvKBB, KNNvKNN) are NOT flagged, where v1's equal-count rule would flag them. The oracle sweep never
+ * generated those, so they are unmeasured -- and an unmeasured case must fail in the direction that only
+ * forfeits a draw, never the direction that discards a win. Widen it only with oracle evidence.
+ *
+ * Pure; reads only the context's bitboards. Cost: a handful of popcounts, and every case is guarded by a
+ * piece-count test that fails immediately in any normal position.
+ */
+static bool draw_class(const V2Context &c) noexcept
+{
+	const uint64_t nk = c.occupied & ~c.kings;
+
+	if (nk == 0) return true;                                              // KvK
+
+	const int n_nk = __builtin_popcountll(nk);
+	if (n_nk > 2) return false;                                            // nothing below can fire
+
+	const int n_b = __builtin_popcountll(c.bishops);
+	const int n_n = __builtin_popcountll(c.knights);
+	const int n_p = __builtin_popcountll(c.pawns);
+
+	if (n_b == 1 && nk == c.bishops) return true;                          // KBvK
+	if (n_n == 1 && nk == c.knights) return true;                          // KNvK
+
+	// Equal total piece count with only bishops, or only knights, off the board: KBvKB / KNvKN.
+	if (__builtin_popcountll(c.white) == __builtin_popcountll(c.black) &&
+	    (nk == c.bishops || nk == c.knights))
+		return true;
+
+	// ── Reference-derived additions (2026-09-13), each oracle-checked BEFORE this code was written ─────
+	// Tablebase sampling, uniform + corner-biased (_draw_oracle.py EDGE=1), two seeds each:
+	//     KBvKN 0/400 · KNNvK 0/400 · SF fortress wrong-bishop 0/286 -- zero short AND zero long false positives.
+	// ⚠️ These pass the PROPOSED DTM-weighted gate (EVAL-V2-SLICE1-DRAW-DESIGN.md §2d), not literal zero-FP: a
+	// constructed KNvKN mate-in-1 (6nk/8/6K1/4N3/8/8/8/8 w) proves rare short wins exist that sampling misses,
+	// and search was shown to still find that mate with this rule scoring 0.
+
+	// KB vs KN, opposite sides, nothing else (Weiss TrivialDraw; SF's generic material rule also zeroes it).
+	if (n_b == 1 && n_n == 1 && nk == (c.bishops | c.knights) &&
+	    ((c.bishops & c.white) != 0) != ((c.knights & c.white) != 0))
+		return true;
+
+	// KNN vs bare K. ⚠️ The references DISAGREE: Weiss draws it, SF scales it to 4/64. The tablebase sided with
+	// Weiss (0/400), and two knights cannot force mate against correct defence.
+	if (n_n == 2 && nk == c.knights &&
+	    ((c.knights & c.white) == 0 || (c.knights & c.white) == c.knights))
+		return true;
+
+	// Wrong-coloured bishop + rook pawn, in SF KBPsK's FORTRESS form (stockfish_11 endgame.cpp:356): the
+	// defending king is ALREADY within one square of the queening corner. ☠️ Deliberately NOT v1's race test
+	// (defender_dist <= min(...)), which measured 10% false positives -- a race can be lost to tempo and
+	// interference; a fortress already reached cannot. Static condition over dynamic race, always.
+	if (n_b == 1 && n_p == 1 && nk == (c.bishops | c.pawns) &&
+	    ((c.bishops & c.white) != 0) == ((c.pawns & c.white) != 0) &&
+	    (c.pawns & (BB_FILE_A | BB_FILE_H))) {
+		const bool sw  = (c.pawns & c.white) != 0;
+		const int  psq = __builtin_ctzll(c.pawns);
+		const int  qsq = (sw ? 56 : 0) + (psq & 7);
+		const int  bsq = __builtin_ctzll(c.bishops);
+		const int  dks = __builtin_ctzll(c.kings & (sw ? c.black : c.white));
+		if (dv_light(bsq) != dv_light(qsq) && dv_dist(dks, qsq) <= 1)
+			return true;
+	}
+
+	// ── lone-pawn cases: SEPARATE KNOB, DEFAULT OFF ─────────────────────────────────────────────
+	// ☠️ These are NOT clean and must not ride on DRAW_V2_CLASS. v1's chebyshev-opposition test ignores
+	// WHOSE MOVE IT IS and measured 6.2% false positives on KPvK (🧰 _draw_oracle.py). Adding the tempo
+	// term below cuts that to 0.6% over 320 samples across 4 seeds -- a 10x improvement, and still not
+	// zero (`8/8/8/8/8/PK1k4/8/8 b`: defender equidistant AND on move, and still lost).
+	// ⚠️ The June note "validated against a full KPvK retrograde oracle: no won position is flagged drawn"
+	// does NOT hold for the rule as shipped. Whatever that oracle checked, it was not this condition.
+	// ★ THE REAL FIX IS AN EXACT KPK BITBASE, not a better heuristic -- zero false positives by
+	// construction, and it covers ALL of KPvK rather than just rook pawns. SF ships one
+	// (stockfish_11/src/bitbase.cpp, ~24KB packed, built at init in milliseconds) and we already own the
+	// retrograde tooling (diagnostics/_kpk_oracle.py, 83,238 states). Until that exists this stays OFF.
+	if (!Config::DRAW_V2_KPK) return false;
+	if (n_p != 1) return false;
+
+	const int  psq   = __builtin_ctzll(c.pawns);
+	const bool p_w   = (c.pawns & c.white) != 0;
+	const bool file_a = (c.pawns & BB_FILE_A) != 0;
+	if (!file_a && !(c.pawns & BB_FILE_H)) return false;                   // rook pawns only
+
+	const int promo = file_a ? (p_w ? 56 : 0) : (p_w ? 63 : 7);
+	const int wk    = __builtin_ctzll(c.kings & c.white);
+	const int bk    = __builtin_ctzll(c.kings & c.black);
+	const int atk   = p_w ? wk : bk;                                       // the pawn's side
+	const int dfd   = p_w ? bk : wk;
+	const int d_atk = dv_dist(atk, promo), d_p = dv_dist(psq, promo);
+	// ☠️ TEMPO TERM -- absent from v1, and the single largest false-positive source there. If the PAWN'S
+	// side is on move it gains a tempo, so the defender needs one square more in hand. Measured: 6.2% ->
+	// 0.6% false positives. This is the one place the eval genuinely needs `turn`.
+	const bool attacker_to_move = (p_w == c.turn);
+	const int  d_dfd = dv_dist(dfd, promo) + (attacker_to_move ? 1 : 0);
+	const bool holds = d_dfd <= (d_p < d_atk ? d_p : d_atk);
+
+	// K + lone rook pawn vs K, defender holding the promotion corner.
+	if (nk == c.pawns) return holds;
+
+	// Bishop vs a lone rook pawn: the bishop's side defends, and only when it is the pawn's opponent.
+	if (n_nk == 2 && n_b == 1 && ((c.bishops & c.white) != 0) != p_w) {
+		const int bsq = __builtin_ctzll(c.bishops);
+		if (dv_light(bsq) != dv_light(promo) && holds) return true;
+	}
+	return false;
+}
+
 /*
 	See the file header for the output and purity contract. Rung selection is Config::EVAL_V2_RUNG; rungs
 	are cumulative, so a rung adds to everything below it rather than replacing it.
@@ -1005,6 +1146,25 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	V2Context c;
 	build_context(c, moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
 	              occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
+
+	// ── slice 1: binary draw classifier ──────────────────────────────────────────────────────────
+	// Unconditional, not gated on phase: every case needs <= 2 non-king pieces, which IS the endgame by
+	// construction, so a phase gate would only add a test. ⚠️ v1 instead hides this behind its endgame
+	// branch (cpp_bitboard.cpp:7941), which is why its cost is invisible there.
+	if (Config::DRAW_V2_CLASS && draw_class(c)){
+		// Publish exactly what is KNOWN: total = 0, which IS the eval here, and no term fields.
+		// ☠️ The first version set terms_valid = 0 ("publish nothing, let consumers KeyError") and broke the very
+		// gate it was meant to protect: eval_symmetry.py reads bd["total"] and died with KeyError the moment one
+		// of its 600 positions was draw-flagged (2026-09-13). `total` was never unknown -- only the TERMS are.
+		// Setting ONLY EB_TOTAL still hides the stale term fields (the chimera the arm-2 note warns about) while
+		// every consumer that needs the score gets the true one.
+		if (g_capture_eval_breakdown && Config::EVAL_ARM == 1){
+			g_eval_breakdown.total       = 0;
+			g_eval_breakdown.arm         = Config::EVAL_ARM;
+			g_eval_breakdown.terms_valid = (1ULL << EB_TOTAL);
+		}
+		return 0;
+	}
 
 	int w_mat = 0, b_mat = 0, w_pst = 0, b_pst = 0;
 	int total = rung0_material_and_placement(c, w_mat, b_mat, w_pst, b_pst);
@@ -1041,6 +1201,25 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		ps_mp = pawn_structure_mp(pe, c);   // returns 0 when PS_V2_MAG == 0
 		pp_mp = passer_value_mp(pe, c);     // returns 0 when PASSER_V2_MAG == 0
 		total += ps_mp + pp_mp;
+	}
+
+	// ── slice 1 / component 1: tempo ─────────────────────────────────
+	// A bonus for simply being the side to move. This is the ONLY place in v2 that reads c.turn, which is
+	// what makes its gate an exact identity rather than a statistic: with v2 otherwise side-to-move-blind,
+	// diagnostics/eval_symmetry.py's TEMPO swing must equal exactly 2*t on EVERY position, so one run
+	// validates sign, magnitude and the phase curve at once.
+	// ☠️ The mirror gate cannot check this: _eval_symmetry.py mirrors `turn` as well, so a term that
+	// PENALISES the mover is still perfectly mirror-symmetric and passes clean.
+	// Sign: `turn == true` is White to move (v1 establishes this independently at cpp_bitboard.cpp:5911 and
+	// :5078), and this eval is Black-positive, so rewarding the mover means White-to-move SUBTRACTS.
+	// ⚠️ Phased on purpose. SF11/Ethereal/Weiss write one FLAT constant but their pawn is dearer in the
+	// endgame, so their tempo is ~1.7-2.0x more pawns in the midgame without them choosing it; our pawn is
+	// flat at 1000, so we have to state the taper explicitly. SF1.1 -- the only reference that chose it --
+	// used an explicit 50/20 pair. See dev_notes/EVAL-V2-SLICE1-TEMPO-DESIGN.md §1.
+	if (Config::TEMPO_V2_MG != 0 || Config::TEMPO_V2_EG != 0){
+		const int t = (Config::TEMPO_V2_MG * c.phase256
+		             + Config::TEMPO_V2_EG * (256 - c.phase256)) >> 8;
+		total += c.turn ? -t : t;
 	}
 
 	// Later rungs accumulate here, each gated on its own knob.

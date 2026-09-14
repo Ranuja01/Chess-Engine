@@ -6,7 +6,7 @@
 Update at the END OF EVERY RUNG. The design docs carry reasoning, `EVAL-V2-REBUILD-LOG.md` carries history;
 this carries only the standing state, so a disagreement about "what are we going with" is settled here.
 
-Last updated: **2026-09-13**, after rung 2 passed games.
+Last updated: **2026-09-13**, after rung 2 passed games and slice 1's tempo component was built and parked.
 
 ---
 
@@ -55,6 +55,8 @@ Everything else is at its default, and the defaults encode the decisions below.
 | weak-unopposed | absent | 4.27× lift to `passed` — fires mostly on pawns 2b rewards | after passers are tuned |
 | weak-lever | absent | 3.59% firing, pure endgame | later |
 | pawn wall (as a separate term) | merged | it IS phalanx; now an input to connected, not its own score | n/a |
+| **draw classifier — lone-pawn cases** | `DRAW_V2_KPK=0` | ☠️ v1's chebyshev-opposition test **ignores whose move it is** — measured **6.2% FALSE POSITIVES** on KPvK (flags forced WINS as dead draws). Adding the missing tempo term cuts it to **0.6%** over 320 samples / 4 seeds — 10× better and still not zero, so it fails the asymmetric gate. ⚠️ The June claim *"validated against a full KPvK retrograde oracle"* does NOT hold for the rule as shipped | when an **exact KPK bitbase** exists (zero FP by construction; SF ships one at `stockfish_11/src/bitbase.cpp`, ~24 KB, built at init; we own the retrograde tooling in `_kpk_oracle.py`). Then fold into `DRAW_V2_CLASS` |
+| **tempo** | `TEMPO_V2_MG=0`, `TEMPO_V2_EG=0` | ☠️ **PARKED ON MEASUREMENT 2026-09-13, FINAL.** Built, and its correctness proved by an EXACT identity (below). ⚠️ **Correction to an earlier entry: the response is NOT "monotone downward" — the full ladder is NON-MONOTONIC and unordered.** STS off 1698 → **25/14: 1656 (−42, inert)** · 50/28: 1511 (−187) · 100/55: 1504 (−194) · 200/110: 1631 (−67) · 800/440: 1312. The worst points sit in the MIDDLE. A term with real evaluative content gives a smooth curve with one peak; this is threshold crossing. ☠️ Also: **200 mp was the wrong magnitude** — v2's ENTIRE midgame positional spread is 5-35 mp (rim-vs-central knight = 30), so the pawn-denominated conversion made tempo ~8× the largest positional term we own ([[convert-reference-constants-by-positional-scale-not-by-the-pawn]]). Correcting that makes it **inert, not good**. Corroborated by the node screen: tempo has **zero positional variance**, so 100% of its **+10.82%** node cost at ref is margin/parity interaction by construction, and the response is NON-monotonic (+10.8% at 1x, +2.8% at 4x) — the step-shaped signature of a constant crossing fitted absolute thresholds (`RFP_MARGIN` 1500/ply, `DELTA_MARGIN` 1500, `OTV_MARGIN` 1750). Two instruments agree ⇒ **spend no games** | at the checkpoint margin re-sweep — margin coupling is its ONLY demonstrated channel, so that is the one condition under which the measurement could change. ⚠️ **NOT at every rung**: the rung-gradient test (1364→1336 / 1480→1378 / 1698→1631, i.e. −28/−102/−67) is **non-monotonic and entirely inside the ±150 floor**, so "tempo is waiting for a richer eval" is UNSUPPORTED. Worth one re-test after slice 2 lands **mobility** — the biggest missing quiet-move responder — and not before |
 
 ### ☠️ DELIBERATELY NOT PORTED
 | v1 component | why |
@@ -69,10 +71,23 @@ Everything else is at its default, and the defaults encode the decisions below.
 | `pawns_simd_initializer`, `get_latent_threat_score`, legacy `!ENABLE_*` arms | dead code |
 | `pawn_majority`, `latent_threat` | dead at defaults / measured 0 of 5,000 |
 
+### 🔨 BUILT, GATED OFF, AWAITING THE OWNER'S CALL
+| component | knob | state |
+|---|---|---|
+| **binary draw classifier** | `DRAW_V2_CLASS=false` | ★ **CURRENT (end of 2026-09-13): members = KvK / KBvK / KNvK / KBvKB / KNvKN + KBvKN / KNNvK / wrong-coloured-bishop rook pawn in SF's FORTRESS form. ALL FOUR GATES PASS** — arm 0 byte-identical `250 / 35,310,778 / 3.784` · rule fires on every new case with both negative controls untouched · tempo identity exactly 0.000 with the rule ON · **STS 1698** unchanged — after fixing a breakdown-contract bug (it published nothing when firing, which crashed `eval_symmetry.py` with `KeyError: 'total'`; it now publishes `total = 0` with only `EB_TOTAL`). Tablebase evidence: every false positive in 1,592 minor-piece positions was a **mate in 1**, and search was shown to play one with the rule scoring 0. ⏳ **Awaits the owner's sign-off on the DTM-weighted gate** before it is turned on. Lone-pawn cases stay OFF in `DRAW_V2_KPK` pending an exact KPK bitbase. Earlier history of this row: ✅ **Built and gated 2026-09-13.** Carries ONLY the cases that measured **0 false positives in 382 samples across 5 seeds**: KvK / KBvK / KNvK / KBvKB / KNvKN. ⚠️ **Qualified 2026-09-13: that sample was UNIFORM, and KBvKB / KNvKN contain rare boxed-king forced mates that uniform placement essentially never generates — so "0 in 382" is true and is NOT proof of clean.** Re-checked under the corner-biased sampler with a DTM-weighted gate (`EVAL-V2-SLICE1-DRAW-DESIGN.md` §2d); every reference draws these cases anyway, and search finds any mate inside its horizon. ☠️ Five of v1's ten cases flag forced WINS (`RB_vs_R` 28% · `R_vs_minor` 24-28% · `RN_vs_R` 22% · `wrongB_rookpawn` 10%) and are deliberately excluded — they are a MAGNITUDE and belong in the convertibility scale. Gates all pass: arm 0 byte-identical `250 / 35,310,778 / EBF 3.784` · knob provably executes (KBvKB asym 5→0, KNvKN asym 10→0, every won position untouched) · **STS 1698 unchanged** · tempo identity gate still exactly 0.000. ⭐ Per the owner's June gate this ships on **oracle proof + no bench regression**, not a games SPRT — it fires on ~0% of midgame positions by construction |
+
 ### ⏳ NOT YET BUILT — the remaining ladder
 Slice plan in §5 below. Components: mobility + per-piece placement · central + space ·
-threats · Kaufman + pairs · rook files · **tempo (absent from BOTH v1 and v2)** · **draw classifier (9 cases,
-live in v1)** · mate drive · convertibility scale · corrhist · winnability · capgains · OvD.
+threats · Kaufman + pairs · rook files · **draw classifier (9 cases, live in v1)** · mate drive ·
+convertibility scale · corrhist · winnability · capgains · OvD.
+⚠️ **Convertibility scale — know its real history before building it (found 2026-09-13):** v1's
+`endgame_convertibility_scale` shipped default-on in `046a17f` and was **reverted the same day in `ab070b7`**
+("−3.3 STS / −3 WAC at d10"); `STRENGTH_BACKLOG.md` wrongly said "shipped" for three months. That revert is an
+**unresolved null** (WAC −3 inside ±5–6 and non-discriminating; STS inside ±150), so it neither vindicates nor
+condemns v2's version — which differs in FORM anyway (EG leg only inside the blend, not v1's whole total behind
+a boolean). ★ Keep its one real lesson: the scale is BROAD, so measure v2's on its own.
+⚠️ **tempo is NO LONGER on this list** — built 2026-09-13 and parked on measurement (see the PARKED table
+and `EVAL-V2-SLICE1-TEMPO-DESIGN.md`). Slice 1 therefore loses a component rather than being reordered.
 ☠️ **Contempt: absent everywhere, and unmeasurable in self-play** — it needs a different opponent.
 
 ---
@@ -112,10 +127,43 @@ KS **+101** -> pawns **+60.4**.
 
 | slice | components | rationale |
 |---|---|---|
-| **1** | tempo - draw classifier - mate drive - Kaufman + pairs - rook files | order-INVARIANT terms that cannot cancel (a categorical classifier and a side-to-move constant overlap with nothing). Thickens the eval before the big measurements |
+| **1** | ~~tempo~~ - draw classifier - mate drive - Kaufman + pairs - rook files | order-INVARIANT terms that cannot cancel (a categorical classifier overlaps with nothing). Thickens the eval before the big measurements. ☠️ **tempo REMOVED 2026-09-13, parked on measurement** — and the rationale that put it here was partly wrong: a side-to-move constant is order-invariant WITHIN a node but is **not margin-invariant**, and with zero positional variance its entire measurable effect was margin interaction. ★ **Generalise: "cannot cancel with the other components" is NOT the same as "has no confound of its own."** Check each remaining slice-1 member against the absolute margins too, not just against each other |
 | **2** | mobility + per-piece placement (outposts, bishop colour complex, bishop long diagonal, minor-behind-pawn, trapped rook, queen weak) | largest remaining missing channel -- test ALONE while that is still possible |
 | **3** | central + space + threats | shared attack maps, coherent unit |
 | **4** | ☠️ corrhist - winnability - capgains - OvD | **LAST BY NECESSITY** -- see below |
+
+### ★ GAMES POLICY FOR SMALL TERMS (agreed 2026-09-13, with the owner's refinement)
+
+**The measured asymmetry that drives it:** our instruments detect HARM far better than small GAIN. Tempo at
+50 and 100 mp read **−187 / −194** STS, comfortably outside the ±150 floor; nothing beneficially sized has
+ever resolved on its own.
+
+1. **Bundle small, reference-backed terms and test the bundle for REGRESSION, not for gain.** A bundle
+   reading ≥ −10 Elo passes and ships. One night with a real decision, instead of ~16 nights chasing +5.
+2. ★ **Owner's refinement: when a term every reference carries fails, rethink OUR IMPLEMENTATION first** —
+   its scale, wiring, or detector — before concluding against the concept. Leave-one-out *locates* the
+   failure; it is not the verdict. Live precedent: tempo's magnitude was pawn-converted, which made it ~8×
+   v2's entire positional spread ([[convert-reference-constants-by-positional-scale-not-by-the-pawn]]).
+3. **The bundle is a games-budget decision; the per-component design doc + this register is the
+   attribution of record.** ★ v1 did not degenerate because it bundled — it degenerated because it bundled
+   **with no record** of what each of ~30 terms was for, so nobody could tell which to cut.
+4. ☠️ **Not for novel or ours-alone MAGNITUDES.** Those test alone or do not ship.
+5. **Checkpoint ablation is the audit**, asking "can we delete this?" — far more answerable than "did it help?"
+
+⚠️ **Cost accepted knowingly:** we will ship terms whose individual Elo we never learn.
+
+**The four tracks:** correctness-gated classifications → **oracle proof + no bench regression, no games**
+(owner's June rule) · **mobility tests ALONE** in slice 2, probably the last term big enough to read solo ·
+**everything smaller bundles** under rule 1 · **rethink-then-leave-one-out only on failure.**
+
+### ★ CLASSIFICATIONS ARE GOVERNED BY ORACLES, NOT BY CONSENSUS (agreed 2026-09-13)
+The adoption rule ([[adopt-reference-methods-only-if-universally-superior]]) exists for MAGNITUDES, where we
+cannot verify correctness and consensus is the best evidence available. For a ground-truth CLASSIFICATION,
+"4 of 5 engines do X" is only a proxy — **a tablebase IS correctness.** ⇒ An ours-alone classifier that
+passes the oracle belongs in v2 with no reference support needed.
+⚠️ But ours-alone classifiers carry the **highest prior risk**: on 2026-09-13 every mechanism that failed the
+oracle was a v1 race test. The oracle is the bar, with no reasoning our way past it.
+☠️ An ours-alone MAGNITUDE (e.g. the convertibility scale's passer pull-back) gets **no** oracle exemption.
 
 ### ☠️ WHY THE RESIDUAL-CORRECTORS MUST BE LAST (the owner proposed running them first; this is why not)
 Owner's argument: low-value slices get harder to pass as the eval grows, so run them while they are a

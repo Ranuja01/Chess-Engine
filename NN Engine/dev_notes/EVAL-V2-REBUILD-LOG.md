@@ -1012,3 +1012,127 @@ rule already fired in miniature at rung 2.
 
 ☠️ **`OPTIMIZATION_LOG.md` still NOT touched.** This is rung 2 vs rung 1 -- a v2-internal comparison.
 v2 earns a canonical entry only by beating **v1** in games, and it is still ~98 STS points behind.
+
+---
+
+## 2026-09-13 -- SLICE 1 COMPONENT 1 (TEMPO): built, PROVED correct, and PARKED on measurement
+
+Full design + result: `EVAL-V2-SLICE1-TEMPO-DESIGN.md`. Register: `EVAL-V2-CURRENT-CONFIG.md` PARKED table.
+
+**Record-check first (the discipline that failed on draw detection).** Tempo had NEVER been built or
+measured -- proposed 3x, skipped once at `hce-eval-mechanisms-2026-07-15.md:72` ("exactly the refuted
+lane"). That skip inherits from the 07-02 bundle thesis, which was itself REVERSED as the 07-25 regime
+error. So it closed nothing: PROPOSED ONLY / CLOSED ON A PROXY.
+
+### 🐛 Our own reference fact sheet was wrong, and it would have flipped the adoption verdict
+`sf-evolution-fact-sheets-2026-07-05.md:15` records SF 1.0 as having "NO tempo". It has one --
+`stockfish_1/stockfish-1.1_ja/src/value.h:95` `TempoValueMidgame = Value(50)`, applied at
+`position.cpp:909`. The fact sheet surveyed **evaluate.cpp**; SF1 keeps tempo in **position.cpp**, on the
+incremental mg/eg accumulators.
+☠️ Textbook case of our own rule: **enumerate by DATA DEPENDENCY, not by file or name.** The count decides
+the verdict -- 3/5 (a real split) versus the truth, **4/5**, the sole abstainer being SF15.1, which
+removed it from eval AND search together (`search.cpp:1461` is a bare `-(ss-1)->staticEval`) in the
+generation where NNUE, natively side-to-move-aware, became the real eval.
+
+### ★★ Do not copy a reference constant whose phase profile comes from a unit we do not share
+SF11 (28), Ethereal (20) and Weiss (18) each write ONE FLAT constant -- but their pawn is dearer in the
+endgame (128->213, 82->144, 104->204), so their tempo is silently **~1.7-2.0x more pawns in the midgame**.
+They never chose that taper; the unit gave it to them. **Our pawn is FLAT at 1000 in both phases**, so
+transcribing the flat form yields a flat-in-pawns tempo that NONE of them has. SF1.1, the only engine that
+chose the profile deliberately, went steeper (3.1) and smaller (123 mg).
+=> We took SF1s SHAPE with the others MAGNITUDES: mg 200 / eg 110, phase-blended on `phase256`.
+⚠️ This is the SECOND time this exact trap appeared -- `search_engine.h:808` records the passer table
+inheriting the same phase relationship we do not have.
+
+### ⭐ The gate was an EXACT IDENTITY, which we have never had for a magnitude term
+v2 was 100% side-to-move-blind, so with tempo the `eval_symmetry.py` TEMPO swing must equal exactly `2t`
+on EVERY position. 600 FENs, full phase spread:
+
+| config | swing mean / median / max | required |
+|---|---|---|
+| v1 arm 0 (harness proof) | +1.339 / +0.053 / 21.213 | large, ragged ✅ |
+| v2 tempo OFF | **+0.000 / +0.000 / 0.000** | exactly 0 ✅ **blindness PROVED** |
+| 200/200 constant | +0.400 / +0.400 / 0.400, zero spread | exactly 0.400 ✅ |
+| 110/110 constant | +0.220 / +0.220 / 0.220, zero spread | exactly 0.220 ✅ |
+| 200/0 mg leg | +0.206 / +0.210 / **0.400** | ceiling exact ✅ |
+| 0/110 eg leg | +0.106 / +0.102 / **0.220** | ceiling exact ✅ |
+
+★ The legs ADD exactly: 0.206 + 0.106 = 0.312 = the combined runs mean. Sign, magnitude and phase curve
+all verified as identities.
+☠️ Note the trap this avoided: `_eval_symmetry.py` -- the gate the protocol runs on every rung -- mirrors
+`turn` too, so a BACKWARDS-signed tempo passes it clean. The mirror gate cannot see this term at all.
+
+### The verdict: two instruments agree, so no games were spent
+| arm | STS | nodes (WAC, fixed depth) |
+|---|---|---|
+| off | **1698** (= the recorded rung-2 value, a clean control) | 63,216,318 |
+| ref 200/110 | 1631 (-67, INSIDE the ±150 floor) | 70,058,283 (**+10.82%**) |
+| crank 4x | **1312 (-386**, far outside the floor) | 64,992,326 (+2.81%) |
+
+☠️ WAC solves were 246/252/240 -- floor ±5-6, and the metric does not discriminate strength. Not read.
+
+1. STS is **monotone downward** with no local maximum => optimum at or below 0. Same shape as connected
+   pawns at rung 2. Only the crank point resolves, and it is clearly harmful.
+2. ★★ **A term with ZERO POSITIONAL VARIANCE has no channel but margin/parity interaction.** Unlike a real
+   term, none of tempos node movement can be "a truer eval prunes better" -- 100% of it is confound by
+   construction. And it is NON-monotonic (+10.8% at 1x, +2.8% at 4x): the step-shaped signature of a
+   constant crossing fitted absolute thresholds (`RFP_MARGIN` 1500/ply, `DELTA_MARGIN` 1500, `OTV` 1750).
+
+=> **PARKED at 0.** Re-test trigger: the checkpoint margin re-sweep, the only condition under which the
+measurement could change.
+
+### ⚠️ What the slice plan got wrong, and the generalisation
+`EVAL-V2-CURRENT-CONFIG.md` §5 billed slice 1 as "order-INVARIANT terms that cannot cancel". Tempo IS
+order-invariant within a node and genuinely cannot cancel with its slice-mates -- **and that was never the
+relevant risk.**
+★ **"Cannot cancel with its slice-mates" is NOT "has no confound of its own."** Every remaining slice-1
+member must also be checked against the absolute margins, not only against each other.
+
+⚠️ And on my own pre-registered criteria: the ">10% node movement" threshold was set WITHOUT calibrating
+against [[node-savings-below-35-percent-are-elo-neutral]], so the number was arbitrary. Its purpose was met
+anyway -- by the non-monotonicity and the zero-variance argument, neither of which depended on the
+threshold. ★ Pre-register the MECHANISM a criterion tests for, not only a number.
+
+---
+
+## 2026-09-13 -- SLICE 1 DRAW CLASSIFIER: a shipped v1 defect found, v2 classifier built and fully gated
+
+Full record: `EVAL-V2-SLICE1-DRAW-DESIGN.md`. Register: `EVAL-V2-CURRENT-CONFIG.md`.
+
+**The v1 defect.** `is_practically_drawn` is LIVE and unconditional (`cpp_bitboard.cpp:7941`) and returns 0 for the
+WHOLE eval. Checked against the Lichess 7-piece tablebase with a new oracle (`diagnostics/_draw_oracle.py`), FIVE
+of its ten cases flag FORCED WINS: R+B vs R 28%, R+N vs R 22%, bare R vs bare minor 24-28%, wrong-coloured-bishop
+rook pawn 10%, and the rook-pawn KPvK rule 6.2% -- the one case that carried a documented oracle validation.
+Shown LIVE in the shipped engine: K+R+B vs K+R (tablebase win in 21) evaluates to exactly 0. v1 is NOT fixed:
+it is the frozen control.
+
+**Why it was missed.** The June cases were validated on MEAN BIAS against an NNUE trust gate, which cannot see
+false positives. And the cases were written as dynamic RACES (defender_dist <= min(...)), which ignore whose move
+it is; SF writes the same ideas as STATIC FORTRESSES already reached.
+
+**What the references do (from source, SF 1.1 / 11 / 15.1, Ethereal, Weiss).** Four tiers, unchanged in SF for 14
+years: an exact KPK bitbase; value functions (known-win drives, and a TECHNIQUE GRADIENT for KRKB/KRKN -- a small,
+corner-seeking value replacing material, not a draw); scaling functions; and a four-line generic pawnless rule
+(material.cpp:198) that zeroes KmmKm and scales R+minor vs R to 14/64. v1 ENUMERATED what SF GENERALISED. Nobody
+returns a hard 0 for R+B vs R.
+
+**v2 draw_class, behind DRAW_V2_CLASS (default off).** Members: KvK, KBvK, KNvK, KBvKB, KNvKN, plus reference-derived
+KBvKN (0/400), KNNvK (0/400) and SF fortress wrong-bishop (0/286). Lone-pawn cases split into DRAW_V2_KPK (off): a
+tempo term cuts KPvK 6.2% to 0.6%, still not zero -- the real fix is an exact KPK bitbase. All four gates pass.
+
+**The gate itself had to change.** Zero false positives is uncertifiable for minor-piece draws: rare boxed-king
+mates exist (constructed and TB-confirmed: 6nk/8/6K1/4N3/8/8/8/8 w, Nf7# in 1) that no random sampler finds. But
+every forced win in 1,592 biased minor-piece positions was DTM 1, search was shown to play such a mate with the rule
+scoring 0, and null move is disabled below 7 pieces. PROPOSED: tolerate SHORT false positives (search finds them),
+forbid LONG ones. Awaits owner sign-off.
+
+**My errors, recorded so they are not repeated.** (1) Shipped rookpawn_KPvK into the classifier on 0-for-62 after
+writing "unrefuted, not verified" -- a third seed found 6.2%. (2) Listed wrongB_rookpawn as provable -- 10%.
+(3) Recommended migrating R-vs-minor cases into the convertibility SCALE; SF shows a flat scale is the wrong
+instrument -- they need a shaped gradient. (4) Published an empty breakdown when the rule fires, which crashed the
+symmetry gate with KeyError: total. (5) Crossed the PowerShell-to-WSL boundary with a dollar sign three times in
+one day, once corrupting a run into ON-twice. (6) Claimed "v1 has no draw extras" from a name-scoped read; the
+blanket scan found the real extras live in the scale/drive space.
+
+**Also found.** STRENGTH_BACKLOG called the convertibility scale shipped for three months; it was reverted the same
+day (ab070b7) on WAC -3 / STS -3.3, both inside noise floors -- an unresolved null, not a refutation.

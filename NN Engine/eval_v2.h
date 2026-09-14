@@ -16,7 +16,11 @@ binary. See eval_v2.cpp's header for the design contract and the build-up ladder
 /*
 	The v2 static evaluation. Same 12 arguments as the shipped eval and the SAME output contract:
 	ABSOLUTE Black-positive milli-pawns (pawn = 1000) for a NON-TERMINAL position, before the single
-	side-to-move flip that the caller applies once at search_engine.cpp:8910.
+	side-to-move flip that the caller applies once at search_engine.cpp:9045-9046.
+	⚠️ That flip keys on Config::side_to_play -- the ROOT colour, latched once per search at
+	search_engine.cpp:1524 -- so it is a search-wide CONSTANT, not a per-node side-relative conversion
+	(this is not negamax). Anything here that depends on whose move it is must therefore key on the
+	`turn` argument directly, in absolute Black-positive space.
 
 	Which rung of the build-up ladder is evaluated is selected by Config::EVAL_V2_RUNG.
 */

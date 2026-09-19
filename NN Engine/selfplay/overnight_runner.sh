@@ -941,8 +941,10 @@ PYEOF
     # large effect returns a confident PASS on few games and a wide CI on HOW MUCH. The bundling rule needs
     # the magnitude (test a rung alone if >= ~20 Elo, else bundle), so when it stops early, spend the freed
     # box time on a fixed-length run or a second venue rather than banking the point estimate.
-    # Args: '<p1cfg>' '<p2cfg>' [tag] [max_games=1200] [elo1=5] [conc=4] [openings=openings_uho.txt] [seed=0].
+    # Args: '<p1cfg>' '<p2cfg>' [tag] [max_games=1200] [elo1=5] [conc=4] [openings=openings_uho.txt] [seed=0] [elo0=0].
     # NOTE seed: `gate` defaults to 0 and that is a known read-inflater -- VARY IT across segments.
+    # elo0 (9th, optional, default 0 = every existing caller unchanged): set elo0=-10 elo1=0 for a REGRESSION test --
+    # H1 accepted then means "costs no more than ~10 Elo", the small-terms bundle policy's bar, NOT a gain claim.
     p1cfg="${1:?p1 config required}"; shift || true
     p2cfg="${1:-}"; shift || true
     ttag="${1:-sprt_ab}"; shift || true
@@ -951,9 +953,10 @@ PYEOF
     gconc="${1:-4}"; shift || true
     oset="${1:-openings_uho.txt}"; shift || true
     gseed="${1:-0}"; shift || true
+    e0="${1:-0}"; shift || true
     export STOCKFISH_PATH="$SF"
     export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1            VECLIB_MAXIMUM_THREADS=1 TF_NUM_INTEROP_THREADS=1 TF_NUM_INTRAOP_THREADS=1
-    "$PY" selfplay/sprt.py         --p1-label A --p1-config "$p1cfg"         --p2-label B --p2-config "$p2cfg"         --preset LIGHTNING --concurrency "$gconc" --elo0 0 --elo1 "$e1" --max-games "$maxg"         --adjudicate-draw --quiet --tag "$ttag"         --openings "selfplay/$oset" --seed "$gseed"
+    "$PY" selfplay/sprt.py         --p1-label A --p1-config "$p1cfg"         --p2-label B --p2-config "$p2cfg"         --preset LIGHTNING --concurrency "$gconc" --elo0 "$e0" --elo1 "$e1" --max-games "$maxg"         --adjudicate-draw --quiet --tag "$ttag"         --openings "selfplay/$oset" --seed "$gseed"
     ;;
 
   time_ab)
@@ -1445,6 +1448,52 @@ PYEOF
     # unaffected (a tty is line-buffered either way).
     export STOCKFISH_PATH="$SF"
     "$PY" -u "$@"
+    ;;
+
+  v2_margin_sweep)
+    # ★ THE v2 MARGIN RE-SWEEP -- the owner's showdown fairness rule (EVAL-V2-CURRENT-CONFIG.md §5): every
+    # eval-denominated pruning threshold is ABSOLUTE MILLIPAWNS FITTED TO v1, so a v1-vs-v2 showdown on v1's
+    # margins measures v1's TUNING as much as v2's eval. This finds where each ARM's node optimum sits.
+    #
+    # INSTRUMENT: quiet-node MEDIAN at fixed depth (depth_nps_bench --n 60 MAX_DEPTH=10 LONG_FORMAT), the
+    # designated node judge (v1 baseline 249,014). ☠️ NOT STS: its ±150 floor swallowed 25 of 25 cells of the
+    # 2026-09-05 sigma x RFP sweep, whose own author wrote "do not quote these numbers". ☠️ NOT WAC nodes:
+    # four of six search configs REVERSED SIGN against the quiet corpus. ★ Fixed depth => node counts are
+    # DETERMINISTIC, so this sweep stays valid while the machine is in use -- the NPS/time columns do NOT.
+    #
+    # ☠️ ONLY RFP_MARGIN IS SWEPT, deliberately. It is the one margin with a monotone response on both sides
+    # (09-05, 52 configs: 1000 -13.1% ... 2200 +14.9%); FUTILITY_MARGIN_SCALE and the razor constants measured
+    # NON-MONOTONIC twice ("a knob whose response is not monotonic is not a lever"), root razoring keys on
+    # PRE-SEARCH SCORES rather than the static eval (so it is not eval-denominated at all), and PROBCUT/OTV/
+    # SINGULAR are all behind disabled ENABLE_ flags. ☠️ DELTA_MARGIN is DEAD AT DEFAULTS via TWO independent
+    # mechanisms across its three consumers, verified 2026-09-17: search_engine.cpp:7673 and :7685 (the
+    # node-level delta prune) are gated on !ENABLE_QDELTA_PERMOVE, which SHIPS TRUE; :7717 reaches it only as
+    # a fallback when QDELTA_PERMOVE_MARGIN == 0, and that ships 1500. The [toggles] dump PRINTS DELTA_MARGIN
+    # (search_engine.cpp:2512) and never prints the live knob -- sweeping it would measure nothing, twice over.
+    # The remaining live levers -- QDELTA_PERMOVE_MARGIN (never swept
+    # under either eval) and ASPIRATION_DELTA -- get their own pass AFTER this one; sweeping them together
+    # would be a kitchen-sink, and search changes are antagonistic, not additive (run the 2x2 before bundling).
+    #
+    # ★ 400 and 6000 are the LIVENESS arms: the record's rule is "before any sweep, run one arm at an extreme
+    # and prove the node count MOVES" -- a both-directions-identical result is a liveness failure, not a null.
+    # 1000 sat on the BOUNDARY of the last sweep's range, which is why this one reaches down to 400.
+    # ⚠️ Arm 0 runs the same ladder as a SAME-SESSION control: v1's curve is known from 09-05 but on a different
+    # session and corpus sample, and a drift-free control is what makes the two arms' optima comparable.
+    # ☠️ Read the [toggles] line in /tmp/vms_<arm>_<margin>.out before trusting any row -- a malformed knob
+    # value is visible THERE and nowhere else. Baked grid => permission-clean. Sequential => single core.
+    # One process per setting (knobs latch at engine init).
+    V2='EVAL_ARM=1 KS_V2_ZONE_SF=1 KS_V2_XRAY=1 KS_V2_COORD=256 KS_V2_WEAK=57 KS_V2_ADJ=61 KS_V2_NO_QUEEN=321 KS_V2_CHK_Q=126 KS_V2_CHK_R=122 KS_V2_CHK_B=80 KS_V2_CHK_N=152 KS_V2_MAX=4000 KS_V2_HALF=600 KS_V2_ONSET=450 PS_V2_MAG=100 PASSER_V2_MAG=60 DRAW_V2_CLASS=1 MOB_V2_MAG=600 DRAW_V2_KPK_EXACT=1 OUTPOST_V2_PCT=100 BADB_V2_PCT=100 BADB_V2_FORM=1 TRAPROOK_V2_PCT=10 WEAKQ_V2_PCT=25 BEHIND_V2_PCT=25 BEHIND_V2_FORM=1 MOB_V2_PIN=1 MOB_V2_EXCL_LOWRANK=1'
+    echo "arm	RFP	median_nodes	(v1 baseline at RFP=1500 is 249,014)"
+    for r in 400 600 800 1000 1250 1500 2200 6000; do
+      for arm in v1 v2; do
+        if [ "$arm" = "v1" ]; then knobs='EVAL_ARM=0'; else knobs="$V2"; fi
+        env MAX_DEPTH=10 PRESET=LONG_FORMAT USE_OPENING_BOOK=0 RFP_MARGIN=$r $knobs \
+            "$PY" -u diagnostics/depth_nps_bench.py --n 60 \
+            > "/tmp/vms_${arm}_${r}.out" 2> "/tmp/vms_${arm}_${r}.err" || true
+        med=$(grep -hoE 'median nodes [0-9,]+' "/tmp/vms_${arm}_${r}.out" | head -1)
+        echo "${arm}	RFP=${r}	${med:-(none)}"
+      done
+    done
     ;;
 
   bias_sweep)

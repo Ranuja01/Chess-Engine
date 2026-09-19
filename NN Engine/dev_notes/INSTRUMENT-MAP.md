@@ -245,6 +245,11 @@ null at its natural magnitude may be readable at 4×; quote **eval + re-cranked 
 | **Warm-state failures** | ☠️ **No instrument we own can see them.** A position solved correctly at every cold setting (45.6s / 24.0s / 36.5s) was blundered in-game with 20+ seconds, because history had rewarded the same from/to pair earlier in the game. Benches are key-checked, not cold — but they are *incoherently* warm, which is a different regime from real play. |
 | **Is the games harness biased or are we selecting?** | Unseparated. No A/A control has ever been run. |
 | **Speed below ~35% NPS, node savings below ~35%** | Structurally invisible — below the ±0.5-ply measurement floor. |
+| **A term whose REGIME is a few % of positions** (added 2026-09-17) | ☠️ **The CHANGED-MOVE SUBSET is the sample, not the corpus.** Space's only real effect lives on `centre_locked` = **3.2%** of positions; enlarging that class by classifying two MORE corpora (**+13,500 positions**) grew it 1,652 → 1,974 rows and the changed-move count **607 → 644**. A win% on ~600 changed moves carries ≈ **±2pp** of standard error by itself — the size of the whole effect. ⇒ Compute the expected changed-move count (≈ corpus × flip rate) and its SE **before** building the read. Rare regimes need PURPOSE-BUILT corpora, not more of the same material. |
+| **The MAGNITUDE of an SPRT result** (added 2026-09-17) | ☠️ **An SPRT DECIDES; it does not measure.** One arm pair produced **+60.7 / +44.5 / +11.4** Elo across three statistically sound runs, because a sequential test stops on a favourable swing and the estimate is biased away from the bound it crossed. Pooling all 1,178 games of the same pairing gave **≈ +31**. ⇒ Quote the pooled tally across seeds; bracket a size with TWO different bounds (here: H1 at ≥10 and H0 at ≥50 ⇒ 10 < true < 50). |
+| **Overlap of a SYMMETRIC predicate** (added 2026-09-17) | ☠️ **The collinearity gate's White−Black differencing is structurally blind to any predicate whose two sides have equal cardinality by construction.** `blocked` is the case: `blocked[White]` and `blocked[Black]` are the two halves of the same white/black RAM pairs (`eval_v2.cpp:682`), so the popcounts are ALWAYS equal and the difference is identically 0 — it reads as a dead column, which looks like a bug and is actually a definition. ⇒ "Does space or mobility re-express the RAMMED centre?" is unmeasurable under this convention, and `centre_locked` is exactly the class where space showed its only effect. Needs a different reduction (W+B total, or signing by side to move). ★ Distinguish from a genuine small-sample zero: `lever` also read zero-variance at N=25 and is NOT an identity (one pawn attacked by two gives 1 vs 2) — it varies fine at N=2500. **Check a zero-variance column against its DEFINITION before deleting it.** |
+| **Whether a term is STRUCTURE or just the CENSUS** (added 2026-09-17) | ⚠️ Not out of reach, but invisible until you add the control, and three columns were affected. Differencing a detector count W−B carries the MATERIAL difference along with it: against the raw pawn-count difference, `ps_halfopen` reads **−0.93**, `ps_pattacks` **+0.91**, `ps_passed` **+0.83** (replicated −0.92 / +0.88 / +0.70 on the KS corpus). Their mutual VIF of 7.8–18.6 is therefore ambiguous between "shared structure signal" and "both restating rung 0". ⇒ **Any collinearity read over count columns needs a census CONTROL column** (`ps_npawns`), or subsystem overlap and material overlap are indistinguishable. |
+| **Whether two terms COEXIST well at their chosen magnitudes** (added 2026-09-17) | ☠️ **The collinearity gate cannot see this.** VIF/`r` measure co-movement of detector COUNTS; they say nothing about the relative HEIGHT of the scored curves. Threats × KS: every leg VIF ≤ 1.30 on a general 10k sample AND on `lichess_ks_labelled` — genuinely disjoint detectors — yet threats taxed KS-critical accuracy at every magnitude, because our KS saturates at `KS_V2_MAX` = 4.0 pawns while SF's/Ethereal's kingDanger is an unbounded quadratic that overtakes threats ~2:1 in severe attacks. ⇒ A clean gate means "not the same signal", NOT "safe together". Reading curve balance needs a SOURCE comparison or a 2×2, not the gate. |
 
 ---
 
@@ -511,6 +516,22 @@ Measured 2026-09-11 on `ks_sets/lichess_ks_labelled.csv` (n=2609 after dropping 
 ☠️ **The SAME 1-millipawn change that moved STS by 69 points moves this by 0.01%.**
 ⇒ This instrument is ~1000x less sensitive to irrelevant perturbation than a fixed-depth move bench,
 because it never routes through search tie-breaking (§H) or the changed-move population (§F2).
+
+### ★★ §I2 — ☠️ SLICING §I BY POSITION CLASS RAISES ITS RESOLUTION, NOT ITS INDEPENDENCE (2026-09-16/17)
+🧰 `_position_class.py` writes pawn-structure class corpora (`centre_tension` · `centre_locked` · `centre_open` ·
+`centre_cleared` · `other`, plus an orthogonal `pin_dense` tag) that §I and the regret gate consume unchanged.
+**It works as a MAGNIFIER:** `MOB_V2_PIN` read **−4.75% on `pin_dense` vs −0.51% globally (9×)**; `MOB_V2_EXCL_LOWRANK`
+−2.39% on `centre_tension` vs −0.54% on `centre_cleared`; space's ONLY real effect was `centre_locked` −0.04..−0.13.
+☠️ **But a per-class §I win is NOT a second instrument.** §I is corpus fit; slicing changes the POPULATION, not the
+instrument, so §I-by-class and §I-global are ONE vote however much louder the sliced one sounds. Both magnified effects
+above then read NULL on the d7 regret gate **on their own classes** (pin −0.6pp vs a class-measured 50.0; exlow −1.4pp vs
+50.4). I wrote "confirmed on this instrument" after the §I result and had to withdraw it.
+### ▶️ THE ARITHMETIC THAT DECIDES WHETHER A CLASS READ CAN RESOLVE ANYTHING
+A class-local effect reaches the aggregate only in proportion to the class's SHARE: `centre_locked` is **3.2%** of
+positions, so 0.032 × 0.13 ≈ **0.004 = a tenth of §I's own floor**. ⇒ Compute `share × effect` BEFORE running the class
+read, and compare it to 0.05%.
+⚠️ **Class neutrals do NOT transfer.** Measured bars on the same base: `pin_dense` 50.0 · `centre_tension` 50.4 ·
+`centre_locked` 49.4 — against whole-corpus 49.9 / 51.1. The bar is a property of the CORPUS.
 
 ### ▶️ WHY IT MATTERS FOR THE LADDER
 §H and §H2 concluded that NOTHING we owned could tune a constant at early rungs — STS goes chaotic

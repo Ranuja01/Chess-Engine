@@ -8,6 +8,13 @@ Run BOTH arms: OFF must show the "expect 0" rows NON-zero (else a 0 proves nothi
 Exit 0 = every row as expected.
 """
 import os, sys
+# KEY=VAL args -> environment BEFORE the engine loads, so this runs through the prompt-free runner form
+# (`overnight_runner.sh pyrun diagnostics/_draw_v2_verify.py EVAL_ARM=1 DRAW_V2_CLASS=1 ...`) as well as with an
+# env prefix. Knobs latch at ChessAI construction.
+for _a in sys.argv[1:]:
+    if "=" in _a:
+        _k, _v = _a.split("=", 1)
+        os.environ[_k] = _v
 ENGINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # diagnostics/ -> NN Engine/
 sys.path.insert(0, ENGINE)
 os.chdir(ENGINE)
@@ -35,13 +42,32 @@ CASES = [
     ("wrongB fortress", "1k6/8/8/8/P7/4K3/1B6/8 w - - 0 1",         True),   # dark B, a8 light, Kb8 beside it
     ("rightB (ctrl)  ", "1k6/8/8/8/P7/4K3/2B5/8 w - - 0 1",         False),  # light B controls a8 -> must NOT fire
     ("wrongB far K   ", "7k/8/8/8/P7/4K3/1B6/8 w - - 0 1",          False),  # king far from a8 -> must NOT fire
-    # A normal asymmetric middlegame: must be untouched and non-zero.
-    ("midgame        ", "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", False),
+    # A normal middlegame: must be untouched and non-zero.
+    # ☠️ Replaced 2026-09-14: the old row (an equal-material Italian) read EXACTLY 0 under the shipped rung-2 knobs in BOTH
+    # classifier arms -- a coincidental cancellation of PST/KS/pawn terms, so it failed while proving nothing. A control
+    # must be non-zero BY CONSTRUCTION: this one is a pawn up (Black's e-pawn is gone), and far too many pieces for any
+    # draw case to apply.
+    ("midgame P-up   ", "r1bqkb1r/pppp1ppp/2n2n2/8/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5", False),
+]
+
+# EXACT KPK bitbase (DRAW_V2_KPK_EXACT, 2026-09-14). Every verdict below is from the Lichess tablebase or is the exact
+# colour mirror of one. Drawn rows expect 0 ONLY when the bitbase is live (it sits inside draw_class, so it needs
+# DRAW_V2_CLASS too); otherwise they must read NON-zero, so the OFF arm proves the rule is what zeroes them.
+# ☠️ The 6th-rank row is here because my own prior called it a draw; the tablebase says WIN in 21. It must stay non-zero.
+kpk_live = os.environ.get("DRAW_V2_CLASS") == "1" and os.environ.get("DRAW_V2_KPK_EXACT") == "1"
+CASES += [
+    ("KPK opp w DRAW ", "8/4k3/8/4K3/4P3/8/8/8 w - - 0 1",           kpk_live),  # TB draw
+    ("KPK opp b WIN  ", "8/4k3/8/4K3/4P3/8/8/8 b - - 0 1",           False),     # TB loss for Black (DTM -28)
+    ("KPK mir b DRAW ", "8/8/8/4p3/4k3/8/4K3/8 b - - 0 1",           kpk_live),  # colour mirror of the draw
+    ("KPK mir w WIN  ", "8/8/8/4p3/4k3/8/4K3/8 w - - 0 1",           False),     # colour mirror of the win
+    ("KPK rookP DRAW ", "7k/8/6K1/7P/8/8/8/8 w - - 0 1",             kpk_live),  # TB draw, h-file (file mirror)
+    ("KPK 6th WIN    ", "4k3/8/4K3/4P3/8/8/8/8 w - - 0 1",           False),     # TB win (DTM 21)
 ]
 
 arm = os.environ.get("EVAL_ARM", "?")
 dc  = os.environ.get("DRAW_V2_CLASS", "?")
-print("EVAL_ARM=%s DRAW_V2_CLASS=%s" % (arm, dc))
+print("EVAL_ARM=%s DRAW_V2_CLASS=%s DRAW_V2_KPK_EXACT=%s (kpk rows expect 0: %s)"
+      % (arm, dc, os.environ.get("DRAW_V2_KPK_EXACT", "?"), kpk_live))
 print("  %-16s %12s   %s" % ("case", "eval (mp)", "expect 0?"))
 bad = 0
 for name, fen, should_be_zero in CASES:

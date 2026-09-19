@@ -864,6 +864,175 @@ namespace Config
     // OFF the gate stays exact.
     inline bool DRAW_V2_KPK = false;
 
+    // Slice 1/4 -- EXACT KPvK via a retrograde bitbase (SF11 bitbase.cpp's algorithm, built once on first use).
+    // Replaces the lone-KPvK heuristic above with a zero-false-positive classification BY CONSTRUCTION, for every
+    // pawn file, not just rook pawns. Only a DRAWN K+P vs K returns 0; a won one keeps the normal eval.
+    // ☠️ Separate from DRAW_V2_KPK on purpose: that knob also carries the bishop-vs-rook-pawn HEURISTIC, which is
+    // not exact. Gate: diagnostics/_kpk_oracle.py --all-files --engine (every state, 0 mismatches) before folding
+    // this into DRAW_V2_CLASS. 0 = off == byte-identical.
+    inline bool DRAW_V2_KPK_EXACT = false;
+
+    // Slice 2 -- PER-PIECE MOBILITY. Design + the five-engine table: dev_notes/EVAL-V2-SLICE2-MOBILITY-DESIGN.md.
+    // ★ SHAPE from SF11's MobilityBonus tables (5/5 references use a per-piece concave count table, 4/5 with a
+    // negative floor), each leg converted by ITS OWN pawn (mg /128, eg /213) so the mg:eg relationship survives in
+    // pawn terms. SCALE is this knob: the KNIGHT MIDGAME table range in millipawns (SF11's is 95 SF units), and the
+    // whole set scales with it.
+    // ⚠️ MEASURED 2026-09-14 -- the original sizing premise did NOT hold. It sized the range against v2's knight PST
+    // spread (30 mp) × the references' mobility:PST ratio (1.1x SF11 … ~10x Ethereal), i.e. 30-300. Measured instead:
+    // §I optimum ≈ 1000 (−7.56%), near SF11's plain pawn conversion (742); d7 regret at 600 beat a same-session neutral
+    // by +4.9pp / +3.1pp on two corpora; STS is flat at every magnitude and cannot price it. v2's PSTs are 3-10x
+    // smaller than SF11's, so that denominator was under-scaled. Games candidate: 600. EVAL-V2-SLICE2-MOBILITY-DESIGN.md §3.
+    // ⚠️ Uses the SAME attack maps as KS, so KS_V2_XRAY also sets mobility's x-ray occupancy (no second attack pass).
+    // 0 = off == byte-identical.
+    inline int MOB_V2_MAG = 0;
+    // Mobility AREA candidates. The core area (4/5 references) excludes squares attacked by enemy pawns, our own
+    // blocked pawns and our king. These two are where the references SPLIT, so they are knobs, default off:
+    // SF11/15 also exclude our queen, and our pawns still on their 2nd/3rd rank (Weiss: 2nd only).
+    inline bool MOB_V2_EXCL_QUEEN = false;
+    inline bool MOB_V2_EXCL_LOWRANK = false;
+    // Mobility FORM bake-off (2026-09-15), all default = the shipped form (byte-identical):
+    // TABLE -- per-piece table SHAPE: 0 SF11 (shipped) · 1 SF15.1 · 2 Ethereal · 3 Weiss. Every table is rescaled so
+    //   its KNIGHT MIDGAME range is MOB_V2_MAG, so only the shape competes, never the reference's scale.
+    // EG_PCT -- endgame leg as a percent of the pawn-converted reference eg leg (100 = shipped).
+    // PIN -- SF lineage (SF11 evaluate.cpp:230, :273-274): king-blocker squares of EITHER colour leave the area, and our own
+    //   pinned N/B/R/Q counts only squares on its pin line (a pinned knight counts none). Mobility only: KS maps unchanged.
+    //   ⚠️ Trapped rook reuses the resulting per-rook count, so PIN also changes trapped rook (as in SF).
+    inline int MOB_V2_TABLE = 0;
+    inline int MOB_V2_EG_PCT = 100;
+    inline bool MOB_V2_PIN = false;
+    // SAFE -- OURS-FIRST (v1's knight/queen safe-square test): a square counts only if no enemy piece of LOWER value
+    //   attacks it (1: N/B unchanged -- pawns already leave the area; R also drops N/B-attacked; Q also R-attacked) or of
+    //   LOWER-OR-EQUAL value (2: N/B also drop N/B-attacked; R also R-attacked; Q also Q-attacked). 0 = off = shipped.
+    //   Counted after both sides' attack maps exist, from masks stored in the one attack pass (no second attacks_mask).
+    inline int MOB_V2_SAFE = 0;
+
+    // Slice 2 -- ROOK ON AN OPEN / SEMI-OPEN FILE (5/5 references). Midgame millipawns; the endgame leg follows
+    // SF11's RookOnFile eg:mg ratio IN PAWN TERMS (open 32%, semi 11%), since our pawn is flat.
+    // ★ Scale against the positional spread, not the pawn: SF11's open-file bonus is 0.56x its knight PST spread,
+    // Weiss 1.1x, Ethereal 2.6x ⇒ ~17-80 mp against v2's 30. ☠️ v1's ROOK_OPEN_BASE=250 is 3-15x every reference.
+    // Open = no pawn of either colour on the file; semi = none of our own. 0/0 = off == byte-identical.
+    inline int ROOKFILE_V2_OPEN = 0;
+    inline int ROOKFILE_V2_SEMI = 0;
+
+    // Slice 2 -- PER-PIECE PLACEMENT sub-terms. Design + specs: dev_notes/EVAL-V2-SLICE2-MOBILITY-DESIGN.md §2.3.1.
+    // Each is a PERCENT of SF11's value converted by the pawn (mg /128, eg /213 -> x1000): 100 = the plain pawn
+    // conversion. ★ A percent knob is deliberate: mobility's §I optimum sat near the PAWN conversion while tempo's sat
+    // near the POSITIONAL spread, so each term must be laddered across both anchors, never committed to one.
+    // SF11 evaluate.cpp:291-361. 0 = off == byte-identical.
+    inline int OUTPOST_V2_PCT = 0;    // Outpost S(30,21): minor on relative ranks 4-6, own-pawn defended, outside
+                                      // the enemy pawn attack span (knights x2)
+    inline int REACH_V2_PCT = 0;      // ReachableOutpost S(32,10): knight attacks an empty/enemy outpost square
+    inline int BEHIND_V2_PCT = 0;     // MinorBehindPawn S(18,3): any pawn directly in front of a minor
+    // Minor-behind-pawn PHASE SHAPE, where the references SPLIT: 0 = SF11 S(18,3) (midgame-heavy) · 1 = Weiss
+    // NBBehindPawn S(9,32) (endgame-heavy; Ethereal agrees in shape). ☠️ The midgame-heavy form pays UNDEVELOPED
+    // minors on b1/c1/f1/g1 for standing behind their start-rank pawns (1.Na3 lost ~141 mp at 100%), which the
+    // endgame-heavy form mostly avoids in the opening. Both first-class; the §I ladder decides.
+    inline int BEHIND_V2_FORM = 0;
+    inline int BADB_V2_PCT = 0;       // BishopPawns S(3,7) x own pawns on the bishop's colour x (1 + own blocked c-f pawns)
+    inline int LONGDIAG_V2_PCT = 0;   // LongDiagonalBishop S(45,0): sees 2+ centre squares through pawns only
+    inline int TRAPROOK_V2_PCT = 0;   // TrappedRook S(52,10) x (1 + no castling rights): rook NOT on own semi-open
+                                      // file, area mobility <= 3, on the king's edge side
+    inline int WEAKQ_V2_PCT = 0;      // WeakQueen S(49,15): an enemy rook/bishop with exactly one piece between it
+                                      // and our queen (relative pin or discovered attack)
+    // Per-term reference FORMS, where the references split (EVAL-V2-SLICE2-MOBILITY-DESIGN.md per-term table). 0 = the
+    // current SF11 form == byte-identical. ★ Owner's direction (2026-09-14): pick the best definition per term from ANY
+    // engine, or ours if better -- decided head-to-head on §I + regret, ties to the least-correlated form.
+    inline int OUTPOST_V2_FORM = 0;   // 0 SF11 · 1 Ethereal (raw span, defence-INDEXED table incl. rim) · 2 SF15.1 (defended OR pawn in front)
+    inline int BADB_V2_FORM = 0;      // 0 SF11 N(1+blk) · 1 SF15.1 N(!defended+blk) by file class · 2 Weiss N·blk · 3 Ethereal rammed-only
+    inline int TRAPROOK_V2_FORM = 0;  // 0 SF11 step (mob<=3) · 1 SF1.1 linear 180-16·mob (mob<=6, king rank, no open file to the edge)
+    // OURS -- latent pawn pressure, from v1's latent bishop/rook activity without the retired heat map. 100 = v1's
+    // increments (15 mp per bishop latent square attacking an enemy pawn, 10 for a rook), midgame only. 0 = off.
+    inline int LATENT_V2_PCT = 0;
+
+    // Slice 3 -- BISHOP PAIR. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §2.3. v2 has had NO pair term at all.
+    // ★ 5/5 references pay it, and at ~1-2x THAT engine's own knight PST rim-vs-centre mg spread (SF1.1 1.59x ·
+    // SF11 1.07x · SF15.1 1.06x · Weiss 1.27x · Ethereal 2.0x) -- the one cross-engine ratio that transfers.
+    // MAG = the MIDGAME value in millipawns (v2's knight PST spread is ~30 mp, so the reference ratios put this
+    // in the 30-60 mp range; the pawn conversion would say ~700 -- ladder BOTH anchors, per slice 2's lesson).
+    // ☠️ NOT built, and why (five-engine contrast §1.4): a flat KNIGHT pair is 0/5 (it exists only as NEGATIVE
+    // redundancy inside SF's imbalance matrix), and OPENNESS scaling is 0/5 -- SF couples the pair POSITIVELY to
+    // its OWN pawn count (+2.5 per pawn), so v1's MOD_PAIR_OPEN inverts the reference sign.
+    inline int BPAIR_V2_MAG = 0;
+    // Phase/coupling FORM, where the references split. 0 = flat, eg == mg (SF lineage applies one value to both
+    // phases) · 1 = ENDGAME-HEAVY, eg = 3.5x mg (Ethereal S(22,88) 4:1, Weiss S(33,110) 3.3:1) · 2 = flat + SF's
+    // own-pawn coupling (+2.8% of the pair per own pawn, POSITIVE -- SF11 material.cpp pair x own-pawn +40/16).
+    inline int BPAIR_V2_FORM = 0;
+
+    // Slice 3 -- KAUFMAN / POLYNOMIAL MATERIAL IMBALANCE. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §3.
+    // The last named slice-3 item, and the ONLY reference mechanism that prices piece REDUNDANCY (SF's two
+    // largest cells are R x R -208 and Q x enemy-R +268 -- v2 expresses neither anywhere).
+    // MAG is a scale on SF11's VERBATIM tables (material.cpp:33-53), where **1000 == exactly SF's own scale
+    // expressed in our millipawns**: SF divides its side-difference by 16 and its mg pawn is 128 (types.h:182)
+    // against our 1000, so one SF cell unit = 1000/(16*128) = 0.488 mp. 0 = off = byte-identical.
+    // ★ Ladder this ONE number, not the 36 coefficients -- the pattern that won mobility (reference SHAPE, our
+    // MAGNITUDE). Fitting the cells is explicitly NOT the plan: raw-corpus fits are 5-for-5 bench-negative.
+    // ★ This is a MATERIAL term, so the PAWN is the right unit anchor -- the one documented place where
+    // "convert by positional scale, not by the pawn" INVERTS.
+    // ☠️ SF's tables, NOT v1's fitted ones: v1's contradict SF's SIGN in B x own-pawn, N x enemy-pawn and 3 of 5
+    // pair-vs-enemy cells, and price the bishop pair at only ~0.13 pawns.
+    inline int KAUF_V2_MAG = 0;
+    // WHO OWNS THE BISHOP PAIR. 1 = this term does (SF's structure: the pair is a pseudo-piece whose value rises
+    // with own pawns, falls with own queen, and falls with EVERY enemy unit -- SF prices it NOWHERE else).
+    // 0 = the pair row/column are zeroed, leaving the standalone BPAIR_V2_MAG to own it.
+    // ⚠️ Exactly ONE of KAUF_V2_PAIR and BPAIR_V2_MAG should be non-zero, or the pair is paid twice.
+    // ★ Why this knob exists: v2's "the pair is already owned by PST + mobility" verdict refuted a FLAT pair on
+    // three instruments -- it never tested SF's CONDITIONED one, which is a different claim.
+    inline int KAUF_V2_PAIR = 1;
+    // WHICH TABLE SET. 0 = SF11's verbatim cells (the reference form). 1 = ☠️ DIAGNOSTIC ONLY: v1's FITTED cells,
+    // carried to test whether the 09-18 ladder's uniform failure is BASIS rather than scale — imbalance cells are
+    // corrections on the PIECE VALUES they correct, SF11's midgame pieces are ~2x steeper than ours, and v1 shares
+    // `Config::values[]` with v2. ⚠️ FORM 1 is NOT a ship candidate (fitted tables do not port, and v1's contradict
+    // SF's sign in several cells); it exists to make the hypothesis falsifiable.
+    // 2 = DERIVED per-piece value-ratio rescale of SF's cells (zero free parameters) -- the one arm the basis
+    // hypothesis implies. ☠️ A GLOBAL rescale is already refuted (MAG 250-2000 all monotonically worse), so this
+    // is a DIFFERENTIAL reweighting: piece x piece ~0.27, piece x pawn ~0.52, pawn x pawn 1.00.
+    inline int KAUF_V2_FORM = 0;
+
+    // Slice 3 -- SPACE. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §1.1 + §2.1. ★ 3/5 references have it (SF11,
+    // SF15.1, Ethereal; SF1.1 and Weiss have NONE) and all three give it a ZERO endgame leg, so this is applied
+    // mg-only (tapered by phase256). ☠️ v1's flat `SPACE_MAG` form died on the pre-08-14 contaminated harness =
+    // UNREADABLE, not refuted; SF's GATED form was never built here.
+    // MAG = millipawns for one REFERENCE unit of space, where a unit is SF11's shape at the start-of-game weight
+    // and 12 counted squares (raw 169). Per side, then differenced, so symmetric positions cancel exactly.
+    inline int SPACE_V2_MAG = 0;
+    // REGION: 0 = SF own camp, files c-f x relative ranks 2-4 (DEVELOPMENT room, not the d4/e4/d5/e5 complex)
+    //         1 = Ethereal's shared centre block c3-f6.
+    inline int SPACE_V2_REGION = 0;
+    // SAFE: 0 = SF `~own pawns & ~enemy PAWN attacks` · 1 = Ethereal `~all enemy attacks & (we attack or occupy)`.
+    inline int SPACE_V2_SAFE = 0;
+    // WEIGHT: 0 = SF11 `(pieces-1)^2 / 16` (all pieces incl. pawns/king) · 1 = Ethereal LINEAR.
+    // ⚠️ SF15.1's `(pieces-3+min(blocked,9))^2` variant is NOT built: `blocked` needs the pawn entry, which the
+    // dispatch builds AFTER the attack maps this term rides on. Recorded rather than silently approximated.
+    inline int SPACE_V2_WEIGHT = 0;
+    // BEHIND: SF's second count -- squares <=3 ranks behind an own pawn that the enemy does not attack at all are
+    // counted TWICE (SF11 evaluate.cpp:678-683).
+    inline bool SPACE_V2_BEHIND = false;
+    // Material gate as a PERCENT of the start position's total non-pawn material (SF11 74%, SF15.1 70%); 0 = no gate.
+    inline int SPACE_V2_GATE_PCT = 74;
+
+    // Slice 3 -- THREATS. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §1.3 + §2.2. ★ 4/5 references carry a threat family
+    // (not SF1.1), and in ALL FOUR the largest single constant is "a pawn attacks a piece" -- that shape transfers, the
+    // scales do not. ☠️ v1's threats shipped at +45.0 ±40.6 Elo but on `gate`'s FIXED openings, never attributed; and its
+    // HANGING leg was measured ~87% a subset of capture_gains. ⚠️ THAT OWNERSHIP ARGUMENT DOES NOT TRANSFER: v2 has no
+    // capture-gains term, so here Hanging has no other owner. This is a changed premise, not a re-run.
+    // PCT = percent of SF11's pawn-converted value (100 = the plain pawn conversion), the same anchor the placement
+    // sub-terms use, so it can be laddered against BOTH anchors. 0 = off == byte-identical.
+    inline int THREAT_V2_PCT = 0;
+    // Defence GATE form, where the references split most sharply:
+    //   0 = SF (evaluate.cpp:494-495): `stronglyProtected = their pawn attacks | (their double-attacks & ~our
+    //       double-attacks)`; minors are paid on `defended | weak`, everything else on `weak` only.
+    //   1 = Ethereal `poorlyDefended` (victim's view; pawn support OVERRIDES): `(attacked[THEM] & ~attacked[US]) |
+    //       (attackedBy2[THEM] & ~attackedBy2[US] & ~attackedBy[US][PAWN])`.
+    inline int THREAT_V2_GATE = 0;
+    // Sub-legs where the references DISAGREE, so each is separately switchable (counts follow SF's definitions):
+    inline bool THREAT_V2_HANGING = false;   // SF only (2/4): weak AND (undefended OR out-double-attacked)
+    inline bool THREAT_V2_RESTRICT = false;  // SF only (2/4): squares they attack that we also attack and they do not
+                                             // strongly protect. ⚠️ Same attack maps as mobility's area -- gate it for
+                                             // collinearity BEFORE laddering a magnitude.
+    inline bool THREAT_V2_KING = false;      // 3/4 (not Weiss, which removes the king from attackers)
+    inline bool THREAT_V2_PAWN_TARGETS = false;  // 3/4, and eg-weighted in SF (S(6,32) / S(3,44))
+    inline bool THREAT_V2_PUSH = false;      // 4/4 have a safe pawn-PUSH threat; SF gates the push square on safety
+
     // Which rung of v2's build-up ladder to evaluate. v2 is grown one feature at a time and each rung is
     // read against the PREVIOUS rung -- a candidate-vs-candidate comparison, which is null-independent and
     // is the one comparison our instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora).

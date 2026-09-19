@@ -28,6 +28,17 @@ def promo_value(board):
     return WIN  # KQ vs K with a safe queen is a theoretical win
 
 
+def key(board):
+    """State key: placement + side to move ONLY.
+    ☠️ Fixed 2026-09-14. This file used to key states by board.fen(), which INCLUDES the halfmove and fullmove
+    counters. Every generated state is '... 0 1', but a king move's child is '... 1 1' and Black's reply bumps
+    the fullmove number, so child lookups MISSED, val.get() returned None, and WIN never propagated except through
+    pawn pushes and terminals -- the oracle labelled most won KPvK positions DRAW. A win-starved oracle cannot see
+    a FALSE DRAW (the rule's flagged 'draw' is just agreed with), so every 'no false-draws' result this tool
+    produced before the fix (incl. the June rook-pawn rule, '83,238 states, 0 false-draws') is UNVERIFIED."""
+    return "%s %s - -" % (board.board_fen(), "w" if board.turn == chess.WHITE else "b")
+
+
 def gen_states(files):
     """All legal KPvK positions with a single WHITE pawn on one of `files`, ranks 2-7, both stm."""
     states = []
@@ -49,12 +60,24 @@ def gen_states(files):
                         b.set_piece_at(psq, chess.Piece(chess.PAWN, chess.WHITE))
                         b.turn = stm
                         if b.is_valid():
-                            states.append(b.fen())
+                            states.append(key(b))
     return states
 
 
-def solve(states):
-    """Retrograde fixpoint. Returns {fen: WIN|DRAW}."""
+def promo_best(board_before, mv):
+    """--exact: White's best promotion on this move, QUEEN or ROOK. ★ Under-promotion to a rook wins some
+    positions where queening stalemates; without it the oracle labels those DRAW and would hide a false draw."""
+    best = DRAW
+    for piece in (chess.QUEEN, chess.ROOK):
+        nb = board_before.copy(stack=False)
+        nb.push(chess.Move(mv.from_square, mv.to_square, promotion=piece))
+        if promo_value(nb) == WIN:
+            best = WIN
+    return best
+
+
+def solve(states, exact=False):
+    """Retrograde fixpoint. Returns {fen: WIN|DRAW}. exact=True also considers rook under-promotion."""
     val = {}
     succ = {}
     # Seed terminals; record successors for the rest.
@@ -69,14 +92,19 @@ def solve(states):
         children = []
         for mv in b.legal_moves:
             if b.piece_at(mv.from_square).piece_type == chess.PAWN and chess.square_rank(mv.to_square) == 7:
-                # promotion: evaluate the KQ-vs-K shortcut directly
-                nb = b.copy(stack=False)
-                nb.push(chess.Move(mv.from_square, mv.to_square, promotion=chess.QUEEN))
-                children.append(("T", promo_value(nb)))
+                # promotion: evaluate the KQ-vs-K (and, with exact, KR-vs-K) shortcut directly
+                if mv.promotion not in (None, chess.QUEEN):
+                    continue                               # one child per promotion square, not four
+                if exact:
+                    children.append(("T", promo_best(b, mv)))
+                else:
+                    nb = b.copy(stack=False)
+                    nb.push(chess.Move(mv.from_square, mv.to_square, promotion=chess.QUEEN))
+                    children.append(("T", promo_value(nb)))
             else:
                 nb = b.copy(stack=False)
                 nb.push(mv)
-                children.append(("S", nb.fen()))
+                children.append(("S", key(nb)))
         succ[fen] = children
 
     changed = True
@@ -127,7 +155,51 @@ def candidate_rule(fen):
 candidate_rule.mode = "strict"
 
 
+def engine_check():
+    """--all-files --engine: the gate for eval v2's EXACT KPK bitbase (DRAW_V2_KPK_EXACT).
+
+    Solves EVERY legal KPvK state with the pawn on files a-d (the bitbase's normalised domain; e-h is a file
+    mirror) including rook under-promotion, then compares the engine's kpk_probe on each one. Both directions are
+    reported, but a FALSE DRAW (oracle WIN, bitbase draw) is the one that must be zero: it would zero a won game.
+    Run in WSL after a build:  pyrun diagnostics/_kpk_oracle.py --all-files --engine
+    """
+    import os, time
+    engine_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, engine_dir)
+    import ChessAI
+    t0 = time.time()
+    states = gen_states([0, 1, 2, 3])
+    print(f"KPvK legal states, files a-d: {len(states)}  ({time.time()-t0:.0f}s)")
+    val = solve(states, exact=True)
+    wins = sum(1 for v in val.values() if v == WIN)
+    print(f"oracle (exact, with rook under-promotion): WIN={wins}  DRAW={len(val)-wins}  ({time.time()-t0:.0f}s)")
+    false_draw, false_win, bad_domain = [], [], 0
+    for fen, v in val.items():
+        b = chess.Board(fen)
+        psq = next(iter(b.pieces(chess.PAWN, chess.WHITE)))
+        wk = b.king(chess.WHITE)
+        bk = b.king(chess.BLACK)
+        got = ChessAI.kpk_win(wk, psq, bk, b.turn == chess.WHITE)
+        if got < 0:
+            bad_domain += 1
+        elif v == WIN and got == 0:
+            false_draw.append(fen)
+        elif v == DRAW and got == 1:
+            false_win.append(fen)
+    print(f"engine bitbase vs oracle: FALSE-DRAWS={len(false_draw)} (must be 0)  false-wins={len(false_win)}  "
+          f"out-of-domain={bad_domain}")
+    for f in false_draw[:10]:
+        print("    FALSE-DRAW:", f)
+    for f in false_win[:10]:
+        print("    false-win: ", f)
+    ok = not false_draw and not false_win and bad_domain == 0
+    print("RESULT:", "PASS" if ok else "FAIL")
+    sys.exit(0 if ok else 1)
+
+
 def main():
+    if "--all-files" in sys.argv and "--engine" in sys.argv:
+        engine_check()
     if "--sf" in sys.argv:
         import chess.engine
         SF = r"C:\Users\Kumodth\OneDrive\Desktop\Programming\Chess Engine\stockfish\stockfish-windows-x86-64-avx2.exe"
@@ -168,9 +240,8 @@ def main():
     print("\nchesscom KPvK check:")
     for f in ["8/7k/8/8/6KP/8/8/8 w - - 4 59", "7k/8/8/6KP/8/8/8/8 w - - 7 63"]:
         # normalise to white-pawn oracle key (these already have a white pawn)
-        b = chess.Board(f)
-        key = b.fen()
-        print(f"  oracle={'WIN' if val.get(key)==WIN else 'DRAW' if key in val else '?'}  rule={candidate_rule(f)}  {f}")
+        k = key(chess.Board(f))
+        print(f"  oracle={'WIN' if val.get(k)==WIN else 'DRAW' if k in val else '?'}  rule={candidate_rule(f)}  {f}")
 
 
 if __name__ == "__main__":

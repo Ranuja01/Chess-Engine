@@ -42,6 +42,70 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawns, uint64_t
 */
 void pawn_entry_probe(uint64_t pawns, uint64_t occupied_white, uint64_t occupied_black, uint64_t *out);
 
+/*
+	SLICE 2 MOBILITY DETECTOR PROBE (diagnostic). Per-side, per-type area-filtered counts, raw SF11 table sums
+	and the area masks, for comparison against diagnostics/_mobility_detector_oracle.py. `out` needs 14
+	entries. ⚠️ Reads KS_V2_XRAY and MOB_V2_EXCL_*, so build an engine under the arm's environment first.
+*/
+void mobility_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
+                    uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out);
+
+/*
+	EXACT KPK BITBASE PROBE (diagnostic). Strong side normalised to White, pawn on files a-d, ranks 2-7.
+	Returns 1 = win, 0 = draw, -1 = outside the normalised domain. Compared against every state of
+	diagnostics/_kpk_oracle.py --all-files --engine.
+*/
+int kpk_probe(int wksq, int wpsq, int bksq, int strong_to_move);
+
+/*
+	SLICE 2 PLACEMENT DETECTOR PROBE (diagnostic). Per side: outpost knights, outpost bishops, reachable-outpost
+	knights, minors behind a pawn, bad-bishop units, long-diagonal bishops, trapped-rook units, weak queens, latent
+	bishop hits, latent rook hits -- White 0-9, Black 10-19. `out` needs 20. Form-dependent packing is documented at the
+	definition. ⚠️ Reads KS_V2_XRAY, MOB_V2_EXCL_* and the *_V2_FORM knobs; build an engine first.
+*/
+/*
+	DETECTOR ORACLE PROBE for slice-3 space (diagnostic; never called from search). `out` needs 6 entries:
+	0-1 per-side safe-square COUNTS (White, Black, after the BEHIND double count), 2-3 per-side piece counts used by
+	the weight, 4 the Black-positive millipawn score, 5 phase256. ⚠️ Reads every SPACE_V2_* knob plus KS_V2_XRAY
+	(the attack occupancy its safe mask depends on), so build an engine under the arm's environment first.
+	Compared against diagnostics/_space_detector_oracle.py.
+*/
+void space_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
+                 uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out);
+
+/*
+	DETECTOR ORACLE PROBE for slice-3 threats (diagnostic; never called from search). `out` needs 16 entries, per side
+	W,B: 0-1 minor-threat victims · 2-3 rook-threat victims · 4-5 king-threat victims · 6-7 hanging · 8-9 restricted
+	squares · 10-11 safe-pawn threats · 12-13 pawn-push threats · 14 the Black-positive millipawn score · 15 phase256.
+	★ Comparing counts as well as the score means a compensating pair of errors cannot hide.
+	☠️ CONTRACT (corrected 2026-09-17): the LEG COUNTS ARE UNCONDITIONAL -- every leg's detector count is filled whether or
+	not that leg's knob is on, so a disabled leg still reports what it WOULD contribute. Only the SCORE (out[14]) respects
+	the knobs. The one filter applied to a count is PAWN_TARGETS, which is part of the minor/rook victim definition.
+	⚠️ Reads every THREAT_V2_* knob plus KS_V2_XRAY (the attack occupancy its gates depend on), so build an engine under
+	the arm's environment first. Compared against diagnostics/_threats_detector_oracle.py.
+*/
+void threats_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
+                   uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out);
+
+/*
+	KING-SAFETY COUNT PROBE (diagnostic; never called from search). `out` needs 12 entries, indexed by the KING under
+	examination (0 = White's king, 1 = Black's king): 0-1 attacker COUNT (n_att) · 2-3 weighted attacker sum (w_att) ·
+	4-5 weak zone squares · 6-7 attacks on king-adjacent squares · 8-9 safe-check squares (all four piece channels
+	summed, per-square regardless of KS_V2_CHK_COUNT) · 10-11 the raw unit total from ks_units.
+	★ WHY THIS EXISTS (2026-09-17): king safety is the ONE subsystem the collinearity gate cannot see -- flagged as a
+	coverage hole since slice 2, and now load-bearing, because threats taxes KS-critical accuracy in proportion to its
+	magnitude and "threats double-counts KS" is otherwise an untested story.
+	⚠️ Reads every KS_V2_* knob plus KS_V2_XRAY. ☠️ Counts are UNCONDITIONAL (each channel is reported whether or not its
+	knob is non-zero) -- the same contract as threats_probe, corrected there on 2026-09-17; only out[10-11] respects the
+	knobs, because it IS the scored total.
+*/
+void ks_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
+              uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out);
+
+void placement_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
+                     uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights,
+                     long long *out);
+
 void eval_v2_shadow_record(int v1, int v2);
 void eval_v2_shadow_report();
 

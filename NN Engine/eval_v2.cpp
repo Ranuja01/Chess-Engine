@@ -73,6 +73,7 @@ instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora, first tr
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 
 namespace {
 
@@ -256,7 +257,116 @@ struct SideAttacks {
 	uint64_t by[7];      // indexed PAWN..KING (1..6); [0] unused
 };
 
-inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white)
+/*
+	SF11 MobilityBonus (evaluate.cpp:93-107), RAW SF units, indexed [KNIGHT..QUEEN][area-filtered count].
+	Kept raw on purpose: they are summed raw per side and scaled ONCE at the end (mobility_mp), so the scale
+	knob costs one multiply per eval and no rounding accumulates per piece. Unused tail entries are 0 and
+	unreachable (max counts 8 / 13 / 14 / 27 on an empty board; x-ray cannot exceed them).
+*/
+/*
+	MOB_V2_TABLE form bake-off (2026-09-15): the same [KNIGHT..QUEEN][count] layout for four references, indexed
+	[table][type][count]. 0 SF11 (shipped; evaluate.cpp:93-107) · 1 SF15.1 (evaluate.cpp:213-227) · 2 Ethereal
+	(master 0e47e9b, src/evaluate.c Knight/Bishop/Rook/QueenMobility) · 3 Weiss (master c735b8f, src/evaluate.c Mobility).
+	Each engine's own units; mobility_mp rescales every table by ITS OWN knight mg range and pawn pair, so only the
+	SHAPE competes. Ethereal/Weiss digits were fetched twice independently and agreed entry-for-entry.
+*/
+static constexpr int MOB_TAB_MG[4][4][28] = {
+	{ // SF11
+	{-62,-53,-12, -4,  3, 13, 22, 28, 33},
+	{-48,-20, 16, 26, 38, 51, 55, 63, 63, 68, 81, 81, 91, 98},
+	{-58,-27,-15,-10, -5, -2,  9, 16, 30, 29, 32, 38, 46, 48, 58},
+	{-39,-21,  3,  3, 14, 22, 28, 41, 43, 48, 56, 60, 60, 66, 67, 70, 71, 73, 79, 88, 88, 99,102,102,106,109,113,116},
+	},
+	{ // SF15.1
+	{-62,-53,-12, -3,  3, 12, 21, 28, 37},
+	{-47,-20, 14, 29, 39, 53, 53, 60, 62, 69, 78, 83, 91, 96},
+	{-60,-24,  0,  3,  4, 14, 20, 30, 41, 41, 41, 45, 57, 58, 67},
+	{-29,-16, -8, -8, 18, 25, 23, 37, 41, 54, 65, 68, 69, 70, 70, 70, 71, 72, 74, 76, 90,104,105,106,112,114,114,119},
+	},
+	{ // Ethereal
+	{-104,-45,-22, -8,  6, 11, 19, 30, 43},
+	{ -99,-46,-16, -4,  6, 14, 17, 19, 19, 27, 26, 52, 55, 83},
+	{-127,-56,-25,-12,-10,-12,-11, -4,  4,  9, 11, 19, 19, 37, 97},
+	{-111,-253,-127,-46,-20,-9,-1, 2,  8, 10, 15, 17, 20, 23, 22, 21, 24, 16, 13, 18, 25, 38, 34, 28, 10,  7,-42,-23},
+	},
+	{ // Weiss
+	{ -44,-31,-10,  0, 13, 22, 32, 43, 54},
+	{ -51,-26,-11, -3,  9, 21, 26, 32, 32, 35, 41, 57, 50,100},
+	{-105,-15, -1,  5,  2,  6,  5, 12, 14, 19, 24, 23, 25, 36, 72},
+	{ -63,-97,-89,-17,  0, -8, -2, -2,  1,  5,  7,  9, 15, 15, 16, 18, 16, 16, 12, 13, 23, 22, 48, 58,122,135,146,125},
+	},
+};
+static constexpr int MOB_TAB_EG[4][4][28] = {
+	{ // SF11
+	{-81,-56,-30,-14,  8, 15, 23, 27, 33},
+	{-59,-23, -3, 13, 24, 42, 54, 57, 65, 73, 78, 86, 88, 97},
+	{-76,-18, 28, 55, 69, 82,112,118,132,142,155,165,166,169,171},
+	{-36,-15,  8, 18, 34, 54, 61, 73, 79, 92, 94,104,113,120,123,126,133,136,140,143,148,166,170,175,184,191,206,212},
+	},
+	{ // SF15.1
+	{-79,-57,-31,-17,  7, 13, 16, 21, 26},
+	{-59,-25, -8, 12, 21, 40, 56, 58, 65, 72, 78, 87, 88, 98},
+	{-82,-15, 17, 43, 72,100,102,122,133,139,153,160,165,170,175},
+	{-49,-29, -8, 17, 39, 54, 59, 73, 76, 95, 95,101,124,128,132,133,136,140,147,149,153,169,171,171,178,185,187,221},
+	},
+	{ // Ethereal
+	{-139,-114,-37,  3, 15, 34, 38, 37, 17},
+	{-186,-124,-54,-14,  1, 20, 35, 39, 49, 48, 48, 32, 47,  2},
+	{-148,-127,-85,-28,  2, 27, 42, 46, 52, 55, 64, 68, 73, 60, 15},
+	{-273,-401,-228,-236,-173,-86,-35,-1, 8, 31, 37, 55, 46, 57, 58, 64, 62, 65, 63, 48, 30,  8,-12,-29,-44,-79,-30,-50},
+	},
+	{ // Weiss
+	{-139, -7, 60, 86, 89,102,102,101, 81},
+	{ -81,-40, 19, 53, 65, 83, 98,104,114,116,115,106,115, 76},
+	{-146, 18, 82, 88,121,133,144,146,152,157,164,171,177,177,154},
+	{ -48,-54,-107,-127,-52,72,142,184,215,230,243,254,255,268,279,283,294,302,313,321,314,318,298,279,221,193,166,162},
+	},
+};
+// Per-table scale: knight mg range (max - min) and the engine's own pawn mg / eg, all in that engine's units.
+static constexpr int MOB_TAB_N_RANGE[4] = { 95,  99, 147,  98};
+static constexpr int MOB_TAB_PAWN_MG[4] = {128, 126,  82, 104};
+static constexpr int MOB_TAB_PAWN_EG[4] = {213, 208, 144, 204};
+
+/*
+	Optional mobility accumulator for build_side_attacks. `area` is an INPUT (squares that count); everything
+	else is output. A null pointer means mobility is off and the attack build is exactly the rung-1 build.
+*/
+struct MobAcc {
+	uint64_t area;
+	// MOB_V2_PIN only (else pinned == 0): our king-blockers, restricted to their line through our king at ksq.
+	uint64_t pinned;
+	uint8_t  ksq;
+	int      cnt[4];       // area-filtered squares summed per type, KNIGHT..QUEEN (the detector output)
+	int      raw_mg;       // SF11 table sums, raw SF units
+	int      raw_eg;
+	// Per-ROOK area counts, kept so trapped-rook reads them instead of recomputing rook attacks and the area.
+	// 10 is the legal maximum rooks per side (2 + 8 promotions).
+	int      n_rooks;
+	uint8_t  rook_sq[10];
+	uint8_t  rook_mob[10];
+	// MOB_V2_SAFE only: each N/B/R/Q attack mask and its type index, stored in the one attack pass so the safe-square
+	// count can run once BOTH sides' attack maps exist. 15 is the legal maximum per side (7 + 8 promotions).
+	int      n_pieces;
+	uint64_t pmask[15];
+	uint8_t  ptype[15];
+};
+
+/*
+	Per-side attack maps, and optionally per-piece mobility, in ONE pass over the pieces.
+
+	★ Every reference computes mobility in the same loop that fills its attack maps (SF11 pieces(), Ethereal,
+	Weiss), because the attack mask per piece is the expensive part and both consumers want it. Doing it here
+	rather than in a second loop is the whole point of reusing SideAttacks.
+
+	@param sa     output attack maps; fully overwritten
+	@param c      context
+	@param white  which side's pieces
+	@param mob    optional; when non-null, its cnt/raw_mg/raw_eg are ACCUMULATED (caller zeroes them)
+
+	Gating: mob == nullptr leaves the loop identical to rung 1. Cost with mob: one AND + popcount + two table
+	reads per non-pawn, non-king piece.
+*/
+inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, MobAcc *mob = nullptr)
 {
 	sa.all = sa.dbl = 0;
 	for (int t = 0; t < 7; ++t) sa.by[t] = 0;
@@ -280,6 +390,31 @@ inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white)
 			sa.dbl |= sa.all & a;
 			sa.all |= a;
 			sa.by[pt] |= a;
+			if (mob && pt >= KNIGHT && pt <= QUEEN){
+				// MOB_V2_PIN (SF11:273-274): a pinned piece of ours counts only its pin line; a pinned knight's targets are
+				// never on it. The KS maps above keep the full mask -- the knob changes mobility only.
+				const uint64_t am = ((mob->pinned >> sq) & 1) ? (a & ray(mob->ksq, sq)) : a;
+				const int n = __builtin_popcountll(am & mob->area);
+				const int i = pt - KNIGHT;
+				if (Config::MOB_V2_SAFE){
+					// Deferred: mob_count_safe() needs the ENEMY's maps, which are not built yet.
+					if (mob->n_pieces < 15){
+						mob->pmask[mob->n_pieces] = am;
+						mob->ptype[mob->n_pieces] = (uint8_t)i;
+						++mob->n_pieces;
+					}
+				} else {
+					mob->cnt[i] += n;
+					mob->raw_mg += MOB_TAB_MG[Config::MOB_V2_TABLE][i][n];
+					mob->raw_eg += MOB_TAB_EG[Config::MOB_V2_TABLE][i][n];
+				}
+				// ★ Trapped rook's contract is the PLAIN area count, whatever MOB_V2_SAFE does.
+				if (pt == ROOK && mob->n_rooks < 10){
+					mob->rook_sq[mob->n_rooks]  = sq;
+					mob->rook_mob[mob->n_rooks] = (uint8_t)n;
+					++mob->n_rooks;
+				}
+			}
 		}
 	}
 }
@@ -907,6 +1042,1078 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c)
 	return ((b - w) * Config::PASSER_V2_MAG) / 100;
 }
 
+// ===================================================================================================
+// SLICE 2 -- MOBILITY + ROOK FILES
+// ===================================================================================================
+
+static constexpr uint64_t MOB_LOW_RANKS_W = 0x0000000000FFFF00ULL;   // ranks 2-3
+static constexpr uint64_t MOB_LOW_RANKS_B = 0x00FFFF0000000000ULL;   // ranks 7-6
+// SF11 RookOnFile {semi S(21,4), open S(47,25)}: the eg leg as a percent of the mg leg, IN PAWN TERMS.
+static constexpr int      ROOKFILE_OPEN_EG_PCT = 32;               // (25/213) / (47/128)
+static constexpr int      ROOKFILE_SEMI_EG_PCT = 11;               // ( 4/213) / (21/128)
+
+/* The squares whose control counts as mobility for one side.
+ *
+ * Core (4/5 references): NOT attacked by an enemy pawn, NOT one of our blocked pawns (any piece directly in
+ * front -- SF11's `shift<Down>(pos.pieces())`, evaluate.cpp:226), NOT our king. Own minor/rook squares DO
+ * count (4/5; only SF1.1 excludes them): defending a piece is activity.
+ * Candidates where the references split: our queen (SF11/15) and our pawns still on ranks 2-3 (SF11/15, Weiss).
+ * ⚠️ SF11 also removes our PINNED pieces' squares and restricts a pinned piece to its pin line. That is one
+ * lineage only and is not built yet (`slider_blockers` would provide it purely).
+ *
+ * @return the area bitboard
+ * Gating: none; the caller gates on MOB_V2_MAG. Cost: ~6 shifts.
+ */
+static inline uint64_t mob_area(const V2Context &c, bool white) noexcept
+{
+	const uint64_t own     = white ? c.white : c.black;
+	const uint64_t own_p   = c.pawns & own;
+	const uint64_t enemy_p = c.pawns & ~own;
+	const uint64_t e_att   = white ? ps_batt(enemy_p) : ps_watt(enemy_p);
+	const uint64_t blocked = own_p & (white ? (c.occupied >> 8) : (c.occupied << 8));
+	uint64_t excl = blocked | (c.kings & own) | e_att;
+	if (Config::MOB_V2_EXCL_QUEEN)   excl |= c.queens & own;
+	if (Config::MOB_V2_EXCL_LOWRANK) excl |= own_p & (white ? MOB_LOW_RANKS_W : MOB_LOW_RANKS_B);
+	return ~excl;
+}
+
+/* OURS-FIRST safe-square mobility count (MOB_V2_SAFE), from the masks build_side_attacks stored.
+ *
+ * What: per stored N/B/R/Q mask, counts area squares NOT attacked by an enemy piece of lower (1) or lower-or-equal (2)
+ * value, and accumulates cnt / raw_mg / raw_eg exactly as the shipped path does. Units: raw SF table units.
+ * Why: v1's knight and queen activity (cpp_bitboard.cpp:1436-1480, :2881-2896) counted a square only if no lower-value
+ * piece attacked it; SF and v2 exclude only enemy PAWN attacks. The one v1 mobility idea not yet measured in v2
+ * (record-check 2026-09-15). Pawn attacks are already outside the area, so level 1 changes only rooks and queens.
+ * Gating: called only when MOB_V2_SAFE != 0; the shipped path never reaches it.
+ * Cost: one AND + popcount + two table reads per piece; the masks came from the one attack pass.
+ */
+static inline void mob_count_safe(MobAcc &m, const SideAttacks &e) noexcept
+{
+	const bool     le     = (Config::MOB_V2_SAFE == 2);
+	const uint64_t minors = e.by[KNIGHT] | e.by[BISHOP];
+	const uint64_t excl[4] = {
+		le ? minors : 0,
+		le ? minors : 0,
+		minors | (le ? e.by[ROOK] : 0),
+		minors | e.by[ROOK] | (le ? e.by[QUEEN] : 0),
+	};
+	for (int k = 0; k < m.n_pieces; ++k){
+		const int i = m.ptype[k];
+		const int n = __builtin_popcountll(m.pmask[k] & m.area & ~excl[i]);
+		m.cnt[i]  += n;
+		m.raw_mg  += MOB_TAB_MG[Config::MOB_V2_TABLE][i][n];
+		m.raw_eg  += MOB_TAB_EG[Config::MOB_V2_TABLE][i][n];
+	}
+}
+
+/* Resets a mobility accumulator's counters (not its per-piece arrays, which are only read up to their counts). */
+static inline void mob_reset(MobAcc &m) noexcept
+{
+	m.cnt[0] = m.cnt[1] = m.cnt[2] = m.cnt[3] = 0;
+	m.raw_mg = m.raw_eg = 0;
+	m.n_rooks = m.n_pieces = 0;
+	m.pinned = 0;
+	m.ksq = 0;
+}
+
+/* Blockers for one side's king: pieces of EITHER colour that are the single piece between that king and an enemy slider.
+ *
+ * What: SF's blockers_for_king (position.cpp slider_blockers): snipers are enemy R/Q on the king's orthogonals and B/Q on
+ * its diagonals on an EMPTY board; occupancy with the snipers removed; exactly one piece between => blocker.
+ * Why: MOB_V2_PIN (SF11 evaluate.cpp:230, :273-274) removes these squares from the area and restricts our own ones to
+ * their line. cpp_bitboard.h's slider_blockers returns only the current side's blockers without removing snipers, so it
+ * is not the same set (same reason weak queen computes its own).
+ * Gating: called only when MOB_V2_PIN. Cost: two empty-board slider masks + one between-mask per sniper.
+ */
+static inline uint64_t mob_king_blockers(const V2Context &c, bool white) noexcept
+{
+	const uint64_t own  = white ? c.white : c.black;
+	const uint64_t them = white ? c.black : c.white;
+	const uint8_t  ksq  = (uint8_t)__builtin_ctzll(c.kings & own);
+	const uint64_t snipers = ((attacks_mask(white, 0, ksq, ROOK)   & (c.rooks   | c.queens))
+	                        | (attacks_mask(white, 0, ksq, BISHOP) & (c.bishops | c.queens))) & them;
+	const uint64_t occ = c.occupied ^ snipers;
+	uint64_t blockers = 0, sn = snipers;
+	while (sn){
+		const uint8_t r = (uint8_t)__builtin_ctzll(sn); sn &= sn - 1;
+		const uint64_t b = betweenPieces(ksq, r) & occ;
+		if (b && !(b & (b - 1))) blockers |= b;
+	}
+	return blockers;
+}
+
+/* Both sides' attack maps plus mobility accumulators -- the ONE setup every mobility consumer uses.
+ *
+ * What: zeroes the accumulators, sets each side's area, runs the single attack pass per side, then any count that needs
+ * both sides' maps (MOB_V2_SAFE). Why: the eval dispatch and both oracle probes previously each repeated this; one helper
+ * guarantees the probes exercise the exact path search runs, and gives later form knobs one place to hook in.
+ * Gating: with every MOB_V2_* form knob at default it performs exactly the shipped steps (byte-identical).
+ * Cost: at or below the shipped build -- only the scalar counters are reset; the per-piece arrays are read only up to
+ * n_rooks / n_pieces, so zeroing them (the old `MobAcc{}`) was wasted work.
+ */
+static inline void mobility_build(const V2Context &c, SideAttacks &wa, SideAttacks &ba, MobAcc &mw, MobAcc &mb) noexcept
+{
+	mob_reset(mw);
+	mob_reset(mb);
+	mw.area = mob_area(c, true);
+	mb.area = mob_area(c, false);
+	if (Config::MOB_V2_PIN){
+		const uint64_t kw = mob_king_blockers(c, true);
+		const uint64_t kb = mob_king_blockers(c, false);
+		mw.area &= ~kw;
+		mb.area &= ~kb;
+		mw.pinned = kw & c.white;
+		mb.pinned = kb & c.black;
+		mw.ksq = (uint8_t)__builtin_ctzll(c.kings & c.white);
+		mb.ksq = (uint8_t)__builtin_ctzll(c.kings & c.black);
+	}
+	build_side_attacks(wa, c, true,  &mw);
+	build_side_attacks(ba, c, false, &mb);
+	if (Config::MOB_V2_SAFE){
+		mob_count_safe(mw, ba);
+		mob_count_safe(mb, wa);
+	}
+}
+
+/* Mobility in millipawns, Black-positive.
+ *
+ * ★ SCALE: MOB_V2_MAG is the knight MIDGAME table range in millipawns. mg leg = raw * MAG / 95; eg leg = raw *
+ * MAG * 128 / (95 * 213) -- i.e. each SF11 leg is first converted by ITS OWN pawn, so an entry keeps its meaning
+ * as a fraction of a pawn in its phase, and then the whole set is shrunk by one common factor. ☠️ Converting
+ * the eg leg by the MIDGAME pawn would inflate it 1.66x -- the PASSER_V2_MG_PCT trap in the other direction.
+ * Per-side blend, then difference, so the mirror swaps two identical computations exactly.
+ *
+ * @return Black-positive millipawns
+ * Gating: caller calls only when MOB_V2_MAG > 0. Cost: a few multiplies. NO CLAMP.
+ */
+static inline int mobility_mp(const MobAcc &w, const MobAcc &b, const V2Context &c) noexcept
+{
+	const int mag = Config::MOB_V2_MAG;
+	// MOB_V2_TABLE: each table by ITS OWN knight range and pawn pair (table 0 = SF11's 95 / 128 / 213, the shipped numbers).
+	const int t      = Config::MOB_V2_TABLE;
+	const int nr     = MOB_TAB_N_RANGE[t];
+	const int eg_den = nr * MOB_TAB_PAWN_EG[t];
+	const int wmg = w.raw_mg * mag / nr;
+	const int bmg = b.raw_mg * mag / nr;
+	int weg = w.raw_eg * mag * MOB_TAB_PAWN_MG[t] / eg_den;
+	int beg = b.raw_eg * mag * MOB_TAB_PAWN_MG[t] / eg_den;
+	// MOB_V2_EG_PCT (form bake-off): scales the endgame leg only. Applied AFTER the conversion so the shipped 100 takes
+	// no extra division (byte-identical) and the intermediate product cannot overflow.
+	if (Config::MOB_V2_EG_PCT != 100){
+		weg = weg * Config::MOB_V2_EG_PCT / 100;
+		beg = beg * Config::MOB_V2_EG_PCT / 100;
+	}
+	const int ws = (wmg * c.phase256 + weg * (256 - c.phase256)) >> 8;
+	const int bs = (bmg * c.phase256 + beg * (256 - c.phase256)) >> 8;
+	return bs - ws;
+}
+
+/*
+	Slice 3 -- THREATS. SF11 evaluate.cpp:116-121 and :133-147, each leg pawn-converted by ITS OWN phase's pawn
+	(mg /128, eg /213, x1000), so a constant keeps its meaning as a fraction of a pawn in its phase -- our pawn is flat.
+	Victim index 0=PAWN 1=KNIGHT 2=BISHOP 3=ROOK 4=QUEEN.
+	★ The transferable fact from the five-engine contrast: "a pawn attacks a piece" is the LARGEST single constant in
+	4/4 references (here 1352 mp mg). The ratios transfer; the absolute scales never do, which is what THREAT_V2_PCT is for.
+*/
+static constexpr int TH_MINOR_MG[5] = {  47, 461, 617, 703, 617};
+static constexpr int TH_MINOR_EG[5] = { 150, 192, 263, 559, 756};
+static constexpr int TH_ROOK_MG[5]  = {  23, 297, 297,   0, 398};
+static constexpr int TH_ROOK_EG[5]  = { 207, 333, 286, 178, 178};
+static constexpr int TH_KING_MG     = 187, TH_KING_EG     = 418;   // ThreatByKing S(24,89)
+static constexpr int TH_HANG_MG     = 539, TH_HANG_EG     = 169;   // Hanging S(69,36)
+static constexpr int TH_SAFEPAWN_MG = 1352, TH_SAFEPAWN_EG = 441;  // ThreatBySafePawn S(173,94)
+static constexpr int TH_PUSH_MG     = 375, TH_PUSH_EG     = 183;   // ThreatByPawnPush S(48,39)
+static constexpr int TH_RESTRICT_MG =  55, TH_RESTRICT_EG =  33;   // RestrictedPiece S(7,7)
+
+/* Which piece type stands on `bit` (0=PAWN..4=QUEEN, 5=KING); -1 if empty. Used only to index the victim tables. */
+static inline int th_victim(const V2Context &c, uint64_t bit) noexcept
+{
+	if (bit & c.pawns)   return 0;
+	if (bit & c.knights) return 1;
+	if (bit & c.bishops) return 2;
+	if (bit & c.rooks)   return 3;
+	if (bit & c.queens)  return 4;
+	return (bit & c.kings) ? 5 : -1;
+}
+
+/* Threats, Black-positive millipawns (slice 3).
+ *
+ * What: SF's threat family over the attack maps KS/mobility/space already built -- no second attack pass. Per side, then
+ * differenced, so the colour mirror swaps two identical computations.
+ * Legs: core (always, 4/4 references) = pawn-attacks-a-piece on SAFE pawns + target-indexed minor and rook threats;
+ * switchable (references split) = pawn PUSH threat, KING attacker, HANGING, RESTRICTED squares, PAWN victims.
+ * GATE form 0 = SF's `stronglyProtected` (enemy's view: their pawn attacks, or their double-attacks we do not match);
+ * form 1 = Ethereal's `poorlyDefended` (victim's view, pawn support overrides).
+ * ☠️ Hanging's v1 ownership argument ("~87% a subset of capture_gains") does NOT transfer: v2 has no capture-gains term.
+ * ⚠️ RESTRICTED reads the same attack maps as mobility's area -- run the collinearity gate before laddering it.
+ * Gating: caller calls only when THREAT_V2_PCT > 0. Cost: a few masks plus one bit-loop per threatened set.
+ */
+static inline int threats_mp(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba) noexcept
+{
+	const int pct = Config::THREAT_V2_PCT;
+	int side[2] = {0, 0};
+	for (int s = 0; s < 2; ++s){
+		const bool     white = (s == 0);
+		const uint64_t own   = white ? c.white : c.black;
+		const uint64_t them  = white ? c.black : c.white;
+		const SideAttacks &us = white ? wa : ba;
+		const SideAttacks &th = white ? ba : wa;
+		const uint64_t their_np = them & ~c.pawns;            // their non-pawn pieces (king included, as in SF)
+		long long mg = 0, eg = 0;
+
+		// The defence gate: which of their pieces count as adequately protected.
+		uint64_t protected_set, weak;
+		if (Config::THREAT_V2_GATE == 1){
+			// Ethereal: victim's view, and PAWN support overrides everything.
+			const uint64_t poorly = (th.all & ~us.all) | (th.dbl & ~us.dbl & ~us.by[PAWN]);
+			weak          = them & poorly & us.all;
+			protected_set = them & ~poorly;
+		} else {
+			protected_set = th.by[PAWN] | (th.dbl & ~us.dbl);
+			weak          = them & ~protected_set & us.all;
+		}
+		const uint64_t defended = their_np & protected_set;
+
+		// Minor threats: SF pays `defended | weak` (a pawn-defended target still counts). Rook threats: `weak` only.
+		uint64_t set = (defended | weak) & (us.by[KNIGHT] | us.by[BISHOP]);
+		while (set){
+			const uint64_t bit = set & -set; set ^= bit;
+			const int v = th_victim(c, bit);
+			if (v < 0 || v > 4) continue;
+			if (v == 0 && !Config::THREAT_V2_PAWN_TARGETS) continue;
+			mg += TH_MINOR_MG[v]; eg += TH_MINOR_EG[v];
+		}
+		set = weak & us.by[ROOK];
+		while (set){
+			const uint64_t bit = set & -set; set ^= bit;
+			const int v = th_victim(c, bit);
+			if (v < 0 || v > 4) continue;
+			if (v == 0 && !Config::THREAT_V2_PAWN_TARGETS) continue;
+			mg += TH_ROOK_MG[v]; eg += TH_ROOK_EG[v];
+		}
+		if (Config::THREAT_V2_KING){
+			const int n = __builtin_popcountll(weak & us.by[KING] & ~c.pawns);
+			mg += (long long)n * TH_KING_MG; eg += (long long)n * TH_KING_EG;
+		}
+		if (Config::THREAT_V2_HANGING){
+			const uint64_t hanging = weak & (~th.all | (their_np & us.dbl));
+			const int n = __builtin_popcountll(hanging);
+			mg += (long long)n * TH_HANG_MG; eg += (long long)n * TH_HANG_EG;
+		}
+		if (Config::THREAT_V2_RESTRICT){
+			const int n = __builtin_popcountll(th.all & ~protected_set & us.all);
+			mg += (long long)n * TH_RESTRICT_MG; eg += (long long)n * TH_RESTRICT_EG;
+		}
+		// Pawn threats. `safe` follows SF: a square they do not attack, or one we also attack.
+		const uint64_t safe   = ~th.all | us.all;
+		const uint64_t our_p  = c.pawns & own;
+		const uint64_t safe_p = our_p & safe;
+		const uint64_t patt   = white ? ps_watt(safe_p) : ps_batt(safe_p);
+		{
+			const int n = __builtin_popcountll(patt & their_np);
+			mg += (long long)n * TH_SAFEPAWN_MG; eg += (long long)n * TH_SAFEPAWN_EG;
+		}
+		if (Config::THREAT_V2_PUSH){
+			// One and two-square pushes to EMPTY squares that their pawns do not attack and that are safe.
+			const uint64_t empty = ~c.occupied;
+			const uint64_t tp    = c.pawns & them;
+			const uint64_t p_att = white ? ps_batt(tp) : ps_watt(tp);
+			uint64_t push = (white ? (our_p << 8) : (our_p >> 8)) & empty;
+			const uint64_t rank3 = white ? 0x0000000000FF0000ULL : 0x0000FF0000000000ULL;
+			push |= (white ? ((push & rank3) << 8) : ((push & rank3) >> 8)) & empty;
+			push &= ~p_att & safe;
+			const uint64_t hit = (white ? ps_watt(push) : ps_batt(push)) & their_np;
+			const int n = __builtin_popcountll(hit);
+			mg += (long long)n * TH_PUSH_MG; eg += (long long)n * TH_PUSH_EG;
+		}
+		const int m = (int)(mg * pct / 100), g = (int)(eg * pct / 100);
+		side[s] = (m * c.phase256 + g * (256 - c.phase256)) >> 8;
+	}
+	return side[1] - side[0];
+}
+
+/* Bishop pair, Black-positive millipawns (slice 3).
+ *
+ * What: BPAIR_V2_MAG is the MIDGAME value in mp for holding two or more bishops; the endgame leg and any census
+ * coupling follow BPAIR_V2_FORM. Per side, then the difference, so the colour mirror swaps identical computations.
+ * Why: 5/5 references pay a bishop pair, at ~1-2x that engine's own knight PST rim-vs-centre mg spread -- the one
+ * quantity that transfers across engines (EVAL-V2-SLICE3-DESIGN.md §1.4). v2 has had no pair term at all.
+ *   FORM 0 flat (eg == mg; the SF lineage applies one value to both phases).
+ *   FORM 1 endgame-heavy, eg = 3.5x mg (Ethereal 4:1, Weiss 3.3:1).
+ *   FORM 2 flat + SF's OWN-pawn coupling: +2.8% of the pair per own pawn (SF11 pair x own-pawn cell, POSITIVE sign --
+ *          the opposite of the "bishops like open boards" folklore, which no reference implements).
+ * ⚠️ Two or more bishops of ANY colour complexion counts (4/5; only Ethereal requires opposite colours) -- so a
+ * promoted third bishop counts, exactly as SF's piece_count test does.
+ * Gating: caller calls only when BPAIR_V2_MAG > 0. Cost: two popcounts (plus one more per side under FORM 2).
+ */
+static inline int bishop_pair_mp(const V2Context &c) noexcept
+{
+	const int mag  = Config::BPAIR_V2_MAG;
+	const int form = Config::BPAIR_V2_FORM;
+	int side[2] = {0, 0};
+	for (int s = 0; s < 2; ++s){
+		const uint64_t own = s == 0 ? c.white : c.black;
+		if (__builtin_popcountll(c.bishops & own) < 2) continue;
+		int mg = mag;
+		int eg = mag;
+		if (form == 1)      eg = mag * 350 / 100;
+		else if (form == 2){
+			const int np = __builtin_popcountll(c.pawns & own);
+			mg = eg = mag * (1000 + 28 * np) / 1000;
+		}
+		side[s] = (mg * c.phase256 + eg * (256 - c.phase256)) >> 8;
+	}
+	return side[1] - side[0];
+}
+
+/* Slice 3 -- KAUFMAN / polynomial MATERIAL IMBALANCE, Black-positive millipawns.
+ *
+ * What: ONE scalar re-pricing ALL material by the whole piece census. SF's quadratic form, tables transcribed
+ * VERBATIM from stockfish_11/src/material.cpp:33-53, converted to our units once at the end:
+ *   white_pov = SUM over pt2 <= pt1 of OURS[pt1][pt2]*(cw1*cw2 - cb1*cb2) + THEIRS[pt1][pt2]*(cw1*cb2 - cb1*cw2)
+ * ★ ANTISYMMETRIC BY CONSTRUCTION -- swapping the colours negates the sum exactly, so this term cannot break the
+ * colour-symmetry gate whatever the coefficients are. (v2 is currently 0/4000; keep it that way.)
+ *
+ * Why: 2 of 4 references carry a census re-pricing (SF11 + SF15.1; Ethereal substitutes a closedness index and
+ * Weiss has none), and it is the ONLY mechanism in any reference that prices piece REDUNDANCY. Its two largest
+ * cells are R x R -208 and Q x enemy-R +268 -- neither expressible anywhere in v2 today.
+ * ☠️ The TABLES ARE SF'S, NOT v1'S. v1's fitted cells (`cpp_bitboard.cpp:8269-8284`) CONTRADICT SF's sign in
+ * B x own-pawn, N x enemy-pawn and 3 of 5 pair-vs-enemy cells, and price the bishop pair at only ~0.13 pawns.
+ * ⚠️ **B x own-pawn is POSITIVE (+104) in SF and must STAY positive here.** "Bishops dislike own pawns" is NOT a
+ * census term in ANY reference -- a COUNT cannot see square COLOUR -- so SF puts it in pieces() as a per-piece
+ * colour-complex penalty. v2 already owns that as SF15.1's bad-bishop form, shipped in placement bundle E. A
+ * negative cell here would both DOUBLE-OWN that term and mis-state the mechanism.
+ *
+ * ☠️ INDEX CONVENTION, the transcription hazard: SF is 0=bishop-pair pseudo-piece, 1=P, 2=N, 3=B, 4=R, 5=Q.
+ * `V2Context::cnt_white/cnt_black` is 0=P .. 5=K. The local cw/cb vectors are built in SF ORDER deliberately --
+ * never index cnt_* against these tables directly.
+ *
+ * UNITS -- ★ the one place [[convert-reference-constants-by-positional-scale-not-by-the-pawn]] INVERTS: this
+ * re-prices MATERIAL, so the PAWN is the correct anchor, not v2's 5-35 mp positional spread. SF's cells are its own
+ * mg units and SF divides the side difference by 16; SF11's mg pawn is 128 (`types.h:182`) against our 1000, so one
+ * SF cell unit = 1000/(16*128) = 0.488 mp. ⇒ **KAUF_V2_MAG = 1000 means "exactly SF's scale in our millipawns"**,
+ * and the ladder moves that one number rather than 36 coefficients (the pattern that won mobility: reference SHAPE,
+ * our MAGNITUDE). Fitting the cells is explicitly NOT the plan -- raw-corpus fits are 5-for-5 bench-negative.
+ *
+ * KAUF_V2_PAIR decides WHO OWNS THE BISHOP PAIR: 1 = this term (SF's structure, where the pair is a pseudo-piece
+ * whose value rises with own pawns, falls with own queen, and falls with EVERY enemy unit), 0 = the pair row and
+ * column are zeroed so the standalone `bishop_pair_mp` can own it. ⚠️ Exactly one of the two should be non-zero.
+ * ★ This directly tests the open question: v2's measurement that the pair is "already owned by PST + mobility"
+ * refuted a FLAT pair -- it never tested SF's CONDITIONED one.
+ *
+ * Gating: caller calls only when KAUF_V2_MAG != 0, so 0 = absent = byte-identical.
+ * Cost: counts are already in the context; 21 + 15 multiply-adds once per eval. No loop over squares, no attack map.
+ */
+static constexpr int KAUF_OURS[6][6] = {
+	{ 1438,    0,    0,    0,    0,   0 },   // bishop pair
+	{   40,   38,    0,    0,    0,   0 },   // pawn
+	{   32,  255,  -62,    0,    0,   0 },   // knight
+	{    0,  104,    4,    0,    0,   0 },   // bishop
+	{  -26,   -2,   47,  105, -208,   0 },   // rook
+	{ -189,   24,  117,  133, -134,  -6 },   // queen
+};
+static constexpr int KAUF_THEIRS[6][6] = {
+	{    0,    0,    0,    0,    0,   0 },   // bishop pair
+	{   36,    0,    0,    0,    0,   0 },   // pawn
+	{    9,   63,    0,    0,    0,   0 },   // knight
+	{   59,   65,   42,    0,    0,   0 },   // bishop
+	{   46,   39,   24,  -24,    0,   0 },   // rook
+	{   97,  100,  -42,  137,  268,   0 },   // queen
+};
+
+/* ☠️ DIAGNOSTIC FORM 1 -- v1's FITTED cells (`cpp_bitboard.cpp:8269-8284`), carried here ONLY to test one
+ * hypothesis, and NOT as a ship candidate. The 2026-09-18 ladder found SF's tables (FORM 0) monotonically WORSE
+ * on all six corpora at every magnitude, while the SAME FORM with v1's fitted cells is recorded as HELPING v1 by
+ * ~7% on the same instrument. Sign and scale were both ruled out (v1 and this both do `total -= white_pov_sum`;
+ * a hand-checked pair+minor-swap position reads +0.29 pawns at FORM 0 MAG=1000).
+ * ⇒ HYPOTHESIS: the failure is BASIS, not scale. Imbalance cells are corrections layered on the PIECE VALUES they
+ * correct, and SF11's midgame pieces are ~2x steeper than ours (mg knight 6.10 pawns vs our 3.25). ★ v1 and v2
+ * SHARE `Config::values[]`, so if the basis story holds, v1's cells should help v2 where SF's hurt it.
+ * ⚠️ UNIT CONVENTION DIFFERS: v1 applies its sum as millipawns DIRECTLY (`total -= kauf*SCALE/100`, SCALE 100),
+ * with no /16 and no pawn conversion -- so its cells are ~2x SF's in effect. Hence FORM 1 divides by 1000, not
+ * 2048, keeping "MAG = 1000 means THIS form's own native scale" true for both forms and the ladder comparable.
+ * ☠️ If FORM 1 also fails, the shared-piece-values argument dies with it and the census form itself is the problem.
+ */
+static constexpr int KAUF_V1_OURS[6][6] = {
+	{   26,    0,    0,    0,    0,   0 },   // bishop pair
+	{   -3,   13,    0,    0,    0,   0 },   // pawn
+	{    4,  178,  -28,    0,    0,   0 },   // knight
+	{   53, -106,  162,   29,    0,   0 },   // bishop
+	{   11,  -80, -108,   98,  -90,   0 },   // rook
+	{  -23,  163,  131,  152,   -3,  38 },   // queen
+};
+static constexpr int KAUF_V1_THEIRS[6][6] = {
+	{    0,    0,    0,    0,    0,   0 },   // bishop pair
+	{  -89,    0,    0,    0,    0,   0 },   // pawn
+	{   54, -104,    0,    0,    0,   0 },   // knight
+	{  -47,    7,  120,    0,    0,   0 },   // bishop
+	{  -29,  226,  -81, -102,    0,   0 },   // rook
+	{   39,  120,  -11,  -88,  113,   0 },   // queen
+};
+
+/* FORM 2 -- the DERIVED rescale, ZERO free parameters, and the one arm the basis hypothesis actually implies.
+ * ☠️ A GLOBAL rescale of SF's cells is already REFUTED: the 09-18 ladder swept MAG 250..2000 and every point was
+ * monotonically worse, so no single scalar on SF's tables can work. What the hypothesis implies instead is a
+ * DIFFERENTIAL rescale: if a cell is a correction proportional to the VALUE of the pieces it corrects, it should
+ * scale by our-value/SF-value for BOTH of its indices.
+ *   ratio = ours(pawns) / SF11-mg(pawns):  P 1.00/1.00 = 1.00 · N 3.25/6.10 = 0.53 · B 3.45/6.45 = 0.53
+ *                                          R 5.00/9.97 = 0.50 · Q 10.0/19.83 = 0.50
+ * ⇒ Non-pawn pieces are uniformly ~0.52 and pawns are 1.00, so this is NOT a rescale -- it REWEIGHTS pawn-interaction
+ * cells UP relative to piece-interaction ones (piece x piece -> ~0.27, piece x pawn -> ~0.52, pawn x pawn -> 1.00).
+ * ⚠️ JUDGEMENT CALL, stated because it is not forced by the derivation: the PAIR slot keeps ratio 1.00. It is a 0/1
+ * INDICATOR, not a piece count, so a piece-value ratio has no meaning for it; its cells are rescaled only through
+ * their OTHER index. Scaling it as a bishop instead would put pair x pair at ~0.20 pawns, below every reference's
+ * pair value -- if FORM 2 fails, this is one of the two places to look (the other is that the cells may simply not
+ * be separable into per-piece factors at all).
+ * Ratios are /256 fixed point; the product of two needs >> 16.
+ */
+static constexpr int KAUF_VAL_RATIO[6] = { 256, 256, 136, 137, 129, 129 };  // pair, P, N, B, R, Q
+
+static inline int kaufman_mp(const V2Context &c) noexcept
+{
+	const bool pair_here = Config::KAUF_V2_PAIR != 0;
+	const bool v1_tables = Config::KAUF_V2_FORM == 1;
+	int cw[6], cb[6];
+	cw[0] = (pair_here && __builtin_popcountll(c.bishops & c.white) >= 2) ? 1 : 0;
+	cb[0] = (pair_here && __builtin_popcountll(c.bishops & c.black) >= 2) ? 1 : 0;
+	for (int t = 0; t < 5; ++t){            // v2 order 0=P 1=N 2=B 3=R 4=Q  ->  SF slots 1..5
+		cw[t + 1] = (int)c.cnt_white[t];
+		cb[t + 1] = (int)c.cnt_black[t];
+	}
+	const int (*OURS)[6]   = v1_tables ? KAUF_V1_OURS   : KAUF_OURS;
+	const int (*THEIRS)[6] = v1_tables ? KAUF_V1_THEIRS : KAUF_THEIRS;
+	const bool ratio_scale = Config::KAUF_V2_FORM == 2;
+	long long sum = 0;                      // White-POV, in the selected form's own cell units
+	for (int pt1 = 0; pt1 < 6; ++pt1)
+		for (int pt2 = 0; pt2 <= pt1; ++pt2){
+			long long o = OURS[pt1][pt2], t = THEIRS[pt1][pt2];
+			if (ratio_scale){               // FORM 2: derived per-piece value-ratio rescale, /256 fixed point
+				o = o * KAUF_VAL_RATIO[pt1] * KAUF_VAL_RATIO[pt2] >> 16;
+				t = t * KAUF_VAL_RATIO[pt1] * KAUF_VAL_RATIO[pt2] >> 16;
+			}
+			sum += o * (cw[pt1] * cw[pt2] - cb[pt1] * cb[pt2])
+			     + t * (cw[pt1] * cb[pt2] - cb[pt1] * cw[pt2]);
+		}
+	// White-POV -> Black-positive (our convention), and cell units -> our millipawns in one step.
+	// ⚠️ The divisor is the FORM's native convention: SF divides its side-difference by 16 on a 128-mg pawn
+	// (=> 2048 against our 1000), while v1 applies its sum as millipawns directly (=> 1000). Keeping both at
+	// "MAG 1000 == this form's own native scale" is what makes the two ladders comparable.
+	return (int)(-sum * (long long)Config::KAUF_V2_MAG / (v1_tables ? 1000 : 2048));
+}
+
+// Slice 3 -- SPACE region masks. SF counts OWN-CAMP development room; Ethereal counts a shared centre block.
+static constexpr uint64_t SPACE_RANKS_W = 0x00000000FFFFFF00ULL;   // relative ranks 2-4 for White
+static constexpr uint64_t SPACE_RANKS_B = 0x00FFFFFF00000000ULL;   // relative ranks 2-4 for Black (7-5)
+static constexpr uint64_t SPACE_ETH_BIG = 0x00003C3C3C3C0000ULL;   // c3-f6, shared (Ethereal CENTER_BIG)
+// Files c-f. ⚠️ Same value as the placement block's PL_CENTRE_FILES, which is declared BELOW this point in the file
+// (the slice-2 placement constants sit after the slice-3 space term), so space owns its own copy rather than
+// forward-declaring or reordering a shipped, oracle-verified block.
+static constexpr uint64_t SPACE_CENTRE_FILES = 0x3C3C3C3C3C3C3C3CULL;
+// Start-position total non-pawn material in OUR values (2N+2B+2R+Q per side = 33,400 each): the gate's denominator.
+static constexpr int      SPACE_START_NPM = 66800;
+// One reference unit of space: SF11's shape at the start weight (15^2/16) over 12 counted squares = 169 raw.
+static constexpr int      SPACE_RAW_REF = 169;
+
+/* Space, Black-positive millipawns (slice 3).
+ *
+ * What: per side, counts SAFE squares in a region and weights them by piece count, exactly SF's shape; the result is
+ * applied MIDGAME-ONLY (all 3/3 references that have a space term give it a zero endgame leg), then differenced.
+ * Why: 3/5 references carry it and v2 has nothing of this shape. ☠️ v1's flat `SPACE_MAG` form read net-flat and
+ * NON-MONOTONIC on the pre-08-14 contaminated harness -- unreadable, not refuted -- and SF's gated form was never
+ * built here (EVAL-V2-SLICE3-DESIGN.md §0.1).
+ * Forms (the references split, so each is a knob): REGION own-camp c-f x ranks 2-4 (SF) or c3-f6 (Ethereal) ·
+ * SAFE `~own pawns & ~enemy pawn attacks` (SF) or `~all enemy attacks & (we attack or occupy)` (Ethereal) ·
+ * WEIGHT (pieces-1)^2/16 (SF11) or linear (Ethereal) · BEHIND = SF's double count of un-attacked squares behind
+ * our pawns · GATE_PCT = SF's non-pawn-material gate.
+ * ⚠️ Rides the attack maps KS/mobility already build -- no second attack pass. Symmetric positions cancel exactly.
+ * Gating: caller calls only when SPACE_V2_MAG > 0. Cost: a few masks, two popcounts, one multiply per side.
+ */
+static inline int space_mp(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba) noexcept
+{
+	if (Config::SPACE_V2_GATE_PCT > 0
+	    && (c.npm_white + c.npm_black) * 100 < SPACE_START_NPM * Config::SPACE_V2_GATE_PCT)
+		return 0;
+	int side[2] = {0, 0};
+	for (int s = 0; s < 2; ++s){
+		const bool     white   = (s == 0);
+		const uint64_t own     = white ? c.white : c.black;
+		const uint64_t own_p   = c.pawns & own;
+		const uint64_t enemy_p = c.pawns & ~own;
+		const SideAttacks &us   = white ? wa : ba;
+		const SideAttacks &them = white ? ba : wa;
+		const uint64_t region = Config::SPACE_V2_REGION == 1
+		                      ? SPACE_ETH_BIG
+		                      : (SPACE_CENTRE_FILES & (white ? SPACE_RANKS_W : SPACE_RANKS_B));
+		const uint64_t safe = Config::SPACE_V2_SAFE == 1
+		                    ? (region & ~them.all & (us.all | own))
+		                    : (region & ~own_p & ~(white ? ps_batt(enemy_p) : ps_watt(enemy_p)));
+		int count = __builtin_popcountll(safe);
+		if (Config::SPACE_V2_BEHIND){
+			uint64_t behind = own_p;
+			if (white){ behind |= behind >> 8; behind |= behind >> 16; }
+			else      { behind |= behind << 8; behind |= behind << 16; }
+			count += __builtin_popcountll(safe & behind & ~them.all);
+		}
+		int pieces = 0;
+		for (int t = 0; t < 6; ++t) pieces += white ? c.cnt_white[t] : c.cnt_black[t];
+		const int w = Config::SPACE_V2_WEIGHT == 1 ? 16 : (pieces - 1) * (pieces - 1);
+		const long long raw = (long long)count * w / 16;
+		// Midgame only: phase256 = 256 in the full midgame, 0 in the deep endgame.
+		side[s] = (int)((long long)Config::SPACE_V2_MAG * raw * c.phase256 / ((long long)SPACE_RAW_REF * 256));
+	}
+	return side[1] - side[0];
+}
+
+/* Rook on an open or semi-open file, Black-positive millipawns.
+ *
+ * Reads PawnEntry.openFiles / halfOpen, built at rung 2 for exactly this consumer. ★ No 7th-rank term: SF11+
+ * and Weiss dropped it (their eg-heavy rook mobility carries it); no cap: v1's 300 cap absorbed its own file
+ * penalties.
+ *
+ * @return Black-positive millipawns
+ * Gating: caller calls only when ROOKFILE_V2_OPEN or _SEMI is non-zero. Cost: one bit loop over rooks.
+ */
+static inline int rookfile_mp(const PawnEntry &e, const V2Context &c) noexcept
+{
+	int side[2] = {0, 0};
+	for (int s = 0; s < 2; ++s){
+		uint64_t rb = c.rooks & (s == 0 ? c.white : c.black);
+		while (rb){
+			const int f = __builtin_ctzll(rb) & 7;
+			rb &= rb - 1;
+			if (!((e.halfOpen[s] >> f) & 1)) continue;                 // one of our own pawns is on the file
+			const bool open = (e.openFiles >> f) & 1;
+			const int  mg   = open ? Config::ROOKFILE_V2_OPEN : Config::ROOKFILE_V2_SEMI;
+			const int  eg   = mg * (open ? ROOKFILE_OPEN_EG_PCT : ROOKFILE_SEMI_EG_PCT) / 100;
+			side[s] += (mg * c.phase256 + eg * (256 - c.phase256)) >> 8;
+		}
+	}
+	return side[1] - side[0];
+}
+
+// ─── PER-PIECE PLACEMENT (SF11 evaluate.cpp:291-361) ───────────────────────────────────────────────
+
+static constexpr uint64_t PL_OUTPOST_RANKS_W = 0x0000FFFFFF000000ULL;   // ranks 4-6
+static constexpr uint64_t PL_OUTPOST_RANKS_B = 0x000000FFFFFF0000ULL;   // ranks 5-3
+static constexpr uint64_t PL_DARK_SQUARES    = 0xAA55AA55AA55AA55ULL;   // a1 is dark
+static constexpr uint64_t PL_CENTRE_FILES    = 0x3C3C3C3C3C3C3C3CULL;   // files c-f
+static constexpr uint64_t PL_CENTRE          = 0x0000001818000000ULL;   // d4 e4 d5 e5
+static constexpr uint64_t PL_RANK_1 = 0x00000000000000FFULL, PL_RANK_8 = 0xFF00000000000000ULL;
+
+/* SF11 values converted by the pawn (mg x1000/128, eg x1000/213), millipawns. The *_V2_PCT knobs scale these, so
+ * 100 = the plain pawn conversion. Penalties are stored positive and subtracted at the use site. */
+static constexpr int PL_OUTPOST_MG = 234, PL_OUTPOST_EG = 99;     // S(30,21)
+static constexpr int PL_REACH_MG   = 250, PL_REACH_EG   = 47;     // S(32,10)
+static constexpr int PL_BEHIND_MG  = 141, PL_BEHIND_EG  = 14;     // S(18,3)
+static constexpr int PL_BADB_MG    =  23, PL_BADB_EG    = 33;     // S(3,7) per unit
+static constexpr int PL_LONGD_MG   = 352, PL_LONGD_EG   =  0;     // S(45,0)
+static constexpr int PL_TRAPR_MG   = 406, PL_TRAPR_EG   = 47;     // S(52,10) per unit
+static constexpr int PL_WEAKQ_MG   = 383, PL_WEAKQ_EG   = 70;     // S(49,15)
+
+// ── FORM alternatives (per-term reference forms from source, 2026-09-14). Each leg converted by ITS OWN engine's pawn. ──
+// OUTPOST_V2_FORM 1 -- Ethereal KnightOutpost / BishopOutpost[outside][defended], pawn 82 mg / 144 eg.
+// Index = outside*2 + defended, where outside = a- or h-file.
+static constexpr int PL_ETH_N_MG[4] = { 146, 488,  85, 256};   // S(12,-32) S(40,0) S(7,-24) S(21,-3)
+static constexpr int PL_ETH_N_EG[4] = {-222,   0,-167, -21};
+static constexpr int PL_ETH_B_MG[4] = { 195, 610, 110, -49};   // S(16,-16) S(50,-3) S(9,-9) S(-4,-4)
+static constexpr int PL_ETH_B_EG[4] = {-111, -21, -63, -28};
+// OUTPOST_V2_FORM 2 -- SF15.1 Outpost[knight] S(54,34), Outpost[bishop] S(31,25), pawn 126/208 (no knight x2).
+static constexpr int PL_SF15_OUT_N_MG = 429, PL_SF15_OUT_N_EG = 163;
+static constexpr int PL_SF15_OUT_B_MG = 246, PL_SF15_OUT_B_EG = 120;
+// BADB_V2_FORM 1 -- SF15.1 BishopPawns by file edge-distance {a/h, b/g, c/f, d/e} = S(3,8) S(3,9) S(2,7) S(3,7), pawn 126/208.
+static constexpr int PL_SF15_BADB_MG[4] = {24, 24, 16, 24};
+static constexpr int PL_SF15_BADB_EG[4] = {38, 43, 34, 34};
+// BADB_V2_FORM 2 -- Weiss BishopBadP S(-1,-5), pawn 104/204. BADB_V2_FORM 3 -- Ethereal BishopRammedPawns S(-8,-17), pawn 82/144.
+static constexpr int PL_WEISS_BADB_MG = 10, PL_WEISS_BADB_EG = 25;
+static constexpr int PL_ETH_BADB_MG   = 98, PL_ETH_BADB_EG   = 118;
+// LATENT_V2 (ours) -- v1's latent pawn-pressure increments (BISHOP_MOB_PAWN_ATTACK 15, the rook literal 10), mp, midgame only.
+static constexpr int PL_LATENT_B = 15, PL_LATENT_R = 10;
+
+/* Detector output, index 0 = White, 1 = Black. Counts and "units" (the multiplier already applied), never scores,
+ * so the probe can compare them one-for-one against the python-chess oracle. */
+struct PlaceCounts {
+	int outpost_n[2], outpost_b[2], reach_n[2], behind[2], badb_units[2], longdiag[2], traprook_units[2], weakq[2];
+	int latent_b[2], latent_r[2];      // OURS: latent squares (behind own blockers) attacking an enemy pawn
+	int eth_n[2][4], eth_b[2][4];      // OUTPOST_V2_FORM 1: counts by [outside*2 + defended]
+	int badb_cls[2][4];                // BADB_V2_FORM 1: units by the bishop's file edge-distance class (a/h, b/g, c/f, d/e)
+};
+
+/* Trapped-rook units for one rook, in the active TRAPROOK_V2_FORM.
+ *
+ * Common to both forms: the rook is NOT on our semi-open file, and it is on the king's EDGE side -- file-symmetrised.
+ * ☠️ SF11's `(kf < FILE_E) == (file_of(s) < kf)` is NOT file-mirror symmetric when the rook shares the king's file
+ * (Kh1+Rh2 trapped, mirrored Ka1+Ra2 not) -- caught by _eval_symmetry.py's file-mirror check as a 576 mp violation,
+ * 2026-09-14. The test below is identical to SF for every kingside king; queenside is its exact mirror.
+ *
+ * FORM 0 (SF11): area mobility <= 3 -> 1 unit, 2 without castling rights.
+ * FORM 1 (SF1.1 evaluate.cpp:650-674): mobility <= 6, the king on its back rank or the rook's rank, and NO half-open file
+ * of ours between the king and the edge; value 180 - 16*mob (SF1.1 units, midgame only), halved while castling is still
+ * possible. ⚠️ Uses our AREA count rather than SF1.1's own-occupied-excluded count, so the reuse path stays free.
+ *
+ * @return units in the form's own scale (see placement_mp)
+ */
+static inline int trap_rook_units(int f, int rrank, int mob, int ksq, bool white, uint8_t half_open, bool can_castle) noexcept
+{
+	const int kf = ksq & 7;
+	if ((half_open >> f) & 1) return 0;                                       // on our semi-open file: not trapped
+	if (!(kf < 4 ? (f <= kf) : (f >= kf))) return 0;                          // not on the king's edge side
+	if (Config::TRAPROOK_V2_FORM == 1){
+		if (mob > 6) return 0;
+		const int krank = ksq >> 3;
+		if (krank != (white ? 0 : 7) && krank != rrank) return 0;
+		const unsigned edge = kf < 4 ? ((unsigned)half_open & ((1u << kf) - 1u)) : ((unsigned)half_open >> (kf + 1));
+		if (edge) return 0;
+		const int v = 180 - 16 * mob;
+		return can_castle ? v / 2 : v;
+	}
+	if (mob > 3) return 0;
+	return can_castle ? 1 : 2;
+}
+
+/* The per-piece placement DETECTOR. Pure; reads the context and Layer A's pawn masks.
+ *
+ * ★ Outposts use SF's pawn_attacks_span (pawns.cpp:88,114-115): the enemy's pawn attacks PLUS the forward adjacent-file
+ *   span of every enemy pawn that is neither backward nor blocked -- a square is still an outpost if the only enemy pawn
+ *   able to challenge it cannot advance. `backward` and `blocked` are Layer A's, which are SF's definitions.
+ * ★ Trapped rook is the ELSE-branch of "own semi-open file" (SF: `if (is_on_semiopen_file) ... else if (mob <= 3)`),
+ *   independent of whether the rook-file knob is on. Its mobility is the SAME area count mobility uses.
+ * ☠️ Weak queen is computed here, NOT with cpp_bitboard.h's slider_blockers: that helper returns only the CURRENT
+ *   side's blockers and does not remove snipers from the occupancy, while SF counts a single blocker of EITHER colour
+ *   with snipers removed (position.cpp slider_blockers).
+ * ⚠️ Not ported: SF's pinned-piece handling of the mobility area; KingProtector (overlaps the KS zone); Chess960
+ *   cornered bishop.
+ */
+static inline void placement_detect(PlaceCounts &pc, const V2Context &c, const PawnEntry &e,
+                                    const MobAcc *acc_w = nullptr, const MobAcc *acc_b = nullptr,
+                                    bool want_latent = false) noexcept
+{
+	for (int s = 0; s < 2; ++s){
+		const bool     white = (s == 0);
+		const int      t     = 1 - s;
+		const uint64_t own   = white ? c.white : c.black;
+		const uint64_t them  = white ? c.black : c.white;
+		const uint64_t own_p = c.pawns & own;
+		const uint64_t tp    = c.pawns & them;
+
+		pc.outpost_n[s] = pc.outpost_b[s] = pc.reach_n[s] = pc.behind[s] = 0;
+		pc.badb_units[s] = pc.longdiag[s] = pc.traprook_units[s] = pc.weakq[s] = 0;
+		pc.latent_b[s] = pc.latent_r[s] = 0;
+		for (int k = 0; k < 4; ++k){ pc.eth_n[s][k] = pc.eth_b[s][k] = pc.badb_cls[s][k] = 0; }
+
+		// Enemy pawn attack span: attacks + forward adjacent-file span of their non-backward, non-blocked pawns.
+		const uint64_t elig = tp & ~e.backward[t] & ~e.blocked[t];
+		const uint64_t eadj = ps_east(elig) | ps_west(elig);
+		const uint64_t span = e.attacks[t] | (white ? ps_sfill(eadj >> 8) : ps_nfill(eadj << 8));
+		// A pawn of EITHER colour directly in front of the square.
+		const uint64_t pawn_in_front = white ? (c.pawns >> 8) : (c.pawns << 8);
+		const uint64_t ranks = white ? PL_OUTPOST_RANKS_W : PL_OUTPOST_RANKS_B;
+		const int      ofrm  = Config::OUTPOST_V2_FORM;
+		// FORM 0 SF11: pawn-defended, outside the refined span. FORM 2 SF15.1: pawn-defended OR a pawn directly in front.
+		// FORM 1 Ethereal: outside the RAW span (every enemy pawn ahead on an adjacent file counts); defence is an INDEX.
+		const uint64_t outposts = (ofrm == 2) ? (ranks & (e.attacks[s] | pawn_in_front) & ~span)
+		                                      : (ranks & e.attacks[s] & ~span);
+		const uint64_t tadj     = ps_east(tp) | ps_west(tp);
+		const uint64_t raw_safe = ranks & ~(white ? ps_sfill(tadj >> 8) : ps_nfill(tadj << 8));
+
+		uint64_t nb = c.knights & own;
+		while (nb){
+			const uint8_t sq = (uint8_t)__builtin_ctzll(nb); nb &= nb - 1;
+			const uint64_t m = 1ULL << sq;
+			if (ofrm == 1){
+				if (raw_safe & m) ++pc.eth_n[s][((m & (BB_FILE_A | BB_FILE_H)) ? 2 : 0) + ((e.attacks[s] & m) ? 1 : 0)];
+			} else if (outposts & m) ++pc.outpost_n[s];
+			else if (outposts & attacks_mask(white, c.occupied, sq, KNIGHT) & ~own) ++pc.reach_n[s];
+			if (pawn_in_front & m) ++pc.behind[s];
+		}
+
+		const uint64_t blocked_any = own_p & (white ? (c.occupied >> 8) : (c.occupied << 8));
+		const int      centre_blk  = __builtin_popcountll(blocked_any & PL_CENTRE_FILES);
+		const int bfrm = Config::BADB_V2_FORM;
+		uint64_t bb = c.bishops & own;
+		while (bb){
+			const uint8_t sq = (uint8_t)__builtin_ctzll(bb); bb &= bb - 1;
+			const uint64_t m = 1ULL << sq;
+			if (ofrm == 1){
+				if (raw_safe & m) ++pc.eth_b[s][((m & (BB_FILE_A | BB_FILE_H)) ? 2 : 0) + ((e.attacks[s] & m) ? 1 : 0)];
+			} else if (outposts & m) ++pc.outpost_b[s];
+			if (pawn_in_front & m) ++pc.behind[s];
+			const uint64_t colour = (PL_DARK_SQUARES & m) ? PL_DARK_SQUARES : ~PL_DARK_SQUARES;
+			const int      same   = __builtin_popcountll(own_p & colour);
+			// BAD BISHOP forms, where the references split: 0 SF11 N·(1+blk) · 1 SF15.1 N·(!pawnDefended + blk) with a
+			// file-class table · 2 Weiss N·blk (zero while the centre is open) · 3 Ethereal: same-colour pawns RAMMED by an
+			// enemy pawn only, no multiplier.
+			if (bfrm == 1){
+				const int f = sq & 7;
+				const int u = same * (((e.attacks[s] & m) ? 0 : 1) + centre_blk);
+				pc.badb_cls[s][f < 7 - f ? f : 7 - f] += u;
+				pc.badb_units[s] += u;
+			} else if (bfrm == 2) pc.badb_units[s] += same * centre_blk;
+			else if (bfrm == 3)   pc.badb_units[s] += __builtin_popcountll(own_p & colour & e.blocked[s]);
+			else                  pc.badb_units[s] += same * (1 + centre_blk);
+			if (__builtin_popcountll(attacks_mask(white, c.pawns, sq, BISHOP) & PL_CENTRE) > 1) ++pc.longdiag[s];
+		}
+
+		uint64_t rb = c.rooks & own;
+		const MobAcc *acc = white ? acc_w : acc_b;
+		if (rb && (c.kings & own) && acc){
+			// ★ REUSE PATH: the mobility loop already computed each rook's area count from the SAME occupancy (KS_V2_XRAY)
+			// and the SAME area (mob_area), so reading it is byte-identical to recomputing it and costs nothing.
+			const int ksq = __builtin_ctzll(c.kings & own);
+			const bool can_castle = (c.castling_rights & (white ? PL_RANK_1 : PL_RANK_8)) != 0;
+			for (int i = 0; i < acc->n_rooks; ++i)
+				pc.traprook_units[s] += trap_rook_units(acc->rook_sq[i] & 7, acc->rook_sq[i] >> 3, acc->rook_mob[i],
+				                                        ksq, white, e.halfOpen[s], can_castle);
+		} else if (rb && (c.kings & own)){
+			// Fallback when mobility is off (no accumulator was built): compute the counts locally.
+			const uint64_t area = mob_area(c, white);
+			const uint64_t occ  = Config::KS_V2_XRAY ? (c.occupied ^ c.queens ^ (c.rooks & own)) : c.occupied;
+			const int ksq = __builtin_ctzll(c.kings & own);
+			const bool can_castle = (c.castling_rights & (white ? PL_RANK_1 : PL_RANK_8)) != 0;
+			while (rb){
+				const uint8_t sq = (uint8_t)__builtin_ctzll(rb); rb &= rb - 1;
+				const int mob = __builtin_popcountll(attacks_mask(white, occ, sq, ROOK) & area);
+				pc.traprook_units[s] += trap_rook_units(sq & 7, sq >> 3, mob, ksq, white, e.halfOpen[s], can_castle);
+			}
+		}
+
+		uint64_t qb = c.queens & own;
+		while (qb){
+			const uint8_t sq = (uint8_t)__builtin_ctzll(qb); qb &= qb - 1;
+			const uint64_t snipers = (attacks_mask(white, 0, sq, ROOK) & c.rooks & them)
+			                       | (attacks_mask(white, 0, sq, BISHOP) & c.bishops & them);
+			const uint64_t occ = c.occupied ^ snipers;
+			uint64_t sn = snipers;
+			while (sn){
+				const uint8_t r = (uint8_t)__builtin_ctzll(sn); sn &= sn - 1;
+				const uint64_t b = betweenPieces(sq, r) & occ;
+				if (b && !(b & (b - 1))){ ++pc.weakq[s]; break; }
+			}
+		}
+
+		// OURS -- LATENT PAWN PRESSURE (v1 get_latent_bishop/rook_activity_score, without the retired heat map): squares a
+		// slider would reach if its OWN blockers were removed (bishop: all own pieces; rook: own non-pawns), minus squares
+		// it already reaches, that are not ours and from which a pawn of ours would attack an enemy pawn.
+		if (want_latent){
+			const uint64_t targets = white ? ps_batt(tp) : ps_watt(tp);
+			uint64_t lb = c.bishops & own;
+			while (lb){
+				const uint8_t sq = (uint8_t)__builtin_ctzll(lb); lb &= lb - 1;
+				const uint64_t a   = attacks_mask(white, c.occupied, sq, BISHOP);
+				const uint64_t lat = attacks_mask(white, c.occupied & ~(a & own), sq, BISHOP) & ~a;
+				pc.latent_b[s] += __builtin_popcountll(lat & ~own & targets);
+			}
+			uint64_t lr = c.rooks & own;
+			while (lr){
+				const uint8_t sq = (uint8_t)__builtin_ctzll(lr); lr &= lr - 1;
+				const uint64_t a   = attacks_mask(white, c.occupied, sq, ROOK);
+				const uint64_t lat = attacks_mask(white, c.occupied & ~(a & own & ~c.pawns), sq, ROOK) & ~a;
+				pc.latent_r[s] += __builtin_popcountll(lat & ~own & targets);
+			}
+		}
+	}
+}
+
+/* Placement score, Black-positive millipawns. Each term is its SF11 pawn-converted value x its percent knob.
+ * Gating: the caller calls only when at least one *_V2_PCT is non-zero. NO CLAMP. */
+static inline int placement_mp(const PlaceCounts &pc, const V2Context &c) noexcept
+{
+	int side[2] = {0, 0};
+	for (int s = 0; s < 2; ++s){
+		long long mg = 0, eg = 0;
+		const int ofrm = Config::OUTPOST_V2_FORM, opct = Config::OUTPOST_V2_PCT;
+		if (ofrm == 1){
+			for (int k = 0; k < 4; ++k){
+				mg += ((long long)pc.eth_n[s][k] * PL_ETH_N_MG[k] + (long long)pc.eth_b[s][k] * PL_ETH_B_MG[k]) * opct;
+				eg += ((long long)pc.eth_n[s][k] * PL_ETH_N_EG[k] + (long long)pc.eth_b[s][k] * PL_ETH_B_EG[k]) * opct;
+			}
+		} else if (ofrm == 2){
+			mg += ((long long)pc.outpost_n[s] * PL_SF15_OUT_N_MG + (long long)pc.outpost_b[s] * PL_SF15_OUT_B_MG) * opct;
+			eg += ((long long)pc.outpost_n[s] * PL_SF15_OUT_N_EG + (long long)pc.outpost_b[s] * PL_SF15_OUT_B_EG) * opct;
+		} else {
+			const int on = 2 * pc.outpost_n[s] + pc.outpost_b[s];             // SF11: knights count double
+			mg += (long long)on * PL_OUTPOST_MG * opct;  eg += (long long)on * PL_OUTPOST_EG * opct;
+		}
+		mg += (long long)pc.reach_n[s] * PL_REACH_MG * Config::REACH_V2_PCT;   eg += (long long)pc.reach_n[s] * PL_REACH_EG * Config::REACH_V2_PCT;
+		// FORM 1 = Weiss NBBehindPawn S(9,32) at Weiss's pawn (104 mg / 204 eg): 87 / 157 mp -- the endgame-heavy shape.
+		const int bh_mg = Config::BEHIND_V2_FORM == 1 ? 87  : PL_BEHIND_MG;
+		const int bh_eg = Config::BEHIND_V2_FORM == 1 ? 157 : PL_BEHIND_EG;
+		mg += (long long)pc.behind[s] * bh_mg * Config::BEHIND_V2_PCT;  eg += (long long)pc.behind[s] * bh_eg * Config::BEHIND_V2_PCT;
+		mg += (long long)pc.longdiag[s] * PL_LONGD_MG * Config::LONGDIAG_V2_PCT; eg += (long long)pc.longdiag[s] * PL_LONGD_EG * Config::LONGDIAG_V2_PCT;
+		const int bfrm = Config::BADB_V2_FORM, bpct = Config::BADB_V2_PCT;
+		if (bfrm == 1){
+			for (int k = 0; k < 4; ++k){
+				mg -= (long long)pc.badb_cls[s][k] * PL_SF15_BADB_MG[k] * bpct;
+				eg -= (long long)pc.badb_cls[s][k] * PL_SF15_BADB_EG[k] * bpct;
+			}
+		} else {
+			const int bmg = bfrm == 2 ? PL_WEISS_BADB_MG : bfrm == 3 ? PL_ETH_BADB_MG : PL_BADB_MG;
+			const int beg = bfrm == 2 ? PL_WEISS_BADB_EG : bfrm == 3 ? PL_ETH_BADB_EG : PL_BADB_EG;
+			mg -= (long long)pc.badb_units[s] * bmg * bpct;  eg -= (long long)pc.badb_units[s] * beg * bpct;
+		}
+		if (Config::TRAPROOK_V2_FORM == 1)
+			mg -= (long long)pc.traprook_units[s] * 1000 * Config::TRAPROOK_V2_PCT / 204;   // SF1.1 raw units, pawn mg 204, mg only
+		else {
+			mg -= (long long)pc.traprook_units[s] * PL_TRAPR_MG * Config::TRAPROOK_V2_PCT;
+			eg -= (long long)pc.traprook_units[s] * PL_TRAPR_EG * Config::TRAPROOK_V2_PCT;
+		}
+		mg -= (long long)pc.weakq[s] * PL_WEAKQ_MG * Config::WEAKQ_V2_PCT;     eg -= (long long)pc.weakq[s] * PL_WEAKQ_EG * Config::WEAKQ_V2_PCT;
+		mg += ((long long)pc.latent_b[s] * PL_LATENT_B + (long long)pc.latent_r[s] * PL_LATENT_R) * Config::LATENT_V2_PCT;
+		const int m = (int)(mg / 100), g = (int)(eg / 100);
+		side[s] = (m * c.phase256 + g * (256 - c.phase256)) >> 8;
+	}
+	return side[1] - side[0];
+}
+
+/* DETECTOR ORACLE PROBE for the placement sub-terms (diagnostic; never called from search).
+ * Layout (long long, 20): per side [outpost_n, outpost_b, reach_n, behind, badb_units, longdiag, traprook_units, weakq,
+ * latent_b, latent_r], White 0-9, Black 10-19. Form-dependent packing: OUTPOST_V2_FORM 1 packs the four Ethereal cells
+ * into outpost_n / outpost_b, 8 bits each; BADB_V2_FORM 1 packs the four SF15.1 file classes into badb_units, 12 bits each. ⚠️ Reads KS_V2_XRAY (trapped-rook occupancy) and MOB_V2_EXCL_* (area): build an engine under
+ * the arm's environment first. Compared against diagnostics/_placement_detector_oracle.py.
+ */
+void placement_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+                     uint64_t queensMask, uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask,
+                     uint64_t castlingRights, long long *out)
+{
+	V2Context c;
+	build_context(c, 0, true, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+	              whiteMask, blackMask, whiteMask | blackMask, castlingRights);
+	PawnEntry pe;
+	build_pawn_entry(pe, c);
+	// Exercise the REUSE path (the one search runs when mobility is on), so the oracle validates it directly.
+	MobAcc mw, mb;
+	SideAttacks wa, ba;
+	mobility_build(c, wa, ba, mw, mb);
+	PlaceCounts pc;
+	placement_detect(pc, c, pe, &mw, &mb, true);
+	for (int s = 0; s < 2; ++s){
+		const int o = 10 * s;
+		long long on = pc.outpost_n[s], ob = pc.outpost_b[s], bu = pc.badb_units[s];
+		if (Config::OUTPOST_V2_FORM == 1){
+			on = ob = 0;
+			for (int k = 0; k < 4; ++k){ on |= (long long)pc.eth_n[s][k] << (8 * k); ob |= (long long)pc.eth_b[s][k] << (8 * k); }
+		}
+		if (Config::BADB_V2_FORM == 1){
+			bu = 0;
+			for (int k = 0; k < 4; ++k) bu |= (long long)pc.badb_cls[s][k] << (12 * k);
+		}
+		out[o]   = on; out[o+1] = ob; out[o+2] = pc.reach_n[s]; out[o+3] = pc.behind[s];
+		out[o+4] = bu; out[o+5] = pc.longdiag[s]; out[o+6] = pc.traprook_units[s]; out[o+7] = pc.weakq[s];
+		out[o+8] = pc.latent_b[s]; out[o+9] = pc.latent_r[s];
+	}
+}
+
+/* KING-SAFETY COUNT PROBE (diagnostic; never called from search).
+ *
+ * Layout (long long, 12), indexed by the KING examined (0 = White's, 1 = Black's): 0-1 attacker count · 2-3 weighted
+ * attacker sum · 4-5 weak zone squares · 6-7 king-adjacent attacked squares · 8-9 safe-check squares (all four channels
+ * summed per-square) · 10-11 the scored unit total from ks_units.
+ * ★ Purpose: give the collinearity gate its first view of KING SAFETY, so "threats double-counts KS" becomes a
+ * measurement instead of a story. The channels chosen are the ones that could overlap threats -- both count attacks on
+ * enemy men near the king.
+ * ★ Recomputes the channels rather than instrumenting ks_units (same choice as space_probe / threats_probe): the hot
+ * path carries no diagnostic branch, and a divergence between the two is itself a finding.
+ * ☠️ Counts are UNCONDITIONAL; only out[10-11] respects the knobs, because that is the scored total.
+ */
+void ks_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+              uint64_t queensMask, uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask, long long *out)
+{
+	V2Context c;
+	build_context(c, 0, true, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+	              whiteMask, blackMask, whiteMask | blackMask, 0);
+	SideAttacks wa, ba;
+	build_side_attacks(wa, c, true);
+	build_side_attacks(ba, c, false);
+	static constexpr int W_OURS[7]   = {0, 0, 31, 31, 47, 78, 0};
+	static constexpr int W_KNIGHT[7] = {0, 0, 81, 52, 44, 10, 0};
+	const int *W = Config::KS_V2_ATT_PROFILE ? W_KNIGHT : W_OURS;
+	for (int s = 0; s < 2; ++s){
+		const bool     white_king = (s == 0);
+		const uint64_t kbb = c.kings & (white_king ? c.white : c.black);
+		if (!kbb){
+			out[s] = out[2 + s] = out[4 + s] = out[6 + s] = out[8 + s] = out[10 + s] = 0;
+			continue;
+		}
+		const uint8_t  ksq   = (uint8_t)__builtin_ctzll(kbb);
+		const SideAttacks &att = white_king ? ba : wa;
+		const SideAttacks &def = white_king ? wa : ba;
+		const uint64_t enemy = white_king ? c.black : c.white;
+		const uint64_t zone  = ks_zone(ksq, white_king, c.pawns & (white_king ? c.white : c.black));
+		int n_att = 0, w_att = 0;
+		const uint64_t typeMasks[4] = {c.knights, c.bishops, c.rooks, c.queens};
+		for (int i = 0; i < 4; ++i){
+			const uint8_t pt = (uint8_t)(i + 2);
+			uint64_t bb = typeMasks[i] & enemy;
+			while (bb){
+				const uint8_t sq = (uint8_t)__builtin_ctzll(bb);
+				bb &= bb - 1;
+				if (attacks_mask(!white_king, c.occupied, sq, pt) & zone){ ++n_att; w_att += W[pt]; }
+			}
+		}
+		const uint64_t weak   = att.all & ~def.dbl & (~def.all | def.by[KING] | def.by[QUEEN]);
+		const uint64_t occ_x  = c.occupied ^ (c.queens & (white_king ? c.white : c.black));
+		const uint64_t rr     = attacks_mask(white_king, occ_x, ksq, ROOK);
+		const uint64_t bb_r   = attacks_mask(white_king, occ_x, ksq, BISHOP);
+		const uint64_t nr     = attacks_mask(white_king, c.occupied, ksq, KNIGHT);
+		const uint64_t safe   = ~enemy & (~def.all | (weak & att.dbl));
+		out[s]      = n_att;
+		out[2 + s]  = w_att;
+		out[4 + s]  = __builtin_popcountll(zone & weak);
+		out[6 + s]  = __builtin_popcountll(att.all & BB_KING_ATTACKS[ksq]);
+		out[8 + s]  = __builtin_popcountll(rr & safe & att.by[ROOK])
+		            + __builtin_popcountll((rr | bb_r) & safe & att.by[QUEEN])
+		            + __builtin_popcountll(bb_r & safe & att.by[BISHOP])
+		            + __builtin_popcountll(nr & safe & att.by[KNIGHT]);
+		out[10 + s] = ks_units(c, wa, ba, white_king);
+	}
+}
+
+/* DETECTOR ORACLE PROBE for slice-3 threats (diagnostic; never called from search).
+ *
+ * Layout (long long, 16), per side W,B: 0-1 minor victims · 2-3 rook victims · 4-5 king victims · 6-7 hanging ·
+ * 8-9 restricted · 10-11 safe-pawn · 12-13 pawn-push · 14 score (Black-positive mp) · 15 phase256.
+ * ⚠️ READS every THREAT_V2_* knob and KS_V2_XRAY. ★ Recomputes the counts the same way threats_mp does rather than
+ * instrumenting it: the hot path carries no diagnostic branch, and a divergence between the two is itself a finding.
+ * ☠️ CONTRACT (documented properly 2026-09-17): leg counts are UNCONDITIONAL -- filled whether or not the leg's knob is
+ * on, so a disabled leg still reports what it would contribute; only out[14] (the score) respects the knobs. PAWN_TARGETS
+ * is the exception, because it is part of the minor/rook VICTIM definition rather than an on/off leg.
+ * ⚠️ An oracle that fills a count only when the knob is on will false-mismatch on every position where a disabled leg has
+ * a non-zero detector -- which is exactly what happened on the first run (scores matched, counts did not).
+ */
+void threats_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+                   uint64_t queensMask, uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask, long long *out)
+{
+	V2Context c;
+	build_context(c, 0, true, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+	              whiteMask, blackMask, whiteMask | blackMask, 0);
+	SideAttacks wa, ba;
+	build_side_attacks(wa, c, true);
+	build_side_attacks(ba, c, false);
+	for (int s = 0; s < 2; ++s){
+		const bool     white = (s == 0);
+		const uint64_t own   = white ? c.white : c.black;
+		const uint64_t them  = white ? c.black : c.white;
+		const SideAttacks &us = white ? wa : ba;
+		const SideAttacks &th = white ? ba : wa;
+		const uint64_t their_np = them & ~c.pawns;
+		uint64_t protected_set, weak;
+		if (Config::THREAT_V2_GATE == 1){
+			const uint64_t poorly = (th.all & ~us.all) | (th.dbl & ~us.dbl & ~us.by[PAWN]);
+			weak          = them & poorly & us.all;
+			protected_set = them & ~poorly;
+		} else {
+			protected_set = th.by[PAWN] | (th.dbl & ~us.dbl);
+			weak          = them & ~protected_set & us.all;
+		}
+		const uint64_t defended = their_np & protected_set;
+		int n_minor = 0, n_rook = 0;
+		uint64_t set = (defended | weak) & (us.by[KNIGHT] | us.by[BISHOP]);
+		while (set){
+			const uint64_t bit = set & -set; set ^= bit;
+			const int v = th_victim(c, bit);
+			if (v < 0 || v > 4) continue;
+			if (v == 0 && !Config::THREAT_V2_PAWN_TARGETS) continue;
+			++n_minor;
+		}
+		set = weak & us.by[ROOK];
+		while (set){
+			const uint64_t bit = set & -set; set ^= bit;
+			const int v = th_victim(c, bit);
+			if (v < 0 || v > 4) continue;
+			if (v == 0 && !Config::THREAT_V2_PAWN_TARGETS) continue;
+			++n_rook;
+		}
+		const uint64_t safe   = ~th.all | us.all;
+		const uint64_t our_p  = c.pawns & own;
+		const uint64_t safe_p = our_p & safe;
+		const uint64_t patt   = white ? ps_watt(safe_p) : ps_batt(safe_p);
+		const uint64_t empty  = ~c.occupied;
+		const uint64_t tp     = c.pawns & them;
+		const uint64_t p_att  = white ? ps_batt(tp) : ps_watt(tp);
+		uint64_t push = (white ? (our_p << 8) : (our_p >> 8)) & empty;
+		const uint64_t rank3 = white ? 0x0000000000FF0000ULL : 0x0000FF0000000000ULL;
+		push |= (white ? ((push & rank3) << 8) : ((push & rank3) >> 8)) & empty;
+		push &= ~p_att & safe;
+		out[s]      = n_minor;
+		out[2 + s]  = n_rook;
+		out[4 + s]  = __builtin_popcountll(weak & us.by[KING] & ~c.pawns);
+		out[6 + s]  = __builtin_popcountll(weak & (~th.all | (their_np & us.dbl)));
+		out[8 + s]  = __builtin_popcountll(th.all & ~protected_set & us.all);
+		out[10 + s] = __builtin_popcountll(patt & their_np);
+		out[12 + s] = __builtin_popcountll((white ? ps_watt(push) : ps_batt(push)) & their_np);
+	}
+	out[14] = threats_mp(c, wa, ba);
+	out[15] = c.phase256;
+}
+
+/* DETECTOR ORACLE PROBE for slice-3 space (diagnostic; never called from search).
+ *
+ * Layout (long long, 6): 0-1 safe-square counts W,B (including the BEHIND double count) · 2-3 the piece counts the
+ * weight uses · 4 the Black-positive millipawn score · 5 phase256.
+ * ⚠️ READS every SPACE_V2_* knob and KS_V2_XRAY, so the caller must have built an engine under the arm's env.
+ * ★ Recomputes the counts the same way space_mp does rather than instrumenting it: space_mp stays branch-free of
+ * any diagnostic code, and a divergence between the two is itself a finding the oracle will surface.
+ */
+void space_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+                 uint64_t queensMask, uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask, long long *out)
+{
+	V2Context c;
+	build_context(c, 0, true, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+	              whiteMask, blackMask, whiteMask | blackMask, 0);
+	SideAttacks wa, ba;
+	build_side_attacks(wa, c, true);
+	build_side_attacks(ba, c, false);
+	for (int s = 0; s < 2; ++s){
+		const bool     white   = (s == 0);
+		const uint64_t own     = white ? c.white : c.black;
+		const uint64_t own_p   = c.pawns & own;
+		const uint64_t enemy_p = c.pawns & ~own;
+		const SideAttacks &us   = white ? wa : ba;
+		const SideAttacks &them = white ? ba : wa;
+		const uint64_t region = Config::SPACE_V2_REGION == 1
+		                      ? SPACE_ETH_BIG
+		                      : (SPACE_CENTRE_FILES & (white ? SPACE_RANKS_W : SPACE_RANKS_B));
+		const uint64_t safe = Config::SPACE_V2_SAFE == 1
+		                    ? (region & ~them.all & (us.all | own))
+		                    : (region & ~own_p & ~(white ? ps_batt(enemy_p) : ps_watt(enemy_p)));
+		int count = __builtin_popcountll(safe);
+		if (Config::SPACE_V2_BEHIND){
+			uint64_t behind = own_p;
+			if (white){ behind |= behind >> 8; behind |= behind >> 16; }
+			else      { behind |= behind << 8; behind |= behind << 16; }
+			count += __builtin_popcountll(safe & behind & ~them.all);
+		}
+		int pieces = 0;
+		for (int t = 0; t < 6; ++t) pieces += white ? c.cnt_white[t] : c.cnt_black[t];
+		out[s]     = count;
+		out[2 + s] = pieces;
+	}
+	out[4] = space_mp(c, wa, ba);
+	out[5] = c.phase256;
+}
+
+/* DETECTOR ORACLE PROBE for slice-2 mobility (diagnostic; never called from search).
+ *
+ * Layout (long long, 14 entries): 0-3 White area-filtered counts N,B,R,Q · 4-7 Black · 8-9 raw mg W,B ·
+ * 10-11 raw eg W,B · 12-13 area masks W,B (as signed 64-bit).
+ * ⚠️ READS KNOBS -- KS_V2_XRAY (attack occupancy), MOB_V2_EXCL_* and MOB_V2_PIN (area + pin line), MOB_V2_SAFE (counts)
+ * and MOB_V2_TABLE (raw sums) -- so the caller must have built an
+ * engine under the arm's environment first. Compared against diagnostics/_mobility_detector_oracle.py.
+ */
+void mobility_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+                    uint64_t queensMask, uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask, long long *out)
+{
+	V2Context c;
+	build_context(c, 0, true, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+	              whiteMask, blackMask, whiteMask | blackMask, 0);
+	MobAcc mw, mb;
+	SideAttacks wa, ba;
+	mobility_build(c, wa, ba, mw, mb);
+	for (int i = 0; i < 4; ++i){ out[i] = mw.cnt[i]; out[4 + i] = mb.cnt[i]; }
+	out[8]  = mw.raw_mg; out[9]  = mb.raw_mg;
+	out[10] = mw.raw_eg; out[11] = mb.raw_eg;
+	out[12] = (long long)mw.area; out[13] = (long long)mb.area;
+}
+
 /* DETECTOR ORACLE PROBE -- exports Layer A's raw masks so they can be compared against the independent
  * Python implementation in diagnostics/_pawn_term_overlap.py, which is validated 8/8 on hand-checked
  * positions and colour-symmetric 3/3.
@@ -1015,6 +2222,139 @@ static inline int dv_dist(int a, int b) noexcept
 /* True iff `sq` is a light square. Matches v1's is_white_square (cpp_bitboard.cpp:1665) exactly. */
 static inline bool dv_light(int sq) noexcept { return (((sq & 7) + (sq >> 3)) & 1) != 0; }
 
+// ─── EXACT KPK BITBASE ─────────────────────────────────────────────────────────────────────────────
+// SF11 bitbase.cpp's retrograde classification, re-expressed in our square convention (a1 = 0, h8 = 63).
+// ★ WHY EXACT, NOT A BETTER HEURISTIC: every lone-pawn race rule we wrote failed the oracle (v1's opposition
+// test 6.2% false draws, the tempo-corrected one still 0.6%). A retrograde fixpoint over all 196,608 indices has
+// zero false positives BY CONSTRUCTION -- it is the game tree, not an approximation of it.
+// ☠️ Uses NO runtime table. BB_KING_ATTACKS is filled by initialize_attack_tables() at engine construction; a
+// lazily-built static that read it before then would latch a garbage bitbase for the life of the process
+// (memory runtime-tables-are-empty-outside-an-engine-instance). King and pawn attacks are local shifts instead.
+
+static constexpr unsigned KPK_MAX_INDEX = 2 * 24 * 64 * 64;   // stm x pawn(a-d, ranks 2-7) x wk x bk
+static constexpr uint8_t  KPK_INVALID = 0, KPK_UNKNOWN = 1, KPK_DRAW = 2, KPK_WIN = 4;
+static constexpr uint64_t KPK_FILE_A = 0x0101010101010101ULL, KPK_FILE_H = 0x8080808080808080ULL;
+
+static inline uint64_t kpk_king_att(int sq) noexcept
+{
+	const uint64_t b = 1ULL << sq;
+	const uint64_t e = b & ~KPK_FILE_H, w = b & ~KPK_FILE_A;
+	return (b << 8) | (b >> 8) | (e << 1) | (e << 9) | (e >> 7) | (w >> 1) | (w >> 9) | (w << 7);
+}
+
+/* White pawn attacks from sq (the strong side is always normalised to White). */
+static inline uint64_t kpk_pawn_att(int sq) noexcept
+{
+	const uint64_t b = 1ULL << sq;
+	return ((b & ~KPK_FILE_A) << 7) | ((b & ~KPK_FILE_H) << 9);
+}
+
+/* Index layout (SF11 bitbase.cpp:41-47): bits 0-5 wk · 6-11 bk · 12 side to move (0 = strong side) · 13-14 pawn
+ * file (a-d) · 15-17 (RANK_7 - pawn rank). `psq` must be on files a-d, ranks 2-7. */
+static inline unsigned kpk_index(int us, int bk, int wk, int psq) noexcept
+{
+	return (unsigned)wk | ((unsigned)bk << 6) | ((unsigned)us << 12)
+	     | ((unsigned)(psq & 7) << 13) | ((unsigned)(6 - (psq >> 3)) << 15);
+}
+
+struct KpkTable { uint32_t bits[KPK_MAX_INDEX / 32]; };
+
+/* Build the bitbase. ~15 sweeps over 196,608 entries; milliseconds, once per process.
+ * Mirrors SF11 KPKPosition::KPKPosition (initial classification) and ::classify (the sweep). */
+static void kpk_build(KpkTable &t)
+{
+	std::vector<uint8_t> db(KPK_MAX_INDEX);
+
+	for (unsigned idx = 0; idx < KPK_MAX_INDEX; ++idx){
+		const int wk  = (int)(idx & 0x3F);
+		const int bk  = (int)((idx >> 6) & 0x3F);
+		const int us  = (int)((idx >> 12) & 1);
+		const int psq = (6 - (int)((idx >> 15) & 0x7)) * 8 + (int)((idx >> 13) & 0x3);
+		const uint64_t patt = kpk_pawn_att(psq);
+
+		if (dv_dist(wk, bk) <= 1 || wk == psq || bk == psq || (us == 0 && (patt & (1ULL << bk))))
+			db[idx] = KPK_INVALID;
+		// Immediate win: the pawn promotes and the new queen cannot be taken.
+		else if (us == 0 && (psq >> 3) == 6 && wk != psq + 8
+		         && (dv_dist(bk, psq + 8) > 1 || (kpk_king_att(wk) & (1ULL << (psq + 8)))))
+			db[idx] = KPK_WIN;
+		// Immediate draw: the weak side is stalemated, or its king takes an undefended pawn.
+		else if (us == 1
+		         && (!(kpk_king_att(bk) & ~(kpk_king_att(wk) | patt))
+		             || (kpk_king_att(bk) & (1ULL << psq) & ~kpk_king_att(wk))))
+			db[idx] = KPK_DRAW;
+		else
+			db[idx] = KPK_UNKNOWN;
+	}
+
+	bool repeat = true;
+	while (repeat){
+		repeat = false;
+		for (unsigned idx = 0; idx < KPK_MAX_INDEX; ++idx){
+			if (db[idx] != KPK_UNKNOWN) continue;
+			const int wk  = (int)(idx & 0x3F);
+			const int bk  = (int)((idx >> 6) & 0x3F);
+			const int us  = (int)((idx >> 12) & 1);
+			const int psq = (6 - (int)((idx >> 15) & 0x7)) * 8 + (int)((idx >> 13) & 0x3);
+
+			uint8_t r = KPK_INVALID;
+			if (us == 0){
+				uint64_t b = kpk_king_att(wk);
+				while (b){ const int to = __builtin_ctzll(b); b &= b - 1; r |= db[kpk_index(1, bk, to, psq)]; }
+				if ((psq >> 3) < 6)                                             // single push
+					r |= db[kpk_index(1, bk, wk, psq + 8)];
+				if ((psq >> 3) == 1 && psq + 8 != wk && psq + 8 != bk)          // double push
+					r |= db[kpk_index(1, bk, wk, psq + 16)];
+				db[idx] = (r & KPK_WIN) ? KPK_WIN : (r & KPK_UNKNOWN) ? KPK_UNKNOWN : KPK_DRAW;
+			} else {
+				uint64_t b = kpk_king_att(bk);
+				while (b){ const int to = __builtin_ctzll(b); b &= b - 1; r |= db[kpk_index(0, to, wk, psq)]; }
+				db[idx] = (r & KPK_DRAW) ? KPK_DRAW : (r & KPK_UNKNOWN) ? KPK_UNKNOWN : KPK_WIN;
+			}
+			if (db[idx] != KPK_UNKNOWN) repeat = true;
+		}
+	}
+
+	for (unsigned idx = 0; idx < KPK_MAX_INDEX; ++idx)
+		if (db[idx] == KPK_WIN) t.bits[idx >> 5] |= 1u << (idx & 0x1F);
+}
+
+/* True iff the normalised position (strong side White, pawn on files a-d, ranks 2-7) is a WIN.
+ * Built on first call through a thread-safe function-local static; never reads Config or a runtime table. */
+static bool kpk_is_win(int wk, int psq, int bk, int us)
+{
+	static const KpkTable *const tbl = []{ KpkTable *t = new KpkTable{}; kpk_build(*t); return t; }();
+	const unsigned idx = kpk_index(us, bk, wk, psq);
+	return (tbl->bits[idx >> 5] >> (idx & 0x1F)) & 1u;
+}
+
+/* K + P vs K, any file: true iff it is a DRAW. Normalises colour (rank flip) and file (a-d) first. */
+static bool kpk_drawn(const V2Context &c) noexcept
+{
+	const bool sw = (c.pawns & c.white) != 0;                       // strong side is White?
+	int psq = __builtin_ctzll(c.pawns);
+	int sk  = __builtin_ctzll(c.kings & (sw ? c.white : c.black));
+	int wkq = __builtin_ctzll(c.kings & (sw ? c.black : c.white));
+	if (!sw){ psq ^= 56; sk ^= 56; wkq ^= 56; }                     // mirror ranks so the pawn moves up
+	if ((psq & 7) > 3){ psq ^= 7; sk ^= 7; wkq ^= 7; }              // mirror files onto a-d
+	const int r = psq >> 3;
+	if (r < 1 || r > 6) return false;                               // not a legal pawn -- never flag
+	const int us = (sw == c.turn) ? 0 : 1;                          // c.turn true = White to move
+	return !kpk_is_win(sk, psq, wkq, us);
+}
+
+/* KPK BITBASE PROBE (diagnostic). Normalised inputs: strong side White, pawn on files a-d, ranks 2-7.
+ * @param strong_to_move  1 if the pawn's side is on move
+ * @return 1 = win, 0 = draw, -1 = inputs outside the normalised domain
+ */
+int kpk_probe(int wksq, int wpsq, int bksq, int strong_to_move)
+{
+	if (wksq < 0 || wksq > 63 || bksq < 0 || bksq > 63 || wpsq < 0 || wpsq > 63
+	    || (wpsq & 7) > 3 || (wpsq >> 3) < 1 || (wpsq >> 3) > 6)
+		return -1;
+	return kpk_is_win(wksq, wpsq, bksq, strong_to_move ? 0 : 1) ? 1 : 0;
+}
+
 /* Binary draw classifier: true => this position is a dead draw and the eval must return 0 outright.
  *
  * ☠️ MEMBERSHIP HERE IS MEASURED, NOT REASONED. v1's is_practically_drawn carries ten cases; five of them
@@ -1108,6 +2448,9 @@ static bool draw_class(const V2Context &c) noexcept
 	// construction, and it covers ALL of KPvK rather than just rook pawns. SF ships one
 	// (stockfish_11/src/bitbase.cpp, ~24KB packed, built at init in milliseconds) and we already own the
 	// retrograde tooling (diagnostics/_kpk_oracle.py, 83,238 states). Until that exists this stays OFF.
+	// K + P vs K from the EXACT bitbase. Checked before the heuristic so that, when on, it owns this case outright.
+	if (Config::DRAW_V2_KPK_EXACT && n_p == 1 && nk == c.pawns) return kpk_drawn(c);
+
 	if (!Config::DRAW_V2_KPK) return false;
 	if (n_p != 1) return false;
 
@@ -1172,22 +2515,75 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	int w_mat = 0, b_mat = 0, w_pst = 0, b_pst = 0;
 	int total = rung0_material_and_placement(c, w_mat, b_mat, w_pst, b_pst);
 
+	// ── slice 3: bishop pair ─────────────────────────────────────────────────────────────────────
+	// Sits with material because that is what it is -- a census term, not placement. Gated on BPAIR_V2_MAG,
+	// so 0 = absent = byte-identical.
+	int bp_mp = 0;
+	if (Config::BPAIR_V2_MAG > 0){
+		bp_mp = bishop_pair_mp(c);
+		total += bp_mp;
+	}
+
+	// ── slice 3: Kaufman / polynomial material imbalance ────────────────────────────────────────
+	// Also sits with material -- it IS a census re-pricing of material, which is why the pawn is its unit
+	// anchor. Gated on KAUF_V2_MAG, so 0 = absent = byte-identical. ★ Antisymmetric by construction, so it
+	// cannot move the colour-symmetry gate (v2 is 0/4000 and must stay there).
+	int kauf_mp_v = 0;
+	if (Config::KAUF_V2_MAG > 0){
+		kauf_mp_v = kaufman_mp(c);
+		total += kauf_mp_v;
+	}
+
 	// ── rung 1: king safety (KS-A) ───────────────────────────────────────────────────────────────
 	// Gated on KS_V2_MAX, so 0 = the rung is absent and this is byte-identical to rung 0.5. The attack maps
 	// are built ONCE here and handed to both kings by reference -- they are the expensive part, and each
 	// king needs the other side as attacker and its own as defender, so one build serves both.
+	// ── slice 2: mobility rides on the SAME attack build ─────────────────────────────────────────
+	// The build now runs when EITHER consumer is on. With MOB_V2_MAG == 0 the call is the exact rung-1 build
+	// (null accumulator), so KS output is unchanged.
 	int ks_w = 0, ks_b = 0, ks_mp = 0;
-	if (Config::KS_V2_MAX > 0){
+	int mob_mp = 0, mob_cnt_w = 0, mob_cnt_b = 0;
+	int sp_mp = 0;
+	const bool mob_on = Config::MOB_V2_MAG > 0;
+	// ── slice 3: space and threats ride the SAME attack build (both need the enemy's maps) ───────
+	const bool space_on = Config::SPACE_V2_MAG > 0;
+	int th_mp = 0;
+	const bool threats_on = Config::THREAT_V2_PCT > 0;
+	// Hoisted so the placement pass can read the per-rook mobility counts. Uninitialised unless mobility runs.
+	MobAcc mw, mb;
+	bool acc_ready = false;
+	if (Config::KS_V2_MAX > 0 || mob_on || space_on || threats_on){
 		SideAttacks wa, ba;
-		build_side_attacks(wa, c, true);
-		build_side_attacks(ba, c, false);
-		ks_w = ks_units(c, wa, ba, true);
-		ks_b = ks_units(c, wa, ba, false);
-		// Black-positive, matching `total`: a dangerous WHITE king favours Black (+), a dangerous BLACK
-		// king favours White (-). ⚠️ Getting this backwards still produces entirely plausible numbers --
-		// it is the historic failure mode -- so the colour ship-gate runs on every KS-A build.
-		ks_mp = ks_danger_mp(ks_w) - ks_danger_mp(ks_b);
-		total += ks_mp;
+		if (mob_on){
+			acc_ready = true;
+			mobility_build(c, wa, ba, mw, mb);
+			mob_mp    = mobility_mp(mw, mb, c);
+			mob_cnt_w = mw.cnt[0] + mw.cnt[1] + mw.cnt[2] + mw.cnt[3];
+			mob_cnt_b = mb.cnt[0] + mb.cnt[1] + mb.cnt[2] + mb.cnt[3];
+			total += mob_mp;
+		} else {
+			build_side_attacks(wa, c, true);
+			build_side_attacks(ba, c, false);
+		}
+		// Space needs BOTH sides' maps (the enemy's full attack set gates its safe squares), so it sits here rather
+		// than with the pawn terms. Gated on SPACE_V2_MAG, so 0 = absent = byte-identical.
+		if (space_on){
+			sp_mp = space_mp(c, wa, ba);
+			total += sp_mp;
+		}
+		if (threats_on){
+			th_mp = threats_mp(c, wa, ba);
+			total += th_mp;
+		}
+		if (Config::KS_V2_MAX > 0){
+			ks_w = ks_units(c, wa, ba, true);
+			ks_b = ks_units(c, wa, ba, false);
+			// Black-positive, matching `total`: a dangerous WHITE king favours Black (+), a dangerous BLACK
+			// king favours White (-). ⚠️ Getting this backwards still produces entirely plausible numbers --
+			// it is the historic failure mode -- so the colour ship-gate runs on every KS-A build.
+			ks_mp = ks_danger_mp(ks_w) - ks_danger_mp(ks_b);
+			total += ks_mp;
+		}
 	}
 
 	// ── rung 2a: pawn structure ──────────────────────────────────────────────────────────────────
@@ -1197,13 +2593,26 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// at 2b without any downstream consumer reading stale state.
 	// ★ ONE detector build serves both 2a and 2b -- the masks are a pure function of the two pawn
 	// bitboards, so whichever rung is on, the entry is computed once and both scorers read it.
-	int ps_mp = 0, pp_mp = 0;
+	int ps_mp = 0, pp_mp = 0, rf_mp = 0;
 	PawnEntry pe;
-	if (Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0){
+	const bool rf_on = Config::ROOKFILE_V2_OPEN != 0 || Config::ROOKFILE_V2_SEMI != 0;
+	const bool pl_on = Config::OUTPOST_V2_PCT != 0 || Config::REACH_V2_PCT != 0 || Config::BEHIND_V2_PCT != 0
+	                || Config::BADB_V2_PCT != 0 || Config::LONGDIAG_V2_PCT != 0 || Config::TRAPROOK_V2_PCT != 0
+	                || Config::WEAKQ_V2_PCT != 0 || Config::LATENT_V2_PCT != 0;
+	int pl_mp = 0;
+	if (Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on){
 		build_pawn_entry(pe, c);
 		ps_mp = pawn_structure_mp(pe, c);   // returns 0 when PS_V2_MAG == 0
 		pp_mp = passer_value_mp(pe, c);     // returns 0 when PASSER_V2_MAG == 0
-		total += ps_mp + pp_mp;
+		// slice 2: rook files read the file masks this detector already built
+		if (rf_on) rf_mp = rookfile_mp(pe, c);
+		// slice 2: per-piece placement sub-terms, also reading this detector's masks
+		if (pl_on){
+			PlaceCounts pc;
+			placement_detect(pc, c, pe, acc_ready ? &mw : nullptr, acc_ready ? &mb : nullptr, Config::LATENT_V2_PCT != 0);
+			pl_mp = placement_mp(pc, c);
+		}
+		total += ps_mp + pp_mp + rf_mp + pl_mp;
 	}
 
 	// ── slice 1 / component 1: tempo ─────────────────────────────────
@@ -1245,6 +2654,20 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			                              | (1ULL << EB_DET_KS_UNITS_W)
 			                              | (1ULL << EB_DET_KS_UNITS_B);
 		}
+		if (mob_on){
+			// ⚠️ ARM-1 MEANING of det_*_mobility: the AREA-FILTERED squares summed over N/B/R/Q. v1 writes a
+			// different quantity into the same field (squares attacked that are not its own). Read the arm
+			// before comparing across arms. Plain-SWAP class in the symmetry gate; `mobility` is NEGATE.
+			g_eval_breakdown.mobility       = mob_mp;
+			g_eval_breakdown.det_w_mobility = mob_cnt_w;
+			g_eval_breakdown.det_b_mobility = mob_cnt_b;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_MOBILITY)
+			                              | (1ULL << EB_DET_W_MOBILITY)
+			                              | (1ULL << EB_DET_B_MOBILITY);
+		}
+		// Rook files are deliberately NOT published yet: the only candidate field, rook_cond, is v1's
+		// tension-conditioned rescale, and reusing it would be a field read against its writer's intent.
+		// It is still inside `total`, which is what every gate reads.
 	}
 
 	return total;

@@ -134,6 +134,12 @@ cdef extern from "cache_management.h":
 # (get_board_evaluation for search, ev/ev_breakdown for static tools); nothing here is on a hot path.
 cdef extern from "eval_v2.h":
     void pawn_entry_probe(uint64_t pawns, uint64_t occupied_white, uint64_t occupied_black, uint64_t *out)
+    void mobility_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
+    int kpk_probe(int wksq, int wpsq, int bksq, int strong_to_move)
+    void space_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
+    void threats_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
+    void ks_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
+    void placement_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights, long long *out)
 
 
 # Import functions from c++ file
@@ -319,6 +325,148 @@ def pawn_masks(pawns, occupied_white, occupied_black):
     res["passed"] = (int(out[23]), int(out[24]))
     res["candidate"] = (int(out[25]), int(out[26]))
     return res
+
+
+def placement_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black, castling_rights):
+    """Slice 2 placement detector ORACLE probe. Returns eval v2's per-side sub-term counts for one position.
+
+    ⚠️ READS KNOBS (KS_V2_XRAY, MOB_V2_EXCL_*) -- construct a ChessAI under the arm's environment first. Compared
+    against the independent python-chess implementation in diagnostics/_placement_detector_oracle.py.
+
+    Returns {name: (white, black)} for outpost_n, outpost_b, reach_n, behind, badb_units, longdiag, traprook_units, weakq.
+    """
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef long long out[20]
+    placement_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
+                    <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, <uint64_t>castling_rights, out)
+    # ⚠️ Form-dependent packing (see placement_probe): OUTPOST_V2_FORM 1 packs Ethereal's four cells into outpost_n/_b,
+    # BADB_V2_FORM 1 packs SF15.1's four file classes into badb_units.
+    names = ["outpost_n", "outpost_b", "reach_n", "behind", "badb_units", "longdiag", "traprook_units", "weakq",
+             "latent_b", "latent_r"]
+    res = {}
+    cdef int i
+    for i in range(10):
+        res[names[i]] = (int(out[i]), int(out[10 + i]))
+    return res
+
+
+def kpk_win(wksq, wpsq, bksq, strong_to_move):
+    """Exact KPK bitbase probe (eval v2). Strong side normalised to White, pawn on files a-d, ranks 2-7.
+
+    Returns 1 = win, 0 = draw, -1 = outside the normalised domain. Needs no engine instance and no knob: the
+    bitbase uses only local shift arithmetic, never a runtime attack table.
+    """
+    return kpk_probe(<int>wksq, <int>wpsq, <int>bksq, <int>(1 if strong_to_move else 0))
+
+
+def ks_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):
+    """KING-SAFETY channel counts for one position -- the probe that finally lets the collinearity gate see KS.
+
+    ⚠️ READS KNOBS (every KS_V2_* plus KS_V2_XRAY), so construct a ChessAI under the arm's environment BEFORE calling it.
+    ☠️ Channel counts are UNCONDITIONAL (reported whether or not the channel's knob is non-zero); only "units" respects
+    the knobs, because it is the scored total. Same contract as threats_counts.
+
+    Indexed by the KING examined: index 0 = White's king (so its attackers are Black's pieces), 1 = Black's king.
+    Returns {"n_att": (w,b), "w_att": (w,b), "weak": (w,b), "adj": (w,b), "checks": (w,b), "units": (w,b)}.
+    """
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef long long out[12]
+    ks_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
+             <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
+    return {"n_att": (int(out[0]), int(out[1])),
+            "w_att": (int(out[2]), int(out[3])),
+            "weak": (int(out[4]), int(out[5])),
+            "adj": (int(out[6]), int(out[7])),
+            "checks": (int(out[8]), int(out[9])),
+            "units": (int(out[10]), int(out[11]))}
+
+
+def threats_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):
+    """Slice 3 THREATS detector ORACLE probe. Returns eval v2's per-leg counts and score for one position.
+
+    ⚠️ READS KNOBS (every THREAT_V2_* plus KS_V2_XRAY, which sets the attack occupancy the defence gates depend on), so
+    construct a ChessAI under the arm's environment BEFORE calling it. Compared against the independent python-chess
+    implementation in diagnostics/_threats_detector_oracle.py.
+
+    ☠️ Leg counts are UNCONDITIONAL: every leg's detector count is returned whether or not that leg's knob is on, so a
+    disabled leg still shows what it would contribute. Only "score" respects the knobs. (PAWN_TARGETS is the exception --
+    it is part of the minor/rook victim definition, not an on/off leg.)
+    Returns {"minor": (w,b), "rook": (w,b), "king": (w,b), "hanging": (w,b), "restricted": (w,b),
+             "safepawn": (w,b), "push": (w,b), "score": <mp>, "phase256": <int>}.
+    """
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef long long out[16]
+    threats_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
+                  <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
+    return {"minor": (int(out[0]), int(out[1])),
+            "rook": (int(out[2]), int(out[3])),
+            "king": (int(out[4]), int(out[5])),
+            "hanging": (int(out[6]), int(out[7])),
+            "restricted": (int(out[8]), int(out[9])),
+            "safepawn": (int(out[10]), int(out[11])),
+            "push": (int(out[12]), int(out[13])),
+            "score": int(out[14]),
+            "phase256": int(out[15])}
+
+
+def space_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):
+    """Slice 3 SPACE detector ORACLE probe. Returns eval v2's space counts and score for one position.
+
+    ⚠️ READS KNOBS (every SPACE_V2_* plus KS_V2_XRAY, which sets the attack occupancy its safe mask depends on), so
+    construct a ChessAI under the arm's environment BEFORE calling it. Compared against the independent python-chess
+    implementation in diagnostics/_space_detector_oracle.py.
+
+    Returns {"count": (w, b), "pieces": (w, b), "space": <Black-positive mp>, "phase256": <int>}.
+    """
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef long long out[6]
+    space_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
+                <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
+    return {"count": (int(out[0]), int(out[1])),
+            "pieces": (int(out[2]), int(out[3])),
+            "space": int(out[4]),
+            "phase256": int(out[5])}
+
+
+def mobility_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):
+    """Slice 2 mobility detector ORACLE probe. Returns eval v2's per-side area-filtered counts for one position.
+
+    ⚠️ Unlike pawn_masks this READS KNOBS (KS_V2_XRAY sets the attack occupancy, MOB_V2_EXCL_* the area), so
+    construct a ChessAI under the arm's environment BEFORE calling it. Compared against the independent
+    python-chess implementation in diagnostics/_mobility_detector_oracle.py.
+
+    Returns {"count": ((N,B,R,Q) white, (N,B,R,Q) black), "raw_mg": (w, b), "raw_eg": (w, b), "area": (w, b)}.
+    """
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef long long out[14]
+    mobility_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
+                   <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
+    cdef int i
+    wc = []
+    bc = []
+    for i in range(4):
+        wc.append(int(out[i]))
+        bc.append(int(out[4 + i]))
+    mask = 0xFFFFFFFFFFFFFFFF
+    return {"count": (tuple(wc), tuple(bc)),
+            "raw_mg": (int(out[8]), int(out[9])),
+            "raw_eg": (int(out[10]), int(out[11])),
+            "area": (int(out[12]) & mask, int(out[13]) & mask)}
 
 
 # Define class for the chess engine

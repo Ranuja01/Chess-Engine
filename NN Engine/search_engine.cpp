@@ -2113,6 +2113,123 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::TEMPO_V2_EG = env_int("TEMPO_V2_EG", Config::TEMPO_V2_EG);
         Config::DRAW_V2_CLASS = env_flag("DRAW_V2_CLASS", Config::DRAW_V2_CLASS);
         Config::DRAW_V2_KPK = env_flag("DRAW_V2_KPK", Config::DRAW_V2_KPK);
+        Config::DRAW_V2_KPK_EXACT = env_flag("DRAW_V2_KPK_EXACT", Config::DRAW_V2_KPK_EXACT);
+        // ── slice 2: mobility + rook files ─────────────────────────────────────────────────────
+        Config::MOB_V2_MAG = env_int("MOB_V2_MAG", Config::MOB_V2_MAG);
+        Config::MOB_V2_EXCL_QUEEN = env_flag("MOB_V2_EXCL_QUEEN", Config::MOB_V2_EXCL_QUEEN);
+        Config::MOB_V2_EXCL_LOWRANK = env_flag("MOB_V2_EXCL_LOWRANK", Config::MOB_V2_EXCL_LOWRANK);
+        Config::MOB_V2_TABLE = env_int("MOB_V2_TABLE", Config::MOB_V2_TABLE);
+        Config::MOB_V2_EG_PCT = env_int("MOB_V2_EG_PCT", Config::MOB_V2_EG_PCT);
+        Config::MOB_V2_PIN = env_flag("MOB_V2_PIN", Config::MOB_V2_PIN);
+        Config::MOB_V2_SAFE = env_int("MOB_V2_SAFE", Config::MOB_V2_SAFE);
+        if (Config::MOB_V2_SAFE < 0 || Config::MOB_V2_SAFE > 2){
+            std::cerr << "☠️ MOB_V2_SAFE must be 0-2 -- restoring 0.\n";
+            Config::MOB_V2_SAFE = 0;
+        }
+        if (Config::MOB_V2_TABLE < 0 || Config::MOB_V2_TABLE > 3){
+            std::cerr << "☠️ MOB_V2_TABLE must be 0-3 -- restoring 0 (SF11).\n";
+            Config::MOB_V2_TABLE = 0;
+        }
+        if (Config::MOB_V2_EG_PCT < 0){
+            std::cerr << "☠️ MOB_V2_EG_PCT must be >= 0 -- restoring 100.\n";
+            Config::MOB_V2_EG_PCT = 100;
+        }
+        Config::ROOKFILE_V2_OPEN = env_int("ROOKFILE_V2_OPEN", Config::ROOKFILE_V2_OPEN);
+        Config::ROOKFILE_V2_SEMI = env_int("ROOKFILE_V2_SEMI", Config::ROOKFILE_V2_SEMI);
+        Config::OUTPOST_V2_PCT = env_int("OUTPOST_V2_PCT", Config::OUTPOST_V2_PCT);
+        Config::REACH_V2_PCT = env_int("REACH_V2_PCT", Config::REACH_V2_PCT);
+        Config::BEHIND_V2_PCT = env_int("BEHIND_V2_PCT", Config::BEHIND_V2_PCT);
+        Config::BEHIND_V2_FORM = env_int("BEHIND_V2_FORM", Config::BEHIND_V2_FORM);
+        Config::BADB_V2_PCT = env_int("BADB_V2_PCT", Config::BADB_V2_PCT);
+        Config::LONGDIAG_V2_PCT = env_int("LONGDIAG_V2_PCT", Config::LONGDIAG_V2_PCT);
+        Config::TRAPROOK_V2_PCT = env_int("TRAPROOK_V2_PCT", Config::TRAPROOK_V2_PCT);
+        Config::WEAKQ_V2_PCT = env_int("WEAKQ_V2_PCT", Config::WEAKQ_V2_PCT);
+        Config::OUTPOST_V2_FORM = env_int("OUTPOST_V2_FORM", Config::OUTPOST_V2_FORM);
+        Config::BADB_V2_FORM = env_int("BADB_V2_FORM", Config::BADB_V2_FORM);
+        Config::TRAPROOK_V2_FORM = env_int("TRAPROOK_V2_FORM", Config::TRAPROOK_V2_FORM);
+        Config::LATENT_V2_PCT = env_int("LATENT_V2_PCT", Config::LATENT_V2_PCT);
+        // ── slice 3: bishop pair ───────────────────────────────────────────────────────────────
+        Config::BPAIR_V2_MAG = env_int("BPAIR_V2_MAG", Config::BPAIR_V2_MAG);
+        Config::BPAIR_V2_FORM = env_int("BPAIR_V2_FORM", Config::BPAIR_V2_FORM);
+        if (Config::BPAIR_V2_MAG < 0){
+            std::cerr << "☠️ BPAIR_V2_MAG must be >= 0 (it is a millipawn value) -- restoring 0.\n";
+            Config::BPAIR_V2_MAG = 0;
+        }
+        if (Config::BPAIR_V2_FORM < 0 || Config::BPAIR_V2_FORM > 2){
+            std::cerr << "☠️ BPAIR_V2_FORM must be 0-2 -- restoring 0 (flat).\n";
+            Config::BPAIR_V2_FORM = 0;
+        }
+        // ── slice 3: Kaufman / polynomial material imbalance ───────────────────────────────────
+        Config::KAUF_V2_MAG = env_int("KAUF_V2_MAG", Config::KAUF_V2_MAG);
+        Config::KAUF_V2_PAIR = env_int("KAUF_V2_PAIR", Config::KAUF_V2_PAIR);
+        if (Config::KAUF_V2_MAG < 0){
+            std::cerr << "☠️ KAUF_V2_MAG must be >= 0 (1000 == SF's own scale in our millipawns) -- restoring 0.\n";
+            Config::KAUF_V2_MAG = 0;
+        }
+        if (Config::KAUF_V2_PAIR < 0 || Config::KAUF_V2_PAIR > 1){
+            std::cerr << "☠️ KAUF_V2_PAIR must be 0 or 1 -- restoring 1 (Kaufman owns the pair, as SF does).\n";
+            Config::KAUF_V2_PAIR = 1;
+        }
+        Config::KAUF_V2_FORM = env_int("KAUF_V2_FORM", Config::KAUF_V2_FORM);
+        if (Config::KAUF_V2_FORM < 0 || Config::KAUF_V2_FORM > 2){
+            std::cerr << "☠️ KAUF_V2_FORM must be 0 (SF11 verbatim), 1 (v1 fitted, DIAGNOSTIC) or 2 (derived "
+                         "per-piece value-ratio rescale) -- restoring 0.\n";
+            Config::KAUF_V2_FORM = 0;
+        }
+        if (Config::KAUF_V2_MAG > 0 && Config::KAUF_V2_FORM == 1)
+            std::cerr << "⚠️ KAUF_V2_FORM=1 uses v1's FITTED tables -- DIAGNOSTIC ONLY, not a ship candidate.\n";
+        // ⚠️ Double-pay guard: SF prices the bishop pair ONLY inside the imbalance matrix. If both owners are
+        // live the pair is paid twice, which is the one-owner-per-concept violation this rebuild exists to avoid.
+        if (Config::KAUF_V2_MAG > 0 && Config::KAUF_V2_PAIR != 0 && Config::BPAIR_V2_MAG > 0)
+            std::cerr << "⚠️ KAUF_V2_PAIR=1 AND BPAIR_V2_MAG>0: the bishop pair is being paid TWICE. "
+                         "Set one of them to 0 (SF prices the pair only inside the imbalance matrix).\n";
+        // ── slice 3: space ─────────────────────────────────────────────────────────────────────
+        Config::SPACE_V2_MAG = env_int("SPACE_V2_MAG", Config::SPACE_V2_MAG);
+        Config::SPACE_V2_REGION = env_int("SPACE_V2_REGION", Config::SPACE_V2_REGION);
+        Config::SPACE_V2_SAFE = env_int("SPACE_V2_SAFE", Config::SPACE_V2_SAFE);
+        Config::SPACE_V2_WEIGHT = env_int("SPACE_V2_WEIGHT", Config::SPACE_V2_WEIGHT);
+        Config::SPACE_V2_BEHIND = env_flag("SPACE_V2_BEHIND", Config::SPACE_V2_BEHIND);
+        Config::SPACE_V2_GATE_PCT = env_int("SPACE_V2_GATE_PCT", Config::SPACE_V2_GATE_PCT);
+        if (Config::SPACE_V2_MAG < 0){
+            std::cerr << "☠️ SPACE_V2_MAG must be >= 0 -- restoring 0.\n";
+            Config::SPACE_V2_MAG = 0;
+        }
+        if (Config::SPACE_V2_REGION < 0 || Config::SPACE_V2_REGION > 1){
+            std::cerr << "☠️ SPACE_V2_REGION must be 0-1 -- restoring 0 (SF own camp).\n";
+            Config::SPACE_V2_REGION = 0;
+        }
+        if (Config::SPACE_V2_SAFE < 0 || Config::SPACE_V2_SAFE > 1){
+            std::cerr << "☠️ SPACE_V2_SAFE must be 0-1 -- restoring 0 (SF pawn-attack safety).\n";
+            Config::SPACE_V2_SAFE = 0;
+        }
+        if (Config::SPACE_V2_WEIGHT < 0 || Config::SPACE_V2_WEIGHT > 1){
+            std::cerr << "☠️ SPACE_V2_WEIGHT must be 0-1 -- restoring 0 (SF11 quadratic).\n";
+            Config::SPACE_V2_WEIGHT = 0;
+        }
+        if (Config::SPACE_V2_GATE_PCT < 0 || Config::SPACE_V2_GATE_PCT > 100){
+            std::cerr << "☠️ SPACE_V2_GATE_PCT must be 0-100 -- restoring 74 (SF11).\n";
+            Config::SPACE_V2_GATE_PCT = 74;
+        }
+        // ── slice 3: threats ──────────────────────────────────────────────────────────────────
+        Config::THREAT_V2_PCT = env_int("THREAT_V2_PCT", Config::THREAT_V2_PCT);
+        Config::THREAT_V2_GATE = env_int("THREAT_V2_GATE", Config::THREAT_V2_GATE);
+        Config::THREAT_V2_HANGING = env_flag("THREAT_V2_HANGING", Config::THREAT_V2_HANGING);
+        Config::THREAT_V2_RESTRICT = env_flag("THREAT_V2_RESTRICT", Config::THREAT_V2_RESTRICT);
+        Config::THREAT_V2_KING = env_flag("THREAT_V2_KING", Config::THREAT_V2_KING);
+        Config::THREAT_V2_PAWN_TARGETS = env_flag("THREAT_V2_PAWN_TARGETS", Config::THREAT_V2_PAWN_TARGETS);
+        Config::THREAT_V2_PUSH = env_flag("THREAT_V2_PUSH", Config::THREAT_V2_PUSH);
+        if (Config::THREAT_V2_PCT < 0){
+            std::cerr << "☠️ THREAT_V2_PCT must be >= 0 -- restoring 0.\n";
+            Config::THREAT_V2_PCT = 0;
+        }
+        if (Config::THREAT_V2_GATE < 0 || Config::THREAT_V2_GATE > 1){
+            std::cerr << "☠️ THREAT_V2_GATE must be 0-1 -- restoring 0 (SF stronglyProtected).\n";
+            Config::THREAT_V2_GATE = 0;
+        }
+        if (Config::MOB_V2_MAG < 0){
+            std::cerr << "☠️ MOB_V2_MAG must be >= 0 (it is a table RANGE) -- restoring 0.\n";
+            Config::MOB_V2_MAG = 0;
+        }
         if (Config::PASSER_V2_MIN_RANK < 0 || Config::PASSER_V2_MIN_RANK > 7){
             std::cerr << "☠️ PASSER_V2_MIN_RANK must be 0..7 -- restoring 3." << std::endl;
             Config::PASSER_V2_MIN_RANK = 3;
@@ -2330,6 +2447,46 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " TEMPO_V2_EG=" << Config::TEMPO_V2_EG
                   << " DRAW_V2_CLASS=" << Config::DRAW_V2_CLASS
                   << " DRAW_V2_KPK=" << Config::DRAW_V2_KPK
+                  << " DRAW_V2_KPK_EXACT=" << Config::DRAW_V2_KPK_EXACT
+                  << " MOB_V2_MAG=" << Config::MOB_V2_MAG
+                  << " MOB_V2_EXCL_QUEEN=" << Config::MOB_V2_EXCL_QUEEN
+                  << " MOB_V2_EXCL_LOWRANK=" << Config::MOB_V2_EXCL_LOWRANK
+                  << " MOB_V2_TABLE=" << Config::MOB_V2_TABLE
+                  << " MOB_V2_EG_PCT=" << Config::MOB_V2_EG_PCT
+                  << " MOB_V2_PIN=" << Config::MOB_V2_PIN
+                  << " MOB_V2_SAFE=" << Config::MOB_V2_SAFE
+                  << " BPAIR_V2_MAG=" << Config::BPAIR_V2_MAG
+                  << " BPAIR_V2_FORM=" << Config::BPAIR_V2_FORM
+                  << " KAUF_V2_MAG=" << Config::KAUF_V2_MAG
+                  << " KAUF_V2_PAIR=" << Config::KAUF_V2_PAIR
+                  << " KAUF_V2_FORM=" << Config::KAUF_V2_FORM
+                  << " SPACE_V2_MAG=" << Config::SPACE_V2_MAG
+                  << " SPACE_V2_REGION=" << Config::SPACE_V2_REGION
+                  << " SPACE_V2_SAFE=" << Config::SPACE_V2_SAFE
+                  << " SPACE_V2_WEIGHT=" << Config::SPACE_V2_WEIGHT
+                  << " SPACE_V2_BEHIND=" << Config::SPACE_V2_BEHIND
+                  << " SPACE_V2_GATE_PCT=" << Config::SPACE_V2_GATE_PCT
+                  << " THREAT_V2_PCT=" << Config::THREAT_V2_PCT
+                  << " THREAT_V2_GATE=" << Config::THREAT_V2_GATE
+                  << " THREAT_V2_HANGING=" << Config::THREAT_V2_HANGING
+                  << " THREAT_V2_RESTRICT=" << Config::THREAT_V2_RESTRICT
+                  << " THREAT_V2_KING=" << Config::THREAT_V2_KING
+                  << " THREAT_V2_PAWN_TARGETS=" << Config::THREAT_V2_PAWN_TARGETS
+                  << " THREAT_V2_PUSH=" << Config::THREAT_V2_PUSH
+                  << " ROOKFILE_V2_OPEN=" << Config::ROOKFILE_V2_OPEN
+                  << " ROOKFILE_V2_SEMI=" << Config::ROOKFILE_V2_SEMI
+                  << " OUTPOST_V2_PCT=" << Config::OUTPOST_V2_PCT
+                  << " REACH_V2_PCT=" << Config::REACH_V2_PCT
+                  << " BEHIND_V2_PCT=" << Config::BEHIND_V2_PCT
+                  << " BEHIND_V2_FORM=" << Config::BEHIND_V2_FORM
+                  << " BADB_V2_PCT=" << Config::BADB_V2_PCT
+                  << " LONGDIAG_V2_PCT=" << Config::LONGDIAG_V2_PCT
+                  << " TRAPROOK_V2_PCT=" << Config::TRAPROOK_V2_PCT
+                  << " WEAKQ_V2_PCT=" << Config::WEAKQ_V2_PCT
+                  << " OUTPOST_V2_FORM=" << Config::OUTPOST_V2_FORM
+                  << " BADB_V2_FORM=" << Config::BADB_V2_FORM
+                  << " TRAPROOK_V2_FORM=" << Config::TRAPROOK_V2_FORM
+                  << " LATENT_V2_PCT=" << Config::LATENT_V2_PCT
                   << " PS_V2_MAG=" << Config::PS_V2_MAG
                   << " PS_V2_CONN_FORM=" << Config::PS_V2_CONN_FORM
                   << " PS_V2_FILE_TILT=" << Config::PS_V2_FILE_TILT

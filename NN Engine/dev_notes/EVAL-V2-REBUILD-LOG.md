@@ -1136,3 +1136,949 @@ blanket scan found the real extras live in the scale/drive space.
 
 **Also found.** STRENGTH_BACKLOG called the convertibility scale shipped for three months; it was reverted the same
 day (ab070b7) on WAC -3 / STS -3.3, both inside noise floors -- an unresolved null, not a refutation.
+
+## 2026-09-14 -- SLICE 2 PREWORK: v2's positional spread, measured on the move-ordering quantity
+
+Checklist step 4 of `SESSION-HANDOFF-2026-09-13.md` §3: measure the scale BEFORE choosing any mobility magnitude.
+The 09-13 "5-35 mp" came from five hand positions; this replaces it with the quantity that actually ORDERS moves.
+🧰 `diagnostics/_v2_positional_spread.py` -- static eval of every legal QUIET child (no capture / promotion / check /
+castling) of 370 `game_regret_set.csv` positions, from the root mover's POV. Siblings share material, so the spread is
+purely non-material. One process per arm; knobs echoed.
+
+| median, mp | rung 0 (PST only) | + pawns/passers | shipped (+KS) | v1 |
+|---|---|---|---|---|
+| sibling std | **11** | 19 | 36 | 2,290 |
+| sibling range | 45 | 101 | 194 (p90 1,088) | 8,697 |
+| \|child - sibling mean\| N / B / R / Q | 11.4 / 8.0 / **2.9** / 10.6 | 11.7 / 9.4 / 4.8 / 11.9 | 15 / 13 / 9 / 21 | 1,144 / 1,347 / 1,337 / 2,554 |
+| hand: knight a3 vs e5 · rook d1(open) vs a1 | 30 · 0 | 30 · 0 | 30 · **0** | 554 · 304 |
+
+**Readings.**
+1. ★ **Placement orders piece moves by ~10 mp, and ROOK moves by 2.9 mp** -- and rook moves are the LARGEST quiet-move
+   class (3,051 of 10,408 children). v2 has almost nothing to choose between rook moves with. That is precisely where
+   mobility and rook files land.
+2. The shipped spread's tail is NOT placement: pawns/passers widen the pawn and king rows in the endgame, and KS widens
+   the queen row (p90 338). A mobility magnitude must not be sized against a spread KS is carrying.
+3. v1's spread is ~200x v2's and is not a positional scale at all -- capture gains prices hanging pieces statically, so
+   a quiet move that hangs a piece moves v1 by pawns.
+4. ⚠️ **This is a SCALE, not a TARGET.** v2's PST cells are already 3-10x smaller than SF11's (`pt-star-is-material-inclusive`
+   memory), so sizing mobility to v2's spread would bake in a compression we may not want. The defensible anchor is
+   the references' own **mobility : PST-placement ratio**, applied to v2's measured PST spread -- a ratio within one
+   engine carries no unit of account.
+5. ⚠️ The SF18 column (multi-PV SEARCH scores on the listed moves, median range 950 nominal mp) is not comparable to a
+   static spread -- it contains tactics -- and is recorded only as context.
+
+**Record-check (same day), in one line:** nothing in slice 2 has a RESOLVED verdict either way. Whole-board mobility
+is the best standing lead (+1.2pp, sign-consistent, ~1σ, 09-10 paired nulls); SF per-piece mobility's -175 STS was a
+three-part bundle (area + floor + disabling the cheap surrogates) and closes nothing; outposts' "harmful" was one
+point on a superseded comparator; long diagonal / minor-behind-pawn / trapped rook / queen weakness were never tried.
+☠️ Mobility's STS sign once FLIPPED on cheap-rook-mobility presence ⇒ **2x2 mobility x rook files before reading either.**
+
+## 2026-09-14 -- SLICE 2: mobility core + rook files BUILT, all gates pass, instruments CONFLICT at the reference point
+
+Design + full tables: `EVAL-V2-SLICE2-MOBILITY-DESIGN.md`.
+
+**Built** (all default off): `MOB_V2_MAG` -- SF11 MobilityBonus SHAPE, each leg converted by its own pawn, scaled so the
+knight mg range = MAG mp; accumulated inside `build_side_attacks` (one attack pass shared with KS; x-ray follows
+`KS_V2_XRAY`); area = not enemy-pawn-attacked, not own blocked pawn, not own king · `MOB_V2_EXCL_QUEEN/LOWRANK`
+(where the references split) · `ROOKFILE_V2_OPEN/SEMI` from `PawnEntry` file masks · `mobility_probe` +
+🧰 `_mobility_detector_oracle.py`.
+
+**Gates, all ✅:** arm 0 `250 / 35,310,778 / 3.784` · v2 shipped, slice 2 off `246 / 63,221,361 / 4.087` · oracle 0
+mismatches over 6,008 side-positions on both code paths (99.2% non-mirror) · colour swap 0/800 (file-mirror 21 @ 5 mp
+identical with slice 2 off, pre-existing) · knob executes (knight rim-vs-centre 30 → 59, open-file rook 0 → −69) ·
+tempo swing exactly 0.000 on 600 FENs.
+
+**2x2 at mobility 115 / rook files 50-25:**
+
+| arm | STS (1698) | §I mean | §I worst |
+|---|---|---|---|
+| mobility | 1618 (−80) | −1.39% | +0.35% KS-critical |
+| rook files | 1608 (−90) | −0.32% | −0.06% (6/6) |
+| both | 1659 (−39) | −1.70% | +0.29% KS-critical |
+
+§I is additive (−1.71 predicted from the parts, −1.70 measured) and mobility's standard-corpus gain (~−2% on each of
+four) is ~2x the pawn layer's. STS reads every cell negative INSIDE its ±150 floor. ⇒ **the instruments conflict; per
+the corroboration rule no games are spent on this point.** Magnitude ladder (mobility 30/60/300, rook files 20-10 /
+100-50, §I across all) launched 00:01 as `s2_ladder.sh`.
+⚠️ My registered magnitude prediction (+60 to +150 STS at the best rung) is under strain -- a sixth consecutive
+optimistic miss if it fails.
+
+## 2026-09-14 (overnight) -- EXACT KPK BITBASE built and gated; the KPK ORACLE ITSELF WAS BROKEN
+
+**Built** (default off, `DRAW_V2_KPK_EXACT`): SF11 `bitbase.cpp`'s retrograde classification in `eval_v2.cpp`, built once
+through a thread-safe function-local static. ☠️ It deliberately uses NO runtime attack table (local shift arithmetic) --
+a lazy static reading `BB_KING_ATTACKS` before `initialize_attack_tables()` would latch a garbage bitbase for the life of
+the process. Hooked into `draw_class` ahead of the old lone-pawn heuristic; only a DRAWN K+P vs K returns 0. Probe
+`kpk_probe` / `ChessAI.kpk_win`.
+
+**Gate: exhaustive, not sampled.** `_kpk_oracle.py --all-files --engine` solves every legal KPvK state with the pawn on
+files a-d (**165,676 states**, rook under-promotion included) and compares the engine on each:
+**0 false draws, 0 false wins.** Oracle WIN 111,282 (67%) / DRAW 54,394. Arm 0 and v2 shipped both re-verified
+byte-identical after the build.
+
+☠️☠️ **The first run FAILED with 98,533 "false wins" -- and the defect was in the ORACLE, not the bitbase.** The tool
+keyed states by `board.fen()`, which includes the halfmove/fullmove counters: every generated state is `... 0 1`, but a
+king move's child is `... 1 1`, so child lookups missed and WIN never propagated except through pawn pushes. The
+oracle labelled only **7.7%** of KPvK won. Tablebase ground truth on a disputed row (`8/8/8/8/8/8/P7/K1k5`) said WIN with
+either side to move, matching the bitbase. Fixed by keying on placement + side to move.
+★ **Consequence for the record:** a win-starved oracle cannot see a FALSE DRAW -- a rule's wrongly-flagged "draw" is
+simply agreed with. So **every "0 false-draws" result this tool produced before 2026-09-14 is UNVERIFIED**, including
+the June rook-pawn rule's "validated: 83,238 states, 0 false-draws". That is very likely WHY a "validated" rule measured
+**6.2% false draws** against the real tablebase on 09-13. The mystery in the draw arc has a mechanism now.
+★ **Transferable:** an oracle is an instrument. Before trusting its null ("0 failures"), check its POSITIVE rate against
+ground truth -- a 7.7% win rate for KPvK was visible in its own header line.
+
+⚠️ **My own prior was also wrong, and the tablebase caught it:** I wrote `4k3/8/4K3/4P3/8/8/8/8 w` into the verify plan
+as a draw (Black "has the opposition"); it is a **WIN in 21** -- a king on the 6th ahead of its pawn wins regardless.
+Every verify row is now tablebase-sourced or an exact colour mirror of one.
+
+**Eval-level verify — ✅ `_draw_v2_verify.py`, both arms.** Rule ON (`DRAW_V2_CLASS=1 DRAW_V2_KPK_EXACT=1`): ALL AS
+EXPECTED — the three tablebase draws (distant opposition W-to-move, its colour mirror, h-file rook pawn) read exactly
+0; the three wins read −1104 / +1104 (exact colour mirror) / −1345. Rule OFF: the same draw rows read −1104 / +1104 /
+−1274, so the RULE is what zeroes them.
+🐛 The tool's old "midgame" control read **exactly 0 in both arms** under the shipped rung-2 knobs — a coincidental
+PST/KS/pawn cancellation, so it failed while proving nothing. Replaced with a pawn-up middlegame (−1050), non-zero by
+construction. ★ **A control must be non-zero BY CONSTRUCTION, not by luck.**
+⚠️ `_eval_symmetry.py` was NOT run for this: its sample contains essentially no KPvK, so it would be a vacuous pass.
+The verify rows' exact mirrors are the symmetry evidence.
+
+**WAC d10 with the rule ON: 246 / 63,221,296 / 4.087** vs OFF 246 / 63,221,361 — **−65 nodes, same solves.** Not
+byte-identical, and correctly so: the bitbase FIRED inside a handful of search lines that reached K+P vs K, and it moved
+no solve. (The draw classifier's own enable read +0.008% nodes the same way on 09-13.)
+
+▶️ Remaining before `DRAW_V2_KPK_EXACT` can fold into `DRAW_V2_CLASS`: STS (cannot fire on a midgame suite — expected
+unchanged, cheap to confirm) · **the owner's sign-off**. Every correctness gate is done.
+✅ **SHIPPED later the same day** as `DRAW_V2_KPK_EXACT=1` in the v2 config, on the owner's sign-off ("low latency,
+adds accuracy, the giants do it"). Not deferred to the endgame slice: classifications ship on oracle proof.
+☠️ **New shipped v2 fingerprint (mobility 600 + KPK exact): WAC d10 `250 / 60,036,572 / EBF 4.043`** — +39 nodes vs
+mobility-only, same solves. Every later byte-identity check uses this.
+
+## 2026-09-14 (overnight) -- SLICE 2 MOBILITY: STS cannot see it, §I and the regret gate both can, and they AGREE
+
+Full tables: `EVAL-V2-SLICE2-MOBILITY-DESIGN.md` §3.2-§3.4.
+
+| `MOB_V2_MAG` | 3 | 10 | 30 | 60 | 115 | 300 | 600 | 1000 | 2000 |
+|---|---|---|---|---|---|---|---|---|---|
+| STS (1698) | −2 | −37 | −56 | −81 | −80 | −64 | −110 | −76 | — |
+| §I mean / worst | — | — | −0.38/+0.09 | −0.75/+0.18 | −1.39/+0.35 | −3.34/+0.92 | −5.75/+1.91 | **−7.56**/+3.31 | −5.93/+7.17 |
+
+1. ☠️ **STS does not price mobility's magnitude**: flat and unordered from 10 to 1000 mp, all inside ±150. Two
+   explanations I recorded along the way were withdrawn by later points — a perturbation floor (3 mp reads 0) and a step
+   (1000 undoes 600).
+2. ★ **§I optimum ≈ 1000 mp of knight range — near SF11's PAWN conversion (742), ~33× v2's knight PST spread.** The
+   positional-scale sizing rule (which was right for tempo) did not hold for mobility on accuracy; v2's PSTs are already
+   3-10× smaller than SF11's, so measuring against them measured an under-scaled denominator. Corpus fit — a candidate,
+   not a verdict.
+3. ★★★ **d7 regret gate at 600, vs a same-session neutral (`ASPIRATION_DELTA=300`) on BOTH corpora: +4.9pp primary
+   (53.3 vs 48.4), +3.1pp on `_v2` (53.9 vs 50.8).** Replicated, both over the ~2-2.5pp bar; gains in opening/midgame,
+   ~neutral in the endgame. n_crit 46 / 31. ⚠️ The v2 neutrals (48.4 / 50.8) differ from each other and from v1's band.
+4. **Rook files:** §I gains on 6/6 corpora but small; STS monotone harmful (−72 / −90 / −147 at 20 / 50 / 100). Kept
+   OFF.
+5. **Registered predictions scorecard:** (1) negative mob × rook-file interaction — refuted on §I (additive), unreadable
+   on STS. (2) STS interior peak 60-115 — refuted. (3) +60-150 STS — refuted, the sixth straight optimistic magnitude
+   miss. (4) §I < STS signal — refuted, the opposite. (5) nodes fall 5-15% — direction right, −2.4% at 115.
+
+▶️ **Corroboration rule satisfied (two agree, one cannot resolve) ⇒ a games candidate: `sprt_ab` shipped v2 vs
+`+MOB_V2_MAG=600`. OWNER'S DECISION — not launched.**
+
+## 2026-09-14 (day) -- ★★★ SLICE 2 MOBILITY PASSES IN GAMES: ≈ +162 Elo pooled (319 games)
+
+Owner chose mobility ALONE (criteria: resolvable solo · contested magnitude only games settle · others sized against
+it). `sprt_ab`, LIGHTNING, conc 4, `openings_uho.txt`, elo1 5. A = shipped v2 + `MOB_V2_MAG=600`, B = shipped v2.
+Run in two SEGMENTS (paused to build/gate the placement sub-terms), pooled by adding tallies; the shipped v2 WAC
+fingerprint `246 / 63,221,361` was re-verified on every build between segments, so both segments are the same arms.
+```
+seg 1  seed 11   +6   -2  =4  of  12
+seg 2  seed 12   +199 -64 =44 of 307  (72.0%)  elo +164.0 +/-45.7  DECISION: H1 accepted
+POOLED           +205 -66 =48 of 319  (71.8%)  elo ~ +162
+```
+★ **Largest single gain of the rebuild** (rung 1 KS +101, rung 2 pawns +60.4) — and in TIMED games, so the extra
+per-piece work in the attack loop is already paid for.
+★★ **The corroboration rule was right against the instrument that disagreed.** STS read mobility −110 at this very
+setting (flat −37..−110 at every magnitude); §I (−5.75%) and the d7 regret gate (+4.9 / +3.1pp over same-session
+neutrals, replicated) both said yes. Games sided with the two that could resolve it. ⇒ STS is not a veto on a
+move-ordering term whose signal it cannot price.
+★ **Sizing lesson confirmed in games:** the design's positional-spread ladder (30-300) would have missed it; the passing
+point sits at ~20× v2's knight PST spread, near SF's pawn conversion.
+⚠️ SPRT magnitude is ±45 — confidence, not precision. Registered prediction (+60-150 STS) was wrong on its instrument
+but the underlying claim "the largest positional term, big enough to read alone" held.
+✅ **SHIPPED in the v2 config (`MOB_V2_MAG=600`) on the owner's sign-off.** ☠️ **New shipped v2 fingerprint: WAC d10
+`250 / 60,036,533 / EBF 4.043`, STS 1588** — every later byte-identity check uses these, not the pre-mobility
+`246 / 63,221,361`. Next: placement bundle on top (§I: bundle B −2.11% mean, better on 6/6; regret gate running); rook
+files stay off; tempo re-test trigger fired (first point +107 on STS, inside the floor, ladder queued).
+
+## 2026-09-15 -- SLICE 2 PLACEMENT BUNDLE E: regression SPRT inconclusive with a positive lean; SHIPPED on owner sign-off
+
+Path: single-term §I ladder → bundles (97% additive) → regret (B leaned −2.0 on `_v2`, diffuse under a dilution-controlled
+leave-one-out; D clean) → collinearity gate (VIF ≤ 1.30) → per-term FORM ladder vs D (only SF15.1 bad bishop @100 won, 6/6;
+our LATENT null) → **bundle E = D + `BADB_V2_FORM=1 BADB_V2_PCT=100`**, collinearity PASS (VIF 1.25) → E regret CLEAN
+(primary 49.9 vs neutral 49.8, `_v2` 49.2 vs 50.7) → regression SPRT (elo0 −10, elo1 0, LIGHTNING, conc 4, `openings_uho.txt`).
+```
+seg 1  seed 13   +103 -83  =36  of  222   LLR +0.804   (killed 03:29 by a Windows Update planned restart)
+seg 2  seed 14   +396 -380 =202 of  978   elo +5.7 +/-25.6   LLR +1.091   DECISION: inconclusive (max games)
+POOLED           +499 -463 =238 of 1200   (51.5%)  elo ~ +10 (+/- ~23)   LLR ~ +1.9 (segment sum; bound +2.94)
+```
+Same `.so` both segments (written 09-14 23:53, before launch). Pooled LLR never negative. Segment 1's +31 was small-sample.
+⚠️ NOT a formal H1: the evidence is "not harmful, probably mildly positive". Shipped on the owner's sign-off because the regression
+bar's purpose (catch harm) is met.
+★ Sequencing rule agreed with the owner: every later SPRT runs on the CURRENT shipped base (mobility form bake-off on mobility+E),
+so what is gamed is what ships; re-run the collinearity gate and E's §I check if mobility's form changes; one cumulative SPRT at the
+end of slice 2 (final slice-2 v2 vs the mobility-only ship) guards against drift from chained regression passes.
+☠️ **New shipped v2 fingerprint: WAC d10 `250 / 61,352,373 / EBF 4.114`** (vs mobility+KPK `250 / 60,036,572 / 4.043`: same
+solves, +2.2% nodes). Every later byte-identity check uses THIS. Next: mobility form bake-off on this base (neutrals must be
+re-measured on it).
+
+## 2026-09-16 -- ★★ PLACEMENT BUNDLE E IS GAMES-CONFIRMED: segment 3 accepts H1 (+15.1 ±21.0)
+
+Continuation of the same A-vs-B pairing (A = SHIP+E, B = SHIP), same bounds, new seed. Poolable because the `.so` fingerprint
+was UNCHANGED across the 09-15 rebuild that added the mobility form knobs (`250 / 61,352,373` before and after; all new knobs
+default-off and byte-identical).
+```
+seg 1  seed 13   +103  -83  =36  of  222   LLR +0.804   (killed by a Windows Update restart)
+seg 2  seed 14   +396 -380 =202  of  978   elo  +5.7 +/-25.6   LLR +1.091   inconclusive (max games)
+seg 3  seed 15   +611 -548 =296  of 1455   elo +15.1 +/-21.0   LLR +3.039   DECISION: H1 ACCEPTED
+POOLED          +1110 -1011 =534 of 2655   (51.9%)  elo ~ +13
+```
+★ **The 09-15 "inconclusive" was a MAX-GAMES STOP, not evidence of nothing.** The same effect resolved once the sample was
+~2.2x larger. ⇒ Do not read "hit max_games without crossing a bound" as a null; read it as "not enough games for THIS effect size".
+⚠️ The bound is still the regression bar (elo0 −10 / elo1 0): this proves E does not cost ~10 Elo and is consistent with a real
+gain of ~+13; it was not designed to prove a gain. Bundle E's five terms (outpost SF11 @100 · bad bishop SF15.1 @100 · trapped
+rook @10 · weak queen @25 · minor-behind-pawn Weiss @25) stay shipped, now on games evidence rather than provisionally.
+★ Method note for small terms: 1,200 games gave ±23 and could not resolve; 1,455 more gave ±21 on the segment and a formal
+accept. The lever that worked was MORE GAMES ON THE SAME PAIRING, not a new instrument.
+
+## 2026-09-16 -- ★★★ THE PARKED SHELF IS WORTH +60 ELO TOGETHER (owner's proposal); four of my verdicts overturned
+
+Owner: *"have you tried putting those terms together? Marginal increases in things like outposts likely only make a difference
+in a few games... Bundling things when testing might help."* I had measured each parked term ALONE, below its instrument's
+resolution, and had ruled: pin "null on its own class", `exlow` "no measured case, WITHDRAWN from the bundle", bishop pair
+"already owned by PST + mobility", space "globally inert".
+Cheap check first -- §I additivity (6 corpora, negative = better):
+```
+all4 (pin+exlow+bpair40+space560lin)  mean -1.70  worst -1.05   better on ALL SIX corpora
+mobpair (pin+exlow)                   mean -1.59  worst -0.92   pin -0.51 + exlow -1.08 = EXACTLY additive
+pairspace (bpair+space)               mean -0.12  worst +0.10   ~null, as each was alone
+```
+Then the clearance SPRT, bound FLIPPED to a gain test (elo0 0 / elo1 +10) so it could RETIRE the shelf rather than absorb it:
+```
+A = SHIP+E + pin + exlow + bpair40 + space560lin   B = SHIP+E   seed 16, LIGHTNING, conc 4
++248 -160 =101 of 509  (58.6%)  elo +60.7 +/-35.5  LLR +3.008   DECISION: H1 ACCEPTED
+```
+★★ **The lesson, which is about instruments and not about chess: "individually unresolvable" is not "individually worthless".**
+Resolving ±5 Elo alone needs ~25,000 games; the same four terms as a group resolved in 509. I had already applied that
+arithmetic to placement (bundle E) and failed to apply it to the parked shelf -- and my `exlow` ruling ("a bundle bar would
+absorb it silently") inverted the right conclusion: the bundle is how such a term becomes MEASURABLE, provided the bound asks
+for a GAIN rather than for harmlessness.
+☠️ Also refuted: my "pin and exlow INTERFERE" claim, inferred from ONE sub-bar `_v2` regret reading. On §I they are exactly
+additive. A sub-resolution reading is not evidence of an interaction.
+⚠️ Bounds on the claim: the +60.7 is "clearly above 10", not a point estimate (an SPRT at elo1=10 crosses early when the truth
+is far above it). Attribution is NOT established -- §I suggests pin + exlow carry ~94% of it, but games cannot attribute at
+this effect size, so leave-one-out on §I with a dilution control is indicative only.
+Proposed to the owner: ship all four AS TESTED; a subset would ship a configuration no game ever saw.
+
+## 2026-09-17 -- THE BUNDLE IS TWO TERMS AND ~+31 ELO, NOT FOUR TERMS AND +60
+
+§I leave-one-out against the full bundle (positive = removing it HURTS): `exlow` **+1.09 / +1.65** · `pin` +0.52 / +0.71 ·
+bishop pair +0.11 / +0.34 · space **0.00 / +0.02**. The two members with their own measured nulls are also the two that cost
+nothing to remove -- exactly what the dilution control exists to reveal. Resolved by games rather than by argument:
+```
+s3_mobpair_confirm  seed 17  elo0 0  / elo1 10   +310 -222 =159 of 691   elo +44.5 +/-30.4  LLR +2.980  H1 ACCEPTED
+s3_mobpair_bracket  seed 18  elo0 30 / elo1 50   +202 -186  =99 of 487   elo +11.4 +/-36.3  LLR -2.839  H0 ACCEPTED
+POOLED                                           +512 -408 =258 of 1178  (54.4%)  elo ~ +31
+```
+⇒ pin + `exlow` alone carry it; the truth is bracketed at 10 < true < 50 and pools to ~+31.
+☠️☠️ **AN SPRT'S POINT ESTIMATE INFLATES AT THE BOUND IT STOPS ON.** One pairing produced +60.7, +44.5 and +11.4 across three
+runs, all statistically sound as DECISIONS. Never quote a single run's elo as the magnitude; pool the tallies across seeds.
+★ What actually earned the Elo: both surviving terms REFINE MOBILITY'S AREA -- the definition of the largest term v2 owns
+(≈ +162). Neither adds a new concept. Sharpening what the biggest term counts beat adding two concepts the references carry.
+Proposed: ship `MOB_V2_PIN=1 MOB_V2_EXCL_LOWRANK=1`; retire the pair and space from the candidate list (built, default-off,
+triggers intact).
+
+✅ **SHIPPED 2026-09-17 on the owner's sign-off.** New shipped fingerprint **WAC d10 `250 / 59,549,832 / EBF 4.080`** — the
+same 250 solves as the pre-area config in **1.8M fewer nodes (−2.9%)**. Bishop pair and space retired from the candidate list
+(built, default-off, triggers intact: Kaufman should own the pair; space wants a purpose-built closed-centre corpus).
+⚠️ **Framing correction for the record (owner asked, and it matters):** the mobility FORM BAKE-OFF concluded **NO CHANGE** —
+SF11's table shape beat SF15.1 / Ethereal / Weiss, and the eg-share and magnitude arms all failed their worst column. `pin`
+and `exlow` came from that bake-off's candidate list but were PARKED as §I-only nulls; they are a SEPARATE later result,
+produced by the owner's bundling proposal, not by the bake-off.
+★ Cumulative v2 ship record: rung 1 KS +101 · rung 2 pawns +60.4 · mobility ≈ +162 · placement E ≈ +13 · mobility area ≈ +31.
+
+## 2026-09-17 -- THREATS: BEST-VERIFIED TERM OF THE SLICE, MOVE-NULL, PARKED; and the KS double-count story REFUTED
+
+Built SF's threat FORM family (7 legs, 2 defence gates, `THREAT_V2_PCT` as the SF-pawn-conversion anchor), riding the existing
+attack maps -- no second pass. Gates, in the order slice 3 demanded:
+```
+oracle   SF gate/core legs            2,005 pos  0 mismatches  fired 38.6%
+oracle   Ethereal gate/ALL legs       2,005 pos  0 mismatches  fired 82.3%
+oracle   SF gate/ALL legs/XRAY=0      2,005 pos  0 mismatches  fired 94.8%
+symmetry full proposed stack          colour swap 0/800; file mirror at the pre-existing 21 @ 5 mp
+byte-id  threats OFF                  shipped 250/59,549,832 · v1 250/35,310,778  EXACT
+collin.  27 terms, 10,000 pos         NO FLAGS; th_restricted VIF 1.10-1.27, th_king 1.10
+§I       11 arms                      NOTHING clears both columns; monotone trade both ways
+regret   th10, both corpora           primary 50.1 vs bar 50.1 (0.0pp) · _v2 49.7 vs 50.5 (-0.8pp)
+```
+⇒ **PARKED, built and default-off.** A term that changes 35-36% of our moves and improves none of them is not
+under-measured. §I liked it strongly (`th100` **-9.71%** on the variant corpus, the largest single-corpus gain on this base)
+and taxed `lichess_ks_labelled` in proportion (+0.35 at th10 -> +3.90 at th100).
+★★ **The KS question the owner raised ("have we infringed on KS's domain?") now has a MEASURED answer: not measurably.**
+Built `ks_probe` / `ChessAI.ks_counts` (6 channels per king) and extended the collinearity gate to 27 terms -- closing the
+hole open since slice 2. No cross-subsystem flag, on a general 10k sample AND on `lichess_ks_labelled` itself (5k, re-run via
+the new `SETS=`, because overlap is a property of a POPULATION). `th_king` -- the most obvious overlap candidate -- reads 1.10.
+⇒ Reopening the KS rung has NO evidence behind it; KS stays as shipped at +101 Elo.
+★★★ **What the gate STRUCTURALLY could not see, found by the owner's idea of comparing how the giants BALANCE the two:** in
+SF/Ethereal king danger is an unbounded quadratic and threats is linear, so KS overtakes threats ~2:1 in severe attacks
+(SF 0.5->2+, Ethereal 0.3->2.2). Ours SATURATES at `KS_V2_MAX=4000` = 4.0 pawns while threats at th100 reaches 4.2 ⇒ ratio
+0->0.85, never >1. Tested as a 2x2: `th100+ksmax8000` cut the tax **+3.90 -> +2.13** while keeping the general gains.
+☠️ NOT ACTED ON: +2.13 is still ~40x the §I floor, the `ksmax6000`-alone CONTROL is itself +0.54 on that column, and acting
+would reopen a +101 Elo rung on accuracy evidence alone. `KS_V2_MAX` stays 4000.
+★ **Method: VIF measures co-movement of detector COUNTS, not the relative HEIGHT of the scored curves.** A clean gate means
+two terms do not measure the same thing -- NOT that they coexist well at their chosen magnitudes. I had conflated the two.
+☠️ Three mechanism stories of mine were refuted this week: pin/exlow "interference" (exactly additive), space "helps where the
+centre is contested" (the opposite), threats "double-counts KS" (refuted twice). ⇒ [[the-wiring-thesis-was-tested-and-is-unsupported]]
+generalises to MY accounts, not just inherited ones.
+
+---
+
+## 2026-09-17 (later) — COLLINEARITY GATE COMPLETE: pawn structure covered, and no probe was needed
+
+**The gate now spans all five scoring subsystems at 40 columns, and it is CLEAN on two populations.** Pawn structure was
+the last coverage hole (flagged since slice 2, named as next-step #1 in `SESSION-HANDOFF-2026-09-17.md`).
+
+☠️ **The handoff was wrong about the WORK, not the goal.** It budgeted ~an hour of C++ copying the `ks_probe` pattern.
+A record-check first found `pawn_entry_probe` (`eval_v2.cpp:2005`) and `ChessAI.pawn_masks` (`ChessAI.pyx:297`) had
+exported every Layer A mask since **2026-09-12** for the rung-2 detector oracle. Only the COLUMN SET in
+`_v2_term_collinearity.py` was missing ⇒ a ~30-line tool edit, **no C++ change, no rebuild, zero fingerprint risk,
+knob-free columns.** ★ A record-check before writing a tool paid for itself outright. Four documents still said
+"the last hole" after the tool already covered it — **the header is not the record, in the pessimistic direction too.**
+
+| run | positions | terms | strongest CROSS-subsystem pair | flags |
+|---|---|---|---|---|
+| four general corpora | 10,000 | 40 | `mob_table_mg x ks_natt` **-0.41** | **none** |
+| `lichess_ks_labelled` | 5,000 | 40 | `th_restricted x ks_natt` **+0.33** | **none** |
+
+⇒ **Pawn structure does not re-express mobility, placement, threats or king safety, and vice versa.** Overlap is a
+property of a POPULATION, so the KS-critical corpus was re-run separately rather than trusted to generalise.
+
+★★ **THE REGISTERED PREDICTION IT REFUTED — the third and strongest instance of "sharing an INPUT is not sharing a
+SIGNAL".** Two pairs were written into the tool beforehand as the ones we *knew* were wired to a shared map:
+`ps_pattacks x mob_*` (mobility's area SUBTRACTS enemy pawn attacks) and `ps_halfopen x traprook_units`
+(`trap_rook_units` literally TAKES `halfOpen` as a parameter, `eval_v2.cpp:1630`). The tool's own comment said "a high
+|r| here is EXPECTED". Measured: **-0.01 to +0.07** and **-0.07**. One term consuming another's output as an input
+predicts essentially nothing about count co-movement. Three instances now: KS<->threats VIF 1.10 (09-17) ·
+mobility area <-> pawn attacks 0.01 · trapped rook <-> halfOpen 0.07. ☠️ It cuts BOTH ways: a shared-input story is not
+evidence of double-counting, and a clean gate is still not evidence of safe coexistence (the curve-height limit stands).
+
+**Two new instrument gaps, both recorded in `INSTRUMENT-MAP.md` §F:**
+1. ☠️ **A SYMMETRIC predicate is invisible to W-B differencing.** `blocked` is omitted because `blocked[White]` and
+   `blocked[Black]` are the two halves of the same RAM pairs (`eval_v2.cpp:682`) ⇒ popcounts always equal, difference
+   identically 0. So "does space or mobility re-express the RAMMED centre?" is unmeasurable here — and `centre_locked`
+   is precisely the class where space showed its only effect. ★ `lever` ALSO read zero-variance at N=25 but is not an
+   identity (one pawn attacked by two gives 1 vs 2) and varies fine at N=2500 ⇒ **check a zero-variance column against
+   its DEFINITION before deleting it.** One right call, after two wrong ones.
+2. ⚠️ **A differenced count carries the CENSUS.** Against the raw pawn-count difference: `ps_halfopen` **-0.93**,
+   `ps_pattacks` **+0.91**, `ps_passed` **+0.83** (replicated -0.92 / +0.88 / +0.70 on the KS corpus). Their mutual VIF
+   of 7.8-18.6 was ambiguous between "shared structure signal" and "both restating rung 0" until a `ps_npawns` control
+   column was added; the tool now prints a `material share` block. **Any collinearity read over count columns needs a
+   census control, or subsystem overlap and material overlap cannot be told apart.**
+
+⚠️ Still uncovered: `PawnEntry.attacks2` (double pawn attacks, `eval_v2.cpp:657`, not among the probe's 27 slots) ⇒
+"does threats' `stronglyProtected` re-express the double-attack map?" needs a probe change + rebuild; do it only if a
+run leaves that pair open. Nothing built, nothing committed; `.so` untouched, so the shipped fingerprint is unchanged.
+
+---
+
+## 2026-09-17 (checkpoint, part 1) — THE v2 MARGIN RE-SWEEP: RFP measured for the first time under EVAL_ARM=1
+
+**Why this was next:** the owner's showdown fairness rule (`EVAL-V2-CURRENT-CONFIG.md` §5) — every eval-denominated
+pruning threshold is absolute millipawns FITTED TO v1, so a v1-vs-v2 showdown on v1's margins measures v1's TUNING as
+much as v2's eval. ★ **Every prior margin sweep in the record ran `EVAL_ARM=0`. This is the first arm-1 measurement.**
+
+**Fingerprints reverified first, both EXACT:** v1 `250 / 35,310,778 / EBF 3.784` · v2 `250 / 59,549,832 / EBF 4.080`.
+The node judge also reproduced its documented baseline exactly (v1 @ RFP=1500 = **249,014** quiet-node median), which is
+what licenses reading anything else off it.
+
+**Instrument choice, and why not the obvious ones.** Quiet-node median at fixed depth (`depth_nps_bench --n 60
+MAX_DEPTH=10 LONG_FORMAT`) for cost, WAC solves for tactical safety. ☠️ NOT STS: its ±150 floor swallowed 25 of 25
+cells of the 09-05 sigma x RFP sweep, whose own author wrote "do not quote these numbers". ☠️ NOT WAC nodes ALONE:
+four of six search configs reversed sign against the quiet corpus — here both corpora were run and agreed in sign.
+★ Fixed depth throughout ⇒ deterministic, so the whole sweep is valid while the machine is in use.
+
+| RFP_MARGIN | v1 quiet nodes | v2 quiet nodes | v2 WAC solves | v2 WAC nodes | vs shipped | v2 EBF |
+|---|---|---|---|---|---|---|
+| 400  | 163,437 | 319,679 | **241** ✗ | 41,767,917 | -29.9% | 3.963 |
+| 600  | 173,377 | 340,512 | - | - | - | - |
+| 800  | 197,224 | 399,288 | **248** ✗ | 47,783,648 | -19.8% | 4.007 |
+| **1000** | 216,442 | 393,392 | **250 =** | **49,440,513** | **-17.0%** | 4.031 |
+| 1250 | 228,358 | 403,758 | 253 | 53,476,787 | -10.2% | 4.048 |
+| **1500 (shipped)** | **249,014** | 474,852 | **250** | **59,549,832** | - | **4.080** |
+| 2200 | 286,017 | 467,323 | 252 | 65,385,526 | +9.8% | 4.100 |
+| 6000 | 348,130 | 525,397 | - | - | - | - |
+
+**Liveness PASSED on both arms** (v1 2.13x, v2 1.64x across the range) — the record's rule is to prove an extreme moves
+the node count before believing any sweep.
+
+### ★★ THE RESULT IS A DE-RISKING, NOT A WIN
+**v2 can have 17.0% of its nodes back at IDENTICAL tactical safety** (RFP 1000: 250 solves, same as shipped). The
+handicap is therefore REAL and now measured. ☠️ **But 17% sits well below the documented ~35% bar at which node savings
+become Elo-visible** ([[node-savings-below-35-percent-are-elo-neutral-dont-scale-from-a-bundle]]), and the 1250 point is
+-10.2%. ⇒ **v2's RFP handicap is worth LITTLE — a few Elo, not tens.** The showdown was being held hostage to a fairness
+correction that measures small. Play it twice as the rule requires, but expect a NARROW spread between the two runs.
+⇒ The break point is between 800 and 1000: solves intact at 1000 (250), wobbling at 800 (-2), broken at 400 (-9).
+⇒ Remaining genuine trade, unresolvable at fixed depth: **1000** (250 solves / 49.44M) vs **1250** (253 / 53.48M).
+Both go to the timed SPRT against 1500. ☠️ A margin change is a NODE-SAVER ⇒ judged at FIXED TIME; the fixed-depth
+curves can bound cost and VETO unsafe margins, never pick the winner.
+
+### ★ MECHANISM CONFIRMED (a prediction that held)
+The shipped fingerprints' cutoff histograms showed v2's +68.6% nodes were NOT an ordering failure — v2's first-move
+cutoff share is **90.2%** vs v1's **86.5%** — and that the excess was almost entirely in nodes cutting off IMMEDIATELY
+(m0 +74%, while m3-7 +2.4% and m8+ +1.6%). A node entered and then cut off on its first move is exactly what RFP exists
+to remove BEFORE entry, so the signature predicted under-pruning. Tightening RFP to 400 cut m0 2,747,142 -> 1,802,870,
+landing near v1's 1,582,788 (+74% -> +13.9%). ⇒ The m0 excess WAS under-pruning. The 9 lost solves say some of those
+nodes were doing real tactical work, which is why the optimum is INTERIOR rather than at the tightest margin.
+
+### ☠️ TWO CORRECTIONS TO MY OWN CLAIMS THIS SESSION
+1. **RETRACTED: "v2's RFP response is non-monotone."** I read two inversions off the quiet-corpus MEDIANS (800->1000
+   -1.5%, 1500->2200 -1.6%) and flagged that a median over 60 positions can invert while the mean does not. WAC's node
+   count is a deterministic SUM and is monotone increasing straight through 2200 ⇒ **median-selection artifact.**
+   ★ A deterministic statistic is not automatically a trustworthy SHAPE; a median can move for a reason the mean cannot.
+2. **WITHDRAWN: "1250 scores better (253 vs 250 solves)."** Solves across 1250/1500/2200 read 253/250/252 — exact
+   (WAC is deterministic) but not MEANINGFUL, since which positions resolve is near-arbitrary with respect to strength
+   and WAC does not discriminate strength at all (v1 beats SF11 on it). The correct reading: **solves are FLAT from 1000
+   up while nodes fall monotonically as the margin tightens ⇒ tighten until solves BREAK.**
+
+### ⚠️ BOUNDS ON THIS RESULT
+Only `RFP_MARGIN` was swept, deliberately (it is the one margin with a monotone response on both sides; futility and
+razor measured non-monotonic twice, and root razoring keys on PRE-SEARCH SCORES, not the static eval). The other live
+eval-denominated levers — `QDELTA_PERMOVE_MARGIN` (never swept under EITHER eval), `FUTILITY_MARGIN_SCALE`,
+`ASPIRATION_DELTA`, `VERIFY_MARGIN` — are untouched for v2, so COMBINED recovery could exceed 17%. Each gets its own
+pass, then a 2x2 before any bundling (search changes are antagonistic, not additive). The ~35% Elo-visibility bar is
+itself v1-era work, so applying it to v2 is an extrapolation, not a measurement.
+
+### ☠️ DEAD KNOB FOUND, AND A MECHANISM STORY CORRECTED BECAUSE OF IT
+`DELTA_MARGIN` is **dead at defaults via two independent mechanisms** across its three consumers (verified in source):
+`search_engine.cpp:7673`/`:7685` are gated on `!ENABLE_QDELTA_PERMOVE`, which SHIPS TRUE; `:7717` reaches it only as a
+fallback when `QDELTA_PERMOVE_MARGIN == 0`, and that ships 1500. The `[toggles]` dump PRINTS it (`:2512`) and never
+prints the live knob. ⇒ **The parked tempo item's stated channel list was wrong for two of three thresholds** — it named
+`RFP_MARGIN`, `DELTA_MARGIN` and `OTV_MARGIN`, and the latter is behind `ENABLE_OTV = false`. Tempo's step-shaped node
+READING stands (it is an instrument observation); only its channel list changes, and the checkpoint re-test must run
+against the LIVE list. Corrected in `EVAL-V2-CURRENT-CONFIG.md` and in memory.
+★ **A knob named in a mechanism story must be proven LIVE before the story is trusted; the toggles dump is not proof.**
+
+### ☠️ OPS FAILURE THIS SESSION
+I edited `overnight_runner.sh` WHILE the sweep was executing out of that file, changing the length of a comment block
+inside the running branch — bash reads scripts by byte offset, so that can corrupt a job mid-loop. Killed the run,
+confirmed no orphaned python child (relaunching over one doubles the core load), verified the file parses, relaunched.
+Cost ~1 minute. ★ The relaunch reproduced v1 @ RFP=400 = **163,437** byte-identically, which independently confirmed the
+fixed-depth determinism and stable corpus seed the sweep depends on. ⇒ "Docs are safe to edit while jobs run" does NOT
+extend to the dispatcher, which is simultaneously a document and a running program.
+
+---
+
+## 2026-09-17 (checkpoint, part 2) — the rest of the live margin family under EVAL_ARM=1
+
+Continuing part 1, one knob at a time with the others at shipped values (☠️ never bundled: search changes are
+antagonistic, not additive, so a 2x2 comes BEFORE any combination). All fixed depth ⇒ deterministic, machine-use safe.
+
+### `QDELTA_PERMOVE_MARGIN` — NON-LEVER for v2 (and its first-ever sweep under EITHER eval)
+| value | solves | WAC nodes | vs shipped | EBF |
+|---|---|---|---|---|
+| 750 | **248** ✗ | 57,672,096 | -3.2% | 4.081 |
+| **1500 (shipped)** | **250** | **59,549,832** | - | 4.080 |
+| 2500 | **249** ✗ | 59,161,690 | -0.7% | 4.044 |
+
+Both directions COST solves, the node response is <= 3.2%, and it is NON-MONOTONIC (2500 sits BELOW 1500, which is
+backwards for a loosened prune margin). ⇒ The documented non-lever signature. ★ The shipped 1500 was "a single value
+picked when the feature shipped, never swept" ([[toggles-dump-advertises-dead-knobs]]) — it now survives its first test,
+and the open item closes. ⚠️ This is the knob that MATTERS in qsearch; `DELTA_MARGIN` is the dead one the toggles dump
+advertises (part 1).
+
+### `FUTILITY_MARGIN_SCALE` — WEAK lever for v2, monotone, and the v1 verdict does NOT carry over cleanly
+| value | solves | WAC nodes | vs shipped | EBF |
+|---|---|---|---|---|
+| 70 | **250 =** | 58,372,220 | **-2.0%** | 4.064 |
+| **100 (shipped)** | **250** | **59,549,832** | - | 4.080 |
+| 130 | 253 | 61,550,846 | +3.4% | 4.079 |
+
+Node response is MONOTONE here (unlike v1, where 08-25 and 09-05 both measured it non-monotonic and closed it as "not a
+lever") — but the whole span is only ±3.4%. ⇒ 70 is a free -2.0% at identical solves; nothing here is worth games on its
+own. ★ Same discipline as part 1: the +3 solves at 130 is NOT a strength claim (WAC does not discriminate strength).
+
+### ▶️ THE COMPLETE FIXED-DEPTH MARGIN PICTURE FOR v2
+| knob | range | node response | solve behaviour | verdict |
+|---|---|---|---|---|
+| **`RFP_MARGIN`** | 400-6000 | **-29.9% .. +9.8%** | breaks below 1000 (248 @ 800, 241 @ 400) | ★ **THE lever: -17.0% FREE at 1000** |
+| `QDELTA_PERMOVE_MARGIN` | 750-2500 | <= 3.2%, non-monotonic | both sides cost solves | non-lever |
+| `FUTILITY_MARGIN_SCALE` | 70-130 | ±3.4%, monotone | flat to +3 | weak; -2.0% free at 70 |
+| `ASPIRATION_DELTA` | - | not swept for v2 | - | ⚠️ OPEN (tactical<->positional trade knob; alone it flips 20.8% of quiet moves) |
+| `VERIFY_MARGIN` | - | not swept for v2 | - | ⚠️ OPEN |
+| ~~`DELTA_MARGIN`~~ | - | - | - | ☠️ DEAD at defaults (part 1) |
+| ~~`RAZOR_*`~~ | - | - | - | ☠️ NOT eval-denominated: keys on PRE-SEARCH scores |
+
+★★ **CONCLUSION, and it de-risks the showdown.** The free, tactically-safe recovery is **RFP 1000 (-17.0%)** plus
+**futility 70 (-2.0%)** — call it ~19% IF they compose, which must be checked with a 2x2 and must not be assumed.
+☠️ **Even 19% is well below the ~35% bar at which node savings become Elo-visible**
+([[node-savings-below-35-percent-are-elo-neutral-dont-scale-from-a-bundle]]). ⇒ **v2's margin handicap is REAL,
+now MEASURED for the first time, and SMALL — a few Elo, not tens.** The owner's fairness rule was right to demand the
+re-sweep, and the answer is that the correction it protects against is minor. Play the showdown twice as the rule
+requires, but expect a NARROW spread; do not hold the showdown hostage to this lane.
+
+▶️ **What still needs a QUIET WINDOW (timed, cannot be done at fixed depth):** a margin change is a NODE-SAVER ⇒ judged
+at FIXED TIME. The decision SPRT is v2 @ RFP=1500 vs v2 @ RFP=1000 (and the 1250 alternative), plus the NPS pair, then
+the showdown twice. The fixed-depth work above can bound cost and VETO unsafe margins; it can never pick the winner.
+
+---
+
+## 2026-09-17 (checkpoint, part 3) — v1-vs-v2 SHOWDOWN: interpretation REGISTERED IN ADVANCE
+
+☠️ **Written while run A is still playing, deliberately.** My prediction record this phase is 2 right / 6 wrong,
+and the failure mode is explaining a number after seeing it. So the thresholds below are committed BEFORE the
+result, and the owner's framing is recorded as agreed: **this is an INFORMATION CHECKPOINT, not a hard stop.**
+
+**The matchup.** p1 = shipped v2 (KS + pawns/passers + draw/KPK + mobility + placement E + mobility area),
+p2 = `EVAL_ARM=0` (frozen v1). Same binary, one knob apart. LIGHTNING, conc 4, `openings_uho.txt`, seed 7
+(NOT 0 — a known read-inflater), elo0=0 / elo1=5, max 1500. ★ **First v1-vs-v2 games measurement ever taken.**
+
+**Why a deficit would NOT be a verdict on the rebuild:** v2 is competing TWO SLICES SHORT. v1 additionally
+carries capture gains, its own threats, central, Kaufman imbalance, OvD, winnability, rook files and king
+shelter. ★ Capture gains is the big one: v1's sibling spread is ~2,290 mp against v2's 36 mp, almost entirely
+from that term, and it is a SLICE-5 item in v2.
+
+⚠️ **What must NOT be used as the excuse: the margins.** Measured earlier today (part 1), the maximum
+`RFP_MARGIN` recovery for v2 is **-17.0% nodes at identical solves**, which is BELOW the ~35% Elo-visibility
+bar. ⇒ v1-fitted search parameters are worth SINGLE-DIGIT Elo here, not tens. The EBF gap (4.080 vs 3.784) is
+a SYMPTOM of a thinner eval crossing absolute margins less often, not the cause of a strength gap. **Run B
+(`RFP_MARGIN=1000`, same matchup) measures the handicap directly as A-minus-B; quote THAT, never an argument.**
+
+**REGISTERED THRESHOLDS (pooled tally, not the SPRT point estimate — [[sprt-point-estimates-inflate-at-the-bound-they-stop-on]]):**
+| outcome | reading | consequence |
+|---|---|---|
+| v2 **>= -20** | competitive two slices early | strong; slices 4-5 should pass v1 outright |
+| v2 **-20 .. -80** | ~one slice of missing content | on track; continue the ladder as planned |
+| v2 **-80 .. -150** | more missing than the ladder accounts for | re-examine whether a PARKED term (threats/space) is load-bearing in GAMES despite being move-null on §I |
+| v2 **< -150** | structural, not missing terms | stop adding slices; audit v2 for a defect no static instrument caught |
+★ At 109 games the running estimate was -42 with a 2-sigma band of roughly -107..+23, so nothing below is
+decidable yet. ⚠️ The early trajectory (-800 -> -226 -> -79 -> -42) is REGRESSION TO THE MEAN from a 4-loss
+opening streak, NOT v2 improving; the estimate converges from wherever the first few games put it.
+⇒ Letting it run to the full 1500 rather than stopping at a bound: the MAGNITUDE matters more than the verdict,
+and a max-games stop gives the better tally to pool with run B and with later seeds.
+
+---
+
+## 2026-09-17 (checkpoint, part 4) — ☠️ SCOPE CORRECTION to parts 1-3: "the handicap is small" covers ONE FAMILY
+
+Owner's push-back, and it is correct: *"that's just one search item... certain search parameters might just not be
+jelling with v2 as well."* Parts 1-3 concluded "v2's margin handicap is real but SMALL (a few Elo, not tens)".
+⚠️ **That claim is bounded to the EVAL-DENOMINATED MARGIN FAMILY and must not be read as bounding the search.**
+
+**What parts 1-2 actually measured under `EVAL_ARM=1`:** `RFP_MARGIN` (the lever, -17.0% nodes free) ·
+`FUTILITY_MARGIN_SCALE` (weak, -2.0% free) · `QDELTA_PERMOVE_MARGIN` (non-lever). These share a mechanism: a
+millipawn eval compared against a millipawn threshold, so v2's different eval SCALE is the whole coupling.
+
+**What it did NOT measure, and where the owner's hypothesis lives:**
+- `ASPIRATION_DELTA`, `VERIFY_MARGIN` — eval-denominated and STILL UNSWEPT for v2.
+- ☠️ **Everything NOT denominated in millipawns**: LMR shape/product, LMP, root/late razoring, null-move R,
+  presearch ordering and chunking, history / continuation-history / capture-history scaling, IIR, TT policy.
+  These key on DEPTH and on MOVE ORDERING, not on eval magnitude — but ordering quality is DRIVEN by the eval, so
+  a knob fitted to v1's cutoff distribution can mis-serve v2 while being invisible to a margin sweep.
+  ★ Concrete evidence they are not inert: v2's cutoff PROFILE differs measurably from v1's (first-move cutoff share
+  **90.2% vs 86.5%**, and the node excess is concentrated at m0: +74% vs +1.6% at m8+). A different cutoff profile is
+  exactly the input those knobs consume.
+⇒ **Corrected statement: the eval-denominated MARGIN family is worth single-digit Elo to v2. The broader
+search-parameter interaction is UNMEASURED for v2 and remains an open lane.**
+
+⚠️ **Prior, and why it is only a prior:** for v1 the pruning-knob space was closed hard — ~35 arms + 52 configs,
+nothing survived, and "of 52 configs only three values of depth@1s differed from 12 ⇒ the whole pruning-knob space
+cannot buy a ply". ☠️ **Every one of those runs was `EVAL_ARM=0`.** A closed lane on v1's eval is not a closed lane
+on v2's, for precisely the reason this whole checkpoint exists.
+
+▶️ **Owner's sequencing, recorded as agreed: finish the v2 EVAL first, then a v2 SEARCH programme** (search +
+caching + movegen, alongside the UCI pure-C++ reorganisation). ★★ The strategic argument for that order is already
+in the record and is strong: **search and movegen carry into NNUE 1:1; the eval does not**
+([[pre-nnue-strength-roadmap]]). So search work is DURABLE investment against the owner's NN endgame, while eval
+work is the thing that gets replaced. ⇒ Do not let a broad search sweep pre-empt finishing the eval slices, but do
+not record the search lane as closed for v2 either.
+▶️ Cheapest honest screen when that lane opens: the node judge (quiet median) + depth@1s per arm under
+`EVAL_ARM=1`, on the knobs whose INPUT is the cutoff profile, run as 2x2s rather than one-at-a-time
+([[search-changes-are-antagonistic-not-additive]], and [[coordinate-descent-cannot-find-gated-mechanisms]] —
+a knob whose effect is conditional on another is invisible to a one-at-a-time sweep).
+
+---
+
+## 2026-09-18 — ★★★★ THE v1-vs-v2 SHOWDOWN, RUN A: v2 IS LEVEL WITH v1
+
+**The first v1-vs-v2 games measurement ever taken.** p1 = shipped v2 (KS + pawns/passers + draw/KPK + mobility +
+placement E + mobility area), p2 = `EVAL_ARM=0` (frozen v1). Same binary, one knob apart. LIGHTNING, conc 4,
+`openings_uho.txt`, **seed 7** (not 0 -- a known read-inflater), elo0=0 / elo1=5, max 1500.
+
+```
++652 -693 =155 of 1500   score 48.6%   elo -9.5 +/- 20.7   LLR -0.832
+DECISION: inconclusive -- hit max_games without crossing a bound  (INTENDED: the tally, not the verdict)
+```
+⇒ **95% CI approximately [-30.2, +11.2]. v2 and v1 are statistically INDISTINGUISHABLE.**
+
+**Against the thresholds registered BEFORE the run (part 3):** the point estimate **-9.5 lands in the top bracket**
+("v2 >= -20: competitive two slices early ⇒ strong; slices 4-5 should pass v1 outright"). ⚠️ Honest caveat: the CI's
+lower bound (-30.2) reaches into the second bracket ("-20..-80: ~one slice of missing content"), so the top-bracket
+reading is the point estimate's, not the interval's. ⚠️ ONE SEED. The pooling rule exists because a single run is a
+single draw; a second seed is needed before this is quoted as settled.
+
+### ★ WHY LEVEL IS THE INTERESTING RESULT -- what v2 achieves it WITHOUT
+- **Two whole slices unbuilt**: capture gains, corrhist, OvD (slice 5) · endgame conversion + winnability (slice 4) ·
+  Kaufman + pairs (slice 3's last item). v1 additionally carries its own threats, central, rook files, king shelter.
+  ★ Capture gains is the striking absence: v1's sibling spread is ~2,290 mp against v2's 36 mp, almost all of it that
+  one term. **v2 reaches parity without the single largest signal v1 owns.**
+- **Search margins fitted to v1's eval scale** (measured worth: ~17% of nodes, below the ~35% Elo-visibility bar).
+- **No joint retune, ever.** Every v2 constant came from reference shape + a one-at-a-time ladder.
+- ★ And it does it while being **colour-clean (0/4000)** where v1 is not (0.9%, worst 2,233 mp), and **provably
+  non-collinear** on the 40-column gate where v1 is ~30 terms / ~2 signals.
+⇒ Same strength, structurally cleaner ⇒ the HEADROOM differs in kind. v1's additions cancelled ~26%; v2's have
+measured 97% additive (placement bundle) and exactly additive (pin + exlow).
+
+☠️ **What this does NOT license.** "Level with v1" is a milestone, not the target -- the roadmap target is SF11 /
+SF15-classical. On static accuracy we are at ~2.6x SF11's win%-MSE error (v1, 08-07: ours 245.46 val vs SF11 95.26,
+against an irreducible floor of ~69 because SF18 SEARCHES). ⚠️ **v2 has never been placed on that ladder** -- the
+cheapest high-value measurement outstanding, and `_reference_ceiling.py` already accepts `CORPUS=`.
+⇒ NEXT: margin A/B launched immediately (v2 @ RFP 1000 vs shipped, **regression framing** elo0=-10/elo1=0 -- the
+question is whether the 17% node saving is FREE, not whether it gains); then a second showdown seed to pool.
+
+---
+
+## 2026-09-18 — MARGIN A/B: `RFP_MARGIN=1000` IS FREE (H1 accepted) ⇒ 17% of v2's nodes back at no cost
+
+Paired within-v2 A/B, the properly-powered replacement for the A-minus-B design I had proposed (two showdowns
+differenced carry ~±34 Elo at 2σ — arithmetic that cannot see a single-digit effect).
+p1 = shipped v2 + `RFP_MARGIN=1000`, p2 = shipped v2. LIGHTNING, conc 4, `openings_uho.txt`, seed 11.
+★ **REGRESSION framing** (elo0=-10 / elo1=0): the question is not "does tightening GAIN Elo" — the fixed-depth work
+predicted below the visibility bar — but **"is the 17% node saving FREE?"**
+
+```
++591 -531 =353 of 1475   score 52.0%   elo +14.1 +/- 20.8   LLR +3.079
+DECISION: H1 accepted -- P1 is >= elo1 (i.e. NOT a regression)
+```
+
+☠️ **DO NOT QUOTE +14.1 AS THE MAGNITUDE.** This run STOPPED ON THE UPPER BOUND, which is precisely the condition
+under which the point estimate is biased upward ([[sprt-point-estimates-inflate-at-the-bound-they-stop-on]] — the
+same lesson that turned +60.7/+44.5/+11.4 into a pooled ≈ +31). What is established is the BOUND: `RFP_MARGIN=1000`
+does not cost ~10 Elo, and formally reads >= 0. Bracketing the true size needs a second bound or pooled seeds.
+
+⚠️ **My prediction survives, but only because the bar was low.** I predicted ~0 on the grounds that a 17% node
+saving sits below the ~35% Elo-visibility bar. H1's bar was >= 0, so accepting it is consistent with a true value
+anywhere from 0 upward — the test asked "is it free?", NOT "is it > 0?". ⇒ The 35%-bar extrapolation is neither
+confirmed nor refuted here. Do not cite this run as evidence that node savings below 35% DO pay.
+
+### ▶️ RECOMMENDED SHIP — with one implementation constraint that matters
+Fixed depth: **250 solves (identical to shipped) at -17.0% WAC nodes**; quiet-node median -17%. Games: not a
+regression. Plateau check ([[swept-knob-needs-plateau-check]]): the neighbours are healthy — 1250 gives 253 solves
+at -10.2% nodes, 800 gives 248 (-2) at -19.8% ⇒ the usable plateau is **1000-1250**, and 1000 is its node-cheapest
+point at NO solve cost.
+☠️ **`RFP_MARGIN` IS A GLOBAL SEARCH KNOB, SHARED WITH v1.** Changing its DEFAULT would change the frozen v1
+control arm and invalidate the `250 / 35,310,778 / EBF 3.784` fingerprint. ⇒ It must be added to the **v2 env
+config block** (`EVAL-V2-CURRENT-CONFIG.md` §1), NOT to `search_engine.h` defaults. Every v2 measurement from here
+carries it; v1 keeps 1500.
+⚠️ Consequence for the record: shipping it moves v2's fingerprint (nodes fall ~17%), so a NEW register line is
+required and byte-identity against `250 / 59,549,832 / EBF 4.080` will correctly fail.
+
+---
+
+## 2026-09-18 — ★★★★ v2 ON THE REFERENCE-ACCURACY LADDER: 245.46 -> 155.72, **59.7% of the v1->SF11 gap closed**
+
+`_reference_ceiling.py N=3000` under the shipped v2 config — the FIRST time v2 has been placed on this ladder
+(every prior number was v1, 2026-08-07). Static eval vs **SF18-SEARCH** labels, win%-squared error, lower better.
+
+| static evaluator | train | val |
+|---|---|---|
+| SF15.1 NNUE | 67.60 | **61.61** |
+| SF18 static | 64.84 | 68.85 |
+| **SF11 classical** | 101.68 | **95.26** |
+| SF15.1 classical | 141.44 | 139.20 |
+| **OURS — v2 (shipped)** | **167.92** | **155.72** |
+| ours — v1 (08-07) | 254.38 | 245.46 |
+
+★★ **The run VALIDATES ITSELF: every reference row reproduced the August values EXACTLY** (SF11 101.68/95.26,
+SF15.1c 141.44/139.20, SF18-static 64.84/68.85, SF15.1-NNUE 67.60/61.61). Same corpus, same 3,000-row HEAD slice,
+same loss — only our arm changed. ⇒ a clean like-for-like against the recorded ladder, not a re-baselining.
+
+**Arithmetic:** v1 -> v2 val error **-36.6%**. Gap to SF11 closed: (245.46-155.72)/(245.46-95.26) = **59.7%**.
+Against the irreducible floor (68.85 — SF18 SEARCHES, so no static eval reaches 0): v1 carried **6.7x** SF11's
+above-floor error, v2 carries **3.3x**. Roughly halved. v2 now sits only **16.5 points above SF15.1-classical**.
+★ Note again that SF15.1c (139.20) is WORSE than SF11 (95.26) here — **"SF11/15 levels" is not one target**, and
+SF11's 95.26 is the hand-reachable one.
+
+### ☠️☠️ THE FINDING IS THE JUXTAPOSITION, NOT THE NUMBER
+The same shipped v2 measured **elo -9.5 +/- 20.7 vs v1** in 1500 games the same day. ⇒ **v2 is 36.6% more accurate
+than v1 and only LEVEL with it in games.** A third of our static error vanished without moving move choice. That is
+[[most-eval-error-is-move-neutral]] at full scale, and it is the cleanest instance we have ever measured.
+⇒ ☠️ **Do NOT present this as evidence the rebuild is winning on strength.** It is not. It is also a fresh warning
+against reading §I as a strength proxy ([[corpus-fit-is-anti-correlated-with-elo]]).
+★★ **Where it DOES land hard: the owner's TEACHER framing.** If the eval's destiny is to label positions for their
+NN, static accuracy is the DIRECT metric rather than a proxy ([[the-hce-is-the-nnue-teacher-so-eval-carries-informationally]]).
+By that measure v2 is already a far better teacher than v1 — **-36.6% error AND colour-clean 0/4000** where v1
+mislabels 0.9% of positions by up to 2,233 mp — while being no worse a player. ⇒ The rebuild's payoff to date is
+concentrated in TEACHING QUALITY and STRUCTURE, not in playing strength.
+
+⚠️ Bounds: static accuracy only, one corpus (`diverse_corpus_wide`, d13 single-PV — do NOT pool with the d14
+multi-PV regret sets), and the 3,000-row head slice is not a random sample (the recorded caveat since 08-07; the
+full-corpus re-run remains proposed-only). Kaufman/corrhist/OvD/winnability are still unbuilt and no joint retune
+has ever been run, so this is not v2's ceiling.
+
+---
+
+## 2026-09-18 — PER-CLASS ACCURACY LADDER: predictions REGISTERED BEFORE THE RUN
+
+Owner's question: *where* did the 36.6% accuracy gain come from, and where is the remaining work? The ladder run
+gives a single number — `_reference_ceiling.py` has NO stratification — so this is the per-class version.
+
+**Setup (composition, no new tool).** `_position_class.py SETS=ks_sets/diverse_corpus_wide.csv OUT=ks_sets/classes_wide`
+classified all **23,113** rows: `centre_open` 6,328 (27.4%) · `centre_cleared` 3,682 (15.9%) · `centre_tension`
+1,776 (7.7%) · `centre_locked` **699 (3.0%)** · `other` 10,628 (46.0%) · `pin_dense` 3,966 (17.2%).
+✅ **Schema verified BEFORE running** — the class files carry `fen, target_total, split, phase_bucket, tier`, so
+`_reference_ceiling.py CORPUS=` will work. ☠️ This check was not optional: the tool's `try/except ... continue`
+swallows a missing column and prints `nan`, the silent-fallback signature. The regret-set class corpora would have
+failed this way (they carry `best_cp` in centipawns, no `target_total`).
+
+**REGISTERED PREDICTIONS (low confidence, stated because my last class-level directional call was exactly backwards
+— I predicted `centre_tension` would hold our largest error and it was the SMALLEST):**
+1. Our gap to SF11 will be **LARGEST on `centre_open`** — most piece activity and tactics, the regime where the
+   unbuilt capture gains and the parked threats should hurt most.
+2. **SMALLEST on `centre_cleared`** — few pawns, more endgame-like, where v2's material + exact KPK + passers are
+   its strongest owned terms.
+3. `centre_locked` (699 rows, 3.0%) is **too thin to resolve** — it is the class where space showed its only effect,
+   and it was already flagged as unresolvable at 1,974 rows. Expect to report it as unreadable, not as a finding.
+⚠️ Guard against the slicing trap: six classes plus a tag is seven reads, so an extreme by chance is likely. Only a
+gap that is LARGE and has a mechanism gets treated as a finding.
+
+---
+
+## 2026-09-18 — CONSOLIDATED: where v2's ACCURACY came from vs where its ELO came from (they disagree)
+
+Owner's question: which terms account for the gain, and where is the remaining work? Everything below was already
+recorded — this is a consolidation of the scattered rung ladders, not new measurement. Full per-term table with
+file:line citations was built this session; the load-bearing summary:
+
+### ☠️ THE TWO RANKINGS INVERT
+| by §I accuracy (on its own base) | by measured ELO (games) |
+|---|---|
+| material taper **-6.59** (PARKED, undecided) | mobility **+162** |
+| mobility -5.75 | KS **+101** |
+| threats **-3.80** (PARKED, move-null) | pawns **+60.4** |
+| placement bundle -2.11 | mobility area **+31** |
+| mobility area pair -1.59 | placement E **+13** |
+| **KS -1.44** | — |
+| pawns -0.97 · passers -0.72 · structure -0.66 | — |
+| rook files -0.64 (OFF: STS harmful) · bishop pair -0.11 · space ~0.00 | — |
+☠️ **Those §I figures sit on FIVE DIFFERENT BASES and must never be summed.**
+★★ **KS reads -1.44% on accuracy and delivered +101 Elo; mobility's STS read -110 at the very setting that won
++162.** ⇒ **§I is our best accuracy instrument and a POOR PRIORITISER.** Anything chosen by §I magnitude alone
+would have picked the material taper and threats — both parked — over KS.
+
+### ⇒ ANSWER TO "IS KS OFF?": NO. KS is accuracy-modest and Elo-huge.
+Our accuracy deficit is not in king safety. The largest identified chunk is **capture gains**: the entire
+**+138.69%** variant-corpus column vs v1 is a recorded capgains artifact (`SCALE_CAPTURE_GAINS=0` alone on v1 reads
++176.89% on that column), and capgains is unbuilt in v2 (slice 5).
+
+### ☠️ WHAT IS NOT RECORDED (the honest gaps in the breakdown the owner asked for)
+1. **No PER-PHASE §I split exists for ANY term.** The only phase breakdowns belong to the d7 REGRET gate
+   (e.g. mobility +6.7 / +4.8 / +2.7pp opening/mid/end). Per-phase accuracy is NEW WORK.
+2. **Per-class §I exists for only FOUR arms** (`pin`, `exlow`, bishop pair, space). Nothing for KS, pawns, mobility
+   core, placement or threats.
+3. **No §I number at all for:** tempo (deliberately skipped), exact KPK (WAC nodes + oracle only), central and
+   Kaufman (never built).
+4. The draw classifier's §I is a **measured zero** (identical on all six corpora), not an absence.
+5. ⚠️ The "WORST column" is a DIFFERENT CORPUS by rung — variant/960 at rung 1, `lichess_ks_labelled` for every
+   slice-2/3 term ⇒ worst-column figures are not comparable across rungs.
+
+### ▶️ Still owed an accuracy number (all unbuilt): Kaufman + pairs · capture gains · corrhist · OvD · winnability
+### · convertibility scale · mate drive · king shelter.
+★ Recorded per-class BASE MSE (ours, regret-set corpora — ☠️ a DIFFERENT corpus from the 155.72 ladder, do not
+mix): `pin_dense` **413.74** (our worst) · `centre_open` 346.95 · `centre_locked` 297.83 · `centre_tension` 285.98 ·
+`centre_cleared` 283.59. ⇒ our error concentrates on PINNED and OPEN positions, i.e. the tactical regimes where
+capture gains and threats would live.
+
+---
+
+## 2026-09-18 — ★★★ PER-CLASS REFERENCE LADDER: our accuracy deficit concentrates in PINNED/TACTICAL geometry
+
+`_reference_ceiling.py CORPUS=ks_sets/classes_wide/<class>.csv N=3000` under shipped v2 — composition of two
+existing tools, no new code. Schema verified first (the class files carry `target_total`/`split`, so the tool's
+silent-`nan` path was avoided). ✅ **Both predictions registered before the run HELD, on both measures.**
+
+| class | share | OURS v2 | SF11 | **gap** | SF15.1c | floor (SF18 static) | ours above floor | SF11 above floor |
+|---|---|---|---|---|---|---|---|---|
+| **`pin_dense`** | 17.2% | **168.64** | 93.63 | **75.01** | **133.50 (beats us)** | 68.99 | 99.65 | 24.64 |
+| whole corpus | 100% | 155.72 | 95.26 | 60.46 | 139.20 | 68.85 | 86.87 | 26.41 |
+| `centre_open` | 27.4% | 125.50 | 70.72 | 54.78 | 158.82 | 65.53 | 59.97 | **5.19** |
+| `centre_cleared` | 15.9% | 115.39 | 74.30 | 41.09 | 164.54 | 62.00 | 53.39 | 12.30 |
+
+### ★★ FINDINGS
+1. **`pin_dense` is our worst regime** (gap 75.01) and the ONLY class where SF15.1-classical beats us. 1.8x the
+   cleared-centre gap.
+2. ★ **SF11 nearly SATURATES the achievable accuracy** — only **5.19** above the floor on open centres, 12.30 on
+   cleared, 24.64 on pinned. ⇒ The us-to-SF11 gap is genuine CLOSABLE headroom, not the irreducible static-vs-search
+   residue. This is the encouraging answer to "can we reach the giants on eval": it is work, not a wall.
+3. ☠️ **SF15.1-classical is a BAD reference on this metric** — worse than SF11 in every class measured.
+   ☠️ **CORRECTION (same day): I first wrote "worse than US in three of four". That was an ARITHMETIC ERROR.**
+   Full count over 6 classes + the whole corpus: **we beat SF15.1c in only TWO** (`centre_open` 125.50 vs 158.82,
+   `centre_cleared` 115.39 vs 164.54) and **LOSE the whole corpus** (155.72 vs 139.20) plus `pin_dense` (168.64 vs
+   133.50), `other` (180.07 vs 130.44), `centre_tension` (200.72 vs 131.34), `centre_locked` (213.00 vs 120.27).
+   ⇒ **We are NOT "beating SF15 in almost all cases."** Still: stop writing "SF11/15 levels" as ONE target —
+   SF11's 95.26 is THE hand-reachable one, and SF15.1c is simply a weak static evaluator.
+3b. ★★ **The more informative statistic is the SPREAD across classes, not the win count:**
+   SF15.1c ranges 120-165 (spread **44**) · SF11 71-131 (spread **60**) · **OURS 115-213 (spread 98)**.
+   ⇒ **Our error is by far the most STRUCTURE-SENSITIVE.** We are not uniformly worse; we are UNEVENLY worse —
+   a better argument that specific regimes are underserved than any single class ranking, and it does not depend on
+   the class ordering, which is corpus-dependent (see the tension/pin_dense swap below).
+4. ★ The whole-corpus gap (60.46) EXCEEDS both centre classes, which is how `pin_dense` was predicted before it was
+   run: a weighted average above its parts means the unmeasured classes must be worse. `other` (46%),
+   `centre_tension` and `centre_locked` remain unmeasured.
+
+### ▶️ THE BUILD PRIORITY THIS IMPLIES (measurement-derived, not story-derived)
+Our error concentrates in PINNED, TACTICAL geometry — exactly where the UNBUILT/PARKED terms act: **capture gains**
+(slice 5; already the largest identified chunk via the +138.69% variant column), **threats** (parked), **OvD**.
+★ **Specific testable lead:** threats' strongest single leg is `hanging` (**-2.38%** §I @25), and pinned pieces are
+frequently the inadequately-defended ones. Threats was parked for being move-NULL **globally**, and its per-class §I
+was **NEVER RUN** ⇒ it has never been tested in the one regime where its mechanism most plausibly applies.
+⚠️ ☠️ **But a per-class §I win is NOT a second instrument** ([[a-per-class-corpus-win-is-not-a-second-instrument]]) —
+it is a louder reading of the same one. A threats-on-`pin_dense` §I gain would require a MOVE-LEVEL read on that
+class against a neutral measured ON that class, exactly as pin's 9x class reading still came back null at d7.
+⚠️ Also: `MOB_V2_PIN` already shipped and already read -4.75% §I on pin-dense (9x its global effect) — and pin_dense
+is STILL our worst class. So the regime is not fixed by pin-line mobility alone.
+
+---
+
+## 2026-09-18 — ★★★ KS PRECISION/RECALL vs SF11: 13% capture GLOBALLY, 96% correct WHEN IT FIRES
+### (baseline info, deliberately parked for the TUNING-PREP stage on the owner's call)
+
+`_ks_fit_eval.py CORPUS=<...>` — existing tool, no new code. `target_ks` is **SF11's** own per-term king-safety
+value (`_ks_auc.py:11`, and the output column is literally labelled `|SF11tgt|`).
+
+| population | n | miss (silent) | wrongsign | correct | `\|ourKS\|` | `\|SF11tgt\|` | capture |
+|---|---|---|---|---|---|---|---|
+| whole corpus | 8,699 | 6,152 (71%) | 105 (1.2%) | 2,442 (28%) | 0.29 | 2.15 | **13%** |
+| `centre_open` | 2,767 | 1,911 (69%) | 42 (1.5%) | 814 (29%) | 0.30 | 2.39 | **13%** |
+| `centre_locked` | 259 | 202 (78%) | **0** | 57 (22%) | 0.18 | 1.94 | 10% |
+
+☠️☠️ **READ `correctdir` CORRECTLY — IT IS NOT AN ACCURACY RATE.** I first reported it loosely and the owner
+correctly challenged "are we directionally wrong 78% of the time?" **NO.** The complement of `correctdir` is
+almost entirely MISSES (silent), not errors: 71% silent + 1.2% wrong. **Of the positions where we DO fire, we are
+right 2,442/2,547 = 96%** (locked: 57/57 = 100%). ⇒ Our KS is **HIGH PRECISION, LOW RECALL.**
+★ **And that is WHY it earns +101 Elo.** [[every-eval-term-error-is-bidirectional]]: a term that fires more often
+helps half and hurts half. A term that stays quiet unless confident adds signal without that penalty. It also
+explains the 0-for-11 additive-KS record — those attempts bought RECALL at the cost of PRECISION.
+
+☠️ **The 87% uncaptured is NOT a demonstrated opportunity.** Three independent records say otherwise:
+(1) matching SF11's KS term was TRIED and gave **+9.70% worst-case error** ([[matching-a-reference-term-is-not-being-right]]);
+(2) additive KS is **0-for-11**, only subtractive wins ([[ks-twelve-attempt-history-and-the-channel-law]]);
+(3) SF's kingDanger is an unbounded quadratic while ours saturates at `KS_V2_MAX=4000` — a deliberate difference,
+and threats taxed KS-critical accuracy exactly when it pushed into that space.
+⇒ A *differently shaped* higher-recall KS is not refuted, but it is a NEW hypothesis needing its own design, with
+an 0-for-11 prior. Do not read "13%" as "multiply by 8".
+
+### ★★ WHY THIS MATTERS FOR THE TUNING STAGE (the owner's framing — revisit it there)
+A retune must not be free to rescale a term whose conservatism is load-bearing. The recorded tuning condition is
+"PIN THE GLOBAL SCALE" ([[corpus-fit-is-anti-correlated-with-elo]]); this result argues for **per-subsystem scale
+constraints too** — an optimiser handed our KS at 13% of SF11's magnitude and an SF-derived objective will push it
+up, which is the shrink/inflate failure mode in the other direction. ⇒ Carry this table INTO the fit design.
+
+### ⚠️ THE BLIND SPOT: this read is possible for KS ONLY
+`target_ks` is the **only** per-term reference column in the corpus. There is no `target_mobility` or
+`target_pawns`, so the same precision/recall profile **cannot be computed for any other subsystem today**.
+▶️ Extendable: SF11 emits a per-term trace, and whoever built this corpus clearly did that for KS.
+★ **Mobility is the most meaningful extension** — far more than KS — because the term-correspondence problem barely
+applies: both engines count safe squares for pieces, so the definitions genuinely align. Pawn structure is middling
+(shared predicate definitions, different decomposition). Mobility is also our largest Elo contributor (+162) and a
+complete blind spot on this axis. ⇒ **Scope this as tuning-prep, not now.**
+⚠️ Reference set for the remaining items should include the NON-SF engines (owner's note): Ethereal and Weiss for
+Kaufman-style imbalance (Ethereal conditions knight/rook imbalance on `pawn_closedness`), corrhist and winnability.
+☠️ Ethereal/Weiss must be FETCHED — only the Stockfish trees are local ([[reference-engine-sources]]).
+
+---
+
+## 2026-09-18 — ☠️★★★★ SLICE 3 CLOSES: KAUFMAN PARKS, AND IT IS FIVE CONCEPTS FOR FIVE PARKS
+
+### Kaufman: three parameterisations of the census form, all fail
+Base MSEs (unchanged across all three runs, which self-verifies the build's default path):
+350.12 / 333.58 / 337.41 / 209.45 / 623.27 / 1937.37. NEGATIVE % = better.
+
+| parameterisation | best mean% | its WORST% | verdict |
+|---|---|---|---|
+| **SF11 cells VERBATIM** (`FORM 0`), MAG 250-2000 | **+1.00** (at 250) | +2.03 | ☠️ monotonically harmful; no local optimum, no corpus likes it |
+| **DERIVED per-piece value-ratio rescale** (`FORM 2`, zero free parameters), MAG 500-3000 | **+2.05** (at 500) | +3.19 | ☠️ harmful, and **barely different from raw SF** (+2.05 vs +2.53) |
+| **v1's FITTED cells** (`FORM 1`, diagnostic), MAG 250-1500 | **-1.91** (at 500) | **+2.45** | improves the MEAN but never clears the WORST column |
+
+**Ruled out before concluding anything:** SIGN (v1 and ours both do `total -= white_pov_sum`) and SCALE (a
+hand-computed pair+minor-swap census reads +0.29 pawns at FORM 0 MAG=1000 -- a sane size, and 250 is a quarter of it).
+
+☠️ **THE BASIS HYPOTHESIS IS REFUTED.** It predicted that SF's cells fail because they are corrections layered on
+piece values ~2x steeper than ours (SF11 mg knight 6.10 pawns vs our 3.25). The derived differential rescale that the
+hypothesis IMPLIES (piece x piece -> 0.27, piece x pawn -> 0.52, pawn x pawn -> 1.00) moved the result by **0.5pp**
+and stayed harmful. ⇒ The failure is NOT calibration against a different value basis.
+★★ What actually separates v1's working cells from SF's failing ones is **RELATIVE STRUCTURE** -- and specifically the
+cells where v1 CONTRADICTS SF's sign (B x own-pawn **-106 vs +104**, N x enemy-pawn **-104 vs +63**). A derivation
+cannot recover that; only a fit found it.
+☠️ **And it cannot be claimed as insight, because v1's cells were fitted on OUR SELF-PLAY distribution and their gain
+is confined to it:** `game_regret_set` **-8.65%** / `_v2` -5.69% / `_x4` -3.50%, but UHO **+2.38%**, variant
+**+2.45%**, KS-critical **+1.53%**. That is the overfitting signature, not a validated form.
+⇒ **No PRINCIPLED parameterisation of the census form helps v2. The only one that improves the mean is overfitted.**
+★ Replicated twice: the bishop pair belongs INSIDE the term when it is on (7.04 vs 7.71 no-pair; -1.01 vs -0.47).
+
+### ★★★★ SLICE 3'S RECORD IS NOW COMPLETE, AND THE PATTERN IS THE FINDING
+| concept | reference support | outcome |
+|---|---|---|
+| central control | **0/5** | NOT BUILT -- no reference has a standalone central term |
+| bishop pair | 5/5 | ALREADY OWNED by PST + mobility (flat in all 5 classes, regret null both corpora) |
+| space | 3/5 | built + oracle-verified; globally INERT; class-local only on `centre_locked` (3.0-3.2%) |
+| threats | 4/5 | best-verified term of the slice; §I liked it (-9.71% variant) but move-NULL on 35-36% of moves |
+| **Kaufman + pairs** | 2/4 | ☠️ **PARKED 09-18** -- no principled cell set helps; the working one is overfitted |
+⇒ **FIVE reference concepts, FIVE parks.** ★ The only thing slice 3 produced was ≈ **+31 Elo** from `MOB_V2_PIN` +
+`MOB_V2_EXCL_LOWRANK` -- which add NO concept; they refine the AREA of mobility, the largest term v2 already owned.
+
+★★★ **This is the test [[v2-positional-signal-is-nearer-saturation-than-its-term-count]] was waiting for.** It was
+logged as "a hypothesis from a pattern of four, not a law". It is now five for five, with the fifth being the most
+thoroughly parameterised attempt of the set (three cell sets x 5 magnitudes x 2 ownership settings). ⇒ Promote it
+from hypothesis to **working conclusion**: on top of KS + pawns + passers + mobility + placement, a NEW CONCEPT adds
+no move-level information, while refining the DEFINITION of an existing owner still pays.
+⚠️ Bound it honestly: this is about POSITIONAL/census concepts. The unbuilt slices are different in KIND -- capture
+gains is a tactical/ordering signal (v1's sibling spread 2,290 mp vs v2's 36), corrhist is a learned correction,
+winnability is a whole-eval scale. None is "another positional term", so none is covered by this conclusion.
+
+### PREDICTION SCORECARD (registered before each run, per the standing rule)
+Kaufman SF ladder: **1 of 3** (magnitude curve WRONG, worst-column identity WRONG, pair-ownership RIGHT).
+Basis test: **1 of 1 RIGHT** (v1's cells beat SF's at matched magnitude, and went negative).
+Derived form: **0 of 1** (predicted it would clear; it barely moved). ⇒ Session running total ≈ **4 right / 11 wrong
+or unreadable**. ★ The persistent failure mode is unchanged and worth restating: **I predict improvement where
+measurement finds none.** Registering in advance is the only thing that has made this legible.
+
+---
+
+## 2026-09-19 — SHOWDOWN, SECOND SEED: v2 IS LEVEL WITH v1 ON TWO SEEDS / 3,000 GAMES
+
+`sprt_ab`, p1 = **currently shipped** v2 (including `RFP_MARGIN=1000`), p2 = `EVAL_ARM=0`, seed **23**, LIGHTNING,
+conc 4, `openings_uho.txt`, elo0=0 / elo1=5, max 1500.
+```
++662 -676 =162 of 1500   score 49.5%   elo -3.2 +/- 20.7   LLR -0.400   (max-games stop, as intended)
+```
+
+| run | config | games | elo |
+|---|---|---|---|
+| seed 7 (09-18) | v2 PRE-`RFP_MARGIN` | 1500 | **-9.5 +/- 20.7** |
+| seed 23 (09-19) | v2 SHIPPED, incl. `RFP_MARGIN=1000` | 1500 | **-3.2 +/- 20.7** |
+| naive pool | ⚠️ mixed configs | **3000** | **-6.4 +/- 14.6** |
+
+⇒ **v2 and v1 are INDISTINGUISHABLE on two independent seeds.** The point estimates straddle zero within 7 Elo.
+⚠️ The pool is NOT strictly valid (the arms differ by one search knob), but `RFP_MARGIN=1000` measured **>= 0** in its
+own paired A/B, so pooling is if anything CONSERVATIVE for the shipped config. Quote it as "two seeds, -9.5 and -3.2,
+both inside noise", with the pooled figure as a secondary.
+★ The single-seed worry is resolved: the 09-18 headline was NOT masking a real deficit.
+★ Volatility note, one more instance: this run read **+3** at game 1,228 and finished at **-3.2** — ~6 Elo of drift in
+270 games. The running estimate is not the result ([[sprt-point-estimates-inflate-at-the-bound-they-stop-on]]).
+
+### ★★ WHAT LEVEL MEANS HERE, restated because it is the number the rebuild is judged on
+v2 matches v1 while: **two entire slices unbuilt** (capture gains · corrhist · OvD · endgame conversion ·
+winnability) · **never jointly retuned** (every constant from reference shape + a one-at-a-time ladder) · **five
+slice-3 concepts parked** as adding nothing. And it does so while being **provably non-collinear** across all five
+scoring subsystems (40-column gate, clean on two populations) and **colour-clean at 0/4000** against v1's 0.9% /
+worst 2,233 mp. ⇒ Same strength, structurally cleaner, and 36.6% more accurate statically (155.72 vs 245.46 on the
+SF18-search ladder, closing 59.7% of the gap to SF11's 95.26).
+☠️ Still NOT a claim that the rebuild has won on strength — it has not. The payoff to date is in ACCURACY,
+CORRECTNESS and STRUCTURE; playing strength is a wash. Slices 4-5 plus the retune are the test of whether that
+converts ([[v2-is-level-with-v1-two-slices-early]] · [[the-hce-is-the-nnue-teacher-so-eval-carries-informationally]]).

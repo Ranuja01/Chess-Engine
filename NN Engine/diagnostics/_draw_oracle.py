@@ -318,8 +318,14 @@ def tb_lookup(fen):
     is re-queried once so its DTM is known, because DTM is what the gate is decided on."""
     hit = _cache.get(fen)
     if isinstance(hit, dict):
-        return hit.get("c"), hit.get("m")
-    if isinstance(hit, str) and hit not in ("win", "loss"):
+        # ⚠️ A DECISIVE entry carrying NO DTM is not final (2026-09-19). The gate is decided on DTM, and
+        # entries written before the dtm field was captured stored {"c": "win", "m": None} -- which this
+        # branch then returned forever, so those positions could never be split SHORT vs LONG. Fall through
+        # and re-query them ONCE, exactly the self-heal the legacy-string branch below already performs.
+        # Found via the 33 cached K+R-vs-K+minor wins, every one of which had m=None.
+        if not (hit.get("c") in ("win", "loss") and hit.get("m") is None):
+            return hit.get("c"), hit.get("m")
+    elif isinstance(hit, str) and hit not in ("win", "loss"):
         return hit, None
     url = API + fen.replace(" ", "_")
     for attempt in range(3):
@@ -351,7 +357,149 @@ def save_cache():
 
 
 # ---------------------------------------------------------------- main
+def mat_sig(fen):
+    """K+R vs K+N style signature, strong side first, for grouping a labelled class."""
+    c = {}
+    for ch in fen.split()[0]:
+        if ch.isalpha():
+            c[ch] = c.get(ch, 0) + 1
+    order = "KQRBNP"
+    w = "".join(p * c.get(p, 0) for p in order)
+    b = "".join(p * c.get(p.lower(), 0) for p in order)
+    return "%s v %s" % (w, b) if w >= b else "%s v %s" % (b, w)
+
+
+def label_fen_file(path, limit, cached_only):
+    """★ CLASS GROUND TRUTH: label an explicit FEN list, independent of whether any draw rule fires.
+
+    WHY THIS EXISTS (2026-09-19). The false-positive mode below only ever labels positions where a
+    CLASSIFIER FIRES, so it cannot answer the question a technique VALUE has to answer: *how often is this
+    material class actually won, and is the win inside the search horizon?* Slice-4 tier-2b returns a
+    push-to-edge gradient for pawnless K+R vs K+minor, and whether its WON-case gradient earns anything
+    depends entirely on DTM -- a win in <= SHORT plies is found by search regardless of the leaf eval.
+    Reuses this file's cache, delay, schema and SHORT threshold; adds no new tool and no new ground truth.
+    ⚠️ Good-citizen caps: LIMIT bounds NEW queries; CACHED_ONLY=1 adds none (it still refreshes a decisive
+    entry missing its DTM, which is exactly what the tb_lookup self-heal is for).
+
+      pyrun diagnostics/_draw_oracle.py FENS=ks_sets/t2b_corpus.csv [LIMIT=200] [CACHED_ONLY=1]
+    """
+    import csv as _csv
+    if not os.path.isabs(path):
+        path = os.path.join(THIS, path)
+    fens = [r["fen"] for r in _csv.DictReader(open(path, newline="")) if r.get("fen")]
+    print("CLASS GROUND TRUTH -- %s" % path)
+    print("  %d FENs; SHORT = %d plies; LIMIT %d new queries; CACHED_ONLY = %s\n"
+          % (len(fens), SHORT, limit, cached_only))
+
+    groups, new = {}, 0
+    for fen in fens:
+        known = fen in _cache
+        if cached_only and not known:
+            continue
+        if not known:
+            if new >= limit:
+                continue
+            new += 1
+        cat, dtm = tb_lookup(fen)
+        g = groups.setdefault(mat_sig(fen), {"n": 0, "win": 0, "draw": 0, "cursed": 0,
+                                             "short": 0, "long": 0, "nodtm": 0})
+        g["n"] += 1
+        if cat in ("win", "loss"):
+            g["win"] += 1
+            if dtm is None:
+                g["nodtm"] += 1
+            elif dtm <= SHORT:
+                g["short"] += 1
+            else:
+                g["long"] += 1
+        elif cat in ("cursed-win", "blessed-loss"):
+            g["cursed"] += 1
+        else:
+            g["draw"] += 1
+    save_cache()
+
+    print("  %-16s %6s %7s %7s   %7s %7s %7s" % ("class", "n", "decisive", "drawn", "<=SHORT", ">SHORT", "no dtm"))
+    for k in sorted(groups):
+        g = groups[k]
+        print("  %-16s %6d %6d%% %6d%%   %7d %7d %7d" % (
+            k, g["n"], round(100.0 * g["win"] / max(1, g["n"])),
+            round(100.0 * (g["draw"] + g["cursed"]) / max(1, g["n"])),
+            g["short"], g["long"], g["nodtm"]))
+    tot_long = sum(g["long"] for g in groups.values())
+    tot_dec = sum(g["win"] for g in groups.values())
+    print("\n  ★ %d of %d decisive positions are won BEYOND %d plies (%.0f%%) -- those are the ones a leaf"
+          % (tot_long, tot_dec, SHORT, 100.0 * tot_long / max(1, tot_dec)))
+    print("    eval gradient could help with; the rest search finds on its own.")
+    print("\n(%d new tablebase queries; cache: %s)" % (_net[0], CACHE))
+    return 0
+
+
+def emit_corpus(out, cases, per_case):
+    """★ Write an IN-CLASS corpus for a material signature, so a detector gate is not vacuous.
+
+    WHY (2026-09-19). Slice-4 tier-2b's colour-symmetry gate read a clean 0/4000 on a corpus holding ONE
+    in-class position out of 23,113 -- and no corpus in `ks_sets/` holds more than 9. A gate on a material
+    class needs a corpus BUILT for that class; general positions cannot supply one at any size.
+    ⚠️ Output is .gitignored (generated data), so this is how it is reproduced -- keep it deterministic.
+
+      pyrun diagnostics/_draw_oracle.py EMIT=ks_sets/t2b_corpus.csv CASES=R_vs_minor,R_vs_minor_N N=150
+    """
+    import csv as _csv
+    if not os.path.isabs(out):
+        out = os.path.join(THIS, out)
+    rng = random.Random(SEED)
+    wanted = set(cases.split(",")) if cases != "all" else set(SIGS)
+    seen, rows = set(), []
+    # Anything this class already has tablebase labels for comes first: free ground truth, no queries.
+    for fen in _cache:
+        if any(mat_sig(fen) == mat_sig_of(sig) for sig in wanted if sig in SIGS) and fen not in seen:
+            seen.add(fen); rows.append((fen, "cached"))
+    global EDGE
+    keep = EDGE
+    for edge in (False, True):                       # uniform AND corner-biased; both colours strong
+        EDGE = edge
+        for signame in sorted(wanted):
+            wp, bp = SIGS[signame]
+            for a, b in ((wp, bp), (bp, wp)):
+                got, tries = 0, 0
+                while got < per_case and tries < per_case * 300:
+                    tries += 1
+                    bd = random_position(a, b, rng)
+                    if bd is None:
+                        continue
+                    f = bd.fen()
+                    if f in seen:
+                        continue
+                    seen.add(f); rows.append((f, "edge" if edge else "uniform")); got += 1
+    EDGE = keep
+    with open(out, "w", newline="") as fh:
+        w = _csv.writer(fh); w.writerow(["fen", "source"]); w.writerows(rows)
+    print("wrote %s\n  %d positions, %d classes: %s" % (out, len(rows), len(wanted), ", ".join(sorted(wanted))))
+    return 0
+
+
+def mat_sig_of(signame):
+    """mat_sig() of a SIGS entry, for matching cached FENs to a requested class."""
+    wp, bp = SIGS[signame]
+    sym = {chess.PAWN: "P", chess.KNIGHT: "N", chess.BISHOP: "B", chess.ROOK: "R", chess.QUEEN: "Q"}
+    order = "KQRBNP"
+    w = "K" + "".join(sym[p] for p in wp)
+    b = "K" + "".join(sym[p] for p in bp)
+    w = "".join(c * w.count(c) for c in order if c in w)
+    b = "".join(c * b.count(c) for c in order if c in b)
+    return "%s v %s" % (w, b) if w >= b else "%s v %s" % (b, w)
+
+
 def main():
+    emit = os.environ.get("EMIT", "")
+    if emit:
+        return emit_corpus(emit, CASES, N)
+
+    fen_file = os.environ.get("FENS", "")
+    if fen_file:
+        return label_fen_file(fen_file, int(os.environ.get("LIMIT", "200")),
+                              os.environ.get("CACHED_ONLY", "0") == "1")
+
     rng = random.Random(SEED)
     wanted = None if CASES == "all" else set(CASES.split(","))
     which = os.environ.get("ARM", "v1")

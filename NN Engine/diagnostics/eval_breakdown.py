@@ -184,6 +184,38 @@ def main():
                 print("%s\n  %s\n  CHECKMATE (static eval not defined)" % (it["provenance"], it["fen"]))
                 continue
 
+            # ☠️ NOT EVERY EVAL PUBLISHES THIS TOOL'S TERM SET (found 2026-09-19).
+            # ADDITIVE_TERMS is v1's partition. Two EVAL_ARM=1 cases break it, and BOTH used to die right
+            # here with `KeyError: 'pieces'`, killing the whole run on the first such position:
+            #   (a) REPLACEMENT evals -- draw_class (a hard 0) and slice-4 tier-2b (K+R vs K+minor
+            #       technique value) RETURN a score without ever building a sum, so they publish ONLY
+            #       EB_TOTAL (terms_available == 1, since EB_TOTAL is bit 0). Draw-classified FENs have
+            #       therefore crashed this tool since the classifier shipped on 2026-09-13.
+            #   (b) ORDINARY v2 positions -- v2 publishes its own terms, not v1's, so several of
+            #       ADDITIVE_TERMS are simply absent. ⚠️ Do NOT call this case a replacement: the first
+            #       version of this guard did, and reported a normal midgame eval as one.
+            # ★ In both the SCORE is known and only the ATTRIBUTION is not, so report and carry on rather
+            # than dying -- or, worse, printing the previous position's stale term values.
+            missing = [k for k in ADDITIVE_TERMS if k not in bd]
+            if missing:
+                replacement = bd.get("terms_available") == 1
+                print("=" * 100)
+                print("%s   %s" % (it["provenance"], it["fen"]))
+                print("  our_static %s | SF_static %s | SF_search %s   (White-POV pawns)"
+                      % (_fmt(white_pawns(bd["total"])), _fmt(sf_static_white), _fmt(sf_search_white)))
+                if replacement:
+                    print("  ⚠️ REPLACEMENT EVAL (arm %s) — a whole-eval replacement produced this score"
+                          % bd.get("arm"))
+                    print("     (draw classifier, or tier-2b K+R vs K+minor), so NO term sum exists.")
+                else:
+                    print("  ⚠️ arm %s does not publish this tool's term set — %d of %d additive terms"
+                          % (bd.get("arm"), len(missing), len(ADDITIVE_TERMS)))
+                    print("     were never computed, so the additive partition cannot be reconstructed.")
+                    print("     published: %s"
+                          % ", ".join(sorted(k for k in bd if k not in ("arm", "terms_available"))))
+                print("     raw total = %+d mp" % bd["total"])
+                continue
+
             our_static_white = white_pawns(bd["total"])
             calib_gap = None if sf_static_white is None else our_static_white - sf_static_white
             svs_gap = None if (sf_static_white is None or sf_search_white is None) else sf_static_white - sf_search_white

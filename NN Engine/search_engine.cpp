@@ -2176,6 +2176,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                          "per-piece value-ratio rescale) -- restoring 0.\n";
             Config::KAUF_V2_FORM = 0;
         }
+        Config::TIER2_V2_MAG = env_int("TIER2_V2_MAG", Config::TIER2_V2_MAG);
+        if (Config::TIER2_V2_MAG < 0){
+            std::cerr << "☠️ TIER2_V2_MAG must be >= 0 (a PERCENT of SF's scale; 100 == SF's own) -- restoring 0.\n";
+            Config::TIER2_V2_MAG = 0;
+        }
         if (Config::KAUF_V2_MAG > 0 && Config::KAUF_V2_FORM == 1)
             std::cerr << "⚠️ KAUF_V2_FORM=1 uses v1's FITTED tables -- DIAGNOSTIC ONLY, not a ship candidate.\n";
         // ⚠️ Double-pay guard: SF prices the bishop pair ONLY inside the imbalance matrix. If both owners are
@@ -2460,6 +2465,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KAUF_V2_MAG=" << Config::KAUF_V2_MAG
                   << " KAUF_V2_PAIR=" << Config::KAUF_V2_PAIR
                   << " KAUF_V2_FORM=" << Config::KAUF_V2_FORM
+                  << " TIER2_V2_MAG=" << Config::TIER2_V2_MAG
                   << " SPACE_V2_MAG=" << Config::SPACE_V2_MAG
                   << " SPACE_V2_REGION=" << Config::SPACE_V2_REGION
                   << " SPACE_V2_SAFE=" << Config::SPACE_V2_SAFE

@@ -988,6 +988,17 @@ namespace Config
     // is a DIFFERENTIAL reweighting: piece x piece ~0.27, piece x pawn ~0.52, pawn x pawn 1.00.
     inline int KAUF_V2_FORM = 0;
 
+    // Slice 4 tier-2b -- TECHNIQUE VALUE for pawnless K+R vs K+minor. Design: EVAL-V2-SLICE4-*.md.
+    // PERCENT of SF's own scale: 100 == SF15.1's magnitude expressed in our millipawns (weak king in a corner
+    // ~423 mp, centre ~131). 0 = off = byte-identical.
+    // ★ WHY: v2 currently returns the ORDINARY eval here, reading a rook up as ~+1550 mp in an ending that is
+    // normally DRAWN with correct defence -- an OVER-READ, the failure mode that trades INTO a dead ending.
+    // SF discards the material entirely and keeps only the drive (stockfish_11/src/endgame.cpp:241-263).
+    // ⚠️ NOT v1's defect: v1 hard-ZEROES these at 22-28% tablebase false positives; v2 dropped those rules.
+    // ⚠️ SINGLE-LINEAGE (SF only) -- Ethereal and Weiss leave these endings to search -- so it is a CANDIDATE,
+    // not a consensus adoption, and its gate is the tablebase oracle, not §I (which is blind to this family).
+    inline int TIER2_V2_MAG = 0;
+
     // Slice 3 -- SPACE. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §1.1 + §2.1. ★ 3/5 references have it (SF11,
     // SF15.1, Ethereal; SF1.1 and Weiss have NONE) and all three give it a ZERO endgame leg, so this is applied
     // mg-only (tapered by phase256). ☠️ v1's flat `SPACE_MAG` form died on the pre-08-14 contaminated harness =

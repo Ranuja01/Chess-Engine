@@ -2082,3 +2082,181 @@ SF18-search ladder, closing 59.7% of the gap to SF11's 95.26).
 ☠️ Still NOT a claim that the rebuild has won on strength — it has not. The payoff to date is in ACCURACY,
 CORRECTNESS and STRUCTURE; playing strength is a wash. Slices 4-5 plus the retune are the test of whether that
 converts ([[v2-is-level-with-v1-two-slices-early]] · [[the-hce-is-the-nnue-teacher-so-eval-carries-informationally]]).
+
+---
+
+## 2026-09-19 — SLICE 4 OPENED: tier-2b technique value BUILT (gated off), and the slice's shape is unlike 1-3
+
+### ☠️ THE INSTRUMENT PROBLEM IS THE HEADLINE, NOT THE TERM
+**§I is demonstrably BLIND to this family.** The slice-1 draw classifier -- a term of exactly this kind -- read
+**IDENTICAL on all six §I corpora**. Not small: identical. And [[eval-payoff-is-opening-midgame-not-endgame]]
+records a WHOLE better eval buying only -0.32/-0.72 in deep endgames vs -1.0/-1.2 in opening/midgame, with the
+standing instruction to *"deprioritise endgame-only eval work unless the BY_PS split says otherwise"*.
+⇒ **Slice 4 cannot be run like slices 2-3.** No §I magnitude ladders. The instruments are the TABLEBASE oracle and
+games, under the owner's standing gate for self-play-invisible work: **position-proof + no bench regression**.
+⇒ Also: nothing in this whole family has EVER produced a resolved Elo result in either direction. Every prior
+measurement sits inside a floor, inside a bundle, or on an instrument since invalidated.
+
+### ★★★★ AND A STRUCTURAL BLOCKER FOR THE GENERAL SCALE
+All five references scale the **EG LEG ONLY, inside the blend** (5/5, both lineages). **v2 holds no whole-eval
+(mg,eg) pair** -- every term blends per-side at its own site with `c.phase256` into a single `total` int.
+Recovering an EG-leg scale from `total` needs `SUM eg_i`, which v2 does not keep; multiplying `total` is equivalent
+only if `mg_i == eg_i` for every term, which is false for placement/passers/pawn-structure (KS is unphased, space
+is MG-only). ⇒ **The consensus scale requires an ARCHITECTURAL change (a parallel `eg_total` accumulator), not a
+term design.** Each term already computes its EG half before blending, so the marginal cost is one add per term.
+☠️ And this explains the old null: v1's form (whole `total` x a boolean `isEndGame` cliff) **matches none of the
+five**. The -3.3 STS reading measured a shape nobody uses.
+★ Exception worth keeping: the tier-2b SCALE cases below are pawnless 5-piece endings, so `phase256` is deep
+endgame and mg ~ eg by construction -- **those do NOT need the architecture change.**
+
+### ▶️ BUILT THIS SESSION: `tier2b_value_mp` (`eval_v2.cpp`, after `draw_class`), knob `TIER2_V2_MAG` (0 = off)
+Pawnless **K+R vs K+B** and **K+R vs K+N**: DISCARD the material lead, return SF15.1's `push_to_edge` formula
+(corner 90 -> centre 28 in SF units) plus `push_away` from the knight for the KN case. A REPLACEMENT, not a term
+added to a sum -- the same shape as `draw_class`. MAG is a PERCENT of SF's own scale (100 == SF's magnitude in our
+mp: ~423 corner, ~131 centre); material-anchored, so the PAWN is the unit.
+☠️ **CORRECTED MOTIVATION (I had this wrong earlier and said so):** v2's defect here is an **OVER-READ**, not a
+false draw. v2 dropped v1's rules, so it returns the ORDINARY eval -- reading a rook up as ~+1550 mp in an ending
+normally DRAWN with correct defence. Over-reads are how an engine trades INTO a dead ending believing it is
+winning (the recorded +4870 loss). The 22-28% tablebase FALSE POSITIVES are **v1's** problem, not v2's.
+⚠️ **SINGLE-LINEAGE (SF only).** Ethereal and Weiss leave these endings entirely to search. ⇒ CANDIDATE, not a
+consensus adoption -- unlike the EG-leg scale and the two-tier split, which are 5/5.
+
+**Gates:** ⚠️ ~~colour symmetry 0/4000 with the term ON at MAG=100~~ -- **THAT PASS WAS VACUOUS; see the 09-19
+entry below, which replaces it.** ✅ Byte-identity at default EXACT: `250 / 49,440,513 / EBF 4.031`, cutoff
+histogram identical (m0 2,225,417) ⇒ the term is correctly absent when `TIER2_V2_MAG=0`.
+
+---
+
+## 2026-09-19 — TIER-2B NON-VACUITY: THE PASS WAS EMPTY, AND TWO REAL DEFECTS WERE BEHIND IT
+
+### ☠️☠️ THE 0/4000 SYMMETRY PASS WAS VACUOUS -- QUANTIFIED
+`diverse_corpus_wide.csv` (n=23,113) contains **exactly ONE** pawnless K+R-vs-K+minor position. A scan of **all 47
+corpora in `ks_sets/`** found no corpus with more than **9** (`game_regret_set_x4.csv`, 9 / 14,713); most have zero.
+⇒ the run could not have exercised the term. ★ The hazard was already on the record and I did not apply it: the
+slice-1 KPK entry says *"`_eval_symmetry.py` was NOT run for this: its sample contains essentially no KPvK, so it
+would be a vacuous pass"* (2026-09-14). **Same tool, same corpus, same trap, five days later.**
+★★ This also sharpens the "§I is blind to the endgame family" finding from a claim into a measurement: the
+instruments are not merely insensitive here, **the corpora do not contain the positions at all.**
+
+### ☠️ DEFECT 1 (eval, FIXED): tier-2b's early return published NO breakdown
+`draw_class` publishes `total`/`arm`/`terms_valid = 1<<EB_TOTAL` on its early return, with a comment recording
+exactly why. **Tier-2b's early return, added directly beneath it, published nothing at all** -- so `g_eval_breakdown`
+kept the PREVIOUS position's values. Search was never affected (it uses the return value), but every static
+instrument reads the breakdown: `_eval_symmetry.py` takes `ev_breakdown(b)["total"]`, **not** the returned score. Had
+the term fired, the gate would have compared one position's score against another's. ⇒ the pass was not just empty,
+it was **unreadable**. Fixed by publishing the same total-only contract as `draw_class`.
+
+### ☠️ DEFECT 2 (tool, FIXED, PRE-EXISTING): `eval_breakdown.py` dies on any total-only publication
+`_reconstruction` sums `ADDITIVE_TERMS` unguarded and raised `KeyError: 'pieces'`, killing the whole run on the first
+such position. ⚠️ **Not introduced by tier-2b** -- verified directly on a draw-classified FEN (`8/8/8/4k3/8/8/4KB2/8`):
+it crashes identically, so **every draw-classified position has crashed this tool under `EVAL_ARM=1` since the
+classifier shipped on 2026-09-13**. Now reports the score and carries on, distinguishing two cases the first version
+of the guard wrongly merged: a REPLACEMENT eval (`terms_available == 1`, i.e. only `EB_TOTAL`) versus an ORDINARY v2
+position (v2 publishes 8/45 of its own terms; 7 of v1's 10 additive names are simply absent).
+
+### ✅ NON-VACUITY, PROVED BY DIFFERENTIAL -- the term fires and moves the eval by ~0.8-1.4 PAWNS
+Built `ks_sets/t2b_corpus.csv` (1,324 positions, 100% in-class) by REUSING `_draw_oracle.py`'s own `random_position`
+and `SIGS` (which already carried `R_vs_minor` / `R_vs_minor_N`) -- no new generator. ⚠️ `ks_sets/*.csv` is
+**.gitignored**, so the corpus is NOT tracked; it is reproduced from the tool that owns the machinery:
+`pyrun diagnostics/_draw_oracle.py EMIT=ks_sets/t2b_corpus.csv CASES=R_vs_minor,R_vs_minor_N N=150`
+(deterministic on `SEED`; 124 already-labelled positions first, then uniform and `EDGE=1` samples, both colours
+strong). ★ The symmetry result below was re-verified on a SECOND, independently drawn 1,324-position sample from
+this recipe -- overlap with the first was only the 124 cached FENs, and it read 0/1324 again.
+Engine totals, `MAG=0` -> `MAG=100`:
+
+| FEN | units | shipped (MAG=0) | term live (MAG=100) | delta |
+|---|---|---|---|---|
+| `1K6/8/5R2/3k4/8/8/5b2/8 w` (min) | 28 | −1505 | **−131** | 1374 |
+| `r7/8/5k2/8/8/8/7B/K7 w` (KB max) | 90 | +1565 | **+422** | 1143 |
+| `7K/8/r7/8/8/5k2/8/7N w` (KN max) | 210 | +1775 | **+985** | 790 |
+
+★ The C++ reproduced an independent Python model of the formula EXACTLY on all three (registered before the run).
+✅ **Colour symmetry re-run on the in-class corpus: 0 / 1324 violations, file mirror 0 / 1324** -- the same verdict as
+before, but now non-vacuous. (Antisymmetry is in fact structural here: `edge_dist` and the king-knight Chebyshev
+distance are both mirror-invariant, and only `rook_white` flips.)
+⚠️ `units` reaches **210** for KRvKN (= 985 mp), not the ~90 / 423 mp the design note's "corner ~423, centre ~131"
+implies -- that range describes `push_to_edge` ALONE; `push_away` adds up to +120 more. Faithful to SF15.1, but the
+note under-states the shipped magnitude by more than 2x. ⇒ a KRvKN corner reads **+0.99 pawns**.
+
+### ★★ DISCRIMINATION, MEASURED FREE FROM THE EXISTING TABLEBASE CACHE
+`ks_sets/tablebase_labels_draw.json` already held **124** labelled in-class positions from the slice-1 sweep -- zero
+network queries needed. Does `units` separate WON from DRAWN?
+
+| class | won | drawn | units won (m/sd) | units drawn (m/sd) | AUC |
+|---|---|---|---|---|---|
+| K+R vs K+N | 16 | 46 | 154.0 / 34.1 | 120.8 / 40.3 | **0.721** |
+| K+R vs K+B | 17 | 45 | 75.5 / 13.4 | 67.9 / 15.1 | **0.663** |
+
+★ **All 33 decisive positions are wins for the ROOK side. 33/33 -- the sign is never wrong.**
+★ Decisive rate **25.8% / 27.4%**, independently reproducing the 22-28% the record already carries for v1's
+`R_vs_minor` rule -- so ~74% of the class is drawn while **v2 currently reads it as +1.5 to +1.8 pawns**. That
+over-read is the defect, and it is horizon-independent: it does not depend on the won minority at all.
+☠️ **Do NOT quote a pooled AUC** (it computes to 0.623, LOWER than either class). The KN branch adds up to +120 units,
+so pooling mixes two different scales -- a Simpson-style artifact of this term's own construction.
+### ★★ AND THE DTM ANSWER -- WHICH REVERSES THE CAUTION I WROTE AN HOUR EARLIER
+I wrote *"until DTM is known the won-case gradient is unjustified; the drawn-majority over-read is what justifies
+the term."* **Measured, that is wrong.** Extending `_draw_oracle.py` with a `FENS=` class-labelling mode (below)
+and refreshing the 33 decisive entries:
+
+| class | n | decisive | drawn | ≤12 plies | **>12 plies** | no dtm |
+|---|---|---|---|---|---|---|
+| K+R vs K+B | 62 | 27% | 73% | 4 | **13** | 0 |
+| K+R vs K+N | 62 | 26% | 74% | 1 | **15** | 0 |
+
+★★ **28 of 33 wins (85%) lie BEYOND the ~12-ply horizon.** Those are exactly the positions search cannot solve for
+itself, so the won-case gradient is aimed at the right population after all. ⇒ tier-2b now has **two** independent
+justifications, not one: the drawn-majority over-read (74%, horizon-independent) **and** a won minority that is
+85% out of reach of search.
+☠️ **A third defect, in the oracle (FIXED):** `tb_lookup` returned any cached dict as final, so a legacy entry
+stored as `{"c": "win", "m": None}` could NEVER acquire a DTM -- every one of these 33 was stuck that way, which is
+why the question looked unanswerable. The legacy-STRING branch already self-healed; the legacy-DICT case did not.
+Decisive-without-DTM now falls through and re-queries once. Cost to settle the whole question: **33 queries.**
+
+### ▶️ PREDICTION SCORECARD (registered before each run)
+| prediction | outcome |
+|---|---|
+| `push_to_edge` separates won/drawn weakly, AUC 0.55-0.70 | ✅ **right** -- 0.663 / 0.721, one class marginally above |
+| engine totals at MAG=100 are exactly −131 / +985 / +422 | ✅ **right**, all three exact |
+| (unregistered, and wrong) my first guard called a NORMAL v2 position a "replacement eval" | ☠️ caught by reading the `MAG=0` output, fixed |
+| (asserted, not registered) "until DTM is known the won-case gradient is unjustified" | ☠️ **WRONG** -- 85% of the wins are beyond the horizon. I asserted a conclusion where I should have measured; it cost 33 queries to find out |
+
+☠️ **The pattern in that last row is the session's lesson, and it is the OPPOSITE of my usual failure.** My habit
+is predicting improvement where none exists; here I talked myself OUT of a term's justification without measuring,
+because the datum happened to be missing from a cache. ★ "The record does not contain it" is not "it cannot be
+known" -- the missing DTM was 33 queries and a one-line cache bug away the whole time.
+
+### ▶️ NEXT STEPS, in order
+1. ✅ **DONE 2026-09-19** -- non-vacuity proved by differential (0.8-1.4 pawns), symmetry re-run non-vacuously
+   0/1324, and two defects found and fixed. See the 09-19 entry above.
+2. ✅ **DONE 2026-09-19.** `_draw_oracle.py` extended with a `FENS=<csv>` CLASS-GROUND-TRUTH mode (labels an
+   explicit FEN list regardless of whether a draw rule fires -- the FP mode structurally could not do this) plus
+   a `tb_lookup` self-heal for decisive-without-DTM. Result: AUC 0.663 KB / 0.721 KN, sign right 33/33, decisive
+   26-27%, and **85% of the wins beyond the horizon**. ⇒ the term is justified twice over. **Remaining before it
+   can ship: games.** Static evidence is now as strong as this family's instruments can make it.
+3. **Tier-2b scale pair**: K+R+B vs K+R and K+R+N vs K+R at SF's ~14/64 (a SCALE, a different mechanism).
+4. **`eg_total` accumulator** -- ship byte-identical on its own, then the general graded scale.
+5. **Rule-50**: blocked on plumbing AND a zobrist hazard (the eval cache key excludes `rule50`, so entries would
+   collide across counters).
+6. **Winnability: do NOT rebuild as ported.** Three structural faults, only the third about constants:
+   (a) applied to the blended `total` instead of the (mg,eg) PAIR, so SF's consumer coupling -- the corrected `eg`
+   feeding the scale's strong-side pick and its OCB passer term -- **never existed**; (b) **no lazy exit**, so ours
+   fires everywhere while SF's layer only ever acts in the near-balanced band; (c) a near-monotone scale on a
+   summed total cannot reorder siblings (0.5% meaningful move change; same law that parked tempo).
+   ★ Naming across engines: SF1.1 none -> SF11 `initiative()` -> SF15.1 `winnable()`; Ethereal `evaluateComplexity`;
+   Weiss none. ★★ **Ethereal's has NO king inputs** -- the two-lineage CORE is pawn-structural (pawn count, both
+   flanks, pure-pawn ending); outflanking/infiltration are SF-ONLY. A rework should keep the core and drop the
+   single-source king terms.
+7. **KPvK WON-case magnitude** (SF tier-1 `VALUE_KNOWN_WIN + PawnValueEg + rank`) -- we classify draws exactly but
+   give won KPvK no shaped value. Tail item for this rung or the final sweep.
+
+### ★ OWNER'S FRAMING, recorded because it predicted a measured result
+*"King mobility is inherently maximized when safety, passed pawn stopping/supporting and other endgame things
+become relevant"* -- the same argument as their centrality theory, which the five-engine contrast VALIDATED (0/5
+references carry a standalone central term). ✅ Confirmed for the passer half: **v2 already owns king-shepherding**
+via `PASSER_V2_KING_THEM`/`PASSER_V2_KING_US` (eg-leg, SF's form, enemy king's distance outweighing ours).
+⚠️ Refinement so it is not over-applied: the test is NOT "is the quantity emergent?" -- almost everything is. It is
+**"does an EXISTING TERM already order moves by it?"** Mobility is itself a term for an emergent quantity and was
+worth +162 Elo, because nothing else ordered by piece freedom; central was worth 0 because two terms already did.
+⚠️ UNVERIFIED and worth one check before treating as a gap: whether ANY reference carries a standalone king-mobility
+term, and whether v2 owns v1's `boost_pieces_for_supporting_passed_pawns` (pieces supporting a passer) -- `BEHIND_V2`
+is minor-behind-ANY-pawn in Weiss's form, which is a different concept.

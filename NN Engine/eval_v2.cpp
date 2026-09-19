@@ -2483,6 +2483,64 @@ static bool draw_class(const V2Context &c) noexcept
 	return false;
 }
 
+/* Slice 4 tier-2b -- TECHNIQUE VALUE for K+R vs K+minor (pawnless), Black-positive millipawns.
+ *
+ * What: for K+R vs K+B and K+R vs K+N with no pawns, DISCARD the material lead and return a pure technique
+ * gradient: drive the weak king to the edge, and for K+R vs K+N also drive it away from its own knight.
+ * Returns true and sets `out` when it applies; false otherwise. A REPLACEMENT, not a term added to a sum.
+ *
+ * Why: ★ these endings are normally DRAWN with correct defence, yet v2 currently returns the ordinary eval,
+ * which reads a rook up as roughly +1550 mp. **That is an OVER-READ, and over-reads are how an engine trades
+ * INTO a dead ending believing it is winning** -- the exact failure that motivated the KPvK rook-pawn fix
+ * (a real loss where we evaluated a dead draw at +4870). ⚠️ NOT the same defect as v1's: v1 hard-ZEROES these
+ * (`is_practically_drawn` cases 8-10) at 22-28% tablebase FALSE POSITIVES; v2 dropped those rules, so v2 has
+ * no false draw here -- it has no technique gradient and an inflated magnitude.
+ * SF discards the material for exactly this reason (`stockfish_11/src/endgame.cpp:241-263`): a rook up is worth
+ * nothing here EXCEPT the ability to drive the king to the edge. ⚠️ Single-lineage (SF only) -- Ethereal and
+ * Weiss leave these to search entirely -- so this is a CANDIDATE, not a consensus adoption.
+ *
+ * Form: SF15.1's formulas rather than SF11's tables (`evaluate`-side, endgame.cpp:32-45):
+ *   push_to_edge(s) = 90 - (7*fd*fd/2 + 7*rd*rd/2), fd/rd = distance from the NEAREST edge => corner 90, centre 28
+ *   push_close(d)   = 140 - 20*d ; push_away(d) = 120 - push_close(d)   [K+R vs K+N only]
+ * UNITS: SF endgame units, its eg pawn = 213 (types.h) against our 1000 => 1 unit ~ 4.7 mp. TIER2_V2_MAG is a
+ * PERCENT of SF's own scale, so 100 == SF's magnitude expressed in our millipawns (corner ~423 mp, centre ~131).
+ * ★ MATERIAL-anchored like Kaufman, so the pawn is the right unit -- not v2's 5-35 mp positional spread.
+ *
+ * Gating: caller checks TIER2_V2_MAG > 0, so 0 = absent = byte-identical.
+ * ⚠️ Deliberately NOT extended to K+R+B vs K+R / K+R+N vs K+R: SF handles THOSE with a SCALE (~14/64), a
+ * different mechanism, and they are step two.
+ * Cost: a handful of popcounts on a path already guarded by draw_class's piece-count early-outs.
+ */
+static inline int t2_edge_dist(int x) noexcept { return x < 7 - x ? x : 7 - x; }
+
+static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
+{
+	if (c.pawns) return false;
+	const uint64_t minors = c.knights | c.bishops;
+	if (c.queens || (c.rooks & c.knights) || __builtin_popcountll(c.rooks) != 1) return false;
+	if (__builtin_popcountll(minors) != 1) return false;
+
+	const bool rook_white = (c.rooks & c.white) != 0;
+	// The rook side must have ONLY the rook; the other side ONLY the minor (plus kings).
+	const uint64_t strong = rook_white ? c.white : c.black;
+	const uint64_t weak   = rook_white ? c.black : c.white;
+	if ((strong & ~(c.kings | c.rooks)) || (weak & ~(c.kings | minors))) return false;
+
+	const int weak_ksq = __builtin_ctzll(c.kings & weak);
+	const int fd = t2_edge_dist(weak_ksq & 7), rd = t2_edge_dist(weak_ksq >> 3);
+	int units = 90 - (7 * fd * fd / 2 + 7 * rd * rd / 2);
+	if (c.knights){                                   // K+R vs K+N: also split the king from its knight
+		const int nsq  = __builtin_ctzll(c.knights);
+		const int dfile = (nsq & 7) - (weak_ksq & 7), drank = (nsq >> 3) - (weak_ksq >> 3);
+		const int af = dfile < 0 ? -dfile : dfile, ar = drank < 0 ? -drank : drank;
+		units += 120 - (140 - 20 * (af > ar ? af : ar));
+	}
+	// SF units -> our millipawns, as a percent of SF's own scale. Black-positive: negate when White is strong.
+	const int mp = units * Config::TIER2_V2_MAG * 10 / 213;
+	out = rook_white ? -mp : mp;
+	return true;
+}
+
 /*
 	See the file header for the output and purity contract. Rung selection is Config::EVAL_V2_RUNG; rungs
 	are cumulative, so a rung adds to everything below it rather than replacing it.
@@ -2493,6 +2551,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	build_context(c, moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
 	              occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
 
+	// (tier-2b technique value is defined above draw_class's caller; see tier2b_value_mp)
 	// ── slice 1: binary draw classifier ──────────────────────────────────────────────────────────
 	// Unconditional, not gated on phase: every case needs <= 2 non-king pieces, which IS the endgame by
 	// construction, so a phase gate would only add a test. ⚠️ v1 instead hides this behind its endgame
@@ -2510,6 +2569,28 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			g_eval_breakdown.terms_valid = (1ULL << EB_TOTAL);
 		}
 		return 0;
+	}
+
+	// ── slice 4 tier-2b: TECHNIQUE VALUE for K+R vs K+minor ──────────────────────────────────────
+	// Gated on TIER2_V2_MAG, so 0 = absent = byte-identical. Sits immediately after draw_class because it
+	// is the same KIND of thing -- a material-configuration REPLACEMENT, not a term added to a sum.
+	if (Config::TIER2_V2_MAG > 0){
+		int t2 = 0;
+		if (tier2b_value_mp(c, t2)){
+			// ☠️ SAME CONTRACT AS draw_class ABOVE -- and omitting it was a real defect (found 2026-09-19).
+			// This is a material-configuration REPLACEMENT, so `total` is KNOWN and the term fields are not.
+			// Without publishing here the breakdown keeps the PREVIOUS position's values, and every static
+			// instrument reads a chimera: `_eval_symmetry.py` takes bd["total"], NOT the return value, so it
+			// would have compared one position's score against another's and reported the difference as an
+			// asymmetry (or, worse, as a clean pass). Search was never affected -- it uses the return value.
+			// Publishing only EB_TOTAL hides the stale terms while giving every consumer the true score.
+			if (g_capture_eval_breakdown && Config::EVAL_ARM == 1){
+				g_eval_breakdown.total       = t2;
+				g_eval_breakdown.arm         = Config::EVAL_ARM;
+				g_eval_breakdown.terms_valid = (1ULL << EB_TOTAL);
+			}
+			return t2;
+		}
 	}
 
 	int w_mat = 0, b_mat = 0, w_pst = 0, b_pst = 0;

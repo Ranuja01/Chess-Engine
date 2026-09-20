@@ -39,6 +39,21 @@ non-degenerate (40-column collinearity gate) and colour-clean, which v1 was not.
 
 ## THE SETS, BY PURPOSE — never pooled, never concatenated
 
+### ▶️ CURRENT REGRET-SET INVENTORY (2026-09-20) — one judge, mutually disjoint, VERIFIED
+| file | rows | source layout | phase mix (eg / mg / op) |
+|---|---|---|---|
+| `game_regret_set.csv` | 15,000 | flat (standing set) | — |
+| `game_regret_set_0920.csv` | 8,000 | flat | 2,239 / 3,848 / 1,913 |
+| `game_regret_set_v2era.csv` | **10,000** | **nested — never sampled before** | 2,133 / 4,626 / **3,241** |
+
+✅ **Pairwise overlap measured at ZERO across all three.** All SF18 multi-PV top-8 @ d14, `PLY_STRIDE=7`,
+columns `fen / phase_bucket / best_uci / best_cp / moves`.
+★ 33,000 disjoint positions ⇒ cross-set replication (mandatory before anything is folded in) is now
+possible without building anything further.
+⚠️ **The phase mixes DIFFER** (opening 3,241 vs 1,913) — independent evidence that the nested tags are a
+genuinely different game population, not more of the same. ⇒ do not pool the three into one file; that
+would make the mix ratio an invisible knob (hygiene rule 1).
+
 ### 1. PLAY-DISTRIBUTION — the ONLY sets a weight fit may see
 - ★ **`ks_sets/game_regret_set*.csv` — "THE set to use."** Real self-play positions, `PLY_STRIDE=7`,
   **SF18 multi-PV top-8 @ depth 14** cached. Builder `_build_game_regret_set.py` (resumable; dedupes and

@@ -40,16 +40,31 @@ non-degenerate (40-column collinearity gate) and colour-clean, which v1 was not.
 ## THE SETS, BY PURPOSE — never pooled, never concatenated
 
 ### ▶️ CURRENT REGRET-SET INVENTORY (2026-09-20) — one judge, mutually disjoint, VERIFIED
-| file | rows | source layout | phase mix (eg / mg / op) |
-|---|---|---|---|
-| `game_regret_set.csv` | 15,000 | flat (standing set) | — |
-| `game_regret_set_0920.csv` | 8,000 | flat | 2,239 / 3,848 / 1,913 |
-| `game_regret_set_v2era.csv` | **10,000** | **nested — never sampled before** | 2,133 / 4,626 / **3,241** |
+**Built 2026-09-20 from the NESTED (v2-era) layout, which had never been sampled:**
 
-✅ **Pairwise overlap measured at ZERO across all three.** All SF18 multi-PV top-8 @ d14, `PLY_STRIDE=7`,
-columns `fen / phase_bucket / best_uci / best_cp / moves`.
-★ 33,000 disjoint positions ⇒ cross-set replication (mandatory before anything is folded in) is now
-possible without building anything further.
+| file | rows | phase mix (eg / mg / op) |
+|---|---|---|
+| `game_regret_set_v2era.csv` | **10,000** | 2,133 / 4,626 / 3,241 |
+| `game_regret_set_v2era_b.csv` | **12,000** | 2,615 / 5,602 / 3,783 |
+| `game_regret_set_v2era_c.csv` | **11,174** | 2,226 / 5,477 / 3,471 |
+
+✅ **33,174 positions, verified disjoint from EVERY OTHER regret set on disk** (not just from each other).
+SF18 multi-PV top-8 @ d14, `PLY_STRIDE=7`, columns `fen / phase_bucket / best_uci / best_cp / moves`.
+★ Three independent sets ⇒ tune / holdout / replication without building anything further.
+⚠️ The 3rd returned 11,174 of 14,000 requested ⇒ the nested pool is **essentially mined out at stride 7**.
+More needs new GAMES, or a different stride (which is a different METHOD ⇒ a separate set, per rule 1).
+
+### ☠️☠️ A DELETED SET, AND THE LESSON THAT COST IT
+`game_regret_set_0920.csv` (8,000 rows) was built before the exclusion glob was fixed and turned out to be
+**100% contained in `game_regret_set_x4.csv`** — an hour of SF18 labelling for ZERO new positions. Deleted.
+☠️ **And the verification that was supposed to catch it did not, because its SCOPE was an assumption.**
+The first disjointness check compared the sets *I knew about* and reported "45,000, all disjoint". Measuring
+against **every `game_regret_set*.csv` on disk** immediately exposed the 8,000-row duplication.
+★ ⇒ **VERIFY AGAINST THE FILESYSTEM, NOT AGAINST YOUR LIST.** A measurement scoped by an assumption
+inherits that assumption, and reads as confirmation. The correct check is
+`distinct(union of glob(*)) == sum(len(each))`.
+⚠️ Pre-existing overlaps that are BY DESIGN, so they do not indicate a defect: `game_regret_set_v2_s0..s3`
+are 3,000-row shards of `game_regret_set_v2.csv`.
 ⚠️ **The phase mixes DIFFER** (opening 3,241 vs 1,913) — independent evidence that the nested tags are a
 genuinely different game population, not more of the same. ⇒ do not pool the three into one file; that
 would make the mix ratio an invisible knob (hygiene rule 1).

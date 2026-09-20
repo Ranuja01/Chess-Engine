@@ -912,11 +912,18 @@ inline void publish_rung0(int total, const V2Context &c, int w_mat, int b_mat, i
 
 	b.det_pawn_count = __builtin_popcountll(c.pawns);
 
+	// PROVENANCE, not an eval term: every corpus/analysis consumer needs the phase, and v2 published none,
+	// which crashed `tune_corpus.py` with KeyError('phase_score') -- the THIRD v1-era tool to assume v1's
+	// partition. ☠️ Published under its OWN name because v1's `phase_score` is the INVERSE on HALF the
+	// scale (v1: 0 = opening, 128 = endgame; v2: 256 = opening, 0 = endgame).
+	b.v2_phase256 = c.phase256;
+
 	b.arm = Config::EVAL_ARM;
 	b.terms_valid = (1ULL << EB_TOTAL)           | (1ULL << EB_MATERIAL)
 	              | (1ULL << EB_PIECES)          | (1ULL << EB_IMBALANCE_WHITE)
 	              | (1ULL << EB_IMBALANCE_BLACK) | (1ULL << EB_DET_W_PIECEVAL)
-	              | (1ULL << EB_DET_B_PIECEVAL)  | (1ULL << EB_DET_PAWN_COUNT);
+	              | (1ULL << EB_DET_B_PIECEVAL)  | (1ULL << EB_DET_PAWN_COUNT)
+	              | (1ULL << EB_V2_PHASE256);
 }
 
 // ===================================================================================================

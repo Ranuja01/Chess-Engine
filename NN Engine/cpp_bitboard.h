@@ -548,6 +548,8 @@ struct EvalBreakdown {
 	int v2_placement;  // eval_v2 placement bundle E summed: outpost + reachable outpost + minor behind
 	                   // pawn + bad bishop + long diagonal + trapped rook + weak queen + latent pressure
 	int v2_rookfile;   // eval_v2 rookfile_mp -- open / semi-open file bonuses (NOT v1's rook_cond rescale)
+	int v2_phase256;   // eval_v2 taper: 256 = OPENING, 0 = ENDGAME. ☠️ v1's `phase_score` is the INVERSE on a
+	                   // 0-128 scale (0 = opening). Convert, never alias: v1_equiv = 128*(256-v2)/256.
 };
 
 // Bit index per EvalBreakdown field, in the SAME ORDER as ChessAI.ev_breakdown builds its dict.
@@ -575,6 +577,11 @@ enum EvalBreakdownBit {
 	// `imbalance_white/black` each mean something different per arm). An ABSENT key is safe; a WRONG one
 	// is not, and the whole point of terms_valid is that absence is detectable.
 	EB_V2_PASSERS, EB_V2_PLACEMENT, EB_V2_ROOKFILE,
+	// ☠️ NOT reusing v1's `phase_score`, which is a DIFFERENT QUANTITY: v1 is `128*(MAX_PHASE-phase)/MAX_PHASE`
+	// = 0 at the OPENING and 128 in the ENDGAME, while v2's phase256 is 256 at the opening and 0 in the
+	// endgame. OPPOSITE POLARITY AND DOUBLE SCALE -- writing one into the other would invert every
+	// phase-conditioned read in a corpus and look entirely plausible while doing it (2026-09-20).
+	EB_V2_PHASE256,
 	EB_NUM_FIELDS
 };
 // ☠️ EB_ALL IS "EVERYTHING v1 WRITES", NOT "EVERY BIT". v1 sets this wholesale (cpp_bitboard.cpp:8784), so a
@@ -583,7 +590,8 @@ enum EvalBreakdownBit {
 // 2026-09-19 when the EB_V2_* fields were appended. ⇒ any future v2-only bit must be masked out here too.
 static constexpr uint64_t EB_V2_ONLY = (1ULL << EB_V2_PASSERS)
                                      | (1ULL << EB_V2_PLACEMENT)
-                                     | (1ULL << EB_V2_ROOKFILE);
+                                     | (1ULL << EB_V2_ROOKFILE)
+                                     | (1ULL << EB_V2_PHASE256);
 static constexpr uint64_t EB_ALL = ~0ULL & ~EB_V2_ONLY;
 
 extern EvalBreakdown g_eval_breakdown;

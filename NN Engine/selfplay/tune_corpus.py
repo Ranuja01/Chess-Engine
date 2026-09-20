@@ -59,6 +59,47 @@ DETS = [
     "det_ks_units_w", "det_ks_units_b", "det_w_mobility", "det_b_mobility",
 ]
 
+# ☠️ THE LISTS ABOVE ARE v1's PARTITION. Under EVAL_ARM=1 most of those keys DO NOT EXIST -- eval v2
+# publishes 18 of 49 fields and OMITS the rest, so indexing them raised KeyError('phase_score') and killed
+# a whole overnight mining run (2026-09-20). That is the THIRD v1-era tool to assume v1's partition
+# (`eval_breakdown.py` and `_v2_term_join.py` were the others) => assume any v1-era tool is arm-unsafe.
+# ⚠️ Deliberately NOT solved with .get(key, 0): an absent key means NEVER COMPUTED, and a 0 would silently
+# become "v2 scored this term at zero" -- the exact confusion `terms_valid` exists to prevent.
+V2_TERMS = [
+    "material", "pieces", "king_safety", "mobility", "pawn_struct",
+    "v2_passers", "v2_placement", "v2_rookfile",
+    "imbalance_white", "imbalance_black",      # ⚠️ v2 meaning: signed per-side holdings, NOT v1's OvD
+]
+V2_DETS = [
+    "det_w_pieceval", "det_b_pieceval", "det_pawn_count",
+    "det_ks_units_w", "det_ks_units_b", "det_w_mobility", "det_b_mobility",
+]
+
+
+def arm_lists():
+    """(TERMS, DETS) for the arm this process will run under. Knobs latch at engine construction, so the
+    arm is fixed by env before the first eval and can be read here, ahead of the CSV header."""
+    arm = os.environ.get("EVAL_ARM", "0").strip()
+    return (V2_TERMS, V2_DETS) if arm == "1" else (TERMS, DETS)
+
+
+def phase_columns(bd):
+    """(phase_score, is_endgame) in **v1's convention** whichever arm produced the breakdown.
+
+    ☠️ THE TWO ARMS' PHASES ARE OPPOSITE AND DIFFERENTLY SCALED:
+        v1 `phase_score`  = 128*(MAX_PHASE-phase)/MAX_PHASE  ->   0 = OPENING, 128 = ENDGAME
+        v2 `v2_phase256`  = 256*(npm-lo)/(hi-lo)             -> 256 = OPENING,   0 = ENDGAME
+    Aliasing one onto the other would invert every phase-conditioned read in the corpus and look entirely
+    plausible doing it. Convert explicitly so the column means ONE thing across arms.
+    """
+    if "phase_score" in bd:
+        return bd["phase_score"], int(bd["is_endgame"])
+    ph = bd.get("v2_phase256")
+    if ph is None:
+        return "", ""
+    v1_equiv = 128 * (256 - ph) // 256
+    return v1_equiv, int(v1_equiv > 64)        # v1's own midgame/endgame split is phase_score > 64
+
 # SF11 labeled term -> our column name (White-POV pawns, Total-MG column). Missing terms -> blank.
 SF11_TERMS = {
     "Material": "sf11_material", "Imbalance": "sf11_imbalance", "Mobility": "sf11_mobility",
@@ -191,8 +232,13 @@ def main():
     if done:
         print("resume: %d FENs already labelled in %s — skipping them" % (len(done), args.out))
 
+    # ★ Arm-aware header: v2 publishes its OWN terms, so a v1-named header would be a corpus of blanks.
+    terms_list, dets_list = arm_lists()
+    print("arm: EVAL_ARM=%s -> %d our-terms, %d detectors (%s partition)"
+          % (os.environ.get("EVAL_ARM", "0"), len(terms_list), len(dets_list),
+             "v2" if terms_list is V2_TERMS else "v1"))
     cols = (["fen", "game", "phase_score", "is_endgame", "status", "result_white", "our_total", "sf_static_cp"]
-            + TERMS + DETS + ["oppb"] + SF11_COLS)
+            + terms_list + dets_list + ["oppb"] + SF11_COLS)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     fresh = not (args.resume and os.path.exists(args.out))
     written = skipped = 0
@@ -237,10 +283,11 @@ def main():
                     sf_cols = [round(sf_total, 3)] + [
                         (round(sf_terms[lbl], 3) if lbl in sf_terms else "") for lbl in SF11_TERMS
                     ]
-                row = ([fen, game_id, bd["phase_score"], int(bd["is_endgame"]), status, result_white,
+                phase_col, endgame_col = phase_columns(bd)
+                row = ([fen, game_id, phase_col, endgame_col, status, result_white,
                         bd["total"], sf_cp]
-                       + [bd[t] for t in TERMS]
-                       + [bd[d] for d in DETS]
+                       + [bd.get(t, "") for t in terms_list]
+                       + [bd.get(d, "") for d in dets_list]
                        + [opposite_bishop_signal(board)]
                        + sf_cols)
                 w.writerow(row)

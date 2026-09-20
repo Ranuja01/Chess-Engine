@@ -2502,3 +2502,146 @@ worth +162 Elo, because nothing else ordered by piece freedom; central was worth
 ⚠️ UNVERIFIED and worth one check before treating as a gap: whether ANY reference carries a standalone king-mobility
 term, and whether v2 owns v1's `boost_pieces_for_supporting_passed_pawns` (pieces supporting a passer) -- `BEHIND_V2`
 is minor-behind-ANY-pawn in Weiss's form, which is a different concept.
+
+---
+
+## ★★★★ 2026-09-19 (night) — THE TERM TRIANGULATION: v2 vs SF11, ALL SUBSYSTEMS
+
+### ▶️ WHAT WAS BUILT
+`_v2_term_join.py` joins v2's per-term breakdown onto the **already-cached** `sf11_*` columns in
+`selfplay/tune_data/cond_corpus_v2.csv` (37,222 rows, 13 SF11 terms). ★ SF is arm-independent, so that half
+NEVER needs regenerating -- only our side was stale (it carried v1's partition). Prerequisite was the same
+day's publication change (14/45 -> 17/48 fields); before it, pawns/passers/placement were folded into `total`
+and three of SF's rows had no counterpart at all.
+
+### ★★★★ THE RESULT: OUR TERMS ARE NOT WRONG, THEY ARE NARROW
+Fire threshold 0.50 pawns, silence threshold 0.05, n = 37,221.
+
+| SF row | v2 counterpart | both | SFonly | **usonly** | neither | **sign+** | mean SF | mean us | Δwin% pp |
+|---|---|---|---|---|---|---|---|---|---|
+| Material | `material`+`pieces` | 18401 | 5567 | 5190 | 8063 | **98%** | 2.68 | 2.49 | 6.43 |
+| Mobility | `mobility` | 4128 | 227 | **5336** | 27530 | **100%** | 0.67 | 0.88 | 1.01 |
+| Pawns | `pawn_struct` | 223 | 2930 | 307 | 33761 | **100%** | 0.69 | 0.64 | 1.44 |
+| Passed | `v2_passers` | 2095 | 3722 | 378 | 31026 | **100%** | 1.58 | 0.92 | 1.09 |
+| Placement | `v2_placement`+`v2_rookfile` | 657 | 3842 | 965 | 31757 | **99%** | 0.73 | 0.69 | 1.72 |
+| ~~King safety~~ | `king_safety` | 1782 | 15797 | 262 | 19380 | 97% | 5.46 | 1.20 | 5.95 |
+| Imbalance / Threats / Space | PARKED | 0 | 4993 / 9580 / 239 | 0 | -- | -- | -- | 0 | 1.51 / **2.83** / 0.58 |
+
+★★ **SIGN AGREEMENT IS 97-100% EVERYWHERE.** When both fire we agree on direction essentially always.
+★★ **AND WHERE BOTH FIRE, THE MAGNITUDES MATCH**: pawns 0.69 vs 0.64, placement 0.73 vs 0.69. The gap is
+**COVERAGE, not magnitude** -- SF fires alone 2,930 times on pawns where we fire alone 307. Our pawn term is
+right whenever it speaks; it just rarely speaks.
+⇒ **v2 is systematically HIGH-PRECISION, LOW-RECALL across subsystems** -- the same property the KS work
+found independently ("96% correct when it fires, fires on ~29%"). It is a property of the whole eval.
+⇒ ☠️ **THE LEVER IS DETECTOR BREADTH, NOT TERM MAGNITUDE.** That matters because magnitude is exactly what
+has been attacked and failed: tuning KS toward SF's magnitude gave **+9.70% worst-case error**, and the
+aggregate-scale lane is a closed null. Those attempts were on the wrong axis.
+★ **Mobility is the exception and it is suggestive**: the ONE subsystem where we fire MORE than SF (5,336 vs
+227) is also our biggest Elo win (+162). n=1, but it is the only broad-coverage subsystem we own.
+
+### ★★ SIZING IT: EVERY HOLE IS BELOW THE RESOLUTION BAR
+The Δwin% column is a counterfactual at each position's own operating point: what would our win% be if THIS
+term matched SF's? Against the whole-eval prize (~7pp) and the cross-set resolution bar (~2-2.5pp):
+material 6.43 (⚠️ mostly DELIBERATE -- our piece values are non-standard by choice, and the record already
+says "Material un-diagnosable via SF11") · threats 2.83 · placement 1.72 · imbalance 1.51 · pawns 1.44 ·
+passed 1.09 · mobility 1.01 · space 0.58.
+⇒ **Apart from material, NO single term-level disagreement clears the bar.** Term-at-a-time is closed by
+arithmetic here exactly as it was for v1 ⇒ **the joint retune is the instrument**, not another single term.
+☠️ **THREATS IS THE CAUTIONARY ROW**: 2.83pp of static disagreement -- the largest genuine one, above the bar
+-- and when v2 actually BUILT threats it measured **MOVE-NULL**. Read this column as an UPPER BOUND ON
+DISAGREEMENT, never as expected gain; it assumes SF is right, which this project has falsified.
+⚠️ My own caveat: mean |Δwin%| is averaged over all positions including agreements, so it is a disagreement
+SIZE, not a targeting signal. Splitting by position class would distinguish "1.5pp spread harmlessly" from
+"1.5pp concentrated where games are decided".
+
+### ☠️ THE KING-SAFETY ROW IS NOT A VALID PAIR
+SF11 `evaluate.cpp:383-384` seeds the King safety row with `pe->king_safety<Us>(pos)` = **pawn shelter +
+enemy storm**, THEN adds kingDanger. v2's KS is **attack-units only**. SF is non-silent almost everywhere
+because shelter always evaluates; we are silent whenever there is no attack. The 78% "silence" is mostly
+DEFINITIONAL -- the same apples-to-oranges class as v1's `pt_pawns` vs SF `Passed`.
+★ The real observation is that **v2 carries no shelter/storm concept at all.**
+
+### ▶️ v1 vs v2 KING SAFETY, scored against the SAME SF11 column (shipped configs, 37,221 positions)
+| | v1 | v2 |
+|---|---|---|
+| sign agreement when both fire | 94% | **97%** |
+| fully silent where SF fires | 82.1% | **78.3%** |
+| mean ours when both fire | 1.95 | 1.20 |
+| Δwin% vs SF | **4.76** | 5.95 |
+
+⇒ **v2's KS is more accurate but narrower**: better direction, less often wholly silent, quieter when it
+speaks. ★ v1 looks "closer to SF" only because v1's unit-KS carries live `KS_SHIELD`/`KS_STORM` -- i.e. it
+contains some of the very shelter/storm content v2 dropped. ⚠️ Do NOT read that as v1 being better: v2's KS
+is worth +101 Elo in games, and Δwin% assumes SF is right.
+
+### ☠️ TWO DEFECTS FOUND AND FIXED WHILE DOING THIS
+1. **My first silence report counted a pair as silent if ANY member was absent**, so
+   `v2_placement + v2_rookfile` read 100% silent purely because rook files are gated off -- masking what
+   placement actually scores. Fixed to sum the PRESENT members (a gated-off term genuinely contributes 0).
+2. ☠️ **Appending the EB_V2_* bits broke v1's contract**: arm 0 sets `terms_valid = EB_ALL` wholesale, so v1
+   began ADVERTISING the three v2-only fields while never writing them -- a silent 0 presented as published,
+   the exact failure `terms_valid` exists to prevent. Fixed with an `EB_V2_ONLY` mask; v1 re-verified
+   byte-identical `250 / 35,310,778 / EBF 3.784`. ⇒ **any future v2-only bit must be masked out of EB_ALL.**
+
+---
+
+## ★★★ 2026-09-19 (night) — KS-B (SHELTER / STORM): NEVER BUILT, AND THE ONE UNIVERSAL CHANNEL WE LACK
+
+### ▶️ IT WAS DEFERRED, NOT REJECTED -- AND THE DEFERRAL LAPSED
+1. `EVAL-V2-RUNG1-KS-DESIGN.md:4` -- *"KS-B (shelter / pawn storm) is NOT in this rung -- it reads pawn
+   structure, which does not exist until rung 2. Splitting there is what allows KS to go first at all."*
+2. After rung-1 measurement: *"We under-read king danger vs SF11 in ~20% of positions... Diagnosed as a
+   MISSING-CHANNEL problem (shelter), not mis-tuning"*; *"the missing-channel half (shelter) still stands."*
+3. Owner ruling: *"shelter belongs in KS. Move to rung 2d."* Scheduled in `EVAL-V2-RUNG2-PAWN-DESIGN.md:168`
+   keyed on `pawnKey` + king square.
+4. **Rung 2 shipped as 2a/2b only. There is no 2d entry anywhere.** Never executed.
+
+☠️ **No document says shelter measured null.** It is NEVER-BUILT, not MEASURED-AND-REJECTED.
+★ Of SF's 8 extra KS components, 4 are SF-ONLY (unsafe checks, blockers-for-king, king flank, knight
+defender) and were correctly skipped under the >=3/5 rule. **Shelter is the one that passes it.**
+★★ The 12-attempt KS failure history does NOT bind here: those failed under the CHANNEL LAW (a 5th credit
+for facts already paid 4x). **v2 has ZERO shelter credits**, so the objection is v1-only by its own terms.
+
+### ★★ FOUR-ENGINE CONTRAST -- the CONCEPT is 4/4, the SHAPE is not
+| element | support | verdict |
+|---|---|---|
+| own-pawn shelter on king file +-1, mg-weighted, additive | **4/4** (SF11, SF15.1, Ethereal, Weiss) | ✅ CORE |
+| exclude shelter pawns attacked by enemy pawns | 3/4 | ✅ core |
+| storm with BLOCKED/UNBLOCKED split, blocked ~ 0 | 3/4, ⚠️ but all three share ONE predicate (`ourRank == theirRank-1`) => ~1.5 independent | ⚠️ weaker than it looks |
+| shelter -> danger feedback (`-6*mg/8` pre-square) | SF substantial, Ethereal nominal, Weiss NONE => 2/4 | ☠️ skip |
+| MAX over castling destinations | SF only | ☠️ skip |
+
+★★★ **WEISS DOES WELL WITH AN ALTERNATIVE -- it has NO storm term at all.** Instead: `KingLineDanger` =
+queen-attack squares from the king through own pieces AND all pawns. One occupancy predicate that subsumes
+"open file beside the king", "storm ripped the shelter", and "locked chain = closed = safe" -- no
+blocked/unblocked test needed. ⇒ the genuinely different shape, and the only one that handles the
+locked-chain case structurally.
+★ **Convergent across all three storm engines: A BLOCKED STORM PAWN IS NOT A STORM.** v1's storm has no
+blockage test at all (a locked chain in front of a castled king reads as an oncoming attack) -- a recorded
+defect never fixed.
+⚠️ v1's shelter is ALSO gated to `kingRank == 0`, so it does not fire for a king on rank 2+. "v1 has
+shelter" overstates it. And v1's `KS_SHELTER_MAG` sweep was never run (the 08-27 attempt was a silent
+no-op at defaults) => v1's shelter magnitude is UNREADABLE, not validated.
+
+### ⇒ THE BUILDABLE CORE (narrower than "port SF's shelter")
+Per-file, rank/distance-graded own-pawn shelter on the three king files, excluding pawns under enemy-pawn
+attack, mg-weighted, additive. **No castling MAX. No danger feedback.** Storm deferred pending an ownership
+call (below).
+
+### ☠️☠️ TWO THINGS TO SETTLE BEFORE ANY BUILD
+1. **OCCUPANCY CONFLICT -- would have been a double-count.** v2's OvD redesign is defined at
+   `eval_v2.cpp:57-60` as *"an oncoming pawn storm making castling to that side bad"*. **The storm half of
+   KS-B and OvD-v2 are the same concept.** Assign ONE owner before building either.
+2. **KS-A's CONSTANTS ABSORBED SHELTER'S ABSENCE.** *"SF prices proximity through shelter / flank /
+   blockers-for-king channels we do not have, so SF can afford a light adjacency weight. Ours carries that
+   load."* ⇒ adding shelter means **RE-DERIVING** the WEAK:ADJ ratio, not tuning on top
+   ([[a-correctness-fix-into-absorbed-tuning-is-not-free]]).
+
+★ **A STALE BLOCKER, CORRECTED:** `SESSION-HANDOFF-2026-09-09-B.md:72` says *"the eval never receives
+castling rights"*. v2 **does** -- it stores `castlingRights` and already reads them for trapped rook. That
+blocker no longer exists (though the castling MAX stays skipped on universality grounds anyway).
+
+### ▶️ AND THE REASON THIS IS THE RIGHT NEXT ITEM
+Today's triangulation says the lever is **COVERAGE, not magnitude**. Shelter is a pure coverage addition --
+a channel with ZERO current credits -- in the one subsystem whose disagreement clears the resolution bar.
+The two findings were reached independently and point at the same place.

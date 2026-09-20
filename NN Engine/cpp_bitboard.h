@@ -577,7 +577,14 @@ enum EvalBreakdownBit {
 	EB_V2_PASSERS, EB_V2_PLACEMENT, EB_V2_ROOKFILE,
 	EB_NUM_FIELDS
 };
-static constexpr uint64_t EB_ALL = ~0ULL;
+// ☠️ EB_ALL IS "EVERYTHING v1 WRITES", NOT "EVERY BIT". v1 sets this wholesale (cpp_bitboard.cpp:8784), so a
+// bit added for a v2-only term would be ADVERTISED BY v1 while v1 never writes the field -- a silent 0 read
+// as a published value, which is the exact failure terms_valid exists to prevent. Introduced and caught on
+// 2026-09-19 when the EB_V2_* fields were appended. ⇒ any future v2-only bit must be masked out here too.
+static constexpr uint64_t EB_V2_ONLY = (1ULL << EB_V2_PASSERS)
+                                     | (1ULL << EB_V2_PLACEMENT)
+                                     | (1ULL << EB_V2_ROOKFILE);
+static constexpr uint64_t EB_ALL = ~0ULL & ~EB_V2_ONLY;
 
 extern EvalBreakdown g_eval_breakdown;
 extern bool g_capture_eval_breakdown;

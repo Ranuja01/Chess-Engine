@@ -6,17 +6,34 @@ split the sets so one type doesn't contaminate another."* The record already agr
 
 ---
 
-## ☠️ THE OBJECTIVE QUESTION IS OPEN. DO NOT IMPROVISE IT.
-The record contains **TWO** answers, both recorded as settled, never reconciled:
+## ★★★★ THE OBJECTIVE — ANSWERED BY THE OWNER 2026-09-20: IT IS STAGED
+The record held two unreconciled proposals (d7 regret; pinned-scale corpus fit). ⇒ **Neither alone.**
 
-| | proposal | status |
+**Corpus:** *"an overwhelmingly large set of positions that are representative of all sorts of occurrences,
+balanced across all types of phases and situations."*
+
+| stage | objective | purpose |
 |---|---|---|
-| **A** | **d7 low-depth win%-regret vs SF18 multi-PV.** *"Static corpus is the cheap coarse region-finder BUT it's anti-correlated with Elo ⇒ do NOT fit constants on it; use it only to seed a sane region. D7 low-depth regret is the live instrument."* (08-11) | BUILT (`_regret_tune.py`, `_regret_tune_broad.py`), used for VALIDATION, **never used for a joint constant fit** |
-| **B** | **Corpus-shape fit with the GLOBAL SCALE PINNED** + per-subsystem scale constraints + acceptance by games (09-18 tuning-night conditions) | PROPOSED ONLY — no data generated, no fit run |
+| **1** | **ABSOLUTE** tuning | get to a reasonable point — keep the 09-18 constraints: **pin the global scale**, per-subsystem scale constraints, **acceptance by GAMES** |
+| **2** | **CRITICALITY** | high-impact scenarios, read on **live differentiating sets** per epoch |
+| **3** | **D7 REGRET** | *"to ensure move choice is actually improving"* |
 
-⇒ **Ask the owner which one tuning night uses.** ★ It does not block data collection: **both need SF18 d14
-labels on real-play positions**, and the record says *"generate the DATA early, run the FIT last — data is
-reusable, doubles as NNUE training data."*
+★★ **THE ARGUMENT IS THE SF15-vs-SF11 CASE.** SF15-classical has a WORSE static MSE vs SF18-search than
+SF11, yet is believed the stronger eval. ⇒ *"it's not just the absolute MSE, but also in how many critical
+positions it changes the values considerably, rather than how many it changes towards the correct answer in
+general."* ⇒ **a candidate with the same or WORSE MSE may still be better**, and a worse MSE must not
+auto-veto. That is exactly why MSE-only acceptance failed 5/5: it optimises the average position, and games
+are not decided there.
+
+☠️ **THE REAL BLOCKER IS A DEFINITION, NOT COMPUTE.** *"We'd want to define in eval what a critical scenario
+is."* Nothing in the record defines it; `n_crit` is 27/43 and §F already calls a criticality-enriched corpus
+the PREREQUISITE for any claim about deciding positions. **Stage 2 cannot start until "critical" is defined.**
+
+★ Owner explicitly opened this to research beyond chess: *"best ways to tune in scenarios like this … in
+data engineering in general where we have this sort of evaluation and search synergy … maybe even some RL
+type algorithm."* ★★ And: *"that optimization strategy may also be transferrable to search parameters when
+that time comes"* ⇒ **the tuning METHOD is a deliverable, not scaffolding.**
+→ [[the-tuning-objective-is-staged-and-criticality-weighted]]
 
 ---
 

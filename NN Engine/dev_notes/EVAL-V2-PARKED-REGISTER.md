@@ -36,6 +36,22 @@ silent permanent rejection.
 
 ---
 
+## ▶️ EXECUTION ORDER AGREED 2026-09-20 (the "parked items slice")
+Owner's framing: *a parked items slice before finishing things off* — precursor to corrhist, ending where
+the search lane begins. Ordered by **signal per hour**, which is NOT the same as the evidence ranking below:
+
+**1. Rook files** (zero code) → **2. `PROFILE_EVAL` on v2** (build flag) → **3. Tempo re-test** (one ladder)
+→ **4. `WeakUnopposed`** (small build) → **5. Material taper** (games) → **6. Shelter KS-B** (needs 2 calls)
+→ **7. Corrhist** (search-side; the transition item).
+
+☠️ **Three design calls were made the same day** — see `EVAL-V2-REBUILD-LOG.md` 2026-09-20:
+- **Tuning objective is STAGED** (absolute → criticality → d7 regret), judged on how much it moves CRITICAL
+  positions rather than average MSE. **Blocked on DEFINING "critical" in eval terms.**
+- **OvD: the CONCEPT gets a fair shot**, not the v1 implementation. ⚠️ Storm-ownership collision with KS-B
+  is still unresolved and blocks item 6.
+- **Corrhist is the bridge to search** — and its **attribution method must be built BEFORE** the search lane
+  opens, or improvements cannot be credited.
+
 ## ★★ RANKED SHORTLIST
 
 | # | item | why it ranks | what would be new |

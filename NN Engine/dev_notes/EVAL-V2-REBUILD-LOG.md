@@ -2645,3 +2645,90 @@ blocker no longer exists (though the castling MAX stays skipped on universality 
 Today's triangulation says the lever is **COVERAGE, not magnitude**. Shelter is a pure coverage addition --
 a channel with ZERO current credits -- in the one subsystem whose disagreement clears the resolution bar.
 The two findings were reached independently and point at the same place.
+
+---
+
+## ★★★★ 2026-09-20 — THE PARKED-ITEMS SLICE IS THE NEXT PHASE, AND THREE DESIGN CALLS WERE MADE
+
+Owner's framing: *"a parked items slice before finishing things off"* — a precursor to corrhist / history
+correction, and it **ends where the search lane begins**.
+
+### ▶️ THE SLICE, ordered by SIGNAL PER HOUR
+| # | item | cost | why it is here |
+|---|---|---|---|
+| 1 | **Rook files** `ROOKFILE_V2_OPEN/SEMI` | **zero code** | 5/5 universal · §I better on 6/6 corpora · closed on **STS ALONE with every point inside the ±150 floor** · never had a regret or games read · the recorded 2x2 pre-dates the mobility ship. **v2 scores literally nothing here** — confirmed empirically: 0 filled of 46,240 corpus rows |
+| 2 | **`PROFILE_EVAL` on v2** | build flag | never run on v2; converts the eval-share arithmetic below from inference into measurement |
+| 3 | **Tempo re-test** | one env ladder | its trigger (the margin re-sweep) FIRED on 09-18 and was never re-read. Low prior — close it for good or do not |
+| 4 | **`WeakUnopposed`** | small build | the only **4/4 unanimous** reference term we lack; inputs (`opposed[]`, `halfOpen[]`) already computed; dropped pre-build on an argument **SF contradicts by paying both** |
+| 5 | **Material taper** | games | largest §I effect in the whole rebuild, explicitly recorded UNDECIDED, never gamed. ⚠️ margins were just re-swept for a FLAT pawn, so a taper re-couples them |
+| 6 | **Shelter (KS-B)** | build + 2 calls | 4/4 universal, both blockers stale; needs the OvD ownership call and a KS-A WEAK:ADJ re-derivation |
+| 7 | **Corrhist** | search-side | the TRANSITION item — see below |
+
+### ★★★★ CALL 1 — THE TUNING OBJECTIVE IS **STAGED** (resolves the open fork)
+The record held two unreconciled answers (d7 regret vs a pinned-scale corpus fit). **Neither alone.**
+Corpus: *"an overwhelmingly large set of positions that are representative of all sorts of occurrences,
+balanced across all types of phases and situations."* Then:
+**(1) ABSOLUTE tuning → (2) CRITICALITY → (3) D7 REGRET** *"to ensure move choice is actually improving."*
+
+★★ **The argument is the SF15-vs-SF11 case.** SF15-classical has a WORSE static MSE against SF18-search than
+SF11 and is nonetheless believed the stronger eval ⇒ *"it's not just the absolute MSE, but also in how many
+critical positions it changes the values considerably, rather than how many it changes towards the correct
+answer in general."* ⇒ **a candidate with the same or WORSE MSE may still be better, and a worse MSE must
+not auto-veto.** That is precisely why MSE-only acceptance failed 5/5 — it optimises the average position,
+and games are not decided there.
+☠️ **THE BLOCKER IS A DEFINITION, NOT COMPUTE:** *"we'd want to define in eval what a critical scenario is."*
+Nothing in the record defines it; `n_crit` is 27/43 and §F already names a criticality-enriched corpus as
+the PREREQUISITE. Also wanted: **live differentiating sets** read per epoch beside the aggregate.
+★ Owner opened the METHOD to outside research — *"not just in chess, but in data engineering in general
+where we have this sort of evaluation and search synergy … maybe even some RL type algorithm"* — and noted
+it *"may also be transferrable to search parameters when that time comes."* ⇒ **the tuning method is a
+deliverable in its own right.** Keep the 09-18 conditions as constraints on stage 1 (pin the global scale,
+per-subsystem scale constraints, acceptance by GAMES).
+
+### ★★ CALL 2 — OvD: GIVE THE **CONCEPT** A FAIR SHOT, NOT THE IMPLEMENTATION
+☠️ **OvD is the owner's OWN invention**, credited with taking the engine *"from struggling with 1600 bots on
+chess.com to being competitive with 2000 bots."* It detects **pressure building relative to defence**, and
+its real purpose is **LONG-TERM / prophylactic pressure**, not immediate king danger.
+Why it degraded in v2, in the owner's own diagnosis: it reads the **heat map** (retired in v2) and the
+**king zone was prominent**, so *"it sort of became another bit of noise for KS"* — KS consumed the concept.
+⇒ ★ Wanted: *"take some ideas we had in v1, refine them, and maybe merge with winnability … so it becomes
+something new, but backed by other items."* Conditions: efficient for NPS, and *"genuinely offers good
+information that holistically brings us closer to SF18 search without collapsing genuine decision making."*
+*"I'm not married to the idea, but I'd like to give it a fair shot."*
+⚠️ It can never pass the >=3-of-5 universality rule (the giants have nothing like it) ⇒ judge on MEASUREMENT
+alone, under the slice-5 invented-term gate. ☠️ And the **storm-ownership collision with KS-B is still
+unresolved** — both are defined as the same concept.
+★ The winnability merge is the promising direction: winnability is also parked, also about long-term
+convertibility, and Ethereal's version has **no king inputs** — which is exactly what would de-duplicate OvD
+from KS.
+
+### ★★ CALL 3 — CORRHIST IS THE **BRIDGE**, AND IT NEEDS AN ATTRIBUTION METHOD FIRST
+Owner: it *"could be the end of eval after full tuning … it's sort of a transition item between search and
+eval. It helps the eval but the info is acquired from search."*
+☠️ **The warning to design for NOW:** *"if we do make search better, it might be harder to say whether
+things are improving because of corrhist or something specifically becoming better."* ⇒ **build the
+attribution method BEFORE the search lane opens**, not after — once both move, the credit is unrecoverable.
+★ Its v1 closure is weak anyway: STS-only, July harness, a masking q-cache, one coarse keying, and every
+search sweep ran at `EVAL_ARM=0`.
+
+### ★★★ AND THE ARITHMETIC THAT REFRAMES THE SPEED LANE
+Owner's recall: when v2 was a bare skeleton its NPS was only **~1.5x** the full engine's ⇒ v2's eval is
+**~33% of node cost** (`1/(1-0.33) ≈ 1.5`), independently reproducing "eval is a third of node cost".
+Combined with the 09-20 measurement (v2 is **41% faster per node** than v1), with v2 node cost = 1.0:
+
+| | eval | non-eval | total |
+|---|---|---|---|
+| v2 | 0.33 | 0.67 | 1.00 |
+| v1 | **~0.74** | 0.67 (shared search) | ~1.41 |
+
+⇒ v1's eval is **~2.2x v2's** and ~53% of v1's node cost — consistent with v1 carrying capgains, latent
+threat, the heat map and OvD.
+★★ **ZEROING v2's EVAL ENTIRELY BUYS ~1.5x AGAINST A 5.6x NPS GAP TO SF11 ⇒ ~3.7x IS SEARCH / MOVEGEN /
+CACHING.** The owner has said this repeatedly; the arithmetic now supports it. ⚠️ And NPS is only one axis —
+the 9.48x node-efficiency gap compounds with it. ⇒ ☠️ **never justify an eval change on NPS grounds.**
+⚠️ The 0.33 rests on a remembered figure ⇒ item 2 of the slice.
+
+### 📚 CONTEXT ADDED
+The owner's own article on building the engine (~2024, pre-C++, Cython era — `ChessAI.pyx` is a remnant of
+it) is now recorded as [[owners-engine-origin-article]], offered as context for *why* v1 carries the
+inventions it does. ⇒ read it before judging or retiring a v1-original term.

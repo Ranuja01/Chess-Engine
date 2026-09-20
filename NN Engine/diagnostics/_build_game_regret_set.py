@@ -40,11 +40,20 @@ if not os.path.isabs(OUT):
 GAMES = os.path.join(ENGINE, "selfplay", "games")
 
 # Exclude: move-match validation FENs + existing corpus tune/regret sets (keep everything disjoint).
+# ☠️ THE REGRET-SET ENTRY IS A GLOB, NOT ONE FILENAME (fixed 2026-09-20). It used to name
+# `game_regret_set.csv` alone, so a SECOND set built to any other name silently OVERLAPPED the first --
+# which destroys the disjointness that cross-set replication depends on, and the overlap would be invisible
+# in both files. Globbing means every set built this way is automatically disjoint from every other, so
+# rolling corpora are safe by construction.
+# ⚠️ OUT itself is skipped: its own rows are handled by `done` below (resume / top-up), and excluding them
+# here would make it impossible to grow an existing set from N=8000 to N=12000.
 exclude = set()
-for rel, col in (("_mp_target.csv", "fen_start"), ("_mp_holdout.csv", "fen_start"),
-                 ("ks_sets/lowdepth_tuneset.csv", "fen"), ("ks_sets/regret_set.csv", "fen"),
-                 ("ks_sets/game_regret_set.csv", "fen")):   # keep a v2 set DISJOINT from the standing 15k
-    p = os.path.join(THIS, rel)
+_srcs = [(os.path.join(THIS, rel), col) for rel, col in
+         (("_mp_target.csv", "fen_start"), ("_mp_holdout.csv", "fen_start"),
+          ("ks_sets/lowdepth_tuneset.csv", "fen"), ("ks_sets/regret_set.csv", "fen"))]
+_srcs += [(p, "fen") for p in sorted(glob.glob(os.path.join(THIS, "ks_sets", "game_regret_set*.csv")))
+          if os.path.abspath(p) != os.path.abspath(OUT)]
+for p, col in _srcs:
     if os.path.exists(p):
         try:
             for r in csv.DictReader(open(p, newline="")):
@@ -53,6 +62,7 @@ for rel, col in (("_mp_target.csv", "fen_start"), ("_mp_holdout.csv", "fen_start
                     exclude.add(f)
         except Exception:
             pass
+print("  exclusion pool: %d FENs from %d sets" % (len(exclude), len(_srcs)), flush=True)
 
 
 def phase_of(board):

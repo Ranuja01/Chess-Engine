@@ -88,6 +88,29 @@ SF11 per-term columns (`sf11_*`), Lichess tablebase labels (`tablebase_labels_dr
    v2 `v2_phase256` (256 = opening, 0 = endgame) are **opposite and half-scaled** — aliasing them inverts
    every phase-conditioned reading and looks entirely plausible.
 
+## ☠️☠️ SAMPLING PROVENANCE — TWO GAME LAYOUTS, AND THE SAMPLER ONLY SEES ONE (found 2026-09-20)
+`selfplay/games/` contains **two directory shapes**:
+
+| layout | path | matched by `_build_game_regret_set.py`'s default `GAMES_GLOB='*/*.jsonl'` |
+|---|---|---|
+| **flat** (older tags) | `games/<tag>/game_000.jsonl` | ✅ yes |
+| **nested** (newer tags) | `games/<tag>/game_000/game.jsonl` | ☠️ **NO** |
+
+★★ Every **v2-era** tag — the showdowns, `margin_ab_rfp1000`, the slice-2/3 runs — uses the NESTED layout,
+so it has **never been in the regret sampler's pool**. The standing regret sets were therefore drawn
+entirely from flat-layout games ⇒ **the tuning distribution is skewed toward PRE-v2 play.**
+⇒ Use `GAMES_GLOB='*/*/game.jsonl'` to reach them. ⚠️ Any claim about the regret set being "the natural
+distribution the engine faces" must say WHICH engine — as built, it is v1-era's.
+
+### ⚠️ AND THE SAMPLER IS DETERMINISTIC — RE-RUNNING YIELDS NOTHING
+`stride_f = max(1, len(files) // 2500); sel_files = files[::stride_f]` spreads over ~2,500 games by taking
+every N-th file. The selection is **identical across runs**, so a second build with the same glob samples
+the SAME files, and after exclusion returns **0 positions** — which looks like "the pool is exhausted" and
+is not. The levers are `GAMES_GLOB` (different tags ⇒ smaller list ⇒ `stride_f` drops to 1 ⇒ every file
+selected) and `SHARD=i/n` (disjoint partitions of one selection, for parallel labelling).
+★ Guard added the same day: the exclusion list now GLOBS `ks_sets/game_regret_set*.csv` instead of naming
+one file, so sets built this way are disjoint by construction and the pool size is printed.
+
 ## ON AUGMENTATION
 Mirrors/flips are **exact symmetries of the target**, so they *"add no INFORMATION to a fit — they only
 impose constraints"*, and `val/train = 0.988` says regularisation was never the bottleneck

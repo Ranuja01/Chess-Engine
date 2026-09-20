@@ -2746,9 +2746,56 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			                              | (1ULL << EB_DET_W_MOBILITY)
 			                              | (1ULL << EB_DET_B_MOBILITY);
 		}
-		// Rook files are deliberately NOT published yet: the only candidate field, rook_cond, is v1's
-		// tension-conditioned rescale, and reusing it would be a field read against its writer's intent.
-		// It is still inside `total`, which is what every gate reads.
+		// ── TERM PUBLICATION for the ours-vs-SF11/SF15 triangulation (added 2026-09-19) ──────────────
+		// ★ BYTE-IDENTICAL BY CONSTRUCTION: this whole block is inside `g_capture_eval_breakdown`, which is
+		// false during search, so publishing costs play exactly nothing. That is what makes it safe to emit
+		// the full partition here rather than the 14 fields v2 published before.
+		// ★ WHY IT WAS NEEDED: of the subsystems we want to compare against SF's trace rows, only material,
+		// king safety and mobility were visible. Pawn structure, passers, placement and rook files were all
+		// folded into `total` with no way to read them out, so three of SF's rows had no counterpart to
+		// compare against -- not because v2 lacks the terms, but because it never surfaced them.
+		// ☠️ Each field is published ONLY when its owner actually ran, so an ABSENT key means "never
+		// computed" rather than "computed and zero". That distinction is the entire contract of
+		// terms_valid, and collapsing it is how a consumer ends up reporting "no gap" for a term that was
+		// simply switched off.
+		// ⚠️ Rook files now publish to the NEW `v2_rookfile`, never to v1's `rook_cond` -- that field is a
+		// tension-conditioned rescale and writing a file bonus into it would be a read against its
+		// writer's intent.
+		if (Config::PS_V2_MAG != 0){
+			g_eval_breakdown.pawn_struct = ps_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_PAWN_STRUCT);
+		}
+		if (Config::PASSER_V2_MAG != 0){
+			g_eval_breakdown.v2_passers = pp_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_PASSERS);
+		}
+		if (pl_on){
+			g_eval_breakdown.v2_placement = pl_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_PLACEMENT);
+		}
+		if (rf_on){
+			g_eval_breakdown.v2_rookfile = rf_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_ROOKFILE);
+		}
+		// The four parked slice-3 concepts. They publish only when their knob is non-zero, i.e. never in the
+		// shipped config -- so a triangulation run sees them ABSENT, not zero, and cannot mistake a term we
+		// deliberately do not carry for a term that measured zero.
+		if (space_on){
+			g_eval_breakdown.space = sp_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_SPACE);
+		}
+		if (threats_on){
+			g_eval_breakdown.threats = th_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_THREATS);
+		}
+		if (Config::BPAIR_V2_MAG > 0){
+			g_eval_breakdown.pair_bonus = bp_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_PAIR_BONUS);
+		}
+		if (Config::KAUF_V2_MAG > 0){
+			g_eval_breakdown.kaufman_imbalance = kauf_mp_v;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_KAUFMAN_IMBALANCE);
+		}
 	}
 
 	return total;

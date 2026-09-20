@@ -4,7 +4,67 @@ Map of OUR static eval (`cpp_bitboard.cpp::placement_and_piece_eval`, Black-posi
 doc — update as the eval evolves.** Companion: [[sf11_eval_reference.md]] (SF11's algorithms). Sign convention: eval is
 Black-positive, so a WHITE advantage is NEGATIVE; White contributions subtract from `total`, Black add.
 
-## Per-term breakdown (`EvalBreakdown` / `ChessAI.ev_breakdown`)
+---
+
+# ▶️▶️ EVAL v2 (ARM 1) — TERM MAP vs SF11 / SF15.1-classical  ★ added 2026-09-19
+
+☠️ **THE TABLE FURTHER DOWN IS v1's (`EVAL_ARM=0`). DO NOT APPLY IT TO v2.** Several fields carry a
+*different quantity* per arm, which is this project's most-repeated failure (4 recorded instances).
+
+**Units:** ours is Black-positive millipawns; SF's trace is White-POV pawns ⇒ `white_pawns = -v / 1000`.
+
+| SF trace row | v2 field(s) | quality of the correspondence |
+|---|---|---|
+| **Material** | `material` **+** `pieces` | ✅ **EXACT.** SF folds PSQT into Material; v2 splits them (`material` = piece values, `pieces` = PST only), so the SUM is the right comparand — never `material` alone |
+| **Mobility** | `mobility` | ✅ **cleanest single pair** (the record's own recommendation for where to start) |
+| **King safety** | `king_safety` | ✅ (+ `det_ks_units_w/b` for the detector/transformation split) |
+| **Pawns** | `pawn_struct` | ✅ isolated/doubled/backward/phalanx/supported… |
+| **Passed** | `v2_passers` | ✅ the WHOLE passer value |
+| **Knights / Bishops / Rooks / Queens** | `v2_placement` (+ `v2_rookfile`) | ⚠️ **AGGREGATE vs SF's FOUR rows.** Compare sum-to-sum only; there is no per-piece split on our side |
+| **Imbalance** | `kaufman_imbalance`, `pair_bonus` | ☠️ **PARKED** — absent by default |
+| **Threats** | `threats` | ☠️ **PARKED** — absent by default |
+| **Space** | `space` | ☠️ **PARKED** — absent by default |
+| **Winnable** / Initiative | — | ☠️ **not rebuilt** (3 structural faults). ⚠️ Also never parsed by ANY tool we own — no `sf11_winnable` column exists |
+| **Total** | `total` | ✅ |
+
+### ☠️ TRAPS — every one of these has already cost the project something
+1. **`imbalance_white/black` MEAN DIFFERENT THINGS PER ARM.** v1 = **OvD** (offensive-vs-defensive, no SF
+   analogue). v2 = **signed per-side holdings** `-(w_mat + w_pst)` / `(b_mat + b_pst)`, an exact partition of
+   `total`. Reading v1's mapping here would be a textbook wrong-field read.
+2. **`det_w/b_mobility` is arm-dependent too** — v2 = area-filtered squares summed over N/B/R/Q; v1 = squares
+   attacked that are not its own.
+3. ★ **v2 FIXED v1's material-inclusion defect.** v1's `pieces`/`pt_*` bundled each piece's VALUE with its
+   placement, so pairing them against SF's placement-only rows made us look 3-5 pawns over-read whenever we
+   were simply ahead on material — **two headline patterns were withdrawn over this (2026-08-02), and a
+   "placement is 8-16× SF11" claim over the same (09-06)**. v2's `pieces` is PST-only, so the pairing above
+   is sound. ⚠️ `dossier_overread.py` and `overread_term_attribution.py` still contain the v1 defect.
+4. **ABSENT ≠ ZERO.** Every v2 field publishes only when its owner actually ran. A parked term is missing
+   from `ev_breakdown`, not zero — so a consumer using `.get(key, 0)` silently converts "we don't carry this"
+   into "we measured zero here".
+5. **`v2_rookfile` is absent in the shipped config** — `ROOKFILE_V2_OPEN`/`SEMI` are both 0, so v2 currently
+   scores **no rook-on-open-file bonus at all**, while SF scores it inside its Rooks row. That is a genuine
+   gap to note, not a publication bug.
+6. **The SF parsers keep the MG column only** (`eval_vs_sf11.py:82` discards EG), so nothing in our cached
+   corpora can answer an MG-vs-EG question even for SF.
+
+### ⚠️ BEFORE READING ANY GAP AS A FINDING
+- **Imbalance / Threats / Space / Winnable will show as MISSING.** All four were *measured and parked* — they
+  are pre-answered, not discoveries. → `EVAL-V2-REBUILD-LOG.md` slice-3 closure.
+- **The aggregate mean-gap form of this comparison is a CLOSED NULL** (2026-08-19: `capture_gains` −0.08 in
+  collapses *and* −0.08 in the quiet control ⇒ "the eval-calibration-by-aggregate lane is CLOSED"), and
+  tuning a term toward SF's magnitude is a resolved NEGATIVE (KS, 09-11: best fit, **+9.70% worst-case
+  error**). ★ The ONE triangulation result that converted to Elo (+45, threats) came from a **silence** —
+  "we read ~0 where SF reads large on a class that matters" — not from a mean. **Look for zeros, not gaps.**
+
+### Publication status (2026-09-19)
+v2 publishes **17 of 48** breakdown fields under the shipped config (was 14/45). Added this session:
+`pawn_struct`, `v2_passers`, `v2_placement`, `v2_rookfile`, plus the four parked terms when enabled.
+★ Publication is inside `if (g_capture_eval_breakdown)`, which is false during search ⇒ **byte-identical**:
+re-verified v2 `250 / 49,440,513 / EBF 4.031` and v1 `250 / 35,310,778 / EBF 3.784`, both exact.
+
+---
+
+## Per-term breakdown (`EvalBreakdown` / `ChessAI.ev_breakdown`) — ⚠️ **v1 / `EVAL_ARM=0` ONLY**
 
 | our term | what it computes | anchor (cpp_bitboard.cpp) | status | SF11 correspondence |
 |---|---|---|---|---|

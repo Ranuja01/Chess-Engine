@@ -542,6 +542,12 @@ struct EvalBreakdown {
 	// anything that reads this struct positionally through Cython.
 	int arm;              // Config::EVAL_ARM that produced this: 0 = v1, 1 = v2, 2 = shadow (value is v1's)
 	uint64_t terms_valid; // bit EB_* set = that field was genuinely published. Arm 0 sets EB_ALL.
+	// ── v2-only terms, appended 2026-09-19. ☠️ THE ORDER HERE MUST STAY IDENTICAL TO ChessAI.pyx's
+	// `cdef struct EvalBreakdown`, which reads this struct positionally.
+	int v2_passers;    // eval_v2 passer_value_mp -- the WHOLE passer value (cf. v1's support-only field)
+	int v2_placement;  // eval_v2 placement bundle E summed: outpost + reachable outpost + minor behind
+	                   // pawn + bad bishop + long diagonal + trapped rook + weak queen + latent pressure
+	int v2_rookfile;   // eval_v2 rookfile_mp -- open / semi-open file bonuses (NOT v1's rook_cond rescale)
 };
 
 // Bit index per EvalBreakdown field, in the SAME ORDER as ChessAI.ev_breakdown builds its dict.
@@ -561,6 +567,14 @@ enum EvalBreakdownBit {
 	EB_PT_KINGS, EB_AE_INPUT, EB_AE_MATEDRIVE, EB_AE_PASSER, EB_DET_W_OFFENSE, EB_DET_B_OFFENSE,
 	EB_DET_W_DEFENSE, EB_DET_B_DEFENSE, EB_DET_W_PIECEVAL, EB_DET_B_PIECEVAL, EB_DET_CENTRAL,
 	EB_DET_PAWN_COUNT, EB_DET_KS_UNITS_W, EB_DET_KS_UNITS_B, EB_DET_W_MOBILITY, EB_DET_B_MOBILITY,
+	// ── v2-ONLY terms, appended 2026-09-19 for the ours-vs-SF11/SF15 term triangulation ──────────────
+	// ☠️ NEW BITS rather than reusing v1 fields, deliberately. v1's `passed_pawn_support` is a SUPPORT
+	// term while v2's is the WHOLE passer value; v1's `rook_cond` is a tension-conditioned rescale, not a
+	// rook-file score. Overloading either would make every v1-era tool silently MISREAD v2 -- the
+	// arm-dependent-field trap that has already bitten this project four times (`det_*_mobility` and
+	// `imbalance_white/black` each mean something different per arm). An ABSENT key is safe; a WRONG one
+	// is not, and the whole point of terms_valid is that absence is detectable.
+	EB_V2_PASSERS, EB_V2_PLACEMENT, EB_V2_ROOKFILE,
 	EB_NUM_FIELDS
 };
 static constexpr uint64_t EB_ALL = ~0ULL;

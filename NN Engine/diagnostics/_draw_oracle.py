@@ -176,6 +176,31 @@ SIGS = {
     "B_vs_P":          ([chess.BISHOP], [chess.PAWN]),
     "N_vs_P_maybe":    ([chess.KNIGHT], [chess.PAWN]),
     # 2026-09-13 candidates for v2, adopted from the references and checked here before any C++:
+    # 2026-09-19, slice-4 tier-2b WIN-PRESERVATION suite (EMIT_EPD): one pawn UPSTREAM of the pawnless
+    # class. K+R+P vs K+minor is normally WON; lose the pawn and it collapses into the ~74%-drawn ending
+    # that v2 still scores at ~+1.5 pawns -- so the base arm has no incentive to keep the pawn.
+    "RP_vs_minor":     ([chess.ROOK, chess.PAWN], [chess.BISHOP]),
+    "RP_vs_minor_N":   ([chess.ROOK, chess.PAWN], [chess.KNIGHT]),
+    # ☠️ THE TWO ABOVE MEASURED NOTHING -- 24/24 for BOTH arms at depths 2/4/6/10 (2026-09-19). The
+    # mechanism was wrong: dropping your own pawn is a 1000 mp swing that BOTH arms price identically, so
+    # the over-read never changes the ranking. It can only flip a choice when it is reachable by a
+    # MATERIAL-GAINING move, so the gain and the misvaluation COMPOUND. Hence these: the defender's pawn
+    # is en prise, RxP looks free, and it liquidates into the ~74%-drawn pawnless ending that arm A reads
+    # at ~+1550 and arm B at ~+130. Arm A should take and throw the win; arm B should decline.
+    "R_vs_minorP":     ([chess.ROOK], [chess.BISHOP, chess.PAWN]),
+    "R_vs_minorP_N":   ([chess.ROOK], [chess.KNIGHT, chess.PAWN]),
+    # ── 2026-09-19: the HEADROOM SCREEN. Six concepts in a row died move-null, every one built BEFORE it
+    # was screened. These exist to ask the prior question across the endgame-conversion family at once:
+    # WHERE DOES THE BASE ENGINE ACTUALLY THROW A TABLEBASE WIN? A class where it is already perfect has no
+    # headroom for ANY eval term, so no term aimed there can pay -- which is precisely what retired tier-2b
+    # (33/33 on its own target class). ★ Screen first, build second.
+    "RP_vs_R":         ([chess.ROOK, chess.PAWN], [chess.ROOK]),        # the commonest real ending
+    "Q_vs_R":          ([chess.QUEEN], [chess.ROOK]),
+    "QP_vs_Q":         ([chess.QUEEN, chess.PAWN], [chess.QUEEN]),
+    "BP_vs_B":         ([chess.BISHOP, chess.PAWN], [chess.BISHOP]),
+    "NP_vs_N":         ([chess.KNIGHT, chess.PAWN], [chess.KNIGHT]),
+    "PP_vs_P":         ([chess.PAWN, chess.PAWN], [chess.PAWN]),
+    "RPP_vs_R":        ([chess.ROOK, chess.PAWN, chess.PAWN], [chess.ROOK]),
     "KBvKN":           ([chess.BISHOP], [chess.KNIGHT]),          # Weiss draws it; v2 misses it
     "KNNvK":           ([chess.KNIGHT, chess.KNIGHT], []),        # every reference draws it (SF named Endgame<KNNK> = VALUE_DRAW; Weiss)
     "sf_wrongB":       ([chess.BISHOP, chess.PAWN], []),          # SF KBPsK fortress form, not v1's race
@@ -349,6 +374,132 @@ def tb_lookup(fen):
     return None, None
 
 
+def tb_moves(fen):
+    """Return {uci: category} for EVERY legal move, already flipped to the MOVER'S perspective.
+
+    ☠️ SIGN TRAP -- verified empirically before this was written (2026-09-19). The API reports each move's
+    `category` from the point of view of whoever is to move AFTER it, i.e. our OPPONENT. A move that KEEPS
+    OUR WIN therefore comes back as "loss". Confirmed on `8/8/8/8/1k6/8/P1K5/R7 w` (position "win", all 15
+    winning moves listed as "loss"). This inverts ONCE, here, so no caller has to remember it -- the same
+    discipline that stopped `imbalance_white/black` from looking like the biggest defect in the symmetry gate.
+    ⚠️ The existing cache CANNOT supply these: `tb_lookup` stored only {c, m} and discarded `moves[]`, so a
+    position labelled before today still needs one query to acquire them. Cached under a separate key.
+    """
+    FLIP = {"win": "loss", "loss": "win", "cursed-win": "blessed-loss", "blessed-loss": "cursed-win"}
+    hit = _cache.get(fen)
+    if isinstance(hit, dict) and isinstance(hit.get("mv"), dict):
+        return hit["mv"]
+    url = API + fen.replace(" ", "_")
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=20) as r:
+                data = json.load(r)
+            mv = {}
+            for m in data.get("moves", []):
+                c = m.get("category")
+                mv[m.get("uci")] = FLIP.get(c, c)          # -> OUR perspective
+            ent = hit if isinstance(hit, dict) else {}
+            ent.update({"c": data.get("category"),
+                        "m": abs(data["dtm"]) if isinstance(data.get("dtm"), int) else ent.get("m"),
+                        "mv": mv})
+            _cache[fen] = ent
+            _net[0] += 1
+            time.sleep(DELAY)
+            return mv
+        except urllib.error.HTTPError as e:
+            if e.code == 400:
+                _cache[fen] = {"c": "bad-fen", "m": None, "mv": {}}
+                return {}
+            time.sleep(1.0 + attempt)
+        except Exception:
+            time.sleep(1.0 + attempt)
+    return {}
+
+
+def emit_epd(out, cases, per_case):
+    """★★ Build a WIN-PRESERVATION suite: tablebase-won positions where the engine CAN still go wrong.
+
+    WHY (2026-09-19). Tier-2b's defect is an OVER-READ: v2 scores pawnless K+R vs K+minor at ~+1.5 pawns
+    when it is ~74% drawn, so the strong side is INDIFFERENT to losing its last pawn -- dropping it barely
+    changes the score. Seed K+R+P vs K+minor, ask each arm for a move at fixed depth, and let the tablebase
+    say whether that move still holds the win.
+    ★ Emitted as a WAC-style EPD because `tactical_test.py`'s `load_epd` already parses `bm` as a SET and
+    scores `solved = chosen in set` -- which IS "did the move preserve the win?". No new scoring code.
+    ☠️ NON-VACUITY FILTER, and it is the whole reason this is not a free pass: a position where EVERY legal
+    move preserves the win cannot be failed. The very first position sampled while building this had 15/15
+    winning moves. Only positions with at least one WIN-PRESERVING and one WIN-THROWING move are emitted.
+    ★ The suite also carries its OWN NULL: `c0` records preserving/total per position, so the expected score
+    of a RANDOM legal mover is computable. Compare arms against that, not against 0.
+
+      pyrun diagnostics/_draw_oracle.py EMIT_EPD=suites/t2b_winpres.epd CASES=RP_vs_minor,RP_vs_minor_N N=60
+    """
+    if not os.path.isabs(out):
+        out = os.path.join(THIS, out)
+    rng = random.Random(SEED)
+    wanted = [c for c in (cases.split(",") if cases != "all" else sorted(SIGS)) if c in SIGS]
+    lines, stats = [], {"gen": 0, "not_win": 0, "unspoilable": 0, "kept": 0}
+    frac = []
+    for signame in wanted:
+        wp, bp = SIGS[signame]
+        kept = tries = 0
+        while kept < per_case and tries < per_case * 120:
+            tries += 1
+            strong_white = (tries % 2 == 0)
+            bd = random_position(wp, bp, rng) if strong_white else random_position(bp, wp, rng)
+            if bd is None:
+                continue
+            # The STRONG side must be to move: it is the one that can throw the win.
+            bd.turn = chess.WHITE if strong_white else chess.BLACK
+            if not bd.is_valid() or bd.is_game_over():
+                continue
+            stats["gen"] += 1
+            # ⚠️ tb_moves FIRST, not tb_lookup: one API response carries the position category AND every
+            # move's, so asking tb_lookup first would pay two queries for the same FEN. The category is
+            # read back out of the cache entry tb_moves just wrote.
+            mv = tb_moves(bd.fen())
+            if not mv:
+                continue
+            if (_cache.get(bd.fen()) or {}).get("c") != "win":
+                stats["not_win"] += 1
+                continue
+            keep = [u for u, c in mv.items() if c == "win"]
+            drop = [u for u, c in mv.items() if c != "win"]
+            if not keep or not drop:
+                stats["unspoilable"] += 1
+                continue
+            moves = []
+            for u in keep:
+                try:
+                    moves.append(chess.Move.from_uci(u))
+                except Exception:
+                    pass
+            if not moves:
+                continue
+            stats["kept"] += 1
+            kept += 1
+            frac.append(len(keep) / float(len(mv)))
+            # ☠️ EPD IS NOT FEN -- it has FOUR fields and no move counters. Hand-formatting with
+            # board.fen() made `set_epd` try to read the halfmove counter "0" as an opcode, every line
+            # was rejected, and the suite loaded as ZERO positions -- which surfaced as a perfectly
+            # plausible "Solved 0/0" rather than an error (2026-09-19). Let python-chess format it.
+            lines.append(bd.epd(bm=moves, id="t2b_wp.%s.%03d" % (signame, kept),
+                                c0="%d/%d" % (len(keep), len(mv))))
+    with open(out, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+    print("wrote %s\n  %d positions from %d generated" % (out, len(lines), stats["gen"]))
+    print("  rejected: %d not a TB win, %d unspoilable (every legal move keeps the win)"
+          % (stats["not_win"], stats["unspoilable"]))
+    if frac:
+        frac.sort()
+        rand = sum(frac) / len(frac)
+        print("  ★ RANDOM-MOVER NULL = %.1f%% (mean winning-move fraction; median %.1f%%, easiest %.1f%%,"
+              " hardest %.1f%%)" % (100 * rand, 100 * frac[len(frac) // 2], 100 * frac[-1], 100 * frac[0]))
+        print("    ⇒ an arm scoring near that is choosing no better than chance; read BOTH arms against it.")
+    print("\n(%d new tablebase queries; cache: %s)" % (_net[0], CACHE))
+    save_cache()
+    return 0
+
+
 def save_cache():
     try:
         json.dump(_cache, open(CACHE, "w"))
@@ -491,6 +642,10 @@ def mat_sig_of(signame):
 
 
 def main():
+    emit_ep = os.environ.get("EMIT_EPD", "")
+    if emit_ep:
+        return emit_epd(emit_ep, CASES, N)
+
     emit = os.environ.get("EMIT", "")
     if emit:
         return emit_corpus(emit, CASES, N)

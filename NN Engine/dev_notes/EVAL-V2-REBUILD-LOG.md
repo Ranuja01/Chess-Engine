@@ -2212,6 +2212,233 @@ stored as `{"c": "win", "m": None}` could NEVER acquire a DTM -- every one of th
 why the question looked unanswerable. The legacy-STRING branch already self-healed; the legacy-DICT case did not.
 Decisive-without-DTM now falls through and re-queries once. Cost to settle the whole question: **33 queries.**
 
+---
+
+## 2026-09-19 (later) — THE FIRST MOVE-LEVEL READ ON TIER-2B: A NULL, WITH ZERO HEADROOM
+> ⚠️ **READ THE n=200 VERDICT AT THE END OF THIS ENTRY FIRST.** The n=40 pilot sections below reported a
+> NEGATIVE and then a "sweet spot"; **both were noise** and are kept only as a record of how the reading
+> moved. The powered result is: no significant difference at any magnitude, and the base arm makes ZERO
+> errors on the decision class the term exists to fix.
+
+### ☠️ CORRECTION TO A NUMBER QUOTED ALL DAY: THE OVER-READ IS +2.1 PAWNS, NOT +1.55
+Measured directly (`ev_breakdown` over the tablebase-labelled cache, 0 new queries), strong side's perspective:
+
+| class | n | won % | eval WON | eval DRAWN | **AUC of our eval as a won/drawn classifier** |
+|---|---|---|---|---|---|
+| K+R vs K+minor (pawnless) | 124 | 26.6% | +2122 | **+2128** | **0.482** |
+| K+R vs K+minor **+ P** | 166 | 24.1% | +847 | +645 | 0.583 |
+
+Material accounts for 1550-1750; positional terms add ~400-570 on top. ⇒ quote **+2.1 pawns**.
+★★ **Our eval carries ZERO information inside the pawnless class (AUC 0.482).** ⇒ tier-2b's push-to-edge
+gradient (AUC 0.663/0.721) is **strictly more informative than what we ship**. The term's SHAPE is good.
+☠️ **But the wider family is over-read too** (+645 mp on drawn K+R vs K+minor+P), which is what makes a
+narrow fix structurally unsafe -- see the cliff below.
+
+### ☠️☠️ THE CLIFF -- why damping only the pawnless corner moves the WRONG moves
+A DRAWN position reads **+645** with the defender's pawn on the board and **+2128** once it is captured. So
+capturing the last pawn RAISES our eval by ~1,480 mp in a position that was dead drawn either way. Tier-2b
+at `MAG=100` damps only the far side of that step, turning a +1,480 incentive into roughly a −300 penalty.
+⇒ **The boundary is discontinuous in BOTH arms.** A magnitude cannot remove a step; only a consistent
+treatment of the whole family can. ★ Same shape as [[phase-is-a-3-way-boolean-and-everything-cliffs-at-one-material-step]].
+⚠️ SF has the same structure (`Endgame<KRKB>` pawnless, ordinary eval one pawn earlier) and tolerates it on
+search strength we do not have -- the recurring lesson about porting a reference term without its machinery.
+
+### ▶️ THE INSTRUMENT (new, and it is not games)
+`_draw_oracle.py EMIT_EPD=` builds a **WIN-PRESERVATION suite**: tablebase-WON positions, strong side to
+move, emitted as a WAC-style EPD whose `bm` is the SET of win-preserving moves. ★ `tactical_test.py`'s
+`load_epd` already parses `bm` as a set and scores `solved = chosen ∈ set` -- which IS "did the move keep the
+win?", so **no new scoring code**; run it through `wac_suite <epd> <tag> KNOB=V`, twice. Fixed depth ⇒
+deterministic ⇒ **valid while the machine is in use**.
+☠️ NON-VACUITY IS BUILT IN: a position where EVERY legal move preserves the win cannot be failed. The very
+first position sampled had 15/15 winning moves. Only positions with at least one preserving AND one throwing
+move are emitted. ★ The suite also carries its OWN NULL: `c0` records preserving/total, so the expected score
+of a RANDOM legal mover is computable -- read both arms against THAT, not against zero.
+
+### ☠️ DESIGN 1 -- "don't drop your own pawn" (K+R+P vs K+minor): MEASURED NOTHING
+24 positions, random-mover null 67.3%. **24/24 for BOTH arms at depths 10, 4; 23/24 both at 6 and 2.** Not a
+power problem -- a MECHANISM problem, and my hypothesis was simply wrong. I claimed the over-read makes the
+strong side indifferent to its own pawn. It does not: dropping the pawn is a 1000 mp swing that BOTH arms
+price identically. The over-read changes the DESTINATION's value, not the RELATIVE COST of reaching it.
+★ At depth 2 the eval is nearly the whole signal and the arms STILL agree ⇒ structural, not a depth artifact.
+
+### ☠️ DESIGN 2 -- "the free capture" (K+R vs K+minor+P): SIGNAL, AND IT RUNS AGAINST TIER-2B
+The over-read can only flip a choice when reachable by a MATERIAL-GAINING move, so gain and misvaluation
+compound. 40 positions (only 24% of generated were TB wins), **0 unspoilable**, random-mover null **11.0%**.
+
+| depth | A (`MAG=0`) | B (`MAG=100`) | nodes A → B |
+|---|---|---|---|
+| 6 | **39/40** | 37/40 | 97k → 107k (+10%) |
+| 10 | **39/40** | 38/40 | 1.59M → 1.83M (+15%) |
+
+★ **The mechanism works and still loses.** Arm B NEVER liquidates wrongly (arm A did once: `.005`, played
+`Rxe5` into a draw at d6 -- the predicted blunder, observed). But arm B drops positions where the under-read
+makes it DECLINE a winning capture: `.020` `8/8/1K5n/2p5/8/k7/6R1/8 w`, where **Kxc5 wins** and arm B plays a
+rook move instead, at BOTH depths.
+☠️ **And the suite is biased 10-to-2 IN TIER-2B'S FAVOUR**: of the 12 positions offering a liquidation,
+entering the class is WRONG in 10 and CORRECT in 2. Arm A already declines all 10 correctly (search finds the
+right move for other reasons), so the over-read has no headroom to cost anything -- while the under-read
+costs real points on the 2.
+⚠️ **NOT SIGNIFICANT**: n=40, gaps of 1-3. What raises confidence above the counts is the mechanism (named
+positions, named moves, replicated across depths) plus the adverse suite bias. Enlargement pending.
+
+### ★★ THE SALVAGE HYPOTHESIS -- level, not shape
+Mean `units` on the class ≈ 99.7 ⇒ at `MAG=100` the term returns ≈ 468 mp against an observed level of
++2128 mp. **`MAG ≈ 455` is LEVEL-MATCHING**: the class keeps its current average value (no cliff) while the
+AUC-0.72 ordering is added on top. Testable with **no code change** -- it is the same knob.
+⚠️ Known risk at that setting: KRvKN reaches 210 units ⇒ **4,486 mp (4.5 pawns)**, far above the 1,750 material
+difference, so the tails over-value cornered-king positions and may invite material sacrifice. If the ladder
+shows cliff-harm at low MAG and tail-harm at high MAG with no good cell, the form itself is wrong for us and
+the alternatives are (a) ADDITIVE gradient on top of the ordinary eval -- no cliff, adds information, does NOT
+fix the over-read; or (b) damping the WHOLE family consistently -- fixes the over-read, no cliff, bigger change.
+★ Note (a) and (b) serve DIFFERENT goals: (b) is an ACCURACY fix that matters to the NNUE TEACHER even if
+move-neutral ([[the-hce-is-the-nnue-teacher-so-eval-carries-informationally]]); (a) is a MOVE fix.
+
+### ☠️ THE MAGNITUDE LADDER REFUTES THE SALVAGE HYPOTHESIS (40-position pilot, d6)
+| `TIER2_V2_MAG` | 0 | 50 | 100 | 200 | 300 | 455 | 600 |
+|---|---|---|---|---|---|---|---|
+| solved / 40 | **39** | 37 | 37 | *40* | 38 | 38 | 38 |
+| nodes (k) | 97 | 108 | 107 | 107 | 100 | 95 | 92 |
+
+☠️ **NON-MONOTONE** ⇒ by the project's own rule, *a knob whose response is not monotonic is not a lever*, and
+at n=40 with 1-3 position swings the `MAG=200` 40/40 is almost certainly chance. **Do NOT quote it as a sweet
+spot.** The level-matching prediction fails on both counts: the response is not monotone, and `MAG=455` (38)
+does not beat `MAG=0` (39).
+★ The ONE monotone reading is NODES, falling 108k → 92k as MAG rises ⇒ the +10-15% node cost reported at
+`MAG=100` is specific to LOW magnitudes, not to the term. A stronger replacement signal prunes better.
+⚠️ n=40 is too small for the solve column to decide anything. A 200-position suite is the prerequisite for
+any verdict here, not a refinement of one.
+
+### ★★★★ THE VERDICT (200 positions, 802 tablebase queries, random-mover null 13.4%)
+**Neither the n=40 harm NOR the n=40 "sweet spot" replicated. Both were noise.**
+
+| `TIER2_V2_MAG` | 0 | 100 | 150 | 200 | 250 | 300 |
+|---|---|---|---|---|---|---|
+| d6 solved / 200 | 191 | 192 | 192 | **193** | 191 | 193 |
+| d10 solved / 200 | **197** | 194 | -- | **197** | -- | -- |
+| d10 nodes | 7.48M | 8.08M (+8.0%) | -- | 8.17M (+9.3%) | -- | -- |
+
+McNemar exact on the paired discordants, d10: `MAG=100` **p = 0.453**, `MAG=200` **p = 1.000**. ⇒ **no
+significant difference at any magnitude tested.**
+
+☠️☠️ **AND THE DECISIVE ROW -- THERE IS NO HEADROOM AT ALL:**
+
+| verdict | n | A (`MAG=0`) | B (`MAG=100`) |
+|---|---|---|---|
+| **`liq_wrong`** -- entering the class THROWS the win | **33** | **33 / 33** | **33 / 33** |
+| `liq_correct` -- entering the class is RIGHT | 9 | 9 / 9 | 8 / 9 |
+| `none` -- no liquidation legal at all | 158 | 155 | 153 |
+
+★★ **The base engine commits the over-read blunder ZERO times in 33 opportunities.** The suite was built
+for that error, is biased 33-to-9 toward it, and arm A is perfect on it. Search already resolves it, exactly
+as the `ENABLE_SIMPL_BIAS` record warned ("that best move was, on average, correct").
+★★ **The tell that the remainder is noise:** 158 of 200 positions have NO liquidation available, so tier-2b
+cannot legitimately affect them -- yet it flips 4-6 of them in BOTH directions. That is leaf-eval
+perturbation deep in the tree, i.e. scatter.
+★★ **And the effective n is 100, not 200:** the BISHOP half is **100/100 for every arm at every depth**.
+All variation lives in K+R vs K+**N**+P -- the case carrying the extra `push_away` term and the 210-unit tail.
+
+### ⇒ RECOMMENDATION: PARK TIER-2B. Slice 4's first concept joins slice 3's five.
+The measurable effects are: **no move change that survives power**, and **+8-9% nodes** on this class.
+⚠️ **Do NOT run games for it.** This suite has far more power per position than self-play (ground truth on
+every move, no game-length noise) and it found zero headroom; games at 0.06% class frequency could not
+resolve what a purpose-built, favourably-biased 200-position tablebase suite could not.
+★ **What survives, and it is not nothing:** the ACCURACY case is untouched and was independently strengthened
+today -- our eval has **AUC 0.482** inside the class (zero information) and over-reads drawn positions by
+**+2.1 pawns**, while tier-2b's gradient carries AUC 0.663/0.721. Under the owner's teacher framing that is a
+real defect in the TRAINING LABELS even though it is move-neutral in play
+([[the-hce-is-the-nnue-teacher-so-eval-carries-informationally]]). ⇒ park the knob at 0, keep the finding.
+### ★★★ INDEPENDENT CONFIRMATION FROM A DEPTH LADDER — the residual is HORIZON, not eval
+Base arm on the same 200-position suite: **191/200 (d6) → 197 (d10) → 199 (d14)**, 100.8M nodes at d14.
+⇒ the failures collapse toward zero as depth rises, so they were the SEARCH's depth deficit, not an eval
+defect. An eval term cannot be paid for fixing what deeper search fixes for free.
+★ Even the single d14 survivor is not tier-2b-shaped: `8/p7/8/5R2/4n1K1/8/7k/8 w` (plays `Ra5`, wants
+`Re5`/`Rf4`/`Kf3`/`Kf4`, reads +2312) is a pure technique error in a position with **no liquidation legal at
+all** (verdict `none`).
+★★★ **GENERAL RULE, now built into the instrument:** the honest measure of eval headroom is **not** "base-arm
+failures at depth D" but **"failures that PERSIST as D rises."** Reading a single depth counts the search's
+horizon against the eval and will motivate terms that buy nothing at the depths we actually play. ⇒ every
+future headroom screen runs at TWO depths.
+
+★★ **This is the 6th consecutive concept to die as MOVE-NULL while reading positive on static accuracy**
+(central, pair, space, threats, Kaufman, now tier-2b) ⇒ [[most-eval-error-is-move-neutral]] is now the single
+best-supported law in this project, and [[v2-positional-signal-is-nearer-saturation-than-its-term-count]]
+extends past positional/census concepts into the endgame-conversion family after all.
+
+---
+
+## ★★★★ 2026-09-19 (evening) — THE HEADROOM SCREEN: SLICE 4 HAS NO MOVE-LEVEL TARGETS
+
+**The question that should have been asked before ANY of the last six concepts:** not *"is this term right?"*
+but *"does the base engine actually make an error here that an eval could fix?"* The win-preservation suite
+answers it directly, with tablebase ground truth, no C++, and no games. ★ Read at TWO depths, so the SEARCH's
+horizon deficit is not charged to the EVAL.
+
+**Batch A — base arm only, `TIER2_V2_MAG=0`, 140 positions:**
+
+| class | n | random-mover null | d6 | **d12** |
+|---|---|---|---|---|
+| **K+R+B vs K+R** (the SCALE PAIR) | 35 | **9.9%** | 35/35 | **35 / 35** |
+| **K+R+N vs K+R** (the SCALE PAIR) | 35 | **8.1%** | 35/35 | **35 / 35** |
+| K+Q vs K+R | 35 | 69.1% | 35/35 | 35/35 |
+| K+R+P vs K+R | 35 | 40.8% | 33/35 | **34 / 35** |
+
+☠️☠️ **THE SCALE PAIR -- THE NEXT SLICE-4 ITEM -- HAS ZERO HEADROOM AND SHOULD NOT BE BUILT.** 35/35 at both
+depths, on positions where only ~9% of legal moves preserve the win, i.e. genuinely sharp ones. That is the
+exact class SF prices with a ~14/64 SCALE and where v1's draw rules measured **22-28% tablebase false
+positives**. ★ **We need neither the scale nor the rules**: our search already converts these perfectly.
+★ Only K+R+P vs K+R shows anything at all -- **1 persistent failure in 35 (~3%)**, the commonest real ending.
+That is the only candidate target the screen found, and 1/35 is far too thin to build on without enlargement.
+
+### ☠️ AND A CORRECTION TO MY OWN RULE, FOUND BY PUSHING THAT ONE POSITION DEEPER
+`1r6/8/8/2R4P/8/2K5/8/3k4 w` (wants `Kd3`/`Kd4`/`Re5`/`Rf5`): **fails d12, fails d16, solves d20.** But the
+COST is the point -- d20 took **82.7M nodes on one position** (≈ 3 minutes at our ~450k NPS) against ≈ **440k
+nodes/position at d12**. At a realistic ~5 s (~2.25M nodes ⇒ roughly d14-15 here) it is **unsolvable in play**.
+☠️ **"Deeper search fixes it" is NOT "search fixes it in a game."** Treating an arbitrary deep control as the
+ceiling declares real errors to be non-problems. ⇒ **the ceiling must be the GAME-REACHABLE depth, measured
+in NODES against the time control's budget** -- print nodes beside every depth ladder.
+★ The batch-A conclusion SURVIVES this correction, because the scale pair is 35/35 at **d12**, which IS
+game-reachable: those classes genuinely have no headroom. Only the `RP_vs_R` position, needing d20, stays a
+real target.
+
+**Batch B — 175 positions, same protocol:**
+
+| class | n | random-mover null | d6 | **d12** |
+|---|---|---|---|---|
+| **K+P+P vs K+P** (pure pawn) | 35 | 54.8% | 33/35 | **35 / 35** |
+| K+Q+P vs K+Q | 35 | 26.5% | 33/35 | **35 / 35** |
+| K+B+P vs K+B | 35 | 35.2% | 32/35 | 33 / 35 |
+| K+N+P vs K+N | 35 | 46.3% | 31/35 | 34 / 35 |
+| K+R+P+P vs K+R | 35 | 59.9% | 34/35 | 34 / 35 |
+
+☠️ **My registered prediction was WRONG**: I expected pawn endings to hold the headroom. **Pure pawn endings
+are 35/35** — consistent in hindsight, since the exact KPK bitbase and the passer work already ship there.
+The residue sits in MINOR-PIECE-PLUS-PAWN endings instead.
+
+### ★★★★ THE WHOLE-FAMILY RESULT: 5 PERSISTENT FAILURES IN 315 POSITIONS (1.6%), AND NONE OF IT EVAL-SHAPED
+Pushing all five deeper: **2 of 4 batch-B survivors solve at d16, ALL 4 at d20** (134M nodes for four
+positions ≈ 33M each ≈ 75 s at ~450k NPS); the batch-A survivor also solves at d20 (82.7M nodes).
+⇒ every residual failure is HORIZON, at depths **not reachable in play** — so by the corrected rule they are
+genuine practical errors, not dismissable.
+★★ **But they are not EVAL errors.** Their `c0` (winning moves / legal moves) is the tell:
+
+| position | winning / legal | shape |
+|---|---|---|
+| `BP_vs_B.013` `8/8/7B/8/1b4P1/7K/8/4k3 w` | **1 / 12** | ONLY-MOVE |
+| `NP_vs_N.023` `8/1p5K/8/1k6/1n6/8/8/5N2 b` | **1 / 14** | ONLY-MOVE |
+| `BP_vs_B.034` `8/7B/1K2P3/8/8/8/4b3/6k1 w` | 2 / 14 | near-only-move |
+| `RP_vs_R.007` `1r6/8/8/2R4P/8/2K5/8/3k4 w` | 4 / 14 | narrow |
+| `RPP_vs_R.012` `5r2/R7/8/8/2P5/5k2/K4P2/8 w` | **13 / 18** | ★ the only eval-shaped one |
+
+**An eval term does not find an only-move; a search does.** Four of five residuals are precision-under-horizon.
+⇒ **the endgame-conversion family offers essentially no eval-shaped headroom**, and the one exception is a
+single position. ★ This is a SEARCH/time-management finding, not an eval one: the same conclusion as
+[[the-sf11-gap-is-two-thirds-node-efficiency]] arriving from a completely different direction.
+
+⇒ **Combined with tier-2b's own null (33/33 on its target class) and its depth ladder (191→197→199), the
+endgame-conversion family shows no move-level headroom worth a term.** ⚠️ Scope: this measures WIN
+PRESERVATION from tablebase-won positions. It does NOT measure evaluation of drawn positions for TRADE
+decisions made earlier in a game, nor anything the NNUE teacher needs -- those remain live.
+
 ### ▶️ PREDICTION SCORECARD (registered before each run)
 | prediction | outcome |
 |---|---|
@@ -2219,6 +2446,21 @@ Decisive-without-DTM now falls through and re-queries once. Cost to settle the w
 | engine totals at MAG=100 are exactly −131 / +985 / +422 | ✅ **right**, all three exact |
 | (unregistered, and wrong) my first guard called a NORMAL v2 position a "replacement eval" | ☠️ caught by reading the `MAG=0` output, fixed |
 | (asserted, not registered) "until DTM is known the won-case gradient is unjustified" | ☠️ **WRONG** -- 85% of the wins are beyond the horizon. I asserted a conclusion where I should have measured; it cost 33 queries to find out |
+| "the over-read makes the strong side indifferent to losing its own pawn" (design 1) | ☠️ **WRONG, mechanism error** -- 24/24 both arms at 4 depths. A pawn is 1000 mp to BOTH arms |
+| the win-preservation suite would show arm A throwing wins | ☠️ **WRONG** -- arm A scores 39/40; headroom was only ever 1-3 positions |
+| (registered) tier-2b would help on liquidation decisions | ☠️ **WRONG, and backwards** -- it helps where A needed no help (10/10) and hurts where taking is right (1 of 2) |
+| tier-2b's static case (AUC, 85%-beyond-horizon, 74% drawn) implied it was ready for games | ☠️ **PREMATURE.** Every static reading was positive and the FIRST move-level reading was negative. ★ Static accuracy and move value are different quantities -- the project's own law, which I restated this morning and then failed to apply to my own conclusion |
+| (registered) "harm falls monotonically toward MAG≈455; MAG≈450 ≥ MAG=0" | ☠️ **WRONG on both counts** -- non-monotone, and 455 (38) < 0 (39). The level-matching arithmetic was sound and the response did not follow it |
+| (registered) "arm B scores 2-6 lower at n=200, losses concentrating on `liq_correct`" | ☠️ **WRONG** -- d6 B was HIGHER, d10 lower by 3, neither significant. The concentration claim was right in kind (1 of 9) but far too small to matter |
+| (implied by the n=40 pilot) tier-2b actively HARMS move choice | ☠️ **WITHDRAWN** -- did not replicate at n=200. I reported a negative off 1-3 position swings at n=40 and had to retract it, which is the same error as reporting a positive off the same |
+| (registered) "most classes near-perfect; any headroom will be in PAWN and ROOK-AND-PAWN endings" | ⚠️ **HALF RIGHT.** "Most classes near-perfect" ✅ (7 of 9 classes ≥34/35 at d12). "Pawn endings" ☠️ **WRONG** -- `PP_vs_P` is 35/35; the residue is in MINOR+PAWN endings. The rook-and-pawn half was right (1/35) |
+
+☠️☠️ **THE SESSION'S REAL LESSON, and it cost a whole afternoon to learn twice in one day.** This morning a
+gate PASSED vacuously because the term could not fire; this afternoon a gate FAILED spuriously because n was
+too small. Both times the printed number looked authoritative. ★ The n=40 pilot was RIGHT to run -- it
+established the mechanism, the yield and the null cheaply -- but its SOLVE COLUMN should never have been
+read as a result. **Pilot for feasibility; power for verdicts.** The tell was available before any
+interpretation: a suite whose arms differ by 1-3 positions cannot resolve an effect of 1-3 positions.
 
 ☠️ **The pattern in that last row is the session's lesson, and it is the OPPOSITE of my usual failure.** My habit
 is predicting improvement where none exists; here I talked myself OUT of a term's justification without measuring,

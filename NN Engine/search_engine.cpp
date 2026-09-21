@@ -2101,6 +2101,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PS_V2_ISOLATED_EG = env_int("PS_V2_ISOLATED_EG", Config::PS_V2_ISOLATED_EG);
         Config::PS_V2_BACKWARD_MG = env_int("PS_V2_BACKWARD_MG", Config::PS_V2_BACKWARD_MG);
         Config::PS_V2_BACKWARD_EG = env_int("PS_V2_BACKWARD_EG", Config::PS_V2_BACKWARD_EG);
+        Config::PS_V2_WEAKUNOPP_MG = env_int("PS_V2_WEAKUNOPP_MG", Config::PS_V2_WEAKUNOPP_MG);
+        Config::PS_V2_WEAKUNOPP_EG = env_int("PS_V2_WEAKUNOPP_EG", Config::PS_V2_WEAKUNOPP_EG);
         // ── rung 2b: passed pawns ──────────────────────────────────────────────────────────────
         Config::PASSER_V2_MAG = env_int("PASSER_V2_MAG", Config::PASSER_V2_MAG);
         Config::PASSER_V2_MIN_RANK = env_int("PASSER_V2_MIN_RANK", Config::PASSER_V2_MIN_RANK);
@@ -2109,6 +2111,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_V2_CAND_PCT = env_int("PASSER_V2_CAND_PCT", Config::PASSER_V2_CAND_PCT);
         Config::PASSER_V2_MG_PCT = env_int("PASSER_V2_MG_PCT", Config::PASSER_V2_MG_PCT);
         Config::PASSER_V2_EG_PCT = env_int("PASSER_V2_EG_PCT", Config::PASSER_V2_EG_PCT);
+        Config::EVAL_V2_PAIR = env_int("EVAL_V2_PAIR", Config::EVAL_V2_PAIR);
         Config::TEMPO_V2_MG = env_int("TEMPO_V2_MG", Config::TEMPO_V2_MG);
         Config::TEMPO_V2_EG = env_int("TEMPO_V2_EG", Config::TEMPO_V2_EG);
         Config::DRAW_V2_CLASS = env_flag("DRAW_V2_CLASS", Config::DRAW_V2_CLASS);
@@ -2448,6 +2451,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
                   << " PASSER_V2_MAG=" << Config::PASSER_V2_MAG
+                  << " EVAL_V2_PAIR=" << Config::EVAL_V2_PAIR
+                  << " PS_V2_WEAKUNOPP_MG=" << Config::PS_V2_WEAKUNOPP_MG
+                  << " PS_V2_WEAKUNOPP_EG=" << Config::PS_V2_WEAKUNOPP_EG
                   << " TEMPO_V2_MG=" << Config::TEMPO_V2_MG
                   << " TEMPO_V2_EG=" << Config::TEMPO_V2_EG
                   << " DRAW_V2_CLASS=" << Config::DRAW_V2_CLASS
@@ -3145,6 +3151,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 {
 #ifdef EVAL_PROFILE
     eval_profile_reset(); // accumulate PROF scopes across this one search, dump at the end
+    // ★ THE DENOMINATOR for "what fraction of a node is eval?" (2026-09-20). ⚠️ Deliberately NOT a
+    // ProfScope: eval_profile_dump() below runs INSIDE this function, so an RAII guard opened here would
+    // still be alive at dump time and SEARCH_ROOT would print 0 -- a plausible-looking zero.
+    // ⚠️ And never scope minimizer/maximizer/qSearch instead: they recurse, so a nested RAII scope would
+    // count the same cycles once per level.
+    const uint64_t _prof_root_start = __rdtsc();
 #endif
 
     update_cache(static_cast<int>(state_history.size()));
@@ -3595,6 +3607,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << " total=" << (g_corrhist_eval_reused + g_corrhist_eval_computed) << std::endl;
 
 #ifdef EVAL_PROFILE
+    g_prof_cycles[PROF_SEARCH_ROOT] += __rdtsc() - _prof_root_start;
+    g_prof_calls[PROF_SEARCH_ROOT]  += 1;
     eval_profile_dump("search"); // whole-search cycle breakdown (eval terms + MOVEGEN/MAKEUNMAKE/TT_PROBE)
 #endif
     return chosenMove;

@@ -106,6 +106,9 @@ struct V2Context {
 
 	// Material census -- THE single source, in milli-pawns, as magnitudes (not yet Black-positive).
 	int   mat_white, mat_black;
+	// Same census, unblended, for EVAL_V2_PAIR. ⚠️ PST is NOT tapered (one int per square), so its leg is
+	// identical in both phases — which is exactly the gap a tapered PST would close (gap audit, L2/A3).
+	int   mat_mg_white, mat_eg_white, mat_mg_black, mat_eg_black;
 	int   npm_white, npm_black;          // non-pawn material, for phase and endgame gating
 	int8_t cnt_white[6], cnt_black[6];   // per type, indexed 0=pawn .. 5=king (matches whitePlacementLayer)
 
@@ -115,6 +118,66 @@ struct V2Context {
 	// sign-error waiting to happen. Continuous, so no phase cliff exists to tune around.
 	int   phase256;
 };
+
+/* ═══ (mg,eg) PAIR ACCUMULATOR — the structural prerequisite v2 has never had ═══════════════════════
+ *
+ * WHY (audited 2026-09-21, four-engine contrast): all 4 references accumulate a packed S(mg,eg) and
+ * interpolate ONCE at the end. v2 blends inside every term and returns a scalar, so `total` is already
+ * blended. That single absence is what blocks, all at once:
+ *   - the ENDGAME SCALE FACTOR (4/4 universal; v2 can only say draw=0 or full value, never "drawish")
+ *   - a TAPERED PST (4/4; our placement layer is one int per square, so no endgame king centralisation)
+ *   - king safety's two-leg transform (3/4; ours is one curve for all phases)
+ *   - any eg-LEG-ONLY term: SF's minPawnDist, and the winnability/complexity family the owner wants for
+ *     a reworked OvD (Ethereal's evaluateComplexity is DEFINED on the eg leg and is king-free)
+ *
+ * ☠️☠️ INTERPOLATING ONCE CANNOT BE BYTE-IDENTICAL, and that is inherent, not a defect. Every `>> 8`
+ * TRUNCATES, and the sum of N truncated blends != the truncation of one blended sum. v2 blends at THREE
+ * different granularities -- per PIECE (v2_piece_value), per ROOK (rookfile_mp's loop), and per SIDE
+ * (everything else) -- so a position carries ~40 truncations. Expect the two modes to differ by a few
+ * tens of millipawns and NO MORE: that bound is the correctness test (see below), not a nuisance.
+ *
+ * ⇒ THE KNOB GATES *WHERE* THE BLEND HAPPENS, NOT A SECOND IMPLEMENTATION. Each scorer computes its
+ * legs exactly once -- one source of truth -- and:
+ *     Config::EVAL_V2_PAIR == 0  blend at the CURRENT site and granularity  => BYTE-IDENTICAL
+ *     Config::EVAL_V2_PAIR == 1  return the legs, accumulate, blend ONCE at the end
+ *
+ * VERIFICATION LADDER (byte-identity alone cannot prove this one, so the bound does the work):
+ *   1. mode 0 must reproduce the shipped fingerprint `250 / 49,440,513 / EBF 4.031` EXACTLY. That proves
+ *      every leg was extracted correctly -- a mis-converted term shows up here immediately.
+ *   2. mode 1: per position, |total_1 - total_0| < the blend-op count (~50 mp). A larger delta is a REAL
+ *      BUG, not rounding. This is the decisive mechanical check; run it over thousands of positions.
+ *   3. colour symmetry 0/800 in BOTH modes.
+ *   4. per-term isolation: one term on at a time, confirm the bound per term, so a violation localises.
+ *   5. only then measure mode 1 on the normal instruments -- it IS a behaviour change, however small.
+ *
+ * ⚠️ Mode 1 will EVENTUALLY become the shipped path (every payoff item above needs it), at which point the
+ * fingerprint moves and gets re-recorded. That is expected, not a regression.
+ * ⚠️ ks_danger_mp has no phase at all; in pair mode it contributes (x, x), preserving today's behaviour.
+ * Giving king safety real phase legs is a SEPARATE later item, not part of this plumbing.
+ */
+struct EvalPair {
+	int mg = 0;
+	int eg = 0;
+};
+
+static inline EvalPair& operator+=(EvalPair &a, const EvalPair &b) { a.mg += b.mg; a.eg += b.eg; return a; }
+static inline EvalPair& operator-=(EvalPair &a, const EvalPair &b) { a.mg -= b.mg; a.eg -= b.eg; return a; }
+static inline EvalPair  operator-(const EvalPair &a, const EvalPair &b) { return EvalPair{a.mg - b.mg, a.eg - b.eg}; }
+
+/* The ONE interpolation. phase256: 256 = full midgame, 0 = deep endgame (v2's convention).
+   ☠️ NOT v1's `phase_score`, which is INVERTED and half-scaled -- aliasing them silently inverts every
+   phase-conditioned reading.
+
+   ☠️☠️ `/ 256`, NOT `>> 8` — AND THE COLOUR-SYMMETRY GATE IS WHAT FOUND THIS. An arithmetic shift rounds
+   toward NEGATIVE INFINITY, so `(-x) >> 8 != -(x >> 8)` whenever there is a remainder. The per-term sites
+   blend each SIDE separately (non-negative magnitudes) and difference afterwards, so the bias cancels
+   there and `>> 8` is correct and must stay. Here we blend the already-DIFFERENCED, signed value, so the
+   shift makes eval(mirror(b)) != -eval(b): first run of pair mode scored 474/800 violations, every one
+   exactly 1 mp. Integer division truncates toward ZERO and is therefore sign-symmetric. */
+static inline int eval_blend(const EvalPair &p, int phase256)
+{
+	return (p.mg * phase256 + p.eg * (256 - phase256)) / 256;
+}
 
 /*
 	v2's own piece value, phase-tapered, in millipawns. ☠️ Separate from Config `values[]` BY DESIGN --
@@ -141,6 +204,20 @@ inline int v2_piece_value(int t, int phase256)
 	const int eg = values[1];
 	if (mg == eg) return eg;                           // identity short-circuit: the default path is free
 	return (mg * phase256 + eg * (256 - phase256)) >> 8;
+}
+
+/* The same value, UNBLENDED, for EVAL_V2_PAIR. ☠️ Must mirror v2_piece_value exactly or mode 1 diverges
+   from mode 0 by more than rounding — including the identity short-circuits, where mg == eg. */
+static inline void v2_piece_value_legs(int t, int &pmg, int &peg)
+{
+	if (t != 0){
+		peg = values[t + 1];
+		pmg = (Config::EVAL_V2_PIECE_MG_PCT == 100) ? peg
+		                                            : peg * Config::EVAL_V2_PIECE_MG_PCT / 100;
+		return;
+	}
+	pmg = Config::EVAL_V2_PAWN_MG;
+	peg = values[1];
 }
 
 /*
@@ -184,11 +261,19 @@ inline void build_context(V2Context &c, int moveNum, bool turn,
 	}
 
 	// Material census, ONCE, with the phase already known.
+	// ★ Note the granularity: v2_piece_value is called PER TYPE (6 blends), not per piece — so material
+	// contributes 6 truncations to a position, not 32. The legs below are the same census unblended, for
+	// EVAL_V2_PAIR; they cost two adds per type and are computed unconditionally so there is no second path.
 	c.mat_white = c.mat_black = 0;
+	c.mat_mg_white = c.mat_eg_white = c.mat_mg_black = c.mat_eg_black = 0;
 	for (int t = 0; t < 6; ++t){
 		const int v = v2_piece_value(t, c.phase256);
 		c.mat_white += (int)c.cnt_white[t] * v;
 		c.mat_black += (int)c.cnt_black[t] * v;
+		int pmg, peg;
+		v2_piece_value_legs(t, pmg, peg);
+		c.mat_mg_white += (int)c.cnt_white[t] * pmg;  c.mat_eg_white += (int)c.cnt_white[t] * peg;
+		c.mat_mg_black += (int)c.cnt_black[t] * pmg;  c.mat_eg_black += (int)c.cnt_black[t] * peg;
 	}
 }
 
@@ -212,7 +297,8 @@ inline void build_context(V2Context &c, int moveNum, bool turn,
 	Cost: two popcount-driven bit loops per piece type, no allocation, no globals.
 */
 inline int rung0_material_and_placement(const V2Context &c,
-                                        int &w_mat, int &b_mat, int &w_pst, int &b_pst)
+                                        int &w_mat, int &b_mat, int &w_pst, int &b_pst,
+                                        EvalPair *legs = nullptr)
 {
 	const uint64_t typeMasks[6] = {c.pawns, c.knights, c.bishops, c.rooks, c.queens, c.kings};
 
@@ -237,6 +323,11 @@ inline int rung0_material_and_placement(const V2Context &c,
 	}
 
 	// Black-positive: White's holdings subtract, Black's add.
+	if (legs){
+		// PST is untapered, so it enters BOTH legs identically; only material differs by phase.
+		legs->mg = (c.mat_mg_black + b_pst) - (c.mat_mg_white + w_pst);
+		legs->eg = (c.mat_eg_black + b_pst) - (c.mat_eg_white + w_pst);
+	}
 	return (b_mat + b_pst) - (w_mat + w_pst);
 }
 
@@ -792,7 +883,7 @@ static constexpr int PS_ISO_FILE_EG[8] = {-101, -104, -108, -129, -129, -108, -1
  * Gating: PS_V2_MAG == 0 returns 0 => byte-identical to the rung-1 baseline.
  * Cost: one bit loop per side over connected pawns plus one over isolated; three popcounts. NO CLAMP.
  */
-static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
+static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c, EvalPair *legs = nullptr)
 {
 	if (Config::PS_V2_MAG == 0) return 0;
 
@@ -868,9 +959,31 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c)
 		const int nb = __builtin_popcountll(e.backward[s]);
 		side_mg[s] -= nb * Config::PS_V2_BACKWARD_MG;
 		side_eg[s] -= nb * Config::PS_V2_BACKWARD_EG;
+
+		// --- weak-unopposed: an isolated-or-backward pawn on a HALF-OPEN file (SF WeakUnopposed) -------
+		// ☠️ Deliberately an EXTRA charge on pawns the two legs above have ALREADY penalised, not a
+		// separate term: the firing set is 100% contained in `isolated | backward`
+		// (_pawn_term_overlap.py, 2026-09-20), so a second owner would be two names for one signal.
+		// SF stacks it the same way -- it pays WeakUnopposed ON TOP of its own isolated/backward charges,
+		// and on top of the passer bonus when the pawn is both.
+		// ⚠️ `opposed` is "an enemy pawn anywhere AHEAD on our own file", so ~opposed is exactly "no enemy
+		// pawn will ever trade this one off, and a rook can sit in front of it" -- the mechanism the four
+		// references agree on. Gated: both knobs 0 => this block contributes nothing.
+		if (Config::PS_V2_WEAKUNOPP_MG != 0 || Config::PS_V2_WEAKUNOPP_EG != 0){
+			const int nwu = __builtin_popcountll((e.isolated[s] | e.backward[s]) & ~e.opposed[s]);
+			side_mg[s] -= nwu * Config::PS_V2_WEAKUNOPP_MG;
+			side_eg[s] -= nwu * Config::PS_V2_WEAKUNOPP_EG;
+		}
 	}
 
 	// Phase-blend each side, then combine Black-positive. c.phase256: 256 = full midgame, 0 = deep endgame.
+	// `legs` non-null ⇒ PAIR MODE: difference and scale the legs WITHOUT blending, and let the caller do
+	// the one interpolation. ⚠️ Mode 0 blends per side and THEN scales by MAG/100; mode 1 scales the legs
+	// and blends after, so the two truncate at different points. Bounded, expected.
+	if (legs){
+		legs->mg = ((side_mg[1] - side_mg[0]) * Config::PS_V2_MAG) / 100;
+		legs->eg = ((side_eg[1] - side_eg[0]) * Config::PS_V2_MAG) / 100;
+	}
 	const int w = (side_mg[0] * c.phase256 + side_eg[0] * (256 - c.phase256)) >> 8;
 	const int b = (side_mg[1] * c.phase256 + side_eg[1] * (256 - c.phase256)) >> 8;
 	return ((b - w) * Config::PS_V2_MAG) / 100;
@@ -995,7 +1108,7 @@ static inline int ps_kdist(int a, int b) noexcept
  * Gating: PASSER_V2_MAG == 0 returns 0 => byte-identical to the rung-2a baseline.
  * Cost: one bit loop per side over passers only (11.72% of pawns), two distance computations each.
  */
-static inline int passer_value_mp(const PawnEntry &e, const V2Context &c)
+static inline int passer_value_mp(const PawnEntry &e, const V2Context &c, EvalPair *legs = nullptr)
 {
 	if (Config::PASSER_V2_MAG == 0) return 0;
 
@@ -1044,6 +1157,10 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c)
 		}
 	}
 
+	if (legs){
+		legs->mg = ((side_mg[1] - side_mg[0]) * Config::PASSER_V2_MAG) / 100;
+		legs->eg = ((side_eg[1] - side_eg[0]) * Config::PASSER_V2_MAG) / 100;
+	}
 	const int w = (side_mg[0] * c.phase256 + side_eg[0] * (256 - c.phase256)) >> 8;
 	const int b = (side_mg[1] * c.phase256 + side_eg[1] * (256 - c.phase256)) >> 8;
 	return ((b - w) * Config::PASSER_V2_MAG) / 100;
@@ -1193,7 +1310,7 @@ static inline void mobility_build(const V2Context &c, SideAttacks &wa, SideAttac
  * @return Black-positive millipawns
  * Gating: caller calls only when MOB_V2_MAG > 0. Cost: a few multiplies. NO CLAMP.
  */
-static inline int mobility_mp(const MobAcc &w, const MobAcc &b, const V2Context &c) noexcept
+static inline int mobility_mp(const MobAcc &w, const MobAcc &b, const V2Context &c, EvalPair *legs = nullptr) noexcept
 {
 	const int mag = Config::MOB_V2_MAG;
 	// MOB_V2_TABLE: each table by ITS OWN knight range and pawn pair (table 0 = SF11's 95 / 128 / 213, the shipped numbers).
@@ -1210,6 +1327,7 @@ static inline int mobility_mp(const MobAcc &w, const MobAcc &b, const V2Context 
 		weg = weg * Config::MOB_V2_EG_PCT / 100;
 		beg = beg * Config::MOB_V2_EG_PCT / 100;
 	}
+	if (legs){ legs->mg = bmg - wmg; legs->eg = beg - weg; }
 	const int ws = (wmg * c.phase256 + weg * (256 - c.phase256)) >> 8;
 	const int bs = (bmg * c.phase256 + beg * (256 - c.phase256)) >> 8;
 	return bs - ws;
@@ -1255,10 +1373,11 @@ static inline int th_victim(const V2Context &c, uint64_t bit) noexcept
  * ⚠️ RESTRICTED reads the same attack maps as mobility's area -- run the collinearity gate before laddering it.
  * Gating: caller calls only when THREAT_V2_PCT > 0. Cost: a few masks plus one bit-loop per threatened set.
  */
-static inline int threats_mp(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba) noexcept
+static inline int threats_mp(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, EvalPair *legs = nullptr) noexcept
 {
 	const int pct = Config::THREAT_V2_PCT;
 	int side[2] = {0, 0};
+	int lg_mg[2] = {0, 0}, lg_eg[2] = {0, 0};   // unblended legs for EVAL_V2_PAIR
 	for (int s = 0; s < 2; ++s){
 		const bool     white = (s == 0);
 		const uint64_t own   = white ? c.white : c.black;
@@ -1334,8 +1453,10 @@ static inline int threats_mp(const V2Context &c, const SideAttacks &wa, const Si
 			mg += (long long)n * TH_PUSH_MG; eg += (long long)n * TH_PUSH_EG;
 		}
 		const int m = (int)(mg * pct / 100), g = (int)(eg * pct / 100);
+		lg_mg[s] = m; lg_eg[s] = g;
 		side[s] = (m * c.phase256 + g * (256 - c.phase256)) >> 8;
 	}
+	if (legs){ legs->mg = lg_mg[1] - lg_mg[0]; legs->eg = lg_eg[1] - lg_eg[0]; }
 	return side[1] - side[0];
 }
 
@@ -1353,11 +1474,12 @@ static inline int threats_mp(const V2Context &c, const SideAttacks &wa, const Si
  * promoted third bishop counts, exactly as SF's piece_count test does.
  * Gating: caller calls only when BPAIR_V2_MAG > 0. Cost: two popcounts (plus one more per side under FORM 2).
  */
-static inline int bishop_pair_mp(const V2Context &c) noexcept
+static inline int bishop_pair_mp(const V2Context &c, EvalPair *legs = nullptr) noexcept
 {
 	const int mag  = Config::BPAIR_V2_MAG;
 	const int form = Config::BPAIR_V2_FORM;
 	int side[2] = {0, 0};
+	int lg_mg[2] = {0, 0}, lg_eg[2] = {0, 0};   // unblended legs for EVAL_V2_PAIR
 	for (int s = 0; s < 2; ++s){
 		const uint64_t own = s == 0 ? c.white : c.black;
 		if (__builtin_popcountll(c.bishops & own) < 2) continue;
@@ -1368,8 +1490,10 @@ static inline int bishop_pair_mp(const V2Context &c) noexcept
 			const int np = __builtin_popcountll(c.pawns & own);
 			mg = eg = mag * (1000 + 28 * np) / 1000;
 		}
+		lg_mg[s] = mg; lg_eg[s] = eg;
 		side[s] = (mg * c.phase256 + eg * (256 - c.phase256)) >> 8;
 	}
+	if (legs){ legs->mg = lg_mg[1] - lg_mg[0]; legs->eg = lg_eg[1] - lg_eg[0]; }
 	return side[1] - side[0];
 }
 
@@ -1535,12 +1659,13 @@ static constexpr int      SPACE_RAW_REF = 169;
  * ⚠️ Rides the attack maps KS/mobility already build -- no second attack pass. Symmetric positions cancel exactly.
  * Gating: caller calls only when SPACE_V2_MAG > 0. Cost: a few masks, two popcounts, one multiply per side.
  */
-static inline int space_mp(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba) noexcept
+static inline int space_mp(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, EvalPair *legs = nullptr) noexcept
 {
 	if (Config::SPACE_V2_GATE_PCT > 0
 	    && (c.npm_white + c.npm_black) * 100 < SPACE_START_NPM * Config::SPACE_V2_GATE_PCT)
 		return 0;
 	int side[2] = {0, 0};
+	int lg_mg[2] = {0, 0};   // eg leg is identically 0 for space (see below)
 	for (int s = 0; s < 2; ++s){
 		const bool     white   = (s == 0);
 		const uint64_t own     = white ? c.white : c.black;
@@ -1566,8 +1691,12 @@ static inline int space_mp(const V2Context &c, const SideAttacks &wa, const Side
 		const int w = Config::SPACE_V2_WEIGHT == 1 ? 16 : (pieces - 1) * (pieces - 1);
 		const long long raw = (long long)count * w / 16;
 		// Midgame only: phase256 = 256 in the full midgame, 0 in the deep endgame.
+		// ★ Space is MIDGAME-ONLY BY CONSTRUCTION — the phase factor multiplies the whole term, so its eg
+		// leg is exactly 0 and the mg leg is the unscaled value. No rounding difference between modes here.
+		lg_mg[s] = (int)((long long)Config::SPACE_V2_MAG * raw / (long long)SPACE_RAW_REF);
 		side[s] = (int)((long long)Config::SPACE_V2_MAG * raw * c.phase256 / ((long long)SPACE_RAW_REF * 256));
 	}
+	if (legs){ legs->mg = lg_mg[1] - lg_mg[0]; legs->eg = 0; }
 	return side[1] - side[0];
 }
 
@@ -1580,9 +1709,13 @@ static inline int space_mp(const V2Context &c, const SideAttacks &wa, const Side
  * @return Black-positive millipawns
  * Gating: caller calls only when ROOKFILE_V2_OPEN or _SEMI is non-zero. Cost: one bit loop over rooks.
  */
-static inline int rookfile_mp(const PawnEntry &e, const V2Context &c) noexcept
+/* `legs` non-null ⇒ PAIR MODE: fill the unblended (mg,eg) and return 0; the caller blends once.
+   ⚠️ This term blends PER ROOK, so the two modes differ by up to one millipawn per rook on the board —
+   the largest per-term truncation gap in v2 after v2_piece_value. That is the expected bound, not a bug. */
+static inline int rookfile_mp(const PawnEntry &e, const V2Context &c, EvalPair *legs = nullptr) noexcept
 {
 	int side[2] = {0, 0};
+	int leg_mg[2] = {0, 0}, leg_eg[2] = {0, 0};
 	for (int s = 0; s < 2; ++s){
 		uint64_t rb = c.rooks & (s == 0 ? c.white : c.black);
 		while (rb){
@@ -1592,9 +1725,11 @@ static inline int rookfile_mp(const PawnEntry &e, const V2Context &c) noexcept
 			const bool open = (e.openFiles >> f) & 1;
 			const int  mg   = open ? Config::ROOKFILE_V2_OPEN : Config::ROOKFILE_V2_SEMI;
 			const int  eg   = mg * (open ? ROOKFILE_OPEN_EG_PCT : ROOKFILE_SEMI_EG_PCT) / 100;
+			leg_mg[s] += mg; leg_eg[s] += eg;
 			side[s] += (mg * c.phase256 + eg * (256 - c.phase256)) >> 8;
 		}
 	}
+	if (legs){ legs->mg = leg_mg[1] - leg_mg[0]; legs->eg = leg_eg[1] - leg_eg[0]; }
 	return side[1] - side[0];
 }
 
@@ -1822,9 +1957,10 @@ static inline void placement_detect(PlaceCounts &pc, const V2Context &c, const P
 
 /* Placement score, Black-positive millipawns. Each term is its SF11 pawn-converted value x its percent knob.
  * Gating: the caller calls only when at least one *_V2_PCT is non-zero. NO CLAMP. */
-static inline int placement_mp(const PlaceCounts &pc, const V2Context &c) noexcept
+static inline int placement_mp(const PlaceCounts &pc, const V2Context &c, EvalPair *legs = nullptr) noexcept
 {
 	int side[2] = {0, 0};
+	int lg_mg[2] = {0, 0}, lg_eg[2] = {0, 0};   // unblended legs for EVAL_V2_PAIR
 	for (int s = 0; s < 2; ++s){
 		long long mg = 0, eg = 0;
 		const int ofrm = Config::OUTPOST_V2_FORM, opct = Config::OUTPOST_V2_PCT;
@@ -1866,8 +2002,10 @@ static inline int placement_mp(const PlaceCounts &pc, const V2Context &c) noexce
 		mg -= (long long)pc.weakq[s] * PL_WEAKQ_MG * Config::WEAKQ_V2_PCT;     eg -= (long long)pc.weakq[s] * PL_WEAKQ_EG * Config::WEAKQ_V2_PCT;
 		mg += ((long long)pc.latent_b[s] * PL_LATENT_B + (long long)pc.latent_r[s] * PL_LATENT_R) * Config::LATENT_V2_PCT;
 		const int m = (int)(mg / 100), g = (int)(eg / 100);
+		lg_mg[s] = m; lg_eg[s] = g;
 		side[s] = (m * c.phase256 + g * (256 - c.phase256)) >> 8;
 	}
+	if (legs){ legs->mg = lg_mg[1] - lg_mg[0]; legs->eg = lg_eg[1] - lg_eg[0]; }
 	return side[1] - side[0];
 }
 
@@ -2554,9 +2692,15 @@ static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
 */
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)
 {
+	// Compile-gated cycle profiler (no-op unless built with PROFILE_EVAL=1; production stays
+	// byte-identical -- verify with the WAC fingerprint after any production rebuild).
+	PROF_BLOCK(PROF_V2_EVAL);
 	V2Context c;
-	build_context(c, moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
-	              occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
+	{
+		PROF_BLOCK(PROF_V2_CONTEXT);
+		build_context(c, moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+		              occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
+	}
 
 	// (tier-2b technique value is defined above draw_class's caller; see tier2b_value_mp)
 	// ── slice 1: binary draw classifier ──────────────────────────────────────────────────────────
@@ -2600,16 +2744,25 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		}
 	}
 
+	// ═══ EVAL_V2_PAIR: accumulate unblended legs and interpolate ONCE at the end ═══════════════════
+	// `pair_mode` false = the shipped path: every term blends at its own site, exactly as before.
+	// Each scorer fills `lp` AND returns its blended value, so there is ONE scoring path either way —
+	// the mode only chooses which of the two outputs is consumed.
+	const bool pair_mode = (Config::EVAL_V2_PAIR != 0);
+	EvalPair acc;   // the single accumulator (pair mode only)
+	EvalPair lp;    // scratch legs, refilled per term
+
 	int w_mat = 0, b_mat = 0, w_pst = 0, b_pst = 0;
-	int total = rung0_material_and_placement(c, w_mat, b_mat, w_pst, b_pst);
+	int total = rung0_material_and_placement(c, w_mat, b_mat, w_pst, b_pst, &lp);
+	if (pair_mode){ acc = lp; total = 0; }
 
 	// ── slice 3: bishop pair ─────────────────────────────────────────────────────────────────────
 	// Sits with material because that is what it is -- a census term, not placement. Gated on BPAIR_V2_MAG,
 	// so 0 = absent = byte-identical.
 	int bp_mp = 0;
 	if (Config::BPAIR_V2_MAG > 0){
-		bp_mp = bishop_pair_mp(c);
-		total += bp_mp;
+		bp_mp = bishop_pair_mp(c, &lp);
+		if (pair_mode) acc += lp; else total += bp_mp;
 	}
 
 	// ── slice 3: Kaufman / polynomial material imbalance ────────────────────────────────────────
@@ -2619,7 +2772,8 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	int kauf_mp_v = 0;
 	if (Config::KAUF_V2_MAG > 0){
 		kauf_mp_v = kaufman_mp(c);
-		total += kauf_mp_v;
+		// Kaufman is PHASE-FLAT (no blend site), so it enters both legs identically.
+		if (pair_mode){ acc.mg += kauf_mp_v; acc.eg += kauf_mp_v; } else total += kauf_mp_v;
 	}
 
 	// ── rung 1: king safety (KS-A) ───────────────────────────────────────────────────────────────
@@ -2642,35 +2796,47 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	bool acc_ready = false;
 	if (Config::KS_V2_MAX > 0 || mob_on || space_on || threats_on){
 		SideAttacks wa, ba;
-		if (mob_on){
-			acc_ready = true;
-			mobility_build(c, wa, ba, mw, mb);
-			mob_mp    = mobility_mp(mw, mb, c);
-			mob_cnt_w = mw.cnt[0] + mw.cnt[1] + mw.cnt[2] + mw.cnt[3];
-			mob_cnt_b = mb.cnt[0] + mb.cnt[1] + mb.cnt[2] + mb.cnt[3];
-			total += mob_mp;
-		} else {
-			build_side_attacks(wa, c, true);
-			build_side_attacks(ba, c, false);
+		{
+			// The attack build is shared by KS / mobility / space / threats and was v1's single most
+			// expensive block, so it is scoped separately from the scoring that consumes it.
+			PROF_BLOCK(PROF_V2_ATTACK);
+			if (mob_on){
+				acc_ready = true;
+				mobility_build(c, wa, ba, mw, mb);
+				mob_mp    = mobility_mp(mw, mb, c, &lp);
+				mob_cnt_w = mw.cnt[0] + mw.cnt[1] + mw.cnt[2] + mw.cnt[3];
+				mob_cnt_b = mb.cnt[0] + mb.cnt[1] + mb.cnt[2] + mb.cnt[3];
+				if (pair_mode) acc += lp; else total += mob_mp;
+			} else {
+				build_side_attacks(wa, c, true);
+				build_side_attacks(ba, c, false);
+			}
 		}
 		// Space needs BOTH sides' maps (the enemy's full attack set gates its safe squares), so it sits here rather
 		// than with the pawn terms. Gated on SPACE_V2_MAG, so 0 = absent = byte-identical.
 		if (space_on){
-			sp_mp = space_mp(c, wa, ba);
-			total += sp_mp;
+			sp_mp = space_mp(c, wa, ba, &lp);
+			if (pair_mode) acc += lp; else total += sp_mp;
 		}
 		if (threats_on){
-			th_mp = threats_mp(c, wa, ba);
-			total += th_mp;
+			th_mp = threats_mp(c, wa, ba, &lp);
+			if (pair_mode) acc += lp; else total += th_mp;
 		}
 		if (Config::KS_V2_MAX > 0){
+			// ⚠️ The scope must START here: ks_units IS the expensive half (it walks both sides' attack
+			// maps over the king zones), and ks_danger_mp is a table lookup. Scoping only the scorer
+			// would report king safety as ~free and read entirely plausibly.
+			PROF_BLOCK(PROF_V2_KS);
 			ks_w = ks_units(c, wa, ba, true);
 			ks_b = ks_units(c, wa, ba, false);
 			// Black-positive, matching `total`: a dangerous WHITE king favours Black (+), a dangerous BLACK
 			// king favours White (-). ⚠️ Getting this backwards still produces entirely plausible numbers --
 			// it is the historic failure mode -- so the colour ship-gate runs on every KS-A build.
 			ks_mp = ks_danger_mp(ks_w) - ks_danger_mp(ks_b);
-			total += ks_mp;
+			// ⚠️ KS-A has NO phase curve at all, so it enters both legs identically and mode 1 preserves
+			// today's behaviour exactly. Giving king safety real (mg,eg) legs is gap-audit item K2/A8 —
+			// a SEPARATE change, not part of this plumbing.
+			if (pair_mode){ acc.mg += ks_mp; acc.eg += ks_mp; } else total += ks_mp;
 		}
 	}
 
@@ -2689,18 +2855,28 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	                || Config::WEAKQ_V2_PCT != 0 || Config::LATENT_V2_PCT != 0;
 	int pl_mp = 0;
 	if (Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on){
-		build_pawn_entry(pe, c);
-		ps_mp = pawn_structure_mp(pe, c);   // returns 0 when PS_V2_MAG == 0
-		pp_mp = passer_value_mp(pe, c);     // returns 0 when PASSER_V2_MAG == 0
+		{
+			// The pawn DETECTOR (Layer A). Scoped alone because it is the one block a pawnKey cache
+			// could memoize -- its share IS the prize for building one.
+			PROF_BLOCK(PROF_V2_PAWNENTRY);
+			build_pawn_entry(pe, c);
+		}
+		// ⚠️ `lp` is RESET per term here: pawn_structure_mp and passer_value_mp return early (leaving lp
+		// untouched) when their magnitude knob is 0, so a stale lp would be added as that term's legs.
+		EvalPair lps, lpp, lpr;
+		ps_mp = pawn_structure_mp(pe, c, &lps);   // returns 0 when PS_V2_MAG == 0
+		pp_mp = passer_value_mp(pe, c, &lpp);     // returns 0 when PASSER_V2_MAG == 0
 		// slice 2: rook files read the file masks this detector already built
-		if (rf_on) rf_mp = rookfile_mp(pe, c);
+		if (rf_on) rf_mp = rookfile_mp(pe, c, &lpr);
 		// slice 2: per-piece placement sub-terms, also reading this detector's masks
 		if (pl_on){
+			PROF_BLOCK(PROF_V2_PLACEMENT);
 			PlaceCounts pc;
 			placement_detect(pc, c, pe, acc_ready ? &mw : nullptr, acc_ready ? &mb : nullptr, Config::LATENT_V2_PCT != 0);
-			pl_mp = placement_mp(pc, c);
+			pl_mp = placement_mp(pc, c, &lp);
 		}
-		total += ps_mp + pp_mp + rf_mp + pl_mp;
+		if (pair_mode){ acc += lps; acc += lpp; acc += lpr; if (pl_on) acc += lp; }
+		else           total += ps_mp + pp_mp + rf_mp + pl_mp;
 	}
 
 	// ── slice 1 / component 1: tempo ─────────────────────────────────
@@ -2719,8 +2895,18 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	if (Config::TEMPO_V2_MG != 0 || Config::TEMPO_V2_EG != 0){
 		const int t = (Config::TEMPO_V2_MG * c.phase256
 		             + Config::TEMPO_V2_EG * (256 - c.phase256)) >> 8;
-		total += c.turn ? -t : t;
+		if (pair_mode){
+			const int sgn = c.turn ? -1 : 1;
+			acc.mg += sgn * Config::TEMPO_V2_MG;
+			acc.eg += sgn * Config::TEMPO_V2_EG;
+		} else total += c.turn ? -t : t;
 	}
+
+	// ═══ THE ONE INTERPOLATION ═════════════════════════════════════════════════════════════════════
+	// Everything above contributed unblended legs; this is the single place phase is applied. It is also
+	// where an ENDGAME SCALE FACTOR would multiply acc.eg, and where a tapered PST would finally have
+	// somewhere to put its endgame leg (gap audit A2 / A3).
+	if (pair_mode) total = eval_blend(acc, c.phase256);
 
 	// Later rungs accumulate here, each gated on its own knob.
 

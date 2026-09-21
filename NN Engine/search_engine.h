@@ -753,6 +753,24 @@ namespace Config
     inline int PS_V2_BACKWARD_MG = 0;
     inline int PS_V2_BACKWARD_EG = 113;
 
+    // WEAK-UNOPPOSED (SF `WeakUnopposed` S(13,27) => 102/127 mp by the pawn conversion). An EXTRA penalty
+    // on an isolated-or-backward pawn that is NOT opposed -- i.e. one standing on a half-open file, where
+    // the enemy rooks can reach it and no enemy pawn will ever trade it off.
+    // ★ 4/4 UNANIMOUS across SF11 / SF15.1 / Ethereal / Weiss -- the only reference term with no dissent
+    // that v2 has never carried. Dropped pre-build in rung 2a on a CO-OCCURRENCE argument (it fires on
+    // pawns 2b's passer term rewards), which SF contradicts by deliberately paying both.
+    // ☠️ IT IS A CONDITIONING, NOT A NEW DETECTOR (measured 2026-09-20, `_pawn_term_overlap.py` on 63,384
+    // pawns of the v2-era corpus): weak_unopp fires on 8.54% of pawns and **P(weak | weak_unopp) = 100%**
+    // -- every pawn it flags is ALREADY priced by the isolated/backward legs above. The tool's own
+    // protocol ("over ~50% conditional overlap is two names for one signal") therefore says MERGE, which
+    // is why this lives inside pawn_structure_mp under PS_V2_MAG rather than becoming a second owner.
+    // ⚠️ The old objection reproduces and is STRONGER on the current distribution: P(passed | weak_unopp)
+    // = 42%, lift 5.48x (rung 2a measured 4.27x). So this term and the passer bonus fire on the same pawn
+    // in opposite directions two times in five -- the thing to watch if it measures null.
+    // Defaults 0 => the term is ABSENT and the eval is byte-identical to the shipped config.
+    inline int PS_V2_WEAKUNOPP_MG = 0;
+    inline int PS_V2_WEAKUNOPP_EG = 0;
+
     // ===============================================================================================
     // RUNG 2b -- PASSED PAWNS (eval v2). PASSER_V2_MAG = 0 => the rung is ABSENT and byte-identical.
     // Design, five-engine comparison and the experiment list: dev_notes/EVAL-V2-RUNG2B-PASSER-DESIGN.md.
@@ -826,6 +844,18 @@ namespace Config
     // at fixed depth) but NOT margin-invariant: 200 mp is ~13% of RFP_MARGIN's 1500/ply, and those margins
     // were fitted against a side-to-move-blind eval. Screen node count BEFORE ranking it on accuracy.
     // Both default 0 == byte-identical.
+    // ═══ (mg,eg) PAIR ACCUMULATOR (eval_v2.cpp) ═══════════════════════════════════════════════════
+    // 0 = blend inside each term at its CURRENT site and granularity  => BYTE-IDENTICAL, the shipped path.
+    // 1 = terms return their (mg,eg) legs; accumulate and interpolate ONCE at the end.
+    // ☠️ Mode 1 is NOT byte-identical and cannot be: v2 truncates at ~40 blend sites per position (per
+    // PIECE in v2_piece_value, per ROOK in rookfile_mp, per SIDE elsewhere), and sum-of-truncations !=
+    // truncation-of-sum. The two modes must differ by LESS than the blend-op count (~50 mp); a larger
+    // delta is a real bug. That bound IS the correctness test — see the header block in eval_v2.cpp.
+    // ★ WHY IT EXISTS: it is the prerequisite for the endgame SCALE FACTOR (4/4 universal, v2 cannot
+    // express "drawish" at all), a TAPERED PST (4/4), KS phase legs (3/4), and any eg-leg-only term
+    // including the winnability/complexity family wanted for a reworked OvD.
+    inline int EVAL_V2_PAIR = 0;
+
     inline int TEMPO_V2_MG = 0;
     inline int TEMPO_V2_EG = 0;
 

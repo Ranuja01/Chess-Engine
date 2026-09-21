@@ -86,7 +86,10 @@ case "$cmd" in
         "$PY" -u diagnostics/depth_nps_bench.py --n "$n" > "/tmp/epm_${tag}.out" 2> "/tmp/epm_${tag}.err" || true
     grep -hoE 'NPS: median [0-9,]+' "/tmp/epm_${tag}.out" || echo "NPS: (none)"
     echo "TERM                      CYCLES        CALLS"
-    awk '/^[ \t]+[A-Z_]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]/ {c[$1]+=$2; n[$1]+=$3}
+    # ⚠️ [A-Z_0-9]+, not [A-Z_]+: the eval-v2 term names carry a DIGIT (V2_EVAL, V2_KS ...). With the old
+    # class every v2 row was dropped SILENTLY and the table would have printed only v1's terms -- which
+    # under EVAL_ARM=1 are all ~0, i.e. a confident empty profile. (2026-09-20)
+    awk '/^[ \t]+[A-Z_0-9]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]/ {c[$1]+=$2; n[$1]+=$3}
          END {for (k in c) printf "%-18s %15.0f %12.0f\n", k, c[k], n[k]}' "/tmp/epm_${tag}.err" \
       | sort -k2 -nr
     ;;
@@ -103,7 +106,8 @@ case "$cmd" in
         "$PY" diagnostics/tactical_test.py wac.epd "$tag" > "/tmp/ep_${tag}.out" 2> "/tmp/ep_${tag}.err" || true
     echo -n "SOLVED: "; grep -hoE 'Solved [0-9]+/[0-9]+' "/tmp/ep_${tag}.out" || echo "?"
     echo "TERM                      CYCLES        CALLS"
-    awk '/^[ \t]+[A-Z_]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]/ {c[$1]+=$2; n[$1]+=$3}
+    # ⚠️ [A-Z_0-9]+ -- see the note in evalprofile_mid: the v2 term names contain a digit. (2026-09-20)
+    awk '/^[ \t]+[A-Z_0-9]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]/ {c[$1]+=$2; n[$1]+=$3}
          END {for (k in c) printf "%-18s %15.0f %12.0f\n", k, c[k], n[k]}' "/tmp/ep_${tag}.err" \
       | sort -k2 -nr
     ;;

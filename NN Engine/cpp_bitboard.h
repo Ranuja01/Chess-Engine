@@ -653,6 +653,20 @@ enum ProfTerm {
 	// building: collapsing the 16 passes into 1 (if PSEUDO dominates) vs pin-aware legal generation that
 	// removes the per-move check (if ISSAFE dominates). Nested, so excluded from the %-base.
 	PROF_MG_PSEUDO, PROF_MG_ISSAFE,
+	// ── EVAL v2 (eval_v2.cpp), added 2026-09-20 ────────────────────────────────────────────────────
+	// ☠️ WHY THESE HAD TO EXIST: v2 REPLACES the evaluator at the top of placement_and_piece_eval, so
+	// under EVAL_ARM=1 every v1 exclusive term above reads ~0 and a profile build says NOTHING about
+	// what v2 costs. "PROFILE_EVAL on v2" was carried in the parked register as a build flag; it is not.
+	// Appended AFTER the exclusive block ON PURPOSE: PROF_NUM_EXCLUSIVE must keep meaning "v1's eval",
+	// so v1's %-base and every historic profile reading stay comparable. Read V2_* against V2_EVAL.
+	// V2_EVAL is the OUTER scope (whole evaluator, context build included); the rest are nested inside
+	// it and therefore do not sum to it exactly -- unscoped remainder is the rest of the evaluator.
+	PROF_V2_EVAL, PROF_V2_CONTEXT, PROF_V2_ATTACK, PROF_V2_KS, PROF_V2_PAWNENTRY, PROF_V2_PLACEMENT,
+	// ★ THE DENOMINATOR. One scope at the NON-RECURSIVE root (get_engine_move), so eval share of node
+	// cost = V2_EVAL / SEARCH_ROOT -- the quantity the 2026-09-20 arithmetic rests on, which until now
+	// rested on a remembered "skeleton NPS was ~1.5x" figure. ⚠️ Must NEVER be placed on minimizer /
+	// maximizer / qSearch: a recursive RAII scope counts the same cycles once per level of nesting.
+	PROF_SEARCH_ROOT,
 	NUM_PROF_TERMS
 };
 

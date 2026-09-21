@@ -141,10 +141,18 @@ def _parse_knobs(s):
     return d
 
 
+# ★ A LADDER RIDES ONE BASE PASS (2026-09-20). `CAND_KNOBS` may carry several arms separated by ';', with
+# `CAND_NAME` naming them in the same order. The base pass is the expensive half and is IDENTICAL for every
+# arm, so N arms cost N+1 passes instead of 2N -- and every arm is then diffed against the SAME base moves,
+# which is what a dose-response reading needs. ⚠️ Backwards compatible: with no ';' this is the old
+# single-arm path exactly. A neutral arm belongs IN the ladder (see the null warning printed at the end).
 _ck = os.environ.get("CAND_KNOBS", "").strip()
 if _ck:
     BASE = ("shipped defaults", _parse_knobs(os.environ.get("BASE_KNOBS", "")))
-    CANDS = [(os.environ.get("CAND_NAME", "candidate"), _parse_knobs(_ck))]
+    _names = [s.strip() for s in os.environ.get("CAND_NAME", "candidate").split(";")]
+    _arms  = [s.strip() for s in _ck.split(";") if s.strip()]
+    CANDS  = [(_names[i] if i < len(_names) else "cand%d" % (i + 1), _parse_knobs(a))
+              for i, a in enumerate(_arms)]
 
 
 def collect(config, tag):
@@ -180,8 +188,11 @@ base = collect(BASE[1], "base")
 print("SET=%s DEPTH=%s SPLIT=%s  base=%s  positions=%d\n" % (os.path.basename(SET), DEPTH, SPLIT, BASE[0], len(base)), flush=True)
 print("  %-38s %7s %8s   %10s %10s %9s  %6s/%-6s %5s"
       % ("candidate", "changed", "%chg", "reg_base", "reg_cand", "delta", "bett", "wors", "win%"), flush=True)
-for name, c in CANDS:
-    cand = collect(c, "cand")
+for _ai, (name, c) in enumerate(CANDS):
+    # ⚠️ Tag per ARM, not a shared "cand": with a ladder in one process the worker paths would otherwise
+    # repeat, and a failed arm would silently be READ AS the previous arm's rows -- the same shape as the
+    # /tmp collision fixed on 09-07, one process instead of two.
+    cand = collect(c, "cand%d" % _ai)
     shared = [f for f in base if f in cand]
     changed = [f for f in shared if base[f][0] != cand[f][0]]
     if not changed:

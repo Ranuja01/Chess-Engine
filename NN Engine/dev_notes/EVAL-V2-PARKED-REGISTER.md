@@ -40,8 +40,11 @@ silent permanent rejection.
 Owner's framing: *a parked items slice before finishing things off* — precursor to corrhist, ending where
 the search lane begins. Ordered by **signal per hour**, which is NOT the same as the evidence ranking below:
 
-**1. Rook files** (zero code) → **2. `PROFILE_EVAL` on v2** (build flag) → **3. Tempo re-test** (one ladder)
-→ **4. `WeakUnopposed`** (small build) → **5. Material taper** (games) → **6. Shelter KS-B** (needs 2 calls)
+~~**1. Rook files**~~ ✅ **DONE 09-20 — REJECTED** → **2. `PROFILE_EVAL` on v2** (build flag) → **3. Tempo re-test** (one ladder)
+→ ~~**4. `WeakUnopposed`**~~ ✅ **DONE 09-20 — BUILT, MOVE-NULL** (flat across 4 arms, no dose response; it is
+a CONDITIONING of pawns v2 already penalises — `P(weak | weak_unopp) = 100%` — not the coverage addition
+this register called it; knobs kept, trigger = the joint retune)
+→ **5. Material taper** (games) → **6. Shelter KS-B** (needs 2 calls)
 → **7. Corrhist** (search-side; the transition item).
 
 ☠️ **Three design calls were made the same day** — see `EVAL-V2-REBUILD-LOG.md` 2026-09-20:
@@ -56,7 +59,7 @@ the search lane begins. Ordered by **signal per hour**, which is NOT the same as
 
 | # | item | why it ranks | what would be new |
 |---|---|---|---|
-| **1** | **Rook files** `ROOKFILE_V2_OPEN/SEMI=0` | **Built · 5/5 references · §I better on 6/6 corpora · closed on STS ALONE with every point inside the ±150 floor · never had a regret or games read.** The recorded 2×2 (mobility × rook files) pre-dates the mobility ship, so it was never re-read on the shipped base. v2 currently scores **no rook-on-open-file bonus at all** | a regret read on the shipped base, then ride the next regression bundle |
+| ~~1~~ | ~~**Rook files**~~ ☠️ **DONE 2026-09-20 — REJECTED, stays at 0** | was: built · 5/5 references · §I better 6/6 · closed on STS alone inside the floor · never regret-tested | ✅ **ANSWERED.** Ladder 50/25 · 150/67 · **367/164 (SF11's pawn conversion, 3.7× above anything previously tested)** vs a same-session neutral on the shipped base: **every arm at or below its null**, monotone with dose (−0.4 / −0.7 / −1.6pp), sign replicated on a disjoint 12,000-row set (−0.4pp) — **never positive**. Fires on 53.8%, colour-clean 0/800. Full record: `EVAL-V2-REBUILD-LOG.md` 2026-09-20 |
 | **2** | **KS-B shelter, core only** | never built · **4/4 universal** · both blockers stale · a pure COVERAGE addition in the one subsystem whose gap clears the resolution bar | settle OvD-storm ownership; re-derive WEAK:ADJ; **screen before C++** |
 | **3** | **Material taper** `EVAL_V2_PAWN_MG≈550` | the **largest §I effect in the whole rebuild**, explicitly recorded UNDECIDED; the only never-gamed large item. ⚠️ margins were just re-swept for a FLAT pawn, so a taper re-couples them | games with `RFP_MARGIN` co-swept — quote eval + margins together |
 | **4** | **Corrhist** (search-side) | v1's closure was **STS-only, July harness, a masking q-cache, one coarse keying** — and every search sweep ran at `EVAL_ARM=0`. Ordering blocker now cleared | SF-style 4-way keying under `EVAL_ARM=1`, games-only |
@@ -87,7 +90,10 @@ the search lane begins. Ordered by **signal per hour**, which is NOT the same as
 ## ⚠️ ITEMS WHOSE CLOSURE IS WEAKER THAN IT LOOKS
 
 Recorded here so nobody quotes them as settled:
-- **Rook files** — STS alone, entirely inside the floor. The strongest "closed" item that is not actually closed.
+- ~~**Rook files** — STS alone, entirely inside the floor.~~ ☠️ **SETTLED 2026-09-20: now genuinely closed**
+  on two disjoint move-level sets (see the shortlist row). ★ The item that motivated this whole section
+  turned out to be a real null — which is a result, not a wasted day: it was the cheapest one to settle, and
+  it was blocking a slot in every future regression bundle.
 - **Corrhist** — STS + July harness + q-cache masking + `EVAL_ARM=0`.
 - **Convertibility / endgame scale** — "−3.3 STS / −3 WAC", June, contamination era, inside the floor.
 - **Winnability (v1)** — the first descent "tried it on every pass and selected none. Reported as a clean
@@ -112,7 +118,7 @@ a "3/4" carrying both SFs is really **two independent designs** — noted per ro
 | **1** | **King far from pawns / pawnless flank** | **3/4** (2 designs) | SF `PawnlessFlank S(17,95)` + `−S(0, 16·minPawnDist)` (pawns.cpp); Ethereal `KingPawnFileProximity[8]`, S(36,46)…S(−12,−75) | **none** — king square + pawn bitboard | ☠️ **NEVER TRIED, NEVER CONSIDERED.** No knob, nothing in `eval_v2.cpp`, and **absent from the KS rung's own 14-component audit** |
 | **2** | **Minor-piece distance to own king** (`KingProtector` / `KnightInSiberia`) | **3/4** (2 shapes) | SF `S(7,8)`×Chebyshev; Ethereal `KnightInSiberia[4]` S(−9,−6)…S(−47,−19), dead-band ≥4, knights only | none | ⚠️ **DEFERRED ON A HYPOTHESIS THAT IS FALSE IN v2** — "overlaps KS zone defence". **v2's KS-A carries NO defender count at all** (SF's knight-defender is DEFER #11), so the slot it was said to overlap is EMPTY |
 | **3** | **Weak pawn on a half-open file** (`WeakUnopposed`) | ★ **4/4 — the only unanimous one** | SF `S(13,27)` on isolated/backward when `!opposed`; Ethereal `PawnBackwards[open][rank]`; Weiss `PawnOpen S(-10,-15)` + `PawnBackOpen S(-28,-12)` | **none — `opposed[]` and `halfOpen[]` already exist in v2** | ⚠️ **DROPPED PRE-BUILD ON A CO-OCCURRENCE ARGUMENT, NEVER MEASURED** ("fires mostly on pawns the passer term will reward, 4.27×"). ☠️ **SF deliberately pays BOTH** `WeakUnopposed` and the passer on the same pawn |
-| **4** | **Rook / queen behind a passer** | **3/4** (2 designs) | SF: own R/Q behind ⇒ `k += 5` (a MULTIPLIER, up to ~110 at rank 7); enemy behind ⇒ whole span unsafe. Weiss `PassedRookBack S(21,46)` flat | none — passed mask + file fill exist | ☠️ **SCHEDULED FOR "RUNG 6", NEVER BUILT.** Rung 6 never reads the passed mask; zero hits for `rook.?behind` in `eval_v2.cpp`. v1's `ROOK_PASSER_OWN/ENEMY` is dead |
+| **4** | **Rook / queen behind a passer** ☠️ **NOT A SMALL BUILD — see the 09-21 line read** | **3/4** (2 designs) | SF: own R/Q behind ⇒ `k += 5`, a rung on the PATH-SAFETY LADDER (`unsafeSquares` / `blockSq` empty / stop-square defended ⇒ k = 35/20/9/0), then × `w = 5r−13`. **Max increment 85, not ~110** (w = 17 at the 7th rank). Enemy behind ⇒ the whole span stays unsafe, so k collapses. Weiss `PassedRookBack S(21,46)` flat, own ROOK only | ☠️ **v2 HAS NO LADDER FOR IT TO JOIN** — `passer_value_mp` has the `w` multiplier but no `unsafeSquares`, no `blockSq`-empty test, no stop-square-defended test. Porting "SF's form" means building the ladder FIRST; attaching the +5 standalone is a THIRD form, neither SF's nor Weiss's | ☠️ **SCHEDULED FOR "RUNG 6", NEVER BUILT.** Rung 6 never reads the passed mask; zero hits for `rook.?behind` in `eval_v2.cpp`. v1's `ROOK_PASSER_OWN/ENEMY` is dead |
 
 ### ★★★ THE PATTERN REPEATS — three of four were REASONED away, not measured
 - #3 dropped on a **co-occurrence argument**, #2 on an **overlap hypothesis** (false in v2), #4 on
@@ -121,8 +127,14 @@ a "3/4" carrying both SFs is really **two independent designs** — noted per ro
   incidental: items die by reasoning in a design doc and are never revisited as measurements.
 
 ### ▶️ CHEAPEST FIRST
-**#3 WeakUnopposed** is the standout: **4/4 universal**, inputs **already computed** in v2's `PawnEntry`,
-never measured, and the argument that killed it is contradicted by SF's own design. Then **#1** (needs
+☠️ **#3 WeakUnopposed — BUILT AND MEASURED 2026-09-20: MOVE-NULL.** Flat at 49.3 / 49.3 / 50.1 against a
+49.8 null across both shapes and a 2× magnitude range, no dose ordering. ★ And the pre-build overlap read
+explains it: `P(weak | weak_unopp) = 100%` ⇒ it is a **conditioning of pawns v2 already penalises**, not the
+"pure coverage addition" this document called it. ⇒ the **4/4-unanimous argument is now empirically spent**
+on the one term where it was strongest. Knobs kept at 0; trigger = the joint retune.
+Original framing, kept for the record: **#3 WeakUnopposed** is the standout: **4/4 universal**, inputs
+**already computed** in v2's `PawnEntry`, never measured, and the argument that killed it is contradicted by
+SF's own design. Then **#1** (needs
 nothing but king square + pawns, and was never even considered). **#2** needs its overlap claim re-checked
 against v2 rather than v1. **#4** is a multiplier path in SF, not an additive one — port the shape, not the
 constant.
@@ -135,10 +147,29 @@ Weiss `PassedSquare` (1/4; v2 has exact KPK) · `WeakLever` (2/4) · `RookOnClos
 at all**) · `PawnDoubled2` (1/4, no record hit) · rook/bishop-on-king-ring · `BishopXRayPawns` ·
 `RookOnQueenFile` · Ethereal `RookOnSeventh` · `ThreatOverloadedPieces` · `WeakQueenProtection`.
 
-### ⚠️ UNRESOLVED IN THE CONTRAST
-- Ethereal's lack of a rook-behind-passer term came from a **fetch summary, not a line read** — confirm in
-  `evaluatePassed` before quoting #4 as 3/4 rather than 4/4.
-- SF15.1's `WeakUnopposed` line was not read directly (only `WeakLever` was).
+### ✅ RESOLVED BY LINE READ 2026-09-21 (engine-contrast agent, sources read directly)
+- ~~Ethereal's lack of a rook-behind-passer~~ **CONFIRMED** — `evaluatePassed` read in full, no rook/queen
+  reference. #4 stands at **3/4**.
+- ☠️ **CORRECTION — "exclude shelter pawns attacked by enemy pawns" is 2/4, NOT 3/4.** SF15.1
+  (`pawns.cpp:236`) and Weiss do; **SF11 (`pawns.cpp:191`) and Ethereal do NOT** — the SF lineage splits
+  internally on it. Any "3/4" claim elsewhere in the record inherits this error.
+- ☠️ **CORRECTION — #2's premise is only half true.** "v2's KS-A carries NO defender count" is right as a
+  COUNT, but defence already enters KS-A through the `weak` set (`eval_v2.cpp:529`) and the safe-check set
+  (`:543`). The KingProtector overlap is **partial, not empty** — a minor beside our king already lowers
+  KS-A units. ⚠️ SF pays `KingProtector` anyway AND carries a separate knight-defender term v2 lacks.
+- ☠️ **CORRECTION — the "rung 6 collision" (rook-behind × rook-on-open-file) is overstated.** Own rook
+  behind our OWN passer is **mutually exclusive** with rook-on-file by construction (our pawn is on the
+  file, so it is not own-semi-open). Only the ENEMY-passer case can co-fire.
+- ⚠️ **SYMMETRY HAZARD for any shelter port:** Ethereal's `KingShelter` second index is the **ABSOLUTE
+  file**, an asymmetric table — a verbatim port fails `_eval_symmetry.py`'s file-mirror check exactly as
+  `PawnIsolated` did. SF's `map_to_queenside` tables are symmetric by construction.
+- ★ **SF DOUBLE-WIRES SHELTER:** the score seeds `king()` directly AND feeds `kingDanger` as `−6·mg/8`
+  (`evaluate.cpp:384`, `:455`). "Build shelter" is really "choose one channel or both" — a design decision,
+  not a port.
+- Still open: SF15.1's `WeakUnopposed` line was not read directly (only `WeakLever` was) — moot, the term
+  measured null on 2026-09-20.
+- ⚠️ Ethereal/Weiss were read at GitHub `master`, NOT the register's pinned commits (@0e47e9b / @c735b8f);
+  constants may differ from the pins.
 
 ---
 

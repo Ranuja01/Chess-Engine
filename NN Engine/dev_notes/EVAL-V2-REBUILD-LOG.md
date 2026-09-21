@@ -2732,3 +2732,647 @@ the 9.48x node-efficiency gap compounds with it. ⇒ ☠️ **never justify an e
 The owner's own article on building the engine (~2024, pre-C++, Cython era — `ChessAI.pyx` is a remnant of
 it) is now recorded as [[owners-engine-origin-article]], offered as context for *why* v1 carries the
 inventions it does. ⇒ read it before judging or retiring a v1-original term.
+
+---
+
+## 2026-09-20 (later) — PARKED SLICE ITEM 1: ROOK FILES. Predictions registered BEFORE any reading.
+
+**Why it is item 1:** built, 5/5 universal, §I better on 6/6 corpora, and closed on **STS alone with every
+point inside the ±150 floor** — never given a regret or games read. v2 currently scores **no** rook-on-open-file
+bonus (`ROOKFILE_V2_OPEN/SEMI = 0`).
+
+### Step 0 — the two checks the register demands before believing any gate
+1. **Knob audit (static).** Declared `search_engine.h:914-915`, env-wired `search_engine.cpp:2137-2138`,
+   printed in the toggles dump `:2482-2483`, gated at `eval_v2.cpp:2686` (`rf_on`) inside the pawn-entry
+   block the shipped config already enters (placement is on) ⇒ the term costs one bit loop, no new detector.
+   Published as `v2_rookfile` + `EB_V2_ROOKFILE` (`eval_v2.cpp:2784`).
+2. ✅ **DIFFERENTIAL — IT FIRES, AND WIDELY.** `_v2_term_join.py N=4000` on `cond_corpus_v2.csv` at the
+   pawn-conversion point (367/164): **fires on 53.8% of positions**, mean |contribution| when it fires
+   **0.179 pawns (179 mp)**, p25/med/p75 = −0.153 / +0.018 / +0.158, max 0.734 pawns. Breakdown fields go
+   **18/49 → 19/49**. ⇒ **not a vacuous gate** — the opposite of tier-2b's 1-in-23,113.
+
+### ★ THE SIZING QUESTION, AND WHY THE OLD LADDER MAY HAVE BEEN THE WRONG RANGE
+The 09-14 ladder was 20/10 · 50/25 · 100/50, sized against **v2's positional sibling spread** (~30 mp).
+☠️ That is the same sizing theory that under-sized **mobility by ~10×**: mobility's ladder was built on the
+positional spread (30/60/115/300) and the term that shipped, and won **+162 Elo**, was `MOB_V2_MAG=600` —
+SF's **pawn** conversion. ⇒ the rook-file pawn conversion is `open 47/128 → 367 mp`, `semi 21/128 → 164 mp`,
+**3.7× above the top of the ladder that was ever tested**. The eg legs follow automatically
+(`ROOKFILE_OPEN_EG_PCT=32`, `SEMI 11`).
+⇒ The ladder to read is **50/25 · 150/67 · 367/164**, i.e. the old reference point and the untested range above it.
+
+### ⚠️ REGISTERED PREDICTIONS (written before the first regret number, per the standing rule — my record on
+these is 2/8 and 3/12, so they are here to be scored, not to be trusted)
+1. The regret read on the shipped base will be **within ±1.0pp of its same-session neutral at 50/25**
+   (too small to resolve — mean contribution there is ~24 mp against a 36 mp sibling std).
+2. At **367/164** it will be **resolvable** (|Δ| ≥ 1pp), and I predict the sign is **positive** (+1 to +3pp).
+3. The **STS monotone harm** (−72 → −90 → −147) will NOT be reproduced as regret harm — it is the ±150-floor
+   artifact the register already suspects. ⚠️ If regret harm at 367/164 agrees with STS's direction, that is
+   two instruments agreeing and the item closes for good.
+4. Coverage argument: the term's fire rate (53.8%) is far above threats (38.6%) and pawn structure — so if
+   [[v2-terms-are-narrow-not-wrong-so-the-lever-is-coverage]] is right, this is the broadest cheap detector
+   left on the list.
+
+### ⚠️ WHAT THIS RUN CANNOT DECIDE
+A single-corpus regret reading near +1pp is NOISE (the real bar is ~2-2.5pp cross-set). The verdict needs
+the sign to replicate on a **disjoint** set, and Elo still needs games — rook files would ride the next
+regression bundle, never a solo SPRT (±23 Elo at 1,200 games).
+
+### ▶️ RESULT — SET A (`game_regret_set_v2era.csv`, 10,000 positions, d7, shipped v2 base)
+★ First regret read rook files have EVER had. ★ Also the first use of the v2-era regret sets, so the
+neutral below is **the first null ever measured on this corpus** (charter rule 6).
+
+| arm | changed | %chg | mean delta | win% of changed | vs neutral |
+|---|---|---|---|---|---|
+| **neutral `ASPIRATION_DELTA=300`** | 3,226 | 32.3% | −0.1154 | **49.8%** | — (the null) |
+| rf 50/25 | 2,737 | 27.4% | +0.0513 | 49.4% | −0.4pp |
+| rf 150/67 | 3,172 | 31.7% | +0.0412 | 49.1% | −0.7pp |
+| **rf 367/164** | 3,603 | 36.0% | +0.0837 | **48.2%** | **−1.6pp** |
+
+★ **The null lands at 49.8%** — the same place as `game_regret_set`'s historic band (49.8-50.4), so the
+v2-era corpus does not carry a different bias. σ at n≈3,000 is ~0.91pp.
+☠️ **MONOTONE HARM WITH DOSE.** Every magnitude is at or below its null, and the gap grows with the term:
+−0.4 → −0.7 → −1.6pp, while the changed-rate rises 27.4 → 31.7 → 36.0%. The mean-delta column agrees in
+sign (+0.05/+0.04/+0.08 against the neutral's −0.12), though each is inside the ±0.2 resolvability line.
+★ **This is the same direction as the 09-14 STS ladder** (−72 → −90 → −147). Two instruments of different
+classes now agree, which is what the 09-14 note could not claim when every STS point sat inside the floor.
+
+**Registered predictions, scored:** (1) ✅ 50/25 within ±1pp — right (−0.4pp). (2) ☠️ WRONG on sign — the
+367/164 arm is resolvable-ish (1.8σ) but **negative**, where I predicted +1 to +3pp. (3) ☠️ WRONG — STS's
+monotone harm DID reproduce on a move-level instrument. (4) high fire rate did NOT convert to coverage
+gain. ⇒ **1 of 4**, consistent with the 2/8 and 3/12 records. ★ The registration is what makes this
+readable at all: without it, the 49.4% cell would have been available to read as "roughly neutral".
+
+**Colour gate (non-vacuous this time):** `_eval_symmetry.py N=800` with 367/164 ON ⇒ **colour swap 0/800**.
+File mirror 21/651 @ 5 mp = the pre-existing queen-PST asymmetry (identical with slice 2 off, 09-14).
+⇒ the harm is **real behaviour, not a sign error** — which matters, because a colour-flipped bonus would
+produce exactly this monotone-harm-with-magnitude shape.
+
+⚠️ Fire rate is NOT the problem: the term speaks on 53.8% of positions with a mean 179 mp. This is a case
+of a **broad detector that is broad in the wrong way** — and it is the first direct counter-example to a
+naive reading of [[v2-terms-are-narrow-not-wrong-so-the-lever-is-coverage]]: coverage is the lever, but
+coverage bought with a term v2's other terms already price is not a gain. ★ Mechanism candidate, UNTESTED:
+v2's mobility ships at 600 and rook mobility on an open file already rises with exactly the same
+emptiness — so an open-file bonus is a second owner for a signal mobility carries. That is the
+**one-owner rule** the v2 charter exists to enforce, and it predicts precisely a dose-graded harm.
+
+**Correlation check on that mechanism (free — the term-join run already carried both columns, n=4,000):**
+`r(v2_rookfile, v2_mobility) = +0.343` · `r(·, sf11_mobility) = +0.241` · placement +0.036 · pawn
+structure −0.028 · passers −0.018. ⚠️ **Suggestive, NOT proof.** The 40-column collinearity gate's
+strongest cross pair is −0.41, so +0.34 does not flag by that standard, and the record's own counter-example
+is `th_restricted × ks_natt` at VIF 1.10 despite sharing attack maps ⇒ [[threats-does-not-double-count-king-safety]],
+*sharing an INPUT is not sharing a SIGNAL*. ★ The decisive test, NOT run (it costs ~1h and changes no ship
+decision): the same regret ladder on a `MOB_V2_MAG=0` base — if rook files help without mobility and harm
+with it, that is the one-owner signature; if they harm in both, the term is simply wrong for v2.
+
+### ▶️ RESULT — SET B (`game_regret_set_v2era_b.csv`, 12,000 positions, DISJOINT from A)
+
+| arm | changed | %chg | mean delta | win% | vs neutral |
+|---|---|---|---|---|---|
+| neutral `ASPIRATION_DELTA=300` | 4,002 | 33.4% | −0.1285 | **50.8%** | — |
+| rf 367/164 | 4,427 | 36.9% | +0.0446 | 50.4% | **−0.4pp** |
+
+☠️ **THE MAGNITUDE DOES NOT REPLICATE — and that is the finding.** Sign yes (negative on both sets, on
+BOTH statistics: win% −1.6 / −0.4pp, mean delta +0.199 / +0.173 against the neutral — 4 readings of 4 in
+the same direction). Size no: **1.8σ on A, 0.5σ on B.** ⇒ set A's cell was the high end of the noise,
+exactly the shape the ~2-2.5pp cross-set bar exists to catch. ★ Had I stopped at set A I would have
+written "monotone harm, closed" — a real-sounding verdict built on one corpus.
+⚠️ The two nulls differ (**49.8 vs 50.8**), which is charter rule 6 ("measure the null per corpus") paying
+for itself again: against a single assumed 50.0 these would read −1.8 and −0.4, and B's neutral would
+itself look like a candidate on A's scale.
+
+### ★★★ VERDICT — ROOK FILES: **MEASURED NON-POSITIVE, STAY AT 0.** Reclassified UNREADABLE → **REJECTED**.
+- Three magnitudes spanning the positional-scale reference (50/25) through SF11's **pawn conversion**
+  (367/164, 3.7× above anything previously tested) are **all at or below their same-session null**, with a
+  monotone dose ordering on the set where the full ladder ran.
+- The sign replicates on a disjoint 12,000-position set; **no magnitude ever reads positive.**
+- ⇒ the register's prescription — "a regret read on the shipped base, then ride the next regression bundle"
+  — is answered: **nothing rides a bundle that reads non-positive on two disjoint sets.**
+- ☠️ **What this does NOT license:** calling it *harmful*. The only resolvable-ish harm reading failed to
+  replicate. The defensible statement is **"no measurable move-level value in v2 at any tested magnitude"**.
+- ★ The one genuinely open question is the MECHANISM (second owner vs simply wrong), answerable by the
+  `MOB_V2_MAG=0` ladder above. No bearing on shipping; real bearing on **shelter/storm and OvD**, where
+  "two terms, one signal" is the standing blocker.
+
+⇒ **SEVENTH consecutive concept to read positive on §I and null-or-worse on a move instrument** (central ·
+pair · space · threats · Kaufman · tier-2b · rook files). ★ And the FIRST where the term was proved to fire
+BROADLY (53.8%) beforehand — so "our detectors are too narrow" does not explain this one away.
+
+---
+
+## 2026-09-20 — PARKED ITEM 3: TEMPO RE-TEST. Trigger cashed; recommend PERMANENT CLOSURE.
+The park said *"re-test at the checkpoint margin re-sweep"*; `RFP_MARGIN=1000` shipped 09-18 and nobody
+re-read it. One WAC ladder on the shipped base, against `250 / 49,440,513 / EBF 4.031`:
+
+| arm | solves | nodes | Δ nodes | EBF |
+|---|---|---|---|---|
+| `TEMPO_V2_MG=25 EG=14` | 248 | 50,266,763 | **+1.67%** | 4.038 |
+| `TEMPO_V2_MG=100 EG=55` | 254 | 50,674,690 | **+2.50%** | 3.986 |
+
+☠️ **THE SIGN FLIPPED WITH THE MARGIN.** On the pre-margin base the same two arms read **−5.06% / −5.10%**
+(identical across 4× magnitude); on the re-swept base they read **+1.67% / +2.50%**. The eval term did not
+change — only a SEARCH threshold did. ⇒ the 09-14 verdict is confirmed by a different signature: tempo is
+**coupling to pruning thresholds, not supplying evaluation**.
+★ And there is a STRUCTURAL reason it can be nothing else: tempo adds ±t keyed on `turn`, and **every child
+of a node shares one side to move**, so it shifts all siblings identically and **cannot reorder a static
+move list at all**. Whatever it does reaches the move only through search asymmetries (qsearch stand-pat,
+extensions) — i.e. through thresholds. ⇒ a magnitude ladder on it is a coupling detector, exactly as
+[[zero-variance-terms-measure-only-margin-coupling]] says.
+⚠️ **Do not read the +4 solves at 100/55 as strength** — [[wac-at-d10-does-not-discriminate-strength]]; WAC
+is a fingerprint and a tactical veto, never a score. What is readable is the NODE direction, and it is up.
+▶️ **RECOMMENDATION: close tempo permanently** (owner's call). It costs nodes on the shipped base, has no
+static move-level mechanism, and its only measurable behaviour tracks whatever the current margin is.
+⚠️ Honest caveat: the park's literal closing criterion was *"if the node-step signature repeats"*, and the
+identical-across-magnitude signature did NOT repeat — a dose difference appeared. The conclusion is the
+same but by a different route, so it is recorded as a recommendation, not as the criterion firing.
+
+---
+
+## ★★★★ 2026-09-20 — PARKED ITEM 2: `PROFILE_EVAL` ON v2. **THE 33% FIGURE WAS WRONG: v2'S EVAL IS 11.5%.**
+
+### ☠️ FIRST, THE ITEM WAS MIS-COSTED — it was carried as "build flag"
+`eval_v2.cpp` contained **ZERO `PROF_BLOCK` scopes** (v1's `cpp_bitboard.cpp` has 32). v2 REPLACES the
+evaluator at the top of `placement_and_piece_eval`, so a profile build under `EVAL_ARM=1` would have
+printed v1's fourteen exclusive terms **all at 0** and nothing about v2 — a confident empty table.
+✅ Proved after the fact: in the v2 run below, every v1 term reads exactly 0.
+**Built this session** (production stays byte-identical — `PROF_BLOCK` is a no-op without `-DEVAL_PROFILE`):
+6 v2 scopes (`V2_EVAL` outer · `V2_CONTEXT` · `V2_ATTACK` · `V2_KS` · `V2_PAWNENTRY` · `V2_PLACEMENT`) plus
+**`SEARCH_ROOT`**, the denominator that makes "share of node cost" a measurement rather than an inference.
+☠️ **Three traps on the way, each of which produces a plausible wrong number:**
+1. `PROF_V2_KS` scoped around `ks_danger_mp` only would exclude `ks_units` — the expensive half — and report
+   king safety as nearly free. Moved to cover the whole block.
+2. `SEARCH_ROOT` as a `ProfScope` would read **0**: `eval_profile_dump()` runs INSIDE `get_engine_move`, so
+   the RAII guard is still alive at dump time. Uses an explicit `__rdtsc()` pair instead. ⚠️ And it must
+   never go on `minimizer`/`maximizer`/`qSearch` — a recursive RAII scope counts cycles once per level.
+3. The runner's two aggregators matched `[A-Z_]+`, which **does not match the digit in `V2_EVAL`** ⇒ every
+   v2 row would have been dropped SILENTLY. Fixed to `[A-Z_0-9]+` in both subs.
+
+### ▶️ MEASURED — `evalprofile_mid`, 40 positions, MAX_DEPTH=12, single-threaded (the record's REQUIRED
+control workload: a tactical suite misstates movegen's share)
+
+| | **v2 (shipped)** | **v1 (frozen)** |
+|---|---|---|
+| NPS median | **460,377** | 359,161 |
+| `SEARCH_ROOT` cycles | 479,141,441,219 (40 searches) | 295,979,317,607 (39) |
+| **EVAL share of node cost** | **11.5%** | **~32.8%** |
+| eval cycles per call | **2,164** | **8,034** |
+| MOVEGEN share | **41.1%** | 22.1% |
+| MOVEGEN cycles per node | 13,900 | 13,740 |
+| MAKEUNMAKE · TT_PROBE | 4.0% · 1.4% | 3.7% · 1.4% |
+
+★★★ **THE HEADLINE: v2's eval is 11.5% of node cost, not ~33%.** The 09-20 arithmetic — *"v2's eval is
+~1/3 of node cost, so zeroing it buys ~1.5×"* — rested on a remembered skeleton-NPS figure. Measured,
+**zeroing v2's eval entirely buys 1/(1−0.115) = 1.13×**, not 1.5×, against the ~5.6× NPS gap to SF11.
+☠️ **And the ⅓ figure is REAL — it is just v1's.** Measured here at 32.8% on the same workload in the same
+session, which is why it felt corroborated: [[eval-is-a-third-of-node-cost-not-half]] is a **v1**
+measurement that was carried across the rebuild to an eval built to be cheap.
+⇒ **The "never justify an eval change on NPS" law gets STRONGER, not weaker**, and the non-eval remainder
+of the gap grows from ~3.7× to **~4.9×**.
+★ Per CALL, v1's eval costs **3.7×** v2's (8,034 vs 2,164 cycles) — the 09-20 estimate was 2.2×.
+
+✅ **INSTRUMENT VALIDATION (this is why the table is trustworthy):** movegen is arm-independent code, and it
+measures **13,740 vs 13,900 cycles per node** across the two arms — 1.2% apart. The share difference
+(22.1% → 41.1%) is therefore entirely the DENOMINATOR shrinking, exactly as it must be.
+
+### ▶️ WHERE v2's EVAL CYCLES GO (shares of `V2_EVAL`)
+`V2_ATTACK` **26.4%** (the shared attack build, mobility included) · `V2_PLACEMENT` 17.9% ·
+`V2_PAWNENTRY` 14.7% · `V2_KS` 13.1% · `V2_CONTEXT` 2.2% · unscoped remainder ~26% (material+PST,
+mobility scoring, publication). ⇒ ☠️ **a pawn-hash cache would target 14.7% of 11.5% ≈ 1.7% of node cost**,
+and only the part a cache actually hits. The rung-2 design notes reserved `build_pawn_entry` as the block a
+`pawnKey` cache could memoize and called its share "the prize" — **the prize is now measured, and it is far
+below the ~half-a-ply speed bar** ([[half-a-ply-is-elo-neutral-the-speed-bar]]). Do not build it for Elo.
+
+### ★★ AND A SEARCH-LANE FINDING THAT FALLS OUT FOR FREE
+The enum's own decision rule (`cpp_bitboard.h`): *PSEUDO dominating ⇒ collapse the 16 per-pair passes;
+ISSAFE dominating ⇒ pin-aware legal generation.* Measured: **`MG_ISSAFE` 67.74G vs `MG_PSEUDO` 32.58G in v2
+(2.08×) and 21.42G vs 11.25G in v1 (1.90×)** — same call count, so the instrument's own overhead subtracts
+roughly equally and the ratio is if anything understated. ⇒ **ISSAFE dominates in BOTH arms ⇒ the indicated
+movegen fix is pin-aware legal generation, not collapsing the passes.** Movegen is 41.1% of a v2 node, i.e.
+**3.6× the entire eval** — the largest single measured block in the engine.
+
+⚠️ **Caveats.** One workload (midgame, d12), 40 positions, and `__rdtsc` scopes charge their own cost to the
+regions they wrap — heaviest at the 208M-call PSEUDO/ISSAFE scopes. Both effects INFLATE the instrumented
+shares, so **11.5% is an upper bound on v2's eval share** and the conclusion is conservative.
+
+---
+
+## 2026-09-20 — PARKED ITEM 4: `WeakUnopposed`. BUILT AND GATED; the item needed RECLASSIFYING first.
+
+### ☠️ IT IS NOT A MISSING DETECTOR — IT IS A CONDITIONING OF ONE WE ALREADY OWN
+The register ranked it as *"the only 4/4 unanimous term we lack"* and *"a pure COVERAGE addition"*. The
+second half is wrong for v2, and the tool that says so is the one that produced the argument which killed
+it in the first place — 🧰 `_pawn_term_overlap.py` (no engine, no build, pure pawn-bitboard predicates),
+re-run on the **v2-era** corpus (6,000 positions / 63,384 pawns):
+
+| predicate | firing rate | |
+|---|---|---|
+| `weak` (= isolated ∪ backward) | 21.12% | **v2 already prices this** (`PS_V2_ISOLATED_*`, `PS_V2_BACKWARD_*`) |
+| `weak_unopp` | **8.54%** | **P(weak \| weak_unopp) = 100%** |
+
+★ **Every pawn it flags is already being penalised.** The tool's own protocol — *"anything over ~50%
+conditional overlap is two names for one signal and gets merged or dropped on the spot"* — therefore says
+**MERGE**. Built accordingly: an extra charge inside `pawn_structure_mp`, under `PS_V2_MAG`, **not** a new
+term with its own owner. ★ That is also SF's own form (it stacks `WeakUnopposed` on top of its isolated and
+backward charges, and on top of the passer bonus).
+⚠️ **And the objection that killed it in rung 2a REPRODUCES, STRONGER:** `P(passed | weak_unopp) = 42%`,
+**lift 5.48×** (rung 2a measured 4.27× on the v1-era corpus). Two times in five this penalty lands on a pawn
+2b's passer term is simultaneously rewarding. ☠️ SF pays both deliberately — so this is a reason to WATCH,
+not to drop pre-build, which is precisely the mistake the register catalogued.
+
+### ▶️ BUILD + GATES (all passed)
+`PS_V2_WEAKUNOPP_MG / _EG`, defaults 0. Scorer: `popcount((isolated | backward) & ~opposed)` per side,
+inside the existing phase blend.
+- ✅ **Byte-identity, knobs at 0:** `250 / 49,440,513 / EBF 4.031` — exact.
+- ✅ **Differential (the term must be PROVED to fire):** at 102/127 the published `pawn_struct` differential
+  changes on **40.8% of 4,000 positions**, mean **135 mp**, max 455 mp. (Below the 8.54% pawn rate because
+  this is a White−Black DIFFERENTIAL — equal counts cancel, correctly.)
+- ✅ **Colour symmetry 0/800** at 102/127; file mirror 21/651 @ 5 mp = the known queen-PST residue.
+- ✅ **`[toggles]` line read back** and shows both knobs live at the intended values.
+
+### ⚠️ REGISTERED PREDICTIONS (before the ladder's first number)
+Arms: neutral `ASPIRATION_DELTA=300` · **102/127** (SF's pawn conversion) · **0/127** · **0/254**.
+1. ★ **The ENDGAME-ONLY arms will beat the SF-conversion arm.** Mechanism from the record:
+   **every v2 pawn term that ships is endgame-weighted and every midgame-heavy one failed** — six terms, no
+   exceptions — and both neighbours of this term ship at `MG = 0`. Our pawn is FLAT at 1000 while pieces
+   taper up in the endgame, so converted reference constants inherit a phase relationship we do not have.
+2. **My honest prior is NULL for all four arms** (within ±1pp of neutral): seven consecutive concepts have
+   measured move-null, and this one's detector is **100% subsumed**. ⇒ If it resolves positive, the thing
+   that paid is the CONDITIONING (half-open file), not new coverage — which would be the mobility-AREA
+   pattern (+31 Elo) rather than the new-concept pattern.
+3. If any arm reads harm, suspect the passer collision (42% / 5.48× lift) before the concept.
+⚠️ Scoring so far today: 1 of 3 on rook files. These are registered to be SCORED, not trusted.
+
+### ▶️ RESULT — SET A (10,000 positions, d7, shipped v2 base): **FLAT NULL, NO DOSE RESPONSE**
+
+| arm | changed | %chg | mean delta | win% | vs neutral |
+|---|---|---|---|---|---|
+| neutral `ASPIRATION_DELTA=300` | 3,226 | 32.3% | −0.1154 | **49.8%** | — |
+| wu 102/127 (SF pawn conversion) | 3,189 | 31.9% | +0.1027 | 49.3% | −0.5pp |
+| wu 0/127 (endgame leg only) | 2,749 | 27.5% | +0.0379 | 49.3% | −0.5pp |
+| wu 0/254 (double endgame) | 3,080 | 30.8% | −0.0507 | 50.1% | +0.3pp |
+
+☠️ **Every arm inside ±0.5pp of its null against σ ≈ 0.9pp, and NO ORDERING** across a 2× magnitude range
+or between the two shapes (−0.5 / −0.5 / +0.3). A real effect of unresolvable size still orders itself with
+dose; this does not. ⇒ **NULL, and not merely "too small to resolve".**
+⚠️ No cross-set replication run: replication exists to confirm a SIGN, and there is no sign here. If it is
+ever revisited, set B is the first step, not a re-run of set A.
+
+**Predictions scored:** (1) ☠️ **WRONG** — the endgame-only arm did NOT beat the SF-conversion arm; they are
+identical to the decimal (49.3 / 49.3). The "every midgame-heavy v2 pawn leg failed" rule did not extend to
+this term, because the term is null in BOTH legs — there was no signal for the phase split to shape.
+(2) ✅ right — null across all four arms, which was the honest prior. (3) n/a, no harm arm appeared.
+⇒ **Today's registered-prediction record: 2 of 5.** Consistent with 2/8 and 3/12. ★ The value of registering
+is unchanged: without it, "49.3 vs 49.8" is available to be read as a small positive on a quick glance.
+
+### ★★★ VERDICT — `WeakUnopposed`: BUILT, GATED AT 0, **MOVE-NULL**. And this one matters more than most.
+- It is the **only 4/4 unanimous reference term v2 lacked** — the strongest remaining form of the argument
+  *"every serious engine carries this, so we should too."* Measured on our own distribution, it changes
+  nothing about which move we play, at any magnitude or shape.
+- ⇒ **EIGHTH consecutive concept to measure move-null** (central · pair · space · threats · Kaufman ·
+  tier-2b · rook files · weak-unopposed). Two of the last two were *reference-universal* terms.
+- ★ The mechanism is the one the overlap tool predicted before the build: **100% of the pawns it flags were
+  already being penalised.** It re-prices pawns v2 already prices; it does not tell the search anything new.
+- ⚠️ Keep the knobs: this is a CONDITIONING, and a conditioning's value depends on the constants it
+  conditions. Its honest trigger is **the joint retune** — if `PS_V2_ISOLATED_*` / `PS_V2_BACKWARD_*` move,
+  the half-open-file split becomes worth one re-read. ☠️ Name the trigger AND the checker, per
+  [[a-park-trigger-nobody-rereads-is-a-silent-rejection]] — this register IS the checker.
+- ⚠️ The passer collision (42%, lift 5.48×) never became visible: with no effect at all, there was nothing
+  for it to cancel. It stays an untested hypothesis, not an explanation.
+
+---
+
+## ★★★★ 2026-09-20 — TERM SEPARABILITY: THE CEILING ON TUNING, MEASURED BEFORE TUNING
+🧰 `diagnostics/_term_separability.py` (new). Owner's framing: *"before the full retune, get a guiding light
+by rechecking across our data where we are falling short, why, whether it's buildwise or tuning wise."*
+
+### THE METHOD, AND WHY IT IS EXACT RATHER THAN A PROXY
+v2's published breakdown is a **complete partition** — the terms sum to `total` to the millipawn (verified
+4,000/4,000). So the eval IS `total = Σ termᵢ`, a candidate retune IS `Σ wᵢ·termᵢ`, and *"could any retune
+have played SF's move here?"* is a **linear feasibility question** over the sibling set:
+`∃ w ∈ [0.25, 4]⁷ : (x_best − x_j)·w > 0 ∀ j`. Solved as an LP maximising the margin.
+
+### ☠️☠️ THREE DESIGN FAULTS, ALL CAUGHT BY CONTROLS RATHER THAN BY INSPECTION
+1. **The first design was information-free.** SF's best separable **10.2%**, a RANDOM sibling **10.0%**.
+   Comparing a static one-ply argmax against a **d14 search** measures TACTICS, which no reweighting of a
+   static eval can express. ⇒ `QUIET=1` added (both contested moves non-capture, non-promotion, non-check).
+   ★ Without the random-sibling null this would have been written up as "94% structurally missing".
+2. **Ties are not failures.** The self-check (our own argmax must be separable, since `w = 1` ranks it top)
+   failed 3/120 — all ties. A tie is an INDIFFERENCE of the feature set, not a mis-weighting. Now counted
+   separately, and the self-check reads **0 failures / 31 ties** at scale.
+3. ☠️☠️ **60% OF "DISAGREEMENTS" WERE SF BEING INDIFFERENT.** Of 559 quiet disagreements, **333 sit at a
+   best-vs-2nd gap below 1 win%** — a coin flip, not an error. Including them diluted every headline.
+   ⇒ `MIN_A` added, applied BEFORE child evaluation (the gap is in the cached label, so it also skips the
+   cost of ~80% of rows). ★ This is the criticality index of the staged objective, doing real work on its
+   first use: it changed the conclusion rather than decorating it.
+
+### ▶️ RESULT — 700 quiet positions, `game_regret_set_v2era.csv`, shipped v2 base
+| SF gap A | n | separable | not separable | indistinguishable |
+|---|---|---|---|---|
+| **<1% (SF indifferent)** | **333 (60%)** | 18.0% | 65.2% | 16.8% |
+| 1–3% | 120 | 15.8% | 74.2% | 10.0% |
+| **3–8% (REAL)** | 75 | **26.7%** | 62.7% | 10.7% |
+| **8%+ (large)** | 31 | **32.3%** | 54.8% | 12.9% |
+
+Controls: null (random sibling) **10.9%**, self-check 0 failures.
+★★ **On decisions that MATTER (A ≥ 3, n = 106): 28% separable vs an 11% null ≈ 4σ**, and separability rises
+monotonically with criticality (18 → 16 → 27 → 32%) — which is itself evidence the instrument tracks
+something real rather than the geometry of the weight bounds.
+
+### ★ WHAT IT SAYS — AND THE OVERSTATEMENT IT COST ME
+⇒ **The data does NOT say "write much more code."** Coarse reweighting of seven scalars already reaches
+~28% of real decision failures; the provably-blind class is ~11% *at most*; the residual ~61% is
+UNRESOLVED between finer tuning and missing signal — and finer tuning is far more likely, there being ~60
+knobs *inside* those seven terms that this test cannot express.
+☠️ **Correction on the record:** I first reported the "indistinguishable" class (identical term vectors) as
+a hard floor on missing signal — *"no eval built on these features can ever prefer it"*. **Wrong.** The test
+compares the seven AGGREGATES, so two children can differ in outposts and trapped-rook while those cancel
+inside `v2_placement`. It is an upper bound at aggregate granularity, exactly like the not-separable class.
+The owner caught the smell first: *"it seems odd that the data might suggest we need more code when there
+isn't all that much else to actually write."*
+⚠️ **The fitted `w` is NOT a tuning recommendation.** Quiet siblings share material, so material's
+differences are ~0, its weight is unconstrained and the LP parks it on a bound. Any term that barely moves
+among quiet siblings gets a meaningless weight. Read the fitted vector as diagnostic only.
+⚠️ Registered prediction (high separable fraction ⇒ tuning-dominant) — **WRONG at subsystem granularity**,
+directionally right once criticality-filtered. Today's registered-prediction record: **2 of 6.**
+
+### ★★★★ THE ACHIEVABILITY CONTROL — OWNER'S DESIGN, AND IT OVERTURNED THE READING
+Owner, 2026-09-20: *"when comparing eval to search, we could check what is 'close enough' as done by SF11
+eval. If their eval can do it, we know it can be done mathematically with an HCE. When comparing search to
+search then everything's on the table."*
+☠️ **I had built the instrument with NO CONTROL ARM** — scoring our STATIC one-ply ranking against a **d14
+SEARCH** and reading the result absolutely. `_sibling_spread.py`'s own docstring says in capitals that the
+reading is COMPARATIVE and demands a known-good control; I wrote a new tool and ignored it.
+
+**Measured (`SF11=1`, SF11's classical eval as the HCE yardstick, A≥3 quiet positions):**
+★★ **SF11's OWN static eval picks SF18's d14 move only 41.8% of the time (556 / 1,329).** It misses 58.2%.
+⇒ **A majority of what I counted as "our failures" are not eval-achievable at all** — no HCE, theirs
+included, finds those statically. Charging them to v2 is what produced "80% structurally missing".
+
+| metric | uncontrolled | **achievability-controlled** |
+|---|---|---|
+| our agreement with SF18's best | 20-28% | **57.5%** (73/127, on the fair set) |
+| separable per-position | 25.5% (null 16.5%) | **38.9%** (null 19.0%) |
+| **fixed by ONE shared `w`** | **1.2%** | **20.4%** |
+| indistinguishable | 9.2% | 13.0% |
+
+★★ **THE HEADLINE, CORRECTED: on positions where a strong HCE demonstrably succeeds, we succeed 57.5% of
+the time, and ~20% of our misses are reachable by a single coarse reweighting.** Tuning is worth doing and
+is not worthless; its COARSE ceiling is modest. The pilot (n=20) read 20.0% and the powered run 20.4% —
+the one number that replicated across both.
+⚠️ n = 54 disagreements (±~7pp). Cross-set replication on set B still owed before quoting 20.4% as settled.
+⚠️ The joint LP maximises MARGIN, not the COUNT of positions fixed; when infeasible those differ, so
+**20.4% is a LOWER bound**. A count-maximising fit (pairwise logistic on the difference vectors) is the
+correct objective and is the first follow-up.
+⚠️ The fitted `w` again hit its bounds (`pieces=4.00`, all else `0.25`) ⇒ degenerate, NOT a recommendation.
+
+### ★ A CALIBRATION WORTH KEEPING BEYOND THIS ANALYSIS
+**No static eval can score above ~42% on "match SF18's searched move".** Any past or future metric of the
+form *static-eval-argmax vs SF-search-best* is therefore scoring partly the impossible and has a hard
+ceiling near 42%. ⚠️ Our regret instruments compare our **SEARCH's** move to SF18's and are unaffected —
+but a static move-match number must never be read against 100%.
+
+### ▶️ NEXT, IN ORDER
+0. ~~Cross-set criticality-filtered run~~ — done uncontrolled; **redo on set B WITH `SF11=1`**, the only
+   version that means anything.
+1. **Count-maximising joint fit** (pairwise logistic) — replaces the max-margin LP; fixes the lower-bound
+   defect above and gives the retune's real coarse reach. ✅ DONE, see below.
+
+---
+
+## ★★★★★ 2026-09-20 — THE 2×2, THE ADVANTAGE CELL, AND WHY REFERENCE-FITTING LOSES
+Owner: *"in a very small but existing amount of the time, our v1 eval actually beat SF11 in being correct
+to 18 search. If we could maintain our small advantage and tune the others towards SF11, that would be
+ideal"* … and separately *"if our eval is just correct to SF18 search over the SF11 eval (not just move
+search) then that's a win for us to maintain."*
+☠️ **My achievability gate `continue`d on "SF11 misses", silently DISCARDING that cell** — so the fit was
+optimised purely to move us toward SF11 with no account of what that costs where we are already better.
+
+### ▶️ THE FULL 2×2, THREE DISJOINT SETS (quiet, A ≥ 3, shipped v2)
+| | set A | set B | set C |
+|---|---|---|---|
+| SF11's eval picks SF18's move (ACHIEVABLE) | 41.8% | 41.8% | 41.7% |
+| ⭐ **we right, SF11 WRONG (move)** | **4.4%** | **4.2%** | **4.5%** |
+| ⭐ **our eval CLOSER than SF11's (value, win%)** | **43.4%** | **42.7%** | **42.5%** |
+| mean \|win% error\| ours / SF11 | 10.45 / 8.99 | 10.59 / 8.95 | 10.46 / 8.97 |
+
+★★ **The owner's recollection is confirmed and it is not small: our eval is closer to SF18's value than
+SF11's is on ~43% of positions.** We are worse on the MEAN (≈10.5pp vs ≈9.0pp) and better on nearly half
+⇒ we lose badly on some and win narrowly on many. ⇒ **any objective that minimises MEAN error is buying
+the tail by selling that 43%.** It also matters independently of Elo: the roadmap is HCE → the owner's NN,
+and eval accuracy IS the teacher's label quality.
+
+### ☠️☠️ THE COLLATERAL RESULT — REFERENCE-FITTING IS NET NEGATIVE, 3 SETS FOR 3
+Weights fitted to fix our move failures, then scored on what they BREAK:
+| | fixed | broke `keep` | ⭐ broke `adv` | **NET** |
+|---|---|---|---|---|
+| set A | 11 | 9 / 73 (12.3%) | **19 / 59 (32.2%)** | **−17** |
+| set B | 10 | 13 / 77 (16.9%) | **16 / 66 (24.2%)** | **−19** |
+| set C | 1 | 5 / 79 (6.3%) | **6 / 67 (9.0%)** | **−10** |
+
+★★★ **Fitting toward the reference destroys a QUARTER to a THIRD of the cell where we beat it, and comes
+out net negative every time.** This is the first mechanistic account of
+[[corpus-fit-is-anti-correlated-with-elo]]'s 5-for-5 failure record: the objective is rewarded for what it
+targets and blind to what it breaks, and what it breaks includes every position where we are ALREADY better
+than the target. The metric could never see it because it only measured distance to the reference.
+
+### ▶️ THE CONSTRAINED REFIT — 🧰 `diagnostics/_term_refit.py`
+Objective rewritten as the owner framed it: **maximise `fix` SUBJECT TO keeping `keep` and `adv`**, fitted
+on sets A+B (fix 121 · keep 150 · adv 125) and scored on held-out C (60 · 79 · 67).
+- **Incumbent (`w = 1`) = NET +0 by construction.** Any candidate must beat that, held out.
+- **Fitted: NET +1 on the fit sets, −3 HELD OUT.** The optimiser's best `w` is ≈ uniform (~4.0 on every
+  term) — i.e. a **global rescale, which cannot change a ranking at all**. Given full freedom it converged
+  on "change nothing".
+⇒ ☠️ **COARSE SUBSYSTEM REWEIGHTING HAS NO NET HEADROOM. Do not spend a games night on a global rescale.**
+⚠️ **State it precisely:** this kills *a global rescale of seven subsystems*. It does NOT kill the retune —
+a real retune has ~60 parameters that change SHAPES, GATES and PHASE CURVES, none of which seven scalars
+can express. The lever is conditioning, not amplitude.
+★ Which is why the **material taper is the queue item this result SUPPORTS**: it is a phase-conditioned
+change to the pawn's value — a conditioning, not a rescale.
+---
+
+## ☠️☠️☠️ 2026-09-20 — **§I IS MEASURED ON A DISTRIBUTION WE DO NOT PLAY.** THE LADDER REVERSES.
+
+Owner's question after the accuracy work: *"how come we aren't destroying the v1 eval in open play?"* — which
+turned out to have a simpler answer than move-neutrality.
+
+### THE CONTROLLED TEST — one tool (`_reference_ceiling.py`), one loss, two corpora
+`playdist_ceiling.csv` built by re-schema-ing the v2-era regret set into the ladder's own
+(`fen,target_total,split`, target = SF18 d14 value in pawns), so only the CORPUS differs.
+
+| evaluator | `diverse_corpus_wide` (the ladder) | **play distribution** |
+|---|---|---|
+| SF18 static | 68.85 | 61.93 |
+| SF15.1 NNUE | 61.61 | 72.76 |
+| **SF11 classical** | **95.26** | **151.41** |
+| SF15.1 classical | 139.20 | 192.35 |
+| **ours — v1** | **238.77** (fresh run; recorded 245.46 @08-07) | **188.85** |
+| **ours — v2 shipped** | **155.72** | **192.15** |
+
+☠️☠️ **THE v1/v2 RANKING REVERSES.** v2 is 35% better on the ladder's corpus and **marginally WORSE on the
+positions it actually plays** (188.85 vs 192.15; on the full 9,411-row set, 196.05 vs 210.25 — v1 ahead by 7%).
+★ The fresh v1 run reproduced all four REFERENCE rows exactly, so the harness is sound; this is the corpus.
+
+**Three further readings:**
+1. **The ladder's corpus systematically flatters CLASSICAL evals.** Moving to the play distribution, SF11's
+   error rises **95 → 151** and SF15.1c's **139 → 192**, while the NNUE rows barely move. It is not just
+   unrepresentative for us.
+2. **Our real standing differs.** The ladder says v2 sits 16.5 points above SF15.1-classical; on our own
+   distribution we are **level with it** (192.15 vs 192.35) and ~40 behind SF11, not ~60.
+3. ★★ **This is a simpler explanation of the accuracy/Elo paradox than the one on record.** "36.6% more
+   accurate, LEVEL in games" was attributed to [[most-eval-error-is-move-neutral]]. On the played positions
+   **the accuracy gain is not there at all.** Zero Elo from an improvement that does not exist where the
+   engine operates is not a paradox.
+
+### ⚠️ WHAT IS EXPOSED, AND WHAT IS NOT — the risk is ASYMMETRIC
+- ✅ **Everything that SHIPPED is safe.** KS +101 · pawns +60 · mobility +162 · placement +13 · area +31 were
+  confirmed in GAMES, on the real distribution. No corpus artifact survives a games result.
+- ✅ **The d7 REGRET instrument was always on-distribution** — it reads `ks_sets/game_regret_set*`, i.e. real
+  self-play positions. So items with a regret null (threats, bishop pair, rook files, weak-unopposed, tier-2b,
+  the taper) are genuinely closed. ★ This is the single most important containment: the move-level lane was
+  never affected.
+- ☠️ **EXPOSED: items killed on §I ALONE** — Kaufman · connected/support · long diagonal · `MOB_V2_SAFE` ·
+  piece-value-boost. Those verdicts come from a corpus now known to rank evals differently.
+- ⚠️ The "59.7% of the gap closed" headline needs an **annotation, not a retraction**: true on its corpus,
+  does not transfer. Same for every §I number quoted in this log — they are `diverse_corpus_wide` numbers.
+
+### ▶️ ACTIONS
+1. 🧰 **`ks_sets/playdist_ceiling.csv`** now exists in the standard §I schema. **Re-base accuracy screening
+   onto the play distribution**; keep the old corpus as a GENERALISATION set, never as the primary.
+2. **Overnight re-screen of the exposed §I-only parks, on the MOVE instrument** (the one that was always
+   on-distribution), launched 2026-09-20: neutral · `KAUF_V2_MAG=1000` (SF's exact scale) ·
+   `PS_V2_CONN_FORM=2 PS_V2_CONN_MAG=100` (**the RANK-FLAT connected form the knob comment names as
+   untried** — "detector accurate, transformation wrong: REDESIGN, do not park") · `LONGDIAG_V2_PCT=100` ·
+   `MOB_V2_SAFE=1`.
+3. ⚠️ Still unverified: whether the two corpora's SF18 labels share a depth. Within-corpus comparisons are
+   unaffected (same target for every evaluator), so the REVERSAL stands regardless.
+
+### ★★★★ THE CALIBRATION THAT FOLLOWED — **§I IS A VETO, NEVER A PROMOTER, AND THE CORPUS IS NOT THE CAUSE**
+Overnight 09-20/21. Two runs: (a) the four §I-ONLY parks re-screened on the MOVE instrument; (b) every item
+with a known move verdict re-scored on the **play-distribution** ladder (base v2 = 192.15 val).
+
+| arm | §I-play | vs base | §I-diverse said | MOVE instrument |
+|---|---|---|---|---|
+| Kaufman `MAG=1000` | 216.95 | **+24.8 worse** | harmful | −1.1pp null |
+| connected **RANK-FLAT** | 197.58 | **+5.4 worse** | harmful (rank-keyed) | −1.0pp null |
+| long diagonal 100 | 192.47 | +0.3 flat | loss | +0.3pp null |
+| `MOB_V2_SAFE=1` | 191.96 | −0.2 flat | doesn't clear | −0.1pp null |
+| taper 550 | 190.38 | −1.8 **better** | strongly better | −0.6pp null |
+| taper 600 | 190.17 | −2.0 **better** | strongly better | −0.8pp null |
+| rook files 367/164 | 189.79 | −2.4 **better** | better 6/6 | null |
+| **threats 100** | **181.96** | **−10.2 better** | best of slice 3 | **MOVE-NULL, proven** |
+
+☠️☠️ **HARM side §I agrees with moves 4/4; GAIN side it disagrees 4/4 — and the play-distribution version
+likes the SAME four losers.** ⇒ the gain-side blindness is a property of the **METRIC**, not the corpus;
+re-basing does not repair it.
+★ **`threats` is the decisive case**: the largest accuracy gain available to us (−10.2) and definitively
+move-null. **A term can be the best accuracy improvement on the board and change nothing about play.**
+⇒ **RULE: a §I-HARM verdict is trustworthy; a §I-GAIN verdict justifies nothing** — not a build, not a
+bundle, not a games night. Re-base §I for REPORTING (the v1/v2 reversal); never for screening.
+✅ **Also settled: the four §I-only parks were RIGHT.** Their evidence came from the wrong corpus, but the
+move instrument — always on-distribution — confirms every one. Four items move from "rejected on
+questionable evidence" to "rejected on the instrument that decides". ★ Includes the **rank-flat connected
+form** the knob comment named as the untried redesign: now tested, −1.0pp, and closed.
+
+### ★★★★★ 2026-09-21 — **WHAT THE REBUILD DROPPED: CAPTURE GAINS.** The first non-null move signal of the phase.
+Owner's question — *"how come we aren't destroying the v1 eval in open play?"* — chased to an answer.
+v1 beats v2 in the CRITICAL band (A≥8: 17.50 vs 19.68 mean win% error). **Which v1 term carries it?**
+Ablated v1's distinctive terms one at a time on the play distribution (no new tool — the `ACC_ONLY` path
+plus knobs):
+
+| v1 arm | A≥8 mean \|err\| | all |
+|---|---|---|
+| **v1 base** | **17.50** | 9.97 |
+| ☠️ **capture gains OFF** | **23.44** | 10.93 |
+| latent threat off | 17.50 | 9.97 |
+| central off | 17.19 | 10.01 |
+| threats off | 17.80 | 10.10 |
+| OvD off | 17.45 | 9.96 |
+| *(v2 shipped, for scale)* | *19.68* | *10.45* |
+
+★★★ **CAPTURE GAINS CARRIES THE WHOLE ADVANTAGE.** Without it v1 reads **23.44 — far WORSE than v2**; with
+it, better than v2. Every other term moves less than 0.4, i.e. ~20× smaller. **v2 has no capture gains at
+all** (unbuilt, slice 5). Mechanism is sensible: A≥8 positions are sharp and tactical, and capture gains is
+a static approximation of the pending exchange — precisely what narrows a LEAF score toward a SEARCH verdict.
+✅ **LATENT THREAT — inert, as the record says.** `SCALE_LATENT_THREAT=0` returned values byte-identical to
+base, which I first flagged as the silent-fallback signature. Checked properly with a POSITIVE CONTROL:
+**0 of 9,411 rows change when latent threat is zeroed; 3,137 change under the capgains ablation** — so the
+harness detects changes and the term genuinely contributes nothing. Consistent with the owner ("replaced by
+KS a long time ago") and the parked register's do-not-reopen entry ("changed 0 moves in 5,000 positions;
+KS-A is its successor"). ⚠️ This still cannot separate "term inert" from "knob does not gate the term";
+neither matters for the attribution, and nobody should re-derive it.
+
+### ▶️ AND IT REACHES THE MOVE — tested in v1, where the term already exists, BEFORE any v2 C++
+| arm | changed | win% | vs neutral |
+|---|---|---|---|
+| v1 neutral `ASPIRATION_DELTA=300` | 3,609 (36.1%) | **49.8%** | — |
+| **v1 capture gains OFF** | 4,774 (47.7%) | **48.1%** | **−1.7pp (~2.4σ)** |
+`cr4_CRITICAL` 29.0% vs the neutral's 37.5% (mean delta +8.8), n=31.
+☠️☠️☠️ **RETRACTED THE SAME NIGHT — THE ABLATION WAS BROKEN AND THE EFFECT IS AN ARTEFACT.**
+`g_capg_tension` is an OUTPUT of `approximate_capture_gains`, and `SCALE_CAPTURE_GAINS=0` **skips that call
+entirely** (`cpp_bitboard.cpp:7773`), leaving the global holding the PREVIOUS position's value for its live
+readers (`:6108`, `:8404`). The code says so at `:6099` — *"in which case the tension read is stale."* So the
+ablation removed the term AND fed stale state to other consumers.
+✅ **Clean re-run** — keep the computation, kill only the score: `ENABLE_CAPG_COND=0` makes
+`SCALE_CAPTURE_GAINS` a real multiplier (with COND on it is only a GATE, which is also why the "half" arm
+changed 0 moves), so flat-100 is the base and flat-1 is the ablation with tension FRESH:
+
+| arm | changed | win% | vs neutral 49.2% |
+|---|---|---|---|
+| neutral (flat base) | 3,828 (38.3%) | 49.2% | — |
+| **capgains ~off (flat 1)** | 4,795 (48.0%) | **49.6%** | **+0.4pp** |
+| capgains flat 50 | 4,276 (42.8%) | 51.4% | +2.2pp |
+
+☠️ **Dirty ablation −1.7 / −1.0pp → clean ablation +0.4pp.** Removing capture gains costs NOTHING at the
+move level. ⇒ **the phase's only apparent signal was stale-global contamination**, and the count stands at
+TWELVE consecutive move-null concepts.
+✅✅ **BUT THE ACCURACY EFFECT IS REAL — clean re-run, and it has a textbook DOSE RESPONSE** (v1, flat scale,
+tension fresh, A≥8 mean win% error): **capgains 100% → 15.71 · 50% → 19.31 · ~off → 22.55** (all-position:
+9.84 / 10.14 / 10.73). v2 shipped sits at 19.68, i.e. **between the 50% and off arms**.
+★★★ ⇒ **CAPTURE GAINS IS WORTH ~6.8pp OF CRITICAL-BAND ACCURACY — the largest single accuracy contributor
+ever measured here — AND IT IS MOVE-NULL.** It is the whole of v1's critical-band edge over v2, and it
+changes no moves. **The cleanest instance of [[most-eval-error-is-move-neutral]] this project has produced**,
+and it answers "why doesn't v2 beat v1": v1's accuracy advantage is real, attributable, and worth 0 Elo.
+⇒ **STRATEGIC SPLIT, now evidenced rather than asserted:** capture gains belongs in v2 for the **NNUE
+TEACHER** (label quality on deciding positions is the product) and **not** for strength. Two different
+justifications, two different bars, and they should stop being argued as one.
+★ Also: flat-100 (15.71) beats the SHIPPED conditional base (17.50) on accuracy, so `ENABLE_CAPG_COND`
+costs critical-band accuracy — presumably bought back as the −11.5% nodes its comment claims. A speed/
+accuracy trade inside v1; not pursued.
+★ Side observation, about v1's tuning and not about v2: flat-50 reads **+2.2pp** above the flat-100 base —
+i.e. a flat 100% capgains is too strong, which is presumably why `ENABLE_CAPG_COND` (the conditional
+LO..HI scale) ships true. Not pursued.
+☠️ **MY PROCESS FAILURE, and it is the phase's recurring one:** I built an attribution on a knob whose own
+code comment documented that it gates rather than scales and leaves a global stale — a record-check of the
+knob before the run would have caught it, as would the byte-identical "half" arm if I had predicted it.
+⚠️ **NOT a verdict yet:** 1.7pp is below the ~2-2.5pp cross-set bar, and the footprints are mismatched
+(47.7% changed vs the neutral's 36.1%) — the bias is arm-specific and does NOT scale with flip rate, so
+part of the gap may be artefact. ⇒ cross-set replication launched on set B **with a half-strength arm
+(`SCALE_CAPTURE_GAINS=50`)** for a dose response and an intermediate footprint.
+⚠️ **Porting is not guaranteed to reproduce it** — this measures the term inside v1. But v2 carries nothing
+tactical at the leaf, so the overlap argument that killed rook files and weak-unopposed does not apply here.
+☠️ **Two standing constraints on any port:** v1's capgains is the ROOT of its colour asymmetry (0.9%, worst
+2,233 mp) ⇒ design colour-BLIND from the start; and it was **17% of v1's eval cost** in the 09-20 profile.
+v2's eval is only 11.5% of a node, so it is affordable — and `PROF_V2_*` now exists to price it honestly.
+
+### ▶️ MATERIAL TAPER — REGRET GATE, and it does NOT support a games night
+| arm | changed | win% | vs neutral |
+|---|---|---|---|
+| neutral `ASPIRATION_DELTA=300` | 3,293 | **50.1%** | — |
+| `EVAL_V2_PAWN_MG=550` | 3,260 | 49.5% | −0.6pp |
+| `EVAL_V2_PAWN_MG=600` | 3,190 | 49.3% | −0.8pp |
+Null-to-slightly-negative, worse at the larger magnitude, inside a ~0.88pp σ. ⇒ §I strongly positive
+(−6.59%, its whole case) and the move instrument flat — the exact conflict the corroboration rule says NOT
+to spend games on. ★ And the taper's §I case is a `diverse_corpus_wide` number, so it is now a worked
+example of the finding above rather than an independent puzzle. **SPRT NOT LAUNCHED.**
+
+---
+
+☠️ **Tie artifact, found and fixed twice:** an absolute `margin > 0` test scores a TIED position as broken,
+which made the incumbent read NET −4 instead of +0. Collateral is now scored RELATIVE TO THE INCUMBENT
+("was satisfied, now is not"), the only definition that means anything. ⚠️ The per-set collateral table
+above still uses the absolute test, so its "broken" counts are slightly overstated; the direction and the
+three-way replication are unaffected.
+2. **Finer vector on the residual** — re-run the not-separable set against detector counts and per-channel
+   probes (`placement_probe`, `ks_probe`, `mobility_probe` already expose them, no C++ needed). This splits
+   "needs reshaping within a term" from "genuinely absent", and it is the test that decides whether any new
+   term is warranted at all.
+

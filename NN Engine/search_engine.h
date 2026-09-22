@@ -826,6 +826,94 @@ namespace Config
     inline int PASSER_V2_MG_PCT = 0;
     inline int PASSER_V2_EG_PCT = 100;
 
+    // ── gap-audit A3 (king half): READ THE KING'S PLACEMENT TABLE AS THE ENDGAME TABLE IT IS ─────
+    // ☠️ A DEFECT, not a coverage gap, and v2-only. The sixth placement table is commented "Kings -
+    // Endgame" in cpp_bitboard.cpp and is a CENTRALISING table (edge 0..5, centre 35). v1 reads it only
+    // inside evaluate_kings_endgame; its evaluate_kings_midgame does not read it at all. v2's census loop
+    // reads all six tables with no phase gate, so v2 pays a king-CENTRALISATION bonus in the opening and
+    // midgame -- where the king wants the corner instead. Up to ~35 mp per side, differenced.
+    //
+    // 1 = the king's placement contributes on the ENDGAME leg only (blended at its own site in the shipped
+    // scalar path, eg-leg-only under EVAL_V2_PAIR). 0 = today's behaviour, byte-identical.
+    //
+    // ★ Needs NO (mg,eg) accumulator: this is one term blending eg-only at its own site, exactly as every
+    // other v2 term already does. That decouples it from EVAL_V2_PAIR, which is still unvalidated.
+    // ★ It is SUBTRACTIVE -- it removes a wrong-signed term rather than adding a right-signed one, which
+    // per every-eval-term-error-is-bidirectional and the KS record (additive 0-for-11) is the only shape
+    // with a track record here.
+    // ⚠️ The tables are SHARED with v1 and with move ordering (move_gen.h:91), so they must never be
+    // rewritten -- only how v2 READS them may change. This knob changes only the read.
+    inline int PST_V2_KING_EG_ONLY = 0;
+
+    // ── gap-audit K2/A8: KING SAFETY'S ENDGAME LEG ───────────────────────────────────────────────
+    // KS-A is ONE saturating curve for every phase. 3 of 4 references give king danger two legs -- SF
+    // uses S(kD^2/4096, kD/16): quadratic in the midgame, LINEAR and far smaller in the endgame -- because
+    // once the queens and rooks are gone a "dangerous" king is mostly an ACTIVE king, and ours is being
+    // penalised for it.
+    //
+    // Percent of the midgame danger that survives into the deep endgame. 100 = today's single curve and
+    // byte-identical (the blend becomes an identity at every phase).
+    //
+    // ★ SUBTRACTIVE by construction at any value below 100 -- it removes king-danger credit rather than
+    // adding any. That is the point: additive KS changes here are 0-for-11 and only subtractive ones have
+    // ever won (ks-twelve-attempt-history-and-the-channel-law). It is the one KS item in the gap audit
+    // whose prior is not actively bad.
+    // ★ Needs NO (mg,eg) accumulator: the taper is applied per side at the KS site, as every other v2
+    // term blends at its own. That decouples it from the still-unvalidated EVAL_V2_PAIR.
+    // ⚠️ KS_V2_MAX is 4000, so this term reaches THOUSANDS of millipawns per side -- three orders of
+    // magnitude above PST_V2_KING_EG_ONLY's ~3 mp. Expect it to be resolvable where that one was not.
+    // ⚠️ Not a port: our transform is a saturating rational, SF's is a capped quadratic, so the SHAPE is
+    // ours and only the two-leg IDEA transfers (matching-a-reference-term-is-not-being-right).
+    inline int KS_V2_EG_PCT = 100;
+
+    // ── gap-audit P4: REAR-DOUBLED PASSER OVER-CREDIT ────────────────────────────────────────────
+    // ☠️ A DEFECT, not a coverage gap. v2 flags a pawn `passed` on a clear ENEMY span alone; nothing asks
+    // whether one of OUR OWN pawns sits ahead on the same file. Two stacked own pawns on a clear file are
+    // therefore both flagged and both paid in full by passer_value_mp -- one passer counted twice. Only
+    // the front pawn can promote; the rear one is a liability the front one blocks.
+    // ★ 3 references fix it, 3 ways. Ethereal's is an explicit ANTI-DOUBLE-COUNT rather than a bonus:
+    //     if (several(forwardFileMasks(US, sq) & myPassers)) continue;
+    // ★ The quantity is already computed in the CANDIDATE branch (`rear`) and candidates are already
+    // excluded on it. The bug is simply that the true-passer branch never got the same test.
+    //
+    //   0 = today's behaviour, byte-identical
+    //   1 = demote the rear pawn to CANDIDATE (priced through the existing PASSER_V2_CAND_PCT path)
+    //   2 = Ethereal: the rear pawn gets no passer credit at all
+    //
+    // ★ SUBTRACTIVE, like the other two items in this bundle -- it removes a double payment rather than
+    // adding a term. Justified on CORRECTNESS whatever the measurement says, which is why it should land
+    // before the retune rather than after (a-correctness-fix-into-absorbed-tuning-is-not-free).
+    inline int PS_V2_REAR_DOUBLED = 0;
+
+    // ── gap-audit P1+P2: the PASSER PATH-SAFETY LADDER ───────────────────────────────────────────
+    // SF11 evaluate.cpp:626-635. v2 already carries SF's rank weight `w = 5r-13` -- it multiplies the
+    // king-distance term -- but NOT the ladder w exists to multiply, so today a passer is paid the same
+    // whether its path is clear or mined. This is the missing half, and it is a MECHANISM: it conditions
+    // a term v2 already owns rather than adding a constant on a new detector.
+    //
+    //   k = 35  no enemy attack anywhere in the forward span
+    //     = 20  span attacked, but the path to queen is clear
+    //     =  9  path attacked, but the stop square is clear
+    //     =  0  otherwise
+    //   +5 if the stop square is defended, or we have a rook/queen behind the pawn.
+    // The result is multiplied by w and added to BOTH legs, as SF does (`make_score(k*w, k*w)`).
+    //
+    // ☠️ THIS IS THE ONLY HOME FOR ROOK-BEHIND-PASSER (gap audit P3). SF spends R/Q-behind TWICE inside
+    // this ladder: an ENEMY R/Q behind the pawn keeps the whole span unsafe (the attack intersection is
+    // skipped entirely, because that rook will rake the file as the pawn advances), and our OWN R/Q
+    // behind is the +5. Building P3 as a standalone bonus would be a third, invented form
+    // (matching-a-reference-term-is-not-being-right).
+    //
+    // ⚠️ Percent of the reference size. 0 = the ladder is ABSENT and the eval is byte-identical.
+    // ⚠️ It carries its OWN magnitude rather than riding PASSER_V2_MAG because MAG=60 was tuned against a
+    // ladder-LESS passer, while SF's PassedRank is calibrated knowing this adds on top. Shipping both at
+    // full strength would overshoot; expect to re-sweep PASSER_V2_MAG after this lands
+    // (a-correctness-fix-into-absorbed-tuning-is-not-free).
+    // ⚠️ Needs the shared attack build (KS / mobility / space / threats). With all four off the ladder is
+    // silently INERT -- a real trap for diagnostic arms that disable everything, so the toggles dump
+    // reports whether the maps were actually available.
+    inline int PASSER_V2_PATH_PCT = 0;
+
     // Slice 1 / component 1 -- TEMPO: a bonus for simply being the side to move, phase-blended and added
     // to v2's Black-positive total. Design + the five-engine table: dev_notes/EVAL-V2-SLICE1-TEMPO-DESIGN.md.
     // 4 of our 5 references carry one (SF1.1 50/20 phased, SF11 flat 28, Ethereal 20, Weiss 18); SF15.1

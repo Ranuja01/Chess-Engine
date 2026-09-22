@@ -307,7 +307,19 @@ inline int rung0_material_and_placement(const V2Context &c,
 	w_pst = 0;
 	b_pst = 0;
 
-	for (int t = 0; t < 6; ++t){
+	// ── gap-audit A3, the KING half: the sixth placement table is an ENDGAME table ────────────────
+	// ☠️ `whitePlacementLayerBase`'s last slot is commented "Kings - Endgame" and is a CENTRALISING table
+	// (edge 0..5, centre 35). v1 reads it ONLY inside evaluate_kings_endgame (cpp_bitboard.cpp:4699);
+	// evaluate_kings_midgame does not read it at all. This census loop reads t = 0..5 with NO phase gate,
+	// so v2 pays a king-centralisation bonus in the OPENING AND MIDGAME, where v1 pays none and where the
+	// king wants to be tucked away instead. It is a v2-only, wrong-SIGNED term.
+	// ★ This is the cheap half of the tapered PST (A3) and it needs no (mg,eg) accumulator: the king's
+	// contribution is simply blended eg-only at this site, exactly as every other v2 term blends at its own.
+	// ⚠️ The table is SHARED with v1 and with move ordering (move_gen.h), so it must never be rewritten --
+	// only how WE read it may change. Knob default 0 = today's behaviour = byte-identical.
+	const bool king_eg_only = (Config::PST_V2_KING_EG_ONLY != 0);
+	const int  n_types = king_eg_only ? 5 : 6;   // 5 => the king table is handled separately below
+	for (int t = 0; t < n_types; ++t){
 		uint64_t wb = typeMasks[t] & c.white;
 		while (wb){
 			const uint8_t sq = __builtin_ctzll(wb);
@@ -322,11 +334,34 @@ inline int rung0_material_and_placement(const V2Context &c,
 		}
 	}
 
+	// The king's placement, kept apart so it can carry a phase of its own. Non-negative per side, so the
+	// per-side blend below may use >> 8 (the shift is only unsafe once a quantity is SIGNED).
+	int w_kpst = 0, b_kpst = 0;
+	if (king_eg_only){
+		uint64_t wk = c.kings & c.white;
+		while (wk){ const uint8_t sq = __builtin_ctzll(wk); wk &= wk - 1; w_kpst += whitePlacementLayer[5][sq & 7][sq >> 3]; }
+		uint64_t bk = c.kings & c.black;
+		while (bk){ const uint8_t sq = __builtin_ctzll(bk); bk &= bk - 1; b_kpst += blackPlacementLayer[5][sq & 7][sq >> 3]; }
+		// ⚠️ Fold the BLENDED king back into the reported PST sums. `w_pst`/`b_pst` are published to
+		// ev_breakdown, and consumers reconstruct total as (b_mat+b_pst)-(w_mat+w_pst); leaving the king
+		// outside them would break that identity and every term-attribution tool would read a chimera.
+		const int eg = 256 - c.phase256;
+		w_pst += (w_kpst * eg) >> 8;
+		b_pst += (b_kpst * eg) >> 8;
+	}
+
 	// Black-positive: White's holdings subtract, Black's add.
 	if (legs){
 		// PST is untapered, so it enters BOTH legs identically; only material differs by phase.
-		legs->mg = (c.mat_mg_black + b_pst) - (c.mat_mg_white + w_pst);
-		legs->eg = (c.mat_eg_black + b_pst) - (c.mat_eg_white + w_pst);
+		// ★ EXCEPT the king, when king_eg_only is on: then it is an eg-leg-only term, which is what the
+		// table always was. This is the one genuinely tapered PST entry v2 has.
+		// ★ In PAIR mode the king takes its UNBLENDED value on the eg leg only -- the single interpolation
+		// at the end then applies the phase. b_pst/w_pst above already carry the mode-0 blended king, so
+		// subtract it back out here to avoid paying it twice.
+		const int eg = 256 - c.phase256;
+		const int w_folded = (w_kpst * eg) >> 8, b_folded = (b_kpst * eg) >> 8;
+		legs->mg = (c.mat_mg_black + b_pst - b_folded) - (c.mat_mg_white + w_pst - w_folded);
+		legs->eg = (c.mat_eg_black + b_pst - b_folded + b_kpst) - (c.mat_eg_white + w_pst - w_folded + w_kpst);
 	}
 	return (b_mat + b_pst) - (w_mat + w_pst);
 }
@@ -791,7 +826,30 @@ static inline void build_pawn_entry(PawnEntry &e, const V2Context &c) noexcept
 			const uint64_t m    = 1ULL << sq;
 			const uint64_t span = white ? passed_span_white[sq] : passed_span_black[sq];
 			const uint64_t st   = span & enemy;            // SF's `stoppers`
-			if (!st){ pb |= m; continue; }
+			if (!st){
+				// ── gap-audit P4: REAR-DOUBLED PASSER OVER-CREDIT ────────────────────────────────
+				// ☠️ A DEFECT, not a coverage gap. `passed` is flagged on a clear ENEMY span alone --
+				// nothing asks whether one of OUR OWN pawns is ahead on the same file. Two stacked own
+				// pawns on a clear file are therefore BOTH flagged passed and BOTH paid in full by
+				// passer_value_mp, which is one passer counted twice: only the front pawn can actually
+				// promote, and the rear one is a liability the front one blocks.
+				// ★ Ethereal has exactly this as an anti-double-count, not a bonus:
+				//     if (several(forwardFileMasks(US, sq) & myPassers)) continue;
+				// ⚠️ `ps_nfill`/`ps_sfill` shift by whole ranks, so they stay on the pawn's own file --
+				// no file mask is needed, and this is the same quantity the CANDIDATE branch below
+				// already computes as `rear` and already excludes on. The bug is that the true-passer
+				// branch never got the same test.
+				// Modes: 0 = today's behaviour (byte-identical) · 1 = demote the rear pawn to CANDIDATE,
+				// so it is priced through the existing PASSER_V2_CAND_PCT path · 2 = Ethereal, drop it.
+				if (Config::PS_V2_REAR_DOUBLED){
+					const uint64_t own_ahead = (white ? ps_nfill(m << 8) : ps_sfill(m >> 8)) & own;
+					if (own_ahead){
+						if (Config::PS_V2_REAR_DOUBLED == 1) cb |= m;   // demote to candidate
+						continue;                                       // mode 2: no credit at all
+					}
+				}
+				pb |= m; continue;
+			}
 
 			// ★ SF CANDIDATE passers -- the block v1 hides behind ENABLE_PASSER_DETECT_SF, which is FALSE,
 			// which is why we miss ~14% of SF's passers. A pawn with stoppers still counts as passed when
@@ -1076,6 +1134,25 @@ constexpr long long SHADOW_REPORT_STRIDE = 1LL << 20;
 static constexpr int PS_PASSED_MG[8] = {0,  78, 133, 117, 484, 1312, 2156, 0};
 static constexpr int PS_PASSED_EG[8] = {0, 131, 155, 192, 338,  830, 1219, 0};
 
+/* SF11's PATH-SAFETY LADDER (evaluate.cpp:626-635), in SF's OWN score units, before conversion.
+ * Indexed by how far the enemy's attacks reach up the pawn's forward span:
+ *   0 span entirely unattacked · 1 span attacked but the queening file clear · 2 file attacked but the
+ *   stop square clear · 3 the stop square itself is attacked.
+ * ★ These are the rungs `w = 5r - 13` was always meant to multiply. v2 shipped w without them.
+ */
+static constexpr int PS_PATH_K[4]       = {35, 20, 9, 0};
+static constexpr int PS_PATH_K_DEFENDED = 5;    // stop square defended, or our own R/Q behind the pawn
+
+/* SF11 score units -> millipawns. ★ This is the SAME conversion PS_PASSED_* above already used, verified
+ * entry-for-entry against SF11's PassedRank: mg = SF.mg * 1000 / 128 reproduces {78,133,117,484,1312,2156}
+ * and eg = SF.eg * 1000 / 213 reproduces {131,155,192,338,830,1219}. So the ladder needs no new convention
+ * -- `k*w` is ONE SF number added to both legs, and each leg converts by its own phase's SF pawn.
+ * ⚠️ This is the by-the-PAWN conversion, which is correct HERE because the rank table it extends used it;
+ * it is NOT the positional-scale rule that governs terms with no such anchor.
+ */
+static constexpr int PS_SF_PAWN_MG = 128;
+static constexpr int PS_SF_PAWN_EG = 213;
+
 /* Chebyshev (king-move) distance between two squares, capped at 5 as SF caps king_proximity.
  * @return 0..5
  */
@@ -1108,9 +1185,18 @@ static inline int ps_kdist(int a, int b) noexcept
  * Gating: PASSER_V2_MAG == 0 returns 0 => byte-identical to the rung-2a baseline.
  * Cost: one bit loop per side over passers only (11.72% of pawns), two distance computations each.
  */
-static inline int passer_value_mp(const PawnEntry &e, const V2Context &c, EvalPair *legs = nullptr)
+/* @param wa,ba  the shared attack maps, or nullptr when the attack build did not run. Only the
+ *               PATH-SAFETY LADDER reads them; every other rung here is pawn- and king-only, so passing
+ *               nullptr reproduces the pre-ladder scorer exactly.
+ * ☠️ Taking piece attacks here does NOT cost the pawn cache: the cacheable block is the DETECTOR
+ * (build_pawn_entry), not this scorer, and this scorer already read c.kings for king distance.
+ */
+static inline int passer_value_mp(const PawnEntry &e, const V2Context &c,
+                                  const SideAttacks *wa, const SideAttacks *ba, EvalPair *legs = nullptr)
 {
 	if (Config::PASSER_V2_MAG == 0) return 0;
+	// The ladder needs both maps; with the shared attack build off it is absent, not half-applied.
+	const bool path_on = (Config::PASSER_V2_PATH_PCT != 0) && wa && ba;
 
 	const int wk = (c.kings & c.white) ? __builtin_ctzll(c.kings & c.white) : 0;
 	const int bk = (c.kings & c.black) ? __builtin_ctzll(c.kings & c.black) : 0;
@@ -1143,6 +1229,48 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c, EvalPa
 					// ~2.4x in SF and ~2.7x in v1 -- the one passer ratio v1 already has right.
 					eg += (ps_kdist(theirK, stop) * Config::PASSER_V2_KING_THEM
 					     - ps_kdist(ourK,   stop) * Config::PASSER_V2_KING_US) * w / 100;
+				}
+
+				// ── gap-audit P1+P2: SF's PATH-SAFETY LADDER (evaluate.cpp:626-635) ──────────────
+				// ⚠️ Gated on an EMPTY stop square exactly as SF is: a pawn that cannot take its first
+				// step is not "free to advance", and the whole ladder is about advancing.
+				if (path_on && stop >= 0 && stop < 64 && !(c.occupied & (1ULL << stop))){
+					const uint64_t spanf   = white ? passed_span_white[sq] : passed_span_black[sq];
+					const uint64_t toQueen = spanf & BB_FILES[sq & 7];
+					// Squares BEHIND the pawn on its own file = the OTHER colour's forward span, same
+					// file. This is SF's forward_file_bb(Them, s).
+					const uint64_t behind  = (white ? passed_span_black[sq] : passed_span_white[sq])
+					                       & BB_FILES[sq & 7];
+					const uint64_t rq      = (c.rooks | c.queens) & behind;
+					const uint64_t theirs  = white ? c.black : c.white;
+					const uint64_t ours    = white ? c.white : c.black;
+					// ⚠️ KNOWN DEVIATION FROM SF, deliberate. SF intersects with attackedBy[ALL_PIECES],
+					// a PLAIN attack set. Ours is the SHARED map, which under KS_V2_XRAY (on in the
+					// shipped config) sees bishops through queens and rooks through queens + own rooks.
+					// So our `unsafe` set is strictly larger than SF's and our k is, if anything, one rung
+					// more pessimistic. Reusing the shared map is the right trade -- a second, x-ray-free
+					// build for one term would cost more than the rung it buys -- but if the ladder ever
+					// reads as too weak, this is the first thing to test (KS_V2_XRAY=0).
+					const uint64_t their_att = white ? ba->all : wa->all;
+					const uint64_t our_att   = white ? wa->all : ba->all;
+
+					// ☠️ SF's asymmetry, and it IS the enemy half of rook-behind-passer: with an enemy
+					// R/Q behind the pawn the span stays MAXIMALLY unsafe -- the attack intersection is
+					// skipped -- because that piece rakes the file as the pawn advances. Dropping this
+					// branch would silently turn the ladder into "is the span attacked right now".
+					uint64_t unsafe_sq = spanf;
+					if (!(theirs & rq)) unsafe_sq &= their_att;
+
+					int k = !unsafe_sq                        ? PS_PATH_K[0]
+					      : !(unsafe_sq & toQueen)            ? PS_PATH_K[1]
+					      : !(unsafe_sq & (1ULL << stop))     ? PS_PATH_K[2]
+					      :                                     PS_PATH_K[3];
+					// Our own R/Q behind, or a defended stop square -- SF's other half of P3.
+					if ((ours & rq) || (our_att & (1ULL << stop))) k += PS_PATH_K_DEFENDED;
+
+					const int kw = k * w * Config::PASSER_V2_PATH_PCT / 100;
+					mg += kw * 1000 / PS_SF_PAWN_MG;
+					eg += kw * 1000 / PS_SF_PAWN_EG;
 				}
 			}
 
@@ -2794,8 +2922,13 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// Hoisted so the placement pass can read the per-rook mobility counts. Uninitialised unless mobility runs.
 	MobAcc mw, mb;
 	bool acc_ready = false;
+	// ⚠️ HOISTED out of the block below (2026-09-21) so the passer path-safety ladder can read them --
+	// the same reason MobAcc was hoisted for the placement pass. They are UNINITIALISED unless the build
+	// actually runs, so `atk_ready` is the guard and every consumer must take it, never the maps alone.
+	SideAttacks wa, ba;
+	bool atk_ready = false;
 	if (Config::KS_V2_MAX > 0 || mob_on || space_on || threats_on){
-		SideAttacks wa, ba;
+		atk_ready = true;
 		{
 			// The attack build is shared by KS / mobility / space / threats and was v1's single most
 			// expensive block, so it is scoped separately from the scoring that consumes it.
@@ -2832,11 +2965,32 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			// Black-positive, matching `total`: a dangerous WHITE king favours Black (+), a dangerous BLACK
 			// king favours White (-). ⚠️ Getting this backwards still produces entirely plausible numbers --
 			// it is the historic failure mode -- so the colour ship-gate runs on every KS-A build.
-			ks_mp = ks_danger_mp(ks_w) - ks_danger_mp(ks_b);
-			// ⚠️ KS-A has NO phase curve at all, so it enters both legs identically and mode 1 preserves
-			// today's behaviour exactly. Giving king safety real (mg,eg) legs is gap-audit item K2/A8 —
-			// a SEPARATE change, not part of this plumbing.
-			if (pair_mode){ acc.mg += ks_mp; acc.eg += ks_mp; } else total += ks_mp;
+			// ── gap-audit K2/A8: give king safety an ENDGAME LEG ─────────────────────────────
+			// KS-A is one saturating curve for every phase. 3 of 4 references give king danger two
+			// legs -- SF uses S(kD^2/4096, kD/16), i.e. quadratic in the midgame and LINEAR and far
+			// smaller in the endgame -- because with the queens and rooks gone a "dangerous" king is
+			// mostly an active one.
+            //
+			// ★ This is SUBTRACTIVE: it removes king-danger credit in the endgame rather than adding
+			// any. That matters, because additive KS changes in this engine are 0-for-11 and only
+			// subtractive ones have ever won (ks-twelve-attempt-history-and-the-channel-law).
+			// ★ Needs NO (mg,eg) accumulator -- the taper is applied per side at this site, exactly as
+			// every other v2 term blends at its own. 100 = today's behaviour = byte-identical.
+			// ⚠️ Per-side values are non-negative magnitudes, so >> 8 is safe here; the difference is
+			// taken afterwards. Once a quantity is SIGNED, >> n stops being a safe divide.
+			const int kdw = ks_danger_mp(ks_w), kdb = ks_danger_mp(ks_b);
+			// At 100 the eg legs equal the mg legs, so the blend below is an identity for EVERY phase
+			// and the result is byte-identical to the untapered path.
+			const int kdw_eg = (Config::KS_V2_EG_PCT == 100) ? kdw : kdw * Config::KS_V2_EG_PCT / 100;
+			const int kdb_eg = (Config::KS_V2_EG_PCT == 100) ? kdb : kdb * Config::KS_V2_EG_PCT / 100;
+			const int ks_eg  = 256 - c.phase256;
+			// ⚠️ ks_mp is computed UNCONDITIONALLY, including in pair mode, because it is what gets
+			// published to ev_breakdown below. Zeroing it after accumulating would leave every
+			// term-attribution tool reading 0 for king safety -- the chimera the arm-2 note warns about.
+			ks_mp = (int)(((kdw * c.phase256 + kdw_eg * ks_eg) >> 8)
+			            - ((kdb * c.phase256 + kdb_eg * ks_eg) >> 8));
+			// In pair mode the single interpolation at the end applies the phase, so hand it raw legs.
+			if (pair_mode){ acc.mg += kdw - kdb; acc.eg += kdw_eg - kdb_eg; } else total += ks_mp;
 		}
 	}
 
@@ -2865,7 +3019,9 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		// untouched) when their magnitude knob is 0, so a stale lp would be added as that term's legs.
 		EvalPair lps, lpp, lpr;
 		ps_mp = pawn_structure_mp(pe, c, &lps);   // returns 0 when PS_V2_MAG == 0
-		pp_mp = passer_value_mp(pe, c, &lpp);     // returns 0 when PASSER_V2_MAG == 0
+		// ⚠️ The maps are passed only when they were actually built; with the shared attack build off the
+		// path-safety ladder is ABSENT rather than reading uninitialised stack.
+		pp_mp = passer_value_mp(pe, c, atk_ready ? &wa : nullptr, atk_ready ? &ba : nullptr, &lpp);
 		// slice 2: rook files read the file masks this detector already built
 		if (rf_on) rf_mp = rookfile_mp(pe, c, &lpr);
 		// slice 2: per-piece placement sub-terms, also reading this detector's masks

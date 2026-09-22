@@ -2111,6 +2111,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_V2_CAND_PCT = env_int("PASSER_V2_CAND_PCT", Config::PASSER_V2_CAND_PCT);
         Config::PASSER_V2_MG_PCT = env_int("PASSER_V2_MG_PCT", Config::PASSER_V2_MG_PCT);
         Config::PASSER_V2_EG_PCT = env_int("PASSER_V2_EG_PCT", Config::PASSER_V2_EG_PCT);
+        Config::PASSER_V2_PATH_PCT = env_int("PASSER_V2_PATH_PCT", Config::PASSER_V2_PATH_PCT);
+        Config::PST_V2_KING_EG_ONLY = env_int("PST_V2_KING_EG_ONLY", Config::PST_V2_KING_EG_ONLY);
+        Config::KS_V2_EG_PCT = env_int("KS_V2_EG_PCT", Config::KS_V2_EG_PCT);
+        Config::PS_V2_REAR_DOUBLED = env_int("PS_V2_REAR_DOUBLED", Config::PS_V2_REAR_DOUBLED);
         Config::EVAL_V2_PAIR = env_int("EVAL_V2_PAIR", Config::EVAL_V2_PAIR);
         Config::TEMPO_V2_MG = env_int("TEMPO_V2_MG", Config::TEMPO_V2_MG);
         Config::TEMPO_V2_EG = env_int("TEMPO_V2_EG", Config::TEMPO_V2_EG);
@@ -2451,6 +2455,18 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
                   << " PASSER_V2_MAG=" << Config::PASSER_V2_MAG
+                  // ☠️ The path-safety ladder silently needs the SHARED ATTACK BUILD, which runs only if
+                  // one of KS / mobility / space / threats is on. A diagnostic arm that disables those
+                  // would set PATH_PCT and measure nothing, so the dump states the dependency's state
+                  // rather than the knob alone (toggles-dump-advertises-dead-knobs).
+                  << " PASSER_V2_PATH_PCT=" << Config::PASSER_V2_PATH_PCT
+                  << (Config::PASSER_V2_PATH_PCT != 0
+                      && !(Config::KS_V2_MAX > 0 || Config::MOB_V2_MAG > 0
+                           || Config::SPACE_V2_MAG > 0 || Config::THREAT_V2_PCT > 0)
+                      ? "(INERT:no-attack-build)" : "")
+                  << " PST_V2_KING_EG_ONLY=" << Config::PST_V2_KING_EG_ONLY
+                  << " KS_V2_EG_PCT=" << Config::KS_V2_EG_PCT
+                  << " PS_V2_REAR_DOUBLED=" << Config::PS_V2_REAR_DOUBLED
                   << " EVAL_V2_PAIR=" << Config::EVAL_V2_PAIR
                   << " PS_V2_WEAKUNOPP_MG=" << Config::PS_V2_WEAKUNOPP_MG
                   << " PS_V2_WEAKUNOPP_EG=" << Config::PS_V2_WEAKUNOPP_EG

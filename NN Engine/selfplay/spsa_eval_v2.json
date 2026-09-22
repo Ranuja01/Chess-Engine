@@ -1,0 +1,11 @@
+[
+  {"name": "MOB_V2_MAG",      "init": 600,  "min": 300,  "max": 900,  "scale": 300},
+  {"name": "MOB_V2_EG_PCT",   "init": 100,  "min": 40,   "max": 180,  "scale": 70},
+  {"name": "PASSER_V2_MAG",   "init": 60,   "min": 0,    "max": 150,  "scale": 60},
+  {"name": "PS_V2_MAG",       "init": 100,  "min": 30,   "max": 200,  "scale": 85},
+  {"name": "KS_V2_MAX",       "init": 4000, "min": 2500, "max": 5500, "scale": 1200},
+  {"name": "KS_V2_HALF",      "init": 600,  "min": 350,  "max": 900,  "scale": 250},
+  {"name": "KS_V2_ONSET",     "init": 450,  "min": 150,  "max": 750,  "scale": 250},
+  {"name": "OUTPOST_V2_PCT",  "init": 100,  "min": 40,   "max": 180,  "scale": 70},
+  {"name": "BADB_V2_PCT",     "init": 100,  "min": 40,   "max": 180,  "scale": 70}
+]

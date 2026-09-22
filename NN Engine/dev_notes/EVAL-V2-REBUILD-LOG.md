@@ -3376,3 +3376,99 @@ three-way replication are unaffected.
    "needs reshaping within a term" from "genuinely absent", and it is the test that decides whether any new
    term is warranted at all.
 
+
+## 2026-09-21 (later) — TWO MORE FROM THE UNBLOCKED LIST: ONE NEGLIGIBLE DEFECT, ONE REJECTED MECHANISM
+
+Both built WITHOUT the `(mg,eg)` accumulator. ★ That turned out to be the useful realisation of the day:
+a single term can carry its own phase by blending eg-only AT ITS OWN SITE, exactly as every other v2 term
+already does. So `EVAL_V2_PAIR` was never a prerequisite for K2 or the king half of A3, and both items were
+decoupled from that still-unvalidated refactor.
+
+### 1. `PST_V2_KING_EG_ONLY` — a REAL defect, and NEGLIGIBLE
+☠️ The sixth placement table is commented "Kings - Endgame" and is CENTRALISING (edge 0..5, centre 35).
+v1 reads it only inside `evaluate_kings_endgame`; `evaluate_kings_midgame` does not read it at all. v2's
+census loop reads all six tables with NO phase gate ⇒ **v2 pays king centralisation in the opening and
+midgame, where v1 pays none.** A v2-only, wrong-SIGNED term.
+✅ Built, byte-identical at default (`250 / 49,440,513 / 4.031`), colour symmetry 0/800.
+📏 **Fire rate 18.5%, but median 3 mp, p90 7 mp, max 18 mp, mean over all positions 0.7 mp.**
+⇒ The defect is real and **two orders of magnitude below the d7 regret floor.** Why: both kings usually sit
+on similarly-valued cells, so the DIFFERENCE is tiny even though the table spans 0..35.
+▶️ **Fold into the retune; do not ship standalone.** The right end state is not "zero the midgame king leg"
+but a real shelter-shaped midgame king table — the tapered-PST item proper (A3), not this 5-line subset.
+★ The probe killed this in 90 seconds. The old route was a regret run + STS + possibly a games night.
+
+### 2. `KS_V2_EG_PCT` — REJECTED, and the DIAGNOSIS IS THE VALUE
+Give KS-A an endgame leg (3/4 references have two legs; SF uses `S(kD^2/4096, kD/16)`). Chosen because it
+is **SUBTRACTIVE**, the only shape with a track record in KS (additive is 0-for-11).
+✅ Built, byte-identical at 100, colour symmetry 0/800 with it on.
+📏 Fire rate 12.2%, median 65 mp, p90 400 mp, **max 1123 mp** — properly resolvable, unlike item 1.
+| channel | result |
+|---|---|
+| d7 regret vs neutral (−0.1522) | `70` **+0.0949** (worse, outside floor) · `40` −0.0467 · `20` −0.0712 |
+| win% | 50.1 / 50.4 / 50.4 vs neutral 50.0 — flat |
+| **WAC tactical veto** | **241/300, −9 solves** (worst of the session; accumulator was −4, passer ladder −4) |
+| nodes | **+6.4%** (52,588,441 vs 49,440,513) |
+| STS | **1796 vs 1854 (−58)**, inside ±150 but negative |
+⚠️ Only ONE neutral arm was run; the tool demands two for a band, and the recorded neutral spread is
+−0.1389..−0.0619. `40`/`20` fall INSIDE that, so the move channel is an unresolved NULL, not a harm. `70` is
+genuinely worse. The rejection rests on the WAC veto and the node cost, not on the regret numbers.
+⚠️ There WAS a monotone dose response (70 → 40 → 20 improving), which is more than the passer ladder ever
+produced — but monotone-and-null is not monotone-and-positive, and no arm cleared neutral.
+
+☠️☠️ **THE STRUCTURAL FINDING: `phase256` IS THE WRONG CONDITIONER FOR KING SAFETY.** Our phase is
+MATERIAL-based, so "endgame" lumps quiet king-and-pawn endings together with **sparse MATING attacks**.
+"King danger matters less in the endgame" is true for the first and flatly false for the second, and
+`phase256` cannot distinguish them. The −9 WAC solves ARE that: lost mates in low-material positions.
+⇒ If K2 is ever revisited it must condition on **ATTACKER PRESENCE** (queens/rooks on the board), not on
+phase. ★ v1 already carries that shape as `KS_EG_MAT_GATE` / `KS_EG_MAT_HI` / `KS_EG_MAT_FLOOR` — record-check
+those before rebuilding it from scratch.
+★ Generalises: any term whose real conditioner is "are there attackers" must not be tapered by a
+material-derived phase, because phase conflates "few pieces" with "few ATTACKERS".
+
+### 3. `PS_V2_REAR_DOUBLED` — A DEFECT FIX THAT PASSES, AND THAT NO INSTRUMENT WE OWN CAN JUDGE
+☠️ `eval_v2.cpp` flagged `passed` on a clear ENEMY span alone (`if (!st){ pb |= m; continue; }`), never asking
+whether one of OUR OWN pawns sits ahead on the same file. Two stacked own pawns on a clear file were BOTH
+flagged and BOTH paid in full by `passer_value_mp` — one passer counted twice. Only the front pawn can
+promote. ★ The quantity was already computed one branch below (`rear`) and candidates were already excluded
+on it; the true-passer branch simply never got the same test.
+Modes: 1 = demote the rear pawn to CANDIDATE (existing `PASSER_V2_CAND_PCT` path) · 2 = Ethereal, no credit.
+| gate | result |
+|---|---|
+| byte-identity at 0 | **`250 / 49,440,513 / EBF 4.031`** ✅ |
+| colour symmetry at mode 2 | **0 / 800** ✅ (file mirror 21/651 all-5mp = the baseline queen-PST class) |
+| fire rate, play distribution | **3.4%** (135/4000) · median **78 mp** · p90 146 · max 386 |
+| WAC harm check, mode 2 | **252/300 (+2)** · **49,138,567 nodes (−0.6%)** · EBF 4.032 |
+| STS harm check, mode 2 | **1829 vs 1854 (−25)** — inside ±150 |
+
+★★ **DELIBERATELY NOT MEASURED FOR BENEFIT, AND THAT IS THE RIGHT CALL.** At a 3.4% static fire rate the
+move-change rate is ~1-2%, i.e. ~60-120 changed positions against the neutral arm's 1,958 — **below the d7
+footprint gate's resolution by construction.** Running it would have produced a number that had to be
+discounted anyway. So this was framed as a HARM CHECK (does it visibly break anything?) rather than a
+benefit test, and it passes: nothing regresses, +2 WAC and −0.6% nodes are noise but in the right direction,
+and it conspicuously does NOT do what the KS taper did (−9 WAC, +6.4% nodes).
+⇒ **The decision is a CORRECTNESS decision, not a measurement one** — paying one passer twice is wrong
+whatever the instruments can see. That is the owner's call to make, not something to settle by measurement.
+⚠️ Mode 1 was built but never measured; mode 2 (Ethereal's) is the form tested.
+
+## ☠️☠️ 2026-09-21 — THE BUNDLE'S VERDICT, AND WHY THIS LANE SHOULD CLOSE
+| item | fire rate | magnitude | outcome |
+|---|---|---|---|
+| `PST_V2_KING_EG_ONLY` | 18.5% | median **3 mp** | real defect, **unmeasurably small** ⇒ fold into the retune |
+| `KS_V2_EG_PCT` | 12.2% | median 65 mp, max 1123 | ☠️ **REJECTED** (WAC −9, nodes +6.4%, STS −58, move-null) |
+| `PS_V2_REAR_DOUBLED` | 3.4% | median 78 mp | defect fix, **no harm**, unresolvable by design |
+All three SUBTRACTIVE (chosen because additive is 0-for-11 in KS). All three byte-identical and
+symmetry-clean at their defaults. **None produces measurable Elo.** ⇒ nulls **fourteen and fifteen**.
+
+★★★★ **THE FIRE-RATE PROBE IS THE METHOD CHANGE OF THE DAY** (`diagnostics/_eval_knob_delta.py`). It killed
+the king PST in 90 seconds — where the old route was a regret run plus an STS run plus possibly a games
+night — and it pre-sorted the bundle correctly, against my own registered prediction that the king PST
+would be the largest of the three (it was the smallest, by three orders of magnitude). ⇒ **measure fire rate
+and magnitude BEFORE spending any screen.** A term moving 50% of positions by 10 mp is invisible to every
+instrument we own; one moving 5% by 300 mp is resolvable. Twelve of the thirteen earlier nulls were the
+first kind and NONE was checked this way first.
+
+⇒ **THE EVAL-TERM LANE SHOULD CLOSE.** Fifteen consecutive move-nulls · the gap audit's top-ranked
+4/4-universal MECHANISM rejected on 7 arms · **SF1.1 (2008) beats v2 at equal work while carrying no term we
+lack** · eval measured at only **25-35%** of the SF11 gap, and that share is CALIBRATION not coverage.
+▶️ Remaining eval lever: **the joint retune**, the one change large enough for our instruments to resolve.
+▶️ Then **search selectivity** — 2-3x larger (EBF 1.914 vs SF11's 1.452; SF11 reaches d15 on our d10 budget).

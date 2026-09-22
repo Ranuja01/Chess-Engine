@@ -84,6 +84,75 @@ king-distance + 50% candidate scaling, **unconditional** — it never asks wheth
 ladder, not a standalone bonus. Build the ladder first or the port is a third, invented form.
 Inputs: attack maps exist but are built only inside the `:2664` gate and are not passed to the passer scorer.
 
+✅✅ **STATUS: BUILT 2026-09-21** — `Config::PASSER_V2_PATH_PCT` (default 0 = absent). `SideAttacks wa, ba`
+hoisted out of the attack-build block (the same move `MobAcc` already needed for the placement pass) and
+passed to `passer_value_mp` as nullable pointers, so with the build off the ladder is ABSENT rather than
+reading uninitialised stack.
+☠️ **THE FREE VERSION DOES NOT EXIST, and the reason is worth keeping.** `PawnEntry` already carries
+`blocked` (stop square holds an enemy PAWN) and `stop_held` (stop square attacked by an enemy PAWN), so the
+obvious cheap ladder is to gate the passer on those — no new inputs, no hoist. It is **VACUOUS BY
+CONSTRUCTION**: `passed` means no enemy pawn anywhere in the forward three-file span, and both of those
+predicates require an enemy pawn INSIDE that span. They are identically zero on every passed pawn, and live
+only on the candidates the scorer also prices. ⇒ the ladder for real passers MUST come from piece attacks.
+★ Caught at design time by asking what already owns the signal — the gate would have been unfireable on the
+very term it gated (`a-detector-gate-passes-vacuously-unless-the-term-is-proved-to-fire`).
+⚠️ **Deviation from SF, deliberate:** we intersect with the SHARED attack map, which under `KS_V2_XRAY`
+(on in the shipped config) sees bishops through queens and rooks through queens + own rooks. SF uses a
+PLAIN `attackedBy`. Our `unsafe` set is therefore strictly larger and our `k` at most one rung more
+pessimistic. Reusing the shared map beats a second build for one term; if the ladder ever reads too weak,
+test `KS_V2_XRAY=0` first.
+| gate | result |
+|---|---|
+| byte-identity at default | **`250 / 49,440,513 / EBF 4.031`** ✅ (and `250 / 59,549,832 / 4.080` without `RFP_MARGIN`, also exact) |
+| colour symmetry at `PATH_PCT=100` | **0 / 800** ✅ |
+| fire rate, play distribution, 4,000 pos | **25.3%** · median **93 mp** · p90 **662 mp** · max **2,069 mp** |
+| signed mean over all positions | **−4.9 mp** ⇒ reshapes without shifting the mean |
+☠️☠️ **VERDICT 2026-09-21: REJECTED ON MEASUREMENT. Seven arms, three channels, null-to-negative in all of
+them.** This is the strongest-supported item the audit had — 4/4 universal, three independent designs, a
+MECHANISM conditioning a large existing term rather than a bonus on a detector, ported from source rather
+than from a summary, and it fires on a quarter of real positions with a 93 mp median swing.
+
+d7 footprint regret, 6,000 play-distribution positions, read against a neutral arm (`ASPIRATION_DELTA=300`,
+delta **−0.1522**, win% 50.0) because the tool's null is not zero:
+| arm | regret delta | vs neutral | win% |
+|---|---|---|---|
+| `PATH_PCT=25` | −0.1154 | +0.037 worse | 50.2% |
+| `PATH_PCT=50` | −0.2236 | −0.071 better | 50.8% |
+| `PATH_PCT=100` | −0.1213 | +0.031 worse | 51.1% |
+| `PATH=100 MAG=20` | **+0.0644** | **+0.217 worse** | **48.1%** |
+| `PATH=100 MAG=30` | −0.0993 | +0.053 worse | 49.8% |
+| `PATH=50 MAG=40` | +0.0229 | +0.175 worse | 50.1% |
+Node channel: WAC `246 / 50,795,598 / EBF 4.032` vs base `250 / 49,440,513 / 4.031` ⇒ **−4 solves and +2.7%
+MORE nodes** — the opposite of the pruning-headroom prediction. STS **1765 vs 1854 (−89)**, inside the ±150
+floor but not positive.
+
+★★★ **THE INFORMATIVE HALF: at CONSTANT passer mass the ladder is WORSE than flat, and that is the finding.**
+The first three arms raise total passer weight (the ladder more than TRIPLES a rank-7 passer, faithfully to
+SF's own 3.6× ratio) while `PASSER_V2_MAG=60` was fitted to a ladder-LESS passer — so they conflate SHAPE
+with MASS. The bottom three hold mass roughly constant and isolate the shape. **All three are worse than
+neutral, and the worst reading of the whole sequence is the most mass-neutral one.** ⇒ the mild win%
+ordering in the first ladder came from the extra weight, not from the discrimination. **The shape carries
+no information at our search depth.**
+⇒ Leading hypothesis, untested: our search already resolves path safety tactically, so a static verdict on
+it is redundant with search and, being static, sometimes overrides what the search would have found. Compare
+`a-feature-measured-where-it-is-redundant-looks-worthless` — ask which REGIME would close it, not whether
+the references carry it.
+⚠️ One live alternative before this is called permanent: our `unsafe` set uses the shared `KS_V2_XRAY` map
+and is strictly larger than SF's plain `attackedBy`, so every `k` may sit one rung low. `KS_V2_XRAY=0`
+tests it — but that knob also moves KS, so it is not a clean single-term test.
+⚠️ Do NOT read the `cr4_CRITICAL` rows (n = 5-12). They swing −14.5 to +5.7 and are pure noise.
+
+☠️ **P3 (rook/queen behind a passer) IS CLOSED BY THIS**, not merely still blocked: P3 lives inside this
+ladder in SF (enemy R/Q behind keeps the span unsafe; own R/Q behind is the `+5`). Both halves shipped in
+these arms and the result is null-to-negative. Reviving P3 as a standalone bonus would be the third invented
+form the audit warned about, now with a measured null behind the mechanism it belongs to.
+
+★★★★ **AND THE AUDIT'S OWN RANKING HEURISTIC IS DAMAGED BY THIS.** The tiering assumed reference-count and
+mechanism-vs-bonus predict payoff. This was the top-ranked non-architectural item on both axes and it is
+null — the **thirteenth** consecutive move-null concept. Twelve were constants on detectors, which is why
+they were dismissed as a selection artefact; this one was not. ⇒ treat the remaining tiers as UNRANKED
+until something re-establishes that either axis predicts anything.
+
 ### K1 — SHELTER / STORM. 4/4. Spec already delivered (see the register).
 ★ SF **double-wires** it: seeds `king()` directly AND feeds `kingDanger` as `−6·mg/8`. "Build shelter" is
 really "choose one channel or both".

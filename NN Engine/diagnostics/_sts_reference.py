@@ -35,30 +35,53 @@ import chess
 import chess.engine
 
 # SF11 is the last fully-classical Stockfish (the hand-written-eval ceiling); SF18 is the truth column.
-# Paths follow the existing convention: SF18 from STOCKFISH_PATH, SF11 from eval_vs_sf11.
-ENGINES = {}
+#
+# ☠️ NATIVE-ELF vs WINDOWS-EXE IS A TRUST BOUNDARY, NOT A DETAIL. SF16 and SF17 ship here only as Windows
+# .exe, and running those through WSL binfmt is recorded as flaky ("Exec format error, whole runs void",
+# SESSION-HANDOFF-2026-07-08). Rows produced from an .exe are marked UNTRUSTED in the output for that
+# reason -- if one is needed for the record, run it under Windows python via sf_ceiling_win.py instead.
+SF_ROOT = os.environ.get(
+    'SF_ROOT',
+    os.path.dirname(os.path.dirname(os.path.dirname(THIS_DIR))))   # .../Programming/Chess Engine
+
+# label -> (path relative to SF_ROOT, native ELF?, extra UCI options)
+ENGINES = {
+    'sf1':    ("stockfish_1/stockfish-1.1_ja/stockfish_11_x64_ja.exe",                    False, {}),
+    'sf11':   ("stockfish_11_linux/stockfish-11-linux/Linux/stockfish_20011801_x64_bmi2",  True,  {}),
+    'sf15c':  ("stockfish_15_linux/stockfish_15.1_linux_x64/stockfish-ubuntu-20.04-x86-64", True, {"Use NNUE": False}),
+    'sf15n':  ("stockfish_15_linux/stockfish_15.1_linux_x64/stockfish-ubuntu-20.04-x86-64", True, {"Use NNUE": True}),
+    'sf16':   ("stockfish_16/stockfish-windows-x86-64-avx2.exe",                           False, {}),
+    'sf17':   ("stockfish_17/stockfish-windows-x86-64-avx2.exe",                           False, {}),
+    'sf18':   ("stockfish_18_linux/stockfish-ubuntu-x86-64-avx2",                          True,  {}),
+    'sf19':   ("stockfish_19_linux/stockfish-linux-x86-64-universal",                      True,  {}),
+}
 
 
 def resolve_engine(name):
-    """Map a short name to a binary path, reusing the paths the other diagnostics already use."""
-    if name == 'sf18':
-        path = os.environ.get('STOCKFISH_PATH')
-        if not path:
-            raise SystemExit("STOCKFISH_PATH is not set (SF18).")
-        return path
-    if name == 'sf11':
-        from eval_vs_sf11 import SF11
-        return SF11
+    """Map a short label to (binary path, native?, extra UCI options).
+
+    ⚠️ `sf15` without a suffix is REJECTED rather than guessed: SF15.1's classical and NNUE evals are
+    different evaluators and the record already carries numbers for both, so a silent default would
+    make a row uninterpretable after the fact.
+    """
     if name == 'sf15':
-        return os.path.join(os.path.dirname(os.environ.get('STOCKFISH_PATH', '')),
-                            "stockfish_15_linux/stockfish_15.1_linux_x64/"
-                            "stockfish-ubuntu-20.04-x86-64")
-    raise SystemExit("unknown engine %r (want sf11 / sf15 / sf18)" % name)
+        raise SystemExit("say sf15c (classical) or sf15n (NNUE) -- they are different evaluators")
+    if name not in ENGINES:
+        raise SystemExit("unknown engine %r (want one of: %s)" % (name, ", ".join(sorted(ENGINES))))
+    rel, native, opts = ENGINES[name]
+    return os.path.join(SF_ROOT, rel), native, dict(opts)
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--engine', default='sf18', help='sf11 | sf15 | sf18')
+    ap.add_argument('--engine', default='sf18', help='sf1 | sf11 | sf15c | sf15n | sf16 | sf17 | sf18 | sf19')
+    ap.add_argument('--binary', default='',
+                    help='override the resolved path (e.g. a self-compiled build). --engine still names the row.')
+    ap.add_argument('--uci', default='',
+                    help="extra UCI options as 'Name=Value;Name=Value'. ★ SF1.1 exposes per-subsystem eval "
+                         "weights (Passed Pawns (Middle Game), Mobility (Endgame), King Safety Coefficient, "
+                         "...) as 0-200 spins defaulting to 100, so this is an ABLATION handle on a "
+                         "hand-written reference eval with no recompile.")
     ap.add_argument('--epd', default='sts300.epd')
     ap.add_argument('--depth', type=int, default=10)
     ap.add_argument('--nodes', type=int, default=0,
@@ -78,15 +101,37 @@ def main():
     if not os.path.exists(path):
         raise SystemExit("STS EPD not found: %s" % args.epd)
 
-    positions = load_sts_epd(path)
+    # ★ WAC and STS are scored by DIFFERENT rules and both are needed for the reference ladder: STS is a
+    # weighted move->points map (c9/c8), WAC is a plain bm hit. Both loaders come from the tools that score
+    # OUR side, so the only difference between an SF row and ours stays "who produced the move".
+    is_wac = os.path.basename(path).lower().startswith('wac')
+    if is_wac:
+        from tactical_test import load_epd
+        # Normalise into the STS tuple shape: one point per position, single pseudo-theme.
+        positions = [(fen, {u: 1 for u in best}, 1, 'wac', pid)
+                     for (fen, best, pid, _raw) in load_epd(path)]
+    else:
+        positions = load_sts_epd(path)
     if args.limit:
         positions = positions[:args.limit]
     if not positions:
-        raise SystemExit("No scorable STS positions parsed from %s" % path)
+        raise SystemExit("No scorable positions parsed from %s" % path)
 
-    binary = resolve_engine(args.engine)
+    binary, native, engine_opts = resolve_engine(args.engine)
+    if args.binary:
+        # A self-compiled build is NATIVE by construction, which is the point of allowing the override:
+        # it turns an untrusted .exe row into a trustworthy one. ⚠️ It is NOT bit-identical to the shipped
+        # binary (different compiler and flags), so record it as a rebuild, not as "the" version.
+        binary, native = args.binary, True
+    for kv in (o for o in args.uci.split(';') if o.strip()):
+        k, _, v = kv.partition('=')
+        engine_opts[k.strip()] = v.strip()
     if not os.path.exists(binary):
         raise SystemExit("engine binary not found: %s" % binary)
+    if not native:
+        print("UNTRUSTED ROW: %s is a Windows .exe run through WSL binfmt, which is recorded as flaky.\n"
+              "  Treat as indicative only; for the record run it under Windows python (sf_ceiling_win.py).\n"
+              % args.engine)
 
     eng = chess.engine.SimpleEngine.popen_uci(binary)
     try:
@@ -97,6 +142,11 @@ def main():
                 opts[key] = val
         if args.classical and "Use NNUE" in eng.options:
             opts["Use NNUE"] = False
+        # Per-label options (sf15c/sf15n pin Use NNUE explicitly, so the row can never be ambiguous
+        # about which of SF15.1's two evaluators produced it).
+        for key, val in engine_opts.items():
+            if key in eng.options:
+                opts[key] = val
         if opts:
             eng.configure(opts)
 
@@ -108,11 +158,17 @@ def main():
               % (len(positions), os.path.basename(path), args.engine, regime))
 
         rows = []
+        nodes_sum = 0
         total = max_total = 0
         theme_pts, theme_max = {}, {}
         for idx, (fen, score_map, mx, theme, epd_id) in enumerate(positions):
             board = chess.Board(fen)
-            res = eng.play(board, limit)
+            # ★★ NODES ARE NOT OPTIONAL IN THIS TABLE. At a fixed nominal DEPTH the engines do wildly
+            # different amounts of work (SF11 reaches d10 in ~26k nodes where we need ~249k), so a depth
+            # column without nodes beside it flatters whoever prunes least and is close to meaningless.
+            res = eng.play(board, limit, info=chess.engine.INFO_ALL)
+            nodes_here = (res.info or {}).get('nodes', 0)
+            nodes_sum += nodes_here
             uci = res.move.uci() if res.move else ''
             pts = score_map.get(uci, 0)
             total += pts
@@ -120,20 +176,25 @@ def main():
             theme_pts[theme] = theme_pts.get(theme, 0) + pts
             theme_max[theme] = theme_max.get(theme, 0) + mx
             rows.append({"idx": idx, "id": epd_id, "theme": theme, "engine": uci,
-                         "score": pts, "max": mx, "fen": fen})
+                         "score": pts, "max": mx, "nodes": nodes_here, "fen": fen})
             if idx % 25 == 0:
                 print("  %4d  %-6s %2d/%-2d  %s" % (idx, uci, pts, mx, epd_id))
 
         os.makedirs(RESULTS_DIR, exist_ok=True)
-        tag = "%s_%s" % (args.engine, regime.replace('=', ''))
+        # Suite goes in the tag: without it a wac run silently overwrites the sts run for the same engine.
+        tag = "%s_%s_%s" % ("wac" if is_wac else "sts", args.engine, regime.replace('=', ''))
         csv_path = os.path.join(RESULTS_DIR, "sts_reference_%s.csv" % tag)
         with open(csv_path, "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=["idx", "id", "theme", "engine", "score", "max", "fen"])
+            w = csv.DictWriter(f, fieldnames=["idx", "id", "theme", "engine", "score", "max", "nodes", "fen"])
             w.writeheader()
             w.writerows(rows)
 
         pct = (100.0 * total / max_total) if max_total else 0.0
-        print("\nSTS score: %d/%d  (%.1f%%)   [%s @ %s]" % (total, max_total, pct, args.engine, regime))
+        label = "WAC" if is_wac else "STS"
+        print("\n%s score: %d/%d  (%.1f%%)   [%s @ %s, hash=%d, threads=%d, native=%s]"
+              % (label, total, max_total, pct, args.engine, regime, args.hash, args.threads, native))
+        print("nodes/position: %.0f  (total %d over %d positions)"
+              % (nodes_sum / float(len(positions)), nodes_sum, len(positions)))
         print("\nPer-theme:")
         for theme in sorted(theme_pts):
             tm, tp = theme_max[theme], theme_pts[theme]

@@ -6,7 +6,9 @@
 Update at the END OF EVERY RUNG. The design docs carry reasoning, `EVAL-V2-REBUILD-LOG.md` carries history;
 this carries only the standing state, so a disagreement about "what are we going with" is settled here.
 
-Last updated: **2026-09-19**. Since the 09-13 revision: placement bundle E games-confirmed (≈ +13) · mobility AREA
+Last updated: **2026-09-24** — ★ **joint retune shipped: `PASSER_V2_MAG` 60→100, `MOB_V2_EG_PCT` 100→125, ≈ +10 Elo
+(SPRT H1, 6,104 games).** ⚠️ **NEW CURRENT FINGERPRINT: WAC d10 `254 / 52,965,774 / EBF 4.003`** (with
+`RFP_MARGIN=1000`); every older fingerprint below is now a PRE-RETUNE config. Previously updated **2026-09-19**. Since the 09-13 revision: placement bundle E games-confirmed (≈ +13) · mobility AREA
 shipped (≈ +31) · the collinearity gate completed to 40 columns across all five subsystems · the margin re-sweep run
 under `EVAL_ARM=1` for the first time and **`RFP_MARGIN=1000` shipped** (−17.0% nodes at identical solves, free) ·
 the **first v1-vs-v2 showdown ever played** (1500 games, **elo −9.5 ±20.7 ⇒ indistinguishable**) · v2 placed on the
@@ -27,11 +29,20 @@ EVAL_ARM=1
   KS_V2_MAX=4000   KS_V2_HALF=600   KS_V2_ONSET=450
   # rung 2 -- pawns
   PS_V2_MAG=100          # structure: doubled + isolated + backward
-  PASSER_V2_MAG=60       # passers, endgame leg only
+  PASSER_V2_MAG=100      # passers, endgame leg only. 60 -> 100 shipped 2026-09-24 (joint retune, see below)
   # slice 1 -- draw classifier (enabled 2026-09-13 on the owner’s conditional sign-off)
   DRAW_V2_CLASS=1        # hard 0 only where the stronger side lacks mating material; revert = remove this line
   # slice 2 -- mobility (passed games 2026-09-14: +205 -66 =48 / 319 pooled, ~ +162 Elo; owner sign-off)
   MOB_V2_MAG=600         # knight mg table range in mp, SF11 shape; revert = remove this line
+  # ── JOINT RETUNE, shipped 2026-09-24 on the owner's sign-off ─────────────────────────────────────────
+  # The only two knobs that REPLICATED across two independent cold-start SPSA runs (+40/+43 and +25/+24);
+  # the other seven moved in inconsistent or opposite directions and stay at their prior values.
+  # SPRT vs the previous ship at NODE_LIMIT=50000 (valid for eval knobs: it misses only raw NPS), UHO, seed 23:
+  # H1 ACCEPTED at +2313 -2119 =1672 / 6104, LLR +2.98, elo +11.0 +/-10.2. The estimate sat at +11..+12 from
+  # game 337 to 6104, so stopping-bound inflation is small -- quote it as ~+10, not a firm +11.
+  # Also: WAC 254/300 (+4), eval accuracy -2.80% MSE. Protocol: dev_notes/EVAL-V2-RETUNE-PLAN-2026-09-22.md.
+  # Revert = PASSER_V2_MAG=60 and remove the next line.
+  MOB_V2_EG_PCT=125      # mobility's endgame leg, 100 -> 125
   DRAW_V2_KPK_EXACT=1    # exact KPK bitbase (165,676 states, 0 false draws / 0 false wins); owner sign-off 2026-09-14; revert = remove this line
   # slice 2 -- placement bundle E (regression SPRT 1,200 games pooled: +499 -463 =238, ~ +10 Elo, LLR ~ +1.9, inconclusive/positive; owner sign-off 2026-09-15)
   OUTPOST_V2_PCT=100     # SF11 outpost form

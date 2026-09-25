@@ -2042,6 +2042,41 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::QSTANDPAT_EVAL_MODE = env_int("QSTANDPAT_EVAL_MODE", Config::QSTANDPAT_EVAL_MODE);
         Config::QDELTA_PERMOVE_MARGIN = env_int("QDELTA_PERMOVE_MARGIN", Config::QDELTA_PERMOVE_MARGIN);
         Config::ENABLE_QDELTA_PERMOVE = env_flag("ENABLE_QDELTA_PERMOVE", Config::ENABLE_QDELTA_PERMOVE);
+        // ── V2_PRESET=shipped: the whole shipped eval-v2 configuration behind ONE switch ─────────────────
+        // ☠️ Why this exists: v2's shipped config is an env BLOCK, not a set of defaults, so EVAL_ARM=1 on its own
+        // silently yields a SKELETON -- MOB_V2_MAG=0 (mobility, v2's largest term, OFF), DRAW_V2_CLASS off,
+        // KS_V2_ONSET=0, KS_V2_NO_QUEEN/KS_V2_CHK_Q at 873/780. The owner played exactly that in the UI and lost to
+        // SF1.1 a knight up (2026-09-23); those games said nothing about v2.
+        // ★ The preset only seeds the values; every knob is read from the environment AFTER this block, so an
+        // explicit KEY=VAL still overrides (V2_PRESET=shipped PASSER_V2_MAG=80 works as expected).
+        // ⚠️ Opt-in, never a default: RFP_MARGIN=1000 is part of v2's ship and must NOT reach the frozen v1 control,
+        // whose default stays untouched. Absent / empty V2_PRESET = today's behaviour, byte-identical.
+        // ⚠️ Mirror of `V2=` in selfplay/overnight_runner.sh and §1 of dev_notes/EVAL-V2-CURRENT-CONFIG.md --
+        // update all three together when a v2 ship changes.
+        if (const char *preset = std::getenv("V2_PRESET"); preset && *preset)
+        {
+            if (std::strcmp(preset, "shipped") == 0)
+            {
+                Config::EVAL_ARM = 1;
+                Config::KS_V2_ZONE_SF = 1;   Config::KS_V2_XRAY = 1;     Config::KS_V2_COORD = 256;
+                Config::KS_V2_WEAK = 57;     Config::KS_V2_ADJ = 61;     Config::KS_V2_NO_QUEEN = 321;
+                Config::KS_V2_CHK_Q = 126;   Config::KS_V2_CHK_R = 122;  Config::KS_V2_CHK_B = 80;
+                Config::KS_V2_CHK_N = 152;   Config::KS_V2_MAX = 4000;   Config::KS_V2_HALF = 600;
+                Config::KS_V2_ONSET = 450;
+                Config::PS_V2_MAG = 100;     Config::PASSER_V2_MAG = 100;
+                Config::DRAW_V2_CLASS = true;  Config::DRAW_V2_KPK_EXACT = true;
+                Config::MOB_V2_MAG = 600;    Config::MOB_V2_EG_PCT = 125;
+                Config::MOB_V2_PIN = true;   Config::MOB_V2_EXCL_LOWRANK = true;
+                Config::OUTPOST_V2_PCT = 100;
+                Config::BADB_V2_PCT = 100;   Config::BADB_V2_FORM = 1;
+                Config::TRAPROOK_V2_PCT = 10;
+                Config::WEAKQ_V2_PCT = 25;
+                Config::BEHIND_V2_PCT = 25;  Config::BEHIND_V2_FORM = 1;
+                Config::RFP_MARGIN = 1000;
+            }
+            else
+                std::cerr << "☠️ V2_PRESET=" << preset << " is unknown (expected: shipped) -- ignored." << std::endl;
+        }
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
         Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
         Config::RFP_MIN_DEPTH = env_int("RFP_MIN_DEPTH", Config::RFP_MIN_DEPTH);

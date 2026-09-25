@@ -1,0 +1,7 @@
+[
+  {"name": "KS_V2_ADJ",      "init": 61,  "min": 25,  "max": 120, "scale": 30},
+  {"name": "KS_V2_WEAK",     "init": 57,  "min": 25,  "max": 110, "scale": 30},
+  {"name": "KS_V2_COORD",    "init": 256, "min": 120, "max": 420, "scale": 90},
+  {"name": "KS_V2_NO_QUEEN", "init": 321, "min": 120, "max": 600, "scale": 150},
+  {"name": "KS_V2_CHK_Q",    "init": 126, "min": 50,  "max": 250, "scale": 60}
+]

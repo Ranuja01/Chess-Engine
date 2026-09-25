@@ -98,8 +98,10 @@ as noise for the others, so a knob must EARN its dimension by demonstrated eval 
 - ~~**`KS_V2_ONSET=450`** — the rung-1 ONSET frontier was MEASURED at +0.1 ± 50 Elo, i.e. FLAT.~~
   ☠️ **SUPERSEDED TWICE, and the round trip is the lesson.** (1) Un-frozen on 2026-09-22: a ±50 Elo
   instrument cannot call anything flat, and the fire-rate probe showed it moves the eval by a 214 mp
-  median — more than any other knob measured. (2) Then admitted to the vector and **found to carry NO
-  gradient** (52% step reversals = pure random walk), despite the most visually convincing trajectory in
+  median — more than any other knob measured. (2) Then admitted to the vector and ~~**found to carry NO
+  gradient** (52% step reversals = pure random walk)~~ ☠️ **that verdict is RETRACTED (09-24)** — it rested on
+  the reversal-rate statistic, which cannot detect a weak gradient. By the valid drift test its z is −1.23:
+  **UNRESOLVED in either direction**, not "no gradient". Its trajectory was the most visually convincing in
   the run. ⇒ **Its original "flat" verdict was reached by a bad instrument and happens to be RIGHT.**
   Stays at 450. ★ Large eval LEVERAGE is not evidence that moving a knob HELPS.
 - **`RFP_MARGIN=1000`** — properly swept and shipped, and it is a SEARCH knob ⇒ **wrong lane**: a
@@ -163,7 +165,10 @@ look like an optimum. Two statistics were computed per knob, and **only one of t
   driftless random walk spends MOST of its time on ONE side of its origin — 0% or 100% is the single most
   LIKELY outcome, not a rare one. A knob that "left its start and never came back" is exactly what noise
   produces. This statistic fooled the first read completely.
-- ✅ **REVERSAL RATE of consecutive steps is the right test, and it is exact here.** SPSA's step is
+- ☠️ **RETRACTED 2026-09-24 — see the correction at the end of this file.** Reversal rate measures whether a
+  knob's gradient dominates EACH STEP'S SIGN, not whether a gradient exists; a weak real gradient gives ~50%
+  reversals AND steady drift. The valid within-run test is net drift vs √n. Original text, kept for the record:
+  ~~✅ **REVERSAL RATE of consecutive steps is the right test, and it is exact here.**~~ SPSA's step is
   `ak·scale·g·δⱼ`. With a true gradient the perturbation sign δ CANCELS (a positive gradient gives a
   positive step whether δ was + or −), so steps are consistently signed ⇒ LOW reversals. With no gradient,
   `g` is noise uncorrelated with δ, so the step sign is random ⇒ **50%**. With 145 steps, σ = 4.2%.
@@ -252,3 +257,72 @@ STS is 1689, not 1854). The argument's direction survives; its magnitude was wro
 ▶️ **NEXT, in order:** (a) a second SPRT segment at a different seed, POOLED, to get the magnitude — the
 candidate is not refuted either; (b) fix the adjudication cost first so the segment buys more games;
 (c) re-run SPSA at d8 if the d6 transfer is the fault, before concluding the knobs are wrong.
+
+---
+
+# ☠️☠️ 2026-09-24 CORRECTION — THE REVERSAL-RATE TEST WAS WRONG, AND RUN 1's "FOUR KNOBS AT 3σ" IS RETRACTED
+
+## What was claimed, and why it is false
+Above, reversal rate is called "exact" for separating a gradient from a random walk. **It is not.** It
+measures whether a knob's gradient DOMINATES EACH STEP'S SIGN. With nine knobs perturbed together, every
+step's sign carries cross-terms from the other knobs' gradients plus game noise, so a WEAK but REAL gradient
+produces ~50% reversals AND a consistent net drift — drift accumulates linearly in the number of steps while
+noise accumulates only as √n. Reversal rate is blind to exactly that case.
+
+**It was caught by replication, not by argument.** Run 2 put `PASSER_V2_MAG` and `MOB_V2_EG_PCT` at 54% and
+55% reversals — "pure noise" by the old reading — while their endpoints landed within 3 units of run 1's.
+Both statements cannot be true under the old interpretation.
+
+## The correct within-run test: net drift against the random-walk expectation
+    z = (net displacement) / (step_sd · √n)        |z| > 2  ⇒ travelled further than a random walk would
+
+| knob | run 1 net | z | run 2 net | z | across runs |
+|---|---|---|---|---|---|
+| **PASSER_V2_MAG** | **+40** | 1.64 | **+43** | 1.74 | ★★ same direction, same size |
+| **MOB_V2_EG_PCT** | **+25** | 0.90 | **+24** | 0.87 | ★ same size to within 1 unit |
+| PS_V2_MAG | −1 | −0.03 | −18 | −0.51 | same direction, inconsistent size |
+| OUTPOST_V2_PCT | −8 | −0.29 | 0 | −0.01 | nothing |
+| KS_V2_MAX | +365 | 0.76 | **−448** | −0.94 | ☠️ OPPOSITE |
+| KS_V2_HALF | +59 | 0.59 | **−198** | −1.96 | ☠️ OPPOSITE |
+| BADB_V2_PCT | −4 | −0.12 | +7 | 0.24 | ☠️ OPPOSITE |
+| KS_V2_ONSET | −122 | −1.23 | — | — | unresolved, EITHER way |
+| KS_V2_WEAK / COORD | — | — | +2 / −35 | 0.09 / −0.50 | nothing |
+
+⇒ **Within any single run, NO knob exceeds |z| = 2.** Run 1's "four knobs clearing 3σ" came from a statistic
+that does not measure drift, and is **RETRACTED**. So is the confident "`KS_V2_ONSET` carries NO gradient" —
+z = −1.23 settles nothing in either direction.
+
+## ✅ What IS established — by cross-run REPLICATION, the only test that survived
+Two independent COLD-START runs, different vectors, fresh games:
+- ★★ **`PASSER_V2_MAG` 60 → ~100.** +40 and +43; combined z ≈ (1.64 + 1.74)/√2 ≈ **2.4**. Two random walks
+  with an sd of ~24 landing within 3 units of each other at the same large offset is not a coincidence.
+- ★ **`MOB_V2_EG_PCT` 100 → ~125.** Combined z ≈ 1.25, but the magnitudes agree to within ONE unit.
+- ☠️ Everything else is unestablished — three knobs moved in OPPOSITE directions across the runs.
+
+⇒ **The candidate is now TWO knobs, not four:** `PASSER_V2_MAG=100 MOB_V2_EG_PCT=125`, all else shipped.
+⚠️ The two SPRTs already on record (+20.0 ±46.5 LIGHTNING, +16.7 ±43.8 node-budget) were on run 1's FOUR-knob
+set, which also carried `OUTPOST_V2_PCT=92` and `BADB_V2_PCT=96`. They do not transfer to the 2-knob set.
+✅ 2-knob WAC veto: **254/300 (+4 vs shipped 250)**, EBF 4.003, nodes +7.1%.
+▶️ 2-knob SPRT launched at `NODE_LIMIT=50000`, `elo0=0 / elo1=5`, seed 23.
+
+★★★ **The general lesson: in multi-knob SPSA, single-run convergence statistics cannot establish individual
+knobs. Replication across independent cold starts can.** Budget every tuning campaign for at least two runs.
+
+## RUN 2 (`spsarun2`) — record
+220 iterations × 60 paired games at d6 (~13,200 games), cold start from shipped values, `--a 2.0 --c 0.45`.
+Vector: `MOB_V2_EG_PCT PASSER_V2_MAG PS_V2_MAG OUTPOST_V2_PCT BADB_V2_PCT KS_V2_MAX KS_V2_HALF KS_V2_WEAK
+KS_V2_COORD` — run 1's vector with `MOB_V2_MAG` and `KS_V2_ONSET` swapped for two KS shape constants, both
+admitted on probe evidence (`KS_V2_WEAK` 57→31: 11.8% fire, 111 mp median; `KS_V2_COORD` 256→140: 10.4%,
+146 mp). `KS_V2_NO_QUEEN` and `KS_V2_CHK_Q` probed at 6.0% / 5.3% fire and were left out: a knob firing on ~5%
+of positions touches ~3 games in a 60-game iteration, too thin a signal to compete in a mixed vector.
+Endpoint: `125 99 83 106 105 3577 416 59 208`.
+
+## ☠️ A USABILITY TRAP THAT PRODUCED A MISLEADING ROUND OF GAMES
+Between sessions the owner played v2 using the numbers from the spec file's **`scale` column**, which is
+SPSA's step-size parameter, not a result — and with `EVAL_ARM=1` alone, so every knob outside those nine fell
+back to its header default. **That silently switched MOBILITY OFF** (`MOB_V2_MAG` defaults to 0 — v2's
+largest term, ~+162 Elo), turned off the draw classifier, set `KS_V2_ONSET=0`, and left `KS_V2_NO_QUEEN` /
+`KS_V2_CHK_Q` at 873 / 780 instead of 321 / 126. With `KS_V2_MAX=1200` on top, it lost to SF1.1 even a knight
+up. **Those games say nothing about v2.**
+▶️ Two fixes owed: (1) a single preset switch so `EVAL_ARM=1` cannot silently yield the skeleton; (2) results
+must be handed over as a copy-pasteable config line — the spec file is the tuner's INPUT, the log is its OUTPUT.

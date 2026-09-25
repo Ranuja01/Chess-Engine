@@ -53,14 +53,35 @@ def _cfg_string(theta, spec, base):
     return " ".join(parts)
 
 
-def _rademacher(n, it, idx_salt):
+def _mix64(x):
+    """splitmix64 finaliser: a full-avalanche integer hash, so distinct seeds give uncorrelated sign streams."""
+    x = (x + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
+    x = ((x ^ (x >> 30)) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+    x = ((x ^ (x >> 27)) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+    return x ^ (x >> 31)
+
+
+def _rademacher(n, it, idx_salt, seed=0):
     """Deterministic +/-1 perturbation vector (no RNG — Date/random are avoided for reproducibility).
-    Derived from a cheap integer hash of (iteration, knob index) so each iteration gets a fresh pattern."""
+    Derived from a cheap integer hash of (iteration, knob index) so each iteration gets a fresh pattern.
+    seed 0 is the original linear hash, kept bit-exact so earlier runs reproduce. A non-zero seed hashes
+    (seed, iteration, knob) through splitmix64 instead: offsetting the linear hash would only shift the
+    same pattern across knobs, so a "replication" would replay correlated signs."""
     out = []
     for j in range(n):
-        h = (it * 2654435761 + (j + idx_salt) * 40503) & 0xFFFFFFFF
-        out.append(1 if (h & 0x10000) else -1)
+        if seed == 0:
+            h = (it * 2654435761 + (j + idx_salt) * 40503) & 0xFFFFFFFF
+            out.append(1 if (h & 0x10000) else -1)
+        else:
+            h = _mix64((seed << 40) ^ (it << 20) ^ (j + idx_salt))
+            out.append(1 if (h & 1) else -1)
     return out
+
+
+def _opening_seed(it, seed):
+    """Per-iteration tournament seed. seed 0 = the original 1000+it; each non-zero seed gets its own block
+    of 100,000 so no iteration of one run reuses another run's openings."""
+    return 1000 + it + 100000 * seed
 
 
 def _run_ab(cfg_plus, cfg_minus, games, preset, base_depth, tag, seed, adj_sf):
@@ -111,7 +132,12 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.602)
     ap.add_argument("--gamma", type=float, default=0.101)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="replication seed: changes BOTH the perturbation signs and the openings. 0 = the "
+                         "original sequence. A replication run MUST use a different seed from the run it checks.")
     args = ap.parse_args()
+    if args.seed < 0:
+        ap.error("--seed must be >= 0")
 
     with open(args.spec) as f:
         spec = json.load(f)
@@ -127,6 +153,10 @@ def main():
             st = json.load(f)
         theta = st["theta"]
         start_it = st["iter"] + 1
+        if st.get("seed", 0) != args.seed:
+            print("[spsa] resume refused: state was written with --seed %d, this call has --seed %d"
+                  % (st.get("seed", 0), args.seed))
+            return 1
         print("[spsa] resumed at iter %d theta=%s" % (start_it, theta))
 
     csv_path = os.path.join(GAMES_DIR, "%s_log.csv" % args.tag)
@@ -140,11 +170,11 @@ def main():
     for it in range(start_it, args.iters + 1):
         ck = args.c / (it ** args.gamma)
         ak = args.a / ((it + A) ** args.alpha)
-        delta = _rademacher(n, it, 7)
+        delta = _rademacher(n, it, 7, args.seed)
         theta_p = [_clamp(theta[j] + ck * spec[j]["scale"] * delta[j], spec[j]["min"], spec[j]["max"]) for j in range(n)]
         theta_m = [_clamp(theta[j] - ck * spec[j]["scale"] * delta[j], spec[j]["min"], spec[j]["max"]) for j in range(n)]
         y = _run_ab(_cfg_string(theta_p, spec, base), _cfg_string(theta_m, spec, base),
-                    args.games, preset, args.depth, "%s_k%02d" % (args.tag, it), 1000 + it, args.adj_sf)
+                    args.games, preset, args.depth, "%s_k%02d" % (args.tag, it), _opening_seed(it, args.seed), args.adj_sf)
         if y is None:
             print("[spsa] iter %d: A/B failed, skipping step" % it)
             continue
@@ -157,12 +187,15 @@ def main():
         w.writerow([it, "%.4f" % y] + [int(round(v)) for v in theta])
         log.flush()
         with open(state_path, "w") as f:
-            json.dump({"iter": it, "theta": theta}, f)
+            json.dump({"iter": it, "theta": theta, "seed": args.seed}, f)
 
     log.close()
     final = _cfg_string(theta, spec, [])
     print("\n[spsa] DONE. best theta config: %s" % final)
-    print("[spsa] ratify with:  overnight_runner.sh gate '%s' %s sprt_%s 1000 5" % (final, args.tag, args.tag))
+    # `gate` plays against an EMPTY config (= v1); a v2 candidate must be ratified against its own base.
+    print("[spsa] ratify with selfplay/sprt.py, p1 = '%s' and p2 = '%s' -- not `gate`, whose baseline is v1."
+          % (" ".join(base + [final]), " ".join(base)))
+    print("[spsa] tune only knobs that replicate across a second run with a different --seed.")
     return 0
 
 

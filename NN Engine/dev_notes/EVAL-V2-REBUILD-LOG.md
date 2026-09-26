@@ -3472,3 +3472,23 @@ first kind and NONE was checked this way first.
 lack** · eval measured at only **25-35%** of the SF11 gap, and that share is CALIBRATION not coverage.
 ▶️ Remaining eval lever: **the joint retune**, the one change large enough for our instruments to resolve.
 ▶️ Then **search selectivity** — 2-3x larger (EBF 1.914 vs SF11's 1.452; SF11 reaches d15 on our d10 budget).
+
+## 2026-09-22..25 — THE JOINT RETUNE: ONE SMALL REAL GAIN, AND THE METHOD THAT MADE IT TRUSTWORTHY
+Full protocol and numbers: `dev_notes/EVAL-V2-RETUNE-PLAN-2026-09-22.md`. Reference picture:
+`dev_notes/REFERENCE-BENCH-LADDER.md`.
+- **Two cold-start SPSA runs on games (~22,000 games at d6).** Only `PASSER_V2_MAG` (+40 / +43) and
+  `MOB_V2_EG_PCT` (+25 / +24) replicated; three knobs moved in OPPOSITE directions between the runs.
+- ✅ **SHIPPED 09-24:** `PASSER_V2_MAG=100 MOB_V2_EG_PCT=125`. SPRT at `NODE_LIMIT=50000`: H1 accepted, +11.0 ±10.2
+  over 6,104 games — quote ~+10. New v2 fingerprint WAC `254 / 52,965,774 / 4.003`. Engine default still v1.
+- ✅ **`V2_PRESET=shipped`** — `EVAL_ARM=1` alone silently switched mobility OFF (and more); the owner's UI games
+  between sessions ran that skeleton. One switch now seeds the whole block, verified byte-exact.
+- ☠️ **Retracted:** reversal rate as a gradient test, run 1's "four knobs at 3σ", `KS_V2_ONSET`'s "no gradient".
+  In multi-knob SPSA no single-run statistic established any knob; only cross-run replication did
+  (memory `spsa-tuning-needs-replication-not-convergence-stats`).
+- ★ **Ratification got 6.5x cheaper:** node-limited games at ~877/hr vs LIGHTNING's 122. LIGHTNING's cost is our
+  own 0.75 s/move, not Stockfish adjudication. Valid for eval knobs; search knobs still need equal time.
+- **KS-shape run 1** (09-24 night): no knob clears |z| = 2; `COORD` −1.52 and `ADJ` +1.46 lead, and `COORD` also
+  drifted down in `spsarun2`. Nothing ships until a cold-start run 2 replicates.
+- ★★ **Where the gap lives:** at equal nodes v2's eval is worth +364 STS vs SF1.1's named subsystems +214, so our
+  eval is not the weak part. The SF1.1 gap (302 at equal nodes) sits in the gutted baselines — search plus residual
+  eval, confounded until gutting is matched by a source edit. ⇒ **the remaining lever is SEARCH.**

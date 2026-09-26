@@ -321,3 +321,18 @@ our eval is already dense rather than thin.
 ▶️ **To resolve the fork properly, gutting must be MATCHED** — both engines reduced to material only. SF1.1
 has no UCI handle for its PST or its unnamed terms, so this needs a SOURCE EDIT. ★ Feasible: SF1.1 compiles
 from source (`-O0`; `-O2` miscompiles into a search-time SIGSEGV). That is the experiment worth running.
+
+## 2026-09-24 — "5 ms" IS NOT ONE STRENGTH: SF1.1 GETS 23x SF18's SEARCH
+The UI's Stockfish opponent uses `Limit(time=0.005)`. Measured per move (mean of 4 middlegame positions):
+| engine @ "5 ms" | real wall | nodes | depth |
+|---|---|---|---|
+| SF18 | 8 ms | **2,690** | 8.5 |
+| SF1.1 | 26 ms | **62,690** | 9.0 |
+| v2 @ LIGHTNING (reference) | ~750 ms | ~340,000 | ~10 |
+SF18 honours the limit and its NNUE eval is costly per node; SF1.1 overshoots ~5x and runs ~2.4M nps. ⇒ at "5 ms"
+**SF1.1 is the STRONGER opponent**, reaching nearly our depth on ~1/5 of our nodes — consistent with it beating us at
+equal depth (2104 vs 1854 STS at d10). That is why handicapped SF18 was sometimes beatable and SF1.1 was not.
+✅ Engine identity CONFIRMED by replay: the owner's "vs SF1.1" games reproduce SF1.1 on 75-100% of the engine side's
+moves vs 30-50% for SF18 (control SF18 game: 83% SF18 vs 58% SF1.1). WSL's Windows-exe interop worked when they were
+played and failed later — the record's "flaky binfmt" again.
+▶️ For UI games, a NODE limit (`Limit(nodes=N)`) gives a repeatable opponent; a time limit does not.

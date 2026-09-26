@@ -326,3 +326,76 @@ largest term, ~+162 Elo), turned off the draw classifier, set `KS_V2_ONSET=0`, a
 up. **Those games say nothing about v2.**
 ▶️ Two fixes owed: (1) a single preset switch so `EVAL_ARM=1` cannot silently yield the skeleton; (2) results
 must be handed over as a copy-pasteable config line — the spec file is the tuner's INPUT, the log is its OUTPUT.
+
+---
+
+# ▶️ 2026-09-24 SHIP, AND KS-SHAPE RUN 1
+
+## ✅ SHIPPED: `PASSER_V2_MAG=100 MOB_V2_EG_PCT=125` (owner sign-off, commit `6b4a0ce`)
+SPRT vs the previous v2 ship at `NODE_LIMIT=50000`, UHO, seed 23: **H1 accepted at +2313 −2119 =1672 / 6,104,
+LLR +2.98, elo +11.0 ±10.2** (877 games/hr). The estimate held at +11..+12 from game 337 onward, so
+stopping-bound inflation is small — quote ~+10. WAC `254 / 52,965,774 / EBF 4.003` is the new v2 fingerprint.
+⚠️ "Ship" = v2's own config. The engine default is still v1; v2 > v1 is unproven until the level-field test.
+★ `V2_PRESET=shipped` (commit `bd8d99e`) now seeds this whole block from one switch; verified to reproduce the
+fingerprint exactly with v1 untouched. Mirrors: runner `V2=` and `EVAL-V2-CURRENT-CONFIG.md` §1.
+
+## KS-SHAPE RUN 1 — `spsaks1`, spec `selfplay/spsa_ks_shape.json`
+220 iterations x 60 paired games at d6 (~13,200 games), base `V2_PRESET=shipped`, `--a 2.0 --c 0.45`,
+`KS_V2_MAX`/`KS_V2_HALF` FROZEN so the shape constants are not drowned by the magnitudes.
+Vector chosen on probe (`_eval_knob_delta.py`, on `V2_PRESET=shipped`): `ADJ` 12.5% fire / 146 mp,
+`WEAK` 11.8% / 111, `COORD` 10.4% / 146, `NO_QUEEN` 6.0% / 153, `CHK_Q` 5.3% / 125.
+☠️ Excluded: `CHK_R` 3.1%, `CHK_N` 1.6%, `CHK_B` 0.9% — a knob moving 1-3% of positions touches one or two
+games in a 60-game iteration and only adds noise to the shared gradient.
+
+| knob | start → end | net | drift z |
+|---|---|---|---|
+| `KS_V2_COORD` | 256 → 202 | −21% | **−1.52** |
+| `KS_V2_ADJ` | 61 → 79 | +30% | **+1.46** |
+| `KS_V2_CHK_Q` | 126 → 148 | +17% | +0.91 |
+| `KS_V2_NO_QUEEN` | 321 → 353 | +10% | +0.54 |
+| `KS_V2_WEAK` | 57 → 60 | +6% | +0.26 |
+Harness clean: mean y 0.5013 (first-50 0.5023, last-50 0.5040).
+Endpoint: `KS_V2_ADJ=80 KS_V2_WEAK=60 KS_V2_COORD=199 KS_V2_NO_QUEEN=355 KS_V2_CHK_Q=148`.
+
+**Verdict: NOTHING SHIPS FROM THIS RUN ALONE.** No knob clears |z| = 2 — the same position `PASSER_V2_MAG`
+was in after one run (z 1.64) before replication established it.
+★ **Cross-run hint, not evidence:** `KS_V2_COORD` also drifted DOWN in the 9-knob `spsarun2` (256 → 221,
+z −0.50) — a different vector and a cold start. Same direction twice, combined z ≈ −1.4. `KS_V2_WEAK` was flat
+both times (+2 then +3).
+▶️ **NEXT: KS-shape run 2** — identical spec and settings, cold start from `V2_PRESET=shipped`, a new tag. Ship
+only knobs that agree in direction AND size across runs 1 and 2, then SPRT at `NODE_LIMIT=50000`.
+
+☠️☠️ **BLOCKER FOR KS RUN 2 (owner, 09-25): `selfplay/spsa.py` has no seed option.** It hardcodes the opening seed
+(`1000 + iter`) and the perturbation pattern (`_rademacher(n, it, 7)`). With the SAME five-knob spec, run 2 would
+replay run 1's δ signs and openings iteration by iteration — deterministic fixed-depth games ⇒ a near-copy that
+confirms itself. ▶️ Before run 2: add `--seed N` to `spsa.py`, offsetting BOTH the per-iteration opening seed and the
+`_rademacher` salt (default 0 = today's behaviour, so every existing log stays reproducible), then launch run 2 with a
+non-zero seed and a new tag. Python only, no engine rebuild.
+✅ **Blocker resolved 09-25 (`1838f39`):** `spsa.py --seed N`. Seed 0 is bit-exact with the old code (replaying
+`spsaks1`'s logged y rebuilds all 220 θ rows). N>0 draws δ from splitmix64(seed, iter, knob) and openings from
+`1000+it+100000·N`; seed 0 vs 1 sign agreement per knob −0.05..+0.11 (chance ±0.07 at n=220).
+
+## KS-SHAPE RUN 2 — `spsaks2`, `--seed 1`, otherwise identical to run 1 — ☠️ KS-SHAPE LANE CLOSED
+220 iterations x 60 games at d6, base `V2_PRESET=shipped`, `--a 2.0 --c 0.45`, ~7.5 h. Harness clean (mean y 0.5034).
+Verified independent of run 1 from iteration 1 (different y and θ paths).
+Pre-registered pass rule: same direction in both runs, similar size, combined (Stouffer) |z| ≥ 2.
+Pre-registered prediction: COORD falls again, ADJ rises again, WEAK / NO_QUEEN / CHK_Q unestablished.
+Analysis: `diagnostics/_spsa_replication.py spsaks1 spsaks2` (tail = mean of the last 60 iterations; TAIL=40 agrees).
+
+| knob | start | run 1 tail (z) | run 2 tail (z) | direction | combined z | verdict |
+|---|---|---|---|---|---|---|
+| `KS_V2_ADJ` | 61 | 78.2 (+1.51) | 63.1 (+0.30) | same | +1.28 | fail |
+| `KS_V2_WEAK` | 57 | 61.1 (+0.23) | 68.9 (+0.95) | same | +0.83 | fail |
+| `KS_V2_COORD` | 256 | 203.7 (−1.61) | 239.6 (−0.45) | same | −1.45 | fail |
+| `KS_V2_NO_QUEEN` | 321 | 353.0 (+0.58) | 323.0 (+0.04) | same | +0.43 | fail |
+| `KS_V2_CHK_Q` | 126 | 148.1 (+0.92) | 98.7 (−1.45) | **opposite** | −0.37 | fail |
+
+**Verdict: NOTHING REPLICATES ⇒ the shipped KS shape stands, and the KS-shape lane is CLOSED** (the roadmap's bounded
+eval finish). The directional predictions held for COORD and ADJ, but both moves SHRANK 3-8× in the second run — the
+signature of a first-run effect that was mostly noise. CHK_Q reversed outright.
+★ Hints only, for the FINAL joint retune (not evidence): `KS_V2_COORD` has now drifted down in THREE independent vectors
+(`spsarun2`, `spsaks1`, `spsaks2`), each weakly; `KS_V2_ADJ` up twice. Any true effect is below what ~13,000 games per
+run can resolve for knobs that fire on 5-12% of positions.
+No SPRT: the pre-registered close-out rule applies, and an averaged endpoint (COORD ~222, ADJ ~70) would be a
+selection on unreplicated drift.
+▶️ NEXT per roadmap: corrhist offline signal check under `EVAL_ARM=1`, then search tuned for v2 at equal time.

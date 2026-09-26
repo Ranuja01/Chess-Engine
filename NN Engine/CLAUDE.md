@@ -9,7 +9,7 @@ on demand rather than loaded every session.
 | which probe exists (~200 of them) | [`dev_notes/DIAGNOSTICS-TOOLKIT.md`](dev_notes/DIAGNOSTICS-TOOLKIT.md) |
 | **what a probe can RESOLVE and how it LIES** | [`dev_notes/INSTRUMENT-MAP.md`](dev_notes/INSTRUMENT-MAP.md) |
 | has this been tried, and was it RESOLVED or just UNREADABLE | memory `KNOWLEDGE-MAP.md` (all 274) — or the `record-check` agent |
-| where the program stands today | memory `eval-lane-state-2026-09-09` → `dev_notes/SESSION-HANDOFF-2026-09-09.md` |
+| where the program stands today | memory `eval-v2-rebuild-state` → [`dev_notes/SESSION-HANDOFF-2026-09-25.md`](dev_notes/SESSION-HANDOFF-2026-09-25.md) |
 | the ship record | [`dev_notes/OPTIMIZATION_LOG.md`](dev_notes/OPTIMIZATION_LOG.md) |
 
 ## Scope

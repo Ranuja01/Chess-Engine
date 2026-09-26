@@ -320,3 +320,50 @@ Machine free as of this entry. Owner decisions pending: ship Bundle A? ship pair
 
 **SPRT 3 RESULT (09-26 ~11:40): INCONCLUSIVE (time budget).** `+3537 -3372 =2619 of 9528 (50.9%) elo ~ +6.0 +/- 8.2 LLR +1.108`. Registered prediction (H1) NOT met: the true effect sits between the bounds. POOLED with SPRT 1 (12,741 games): see the doc line below. ⚠️ Correction: `sprt.py` ignores `--max-games` when `--max-minutes` is set (sprt.py:84) — the "cap 6,000" stated for SPRTs 1-3 was wrong; the real cap was 600 min.
 Pooled SPRT 1 + SPRT 3: **12,741 games, 51.12%, elo +7.8 +/- 5.1 (95%)** ⇒ Bundle A is a small REAL gain (~+3 to +13). SPRT 3 alone +6.0 +/- 5.9 on fresh openings. Confound: SPRT 3 also carried `EVAL_V2_PAIR=1` (non-inferior, not pinned at 0).
+
+## 8. TEXEL FIT A — THE FIRST TEXTBOOK TEXEL FIT EVER RUN HERE (09-26)
+**Engine** (`142a775`): `PST_V2_TAPERED` gives v2 its own (mg,eg) tables.
+- The default tables reproduce shipped byte-for-byte (255 / 50,578,535).
+- `PST_V2_FILE` loads fitted tables; `PST_V2_DUMP` writes the active ones; `PST_V2_ZERO` supplies the fixed part.
+- Loading the dumped file round-trips byte-identically. Symmetry is 0/800 on a scrambled table with negative cells.
+
+**Data:**
+- `_texel_engine_pass.py`: 3.69M positions, ~21k positions/s per process.
+- The linear model reproduces the engine: |full − (fixed + Xθ₀)| median **0.00 mp**, p99 2.4 mp, 0 inert rows.
+
+**Fit** (`_texel_pst_fit.py`):
+- 384 tied half-board cells, per-(piece,leg) mean pinned, L2 + smoothness on the change.
+- Games weighted equally; decided rows ×0.25.
+- K = 0.000631 / mp, frozen.
+- Holdouts: val_hash 268k rows, val_run = all of `spsaks2` (1.0M rows).
+
+| λ₂ | val_hash | val_run | max \|Δ\| |
+|---|---|---|---|
+| 1e-10 | −2.09% | −2.33% | 329 mp |
+| 3e-11 | −2.40% | −2.67% | 507 mp |
+| 1e-11 | −2.54% | −2.83% | 660 mp |
+| **3e-12 (chosen)** | −2.59% | −2.89% | 849 mp |
+
+- With 5 bootstraps of 1.5M rows: **FINAL val_hash −2.38%, val_run −2.75%**; 220/368 cells stable.
+- Compare: the only prior result-label fit (v1, 8 term scales) was −0.02%.
+
+**Shapes:**
+- King mg: corner high (b1 +761), centre low (d3 −468). King eg: an active king is rewarded. Both match all references.
+- Knight rim strongly negative.
+- Queen eg punishes a passive queen (ranks 1-2 up to −800).
+- Pawn mg pays advancement (rank 7 up to +647): v2's passer term is eg-only, so the PST absorbs the mg passer value.
+- ⚠️ Rook mg spread 1,227 mp (ranks 1-2 −680, ranks 6-8 +550). Probably part real (activity, 7th rank), part the
+  Texel confound: advanced pieces correlate with already winning.
+- Spreads are 400-1,270 mp vs today's 25-60 mp, but comparable to SF11's PSTs converted at PAWN scale.
+
+**Gates:**
+- Colour 0/800 AND file mirror **0/651**: the tied fit removed the old queen residue, so v2 is fully mirror-symmetric.
+- WAC 249 (−6; inside the ±10 perturbation band), 53,405,821 nodes (+5.6%).
+
+**SPRT 4** `sprt_fitA`: fit A vs shipped (incl. Bundle A), NODE_LIMIT=50000, seed 34, elo0 0 / elo1 10, 600 min cap.
+- Registered prediction: **H1**, but with a real chance of H0 because of pruning coupling (the margins were tuned
+  on a 25-60 mp PST).
+- If H0: test the conservative λ₂=1e-10 table (`pst_fitA_cons.txt`) and/or re-sweep `RFP_MARGIN` with fit A before
+  concluding.
+
+**Conservative candidate** `pst_fitA_cons.txt` (λ₂=1e-10, 5 bootstraps): val_hash **−2.05%**, val_run **−2.30%**, 282/368 stable; spreads 56-527 mp (vs 400-1,270 for fit A). Keeps ~85% of fit A's held-out gain at ~1/3 the magnitude ⇒ the fallback arm if SPRT 4 reads H0 on pruning coupling.

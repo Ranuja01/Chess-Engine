@@ -63,15 +63,43 @@ def _close_arbiters():
         _arbiters.clear()
 
 
+class FenOpening(list):
+    """An opening that starts from its own position: the UCI moves (possibly none) played from start_fen.
+    A list subclass, so every caller that treats an opening as a move list keeps working unchanged."""
+    def __init__(self, start_fen, moves, tag=""):
+        super().__init__(moves)
+        self.start_fen = start_fen
+        self.tag = tag
+
+
+def opening_start_fen(opening):
+    """Where an opening starts: its own FEN for a FenOpening, the standard position otherwise."""
+    return getattr(opening, "start_fen", chess.STARTING_FEN)
+
+
 def load_openings(path):
-    """Parse openings.txt → list of UCI-move lists (blank / '#' lines ignored)."""
+    """Parse an openings file (blank / '#' lines ignored). Two line forms:
+         e2e4 e7e5 g1f3 ...                  UCI moves from the standard start (the classic books)
+         <fen> [| uci moves] [; tag]         a start position, e.g. a variant array (castling off) or an
+                                             endgame; the optional tag names its category for analysis.
+    A line is a FEN line if its first token contains '/'. Invalid FENs are rejected loudly, not skipped."""
     openings = []
     with open(path) as f:
-        for line in f:
+        for n, line in enumerate(f, 1):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            openings.append(line.split())
+            first = line.split(None, 1)[0]
+            if "/" not in first:
+                openings.append(line.split())
+                continue
+            body, _, tag = line.partition(";")
+            fen, _, moves = body.partition("|")
+            fen = fen.strip()
+            board = chess.Board(fen)
+            if not board.is_valid():
+                raise ValueError(f"{path}:{n}: invalid start FEN {fen!r}")
+            openings.append(FenOpening(fen, moves.split(), tag.strip()))
     return openings
 
 
@@ -181,7 +209,7 @@ def run(args):
             except Exception as e:
                 print(f"[tournament] game {g}: arbiter init failed ({e}); no adjudication", flush=True)
         try:
-            res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, chess.STARTING_FEN,
+            res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, opening_start_fen(openings[opening_idx]),
                             args.max_plies, gdir, jsonl_path=os.path.join(gdir, "game.jsonl"),
                             verbose=not args.quiet, arbiter=None, opening_moves=openings[opening_idx],
                             adjudicator=adj, engine_dir_a=white_dir, engine_dir_b=black_dir)

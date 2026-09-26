@@ -49,8 +49,8 @@ import chess
 from selfplay import play_game, Adjudicator
 from arbiter import Arbiter, find_stockfish
 # Reuse the tested tournament helpers so an SPRT run matches a fixed tournament exactly.
-from tournament import (load_openings, schedule, p1_score, elo_from_score, _config_with_preset,
-                        _thread_arbiter, _close_arbiters, PRESET_DUR)
+from tournament import (load_openings, opening_start_fen, schedule, p1_score, elo_from_score,
+                        _config_with_preset, _thread_arbiter, _close_arbiters, PRESET_DUR)
 
 
 def elo_to_score(elo):
@@ -133,7 +133,7 @@ def run(args):
             except Exception as e:
                 print(f"[sprt] game {g}: arbiter init failed ({e}); no adjudication", flush=True)
         try:
-            res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, chess.STARTING_FEN,
+            res = play_game(white_cfg, black_cfg, white_lbl, black_lbl, opening_start_fen(openings[opening_idx]),
                             args.max_plies, gdir, jsonl_path=os.path.join(gdir, "game.jsonl"),
                             verbose=not args.quiet, arbiter=None, opening_moves=openings[opening_idx],
                             adjudicator=adj)

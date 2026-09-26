@@ -845,6 +845,22 @@ namespace Config
     // rewritten -- only how v2 READS them may change. This knob changes only the read.
     inline int PST_V2_KING_EG_ONLY = 0;
 
+    // ── gap-audit L2/A3: v2's OWN TAPERED PIECE-SQUARE TABLES ─────────────────────────────────────
+    // 1 = rung 0 reads v2PstMg / v2PstEg (eval_v2.cpp, one (mg,eg) pair per piece per square, blended per
+    // side) instead of the shared phase-flat placement layer. All four references taper their PSTs; v2 had one
+    // untapered table borrowed from v1 (design: dev_notes/EVAL-V2-TAPERED-PST-DESIGN-2026-09-25.md).
+    // ★ With no file loaded the tables are initialised to reproduce the SHIPPED eval exactly: every piece gets
+    // mg == eg == today's value, and the king gets mg = 0 (what PST_V2_KING_EG_ONLY=1 does). In this mode the
+    // tables define the king, so PST_V2_KING_EG_ONLY is not consulted.
+    // Env-only companions, read once by v2_pst_init(): PST_V2_FILE=<path> loads fitted tables;
+    // PST_V2_DUMP=<path> writes the active tables (the file format's template).
+    // 0 = today's path, byte-identical. The shared tables are never written.
+    inline int PST_V2_TAPERED = 0;
+
+    // 1 = the tapered tables contribute nothing (requires PST_V2_TAPERED=1). DIAGNOSTIC ONLY: the Texel fitter
+    // needs the eval WITHOUT the PST as a fixed per-position offset.
+    inline int PST_V2_ZERO = 0;
+
     // ── gap-audit K2/A8: KING SAFETY'S ENDGAME LEG ───────────────────────────────────────────────
     // KS-A is ONE saturating curve for every phase. 3 of 4 references give king danger two legs -- SF
     // uses S(kD^2/4096, kD/16): quadratic in the midgame, LINEAR and far smaller in the endgame -- because

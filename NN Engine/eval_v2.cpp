@@ -72,7 +72,9 @@ instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora, first tr
 #include "search_engine.h"
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
 namespace {
@@ -281,6 +283,102 @@ inline void build_context(V2Context &c, int moveNum, bool turn,
 // RUNG 0 -- MATERIAL + PIECE-SQUARE TABLES
 // ===================================================================================================
 
+// v2's own tapered piece-square tables (Config::PST_V2_TAPERED). White's point of view, [type][square] with
+// square = rank*8 + file (a1 = 0); Black reads the rank-mirrored square (sq ^ 56). Written only by
+// v2_pst_init() at engine init, read-only afterwards.
+static int v2PstMg[6][64];
+static int v2PstEg[6][64];
+
+static constexpr int V2_PST_VALUES = 6 * 2 * 64;
+
+/*
+	Build the tapered tables. Defaults copy the shared placement layer so the shipped eval is reproduced
+	exactly: mg == eg == today's value for every piece, and mg = 0 for the king (the shipped
+	PST_V2_KING_EG_ONLY=1, whose table is an endgame centralisation table). Then optionally load fitted values
+	(PST_V2_FILE) and dump the active tables (PST_V2_DUMP). A malformed file is reported and ignored, leaving
+	the defaults in place, so a bad path can never silently yield a half-loaded table.
+	Called through the external v2_pst_init() defined after this anonymous namespace.
+*/
+void v2_pst_init_impl()
+{
+	for (int t = 0; t < 6; ++t)
+		for (int sq = 0; sq < 64; ++sq){
+			const int v = whitePlacementLayer[t][sq & 7][sq >> 3];
+			v2PstEg[t][sq] = v;
+			v2PstMg[t][sq] = (t == 5) ? 0 : v;
+		}
+
+	if (const char *path = std::getenv("PST_V2_FILE"); path && *path){
+		std::ifstream in(path);
+		std::vector<int> vals;
+		vals.reserve(V2_PST_VALUES);
+		std::string tok;
+		while (in >> tok){
+			if (tok[0] == '#'){ std::string rest; std::getline(in, rest); continue; }
+			try { vals.push_back(std::stoi(tok)); } catch (...) { vals.clear(); break; }
+		}
+		if (vals.size() != (size_t)V2_PST_VALUES){
+			std::cerr << "☠️ PST_V2_FILE=" << path << " holds " << vals.size() << " values, expected "
+			          << V2_PST_VALUES << " -- IGNORED, defaults kept." << std::endl;
+		}
+		else {
+			size_t i = 0;
+			for (int t = 0; t < 6; ++t){
+				for (int sq = 0; sq < 64; ++sq) v2PstMg[t][sq] = vals[i++];
+				for (int sq = 0; sq < 64; ++sq) v2PstEg[t][sq] = vals[i++];
+			}
+		}
+	}
+
+	if (const char *path = std::getenv("PST_V2_DUMP"); path && *path){
+		std::ofstream out(path);
+		static const char *names[6] = {"pawn", "knight", "bishop", "rook", "queen", "king"};
+		out << "# v2 tapered PST, millipawns, White POV; per piece: 64 mg then 64 eg, rows = ranks 1..8, cols = a..h\n";
+		for (int t = 0; t < 6; ++t)
+			for (int leg = 0; leg < 2; ++leg){
+				out << "# " << names[t] << (leg ? " eg" : " mg") << "\n";
+				const int (*tab)[64] = leg ? v2PstEg : v2PstMg;
+				for (int r = 0; r < 8; ++r){
+					for (int f = 0; f < 8; ++f) out << tab[t][r * 8 + f] << (f < 7 ? " " : "\n");
+				}
+			}
+	}
+}
+
+/*
+	Rung 0's placement through the tapered tables. Each side's mg and eg sums are blended separately and then
+	differenced -- the same per-side order as every other v2 term, so eval(mirror(b)) == -eval(b) holds even
+	when fitted cells are negative (both sides round the same way). Division, not a shift, so a negative
+	per-side sum truncates exactly as its mirror does.
+*/
+static inline void rung0_tapered_pst(const V2Context &c, int &w_pst, int &b_pst, int &w_mg, int &w_eg,
+                                    int &b_mg, int &b_eg)
+{
+	const uint64_t typeMasks[6] = {c.pawns, c.knights, c.bishops, c.rooks, c.queens, c.kings};
+	w_mg = w_eg = b_mg = b_eg = 0;
+	if (!Config::PST_V2_ZERO){
+		for (int t = 0; t < 6; ++t){
+			uint64_t wb = typeMasks[t] & c.white;
+			while (wb){
+				const int sq = __builtin_ctzll(wb);
+				wb &= wb - 1;
+				w_mg += v2PstMg[t][sq];
+				w_eg += v2PstEg[t][sq];
+			}
+			uint64_t bb = typeMasks[t] & c.black;
+			while (bb){
+				const int sq = __builtin_ctzll(bb) ^ 56;
+				bb &= bb - 1;
+				b_mg += v2PstMg[t][sq];
+				b_eg += v2PstEg[t][sq];
+			}
+		}
+	}
+	const int eg = 256 - c.phase256;
+	w_pst = (w_mg * c.phase256 + w_eg * eg) / 256;
+	b_pst = (b_mg * c.phase256 + b_eg * eg) / 256;
+}
+
 /*
 	The irreducible core: what each side owns, and where it stands.
 
@@ -306,6 +404,16 @@ inline int rung0_material_and_placement(const V2Context &c,
 	b_mat = c.mat_black;
 	w_pst = 0;
 	b_pst = 0;
+
+	if (Config::PST_V2_TAPERED){
+		int w_mg, w_eg, b_mg, b_eg;
+		rung0_tapered_pst(c, w_pst, b_pst, w_mg, w_eg, b_mg, b_eg);
+		if (legs){
+			legs->mg = (c.mat_mg_black + b_mg) - (c.mat_mg_white + w_mg);
+			legs->eg = (c.mat_eg_black + b_eg) - (c.mat_eg_white + w_eg);
+		}
+		return (b_mat + b_pst) - (w_mat + w_pst);
+	}
 
 	// ── gap-audit A3, the KING half: the sixth placement table is an ENDGAME table ────────────────
 	// ☠️ `whitePlacementLayerBase`'s last slot is commented "Kings - Endgame" and is a CENTRALISING table
@@ -1117,6 +1225,12 @@ long long g_shadow_bucket[6] = {0,0,0,0,0,0};   // |delta| < 100, 300, 1000, 300
 constexpr long long SHADOW_REPORT_STRIDE = 1LL << 20;
 
 } // anonymous namespace
+
+// Called from engine init (search_engine.cpp), so it needs external linkage -- see eval_v2.h.
+void v2_pst_init()
+{
+	v2_pst_init_impl();
+}
 
 // ⚠️ pawn_entry_probe lives OUTSIDE the anonymous namespace deliberately. Everything above is
 // internal by construction -- that is what enforces the zero-global contract -- but this one is

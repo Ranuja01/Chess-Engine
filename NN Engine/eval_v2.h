@@ -27,6 +27,15 @@ binary. See eval_v2.cpp's header for the design contract and the build-up ladder
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights);
 
 /*
+	Initialise v2's tapered piece-square tables (Config::PST_V2_TAPERED) once at engine init, after the shared
+	placement layer has been rebuilt. Defaults reproduce the shipped eval; PST_V2_FILE=<path> loads fitted
+	tables and PST_V2_DUMP=<path> writes the active ones. File format: 768 whitespace-separated integers in
+	millipawns, White's point of view -- for each piece type (pawn, knight, bishop, rook, queen, king) the 64 mg
+	values then the 64 eg values, square order a1..h1, a2..h2, ..., a8..h8. '#' starts a comment line.
+*/
+void v2_pst_init();
+
+/*
 	SHADOW-arm instrumentation (Config::EVAL_ARM == 2 only). v1's value is what search uses; these record
 	the v2-v1 disagreement distribution so a full arm comparison can be taken over the real search
 	distribution at zero risk. No-ops on every other arm.

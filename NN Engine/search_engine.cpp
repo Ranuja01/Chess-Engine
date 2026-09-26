@@ -2,6 +2,7 @@
 #include "search_engine.h"
 #include "move_gen.h"
 #include "cache_management.h"
+#include "eval_v2.h"
 
 #include <vector>
 #include <array>
@@ -2150,6 +2151,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PASSER_V2_EG_PCT = env_int("PASSER_V2_EG_PCT", Config::PASSER_V2_EG_PCT);
         Config::PASSER_V2_PATH_PCT = env_int("PASSER_V2_PATH_PCT", Config::PASSER_V2_PATH_PCT);
         Config::PST_V2_KING_EG_ONLY = env_int("PST_V2_KING_EG_ONLY", Config::PST_V2_KING_EG_ONLY);
+        Config::PST_V2_TAPERED = env_int("PST_V2_TAPERED", Config::PST_V2_TAPERED);
+        Config::PST_V2_ZERO = env_int("PST_V2_ZERO", Config::PST_V2_ZERO);
+        v2_pst_init();   // after rebuild_scaled_placement(): the defaults are copied from the final placement layer
         Config::KS_V2_EG_PCT = env_int("KS_V2_EG_PCT", Config::KS_V2_EG_PCT);
         Config::PS_V2_REAR_DOUBLED = env_int("PS_V2_REAR_DOUBLED", Config::PS_V2_REAR_DOUBLED);
         Config::EVAL_V2_PAIR = env_int("EVAL_V2_PAIR", Config::EVAL_V2_PAIR);
@@ -2502,6 +2506,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                            || Config::SPACE_V2_MAG > 0 || Config::THREAT_V2_PCT > 0)
                       ? "(INERT:no-attack-build)" : "")
                   << " PST_V2_KING_EG_ONLY=" << Config::PST_V2_KING_EG_ONLY
+                  << " PST_V2_TAPERED=" << Config::PST_V2_TAPERED
+                  << " PST_V2_ZERO=" << Config::PST_V2_ZERO
+                  << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")
                   << " KS_V2_EG_PCT=" << Config::KS_V2_EG_PCT
                   << " PS_V2_REAR_DOUBLED=" << Config::PS_V2_REAR_DOUBLED
                   << " EVAL_V2_PAIR=" << Config::EVAL_V2_PAIR

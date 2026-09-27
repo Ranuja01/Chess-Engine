@@ -151,7 +151,12 @@ if _ck:
     BASE = ("shipped defaults", _parse_knobs(os.environ.get("BASE_KNOBS", "")))
     _names = [s.strip() for s in os.environ.get("CAND_NAME", "candidate").split(";")]
     _arms  = [s.strip() for s in _ck.split(";") if s.strip()]
-    CANDS  = [(_names[i] if i < len(_names) else "cand%d" % (i + 1), _parse_knobs(a))
+    # ☠️ Every arm INHERITS BASE_KNOBS and overrides them with its own. Arms used to carry only their own knobs,
+    # so BASE_KNOBS='V2_PRESET=shipped' + CAND_KNOBS='PST_V2_TAPERED=1' silently diffed shipped v2 against
+    # v1 + an inert knob (2026-09-26: three different arms returned byte-identical rows and a neutral arm
+    # flipped 55% of moves instead of ~33%). Callers that already repeat the full block in every arm are
+    # unaffected: the merge yields the same config.
+    CANDS  = [(_names[i] if i < len(_names) else "cand%d" % (i + 1), dict(BASE[1], **_parse_knobs(a)))
               for i, a in enumerate(_arms)]
 
 

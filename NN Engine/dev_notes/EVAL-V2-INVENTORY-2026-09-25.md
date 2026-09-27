@@ -367,3 +367,242 @@ Pooled SPRT 1 + SPRT 3: **12,741 games, 51.12%, elo +7.8 +/- 5.1 (95%)** ⇒ Bun
   concluding.
 
 **Conservative candidate** `pst_fitA_cons.txt` (λ₂=1e-10, 5 bootstraps): val_hash **−2.05%**, val_run **−2.30%**, 282/368 stable; spreads 56-527 mp (vs 400-1,270 for fit A). Keeps ~85% of fit A's held-out gain at ~1/3 the magnitude ⇒ the fallback arm if SPRT 4 reads H0 on pruning coupling.
+
+## 9. OVERNIGHT PLAN 2026-09-26 → 27 (owner out ~18:00 → 02:00-04:00; agreed)
+**Built today, before leaving:**
+- `cc53b53`: tournaments accept FEN starts. `gen_variant_starts.py` → `selfplay/openings_variant.txt` holds 2,376
+  starts, 88 in each of 27 families:
+  - symmetric arrays: std-shuffle, all N→B, all B→N, N→R, B→R, no queen, Q→N/B/R, NQ-only, BQ-only, RQ-only,
+    double queen, minors only;
+  - near-equal mixed material;
+  - K+pawns endgames with R / N / B / Q / N-vs-B / RN-vs-RB.
+- `_texel_phase_grid.py` (Fit A2): engine passes for EVAL_V2_MG_LIMIT {50000, 61700, 72000} × EG_LIMIT {10000, 15800,
+  22000}. A liveness check confirms the phase actually changed.
+
+**Decision tree (autonomous; NOTHING ships without the owner):**
+1. SPRT 4 (fit A vs shipped) verdict →
+   - **H1:** SPRT 5 = fit A replication on fresh openings (seed 35), then pool.
+   - **H0 / inconclusive:** SPRT 5 = conservative `pst_fitA_cons.txt` vs shipped; if that also fails, a 2×2 of
+     fit A × `RFP_MARGIN` {1000, 1300}.
+2. A 2-game smoke test of the variant book at d4 before any variant run (FEN starts through the real harness).
+3. **Variant gate:** the best PST candidate vs shipped on `openings_variant.txt`, a fixed ~2,000 games at
+   NODE_LIMIT=50000 (a measurement, not an SPRT). Read overall and per family.
+4. **Fit A2:** refit the PST per phase setting (`_texel_pst_fit.py PASS=pass_mgX_egY LAMBDAS=3e-12 BOOT=1`); rank
+   the settings by val_run. Candidates only; games wait for the owner.
+5. If the machine is free: d6 variant-start self-play for Fit B data (shipped vs shipped, ~3-5k games).
+
+**Added by the owner before leaving (09-26 ~16:00):**
+- **ODDS book** `selfplay/openings_odds.txt` (`gen_odds_starts.py`): 480 starts. Standard position with White
+  handicapped by pawn / knight / bishop / exchange / rook / queen / two minors / rook-for-three-pawns, 60 each, short
+  random walks.
+  - Why: odds show CONVERTING an edge and DEFENDING a deficit. SF at a short time beats our LIGHTNING even a knight
+    down.
+  - Report with `diagnostics/_variant_report.py TAG=<tag> BOOK=<book>`: per family, plus odds split by role.
+- **MORNING REPORT** (owner's ask): how much v2 improved on every instrument, vs the references and v1.
+  - Arms:
+
+    | arm | knobs |
+    |---|---|
+    | v1 | engine default |
+    | v2-prev | `V2_PRESET=shipped PS_V2_WEAKUNOPP_EG=0 PS_V2_REAR_DOUBLED=0 PST_V2_KING_EG_ONLY=0` |
+    | v2-shipped | `V2_PRESET=shipped` (Bundle A) |
+    | v2+fitA | shipped + `PST_V2_TAPERED=1 PST_V2_FILE=/mnt/e/chess_data/texel/pst_fitA.txt` |
+    | v2+fitA_cons | shipped + the conservative table |
+
+  - Instruments (commands per the 09-26 lookup):
+    1. §I win%-MSE vs SF18 d14, on BOTH `playdist_ceiling.csv` (on-distribution, trustworthy ranking) and
+       `diverse_corpus_wide`. Reference rows (SF11, SF15.1c/n, SF18 static) come from `_reference_ceiling.py`, run
+       once; our arms from `_eval_accuracy_arms.py`.
+    2. d7 regret on both sets, base = v2-shipped, arms fitA / fitA_cons / v2-prev (i.e. Bundle A reversed), with
+       neutrals `ASPIRATION_DELTA=300` + `EVAL_NOISE_SIGMA=30`; win% + paired null.
+    3. STS300 at d10 and at `NODE_LIMIT=249014 MAX_DEPTH=64` (equal-nodes command inferred, flagged).
+    4. WAC fingerprints.
+    5. Odds: v2-shipped (and fitA if it passes) vs SF18 at fixed nodes on the odds book; v1 on the same for contrast.
+  - Scheduling: after the SPRT branch; benches are deterministic, games in the remaining time.
+  - ⚠️ §I can VETO but never PROMOTE; games decide.
+- ⚠️ **Owner's caution on lopsided starts:** with colour-swapped pairs, a start where the side with the edge always
+  wins gives a 1-1 pair ⇒ ~50% however much an arm improved.
+  - `_variant_report.py` now prints the PAIR (pentanomial) split and the share of INFORMATIVE pairs (≠ 1.0) per family.
+    Baseline: Bundle A on UHO had **66% informative** (1,059 / 1,606).
+  - Rules:
+    - In engine-vs-engine matches, read only families near that baseline; heavy odds (queen, rook, two minors) are
+      expected to saturate.
+    - Odds are read mainly AGAINST A FIXED SF18 opponent at fixed nodes, where the handicap offsets a strength gap:
+      each arm plays the same starts, and conversion / defence rates are compared.
+    - For tuning data, decided positions are already down-weighted by the fitter.
+
+**SPRT 4 RESULT (09-26 ~16:30): Texel fit A — H1 ACCEPTED.** `+185 -101 =70 of 356 (61.8%) elo ~ +83.6 +/- 42.4
+LLR +3.036` (vs shipped incl. Bundle A, NODE_LIMIT=50000, seed 34). Pairs: 178, [14 16 66 36 46], 63% informative,
+net +84 half-points. The largest single eval gain in the record (retune ≈ +10, Bundle A ≈ +8, mobility area ≈ +31),
+but ⚠️ it stopped at 356 games ⇒ the estimate is inflated at the bound (precedent: +60.7 → +31 pooled). Registered
+prediction H1 ✓.
+**SPRT 5 = FIXED-LENGTH replication** (not an SPRT, so there is no stopping-bias): `fitA_rep`, 2,000 games, fresh
+openings seed 35, same configs. Pool with SPRT 4 for magnitude. Ship decision = OWNER, after replication.
+
+**FIT A2 (phase limits) — FLAT, CLOSED (09-26 ~18:00).** 9 settings of EVAL_V2_MG_LIMIT {50000, 61700, 72000} ×
+EG_LIMIT {10000, 15800, 22000}.
+- Each setting has its own engine pass. Liveness: the phase changed on 56-74% of rows.
+- Each setting then got a PST refit (λ₂=3e-12, 1 bootstrap).
+- Fitted val_run spans **0.137965 (61700/10000) … 0.138241 (72000/22000)**. The current setting (61700/15800) reads
+  0.138014, only 0.035% behind the best: under the ~0.05% resolution floor.
+- ⇒ The phase definition is not a lever on this data; no candidate goes to games. The owner's
+  "material as an input feature" is answered for the phase channel.
+- Aside (unrelated bug, not fixed): the invalid-limits fallback in search_engine.cpp restores 40000/10000, not the real
+  defaults 61700/15800.
+
+**SPRT 5 / REPLICATION RESULT (09-26 ~19:00): fit A CONFIRMED on fresh openings.** `fitA_rep`, fixed 2,000 games,
+seed 35: `+1144 -498 =358 (66.1%) elo +116.4 +/- 14.6` · as White +577 −243 =180, as Black +567 −255 =178. Pairs
+[63 76 332 210 319], 67% informative (UHO baseline 66%). **POOLED with SPRT 4: 2,356 games, 65.5%, elo +111.3 +/- 13.4.**
+Registered prediction (H1) ✓, and the magnitude came in LARGER than the stopped SPRT estimate.
+⚠️ **The open risk is SELF-PLAY EXPLOITATION:** fit A was trained on v2-vs-v2 results and tested against v2, so part of
+the gain may be steering into positions v2 specifically misjudges. ⇒ EXTERNAL CHECK before any ship: the calibrated
+gauntlet (ours NODE_LIMIT=250000 vs SF18 --sf-nodes 400; the v1 anchor was ~51%), 500 games per arm, SAME seed 36:
+`gauntlet_shipped` then `gauntlet_fitA`. The transferable gain = the difference between the two arms' scores.
+
+**EXTERNAL CHECK (09-26 ~20:15): fit A's gain TRANSFERS, at ~1/3 of the self-play size.**
+Calibrated gauntlet, ours NODE_LIMIT=250000 vs SF18 --sf-nodes 400, 500 games per arm, SAME seed 36 (identical openings
+and colours):
+- `gauntlet_shipped`: 66.6% (+120 vs SF). `gauntlet_fitA`: 71.5% (+160 vs SF).
+- **Paired difference: +4.90pp ± 4.75 (95%), z = 2.02 ⇒ ≈ +40 Elo [+1, +83].** 279 games changed result (147 better, 132
+  worse, net favours fit A by half-point weight).
+- ⇒ Self-play +111 vs external +40: the expected self-play inflation (~2.8×). The gain is real against an engine fit A
+  never trained on, but only just significant at n = 500.
+- ▶️ Tightening with a second seed (37), 500 per arm, then pooling. Registered expectation: the pooled gap stays
+  positive at ~+25..+50.
+- Note for the record: shipped v2 at 66.6% vs the August v1 anchor of ~51% at the same setting.
+**Seed 37 replicates (09-26 ~22:15):** shipped 65.7% · fit A 70.1% · paired +4.40pp ± 4.94.
+**POOLED external (1,000 paired games, 2 seeds): shipped 66.15% (+116 vs SF18@400n) → fit A 70.80% (+154);
+difference +4.65pp ± 3.43, z = 2.66 ⇒ ≈ +37.5 Elo [+9.6, +67.4].** Registered expectation (+25..+50) ✓.
+⇒ Fit A is REAL and TRANSFERS: ≈ +111 in self-play, ≈ +38 against an engine it never trained on. Ship decision = owner.
+
+## 10. MORNING REPORT DATA (09-26 night)
+**Eval accuracy vs SF18 d14 search** (val win%-MSE, 3,000 rows each, same rows and split for all rows; lower is better):
+- References from `_reference_ceiling.py`; our arms from the new `_accuracy_arm_grid.py`.
+- Why the new tool: `_eval_accuracy_arms.py` reads `best_cp` and silently reported "no rows" on these `target_total`
+  corpora. It is now wrapped via `_reference_ceiling.py REFS=0`.
+
+| evaluator | playdist_ceiling (own play) | diverse_corpus_wide |
+|---|---|---|
+| SF18 static | 61.93 | 68.85 |
+| SF15.1 NNUE | 72.76 | 61.61 |
+| SF11 classical | 151.41 | 95.26 |
+| **v2 + fit A** | **170.17** | **126.93** |
+| v2 + fit A cons | 176.47 | 132.14 |
+| v2 shipped (Bundle A) | 186.88 | 148.05 |
+| v2-prev | 188.19 | 149.31 |
+| v1 | 188.85 | 238.77 |
+| SF15.1 classical | 192.35 | 139.20 |
+
+⇒ Fit A: −8.9% own-play and −14.3% diverse vs shipped. On own-play it closes ~half the gap to SF11, and it is now well
+ahead of SF15.1 classical on both corpora. Bundle A: −0.7% / −0.8%, as expected of small defect fixes.
+⚠️ §I vetoes, never promotes: this corroborates the games, it does not replace them.
+**d7 regret** (primary set) running: base shipped; arms fitA, fitAcons, v2prev, null_asp300, null_noise30; JOBS=2. One
+invocation (DUMP keeps only the last arm ⇒ no paired null this time; read win% vs the two neutrals).
+**STS300 and WAC:**
+
+| arm | STS d10 | STS @249,014 nodes | WAC d10 |
+|---|---|---|---|
+| v1 | 1796 (register) | **1752** (first measured) | 250 / 35,310,778 |
+| v2 shipped | 1803 | 1687 | 255 / 50,578,535 |
+| v2 + fit A | **1888** | **1760** | 249 / 53,405,821 |
+| v2 + fit A cons | — | — | 249 / 48,801,449 |
+
+Fit A vs shipped: +85 at d10, +73 at equal nodes. Both are inside the ±150 floor, but same-signed with the games.
+Equal nodes does not credit v2's ~41% NPS advantage over v1.
+
+☠️ **d7 regret run 1 DISCARDED.** fitA, fitAcons and v2prev returned byte-identical rows (8,229 changed, 46.9%), and the
+neutrals changed 55% of moves instead of ~33%.
+- Cause: `_ks_footprint_regret.py` candidate arms did NOT inherit `BASE_KNOBS`, so every arm ran v1 + its knobs, while
+  only the base pass ran shipped v2.
+- Earlier ladders repeated the full v2 block in every arm (their neutrals changed ~32%), so past results are
+  unaffected.
+- **Fixed:** arms now inherit BASE_KNOBS and override them; backwards-compatible. Re-running.
+- The silent-fallback signature (identical rows across arms) caught it before it could be read as a result.
+
+**VARIANT GATE (09-27 ~01:30): fit A vs shipped on `openings_variant.txt`.** Fixed 2,000 games, NODE_LIMIT=50000, seed
+40, conc 2.
+- **Overall 52.6%, +17.9 Elo [+4.6, +31.3].** Pairs 1000 [98 127 470 184 121]; 53% informative (UHO 66%: the endgame
+  families are drawish); net +103.
+- ⇒ Per the owner's gate reading ("wins on UHO AND holds/wins on variants ⇒ robust"): ROBUST, not structure
+  memorisation. But the gain on unfamiliar starts (+18) is ~1/6 of the standard-opening self-play gain (+111).
+- Families (60-90 games each; every CI crosses 0 except where noted):
+  - Rook-heavy positive: BtoR +96 [+26, +176] · RQ_only +91 [+23, +167] · NtoR +55 · QtoN +78 [+4, +160].
+  - Bishop-heavy / pure-960 negative-leaning: array_std (standard set shuffled) −50 · BQ_only −30 · all_NtoB −24 ·
+    QtoB −10.
+  - Hypothesis only: the fitted castled-corner king and standard bishop cells don't transfer to shuffled back ranks.
+    Revisit with Fit B (variant data in the fit).
+  - K+P endgame families: 21-43% informative ⇒ mostly draws, non-discriminating.
+
+**d7 REGRET, primary set (15,000 positions), corrected run.** Base = shipped; every arm inherits it.
+
+| arm | changed | win% | Δ regret | critical band (>20%) |
+|---|---|---|---|---|
+| null asp300 | 32.8% | 50.0 | −0.031 | 60.0% (n=36) |
+| null noise30 | 34.8% | 50.6 | −0.013 | 60.0% (n=31) |
+| v2prev (Bundle A off) | 31.1% | **49.3** | +0.140 | 68.2% (n=23) |
+| **fit A** | 45.1% | **52.1** | **−0.233** | 66.7% (n=43) |
+| fit A cons | 42.1% | **52.5** | **−0.245** | 65.7% (n=36) |
+
+- Fit A and fit A cons read +1.5..+2.1pp over the null band. That is just under the ~2-2.5pp bar, but the changed-move
+  regret falls ~7%.
+- Removing Bundle A reads −0.7..−1.3pp; consistent with its games.
+- Cross-set `_v2` running.
+
+**ODDS, engine vs engine (09-27): fit A vs shipped on `openings_odds.txt`.** 960 games, seed 41.
+- **Overall 56.1%, +42.9 [+21.7, +64.5].**
+- Owner's saturation warning CONFIRMED: queen odds 2% informative pairs, two minors 7%, rook 25%. The discriminating
+  families are pawn (62%) and exchange (52%).
+- By role (all families): fit A **converts 88.8%** of its edges vs shipped's 76.5%, and **defends 23.5%** of its
+  deficits vs shipped's 11.2%. Better at BOTH.
+
+  | family | fit A converts / shipped converts | fit A holds / shipped holds |
+  |---|---|---|
+  | pawn | 77.5% / 50.8% | 49.2% / 22.5% |
+  | exchange | 76.7% / 57.5% | — |
+
+- ⇒ Directly relevant to the owner's observation (SF beats our lightning a knight down): a large part of the
+  material-handling weakness was the placement eval.
+
+☠️ **Harness fix:** `vs_sf.py` still hard-coded the standard start. With a FEN-start book it would have silently played
+standard-position games (each odds line parses as an empty move list). It now uses `opening_start_fen()`. Verified:
+game 0 of `oddsSF_shipped` starts from a rook-for-pawns FEN.
+**ODDS vs SF18** (ours NODE_LIMIT=250000, SF18 --sf-nodes 400, 480 games, seed 42): `oddsSF_shipped` running, then
+`oddsSF_fitA` on the same seed.
+
+**d7 REGRET cross-set (`game_regret_set_v2.csv`, 11,940 positions), same arms and base:**
+
+| arm | changed | win% | Δ regret |
+|---|---|---|---|
+| null asp300 | 33.9% | 50.7 | +0.163 |
+| null noise30 | 36.2% | 49.6 | +0.091 |
+| v2prev | 32.3% | 49.1 | +0.149 |
+| **fit A** | 46.0% | **52.5** | **−0.183** |
+| **fit A cons** | 41.7% | **53.6** | **−0.231** |
+
+- ⇒ **REPLICATES.** Fit A reads 52.1 / 52.5 (≈ +2pp over nulls on both sets); fit A cons 52.5 / 53.6 (≈ +2.8pp).
+  Regret falls on both sets while the nulls rise.
+- Bundle A removal reads −1pp on both sets.
+- ★ The conservative table reads slightly BETTER per changed move on both sets, but games tested only fit A. A direct
+  fitA-vs-cons game test is worth running before the ship choice.
+
+**Fit B data generation** (09-27 ~03:00): `fitB_variant_d6`, shipped vs shipped at d6 on `openings_variant.txt`,
+4,000 games, conc 2, seed 50. Extract later with `_texel_extract.py TAGS=fitB_variant_d6` (both configs carry
+V2_PRESET=shipped).
+
+**ODDS vs SF18@400 nodes, shipped** (`oddsSF_shipped`, 480 games, seed 42; `diagnostics/_odds_vs_sf_report.py`
+rebuilds each game's start from the schedule, because vs_sf writes no per-opening summary):
+- Overall 68.1%: **converting 92.7%, defending 43.5%**. Queen down: still holds 30.6%. Knight down: 43.3%.
+- ⚠️ SF18 at 400 nodes is too weak to reproduce the owner's scenario (we score ~66% against it in normal games). The
+  fit-A-vs-shipped comparison on the same seed is still valid (`oddsSF_fitA` running).
+- ▶️ To reproduce "SF beats our lightning a knight down": SF18 at ~3,000 nodes (≈ the UI's 5 ms), knight + pawn odds
+  only.
+
+**ODDS vs SF18@400, fit A vs shipped, PAIRED on identical starts and colours (seed 42, 480 games each):**
+- **all +7.3pp ± 3.7 (z 3.90)**: shipped 68.1% → fit A 75.4%.
+- **Defending a deficit: +12.3pp (z 3.77)**, 43.5% → 55.8%.
+- Converting an edge: +2.3pp (z 1.29), 92.7% → 95.0%; near the ceiling.
+- Largest per-family moves (n ≈ 30 each): rook down, holds 42% → 72%; pawn down 41% → 55%; queen down 31% → 42%;
+  exchange converting 80% → 94%.
+- ⇒ Against an outside engine, fit A's material-handling gain is mostly in HOLDING worse positions.
+- ▶️ Owner-scenario run: SF18 at 3,000 nodes (≈ the UI's 5 ms), knight + pawn odds only
+  (`selfplay/openings_odds_np.txt`, 120 starts), both arms, same seed.

@@ -2075,6 +2075,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 Config::BEHIND_V2_PCT = 25;  Config::BEHIND_V2_FORM = 1;
                 Config::PS_V2_WEAKUNOPP_EG = 127;  Config::PS_V2_REAR_DOUBLED = 2;
                 Config::PST_V2_KING_EG_ONLY = 1;
+                Config::PST_V2_TAPERED = 2;
                 Config::RFP_MARGIN = 1000;
             }
             else

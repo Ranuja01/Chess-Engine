@@ -854,7 +854,9 @@ namespace Config
     // tables define the king, so PST_V2_KING_EG_ONLY is not consulted.
     // Env-only companions, read once by v2_pst_init(): PST_V2_FILE=<path> loads fitted tables;
     // PST_V2_DUMP=<path> writes the active tables (the file format's template).
-    // 0 = today's path, byte-identical. The shared tables are never written.
+    // 0 = the old phase-flat path, byte-identical. The shared tables are never written.
+    // 2 = the Texel-fitted tables compiled into pst_v2_fitted.h (fit A, shipped 2026-09-27: +111 self-play,
+    // +38 vs SF18). 1 stays the neutral fitting baseline that reproduces the pre-fit eval.
     inline int PST_V2_TAPERED = 0;
 
     // 1 = the tapered tables contribute nothing (requires PST_V2_TAPERED=1). DIAGNOSTIC ONLY: the Texel fitter

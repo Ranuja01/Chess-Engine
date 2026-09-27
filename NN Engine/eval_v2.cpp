@@ -67,6 +67,7 @@ instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora, first tr
 */
 
 #include "eval_v2.h"
+#include "pst_v2_fitted.h"
 #include "cpp_bitboard.h"
 #include "move_gen.h"
 #include "search_engine.h"
@@ -307,6 +308,15 @@ void v2_pst_init_impl()
 			v2PstEg[t][sq] = v;
 			v2PstMg[t][sq] = (t == 5) ? 0 : v;
 		}
+
+	// Mode 2 = the shipped Texel-fitted tables compiled in (pst_v2_fitted.h), so the shipped eval never
+	// depends on an external file. A PST_V2_FILE below still overrides either mode.
+	if (Config::PST_V2_TAPERED == 2)
+		for (int t = 0; t < 6; ++t)
+			for (int sq = 0; sq < 64; ++sq){
+				v2PstMg[t][sq] = V2_PST_FITTED[t][0][sq];
+				v2PstEg[t][sq] = V2_PST_FITTED[t][1][sq];
+			}
 
 	if (const char *path = std::getenv("PST_V2_FILE"); path && *path){
 		std::ifstream in(path);

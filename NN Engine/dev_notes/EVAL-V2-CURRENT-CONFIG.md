@@ -6,7 +6,9 @@
 Update at the END OF EVERY RUNG. The design docs carry reasoning, `EVAL-V2-REBUILD-LOG.md` carries history;
 this carries only the standing state, so a disagreement about "what are we going with" is settled here.
 
-Last updated: **2026-09-26** — ★ **Bundle A shipped (`PS_V2_WEAKUNOPP_EG=127 PS_V2_REAR_DOUBLED=2
+Last updated: **2026-09-27** — ★★ **Texel fit A shipped (`PST_V2_TAPERED=2`, compiled tables): +111 self-play, +38 vs
+SF18.** ⚠️ **NEW CURRENT FINGERPRINT: WAC d10 `249 / 53,405,821 / EBF 3.973`** (v1 verified unchanged). Previously
+**2026-09-26** — ★ **Bundle A shipped (`PS_V2_WEAKUNOPP_EG=127 PS_V2_REAR_DOUBLED=2
 PST_V2_KING_EG_ONLY=1`), ≈ +8 Elo pooled over 12,741 games.** ⚠️ **NEW CURRENT FINGERPRINT: WAC d10 `255 / 50,578,535 /
 EBF 4.018`** (`V2_PRESET=shipped`; v1 verified unchanged at `250 / 35,310,778`). Previously **2026-09-24** — ★ **joint retune shipped: `PASSER_V2_MAG` 60→100, `MOB_V2_EG_PCT` 100→125, ≈ +10 Elo
 (SPRT H1, 6,104 games).** ⚠️ **NEW CURRENT FINGERPRINT: WAC d10 `254 / 52,965,774 / EBF 4.003`** (with
@@ -66,6 +68,12 @@ EVAL_ARM=1
   PS_V2_WEAKUNOPP_EG=127 # SF WeakUnopposed (4/4 refs), endgame leg only (MG stays 0)
   PS_V2_REAR_DOUBLED=2   # the rear pawn of a stacked pair earns no passer credit
   PST_V2_KING_EG_ONLY=1  # the (endgame, centralising) king PST is blended eg-only instead of paid in every phase
+  # ── TEXEL FIT A: v2's own TAPERED PSTs, shipped 2026-09-27 on the owner's sign-off ──────────────────────
+  # The first textbook Texel fit run here: 384 tied half-board cells fitted to own-game results (3.69M positions).
+  # Self-play +111 +/- 13 (2,356 games) · vs SF18 +38 [+10, +67] (1,000 paired) · variant starts +18 · odds +43.
+  # Tables compiled into pst_v2_fitted.h; the king's tables supersede PST_V2_KING_EG_ONLY in this mode.
+  # Record: EVAL-V2-INVENTORY-2026-09-25.md sections 8-11. Revert = remove this line.
+  PST_V2_TAPERED=2
   # ── SEARCH margin, re-swept FOR v2 and shipped 2026-09-18 on the owner's sign-off ────────────────
   # ☠️ THIS IS A SEARCH KNOB, NOT AN EVAL KNOB, AND IT IS GLOBAL. It lives HERE (the v2 env block) and must
   # NEVER become a `search_engine.h` default: the default is shared with arm 0, so changing it would alter the

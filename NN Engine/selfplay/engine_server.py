@@ -168,9 +168,11 @@ def main():
         ai = ChessAI(None, None, board, side)
         cap.seek(0)
         startup = cap.read()
-    # surface the [toggles] line on our stderr for debugging (the driver logs it per side)
+    # surface the [toggles] line on our stderr for debugging (the driver logs it per side), plus every load
+    # notice and warning: a ☠️ "file IGNORED" from a table loader would otherwise be swallowed here and the
+    # game would silently play the default eval (e.g. C1_V2_FILE / PST_V2_FILE).
     for ln in startup.splitlines():
-        if ln.startswith("[toggles]"):
+        if ln.startswith("[toggles]") or ln.startswith("[c1]") or "☠" in ln or "⚠" in ln:
             sys.stderr.write(ln + "\n")
     sys.stderr.flush()
 

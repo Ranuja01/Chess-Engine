@@ -34,7 +34,7 @@ import chess
 import chess.engine
 from selfplay import EngineProc, Adjudicator
 from arbiter import find_stockfish, Arbiter
-from tournament import load_openings, schedule, _config_with_preset
+from tournament import load_openings, opening_start_fen, schedule, _config_with_preset
 from raw_uci import RawUciEngine
 
 
@@ -243,7 +243,8 @@ def run(args):
                     adj = Adjudicator(arb, do_draw=args.adjudicate_draw, do_win=args.adjudicate_win)
                 except Exception as e:
                     print(f"[vs_sf] game {g}: arbiter init failed ({e}); no adjudication", flush=True)
-            sfen = start_fens[oi] if start_fens else chess.STARTING_FEN
+            # A FEN-start book (variant / odds starts) carries its own position; a move-list book starts standard.
+            sfen = start_fens[oi] if start_fens else opening_start_fen(openings[oi])
             oms = [] if start_fens else openings[oi]
             res = play_one(our_cfg, args.our_label, sf, args.sf_movetime, args.sf_depth, args.sf_nodes, our_white,
                            sfen, oms, args.max_plies, gpath, not args.quiet, adjudicator=adj)

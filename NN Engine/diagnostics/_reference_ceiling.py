@@ -90,12 +90,16 @@ def main():
     from eval_vs_sf11 import SF11Eval, SF11
 
     engines = []
-    try:
-        engines.append(("SF11 classical", SF11Eval(SF11).eval, "tuple"))
-    except Exception as e:
-        print("[skip] SF11: %s" % e)
-    for label, path, nnue in [("SF15.1 classical", SF15, False), ("SF15.1 NNUE", SF15, True),
-                              ("SF18 static", SF18, None)]:
+    # REFS=0 scores only our build: one arm per process (knobs latch at init) on the SAME rows and split as the
+    # reference rows, without re-running four reference engines for every arm.
+    refs = os.environ.get("REFS", "1") != "0"
+    if refs:
+        try:
+            engines.append(("SF11 classical", SF11Eval(SF11).eval, "tuple"))
+        except Exception as e:
+            print("[skip] SF11: %s" % e)
+    for label, path, nnue in ([("SF15.1 classical", SF15, False), ("SF15.1 NNUE", SF15, True),
+                               ("SF18 static", SF18, None)] if refs else []):
         try:
             engines.append((label, RawStatic(path, nnue).ev, "scalar"))
         except Exception as e:

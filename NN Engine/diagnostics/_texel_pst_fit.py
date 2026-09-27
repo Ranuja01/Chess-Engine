@@ -211,8 +211,9 @@ def main():
     log("loading")
     st = pd.read_csv(os.path.join(DATA, "v2_stage1.csv.gz"),
                      usecols=["game_id", "split", "fen", "result_white"])
-    z = pd.read_csv(os.path.join(DATA, "pass", "zero_0_of_1.csv"))
-    fu = pd.read_csv(os.path.join(DATA, "pass", "full_0_of_1.csv"))
+    pass_dir = os.path.join(DATA, KV.get("PASS", "pass"))      # a phase-grid setting has its own pass dir
+    z = pd.read_csv(os.path.join(pass_dir, "zero_0_of_1.csv"))
+    fu = pd.read_csv(os.path.join(pass_dir, "full_0_of_1.csv"))
     assert len(z) == len(st) == len(fu), "pass files do not cover stage 1 (%d / %d / %d)" % (len(z), len(fu), len(st))
     st["fixed"] = z["total"].values
     st["phase"] = z["phase256"].values

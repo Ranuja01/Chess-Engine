@@ -57,7 +57,10 @@ def main():
         w = csv.writer(fo)
         w.writerow(["game_id", "split", "ply", "fen", "result_white", "search_white_mp", "pieces", "phase_hint"])
         for tag in TAGS:
-            for gdir in sorted(glob.glob(os.path.join(GAMES_DIR, tag + "_k*", "game_*"))):
+            # SPSA runs write <tag>_kNN/game_*; a tournament writes <tag>/game_* -- accept both layouts.
+            gdirs = glob.glob(os.path.join(GAMES_DIR, tag + "_k*", "game_*")) + \
+                    glob.glob(os.path.join(GAMES_DIR, tag, "game_*"))
+            for gdir in sorted(gdirs):
                 jf = os.path.join(gdir, "game.jsonl")
                 if not os.path.exists(jf):
                     continue

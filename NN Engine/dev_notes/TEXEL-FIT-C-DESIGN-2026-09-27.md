@@ -65,3 +65,35 @@ frozen engine, the 14,784-opening `openings_uho_ext.txt`) plus `fitB_variant_d6`
 - Collinearity: pawn mg PST ↔ passer mg; weak-unopposed ⊂ isolated|backward; mobility ↔ PST; KS ↔ king mg PST. L2
   resolves the fit, but individual parameters then lose meaning.
 - Sparse parameters (trapped rook, weak queen, high queen mobility, KS checks) are handled by the support freeze.
+
+## 6. C1 RESULT (2026-09-27) — built, gated, NULL in games; not shipped
+**Engine:**
+- Extractor (`13e3096`): per-block gate on 3.69M rows, max residual 4.1 mp.
+- Fitted-value path `C1_V2_FIT` (`3066167`): default byte-identical; identity load within 6 mp of shipped (mean
+  0.9); closure 2 mp.
+- Engine-server logging fix (`c561d42`): load failures were being swallowed.
+
+**Fit (`_texel_c1_fit.py`, 3.69M rows, λ₂ 3e-12):**
+
+| variant | val_hash | val_run |
+|---|---|---|
+| PST-only control | −0.19% | −0.18% |
+| C1-only | −0.50% | −0.50% |
+| joint | −0.76% | −0.74% |
+| joint, bootstrap-filtered (c1b; 126 of 488 supported cells) | −0.68% | −0.48% |
+
+- The fit still hit its iteration cap at 1,500 (ill-conditioned directions: overlapping blocks).
+- Largest moves: immobile endgame rook −0.36 → −1.70 pawns; rook mobility steeper; weak-unopposed mg −0.22; knight
+  outposts 0.47 → 0.29; passer mg rank 7 −0.30, offsetting fit A's pawn PST.
+- Gates: closure 2 mp, colour 0/800, WAC 249 (−3.9% nodes).
+
+**SPRT** `sprt_c1b` vs shipped (NODE_LIMIT=50000, seed 70, elo0 0 / elo1 10): **H0**, `+890 -929 =639 / 2458 (49.2%)`,
+**−5.5 ± 16.1**.
+
+**Reading:**
+- A ~0.5% held-out gain from re-weighting EXISTING SF-derived tables does not turn into Elo; fit A's 2.75% did. The
+  PST was the one badly sized block.
+- C1 mostly traded value between collinear blocks (mobility ↔ PST, passer ↔ pawn PST).
+- ⇒ Stop re-tuning existing tables. The infrastructure's value now lies in **C3 (pricing NEW detectors: coverage)**
+  and **C2 (KS: missing eg leg + untuned nonlinear internals)**.
+- Untested alternatives, if ever revisited: the unfiltered joint fit (−0.74%), C1-only with PST fixed.

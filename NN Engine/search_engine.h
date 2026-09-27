@@ -863,6 +863,12 @@ namespace Config
     // needs the eval WITHOUT the PST as a fixed per-position offset.
     inline int PST_V2_ZERO = 0;
 
+    // ── Texel fit C1: fitted mobility / pawn-structure / passer / placement values ────────────────
+    // 1 = those four scorers read the fitted values loaded from C1_V2_FILE (diagnostics/_texel_c1_fit.py output)
+    // instead of their constants; loaded once by v2_c1_init() after every v2 knob. A missing or malformed file
+    // leaves the fit OFF with a message. 0 = the constant path, byte-identical.
+    inline int C1_V2_FIT = 0;
+
     // ── gap-audit K2/A8: KING SAFETY'S ENDGAME LEG ───────────────────────────────────────────────
     // KS-A is ONE saturating curve for every phase. 3 of 4 references give king danger two legs -- SF
     // uses S(kD^2/4096, kD/16): quadratic in the midgame, LINEAR and far smaller in the endgame -- because

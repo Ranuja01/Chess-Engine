@@ -54,6 +54,9 @@ void v2_features(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t ro
                  long long *out);
 void v2_features_theta(double *mg, double *eg);
 
+/* Load Texel C1 fitted values (Config::C1_V2_FIT, env C1_V2_FILE) once at engine init, after every v2 knob. */
+void v2_c1_init();
+
 /*
 	SHADOW-arm instrumentation (Config::EVAL_ARM == 2 only). v1's value is what search uses; these record
 	the v2-v1 disagreement distribution so a full arm comparison can be taken over the real search

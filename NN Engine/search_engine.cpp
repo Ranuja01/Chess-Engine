@@ -2318,6 +2318,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             std::cerr << "☠️ EVAL_ARM=" << Config::EVAL_ARM << " invalid (expected 0|1|2) -- forced to 0 (v1)" << std::endl;
             Config::EVAL_ARM = 0;
         }
+        Config::C1_V2_FIT = env_int("C1_V2_FIT", Config::C1_V2_FIT);
+        v2_c1_init();   // after every v2 knob: the fitted values start from the live constants
         if (Config::ENABLE_ORACLE_EVAL && Config::EVAL_ARM != 0)
             std::cerr << "☠️ ENABLE_ORACLE_EVAL with EVAL_ARM=" << Config::EVAL_ARM
                       << " is unsupported: the oracle intercepts BEFORE the arm dispatch, so v2 never runs." << std::endl;
@@ -2509,6 +2511,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PST_V2_KING_EG_ONLY=" << Config::PST_V2_KING_EG_ONLY
                   << " PST_V2_TAPERED=" << Config::PST_V2_TAPERED
                   << " PST_V2_ZERO=" << Config::PST_V2_ZERO
+                  << " C1_V2_FIT=" << Config::C1_V2_FIT
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")
                   << " KS_V2_EG_PCT=" << Config::KS_V2_EG_PCT
                   << " PS_V2_REAR_DOUBLED=" << Config::PS_V2_REAR_DOUBLED

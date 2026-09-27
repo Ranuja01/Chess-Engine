@@ -71,7 +71,9 @@ instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora, first tr
 #include "cpp_bitboard.h"
 #include "move_gen.h"
 #include "search_engine.h"
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -289,6 +291,16 @@ inline void build_context(V2Context &c, int moveNum, bool turn,
 // v2_pst_init() at engine init, read-only afterwards.
 static int v2PstMg[6][64];
 static int v2PstEg[6][64];
+
+// Texel fit C1 (Config::C1_V2_FIT): fitted values the four C1 scorers read INSTEAD of their constants, in
+// millipawns with every percent / magnitude knob already folded in. Filled once by v2_c1_init(); unread while
+// g_c1_fit is false, which keeps the shipped path byte-identical. Layout mirrors v2_features (eval_v2.h).
+static bool   g_c1_fit = false;
+static int    c1_mob[2][4][28];                     // [leg][N, B, R, Q][move count]
+static int    c1_ps_doubled[2], c1_ps_iso[2][8], c1_ps_back[2], c1_ps_wu[2];
+static int    c1_pass[2][2][8];                     // [candidate][leg][relative rank]
+static double c1_kd[2][2];                          // [candidate][them, us]: eg mp per unit of kdist x rank weight
+static int    c1_place[2][9];                       // [leg][outpost N, outpost B, behind, bad bishop x4, trapped rook, weak queen]
 
 static constexpr int V2_PST_VALUES = 6 * 2 * 64;
 
@@ -647,6 +659,11 @@ inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, 
 						mob->ptype[mob->n_pieces] = (uint8_t)i;
 						++mob->n_pieces;
 					}
+				} else if (g_c1_fit){
+					// Fitted cells are already millipawns: mobility_mp skips the SF-unit conversion.
+					mob->cnt[i] += n;
+					mob->raw_mg += c1_mob[0][i][n];
+					mob->raw_eg += c1_mob[1][i][n];
 				} else {
 					mob->cnt[i] += n;
 					mob->raw_mg += MOB_TAB_MG[Config::MOB_V2_TABLE][i][n];
@@ -1119,6 +1136,23 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c, Eval
 
 		// --- doubled: v1 HAS this (hardcoded 125 mg / 150 eg); the defect was the FLAT taper -----------
 		const int nd = __builtin_popcountll(e.doubled[s]);
+		const int nb = __builtin_popcountll(e.backward[s]);
+		if (g_c1_fit){
+			// Texel C1: fitted, signed values with PS_V2_MAG folded in (so the final scale below is skipped).
+			side_mg[s] += nd * c1_ps_doubled[0] + nb * c1_ps_back[0];
+			side_eg[s] += nd * c1_ps_doubled[1] + nb * c1_ps_back[1];
+			uint64_t ibf = e.isolated[s];
+			while (ibf){
+				const int f = (int)(__builtin_ctzll(ibf) & 7);
+				ibf &= ibf - 1;
+				side_mg[s] += c1_ps_iso[0][f];
+				side_eg[s] += c1_ps_iso[1][f];
+			}
+			const int nwu = __builtin_popcountll((e.isolated[s] | e.backward[s]) & ~e.opposed[s]);
+			side_mg[s] += nwu * c1_ps_wu[0];
+			side_eg[s] += nwu * c1_ps_wu[1];
+			continue;
+		}
 		side_mg[s] -= nd * Config::PS_V2_DOUBLED_MG;
 		side_eg[s] -= nd * Config::PS_V2_DOUBLED_EG;
 
@@ -1132,7 +1166,6 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c, Eval
 		}
 
 		// --- backward: both references agree the ENDGAME leg is negative; the midgame is contested -----
-		const int nb = __builtin_popcountll(e.backward[s]);
 		side_mg[s] -= nb * Config::PS_V2_BACKWARD_MG;
 		side_eg[s] -= nb * Config::PS_V2_BACKWARD_EG;
 
@@ -1162,6 +1195,7 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c, Eval
 	}
 	const int w = (side_mg[0] * c.phase256 + side_eg[0] * (256 - c.phase256)) >> 8;
 	const int b = (side_mg[1] * c.phase256 + side_eg[1] * (256 - c.phase256)) >> 8;
+	if (g_c1_fit) return b - w;
 	return ((b - w) * Config::PS_V2_MAG) / 100;
 }
 
@@ -1340,6 +1374,24 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c,
 			const uint64_t m = 1ULL << sq;
 			const int r = white ? (sq >> 3) : (7 - (sq >> 3));
 
+			if (g_c1_fit){
+				// Texel C1: fitted rank values per candidate class, with the percent knobs and PASSER_V2_MAG folded
+				// in; the king-distance terms stay eg-only, as in the constant path.
+				const int ci = (m & e.candidate[s]) ? 1 : 0;
+				int fmg = c1_pass[ci][0][r], feg = c1_pass[ci][1][r];
+				if (r >= Config::PASSER_V2_MIN_RANK){
+					int w = 5 * r - 13;
+					if (w < 0) w = 0;
+					const int stop = white ? (sq + 8) : (sq - 8);
+					if (stop >= 0 && stop < 64)
+						feg += (int)std::lround((ps_kdist(theirK, stop) * c1_kd[ci][0]
+						                       + ps_kdist(ourK, stop) * c1_kd[ci][1]) * w);
+				}
+				side_mg[s] += fmg;
+				side_eg[s] += feg;
+				continue;
+			}
+
 			int mg = PS_PASSED_MG[r];
 			int eg = PS_PASSED_EG[r];
 
@@ -1415,6 +1467,7 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c,
 	}
 	const int w = (side_mg[0] * c.phase256 + side_eg[0] * (256 - c.phase256)) >> 8;
 	const int b = (side_mg[1] * c.phase256 + side_eg[1] * (256 - c.phase256)) >> 8;
+	if (g_c1_fit) return b - w;
 	return ((b - w) * Config::PASSER_V2_MAG) / 100;
 }
 
@@ -1564,6 +1617,14 @@ static inline void mobility_build(const V2Context &c, SideAttacks &wa, SideAttac
  */
 static inline int mobility_mp(const MobAcc &w, const MobAcc &b, const V2Context &c, EvalPair *legs = nullptr) noexcept
 {
+	if (g_c1_fit){
+		// Texel C1: the accumulators already hold fitted millipawns per leg. Per-side blend with a sign-symmetric
+		// divide, because fitted sums can be negative.
+		if (legs){ legs->mg = b.raw_mg - w.raw_mg; legs->eg = b.raw_eg - w.raw_eg; }
+		const int ws = (w.raw_mg * c.phase256 + w.raw_eg * (256 - c.phase256)) / 256;
+		const int bs = (b.raw_mg * c.phase256 + b.raw_eg * (256 - c.phase256)) / 256;
+		return bs - ws;
+	}
 	const int mag = Config::MOB_V2_MAG;
 	// MOB_V2_TABLE: each table by ITS OWN knight range and pawn pair (table 0 = SF11's 95 / 128 / 213, the shipped numbers).
 	const int t      = Config::MOB_V2_TABLE;
@@ -2214,6 +2275,16 @@ static inline int placement_mp(const PlaceCounts &pc, const V2Context &c, EvalPa
 	int side[2] = {0, 0};
 	int lg_mg[2] = {0, 0}, lg_eg[2] = {0, 0};   // unblended legs for EVAL_V2_PAIR
 	for (int s = 0; s < 2; ++s){
+		if (g_c1_fit){
+			// Texel C1: fitted per-count values, already divided by 100 and scaled by their percent knobs.
+			const int cnt[9] = {pc.outpost_n[s], pc.outpost_b[s], pc.behind[s], pc.badb_cls[s][0], pc.badb_cls[s][1],
+			                    pc.badb_cls[s][2], pc.badb_cls[s][3], pc.traprook_units[s], pc.weakq[s]};
+			int fm = 0, fg = 0;
+			for (int j = 0; j < 9; ++j){ fm += cnt[j] * c1_place[0][j]; fg += cnt[j] * c1_place[1][j]; }
+			lg_mg[s] = fm; lg_eg[s] = fg;
+			side[s] = (fm * c.phase256 + fg * (256 - c.phase256)) / 256;
+			continue;
+		}
 		long long mg = 0, eg = 0;
 		const int ofrm = Config::OUTPOST_V2_FORM, opct = Config::OUTPOST_V2_PCT;
 		if (ofrm == 1){
@@ -3054,6 +3125,27 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 void v2_features_theta(double *mg, double *eg)
 {
 	for (int k = 0; k < V2F_PER_SIDE; ++k) mg[k] = eg[k] = 0.0;
+	if (g_c1_fit){
+		// The ACTIVE fitted values, so a pass under C1_V2_FIT=1 checks the engine against the fitted model (closure).
+		for (int i = 0; i < 4; ++i)
+			for (int n = 0; n < 28; ++n)
+				if (V2F_MOB_BASE[i] + n < (i < 3 ? V2F_MOB_BASE[i + 1] : 66)){
+					mg[V2F_MOB + V2F_MOB_BASE[i] + n] = c1_mob[0][i][n];
+					eg[V2F_MOB + V2F_MOB_BASE[i] + n] = c1_mob[1][i][n];
+				}
+		mg[V2F_DOUBLED] = c1_ps_doubled[0];  eg[V2F_DOUBLED] = c1_ps_doubled[1];
+		for (int f = 0; f < 8; ++f){ mg[V2F_ISO + f] = c1_ps_iso[0][f]; eg[V2F_ISO + f] = c1_ps_iso[1][f]; }
+		mg[V2F_BACKWARD] = c1_ps_back[0];    eg[V2F_BACKWARD] = c1_ps_back[1];
+		mg[V2F_WU] = c1_ps_wu[0];            eg[V2F_WU] = c1_ps_wu[1];
+		for (int r = 0; r < 8; ++r){
+			mg[V2F_PASSED + r] = c1_pass[0][0][r]; eg[V2F_PASSED + r] = c1_pass[0][1][r];
+			mg[V2F_CAND + r]   = c1_pass[1][0][r]; eg[V2F_CAND + r]   = c1_pass[1][1][r];
+		}
+		eg[V2F_KD + 0] = c1_kd[0][0]; eg[V2F_KD + 1] = c1_kd[0][1];
+		eg[V2F_KD + 2] = c1_kd[1][0]; eg[V2F_KD + 3] = c1_kd[1][1];
+		for (int j = 0; j < 9; ++j){ mg[V2F_OUT_N + j] = c1_place[0][j]; eg[V2F_OUT_N + j] = c1_place[1][j]; }
+		return;
+	}
 	// Mobility: raw * MAG / N_RANGE on the mg leg; raw * MAG * PAWN_MG / (N_RANGE * PAWN_EG) * EG_PCT / 100 on eg.
 	const int t = Config::MOB_V2_TABLE;
 	const double mag = Config::MOB_V2_MAG;
@@ -3098,6 +3190,67 @@ void v2_features_theta(double *mg, double *eg)
 	}
 	mg[V2F_TRAPR] = -PL_TRAPR_MG * Config::TRAPROOK_V2_PCT / 100.0; eg[V2F_TRAPR] = -PL_TRAPR_EG * Config::TRAPROOK_V2_PCT / 100.0;
 	mg[V2F_WEAKQ] = -PL_WEAKQ_MG * Config::WEAKQ_V2_PCT / 100.0;    eg[V2F_WEAKQ] = -PL_WEAKQ_EG * Config::WEAKQ_V2_PCT / 100.0;
+}
+
+/* Load the Texel C1 values (Config::C1_V2_FIT). Starts from the live constants (v2_features_theta), so a file
+ * holding only some parameters leaves the rest at their shipped values, then applies C1_V2_FILE: lines of
+ * `feature_k leg start fitted` as written by diagnostics/_texel_c1_fit.py. A malformed or missing file is
+ * reported and the fit stays OFF -- the engine never runs on a half-loaded table. */
+void v2_c1_init()
+{
+	g_c1_fit = false;
+	if (Config::C1_V2_FIT == 0) return;
+	if (Config::PS_V2_MAG != 100 || Config::PASSER_V2_MAG != 100)
+		std::cerr << "⚠️ C1_V2_FIT folds PS_V2_MAG / PASSER_V2_MAG into the fitted values; they are not 100 here." << std::endl;
+	double mg[V2F_PER_SIDE], eg[V2F_PER_SIDE];
+	v2_features_theta(mg, eg);
+	auto set = [&](int k, int leg, double v){ (leg ? eg : mg)[k] = v; };
+	const char *path = std::getenv("C1_V2_FILE");
+	if (!path || !*path){
+		std::cerr << "☠️ C1_V2_FIT=1 needs C1_V2_FILE -- fit stays OFF." << std::endl;
+		return;
+	}
+	std::ifstream in(path);
+	if (!in){
+		std::cerr << "☠️ C1_V2_FILE=" << path << " cannot be opened -- fit stays OFF." << std::endl;
+		return;
+	}
+	std::string line;
+	int n_set = 0;
+	while (std::getline(in, line)){
+		if (line.empty() || line[0] == '#') continue;
+		int k, leg; double start, fitted;
+		if (std::sscanf(line.c_str(), "%d %d %lf %lf", &k, &leg, &start, &fitted) != 4 || k < 0 || k >= V2F_PER_SIDE
+		    || leg < 0 || leg > 1){
+			std::cerr << "☠️ C1_V2_FILE malformed line '" << line << "' -- fit stays OFF." << std::endl;
+			return;
+		}
+		set(k, leg, fitted);
+		++n_set;
+	}
+	for (int i = 0; i < 4; ++i){
+		const int lim = (i < 3 ? V2F_MOB_BASE[i + 1] : 66) - V2F_MOB_BASE[i];
+		for (int n = 0; n < 28; ++n){
+			c1_mob[0][i][n] = n < lim ? (int)std::lround(mg[V2F_MOB_BASE[i] + n]) : 0;
+			c1_mob[1][i][n] = n < lim ? (int)std::lround(eg[V2F_MOB_BASE[i] + n]) : 0;
+		}
+	}
+	for (int leg = 0; leg < 2; ++leg){
+		const double *t = leg ? eg : mg;
+		c1_ps_doubled[leg] = (int)std::lround(t[V2F_DOUBLED]);
+		for (int f = 0; f < 8; ++f) c1_ps_iso[leg][f] = (int)std::lround(t[V2F_ISO + f]);
+		c1_ps_back[leg] = (int)std::lround(t[V2F_BACKWARD]);
+		c1_ps_wu[leg]   = (int)std::lround(t[V2F_WU]);
+		for (int r = 0; r < 8; ++r){
+			c1_pass[0][leg][r] = (int)std::lround(t[V2F_PASSED + r]);
+			c1_pass[1][leg][r] = (int)std::lround(t[V2F_CAND + r]);
+		}
+		for (int j = 0; j < 9; ++j) c1_place[leg][j] = (int)std::lround(t[V2F_OUT_N + j]);
+	}
+	c1_kd[0][0] = eg[V2F_KD + 0]; c1_kd[0][1] = eg[V2F_KD + 1];
+	c1_kd[1][0] = eg[V2F_KD + 2]; c1_kd[1][1] = eg[V2F_KD + 3];
+	g_c1_fit = true;
+	std::cerr << "[c1] Texel C1 fit ON: " << n_set << " values from " << path << std::endl;
 }
 
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)

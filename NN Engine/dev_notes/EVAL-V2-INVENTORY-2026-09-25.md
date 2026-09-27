@@ -606,3 +606,43 @@ rebuilds each game's start from the schedule, because vs_sf writes no per-openin
 - ⇒ Against an outside engine, fit A's material-handling gain is mostly in HOLDING worse positions.
 - ▶️ Owner-scenario run: SF18 at 3,000 nodes (≈ the UI's 5 ms), knight + pawn odds only
   (`selfplay/openings_odds_np.txt`, 120 starts), both arms, same seed.
+
+**OWNER'S SCENARIO REPRODUCED — knight + pawn odds vs SF18 @ 3,000 nodes** (≈ the UI's 5 ms), ours at 250k nodes,
+240 games per arm, seed 43, paired:
+
+| | shipped | fit A |
+|---|---|---|
+| a knight UP, converting | 72.5% | **80.8%** |
+| a pawn up | 29.2% | 32.5% |
+| defending (SF has the edge) | 4.2% | 8.3% |
+| overall | 27.5% | 32.5% |
+
+- **Paired: +5.0pp ± 4.8 (z 2.06).**
+- ⇒ SF at this setting still scores ~1 in 5 a knight down against fit A. The eval gain narrows the gap but does not
+  close it; the rest is search / speed, the next roadmap block.
+- The Fit B data is ready: `fitB_variant_d6` (4,000 games) → `E:/chess_data/texel/v2_variant_stage1.csv.gz`,
+  **238,978 positions** (W 39.7 / D 28.4 / L 31.9). That is ~6% of the standard set, so Fit B needs weighting or more
+  variant games to reach the ~20% share.
+
+**fit A vs fit A cons, head to head** (1,000 games, NODE_LIMIT=50000, seed 44): `+387 -373 =240 (50.7%) ≈ +5 ± 18`
+⇒ LEVEL. The two tables are equivalent in games; regret mildly favours cons.
+
+## 11. MORNING SUMMARY (09-27) — nothing shipped overnight; owner decisions below
+1. **Texel fit A is the largest eval gain on record.**
+   - Self-play: **+111 ± 13** (2,356 games, replicated on fresh openings).
+   - Against SF18: **+38 [+10, +67]** (1,000 paired games, 2 seeds).
+   - Variant starts: **+18 [+5, +31]** (2,000 games).
+   - Odds engine-vs-engine: **+43 [+22, +65]**.
+   - Odds vs SF18@400: **+7.3pp (z 3.9)**. Knight/pawn odds vs SF18@3k: **+5.0pp (z 2.1)**.
+   - Accuracy vs SF18 search: **−8.9% own-play, −14.3% diverse** (now ahead of SF15.1 classical; ~half-way to SF11).
+   - d7 regret: **+2pp over nulls on BOTH sets**. STS: +85 at d10, +73 at equal nodes. WAC 249 (inside noise).
+   - Symmetry: colour 0/800 and file mirror 0/651.
+2. **Choice of table:** fit A (λ₂ 3e-12) vs cons (1e-10) are level in games (+5 ± 18). Cons has ~1/3 the magnitude,
+   more stable cells (282 vs 220) and slightly better regret; fit A is the one with the full validation battery.
+3. **Owner decisions:**
+   - (a) ship fit A or cons (with PST_V2_TAPERED=1 into the V2_PRESET block);
+   - (b) re-sweep RFP_MARGIN after the ship: the eval scale changed ~10-20× for PSTs;
+   - (c) Fit B design: the variant data is ~6% of the standard set (weight ×3, or more variant games);
+   - (d) apply Texel to the next tables (mobility, KS) before the search block, or go to search now.
+4. **Closed:** Fit A2 phase limits (flat). **Fixed:** regret ladder arms inheriting BASE_KNOBS · vs_sf FEN starts ·
+   accuracy tool schema.

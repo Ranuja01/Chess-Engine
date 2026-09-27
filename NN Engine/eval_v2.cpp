@@ -2942,6 +2942,164 @@ static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
 	See the file header for the output and purity contract. Rung selection is Config::EVAL_V2_RUNG; rungs
 	are cumulative, so a rung adds to everything below it rather than replacing it.
 */
+/* TEXEL FIT C1 feature extractor -- see eval_v2.h for the layout. Diagnostic only, never called from search.
+ *
+ * ★ It reuses the engine's own DETECTORS (build_pawn_entry, mobility_build, placement_detect) and re-derives only
+ * the per-parameter COUNTS that each scorer multiplies by its constants. That duplication is checked, not trusted:
+ * the fitter requires sum(count x v2_features_theta) to reproduce each block's published score (mobility,
+ * pawn_struct, v2_passers, v2_placement) within its truncation budget on every row, so any drift from a scorer
+ * shows up immediately as a residual.
+ */
+static constexpr int V2F_MOB = 0, V2F_DOUBLED = 66, V2F_ISO = 67, V2F_BACKWARD = 75, V2F_WU = 76,
+                     V2F_PASSED = 77, V2F_CAND = 85, V2F_KD = 93, V2F_OUT_N = 97, V2F_OUT_B = 98,
+                     V2F_BEHIND = 99, V2F_BADB = 100, V2F_TRAPR = 104, V2F_WEAKQ = 105;
+static constexpr int V2F_MOB_BASE[4] = {0, 9, 23, 38};   // offsets of N / B / R / Q move-count cells
+
+void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+                 uint64_t queensMask, uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask,
+                 uint64_t castlingRights, long long *out)
+{
+	for (int k = 0; k < 2 * V2F_PER_SIDE + 1; ++k) out[k] = 0;
+	V2Context c;
+	build_context(c, 0, true, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+	              whiteMask, blackMask, whiteMask | blackMask, castlingRights);
+	long long flags = 0;
+	if (Config::DRAW_V2_CLASS && draw_class(c)) flags |= 1;
+	int t2 = 0;
+	if (Config::TIER2_V2_MAG > 0 && tier2b_value_mp(c, t2)) flags |= 2;
+	// Knobs whose terms this extractor does not decompose: a live one would leave its value in the "fixed" part.
+	if (Config::OUTPOST_V2_FORM != 0 || Config::BADB_V2_FORM != 1 || Config::TRAPROOK_V2_FORM != 0
+	    || Config::MOB_V2_SAFE || Config::REACH_V2_PCT || Config::LONGDIAG_V2_PCT || Config::LATENT_V2_PCT
+	    || Config::PASSER_V2_PATH_PCT || Config::PS_V2_CONN_MAG) flags |= 4;
+	out[2 * V2F_PER_SIDE] = flags;
+
+	// Mobility: the same area, pin restriction and x-ray occupancy the scorer's attack build uses.
+	MobAcc mw, mb;
+	SideAttacks wa, ba;
+	mobility_build(c, wa, ba, mw, mb);
+	const uint64_t typeMasks[4] = {c.knights, c.bishops, c.rooks, c.queens};
+	for (int s = 0; s < 2; ++s){
+		const bool white = (s == 0);
+		const MobAcc &m = white ? mw : mb;
+		const uint64_t own = white ? c.white : c.black;
+		long long *o = out + s * V2F_PER_SIDE;
+		for (int i = 0; i < 4; ++i){
+			const uint8_t pt = (uint8_t)(KNIGHT + i);
+			uint64_t bb = typeMasks[i] & own;
+			while (bb){
+				const uint8_t sq = (uint8_t)__builtin_ctzll(bb);
+				bb &= bb - 1;
+				uint64_t occ_for = c.occupied;
+				if (Config::KS_V2_XRAY){
+					if (pt == BISHOP)    occ_for = c.occupied ^ c.queens;
+					else if (pt == ROOK) occ_for = c.occupied ^ c.queens ^ (c.rooks & own);
+				}
+				const uint64_t a  = attacks_mask(white, occ_for, sq, pt);
+				const uint64_t am = ((m.pinned >> sq) & 1) ? (a & ray(m.ksq, sq)) : a;
+				++o[V2F_MOB + V2F_MOB_BASE[i] + __builtin_popcountll(am & m.area)];
+			}
+		}
+	}
+
+	// Pawn structure and passers from the one detector build.
+	PawnEntry pe;
+	build_pawn_entry(pe, c);
+	const int wk = (c.kings & c.white) ? __builtin_ctzll(c.kings & c.white) : 0;
+	const int bk = (c.kings & c.black) ? __builtin_ctzll(c.kings & c.black) : 0;
+	for (int s = 0; s < 2; ++s){
+		const bool white = (s == 0);
+		long long *o = out + s * V2F_PER_SIDE;
+		o[V2F_DOUBLED] = __builtin_popcountll(pe.doubled[s]);
+		uint64_t ib = pe.isolated[s];
+		while (ib){ ++o[V2F_ISO + (__builtin_ctzll(ib) & 7)]; ib &= ib - 1; }
+		o[V2F_BACKWARD] = __builtin_popcountll(pe.backward[s]);
+		o[V2F_WU] = __builtin_popcountll((pe.isolated[s] | pe.backward[s]) & ~pe.opposed[s]);
+
+		const int ourK = white ? wk : bk, theirK = white ? bk : wk;
+		uint64_t bb = pe.passed[s] | pe.candidate[s];
+		while (bb){
+			const int sq = __builtin_ctzll(bb);
+			bb &= bb - 1;
+			const bool cand = ((1ULL << sq) & pe.candidate[s]) != 0;
+			const int r = white ? (sq >> 3) : (7 - (sq >> 3));
+			++o[(cand ? V2F_CAND : V2F_PASSED) + r];
+			if (r >= Config::PASSER_V2_MIN_RANK){
+				int w = 5 * r - 13;
+				if (w < 0) w = 0;
+				const int stop = white ? (sq + 8) : (sq - 8);
+				if (stop >= 0 && stop < 64){
+					o[V2F_KD + (cand ? 2 : 0)]     += (long long)ps_kdist(theirK, stop) * w;
+					o[V2F_KD + (cand ? 3 : 1)]     += (long long)ps_kdist(ourK, stop) * w;
+				}
+			}
+		}
+	}
+
+	// Placement counts from the shared detector, reusing the per-rook mobility counts as the scorer does.
+	PlaceCounts pc;
+	placement_detect(pc, c, pe, &mw, &mb);
+	for (int s = 0; s < 2; ++s){
+		long long *o = out + s * V2F_PER_SIDE;
+		o[V2F_OUT_N]  = pc.outpost_n[s];
+		o[V2F_OUT_B]  = pc.outpost_b[s];
+		o[V2F_BEHIND] = pc.behind[s];
+		for (int k = 0; k < 4; ++k) o[V2F_BADB + k] = pc.badb_cls[s][k];
+		o[V2F_TRAPR] = pc.traprook_units[s];
+		o[V2F_WEAKQ] = pc.weakq[s];
+	}
+}
+
+/* Starting value of every C1 parameter, (mg, eg) millipawns per unit of its count, from the live Config: the
+ * product of each scorer's table entry and its percent / magnitude knobs, before any per-site truncation. */
+void v2_features_theta(double *mg, double *eg)
+{
+	for (int k = 0; k < V2F_PER_SIDE; ++k) mg[k] = eg[k] = 0.0;
+	// Mobility: raw * MAG / N_RANGE on the mg leg; raw * MAG * PAWN_MG / (N_RANGE * PAWN_EG) * EG_PCT / 100 on eg.
+	const int t = Config::MOB_V2_TABLE;
+	const double mag = Config::MOB_V2_MAG;
+	const double nr = MOB_TAB_N_RANGE[t];
+	const double eg_scale = mag * MOB_TAB_PAWN_MG[t] / (nr * MOB_TAB_PAWN_EG[t]) * Config::MOB_V2_EG_PCT / 100.0;
+	const int n_max[4] = {9, 14, 15, 28};
+	for (int i = 0; i < 4; ++i)
+		for (int n = 0; n < n_max[i]; ++n){
+			mg[V2F_MOB + V2F_MOB_BASE[i] + n] = MOB_TAB_MG[t][i][n] * mag / nr;
+			eg[V2F_MOB + V2F_MOB_BASE[i] + n] = MOB_TAB_EG[t][i][n] * eg_scale;
+		}
+	// Pawn structure, all scaled by PS_V2_MAG / 100 after the blend.
+	const double ps = Config::PS_V2_MAG / 100.0;
+	mg[V2F_DOUBLED]  = -Config::PS_V2_DOUBLED_MG * ps;   eg[V2F_DOUBLED]  = -Config::PS_V2_DOUBLED_EG * ps;
+	for (int f = 0; f < 8; ++f){
+		mg[V2F_ISO + f] = PS_ISO_FILE_MG[f] * Config::PS_V2_ISOLATED_MG / 100.0 * ps;
+		eg[V2F_ISO + f] = PS_ISO_FILE_EG[f] * Config::PS_V2_ISOLATED_EG / 100.0 * ps;
+	}
+	mg[V2F_BACKWARD] = -Config::PS_V2_BACKWARD_MG * ps;  eg[V2F_BACKWARD] = -Config::PS_V2_BACKWARD_EG * ps;
+	mg[V2F_WU]       = -Config::PS_V2_WEAKUNOPP_MG * ps; eg[V2F_WU]       = -Config::PS_V2_WEAKUNOPP_EG * ps;
+	// Passers: rank tables x MG/EG_PCT, candidates additionally x CAND_PCT; king terms are eg-only, x w / 100.
+	const double pm = Config::PASSER_V2_MAG / 100.0, mgp = Config::PASSER_V2_MG_PCT / 100.0,
+	             egp = Config::PASSER_V2_EG_PCT / 100.0, cp = Config::PASSER_V2_CAND_PCT / 100.0;
+	for (int r = 0; r < 8; ++r){
+		mg[V2F_PASSED + r] = PS_PASSED_MG[r] * mgp * pm;       eg[V2F_PASSED + r] = PS_PASSED_EG[r] * egp * pm;
+		mg[V2F_CAND + r]   = PS_PASSED_MG[r] * cp * mgp * pm;  eg[V2F_CAND + r]   = PS_PASSED_EG[r] * cp * egp * pm;
+	}
+	eg[V2F_KD + 0] =  Config::PASSER_V2_KING_THEM / 100.0 * egp * pm;
+	eg[V2F_KD + 1] = -Config::PASSER_V2_KING_US   / 100.0 * egp * pm;
+	eg[V2F_KD + 2] =  Config::PASSER_V2_KING_THEM / 100.0 * cp * egp * pm;
+	eg[V2F_KD + 3] = -Config::PASSER_V2_KING_US   / 100.0 * cp * egp * pm;
+	// Placement: every product is divided by 100 once per side in placement_mp.
+	const double op = Config::OUTPOST_V2_PCT / 100.0;
+	mg[V2F_OUT_N]  = 2.0 * PL_OUTPOST_MG * op;   eg[V2F_OUT_N]  = 2.0 * PL_OUTPOST_EG * op;
+	mg[V2F_OUT_B]  = PL_OUTPOST_MG * op;         eg[V2F_OUT_B]  = PL_OUTPOST_EG * op;
+	const double bh = Config::BEHIND_V2_PCT / 100.0;
+	mg[V2F_BEHIND] = (Config::BEHIND_V2_FORM == 1 ? 87 : PL_BEHIND_MG) * bh;
+	eg[V2F_BEHIND] = (Config::BEHIND_V2_FORM == 1 ? 157 : PL_BEHIND_EG) * bh;
+	for (int k = 0; k < 4; ++k){
+		mg[V2F_BADB + k] = -PL_SF15_BADB_MG[k] * Config::BADB_V2_PCT / 100.0;
+		eg[V2F_BADB + k] = -PL_SF15_BADB_EG[k] * Config::BADB_V2_PCT / 100.0;
+	}
+	mg[V2F_TRAPR] = -PL_TRAPR_MG * Config::TRAPROOK_V2_PCT / 100.0; eg[V2F_TRAPR] = -PL_TRAPR_EG * Config::TRAPROOK_V2_PCT / 100.0;
+	mg[V2F_WEAKQ] = -PL_WEAKQ_MG * Config::WEAKQ_V2_PCT / 100.0;    eg[V2F_WEAKQ] = -PL_WEAKQ_EG * Config::WEAKQ_V2_PCT / 100.0;
+}
+
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)
 {
 	// Compile-gated cycle profiler (no-op unless built with PROFILE_EVAL=1; production stays

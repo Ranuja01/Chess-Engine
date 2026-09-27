@@ -140,6 +140,8 @@ cdef extern from "eval_v2.h":
     void threats_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
     void ks_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
     void placement_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights, long long *out)
+    void v2_features(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights, long long *out)
+    void v2_features_theta(double *mg, double *eg)
 
 
 # Import functions from c++ file
@@ -356,6 +358,39 @@ def placement_counts(pawns, knights, bishops, rooks, queens, kings, occupied_whi
     for i in range(10):
         res[names[i]] = (int(out[i]), int(out[10 + i]))
     return res
+
+
+V2F_PER_SIDE = 106
+
+
+def v2_feature_counts(board):
+    """Texel fit C1 feature COUNTS for one position (eval v2; see eval_v2.h v2_features for the layout).
+
+    ⚠️ READS KNOBS -- construct a ChessAI under the arm's environment first, exactly as for placement_counts.
+    Returns (white_counts, black_counts, flags): two lists of V2F_PER_SIDE ints and the flag word
+    (1 draw/KPK row, 2 tier-2b row, 4 a live knob the extractor does not model).
+    """
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef long long out[213]
+    v2_features(<uint64_t>board.pawns, <uint64_t>board.knights, <uint64_t>board.bishops, <uint64_t>board.rooks,
+                <uint64_t>board.queens, <uint64_t>board.kings, <uint64_t>board.occupied_co[True],
+                <uint64_t>board.occupied_co[False], <uint64_t>board.castling_rights, out)
+    cdef int k
+    return ([int(out[k]) for k in range(V2F_PER_SIDE)],
+            [int(out[V2F_PER_SIDE + k]) for k in range(V2F_PER_SIDE)],
+            int(out[2 * V2F_PER_SIDE]))
+
+
+def v2_feature_theta():
+    """Starting value (mg, eg) in millipawns of each C1 parameter, from the live Config. Returns two lists."""
+    cdef double mg[106]
+    cdef double eg[106]
+    v2_features_theta(mg, eg)
+    cdef int k
+    return ([mg[k] for k in range(V2F_PER_SIDE)], [eg[k] for k in range(V2F_PER_SIDE)])
 
 
 def kpk_win(wksq, wpsq, bksq, strong_to_move):

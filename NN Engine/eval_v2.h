@@ -36,6 +36,25 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawns, uint64_t
 void v2_pst_init();
 
 /*
+	TEXEL FIT C1 feature extractor (diagnostic; never called from search). For one position, writes each side's
+	raw feature COUNTS for the linear C1 blocks -- mobility, pawn structure, passers, placement -- so a fitter can
+	express those blocks as sum(count x parameter). The PST is not included (the fitter counts occupancy itself).
+	Layout: out[s * V2F_PER_SIDE + k], s = 0 White / 1 Black, then out[2 * V2F_PER_SIDE] = flags
+	(1 = draw classifier / KPK row, 2 = tier-2b row, 4 = a live knob this extractor does not model).
+	Parameter k order: mobility 0..65 (N 0-8, B 9-22, R 23-37, Q 38-65 by move count) · doubled 66 · isolated per
+	file 67-74 · backward 75 · weak-unopposed 76 · passed by relative rank 77-84 · candidate by rank 85-92 ·
+	passer king terms 93-96 (passed: sum kdist_them*w, sum kdist_us*w; candidate: same) · outpost N 97 ·
+	outpost B 98 · behind 99 · bad-bishop file classes 100-103 · trapped-rook units 104 · weak queen 105.
+	v2_features_theta writes each parameter's STARTING value (mg, eg) in millipawns from the live Config, so every
+	unit conversion stays here in C++. Blocks: see diagnostics/_texel_feature_pass.py.
+*/
+constexpr int V2F_PER_SIDE = 106;
+void v2_features(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
+                 uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights,
+                 long long *out);
+void v2_features_theta(double *mg, double *eg);
+
+/*
 	SHADOW-arm instrumentation (Config::EVAL_ARM == 2 only). v1's value is what search uses; these record
 	the v2-v1 disagreement distribution so a full arm comparison can be taken over the real search
 	distribution at zero risk. No-ops on every other arm.

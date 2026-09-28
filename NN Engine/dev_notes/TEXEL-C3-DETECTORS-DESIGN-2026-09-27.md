@@ -386,3 +386,6 @@ all three ≈ 0.43-0.48 vs ≈ 0.50. ★ Danger MAGNITUDE vs own score on near-e
 Closure: engine with K1 loaded == Python model (KS EXACT incl. balance channels; C3 blocks ≤ 1 mp).
 Owner call: the "never loosen" rule binds hand-tuning; a fit-moved threshold is flagged, a pinned control is kept, and
 GAMES decide. `sprt_fitK1` (K1 vs shipped, NODE_LIMIT=50000, seed 40, 0/+10) launched 2026-09-28.
+**SPRT `sprt_fitK1` — H1 ACCEPTED (2026-09-28):** Fit K1 vs shipped, NODE_LIMIT=50000, UHO, seed 40, 0/+10:
+**+420 −323 =169 of 912 (55.3%), elo ≈ +37.1 ± 26.5, LLR +3.004.** ⚠️ SPRT point estimate — magnitude comes from the
+replication + SF18 gauntlet. `sprt_fitK1p` (onset pinned, seed 41, same terms) launched next; K1p closure EXACT.

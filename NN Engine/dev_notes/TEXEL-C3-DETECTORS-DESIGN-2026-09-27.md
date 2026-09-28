@@ -407,3 +407,14 @@ UNPRICED — each gets its own arm, read against K1p on held-out, then games:
 5. **Shelter→danger coupling** as ONE scalar `u −= k · shelter` — not built; testable as a fit arm from the C3 cells.
 6. **Definitions** (zone, weak, safe check) — structural; only if 1-5 leave a gap.
 Order: 1+2 (one fit) → 3 (x-ray, defaware from counts; gate cheap) → 5 → 4. Build after `fitK1p_rep` frees the engine.
+
+### 8c. OvD lever-outcome OUTCOME PILOT (2026-09-28, `_ovd_lever_proto.py N=300000`, pure Python, feasibility only)
+Feature = best pawn-for-pawn structural Δ a side can FORCE (v2's own pawn-structure values), White − Black; tested as
+the correlation with the result residual BEYOND the shipped eval on near-equal rows (79,302).
+| feature | fires (near-eq) | r(feature, residual) |
+|---|---|---|
+| lever_now (immediate exchange) | 3.5% | **+0.043 ± 0.019 (2.3σ)** — signal sits in the extreme bin (≈ +2 pawns of structure ⇒ residual +0.09); middle bins not monotonic |
+| lever_push (push into contact) | 6.9% | +0.012 ± 0.014 (0.9σ) — NULL |
+Predictions (registered): now +0.02 (dir ✓, size larger), push +0.03 (✗, null). ⇒ Lever outcome ALONE is thin:
+suggestive for large forced exchanges, null for push levers, and its 3-7% coverage caps what it can carry. OvD's case
+rests on the broader block (mobile majority, tension resolution, eg winnability) fitted jointly, lever_now as one input.

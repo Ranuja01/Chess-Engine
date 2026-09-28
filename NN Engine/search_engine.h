@@ -897,6 +897,10 @@ namespace Config
     // 1 = a king that still has a castling right is scored at the best of its square and its castling targets (SF11
     // pawns.cpp:233-237). ⚠️ The feature extractor models the actual square only and flags this mode (flag 4).
     inline int KSB_V2_CASTLE = 0;
+    // C3-b pawnless flank + king-to-pawn distance (10 cells) and C3-c KingProtector, minors only (12 cells): the same
+    // contract -- 1 = on with the cells from env KFL_V2_FILE / KPROT_V2_FILE, 0 = absent, byte-identical.
+    inline int KFL_V2 = 0;
+    inline int KPROT_V2 = 0;
 
     // ── gap-audit K2/A8: KING SAFETY'S ENDGAME LEG ───────────────────────────────────────────────
     // KS-A is ONE saturating curve for every phase. 3 of 4 references give king danger two legs -- SF

@@ -39,7 +39,9 @@ BLOCKS = [("mobility", slice(0, 66)), ("pawn_struct", slice(66, 77)), ("v2_passe
           ("v2_placement", slice(97, 106)),
           # C3-a king shelter + pawn storm (2026-09-27). ⚠️ With KSB_V2 off its block score is ABSENT (read as 0 here)
           # and theta is 0, so the gate passes VACUOUSLY; prove closure under KSB_V2=1 with a non-zero test table.
-          ("v2_shelter", slice(106, 162))]
+          ("v2_shelter", slice(106, 162)),
+          ("v2_kflank", slice(162, 172)),       # C3-b pawnless flank + king-pawn distance (same vacuity caveat)
+          ("v2_kprot", slice(172, 184))]        # C3-c KingProtector (same vacuity caveat)
 
 rows, diffs, phases, totals, blocks, flags = [], [], [], [], [], []
 t0 = time.time()

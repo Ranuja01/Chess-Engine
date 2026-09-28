@@ -2336,7 +2336,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         v2_c1_init();   // after every v2 knob: the fitted values start from the live constants
         Config::KSB_V2 = env_int("KSB_V2", Config::KSB_V2);
         Config::KSB_V2_CASTLE = env_int("KSB_V2_CASTLE", Config::KSB_V2_CASTLE);
-        v2_ksb_init();
+        Config::KFL_V2 = env_int("KFL_V2", Config::KFL_V2);
+        Config::KPROT_V2 = env_int("KPROT_V2", Config::KPROT_V2);
+        v2_c3_init();
         if (Config::ENABLE_ORACLE_EVAL && Config::EVAL_ARM != 0)
             std::cerr << "☠️ ENABLE_ORACLE_EVAL with EVAL_ARM=" << Config::EVAL_ARM
                       << " is unsupported: the oracle intercepts BEFORE the arm dispatch, so v2 never runs." << std::endl;
@@ -2538,6 +2540,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_V2_CONTEST_EXCESS=" << Config::KS_V2_CONTEST_EXCESS
                   << " KS_V2_CONTEST_SQ=" << Config::KS_V2_CONTEST_SQ << " KS_V2_CONTEST_SQ_Q=" << Config::KS_V2_CONTEST_SQ_Q
                   << " KSB_V2=" << Config::KSB_V2 << " KSB_V2_CASTLE=" << Config::KSB_V2_CASTLE
+                  << " KFL_V2=" << Config::KFL_V2 << " KPROT_V2=" << Config::KPROT_V2
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")
                   << " KS_V2_EG_PCT=" << Config::KS_V2_EG_PCT
                   << " PS_V2_REAR_DOUBLED=" << Config::PS_V2_REAR_DOUBLED

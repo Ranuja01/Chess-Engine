@@ -308,6 +308,12 @@ static int    c1_place[2][9];                       // [leg][outpost N, outpost 
 static constexpr int KSB_CELLS = 56;                // shelter 4 file classes x 6 states + storm 4 x 8
 static bool   g_ksb_on = false;
 static int    ksb_w[2][KSB_CELLS];
+// C3-b pawnless flank + king-to-pawn distance (Config::KFL_V2) and C3-c KingProtector (Config::KPROT_V2): same
+// contract as the shelter table -- [leg][cell], value to the king's / minor's OWN side, unread while off.
+static constexpr int KFL_CELLS = 10;                // nearest own pawn d 2/3/4/>=5 · nearest enemy pawn d 2/3/4/>=5 · flank empty · flank only enemy
+static constexpr int KPROT_CELLS = 12;              // knight d 1..6+ · bishop d 1..6+ (Chebyshev to our king)
+static bool   g_kfl_on = false, g_kprot_on = false;
+static int    kfl_w[2][KFL_CELLS], kprot_w[2][KPROT_CELLS];
 
 static constexpr int V2_PST_VALUES = 6 * 2 * 64;
 
@@ -3247,6 +3253,114 @@ static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) no
 	}
 }
 
+/* Chebyshev (king-move) distance, UNCAPPED (ps_kdist caps at 5; KingProtector bins run to 6+). */
+[[nodiscard]] static inline int c3_cheb(int a, int b) noexcept
+{
+	const int dx = (a & 7) - (b & 7), dy = (a >> 3) - (b >> 3);
+	const int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+	return ax > ay ? ax : ay;
+}
+
+/* SF's KingFlank: the files a king on file f "lives on" (SF11 bitboard.h; QueenSide = a-d, CenterFiles = c-f,
+ * KingSide = e-h, the edge files trimmed by one). File-mirror symmetric: flank[7 - f] is flank[f] reflected. */
+static constexpr uint64_t C3_FILE_A = 0x0101010101010101ULL;
+static constexpr uint64_t C3_FLANK[8] = {
+	C3_FILE_A * 0x07, C3_FILE_A * 0x0F, C3_FILE_A * 0x0F, C3_FILE_A * 0x3C,
+	C3_FILE_A * 0x3C, C3_FILE_A * 0xF0, C3_FILE_A * 0xF0, C3_FILE_A * 0xE0};
+
+/* ═══ C3-b: PAWNLESS FLANK + KING-TO-PAWN DISTANCE ══════════════════════════════════════════════════════════════════
+ * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3.
+ * WHAT: for one king, one-hot cells (value to the king's own side):
+ *   0-3  Chebyshev distance to the NEAREST OWN pawn: 2 · 3 · 4 · >= 5   (1 is the reference; no own pawn = no cell)
+ *   4-7  the same to the nearest ENEMY pawn
+ *   8    no pawn of EITHER colour on the king's flank (SF PawnlessFlank)
+ *   9    only ENEMY pawns on the king's flank
+ * WHY: king races with NO passer -- v2 prices king-to-pawn distance only through passers. SF11 has minPawnDist (own
+ * pawns, eg) and PawnlessFlank (both colours, mg+eg); Ethereal and Weiss price king-pawn distance in the endgame too.
+ * Splitting own from enemy is ours: it separates "guarding my pawns" from "attacking theirs". The fit is expected to
+ * leave the mg leg near 0 for 0-7; both legs are exposed so the fit, not us, decides.
+ * Gating: runs only when g_kfl_on (KFL_V2 = 1 with a loaded KFL_V2_FILE). Cost: one pass over each side's pawns.
+ * @return the number of cells written (<= 4)
+ */
+[[nodiscard]] static inline int kfl_cells(const V2Context &c, bool white, int *cells) noexcept
+{
+	const uint64_t kb = c.kings & (white ? c.white : c.black);
+	if (!kb) return 0;
+	const int ksq = __builtin_ctzll(kb);
+	const uint64_t own = c.pawns & (white ? c.white : c.black), enemy = c.pawns & (white ? c.black : c.white);
+	int n = 0;
+	for (int e = 0; e < 2; ++e){
+		uint64_t it = e ? enemy : own;
+		if (!it) continue;
+		int d = 8;
+		for (; it; it &= it - 1){
+			const int dd = c3_cheb(ksq, __builtin_ctzll(it));
+			if (dd < d) d = dd;
+		}
+		if (d >= 2) cells[n++] = e * 4 + (d >= 5 ? 3 : d - 2);
+	}
+	const uint64_t flank = C3_FLANK[ksq & 7];
+	if (!(c.pawns & flank))  cells[n++] = 8;
+	else if (!(own & flank)) cells[n++] = 9;
+	return n;
+}
+
+/* ═══ C3-c: KINGPROTECTOR (minors only) ═════════════════════════════════════════════════════════════════════════════
+ * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3; owner call: MINORS ONLY (rooks and queens defend from
+ * range, so their defence belongs to the KS defender channels).
+ * WHAT: per own knight and bishop, its Chebyshev distance to OUR king, one-hot 1..6+ (cells 0-5 knight, 6-11 bishop),
+ * value to the minor's own side. Counts are per piece, so two knights at distance 2 put 2 in one cell.
+ * WHY: every reference that has it prices minors only (SF11 KingProtector, linear in distance from 1; Ethereal nothing
+ * below 4, to the nearer king). One free cell per distance lets the fit choose between the two shapes.
+ * Gating: runs only when g_kprot_on (KPROT_V2 = 1 with a loaded KPROT_V2_FILE). Cost: one pass over the minors.
+ * @param cnt  output, KPROT_CELLS counts, overwritten
+ */
+static inline void kprot_counts(const V2Context &c, bool white, int *cnt) noexcept
+{
+	for (int i = 0; i < KPROT_CELLS; ++i) cnt[i] = 0;
+	const uint64_t side = white ? c.white : c.black;
+	const uint64_t kb = c.kings & side;
+	if (!kb) return;
+	const int ksq = __builtin_ctzll(kb);
+	for (int t = 0; t < 2; ++t)
+		for (uint64_t it = (t ? c.bishops : c.knights) & side; it; it &= it - 1){
+			const int d = c3_cheb(ksq, __builtin_ctzll(it));
+			++cnt[t * 6 + (d >= 6 ? 5 : d - 1)];
+		}
+}
+
+/* One side's C3-b legs, (mg, eg) millipawns, value to that side. */
+static inline void kfl_side(const V2Context &c, bool white, int &mg, int &eg) noexcept
+{
+	int cells[4];
+	const int n = kfl_cells(c, white, cells);
+	mg = eg = 0;
+	for (int i = 0; i < n; ++i){ mg += kfl_w[0][cells[i]]; eg += kfl_w[1][cells[i]]; }
+}
+
+/* One side's C3-c legs, (mg, eg) millipawns, value to that side. */
+static inline void kprot_side(const V2Context &c, bool white, int &mg, int &eg) noexcept
+{
+	int cnt[KPROT_CELLS];
+	kprot_counts(c, white, cnt);
+	mg = eg = 0;
+	for (int i = 0; i < KPROT_CELLS; ++i){ mg += cnt[i] * kprot_w[0][i]; eg += cnt[i] * kprot_w[1][i]; }
+}
+
+/* Black-positive blended value of a per-side (mg, eg) scorer, plus its raw legs for pair mode. Blended PER SIDE, as
+ * KS-A and C3-a are, so the colour mirror sees the same truncation on both sides. */
+template <typename SideFn>
+static inline int c3_block_mp(const V2Context &c, SideFn fn, int &dmg, int &deg) noexcept
+{
+	int wmg, weg, bmg, beg;
+	fn(c, true, wmg, weg);
+	fn(c, false, bmg, beg);
+	dmg = bmg - wmg;
+	deg = beg - weg;
+	return ((bmg * c.phase256 + beg * (256 - c.phase256)) >> 8)
+	     - ((wmg * c.phase256 + weg * (256 - c.phase256)) >> 8);
+}
+
 /* TEXEL FIT C1 feature extractor -- see eval_v2.h for the layout. Diagnostic only, never called from search.
  *
  * ★ It reuses the engine's own DETECTORS (build_pawn_entry, mobility_build, placement_detect) and re-derives only
@@ -3258,8 +3372,8 @@ static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) no
 static constexpr int V2F_MOB = 0, V2F_DOUBLED = 66, V2F_ISO = 67, V2F_BACKWARD = 75, V2F_WU = 76,
                      V2F_PASSED = 77, V2F_CAND = 85, V2F_KD = 93, V2F_OUT_N = 97, V2F_OUT_B = 98,
                      V2F_BEHIND = 99, V2F_BADB = 100, V2F_TRAPR = 104, V2F_WEAKQ = 105,
-                     V2F_C1_END = 106, V2F_KSB = 106;
-static_assert(V2F_KSB + KSB_CELLS == V2F_PER_SIDE, "v2_features layout: C3-a cells must end the per-side block");
+                     V2F_C1_END = 106, V2F_KSB = 106, V2F_KFL = V2F_KSB + KSB_CELLS, V2F_KPROT = V2F_KFL + KFL_CELLS;
+static_assert(V2F_KPROT + KPROT_CELLS == V2F_PER_SIDE, "v2_features layout: the C3 cells must end the per-side block");
 static constexpr int V2F_MOB_BASE[4] = {0, 9, 23, 38};   // offsets of N / B / R / Q move-count cells
 
 void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
@@ -3364,6 +3478,13 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 		const int n = ksb_cells(c.pawns & (white ? c.white : c.black), c.pawns & (white ? c.black : c.white), white,
 		                        __builtin_ctzll(kb), cells);
 		for (int i = 0; i < n; ++i) ++out[s * V2F_PER_SIDE + V2F_KSB + cells[i]];
+		// C3-b and C3-c, also unconditional.
+		int fc[4];
+		const int nf = kfl_cells(c, white, fc);
+		for (int i = 0; i < nf; ++i) ++out[s * V2F_PER_SIDE + V2F_KFL + fc[i]];
+		int pc2[KPROT_CELLS];
+		kprot_counts(c, white, pc2);
+		for (int i = 0; i < KPROT_CELLS; ++i) out[s * V2F_PER_SIDE + V2F_KPROT + i] += pc2[i];
 	}
 }
 
@@ -3375,6 +3496,10 @@ void v2_features_theta(double *mg, double *eg)
 	// C3-a cells: the loaded values when the term is on, else 0 (the term is absent, so its value IS 0).
 	if (g_ksb_on)
 		for (int i = 0; i < KSB_CELLS; ++i){ mg[V2F_KSB + i] = ksb_w[0][i]; eg[V2F_KSB + i] = ksb_w[1][i]; }
+	if (g_kfl_on)
+		for (int i = 0; i < KFL_CELLS; ++i){ mg[V2F_KFL + i] = kfl_w[0][i]; eg[V2F_KFL + i] = kfl_w[1][i]; }
+	if (g_kprot_on)
+		for (int i = 0; i < KPROT_CELLS; ++i){ mg[V2F_KPROT + i] = kprot_w[0][i]; eg[V2F_KPROT + i] = kprot_w[1][i]; }
 	if (g_c1_fit){
 		// The ACTIVE fitted values, so a pass under C1_V2_FIT=1 checks the engine against the fitted model (closure).
 		for (int i = 0; i < 4; ++i)
@@ -3505,43 +3630,53 @@ void v2_c1_init()
 	std::cerr << "[c1] Texel C1 fit ON: " << n_set << " values from " << path << std::endl;
 }
 
-/* Load the C3-a shelter + storm cell values (Config::KSB_V2 = 1, env KSB_V2_FILE). Same line format as C1_V2_FILE --
- * `feature_k leg start fitted`, k in the v2_features index space (V2F_KSB .. V2F_KSB + 55) -- so one fitter output
- * serves both loaders. Cells a file does not name stay 0 (the reference). A missing or malformed file is reported and
- * the term stays OFF: the engine never runs on a half-loaded table. */
-void v2_ksb_init()
+/* Load one C3 cell table from env `env_name`. Same line format as C1_V2_FILE -- `feature_k leg start fitted`, k in the
+ * v2_features index space [k0, k0 + n) -- so one fitter output serves every loader. Cells a file does not name stay 0
+ * (the reference). A missing or malformed file is reported and the block stays OFF (returns false, table zeroed): the
+ * engine never runs on a half-loaded table.
+ * @param w_mg, w_eg  the block's two legs, n entries each */
+static bool c3_load_table(const char *knob, const char *env_name, int k0, int n, int *w_mg, int *w_eg)
 {
-	g_ksb_on = false;
-	for (int leg = 0; leg < 2; ++leg) for (int i = 0; i < KSB_CELLS; ++i) ksb_w[leg][i] = 0;
-	if (Config::KSB_V2 == 0) return;
-	const char *path = std::getenv("KSB_V2_FILE");
+	for (int i = 0; i < n; ++i) w_mg[i] = w_eg[i] = 0;
+	const char *path = std::getenv(env_name);
 	if (!path || !*path){
-		std::cerr << "☠️ KSB_V2=1 needs KSB_V2_FILE -- shelter/storm stays OFF." << '\n';
-		return;
+		std::cerr << "☠️ " << knob << "=1 needs " << env_name << " -- it stays OFF." << '\n';
+		return false;
 	}
 	std::ifstream in(path);
 	if (!in){
-		std::cerr << "☠️ KSB_V2_FILE=" << path << " cannot be opened -- shelter/storm stays OFF." << '\n';
-		return;
+		std::cerr << "☠️ " << env_name << "=" << path << " cannot be opened -- " << knob << " stays OFF." << '\n';
+		return false;
 	}
-	int w[2][KSB_CELLS] = {};
+	std::vector<int> mg(n, 0), eg(n, 0);
 	std::string line;
 	int n_set = 0;
 	while (std::getline(in, line)){
 		if (line.empty() || line[0] == '#') continue;
 		int k, leg; double start, fitted;
-		if (std::sscanf(line.c_str(), "%d %d %lf %lf", &k, &leg, &start, &fitted) != 4 || k < V2F_KSB
-		    || k >= V2F_KSB + KSB_CELLS || leg < 0 || leg > 1){
-			std::cerr << "☠️ KSB_V2_FILE malformed line '" << line << "' -- shelter/storm stays OFF." << '\n';
-			return;
+		if (std::sscanf(line.c_str(), "%d %d %lf %lf", &k, &leg, &start, &fitted) != 4 || k < k0 || k >= k0 + n
+		    || leg < 0 || leg > 1){
+			std::cerr << "☠️ " << env_name << " malformed line '" << line << "' -- " << knob << " stays OFF." << '\n';
+			return false;
 		}
-		w[leg][k - V2F_KSB] = (int)std::lround(fitted);
+		(leg ? eg : mg)[k - k0] = (int)std::lround(fitted);
 		++n_set;
 	}
-	for (int leg = 0; leg < 2; ++leg) for (int i = 0; i < KSB_CELLS; ++i) ksb_w[leg][i] = w[leg][i];
-	g_ksb_on = true;
-	std::cerr << "[ksb] shelter/storm ON: " << n_set << " values from " << path
-	          << (Config::KSB_V2_CASTLE ? " (castling max)" : "") << '\n';
+	for (int i = 0; i < n; ++i){ w_mg[i] = mg[i]; w_eg[i] = eg[i]; }
+	std::cerr << "[c3] " << knob << " ON: " << n_set << " values from " << path << '\n';
+	return true;
+}
+
+/* Load the C3 detector tables -- C3-a shelter/storm (KSB_V2), C3-b pawnless flank + king-pawn distance (KFL_V2), C3-c
+ * KingProtector (KPROT_V2) -- once at engine init. Each block is independent, so the nested fits can switch them
+ * separately. */
+void v2_c3_init()
+{
+	g_ksb_on   = Config::KSB_V2   && c3_load_table("KSB_V2", "KSB_V2_FILE", V2F_KSB, KSB_CELLS, ksb_w[0], ksb_w[1]);
+	g_kfl_on   = Config::KFL_V2   && c3_load_table("KFL_V2", "KFL_V2_FILE", V2F_KFL, KFL_CELLS, kfl_w[0], kfl_w[1]);
+	g_kprot_on = Config::KPROT_V2 && c3_load_table("KPROT_V2", "KPROT_V2_FILE", V2F_KPROT, KPROT_CELLS,
+	                                               kprot_w[0], kprot_w[1]);
+	if (g_ksb_on && Config::KSB_V2_CASTLE) std::cerr << "[c3] KSB_V2_CASTLE: shelter scored at the castling max" << '\n';
 }
 
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)
@@ -3764,16 +3899,24 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// ── C3-a: king shelter + pawn storm (KS-B) ───────────────────────────────────────────────────────
 	// A direct score beside KS-A, not a feeder into its units (a shelter->danger coupling is a separate, later test
 	// as ONE scalar). Gated on g_ksb_on (KSB_V2 = 1 with a loaded table), so off = absent = byte-identical.
-	// Each side's legs are that side's value; Black-positive, so Black's is added and White's subtracted. The blend is
-	// per side, as KS-A's is, so the colour mirror sees the same truncation on both sides.
-	int ksb_mp = 0;
-	if (g_ksb_on){
-		int wmg, weg, bmg, beg;
-		ksb_side(c, true,  wmg, weg);
-		ksb_side(c, false, bmg, beg);
-		ksb_mp = ((bmg * c.phase256 + beg * (256 - c.phase256)) >> 8)
-		       - ((wmg * c.phase256 + weg * (256 - c.phase256)) >> 8);
-		if (pair_mode){ acc.mg += bmg - wmg; acc.eg += beg - weg; } else total += ksb_mp;
+	// Each side's legs are that side's value; Black-positive, so Black's is added and White's subtracted.
+	// ── C3-b pawnless flank + king-to-pawn distance, C3-c KingProtector (minors) ─────────────────────
+	// Same contract, each on its own knob and table, each published separately so its closure is checked alone.
+	int ksb_mp = 0, kfl_mp = 0, kprot_mp = 0;
+	{
+		int dmg, deg;
+		if (g_ksb_on){
+			ksb_mp = c3_block_mp(c, ksb_side, dmg, deg);
+			if (pair_mode){ acc.mg += dmg; acc.eg += deg; } else total += ksb_mp;
+		}
+		if (g_kfl_on){
+			kfl_mp = c3_block_mp(c, kfl_side, dmg, deg);
+			if (pair_mode){ acc.mg += dmg; acc.eg += deg; } else total += kfl_mp;
+		}
+		if (g_kprot_on){
+			kprot_mp = c3_block_mp(c, kprot_side, dmg, deg);
+			if (pair_mode){ acc.mg += dmg; acc.eg += deg; } else total += kprot_mp;
+		}
 	}
 
 	// ── slice 1 / component 1: tempo ─────────────────────────────────
@@ -3889,6 +4032,14 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		if (g_ksb_on){
 			g_eval_breakdown.v2_shelter = ksb_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_SHELTER);
+		}
+		if (g_kfl_on){
+			g_eval_breakdown.v2_kflank = kfl_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_KFLANK);
+		}
+		if (g_kprot_on){
+			g_eval_breakdown.v2_kprot = kprot_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_KPROT);
 		}
 	}
 

@@ -337,3 +337,14 @@ If K+O fails, Fit K ships unchanged and OvD returns to design with the result in
   (v1 `250 / 35,310,778 / 3.784`, v2 shipped `249 / 53,405,821 / 3.973`); (2) DIFFERENTIAL fire check + feature-pass
   CLOSURE with the synthetic non-zero table `E:/chess_data/texel/ksb_test_table.txt` (`KSB_V2=1 KSB_V2_FILE=…`) — the
   default-off closure is VACUOUS; (3) `_eval_symmetry.py` colour gate with the table on; (4) pair-mode bound.
+
+**C3-b pawnless flank + king-pawn distance and C3-c KingProtector — BUILT 2026-09-27 night, at 0.**
+- Knobs `KFL_V2` / `KPROT_V2` with `KFL_V2_FILE` / `KPROT_V2_FILE`; one shared loader `c3_load_table` and init
+  `v2_c3_init` (replaces `v2_ksb_init`); each block has its own knob, table and `ev_breakdown` key (`v2_kflank`,
+  `v2_kprot`) so the nested fits can switch them separately and closure is checked per block.
+- C3-b cells 162-171: nearest own pawn d 2/3/4/5+ · nearest enemy pawn d 2/3/4/5+ (d 1 = reference) · flank empty (SF
+  KingFlank, both colours) · flank only enemy. C3-c cells 172-183: knight d 1..6+ · bishop d 1..6+ to OUR king
+  (uncapped Chebyshev; `ps_kdist` caps at 5).
+- `v2_features` now **184 per side**. The oracle is renamed **`diagnostics/_c3_oracle.py`** and covers all three blocks:
+  ✅ 8/8 hand rows · 0 mismatches · colour 0 · file 0 on 17,856 positions · every cell fires.
+- Test tables for the pending engine checks: `E:/chess_data/texel/{ksb,kfl,kprot}_test_table.txt`.

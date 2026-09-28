@@ -46,12 +46,14 @@ void v2_pst_init();
 	passer king terms 93-96 (passed: sum kdist_them*w, sum kdist_us*w; candidate: same) · outpost N 97 ·
 	outpost B 98 · behind 99 · bad-bishop file classes 100-103 · trapped-rook units 104 · weak queen 105 ·
 	C3-a king shelter cells 106-129 (file class F x 6 states) and pawn storm cells 130-161 (F x 8 states), counted at
-	the king's actual square whether or not KSB_V2 is on (layout: ksb_cells in eval_v2.cpp).
+	the king's actual square · C3-b 162-171 (nearest own pawn d 2/3/4/5+, nearest enemy pawn d 2/3/4/5+, flank empty,
+	flank only enemy) · C3-c KingProtector 172-183 (knight d 1..6+, bishop d 1..6+). All C3 cells are reported whether
+	or not their knob is on (layouts: ksb_cells / kfl_cells / kprot_counts in eval_v2.cpp).
 	v2_features_theta writes each parameter's STARTING value (mg, eg) in millipawns from the live Config, so every
 	unit conversion stays here in C++. Blocks: see diagnostics/_texel_feature_pass.py.
 	☠️ ChessAI.pyx hard-codes V2F_PER_SIDE and the 2*V2F_PER_SIDE+1 buffer size; change them together.
 */
-constexpr int V2F_PER_SIDE = 162;
+constexpr int V2F_PER_SIDE = 184;
 void v2_features(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
                  uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights,
                  long long *out);
@@ -60,8 +62,9 @@ void v2_features_theta(double *mg, double *eg);
 /* Load Texel C1 fitted values (Config::C1_V2_FIT, env C1_V2_FILE) once at engine init, after every v2 knob. */
 void v2_c1_init();
 
-/* Load the C3-a king shelter + pawn storm cell values (Config::KSB_V2, env KSB_V2_FILE) once at engine init. */
-void v2_ksb_init();
+/* Load the C3 detector cell tables once at engine init: KSB_V2 (king shelter + pawn storm, env KSB_V2_FILE),
+   KFL_V2 (pawnless flank + king-pawn distance, KFL_V2_FILE), KPROT_V2 (KingProtector, KPROT_V2_FILE). */
+void v2_c3_init();
 
 /*
 	SHADOW-arm instrumentation (Config::EVAL_ARM == 2 only). v1's value is what search uses; these record

@@ -243,3 +243,71 @@ out. All channels go to the joint fit.
 shelter/storm, KingProtector and pawnless-flank detectors at 0 (move test first). Then the joint KS fit: KS
 reproduced exactly in Python from the channels, onset/curve refit jointly, phase over-fire of weak/adj/contest_excess
 controlled, fed by `fitC_std_d6` plus the variant data.
+
+## 8. OvD REDESIGN — long-term pressure as TRANSFORMATION POTENTIAL (agreed with the owner 2026-09-27 evening)
+**The owner's concept (their words, condensed).** v1's OvD was never aimed at the king per se: the offence/defence
+accumulators summed positional pressure as a whole (central control, attacking presence), and the heat map only
+weighted the king zone higher; attacks INTO an area (a long diagonal at the king) were read as pressure that could
+eventually cause collapse. As KS matured, that became a cruder KS. The idea worth keeping is LONG-TERM PRESSURE AND
+CHANGE: which side has the better chances of a favourable positional TRANSFORMATION — e.g. a break that leaves the
+opponent two isolanis and us a majority on that side, central tension resolving our way, a majority cementing — and
+in the endgame this becomes winnability. "A way to get long-term data in without search." Not only passers, not only
+pawns ("if we can look beyond pawns, that might help too"). Delicate: a sensible concept can be implemented harmfully
+or duplicatively, so it is built at 0 and priced by the fit. ★ It may be RENAMED (it no longer sums offence and
+defence scores); it carries the legacy of the long-term-pressure term.
+
+**Decisions:**
+- **Its own subsystem, not a KS feeder.** Two legs through the (mg,eg) pair plumbing, both ADDITIVE (not multipliers):
+  - mg leg = transformation potential, SIGNED (can favour either side), saturating. Novel (no reference engine scores
+    a flank majority, a break's outcome or central tension as a forward-looking asset) ⇒ added at 0, fit decides.
+  - eg leg = winnability, universal shape (SF `initiative`/`winnable`, Ethereal `evaluateComplexity`): ☠️ it may
+    grow or shrink an advantage but NEVER flips the sign. Inputs: both flanks, pawn count, outflanking, pawn ending.
+- **KING-FREE by construction.** Storm-against-a-king stays with shelter/storm (KS-B), where every reference with a
+  storm puts it (SF11 `pawns.cpp:186-215` + castling MAX `:233-237`; SF15.1; Ethereal `evaluateKingsPawns`; Weiss
+  has none). OvD reads no king square ⇒ predicate-disjoint from KS and KS-B (Ethereal's complexity is king-free too).
+  The committed/uncommitted split therefore stays INSIDE KS-B (castling squares).
+- **Tempo returns only as TIMING.** The flat side-to-move bonus stays closed on MECHANISM, not on a null: a constant
+  shared by every sibling cannot reorder moves, and its node effect flipped sign when the margins moved
+  (`EVAL-V2-CURRENT-CONFIG.md:101`) ⇒ threshold coupling. Inside OvD, tempo = how many moves each side needs to
+  execute its transformation, with the side to move breaking the race. Position-dependent ⇒ it CAN reorder siblings.
+- **Score the OPTION, not the execution** (from the screen below: premature transformations are ~3× commoner than
+  critical ones). OvD prices a transformation each side can FORCE; once executed, the resulting structure is priced by
+  the structure terms that already exist. ⚠️ Risk the fit must watch: if the held option is priced above its realised
+  structure, the engine never cashes it ("tension forever").
+
+**First-cut features (all at 0; pawn-only ones live in the pawn cache ⇒ ~free per node):**
+1. LEVER OUTCOME — for each lever a side can play (pawn×pawn now, or a push into contact), resolve the pawn exchange
+   and score the resulting structure with v2's own pawn scorer (isolated / doubled / backward / majority / passer);
+   feature = best Δ per side, discounted by moves needed (the timing tempo). The owner's "two isolanis + a majority".
+2. MOBILE MAJORITY — flank majority that can still advance (not rammed), per flank.
+3. TENSION — unresolved central contact, signed by who benefits from its resolution (reuses feature 1 on d/e).
+4. INDUCE (beyond pawns) — a piece capture on a pawn-guarded square that forces a structure-changing recapture
+   (Bxc6 bxc6). Largest class in the screen below; needs piece info ⇒ per-node, keep it small.
+5. eg: winnability inputs above.
+- Overlaps to control: candidate passers are already scored (`PASSER_V2_CAND_PCT=50`) — fit jointly, never count a
+  majority's candidate twice · `space_mp` (built, 0, inert) · KS flank channels · Texel "already winning" confound
+  (a majority travels with a material edge) ⇒ near-equal positions only. v1 winnability (`ENABLE_WINNABILITY`) and
+  v1 majority (`PAWN_MAJORITY_*`) are both UNREADABLE parks (STS-only / contamination-era), not refutations.
+
+### 8a. Move-class screen (2026-09-27, `_position_class.py MOVECLASS=1`, no engine, `game_regret_set.csv` 15k, SF18 d14 multi-PV)
+Registered predictions scored **0 of 4 outright** (P3's direction and P1's advance share were right): P1 transform-best ~25% → **10.3%** ❌ (advance ~12% →
+11.1% ✅) · P2 critical ~4% → **1.6%** ❌ · P3 traps ≈1.5× critical → **3.3×** (direction ✅) · P4 levers > pawn captures
+in the critical set → 50 vs 56, and INDUCE dominates ❌.
+
+| | GAP 5pp | GAP 2pp |
+|---|---|---|
+| SF18 best = pawn_capture / lever / induce / advance / piece | 3.4 / 3.7 / 3.2 / 11.1 / 78.7 % | same |
+| transform_critical (best is a transformation, best non-transform ≥ GAP worse, near-equal, not a recapture) | **239 (1.6%)** | **382 (2.5%)** |
+| — by kind: pawn_capture / lever / induce | 56 / 50 / 133 | 96 / 111 / 175 |
+| transform_trap (best is NOT a transformation, a listed one is ≥ GAP worse, near-equal) | **792 (5.3%)** | **1,146 (7.6%)** |
+
+- ☠️ The printed "only-moves 96% / 94%" is **definitional, not evidence of tactics**: the critical filter already requires
+  every non-transform move to trail by ≥ GAP, so `n_good=1` is nearly automatic. Do NOT read it as "search's job".
+- ⇒ A ONE-MOVE gap is the wrong shape for a long-term concept (long-term value shows as many small preferences and in
+  outcomes, not as a single sharp choice). The OUTCOME fit (Texel on near-equal positions) is OvD's primary
+  instrument; the move test stays as a HARM check (does the term create premature transformations on
+  `transform_trap`?) and a headroom read on `transform_critical`.
+- **Next (needs engine slots — after `fitC_std_d6` finishes):** our shipped engine at d8 and d14 on
+  `classes_move_g2/transform_critical.csv` (382) and `transform_trap.csv`; count failures that PERSIST at d14 (and
+  quote nodes). Then build features 1-5 at 0, the oracle + differential fire check + mirror gate, and add to
+  `v2_features` for the joint fit.

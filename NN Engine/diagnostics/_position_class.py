@@ -43,6 +43,23 @@ Keeping the raw counts means a later question ("only the MOST locked half") need
 USAGE (no engine, no knobs, safe to run while games are using the machine):
   pyrun diagnostics/_position_class.py [SETS=a.csv,b.csv] [N=0] [OUT=ks_sets/classes] [MIN=500]
   N=0 (default) uses every row; MIN warns when a class is too small to read.
+
+MOVECLASS=1 (added 2026-09-27, the OvD / long-term-pressure move test) classifies by SF18's BEST MOVE instead of the
+structure, using the multi-PV labels (`moves` = "uci:cp;...", White-POV, best-first). The owner's concept: the side
+that can force a favourable PAWN TRANSFORMATION (a break that leaves the opponent two isolanis and us a majority,
+central tension resolving the right way, a majority cementing) holds a long-term edge search alone may not see.
+  Move kinds (mover's view): pawn_capture (pawn x pawn) · lever (quiet push that lands in pawn CONTACT) · induce
+  (a piece capture on a square an enemy pawn guards, forcing a pawn recapture -- Bxc6 bxc6) · advance (other pawn
+  push) · piece.  TRANSFORM = pawn_capture | lever | induce.
+  gap_pp = winpct(best) - winpct(best listed NON-transform move), mover's POV. If no non-transform move is listed the
+  gap is a LOWER BOUND against the last listed move (`nonT_unlisted`=1).
+  recap = the mover is behind in material before the move (a pawn capture there is likely a recapture: search's job,
+  not a transformation choice). n_good = listed moves within 2pp of the best (1 = an only-move: search's job too).
+Corpora written to OUT (default ks_sets/classes_move): transform_critical (best is TRANSFORM, gap >= GAP pp,
+|best_cp| <= NEAR, not recap) · transform_trap (best is NOT transform, a listed TRANSFORM move is >= GAP pp worse,
+|best_cp| <= NEAR) · transform_any · other. The move test proper runs OUR engine on transform_critical at two depths
+and counts only failures that persist (memory eval-headroom-is-failures-that-persist-as-depth-rises).
+  pyrun diagnostics/_position_class.py MOVECLASS=1 SETS=ks_sets/game_regret_set.csv [GAP=5] [NEAR=200]
 """
 import os, sys, csv, collections
 
@@ -119,7 +136,96 @@ def classify(open_files, rammed_cf, centre_pawns, centre_contact, n_pawns):
     return "other"
 
 
+MOVECLASS = os.environ.get("MOVECLASS", "0") == "1"
+GAP = float(os.environ.get("GAP", "5"))
+NEAR = int(os.environ.get("NEAR", "200"))
+if MOVECLASS and "OUT" not in os.environ:
+    OUT = "ks_sets/classes_move"
+WIN_K = 0.00368208
+PIECE_VAL = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
+TRANSFORM = ("pawn_capture", "lever", "induce")
+
+
+def winpct(cp):
+    import math
+    cp = max(-1500, min(1500, cp))
+    return 100.0 / (1.0 + math.exp(-WIN_K * cp))
+
+
+def material(b, color):
+    return sum(PIECE_VAL[p.piece_type] for p in b.piece_map().values() if p.color == color)
+
+
+def move_kind(b, mv):
+    """What the move does to the pawn structure, from the mover's side."""
+    piece = b.piece_at(mv.from_square)
+    if piece is None:
+        return "piece"
+    me, them = b.turn, not b.turn
+    their_pawns = b.pawns & b.occupied_co[them]
+    if piece.piece_type == chess.PAWN:
+        if b.is_capture(mv):
+            victim = b.piece_at(mv.to_square)
+            # en passant has no piece on to_square; it is a pawn x pawn by definition
+            return "pawn_capture" if (victim is None or victim.piece_type == chess.PAWN) else "induce"
+        # Quiet push into CONTACT. Contact is mutual (our pawn hits theirs iff theirs hits ours), so one test covers
+        # both; ☠️ BB_PAWN_ATTACKS[them][to] would be their pawns diagonally BEHIND ours -- not contact.
+        if chess.BB_PAWN_ATTACKS[me][mv.to_square] & their_pawns:
+            return "lever"
+        return "advance"
+    if b.is_capture(mv):
+        victim = b.piece_at(mv.to_square)
+        # A piece capture on a square guarded by an enemy pawn forces (or offers) a pawn recapture.
+        guards = chess.BB_PAWN_ATTACKS[me][mv.to_square] & their_pawns
+        if victim is not None and victim.piece_type != chess.PAWN and guards:
+            return "induce"
+    return "piece"
+
+
+def move_class(b, r):
+    """-> (stratum, extra columns) for MOVECLASS mode, or None when the row has no usable labels."""
+    pairs = []
+    for tok in (r.get("moves") or "").split(";"):
+        if ":" not in tok:
+            continue
+        u, c = tok.split(":", 1)
+        try:
+            mv = chess.Move.from_uci(u)
+            cp = int(float(c))
+        except ValueError:
+            continue
+        if mv not in b.legal_moves:
+            continue
+        pov = cp if b.turn == chess.WHITE else -cp
+        pairs.append((mv, pov, move_kind(b, mv)))
+    if not pairs:
+        return None
+    pairs.sort(key=lambda t: -t[1])
+    best_mv, best_pov, best_kind = pairs[0]
+    wb = winpct(best_pov)
+    near = abs(best_pov) <= NEAR
+    recap = material(b, b.turn) < material(b, not b.turn)
+    n_good = sum(1 for _, p, _ in pairs if wb - winpct(p) <= 2.0)
+    if best_kind in TRANSFORM:
+        alt = [p for _, p, k in pairs[1:] if k not in TRANSFORM]
+        unlisted = not alt
+        gap = wb - winpct(alt[0] if alt else pairs[-1][1])
+        if gap >= GAP and near and not (recap and best_kind == "pawn_capture"):
+            stratum = "transform_critical"
+        else:
+            stratum = "transform_any"
+    else:
+        tr = [p for _, p, k in pairs[1:] if k in TRANSFORM]
+        unlisted = False
+        gap = (wb - winpct(tr[0])) if tr else 0.0
+        stratum = "transform_trap" if (tr and gap >= GAP and near) else "other"
+    return stratum, {"best_kind": best_kind, "gap_pp": "%.2f" % gap, "near": int(near), "recap": int(recap),
+                     "n_good": n_good, "nonT_unlisted": int(unlisted), "n_listed": len(pairs)}
+
+
 rows_by_class = collections.defaultdict(list)
+kind_counts = collections.Counter()
+crit_kinds = collections.Counter()
 pin_rows = []
 keys = set()          # union of every column seen, so differing corpora still write one valid header
 total = bad = 0
@@ -139,6 +245,23 @@ for s in SETS:
         except ValueError:
             bad += 1
             continue
+        if MOVECLASS:
+            mc = move_class(b, r)
+            if mc is None:
+                bad += 1
+                continue
+            total += 1
+            cls, extra = mc
+            kind_counts[extra["best_kind"]] += 1
+            if cls == "transform_critical":
+                crit_kinds[extra["best_kind"]] += 1
+            out = dict(r)
+            out["stratum"] = cls
+            out.update(extra)
+            for k in out:
+                keys.add(k)
+            rows_by_class[cls].append(out)
+            continue
         total += 1
         of, ram, cp, contact, pinned = features(b)
         cls = classify(of, ram, cp, contact, bin(b.pawns).count("1"))
@@ -157,7 +280,8 @@ for s in SETS:
 
 outdir = os.path.join(THIS, OUT)
 os.makedirs(outdir, exist_ok=True)
-EXTRA = ["stratum", "open_files", "rammed_cf", "centre_pawns", "pinned_w", "pinned_b"]
+EXTRA = (["stratum", "best_kind", "gap_pp", "near", "recap", "n_good", "nonT_unlisted", "n_listed"] if MOVECLASS
+         else ["stratum", "open_files", "rammed_cf", "centre_pawns", "pinned_w", "pinned_b"])
 # fen first, then every source column (SF18 labels included), then ours -- so downstream readers that want only
 # (fen, stratum) still work, and the label-consuming tools find the columns they expect.
 HDR = ["fen"] + sorted(k for k in keys if k not in ("fen",) and k not in EXTRA) + EXTRA
@@ -174,6 +298,26 @@ def write(name, rows):
 
 
 print("sets=%d  positions=%d%s" % (len(SETS), total, ("  (unparseable, skipped: %d)" % bad) if bad else ""))
+if MOVECLASS:
+    print("\n== SF18 best-move kind ==")
+    for k in ("pawn_capture", "lever", "induce", "advance", "piece"):
+        print("  %-13s %6d  (%4.1f%%)" % (k, kind_counts[k], 100.0 * kind_counts[k] / max(total, 1)))
+    print("\n== move classes (GAP=%.1fpp, NEAR=%d cp) ==" % (GAP, NEAR))
+    for cls in ("transform_critical", "transform_trap", "transform_any", "other"):
+        rows = rows_by_class.get(cls, [])
+        if rows:
+            write(cls, rows)
+        flag = "   <<< TOO SMALL TO READ" if len(rows) < MIN else ""
+        print("  %-19s %6d  (%4.1f%%)%s" % (cls, len(rows), 100.0 * len(rows) / max(total, 1), flag))
+    crit = rows_by_class.get("transform_critical", [])
+    print("\n  critical by kind: " + "  ".join("%s %d" % (k, crit_kinds[k]) for k in TRANSFORM))
+    if crit:
+        only = sum(1 for r in crit if r["n_good"] == 1)
+        unl = sum(1 for r in crit if r["nonT_unlisted"] == 1)
+        print("  critical that are ONLY-MOVES (n_good=1, search's job): %d (%.0f%%)  ·  gap is a lower bound: %d"
+              % (only, 100.0 * only / len(crit), unl))
+    print("\nwrote -> %s" % outdir)
+    sys.exit(0)
 print("\n== structure classes ==")
 for cls in CLASSES:
     rows = rows_by_class.get(cls, [])

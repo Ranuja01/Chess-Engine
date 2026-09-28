@@ -52,8 +52,9 @@ SWAP_MEMBERS = {k for pair in SWAP_PAIRS + SIGNED_SWAP_PAIRS for k in pair}
 # ⚠️ `arm` and `terms_available` are ARM PROVENANCE METADATA (added 2026-09-11 with the eval-v2 arm), not
 # eval terms: `arm` is a knob value and `terms_available` is a BIT MASK, so summing |x + y| over them
 # produces meaningless rows (terms_available read 2.4e15 on its first run, swamping the table).
+# `v2_phase256` is v2's taper (colour-invariant, NOT signed), the same kind as v1's phase_score (added 2026-09-28).
 SKIP_TERMS = {"phase_score", "is_endgame", "advanced_endgame_fired", "det_pawn_count", "det_central",
-              "arm", "terms_available"}
+              "arm", "terms_available", "v2_phase256"}
 
 N = int(os.environ.get("N", "800"))
 TOL = int(os.environ.get("TOL", "0"))          # millipawns; 0 = demand exactness

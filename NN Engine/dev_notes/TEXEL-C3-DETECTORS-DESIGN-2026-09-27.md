@@ -348,3 +348,11 @@ If K+O fails, Fit K ships unchanged and OvD returns to design with the result in
 - `v2_features` now **184 per side**. The oracle is renamed **`diagnostics/_c3_oracle.py`** and covers all three blocks:
   ✅ 8/8 hand rows · 0 mismatches · colour 0 · file 0 on 17,856 positions · every cell fires.
 - Test tables for the pending engine checks: `E:/chess_data/texel/{ksb,kfl,kprot}_test_table.txt`.
+
+**Engine checks — ALL PASS (2026-09-28 morning, after fitC_std_d6 finished 30,000/30,000):**
+1. WAC d10 fingerprints byte-identical at defaults: v1 **250 / 35,310,778 / 3.784**, v2 shipped **249 / 53,405,821 / 3.973**.
+2. Fire + closure with the synthetic tables (`_texel_feature_pass.py LIMIT=20000`, all three on): live rows shelter
+   17,769 · kflank 15,040 · kprot 16,069 of 19,983; |engine − Σ count×θ| median ≤ 0.05, **max 1.0 mp** (the per-side
+   `>> 8` truncation) for every block ⇒ NOT vacuous.
+3. `_eval_symmetry.py N=4000 TERMS=1` with all three on: colour swap **0 / 4000**, file mirror **0 / 3170**.
+   (Fixed in passing: `v2_phase256` was not in the gate's SKIP_TERMS and would have read as a signed violation.)

@@ -2338,6 +2338,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KSB_V2_CASTLE = env_int("KSB_V2_CASTLE", Config::KSB_V2_CASTLE);
         Config::KFL_V2 = env_int("KFL_V2", Config::KFL_V2);
         Config::KPROT_V2 = env_int("KPROT_V2", Config::KPROT_V2);
+        Config::KS_V2_W_N = env_int("KS_V2_W_N", Config::KS_V2_W_N);
+        Config::KS_V2_W_B = env_int("KS_V2_W_B", Config::KS_V2_W_B);
+        Config::KS_V2_W_R = env_int("KS_V2_W_R", Config::KS_V2_W_R);
+        Config::KS_V2_W_Q = env_int("KS_V2_W_Q", Config::KS_V2_W_Q);
         v2_c3_init();
         if (Config::ENABLE_ORACLE_EVAL && Config::EVAL_ARM != 0)
             std::cerr << "☠️ ENABLE_ORACLE_EVAL with EVAL_ARM=" << Config::EVAL_ARM
@@ -2541,6 +2545,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_V2_CONTEST_SQ=" << Config::KS_V2_CONTEST_SQ << " KS_V2_CONTEST_SQ_Q=" << Config::KS_V2_CONTEST_SQ_Q
                   << " KSB_V2=" << Config::KSB_V2 << " KSB_V2_CASTLE=" << Config::KSB_V2_CASTLE
                   << " KFL_V2=" << Config::KFL_V2 << " KPROT_V2=" << Config::KPROT_V2
+                  << " KS_V2_W_N=" << Config::KS_V2_W_N << " KS_V2_W_B=" << Config::KS_V2_W_B
+                  << " KS_V2_W_R=" << Config::KS_V2_W_R << " KS_V2_W_Q=" << Config::KS_V2_W_Q
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")
                   << " KS_V2_EG_PCT=" << Config::KS_V2_EG_PCT
                   << " PS_V2_REAR_DOUBLED=" << Config::PS_V2_REAR_DOUBLED

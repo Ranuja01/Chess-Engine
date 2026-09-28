@@ -50,7 +50,11 @@ import ChessAI
 
 NAMES = ["n_att", "w_att", "weak", "adj", "chk_r", "chk_q", "chk_b", "chk_n", "enemy_queen", "units",
          "n_att_x", "adj_inst", "unsafe", "blockers", "flank_att", "flank_def", "knight_def", "contest_excess",
-         "contest_sq", "w_att_contest", "gate"]
+         "contest_sq", "w_att_contest", "gate",
+         # Fit K2 (2026-09-28): zone attackers by type (plain / x-ray), each type's summed 256 x contested share, and
+         # the x-ray attacker weight -- so attacker weights, x-ray and defence-aware modes can be fitted from counts.
+         "att_n", "att_b", "att_r", "att_q", "att_x_n", "att_x_b", "att_x_r", "att_x_q",
+         "share_n", "share_b", "share_r", "share_q", "w_att_x"]
 IX = {n: i for i, n in enumerate(NAMES)}
 
 # The SHIPPED KS parameters (search_engine.cpp V2_PRESET=shipped block). The gate below fails loudly if the live

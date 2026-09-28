@@ -422,15 +422,19 @@ def ks_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occ
     if not _PAWN_PROBE_TABLES_READY:
         initialize_attack_tables()
         _PAWN_PROBE_TABLES_READY = True
-    cdef long long out[44]
+    cdef long long out[70]
     ks_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
              <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
     # chk_r/q/b/n (appended 2026-09-28): per-type SAFE-check square counts; "checks" is their sum.
+    # att_*/att_x_*/share_* + w_att_x (appended 2026-09-28, Fit K2): zone attackers by type (plain, x-ray) and each
+    # type's summed 256 x contested-footprint share; w_att == sum W[t] x att_t.
     names = ["n_att", "w_att", "weak", "adj", "checks", "units", "n_att_x", "adj_inst", "unsafe", "blockers",
              "flank_att", "flank_def", "knight_def", "contest_excess", "contest_sq", "enemy_queen", "w_att_contest",
-             "gate", "chk_r", "chk_q", "chk_b", "chk_n"]
+             "gate", "chk_r", "chk_q", "chk_b", "chk_n",
+             "att_n", "att_b", "att_r", "att_q", "att_x_n", "att_x_b", "att_x_r", "att_x_q",
+             "share_n", "share_b", "share_r", "share_q", "w_att_x"]
     cdef int i
-    return {names[i]: (int(out[2 * i]), int(out[2 * i + 1])) for i in range(22)}
+    return {names[i]: (int(out[2 * i]), int(out[2 * i + 1])) for i in range(35)}
 
 
 def threats_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):

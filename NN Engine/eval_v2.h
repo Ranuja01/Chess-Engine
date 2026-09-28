@@ -128,8 +128,9 @@ void threats_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t 
                    uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out);
 
 /*
-	KING-SAFETY COUNT PROBE (diagnostic; never called from search). `out` needs 44 entries (the layout below is the
-	original 12; ChessAI.pyx ks_counts names all 22 pairs, incl. per-type safe checks at 36-43), indexed by the KING under
+	KING-SAFETY COUNT PROBE (diagnostic; never called from search). `out` needs 70 entries (the layout below is the
+	original 12; ChessAI.pyx ks_counts names all 35 pairs, incl. per-type safe checks at 36-43 and per-type attackers /
+	x-ray attackers / contested share / x-ray weight at 44-69), indexed by the KING under
 	examination (0 = White's king, 1 = Black's king): 0-1 attacker COUNT (n_att) · 2-3 weighted attacker sum (w_att) ·
 	4-5 weak zone squares · 6-7 attacks on king-adjacent squares · 8-9 safe-check squares (all four piece channels
 	summed, per-square regardless of KS_V2_CHK_COUNT) · 10-11 the raw unit total from ks_units.

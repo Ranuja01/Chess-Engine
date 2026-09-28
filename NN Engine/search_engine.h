@@ -901,6 +901,12 @@ namespace Config
     // contract -- 1 = on with the cells from env KFL_V2_FILE / KPROT_V2_FILE, 0 = absent, byte-identical.
     inline int KFL_V2 = 0;
     inline int KPROT_V2 = 0;
+    // KS attacker weight per type for the "ours" profile (KS_V2_ATT_PROFILE = 0), in KS units per attacker. Defaults are
+    // the compiled KS_W_OURS {N 31, B 31, R 47, Q 78} = byte-identical; Fit K2 prices them (2026-09-28).
+    inline int KS_V2_W_N = 31;
+    inline int KS_V2_W_B = 31;
+    inline int KS_V2_W_R = 47;
+    inline int KS_V2_W_Q = 78;
 
     // ── gap-audit K2/A8: KING SAFETY'S ENDGAME LEG ───────────────────────────────────────────────
     // KS-A is ONE saturating curve for every phase. 3 of 4 references give king danger two legs -- SF

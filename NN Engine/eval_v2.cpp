@@ -773,12 +773,20 @@ static inline uint64_t v2_king_blockers(const V2Context &c, bool white) noexcept
 struct KsChannels {
 	int  n_att, w_att, weak, adj_sq, n_att_x, w_att_x, adj_inst, unsafe, blockers, flank_att, flank_def, knight_def,
 	     contest_excess, contest_sq, w_att_contest;
+	// Per attacker TYPE (N, B, R, Q), added 2026-09-28 for Fit K2 so the fit can price each type's weight: attackers
+	// of the zone (plain occupancy), the same with x-ray occupancy, and the sum over attackers of 256 x the contested
+	// share of their zone footprint (DEFAWARE's per-attacker factor before the weight is applied).
+	int  att_t[4], att_x_t[4], share_t[4];
 	uint64_t chk_r, chk_q, chk_b, chk_n;       // safe-check squares per type (masks)
 	bool enemy_queen, gate;
 };
 
 static constexpr int KS_W_OURS[7]   = {0, 0, 31, 31, 47, 78, 0};   // -, P, N, B, R, Q, K  (queen-high, ours)
 static constexpr int KS_W_KNIGHT[7] = {0, 0, 81, 52, 44, 10, 0};   // knight-high (SF11)
+// The LIVE "ours" profile: KS_W_OURS unless KS_V2_W_N/B/R/Q override it (Fit K2 prices each type). Statically the
+// shipped values, so a probe called before any engine init reads the real weights, never zeros; v2_c3_init rewrites
+// it from the knobs.
+static int KS_W_LIVE[7] = {0, 0, 31, 31, 47, 78, 0};
 // SF KingFlank: the king's file and its neighbours, 3 files at the edge, 4 inside.
 static constexpr uint64_t KS_FILE_BB(int f) { return 0x0101010101010101ULL << f; }
 
@@ -808,7 +816,7 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	const SideAttacks &def = *defs;
 	ch.blockers = __builtin_popcountll(blk);
 
-	const int *W = Config::KS_V2_ATT_PROFILE ? KS_W_KNIGHT : KS_W_OURS;
+	const int *W = Config::KS_V2_ATT_PROFILE ? KS_W_KNIGHT : KS_W_LIVE;
 
 	// Contest planes (only when needed): per zone square, how many enemy men attack it and how many of ours defend it.
 	const bool want_contest = full || Config::KS_V2_DEFAWARE || Config::KS_V2_CONTEST_EXCESS
@@ -867,6 +875,7 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 			if (a & zone){
 				++ch.n_att;
 				ch.w_att += W[pt];
+				++ch.att_t[i];
 			}
 			if (full || Config::KS_V2_ATT_XRAY || Config::KS_V2_ADJ_INST || Config::KS_V2_DEFAWARE){
 				uint64_t ax = a;
@@ -875,11 +884,13 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 					else if (pt == ROOK) ax = attacks_mask(!white_king, c.occupied ^ c.queens ^ (c.rooks & enemy), sq, pt);
 				}
 				const uint64_t cnt_mask = Config::KS_V2_ATT_XRAY ? ax : a;
-				if (ax & zone){ ++ch.n_att_x; ch.w_att_x += W[pt]; }
+				if (ax & zone){ ++ch.n_att_x; ch.w_att_x += W[pt]; ++ch.att_x_t[i]; }
 				if (cnt_mask & zone){
 					ch.adj_inst += __builtin_popcountll(cnt_mask & ring);
 					const int foot = __builtin_popcountll(cnt_mask & zone);
-					w_contest256 += (long long)W[pt] * 256 * __builtin_popcountll(cnt_mask & zone & contested) / foot;
+					const int hit  = __builtin_popcountll(cnt_mask & zone & contested);
+					w_contest256 += (long long)W[pt] * 256 * hit / foot;
+					ch.share_t[i] += 256 * hit / foot;
 				}
 			}
 		}
@@ -2576,6 +2587,15 @@ void ks_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, ui
 		out[38 + s] = __builtin_popcountll(ch.chk_q);
 		out[40 + s] = __builtin_popcountll(ch.chk_b);
 		out[42 + s] = __builtin_popcountll(ch.chk_n);
+		// Per attacker TYPE (appended 2026-09-28 for Fit K2), pairs from 44: att_n/b/r/q, att_x_n/b/r/q, share_n/b/r/q
+		// (sum of 256 x contested footprint share), then w_att_x. With these, w_att == sum W[t] x att_t exactly, so a
+		// fit can free each type's weight, and the x-ray / defence-aware modes can be fitted from counts alone.
+		for (int t = 0; t < 4; ++t){
+			out[44 + 2 * t + s]      = ch.att_t[t];
+			out[44 + 2 * (4 + t) + s] = ch.att_x_t[t];
+			out[44 + 2 * (8 + t) + s] = ch.share_t[t];
+		}
+		out[44 + 2 * 12 + s] = ch.w_att_x;
 	}
 }
 
@@ -3678,6 +3698,11 @@ static bool c3_load_table(const char *knob, const char *env_name, int k0, int n,
  * separately. */
 void v2_c3_init()
 {
+	// The live attacker-weight profile (Fit K2): the shipped KS_W_OURS unless KS_V2_W_N/B/R/Q override it.
+	KS_W_LIVE[KNIGHT] = Config::KS_V2_W_N;
+	KS_W_LIVE[BISHOP] = Config::KS_V2_W_B;
+	KS_W_LIVE[ROOK]   = Config::KS_V2_W_R;
+	KS_W_LIVE[QUEEN]  = Config::KS_V2_W_Q;
 	g_ksb_on   = Config::KSB_V2   && c3_load_table("KSB_V2", "KSB_V2_FILE", V2F_KSB, KSB_CELLS, ksb_w[0], ksb_w[1]);
 	g_kfl_on   = Config::KFL_V2   && c3_load_table("KFL_V2", "KFL_V2_FILE", V2F_KFL, KFL_CELLS, kfl_w[0], kfl_w[1]);
 	g_kprot_on = Config::KPROT_V2 && c3_load_table("KPROT_V2", "KPROT_V2_FILE", V2F_KPROT, KPROT_CELLS,

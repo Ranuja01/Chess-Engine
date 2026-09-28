@@ -393,3 +393,17 @@ replication + SF18 gauntlet. `sprt_fitK1p` (onset pinned, seed 41, same terms) l
 (55.2%), elo ≈ +36.2 ± 26.4, LLR +3.013** — statistically identical to K1 (+37.1). ⇒ lowering the onset bought nothing
 in games either; **K1p is the candidate** (keeps the owner's threshold rule at equal strength). Next: `fitK1p_rep`,
 fixed 2,000 games, seed 42 (Fit A's replication recipe), then the SF18 gauntlet and variant/odds starts.
+
+## 10. FIT K2 — KS STRUCTURE, gated vs K1p (owner 2026-09-28: "maximise efficiency AND coverage; give everything a fair chance")
+K1p re-priced every CONTINUOUS KS number (unit weights, checks, onset-pinned curve, the ten balance channels). Still
+UNPRICED — each gets its own arm, read against K1p on held-out, then games:
+1. **Attacker weight per type** (N 31 · B 31 · R 47 · Q 78, compile-time until now) → knobs `KS_V2_W_N/B/R/Q` (defaults =
+   byte-identical); the probe now exports zone attackers by type so `w_att = Σ W_t · att_t` is exact.
+2. **Coordination** `KS_V2_COORD` (fixed 256 = product form) → free, jointly with 1.
+3. **Mode arms** (a fit cannot choose a mode; each is its own arm): x-ray attackers (`KS_V2_ATT_XRAY`; exports
+   `att_x_*`, `w_att_x`) · defence-aware attacker weight (`KS_V2_DEFAWARE`; exports `share_*`) · the two-attacker gate
+   (`KS_V2_GATE`) · pin-aware defence (`KS_V2_PIN_DEF` — changes weak/safe sets, needs its own channel pass).
+4. **Fuller defender design** (C2-d: zone squares defended / doubly defended as SUBTRACTIVE channels) — not built.
+5. **Shelter→danger coupling** as ONE scalar `u −= k · shelter` — not built; testable as a fit arm from the C3 cells.
+6. **Definitions** (zone, weak, safe check) — structural; only if 1-5 leave a gap.
+Order: 1+2 (one fit) → 3 (x-ray, defaware from counts; gate cheap) → 5 → 4. Build after `fitK1p_rep` frees the engine.

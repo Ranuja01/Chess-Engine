@@ -118,3 +118,46 @@ KS_V2_ONSET = 450.
    (long-term pressure before attackers arrive), not KS recall.
 5. Caveat: SF11's row includes shelter/storm and pawnless-flank terms that fire WITHOUT attackers; some "misses" are
    SF pricing structure, not tactical danger.
+
+### 6a. ☠️ CORRECTION (same day): the recall study applied the onset TWICE
+`ks_counts` "units" is already `max(0, u − KS_V2_ONSET)` (eval_v2.cpp:836), and the script then required
+`units > 450`. So "caught" meant raw u > 900 (≈1.4 pawns of our danger). The script is fixed: `FIRE=0` = fires at
+all. Re-run:
+
+| | first run (wrong) | **corrected (fires at all)** |
+|---|---|---|
+| recall, all | ~~7.4%~~ | **54.4%** |
+| recall, near-equal | ~~2.8%~~ | **46.5%** |
+| near-equal scores, caught / missed / quiet | ~~0.542 / 0.451~~ | **0.453 / 0.454** / 0.500 |
+
+- ~~Reading 2 "recall is low because of our threshold"~~: **RETRACTED.** KS fires on ~half of the SF-endangered kings.
+- ~~Reading 3's "zone_net ≥ 2 & queen, lift 9.6"~~: an artifact of the wrong threshold; correctly measured, **1.76**.
+- **NEW, load-bearing:** on near-equal positions, whether v2 KS fires does NOT separate outcome (0.453 vs 0.454). Both
+  are ~5pp under quiet kings. The danger is real, but v2 KS does not discriminate it.
+- **The misses are STRUCTURAL**, not tactical:
+  - enemy queen present in only 47% (vs quiet 64%);
+  - separated by shelter ≤ 1 (×2.2), semi-open files ≥ 2 (×3.3), storm (×2.1).
+  - SF11's row prices pawn cover without attackers.
+- ⇒ The recall gap is **shelter/storm (C3-a)** territory. The attack/defence balance redesign is still worth doing,
+  but for PRECISION / DISCRIMINATION (fire where games actually go badly), not recall.
+- Reading 1 (the already-losing confound) and reading 4 (uncommitted kings under-represented, lift 0.36) stand.
+
+**Balance design research returned (Opus, 2026-09-27):**
+- No reference compares attacker vs defender COUNTS per square. Defence enters as binary weak/safe sets (SF, Ethereal)
+  or not at all (Weiss). A numeric balance is OUR concept (v1 `KS_DEFAWARE_MODE` = weight × contested/footprint,
+  shipped inside a +20.8 bundle, UNREADABLE alone; v1 `KS_OVERLOAD` Σmax(0, att−def) was NO-GO additive on v1's
+  channels, which does not transfer).
+- Gaps in our `ks_units` vs SF11:
+  - n_att ignores x-ray, although the maps are x-rayed;
+  - adjacency counts distinct squares, not attack instances;
+  - defender maps are not pin-restricted;
+  - no unsafe-check / blocker / flank channels;
+  - the defence share of u is ~1/3 of SF's (a weak square is worth 57 vs SF 185, against a similar attacker product).
+- Arms:
+  - **A** SF-faithful fixes (x-ray n_att, adjacency instances, unsafe checks, pinned defenders + blockers).
+  - **B** our per-square balance from bit-sliced attack-count planes: B1 Σmax(0, nA − nD), B2 #squares with nA ≥ 2 & nA > nD, B3 = B2 × queen.
+  - **C** subtractive hybrid: defaware-v2 replaces the attacker term + B2.
+  - All channels start at 0 (byte-identical); the onset is refit JOINTLY.
+- Falsifiers: the corrected recall study must show (i) better near-equal DISCRIMINATION (the caught side scores clearly
+  below the missed side), (ii) quiet-king fires within +1pp split by phase (attempt #24 failed on opening over-fire),
+  (iii) channel r with w_att·n_att < 0.8. Then regret and games.

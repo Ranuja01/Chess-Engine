@@ -36,7 +36,9 @@ os.environ.setdefault("PRESET", "LONG_FORMAT")
 os.environ.setdefault("USE_OPENING_BOOK", "0")
 T = float(os.environ.get("T", "1.5"))
 N = int(os.environ.get("N", "0"))
-ONSET = int(os.environ.get("KS_V2_ONSET", "450"))
+# ☠️ ks_counts "units" is ALREADY max(0, u - KS_V2_ONSET) (eval_v2.cpp ks_units). FIRE=0 means "v2 KS fires at all";
+# FIRE=450 reproduces the first (mislabelled) run, which in effect asked for raw u > 900 (~1.4 pawns of danger).
+FIRE = int(os.environ.get("FIRE", "0"))
 
 import chess
 import ChessAI
@@ -122,7 +124,7 @@ for r in rows:
         feats["checks"] = kc["checks"][idx]
         g = None
         if danger_sf:
-            g = "caught" if units > ONSET else "missed"
+            g = "caught" if units > FIRE else "missed"
         elif quiet_sf:
             g = "quiet"
         if g:
@@ -135,7 +137,7 @@ for r in rows:
 keys = ["units", "n_att", "weak", "checks", "shelter", "semi", "open", "storm", "zone_att", "zone_net", "att_pcs",
         "has_q", "committed"]
 nd = len(groups["caught"]) + len(groups["missed"])
-print("KS RECALL vs SF11 king safety  (T = %.2f pawns; %d positions; shipped v2, onset %d units)" % (T, len(rows), ONSET))
+print("KS RECALL vs SF11 king safety  (T = %.2f pawns; %d positions; shipped v2, fires = units past onset > %d)" % (T, len(rows), FIRE))
 print("  SF-endangered kings %d  caught %d  missed %d  => RECALL %.1f%%   (quiet reference kings %d)"
       % (nd, len(groups["caught"]), len(groups["missed"]), 100.0 * len(groups["caught"]) / max(1, nd), len(groups["quiet"])))
 print("  endangered side's game score: caught %.3f  missed %.3f  quiet %.3f  (label check: endangered should score < quiet)"

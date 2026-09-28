@@ -2570,6 +2570,12 @@ void ks_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, ui
 		out[30 + s] = ch.enemy_queen ? 1 : 0;
 		out[32 + s] = ch.w_att_contest;
 		out[34 + s] = ch.gate ? 1 : 0;
+		// Per-type SAFE-CHECK square counts (appended 2026-09-28 for the joint KS fit): out[8] sums the four types,
+		// but the scorer prices each type separately, so a Python reproduction of `units` needs them apart.
+		out[36 + s] = __builtin_popcountll(ch.chk_r);
+		out[38 + s] = __builtin_popcountll(ch.chk_q);
+		out[40 + s] = __builtin_popcountll(ch.chk_b);
+		out[42 + s] = __builtin_popcountll(ch.chk_n);
 	}
 }
 

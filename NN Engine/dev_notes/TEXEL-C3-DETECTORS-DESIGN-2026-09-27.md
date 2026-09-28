@@ -311,3 +311,13 @@ in the critical set → 50 vs 56, and INDUCE dominates ❌.
   `classes_move_g2/transform_critical.csv` (382) and `transform_trap.csv`; count failures that PERSIST at d14 (and
   quote nodes). Then build features 1-5 at 0, the oracle + differential fire check + mirror gate, and add to
   `v2_features` for the joint fit.
+
+### 8b. OWNER CALL (2026-09-27): OvD is NEW, the KS items are KNOWN — fit them NESTED, never only jointly
+The KS items (channels, shelter/storm, KingProtector, pawnless flank) are universal and known to work; OvD is new. A
+failed joint fit must not take the proven block down with it. ⇒ From ONE feature pass, run two fits:
+- **Fit K** = KS block + PST (the proven block) — gated vs shipped; this is what ships first.
+- **Fit K+O** = Fit K + OvD features — gated vs **Fit K**, not vs shipped, so OvD must pay INCREMENTALLY (held-out,
+  then its own SPRT + SF18 read).
+- Collinearity check: if adding OvD shifts the KS weights materially, OvD is taking value from KS rather than adding
+  its own — counts against OvD even when the joint number looks fine.
+If K+O fails, Fit K ships unchanged and OvD returns to design with the result in hand; no redo is needed.

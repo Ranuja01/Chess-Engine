@@ -356,3 +356,14 @@ If K+O fails, Fit K ships unchanged and OvD returns to design with the result in
    `>> 8` truncation) for every block ⇒ NOT vacuous.
 3. `_eval_symmetry.py N=4000 TERMS=1` with all three on: colour swap **0 / 4000**, file mirror **0 / 3170**.
    (Fixed in passing: `v2_phase256` was not in the gate's SKIP_TERMS and would have read as a signed violation.)
+
+**OWNER CALL (2026-09-28): no move test for the built KS detectors — straight to the fit and games.** Rationale: the move
+test's job was to stop C++ being written for concepts with no headroom; here the C++ is built, cheap and verified, and
+the fit + games decide. The move test stays in the plan for OvD (no C++ yet).
+
+**Fit K pipeline (2026-09-28):** `_texel_extract` (fitC → 1,844,613 quiet rows; W 40.6 / D 21.6 / L 37.8) ·
+`_texel_feature_pass` (184/side; C1 blocks close ≤ 4.2 mp) · `_texel_ks_pass.py` (NEW; KS reproduced in Python
+**EXACTLY** on all rows, 275,660 live) · `_texel_engine_pass MODE=zero` · `_texel_k_fit.py` (NEW; nested arms P / PK /
+PKC, KS non-linear with analytic gradients, attacker scale pinned — no engine knob). Smoke (200k rows, feasibility
+only): P −0.005% · PK −0.32% / −0.22% · PKC −0.35% / −0.24% (val_hash / val_block). ⚠️ Smaller than C1's −0.74%, which
+was Elo-null ⇒ games decide, not the held-out number.

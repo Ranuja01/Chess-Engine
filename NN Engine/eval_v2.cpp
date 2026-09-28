@@ -302,6 +302,13 @@ static int    c1_pass[2][2][8];                     // [candidate][leg][relative
 static double c1_kd[2][2];                          // [candidate][them, us]: eg mp per unit of kdist x rank weight
 static int    c1_place[2][9];                       // [leg][outpost N, outpost B, behind, bad bishop x4, trapped rook, weak queen]
 
+// C3-a king shelter + pawn storm (Config::KSB_V2): the cell values, [leg][cell] in millipawns per count, as value to
+// the king's OWN side. Cell layout: see ksb_cells. Filled once by v2_ksb_init(); unread while g_ksb_on is false, which
+// keeps the shipped path byte-identical (the detector is not even run).
+static constexpr int KSB_CELLS = 56;                // shelter 4 file classes x 6 states + storm 4 x 8
+static bool   g_ksb_on = false;
+static int    ksb_w[2][KSB_CELLS];
+
 static constexpr int V2_PST_VALUES = 6 * 2 * 64;
 
 /*
@@ -3138,6 +3145,108 @@ static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
 	See the file header for the output and purity contract. Rung selection is Config::EVAL_V2_RUNG; rungs
 	are cumulative, so a rung adds to everything below it rather than replacing it.
 */
+/* ═══ C3-a: KING SHELTER + PAWN STORM (KS-B) ═══════════════════════════════════════════════════════════════════════
+ * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3 (cells) and §8 (ownership: storm-against-a-king lives
+ * HERE, never in OvD, which is king-free).
+ *
+ * WHAT: for one king, the pawns of a 3-file window in front of it, as one-hot CELLS -- a direct score, separate from
+ * ks_units. Per file of the window (centre clamped to b..g, so an edge king still gets three files):
+ *   shelter = our pawn NEAREST the king at or ahead of its rank, as the rank gap d:
+ *             beside (d 0) · 1 · 2 · 3 · >= 4 · lever-attacked (any d; an enemy pawn attacks it)
+ *   storm   = their pawn NEAREST the king at or ahead of its rank, as the rank gap d:
+ *             unblocked d <= 1 · 2 · 3 · 4 · >= 5 · blocked (our pawn directly in front of it) d <= 2 · 3 · >= 4
+ *   "no pawn" is the reference state and has no cell (pinned to 0).
+ * Cell = shelter F*6 + state (0..23), storm 24 + F*8 + state (24..55), F = min(file, 7 - file). Value is to the king's
+ * OWN side, so a good shelter is a positive cell value.
+ *
+ * WHY: 5/5 references have shelter and 4/5 a storm, every one of them as a king-safety component beside the king
+ * (SF11 pawns.cpp:186-215, SF15.1 pawns.cpp:236-260, Ethereal evaluateKingsPawns). v2 had neither -- the recall study
+ * (§6a) found KS misses are structural: shelter <= 1 (x2.2), >= 2 semi-open files (x3.3), storm (x2.1).
+ * Divergences chosen here, each for the mirror gate or the fit: the file index is the edge-distance CLASS (Ethereal's
+ * absolute file would fail our file-mirror gate); an attacked shelter pawn is its OWN state rather than silently
+ * dropped (SF15.1 drops it); the cells are left free for the Texel fit rather than hand-set.
+ *
+ * Gating: the whole term, detector included, runs only when g_ksb_on (Config::KSB_V2 = 1 with a loaded
+ * KSB_V2_FILE); otherwise byte-identical. v2_features reports the cells UNCONDITIONALLY, which is what the fit reads.
+ * Cost: 3 files x two masked bit-scans per king; pawn- and king-only, so a future pawn-king cache could hold it.
+ *
+ * @param own, enemy  the king's side's pawns and the other side's pawns
+ * @param white       the king's colour
+ * @param ksq         the king square (or a castling target square, for the castling max)
+ * @param cells       output, room for 6
+ * @return            the number of cells written
+ */
+[[nodiscard]] static inline int ksb_cells(uint64_t own, uint64_t enemy, bool white, int ksq, int *cells) noexcept
+{
+	const int kf = ksq & 7;
+	const int krank = ksq >> 3;
+	const int kr = white ? krank : 7 - krank;                         // relative rank, 0 = own back rank
+	const int centre = kf < 1 ? 1 : (kf > 6 ? 6 : kf);
+	const uint64_t eatt  = white ? ps_batt(enemy) : ps_watt(enemy);
+	// Ranks at or AHEAD of the king, from its own side's view.
+	const uint64_t ahead = white ? (~0ULL << (8 * krank)) : (~0ULL >> (8 * (7 - krank)));
+	int n = 0;
+	for (int f = centre - 1; f <= centre + 1; ++f){
+		const int F = f < 7 - f ? f : 7 - f;
+		const uint64_t fm = BB_FILE_A << f;
+		const uint64_t o = own & fm & ahead, t = enemy & fm & ahead;
+		int orr = -1;
+		if (o){
+			// Nearest to our king: the LOWEST square for White, the HIGHEST for Black (one file, so rank order).
+			const int sq = white ? __builtin_ctzll(o) : 63 - __builtin_clzll(o);
+			orr = white ? (sq >> 3) : 7 - (sq >> 3);
+			const int d = orr - kr;
+			const int st = ((eatt >> sq) & 1) ? 5 : (d >= 4 ? 4 : d);
+			cells[n++] = F * 6 + st;
+		}
+		if (t){
+			const int sq = white ? __builtin_ctzll(t) : 63 - __builtin_clzll(t);
+			const int trr = white ? (sq >> 3) : 7 - (sq >> 3);
+			const int d = trr - kr;
+			int st;
+			if (orr >= 0 && orr == trr - 1) st = d <= 2 ? 5 : (d == 3 ? 6 : 7);     // blocked (rammed)
+			else                            st = d <= 1 ? 0 : (d >= 5 ? 4 : d - 1);  // unblocked
+			cells[n++] = 24 + F * 8 + st;
+		}
+	}
+	return n;
+}
+
+/* One side's shelter + storm legs at one king square, (mg, eg) millipawns, value to that side. */
+static inline void ksb_legs(uint64_t own, uint64_t enemy, bool white, int ksq, int &mg, int &eg) noexcept
+{
+	int cells[6];
+	const int n = ksb_cells(own, enemy, white, ksq, cells);
+	mg = eg = 0;
+	for (int i = 0; i < n; ++i){ mg += ksb_w[0][cells[i]]; eg += ksb_w[1][cells[i]]; }
+}
+
+/* One side's shelter + storm, (mg, eg) legs at the square it is scored at. With KSB_V2_CASTLE = 1 a king that still has
+ * a castling right is scored at the BEST of its square and the castling targets it may still reach (SF11
+ * pawns.cpp:233-237 takes the max by mg; here the max is by the phase-blended value, since v2 blends per term).
+ * ⚠️ The feature extractor reports the ACTUAL square only, so it flags mode 1 as unmodelled (flag 4). */
+static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) noexcept
+{
+	const uint64_t kb = c.kings & (white ? c.white : c.black);
+	mg = eg = 0;
+	if (!kb) return;
+	const int ksq = __builtin_ctzll(kb);
+	const uint64_t own = c.pawns & (white ? c.white : c.black), enemy = c.pawns & (white ? c.black : c.white);
+	ksb_legs(own, enemy, white, ksq, mg, eg);
+	if (Config::KSB_V2_CASTLE == 0) return;
+	const int back = white ? 0 : 56;
+	const bool ks = (c.castling_rights >> (back + 7)) & 1, qs = (c.castling_rights >> back) & 1;
+	if (!ks && !qs) return;
+	int best = (mg * c.phase256 + eg * (256 - c.phase256)) >> 8;
+	for (int k = 0; k < 2; ++k){
+		if (!(k == 0 ? ks : qs)) continue;
+		int m2, e2;
+		ksb_legs(own, enemy, white, back + (k == 0 ? 6 : 2), m2, e2);
+		const int v = (m2 * c.phase256 + e2 * (256 - c.phase256)) >> 8;
+		if (v > best){ best = v; mg = m2; eg = e2; }
+	}
+}
+
 /* TEXEL FIT C1 feature extractor -- see eval_v2.h for the layout. Diagnostic only, never called from search.
  *
  * ★ It reuses the engine's own DETECTORS (build_pawn_entry, mobility_build, placement_detect) and re-derives only
@@ -3148,7 +3257,9 @@ static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
  */
 static constexpr int V2F_MOB = 0, V2F_DOUBLED = 66, V2F_ISO = 67, V2F_BACKWARD = 75, V2F_WU = 76,
                      V2F_PASSED = 77, V2F_CAND = 85, V2F_KD = 93, V2F_OUT_N = 97, V2F_OUT_B = 98,
-                     V2F_BEHIND = 99, V2F_BADB = 100, V2F_TRAPR = 104, V2F_WEAKQ = 105;
+                     V2F_BEHIND = 99, V2F_BADB = 100, V2F_TRAPR = 104, V2F_WEAKQ = 105,
+                     V2F_C1_END = 106, V2F_KSB = 106;
+static_assert(V2F_KSB + KSB_CELLS == V2F_PER_SIDE, "v2_features layout: C3-a cells must end the per-side block");
 static constexpr int V2F_MOB_BASE[4] = {0, 9, 23, 38};   // offsets of N / B / R / Q move-count cells
 
 void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
@@ -3166,7 +3277,7 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 	// Knobs whose terms this extractor does not decompose: a live one would leave its value in the "fixed" part.
 	if (Config::OUTPOST_V2_FORM != 0 || Config::BADB_V2_FORM != 1 || Config::TRAPROOK_V2_FORM != 0
 	    || Config::MOB_V2_SAFE || Config::REACH_V2_PCT || Config::LONGDIAG_V2_PCT || Config::LATENT_V2_PCT
-	    || Config::PASSER_V2_PATH_PCT || Config::PS_V2_CONN_MAG) flags |= 4;
+	    || Config::PASSER_V2_PATH_PCT || Config::PS_V2_CONN_MAG || (g_ksb_on && Config::KSB_V2_CASTLE)) flags |= 4;
 	out[2 * V2F_PER_SIDE] = flags;
 
 	// Mobility: the same area, pin restriction and x-ray occupancy the scorer's attack build uses.
@@ -3243,6 +3354,17 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 		o[V2F_TRAPR] = pc.traprook_units[s];
 		o[V2F_WEAKQ] = pc.weakq[s];
 	}
+
+	// C3-a shelter + storm cells at the king's ACTUAL square, unconditional (reported whether or not KSB_V2 is on).
+	for (int s = 0; s < 2; ++s){
+		const bool white = (s == 0);
+		const uint64_t kb = c.kings & (white ? c.white : c.black);
+		if (!kb) continue;
+		int cells[6];
+		const int n = ksb_cells(c.pawns & (white ? c.white : c.black), c.pawns & (white ? c.black : c.white), white,
+		                        __builtin_ctzll(kb), cells);
+		for (int i = 0; i < n; ++i) ++out[s * V2F_PER_SIDE + V2F_KSB + cells[i]];
+	}
 }
 
 /* Starting value of every C1 parameter, (mg, eg) millipawns per unit of its count, from the live Config: the
@@ -3250,6 +3372,9 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 void v2_features_theta(double *mg, double *eg)
 {
 	for (int k = 0; k < V2F_PER_SIDE; ++k) mg[k] = eg[k] = 0.0;
+	// C3-a cells: the loaded values when the term is on, else 0 (the term is absent, so its value IS 0).
+	if (g_ksb_on)
+		for (int i = 0; i < KSB_CELLS; ++i){ mg[V2F_KSB + i] = ksb_w[0][i]; eg[V2F_KSB + i] = ksb_w[1][i]; }
 	if (g_c1_fit){
 		// The ACTIVE fitted values, so a pass under C1_V2_FIT=1 checks the engine against the fitted model (closure).
 		for (int i = 0; i < 4; ++i)
@@ -3345,7 +3470,9 @@ void v2_c1_init()
 	while (std::getline(in, line)){
 		if (line.empty() || line[0] == '#') continue;
 		int k, leg; double start, fitted;
-		if (std::sscanf(line.c_str(), "%d %d %lf %lf", &k, &leg, &start, &fitted) != 4 || k < 0 || k >= V2F_PER_SIDE
+		// ☠️ k is bounded by the C1 range, not V2F_PER_SIDE: the C3-a cells after it have their own loader, and
+		// accepting them here would read as loaded while changing nothing.
+		if (std::sscanf(line.c_str(), "%d %d %lf %lf", &k, &leg, &start, &fitted) != 4 || k < 0 || k >= V2F_C1_END
 		    || leg < 0 || leg > 1){
 			std::cerr << "☠️ C1_V2_FILE malformed line '" << line << "' -- fit stays OFF." << std::endl;
 			return;
@@ -3376,6 +3503,45 @@ void v2_c1_init()
 	c1_kd[1][0] = eg[V2F_KD + 2]; c1_kd[1][1] = eg[V2F_KD + 3];
 	g_c1_fit = true;
 	std::cerr << "[c1] Texel C1 fit ON: " << n_set << " values from " << path << std::endl;
+}
+
+/* Load the C3-a shelter + storm cell values (Config::KSB_V2 = 1, env KSB_V2_FILE). Same line format as C1_V2_FILE --
+ * `feature_k leg start fitted`, k in the v2_features index space (V2F_KSB .. V2F_KSB + 55) -- so one fitter output
+ * serves both loaders. Cells a file does not name stay 0 (the reference). A missing or malformed file is reported and
+ * the term stays OFF: the engine never runs on a half-loaded table. */
+void v2_ksb_init()
+{
+	g_ksb_on = false;
+	for (int leg = 0; leg < 2; ++leg) for (int i = 0; i < KSB_CELLS; ++i) ksb_w[leg][i] = 0;
+	if (Config::KSB_V2 == 0) return;
+	const char *path = std::getenv("KSB_V2_FILE");
+	if (!path || !*path){
+		std::cerr << "☠️ KSB_V2=1 needs KSB_V2_FILE -- shelter/storm stays OFF." << '\n';
+		return;
+	}
+	std::ifstream in(path);
+	if (!in){
+		std::cerr << "☠️ KSB_V2_FILE=" << path << " cannot be opened -- shelter/storm stays OFF." << '\n';
+		return;
+	}
+	int w[2][KSB_CELLS] = {};
+	std::string line;
+	int n_set = 0;
+	while (std::getline(in, line)){
+		if (line.empty() || line[0] == '#') continue;
+		int k, leg; double start, fitted;
+		if (std::sscanf(line.c_str(), "%d %d %lf %lf", &k, &leg, &start, &fitted) != 4 || k < V2F_KSB
+		    || k >= V2F_KSB + KSB_CELLS || leg < 0 || leg > 1){
+			std::cerr << "☠️ KSB_V2_FILE malformed line '" << line << "' -- shelter/storm stays OFF." << '\n';
+			return;
+		}
+		w[leg][k - V2F_KSB] = (int)std::lround(fitted);
+		++n_set;
+	}
+	for (int leg = 0; leg < 2; ++leg) for (int i = 0; i < KSB_CELLS; ++i) ksb_w[leg][i] = w[leg][i];
+	g_ksb_on = true;
+	std::cerr << "[ksb] shelter/storm ON: " << n_set << " values from " << path
+	          << (Config::KSB_V2_CASTLE ? " (castling max)" : "") << '\n';
 }
 
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)
@@ -3595,6 +3761,21 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		else           total += ps_mp + pp_mp + rf_mp + pl_mp;
 	}
 
+	// ── C3-a: king shelter + pawn storm (KS-B) ───────────────────────────────────────────────────────
+	// A direct score beside KS-A, not a feeder into its units (a shelter->danger coupling is a separate, later test
+	// as ONE scalar). Gated on g_ksb_on (KSB_V2 = 1 with a loaded table), so off = absent = byte-identical.
+	// Each side's legs are that side's value; Black-positive, so Black's is added and White's subtracted. The blend is
+	// per side, as KS-A's is, so the colour mirror sees the same truncation on both sides.
+	int ksb_mp = 0;
+	if (g_ksb_on){
+		int wmg, weg, bmg, beg;
+		ksb_side(c, true,  wmg, weg);
+		ksb_side(c, false, bmg, beg);
+		ksb_mp = ((bmg * c.phase256 + beg * (256 - c.phase256)) >> 8)
+		       - ((wmg * c.phase256 + weg * (256 - c.phase256)) >> 8);
+		if (pair_mode){ acc.mg += bmg - wmg; acc.eg += beg - weg; } else total += ksb_mp;
+	}
+
 	// ── slice 1 / component 1: tempo ─────────────────────────────────
 	// A bonus for simply being the side to move. This is the ONLY place in v2 that reads c.turn, which is
 	// what makes its gate an exact identity rather than a statistic: with v2 otherwise side-to-move-blind,
@@ -3704,6 +3885,10 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		if (Config::KAUF_V2_MAG > 0){
 			g_eval_breakdown.kaufman_imbalance = kauf_mp_v;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_KAUFMAN_IMBALANCE);
+		}
+		if (g_ksb_on){
+			g_eval_breakdown.v2_shelter = ksb_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_SHELTER);
 		}
 	}
 

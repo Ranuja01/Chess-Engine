@@ -44,11 +44,14 @@ void v2_pst_init();
 	Parameter k order: mobility 0..65 (N 0-8, B 9-22, R 23-37, Q 38-65 by move count) · doubled 66 · isolated per
 	file 67-74 · backward 75 · weak-unopposed 76 · passed by relative rank 77-84 · candidate by rank 85-92 ·
 	passer king terms 93-96 (passed: sum kdist_them*w, sum kdist_us*w; candidate: same) · outpost N 97 ·
-	outpost B 98 · behind 99 · bad-bishop file classes 100-103 · trapped-rook units 104 · weak queen 105.
+	outpost B 98 · behind 99 · bad-bishop file classes 100-103 · trapped-rook units 104 · weak queen 105 ·
+	C3-a king shelter cells 106-129 (file class F x 6 states) and pawn storm cells 130-161 (F x 8 states), counted at
+	the king's actual square whether or not KSB_V2 is on (layout: ksb_cells in eval_v2.cpp).
 	v2_features_theta writes each parameter's STARTING value (mg, eg) in millipawns from the live Config, so every
 	unit conversion stays here in C++. Blocks: see diagnostics/_texel_feature_pass.py.
+	☠️ ChessAI.pyx hard-codes V2F_PER_SIDE and the 2*V2F_PER_SIDE+1 buffer size; change them together.
 */
-constexpr int V2F_PER_SIDE = 106;
+constexpr int V2F_PER_SIDE = 162;
 void v2_features(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
                  uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights,
                  long long *out);
@@ -56,6 +59,9 @@ void v2_features_theta(double *mg, double *eg);
 
 /* Load Texel C1 fitted values (Config::C1_V2_FIT, env C1_V2_FILE) once at engine init, after every v2 knob. */
 void v2_c1_init();
+
+/* Load the C3-a king shelter + pawn storm cell values (Config::KSB_V2, env KSB_V2_FILE) once at engine init. */
+void v2_ksb_init();
 
 /*
 	SHADOW-arm instrumentation (Config::EVAL_ARM == 2 only). v1's value is what search uses; these record

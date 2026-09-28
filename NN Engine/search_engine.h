@@ -889,6 +889,15 @@ namespace Config
     inline int KS_V2_CONTEST_SQ = 0;     // OURS: zone squares with >= 2 attackers that outnumber the defence
     inline int KS_V2_CONTEST_SQ_Q = 0;   // OURS: the same, only while the enemy queen is on the board
 
+    // ── C3-a KING SHELTER + PAWN STORM (KS-B) (2026-09-27; design: TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3, §8) ──
+    // A direct score per king from 56 one-hot cells (eval_v2.cpp ksb_cells), priced by the joint KS fit. 1 = on with
+    // the cell values loaded from env KSB_V2_FILE (fitter output, same line format as C1_V2_FILE); a missing or
+    // malformed file leaves it OFF with a message. 0 = absent, detector not run, byte-identical.
+    inline int KSB_V2 = 0;
+    // 1 = a king that still has a castling right is scored at the best of its square and its castling targets (SF11
+    // pawns.cpp:233-237). ⚠️ The feature extractor models the actual square only and flags this mode (flag 4).
+    inline int KSB_V2_CASTLE = 0;
+
     // ── gap-audit K2/A8: KING SAFETY'S ENDGAME LEG ───────────────────────────────────────────────
     // KS-A is ONE saturating curve for every phase. 3 of 4 references give king danger two legs -- SF
     // uses S(kD^2/4096, kD/16): quadratic in the midgame, LINEAR and far smaller in the endgame -- because

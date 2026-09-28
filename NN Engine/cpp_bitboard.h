@@ -550,6 +550,7 @@ struct EvalBreakdown {
 	int v2_rookfile;   // eval_v2 rookfile_mp -- open / semi-open file bonuses (NOT v1's rook_cond rescale)
 	int v2_phase256;   // eval_v2 taper: 256 = OPENING, 0 = ENDGAME. ☠️ v1's `phase_score` is the INVERSE on a
 	                   // 0-128 scale (0 = opening). Convert, never alias: v1_equiv = 128*(256-v2)/256.
+	int v2_shelter;    // eval_v2 C3-a king shelter + pawn storm (KSB_V2), Black-positive. Appended 2026-09-27.
 };
 
 // Bit index per EvalBreakdown field, in the SAME ORDER as ChessAI.ev_breakdown builds its dict.
@@ -582,6 +583,7 @@ enum EvalBreakdownBit {
 	// endgame. OPPOSITE POLARITY AND DOUBLE SCALE -- writing one into the other would invert every
 	// phase-conditioned read in a corpus and look entirely plausible while doing it (2026-09-20).
 	EB_V2_PHASE256,
+	EB_V2_SHELTER,     // appended 2026-09-27 (C3-a); v2-only, masked out of EB_ALL below
 	EB_NUM_FIELDS
 };
 // ☠️ EB_ALL IS "EVERYTHING v1 WRITES", NOT "EVERY BIT". v1 sets this wholesale (cpp_bitboard.cpp:8784), so a
@@ -591,7 +593,8 @@ enum EvalBreakdownBit {
 static constexpr uint64_t EB_V2_ONLY = (1ULL << EB_V2_PASSERS)
                                      | (1ULL << EB_V2_PLACEMENT)
                                      | (1ULL << EB_V2_ROOKFILE)
-                                     | (1ULL << EB_V2_PHASE256);
+                                     | (1ULL << EB_V2_PHASE256)
+                                     | (1ULL << EB_V2_SHELTER);
 static constexpr uint64_t EB_ALL = ~0ULL & ~EB_V2_ONLY;
 
 extern EvalBreakdown g_eval_breakdown;

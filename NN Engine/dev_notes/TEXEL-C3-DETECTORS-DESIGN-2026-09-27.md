@@ -321,3 +321,19 @@ failed joint fit must not take the proven block down with it. ⇒ From ONE featu
 - Collinearity check: if adding OvD shifts the KS weights materially, OvD is taking value from KS rather than adding
   its own — counts against OvD even when the joint number looks fine.
 If K+O fails, Fit K ships unchanged and OvD returns to design with the result in hand; no redo is needed.
+
+## 9. BUILD LOG
+**C3-a shelter + storm — BUILT 2026-09-27 night, at 0 (compile-only; the fitC run held the cores).**
+- Engine: `ksb_cells` / `ksb_side` in `eval_v2.cpp`; knobs `KSB_V2` (1 = on with `KSB_V2_FILE`, same line format as
+  `C1_V2_FILE`, k = 106..161) and `KSB_V2_CASTLE` (SF castling max, by blended value; the extractor flags it as
+  unmodelled). Published as `ev_breakdown["v2_shelter"]` (new v2-only bit `EB_V2_SHELTER`, masked out of `EB_ALL`).
+- Features: `v2_features` widened 106 → **162 per side**; cells 106-129 shelter (F × 6), 130-161 storm (F × 8), counted
+  at the actual king square UNCONDITIONALLY. `ChessAI.pyx` buffers resized; `_texel_feature_pass.py` has a
+  `v2_shelter` block; `_texel_c1_fit.py` no longer assumes 106 columns; the C1 loader now REJECTS k ≥ 106.
+- ✅ **Oracle PASS** (`diagnostics/_ksb_oracle.py`, no engine instance): 3/3 hand rows · **0 mismatches** vs an
+  independent per-square python-chess implementation on 17,856 positions (game_regret_set + variant + odds) ·
+  colour mirror 0 · file mirror 0 · all 56 cells fire (thinnest: b/g blocked ≤2, 193 positions).
+- ⏳ **Pending (needs an engine instance, after fitC finishes):** (1) WAC fingerprints byte-identical at defaults
+  (v1 `250 / 35,310,778 / 3.784`, v2 shipped `249 / 53,405,821 / 3.973`); (2) DIFFERENTIAL fire check + feature-pass
+  CLOSURE with the synthetic non-zero table `E:/chess_data/texel/ksb_test_table.txt` (`KSB_V2=1 KSB_V2_FILE=…`) — the
+  default-off closure is VACUOUS; (3) `_eval_symmetry.py` colour gate with the table on; (4) pair-mode bound.

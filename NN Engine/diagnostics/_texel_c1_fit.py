@@ -125,7 +125,8 @@ def main():
     vals = D[ii, kk]
     r_l, c_l, v_l = [], [], []
     for leg, wl in ((0, wmg), (1, 1.0 - wmg)):
-        cols = np.array([PMAP.get((k, leg), -1) for k in range(106)])[kk]
+        # Sized from the pass, not 106: columns past the C1 range (C3-a cells, 2026-09-27) map to -1 and stay in `fixed`.
+        cols = np.array([PMAP.get((k, leg), -1) for k in range(D.shape[1])])[kk]
         m = cols >= 0
         r_l.append(ii[m]); c_l.append(cols[m]); v_l.append(vals[m] * wl[ii[m]])
     Xc = sp.csr_matrix((np.concatenate(v_l), (np.concatenate(r_l), np.concatenate(c_l))), shape=(len(st), NP))

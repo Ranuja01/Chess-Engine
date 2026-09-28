@@ -73,18 +73,23 @@ def job_alive():
 
 
 def pst_mode():
-    """PST_V2_TAPERED as echoed by the newest game's engine (the frozen-engine sanity check)."""
+    """PST_V2_TAPERED as echoed by the newest game's engine (the frozen-engine sanity check).
+    An in-progress game's stderr can exist before the engine has echoed its knobs, so a file without the echo is
+    skipped rather than reported (09-27: that race printed a false "not echoed" on a run that was PST=2 throughout)."""
     g = last_game_id()
-    for gid in (g + 1, g, g - 1):
+    seen = False
+    for gid in (g + 1, g, g - 1, g - 2):
         p = os.path.join(RUN_DIR, "game_%d" % gid, "white.stderr")
         try:
             with open(p, errors="replace") as f:
                 txt = f.read()
         except OSError:
             continue
+        seen = True
         i = txt.find("PST_V2_TAPERED=")
-        return txt[i:i + 16].split()[0] if i >= 0 else "not echoed"
-    return "no stderr found"
+        if i >= 0:
+            return txt[i:i + 16].split()[0]
+    return "not echoed" if seen else "no stderr found"
 
 
 rows = games_done()

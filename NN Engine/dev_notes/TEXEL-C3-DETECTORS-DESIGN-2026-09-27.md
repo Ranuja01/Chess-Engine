@@ -162,6 +162,46 @@ all. Re-run:
   below the missed side), (ii) quiet-king fires within +1pp split by phase (attempt #24 failed on opening over-fire),
   (iii) channel r with w_att·n_att < 0.8. Then regret and games.
 
+### 6b. CHANNEL SCREEN on near-equal kings (2026-09-27 evening, `_ks_recall_study.py` section 2)
+32,250 near-equal kings (1,296 SF-endangered, 13,016 quiet). Section 1 reproduces 54.4 / 46.5 / 0.453 vs 0.454.
+Split = endangered median; hi/lo SE ≈ 0.028; r over all near-equal kings (1/√n ≈ 0.006, ~0.008 with kings paired).
+
+| channel | s_hi | s_lo | r | r\|u | quiet fire early/mid/late (endangered) | r_wn |
+|---|---|---|---|---|---|---|
+| units (shipped KS) | 0.453 | 0.454 | −0.014 | — | 1/1/1 (51/55/30) | 0.50 |
+| n_att | 0.471 | 0.427 | −0.025 | −0.022 | 11/15/12 | 0.88 |
+| w_att | 0.450 | 0.464 | −0.024 | −0.020 | 18/19/10 | 0.90 |
+| weak | 0.450 | 0.459 | −0.017 | −0.014 | 1/8/35 | 0.29 |
+| adj | 0.440 | 0.473 | −0.019 | −0.016 | 0/5/26 | 0.43 |
+| checks | 0.455 | 0.450 | −0.025 | −0.023 | 4/7/20 | 0.09 |
+| n_att_x | 0.469 | 0.428 | −0.025 | −0.022 | 12/16/12 | 0.87 |
+| adj_inst | 0.452 | 0.455 | −0.022 | −0.018 | 1/4/15 | 0.53 |
+| unsafe | 0.456 | 0.452 | −0.012 | −0.011 | 19/31/34 | 0.28 |
+| blockers | 0.493 | 0.445 | −0.005 | −0.004 | 8/8/7 | 0.21 |
+| **flank_att** | **0.437** | **0.477** | **−0.044** | **−0.042** | 26/17/8 (74/67/37) | 0.46 |
+| **flank_def** | **0.475** | **0.432** | +0.009 | +0.008 | 98/72/19 | −0.06 |
+| knight_def | 0.467 | 0.446 | −0.019 | −0.020 | 85/52/25 | −0.07 |
+| contest_excess | 0.455 | 0.452 | −0.021 | −0.018 | 1/9/35 | 0.36 |
+| contest_sq | 0.464 | 0.447 | −0.026 | −0.023 | **2/5/10** (35/43/42) | 0.35 |
+| w_att_contest | 0.442 | 0.466 | −0.019 | −0.015 | 2/7/17 | 0.52 |
+| gate | 0.458 | 0.430 | −0.020 | −0.018 | 54/32/13 | 0.57 |
+
+**Reading:**
+- ☠️ **This instrument cannot rank the channels.** Even the shipped KS total reads r = −0.014 against the result. The
+  whole SF-danger effect on near-equal positions is ~0.047, so a perfect split would be worth only ~2σ here. Every
+  channel sits at |r| 0.01–0.04, and their differences are 1–2σ.
+- The only standout is the **flank pair**: `flank_att` has r|u −0.042 (~5σ) and a −0.040 split, and `flank_def` has
+  a +0.043 split in the defending direction. That is SF's kingFlankAttacks/Defense pair, and it measures region
+  control rather than ring contact.
+- **Precision:** `contest_sq` is the cleanest firer (quiet 2/5/10% vs endangered 35–43%). `weak`, `adj`,
+  `contest_excess` and `unsafe` over-fire on LATE quiet kings (26–35%), which is the phase risk to control for in
+  the fit. `n_att`, `n_att_x` and `w_att` are collinear with w·n (≥ 0.87), as expected; `adj_inst` is not (0.53).
+- **Registered predictions, scored 1 of 4:** contest separation (wrong, reversed split), `knight_def` positive
+  (wrong, −0.019; it fires mostly in the opening), unsafe/blockers null (right), `adj_inst` collinear (wrong).
+- **Decision:** arm C screened on this instrument would be equally unreadable, so it is NOT run here. Every channel
+  goes into the **joint KS fit** (millions of rows, where r ≈ 0.02 is resolvable), then the move test and games. The
+  flank pair is the prior favourite; this is a hypothesis, not a verdict.
+
 ## 7. DECISIONS AND OPEN DISCUSSIONS (as of 2026-09-27, context handoff)
 **Decided with the owner:**
 - **Order:**
@@ -196,7 +236,10 @@ all. Re-run:
 - weights `KS_V2_ADJ_INST`, `KS_V2_UNSAFE`, `KS_V2_BLOCKERS`, `KS_V2_FLANK_ATT`, `KS_V2_FLANK_ATT2`,
   `KS_V2_FLANK_DEF`, `KS_V2_KNIGHT_DEF`, `KS_V2_CONTEST_EXCESS`, `KS_V2_CONTEST_SQ`, `KS_V2_CONTEST_SQ_Q`.
 
-**NEXT concrete step:** extend `_ks_recall_study.py` to read the new `ks_counts` keys. For each channel on NEAR-EQUAL
-positions, does it separate outcome among SF-endangered kings, and does it stay quiet on quiet kings (by phase)?
-Then try arm C (DEFAWARE + CONTEST_SQ) at plausible weights, then the joint KS fit (KS reproduced exactly in Python
-from the channels, onset/curve refit jointly).
+**Channel screen DONE (§6b):** the per-channel game-outcome screen cannot rank the channels; the flank pair stands
+out. All channels go to the joint fit.
+
+**NEXT concrete step:** item 2 of the order, the **OvD design discussion WITH the owner**. Then build the
+shelter/storm, KingProtector and pawnless-flank detectors at 0 (move test first). Then the joint KS fit: KS
+reproduced exactly in Python from the channels, onset/curve refit jointly, phase over-fire of weak/adj/contest_excess
+controlled, fed by `fitC_std_d6` plus the variant data.

@@ -20,10 +20,22 @@ FEATURES (python-chess, per endangered king; pure functions of the board):
   att_pcs   distinct enemy non-pawn pieces attacking the zone; has_q enemy queen on board
   status    committed (castling rights gone or king off its home square) vs uncommitted
 
+BALANCE CHANNELS (2026-09-27, section 2). Every ks_counts channel (raw, unconditional counts -- only `units` is post-
+onset and knob-dependent) is judged on NEAR-EQUAL kings against the three C3 criteria:
+  (i)   among SF-endangered kings, does a high value separate the game score (hi vs lo, split at the endangered median)?
+        And over ALL near-equal kings, does it correlate with the score -- and still after partialling out `units`?
+  (ii)  does it stay quiet on quiet kings, by phase (non-pawn material N3 B3 R5 Q9, both sides: early >= 50, mid 26-49,
+        late < 25)? Fire = at or above the endangered median.
+  (iii) r with w_att*n_att < 0.8 (otherwise it is the attack term again).
+Arms (e.g. KS_V2_DEFAWARE=1 KS_V2_CONTEST_SQ=...) are read from the recall/score lines of section 1, which use `units`.
+
   pyrun diagnostics/_ks_recall_study.py [T=1.5] [N=0] V2_PRESET=shipped
 """
 import os, sys, csv
 from collections import defaultdict
+
+# The engine's toggles dump goes to stderr at exit; a block-buffered stdout interleaves with it and loses table rows.
+sys.stdout.reconfigure(line_buffering=True)
 
 for _a in sys.argv[1:]:
     if '=' in _a:
@@ -96,7 +108,18 @@ def king_features(b, white):
             "committed": int(committed)}
 
 
+CHANNELS = ["units", "n_att", "w_att", "weak", "adj", "checks", "n_att_x", "adj_inst", "unsafe", "blockers", "flank_att",
+            "flank_def", "knight_def", "contest_excess", "contest_sq", "enemy_queen", "w_att_contest", "gate"]
+NPM = {chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+
+
+def phase_bucket(b):
+    npm = sum(v * len(b.pieces(pt, c)) for pt, v in NPM.items() for c in (chess.WHITE, chess.BLACK))
+    return "early" if npm >= 50 else ("mid" if npm >= 26 else "late")
+
+
 groups = defaultdict(list)       # 'caught' / 'missed' / 'quiet' -> list of (features, units, side_score)
+near_eq = []                     # every near-equal king: (channels dict, side_score, sf_danger, phase, group)
 rows = list(csv.DictReader(open(os.path.join(ENGINE, "selfplay", "tune_data", "cond_corpus_v2.csv"))))
 if N:
     rows = rows[:N]
@@ -111,7 +134,16 @@ for r in rows:
         continue
     kc = ChessAI.ks_counts(b.pawns, b.knights, b.bishops, b.rooks, b.queens, b.kings,
                            b.occupied_co[chess.WHITE], b.occupied_co[chess.BLACK])
+    is_eq = r.get("status") == "near_equal"
+    ph = phase_bucket(b) if is_eq else None
     for white in (True, False):
+        if is_eq:
+            i = 0 if white else 1
+            ch = {k: kc[k][i] for k in CHANNELS}
+            ch["wn"] = kc["w_att"][i] * kc["n_att"][i]
+            sfd = -sfks if white else sfks          # SF11's danger to THIS king, pawns (positive = endangered)
+            grp = "end" if sfd >= T else ("quiet" if abs(sfks) < 0.25 else "other")
+            near_eq.append((ch, res_w if white else 1.0 - res_w, sfd, ph, grp))
         idx = 0 if white else 1
         danger_sf = (sfks <= -T) if white else (sfks >= T)
         quiet_sf = abs(sfks) < 0.25
@@ -165,3 +197,63 @@ for name, fn in conds.items():
     q = sum(fn(f) for f, _ in groups["quiet"]) / max(1, len(groups["quiet"]))
     c = sum(fn(f) for f, _ in groups["caught"]) / max(1, len(groups["caught"]))
     print("  %-26s missed %5.1f%%  quiet %5.1f%%  caught %5.1f%%  lift %5.2f" % (name, 100 * m, 100 * q, 100 * c, m / max(q, 1e-9)))
+
+
+# ── SECTION 2: every channel on NEAR-EQUAL kings (the C3 criteria) ────────────────────────────────────────────────
+import math
+
+
+def corr(xs, ys):
+    n = len(xs)
+    if n < 3:
+        return 0.0
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    return sxy / math.sqrt(sxx * syy) if sxx > 0 and syy > 0 else 0.0
+
+
+def partial(rxy, rxz, ryz):
+    d = (1 - rxz * rxz) * (1 - ryz * ryz)
+    return (rxy - rxz * ryz) / math.sqrt(d) if d > 1e-12 else 0.0
+
+
+end = [k for k in near_eq if k[4] == "end"]
+qui = [k for k in near_eq if k[4] == "quiet"]
+score_all = [k[1] for k in near_eq]
+units_all = [k[0]["units"] for k in near_eq]
+r_su = corr(units_all, score_all)
+print("\n\nSECTION 2: channels on NEAR-EQUAL kings  (all %d kings: SF-endangered %d, quiet %d)   1/sqrt(n) = %.3f"
+      % (len(near_eq), len(end), len(qui), 1 / math.sqrt(max(1, len(near_eq)))))
+print("  endangered-side score SE ~ %.3f per half.  r(units, score) = %+.3f" % (0.5 / math.sqrt(max(1, len(end) / 2)), r_su))
+print("  (i) separation   hi/lo split at the endangered median; r = over all near-equal kings; r|u = partial on units")
+print("  (ii) quiet fire  = share of QUIET kings at/above that threshold, by phase (endangered share in brackets)")
+print("  (iii) r_wn = r with w_att*n_att;  r_sf = r with SF11's danger to this king\n")
+print("  %-15s %6s %6s %6s | %5s %5s %6s | %6s %6s | %-26s | %6s %6s"
+      % ("channel", "m_end", "m_qui", "thr", "s_hi", "s_lo", "n_hi", "r", "r|u", "quiet fire early/mid/late", "r_wn", "r_sf"))
+wn_all = [k[0]["wn"] for k in near_eq]
+sf_all = [k[2] for k in near_eq]
+for chn in CHANNELS:
+    ev = sorted(k[0][chn] for k in end)
+    med = ev[len(ev) // 2] if ev else 0
+    thr = max(med, 1)
+    hi = [k[1] for k in end if k[0][chn] >= thr]
+    lo = [k[1] for k in end if k[0][chn] < thr]
+    x_all = [k[0][chn] for k in near_eq]
+    r = corr(x_all, score_all)
+    ru = partial(r, corr(x_all, units_all), r_su) if chn != "units" else r
+    fires = []
+    for ph in ("early", "mid", "late"):
+        q = [k for k in qui if k[3] == ph]
+        e = [k for k in end if k[3] == ph]
+        fq = 100.0 * sum(k[0][chn] >= thr for k in q) / max(1, len(q))
+        fe = 100.0 * sum(k[0][chn] >= thr for k in e) / max(1, len(e))
+        fires.append("%2.0f(%2.0f)" % (fq, fe))
+    print("  %-15s %6.1f %6.1f %6d | %.3f %.3f %6d | %+.3f %+.3f | %-26s | %+.2f %+.2f"
+          % (chn, sum(ev) / max(1, len(ev)), sum(k[0][chn] for k in qui) / max(1, len(qui)), thr,
+             sum(hi) / max(1, len(hi)), sum(lo) / max(1, len(lo)), len(hi), r, ru, " ".join(fires),
+             corr(x_all, wn_all), corr(x_all, sf_all)))
+print("\n  phase counts  endangered: %s   quiet: %s"
+      % ({ph: sum(k[3] == ph for k in end) for ph in ("early", "mid", "late")},
+         {ph: sum(k[3] == ph for k in qui) for ph in ("early", "mid", "late")}))

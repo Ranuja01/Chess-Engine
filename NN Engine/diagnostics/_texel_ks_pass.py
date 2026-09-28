@@ -29,6 +29,18 @@ ENGINE = os.path.dirname(THIS)
 sys.path.insert(0, ENGINE)
 os.environ.setdefault("PRESET", "LONG_FORMAT")
 os.environ.setdefault("USE_OPENING_BOOK", "0")
+# KS_PARAMS=<ks_<tag>.txt from _texel_k_fit.py>: its KS_V2_* knobs are applied to the ENGINE (set before ChessAI is
+# imported) AND to the Python model, so the gate checks a FITTED KS -- balance channels included -- not only shipped.
+KS_PARAMS = os.environ.get("KS_PARAMS", "")
+_ks_over = {}
+if KS_PARAMS:
+    for _line in open(KS_PARAMS):
+        if _line.startswith("#"):
+            continue
+        for _kv in _line.split():
+            _k, _v = _kv.split("=", 1)
+            os.environ[_k] = _v
+            _ks_over[_k.replace("KS_V2_", "")] = int(_v)
 IN = os.environ.get("IN", "/mnt/e/chess_data/texel/fitC_stage1.csv.gz")
 OUT = os.environ.get("OUT", "/mnt/e/chess_data/texel/fitC_ks.npz")
 LIMIT = int(os.environ.get("LIMIT", "0"))
@@ -44,12 +56,22 @@ IX = {n: i for i, n in enumerate(NAMES)}
 # The SHIPPED KS parameters (search_engine.cpp V2_PRESET=shipped block). The gate below fails loudly if the live
 # engine disagrees, so a stale copy here cannot pass silently.
 SHIP = dict(COORD=256, WEAK=57, ADJ=61, NO_QUEEN=321, CHK_R=122, CHK_Q=126, CHK_B=80, CHK_N=152, ONSET=450,
-            MAX=4000, HALF=600, EG_PCT=100)
+            MAX=4000, HALF=600, EG_PCT=100, ADJ_INST=0, UNSAFE=0, BLOCKERS=0, FLANK_ATT=0, FLANK_ATT2=0, FLANK_DEF=0,
+            KNIGHT_DEF=0, CONTEST_EXCESS=0, CONTEST_SQ=0, CONTEST_SQ_Q=0)
+SHIP.update(_ks_over)
+BALANCE = ["ADJ_INST", "UNSAFE", "BLOCKERS", "FLANK_ATT", "FLANK_ATT2", "FLANK_DEF", "KNIGHT_DEF", "CONTEST_EXCESS",
+           "CONTEST_SQ", "CONTEST_SQ_Q"]
+
+
+def _cdiv(a, b):
+    """C++ integer division (truncates toward zero), elementwise."""
+    return np.where(a >= 0, a // b, -((-a) // b))
 
 
 def ks_units_py(ch, p):
-    """Shipped-form units from channel counts (ch: n x NCH int array for ONE king), numpy int64, post-onset clamp.
-    Mirrors eval_v2.cpp ks_units with ATT_XRAY=0, DEFAWARE=0, CHK_COUNT=0, PAWN_ATT=0 and every balance weight 0."""
+    """Units from channel counts (ch: n x NCH int array for ONE king), numpy int64, post-onset clamp. Mirrors
+    eval_v2.cpp ks_units with ATT_XRAY=0, DEFAWARE=0, CHK_COUNT=0, PAWN_ATT=0, GATE=0, PIN_DEF=0, including the
+    2026-09-27 balance channels (active in the engine only when one of their weights is non-zero -- `full`)."""
     ch = ch.astype(np.int64)
     n, w = ch[:, IX["n_att"]], ch[:, IX["w_att"]]
     u = np.where(n > 0, (w * (256 + (n - 1) * p["COORD"])) >> 8, 0)
@@ -57,6 +79,14 @@ def ks_units_py(ch, p):
     for t in ("R", "Q", "B", "N"):
         u = u + p["CHK_" + t] * (ch[:, IX["chk_" + t.lower()]] > 0)
     u = u - p["NO_QUEEN"] * (ch[:, IX["enemy_queen"]] == 0)
+    if any(p[k] for k in BALANCE):
+        fa = ch[:, IX["flank_att"]]
+        cs = ch[:, IX["contest_sq"]]
+        u = u + p["ADJ_INST"] * ch[:, IX["adj_inst"]] + p["UNSAFE"] * ch[:, IX["unsafe"]] \
+              + p["BLOCKERS"] * ch[:, IX["blockers"]] + p["FLANK_ATT"] * fa + _cdiv(p["FLANK_ATT2"] * fa * fa, 8) \
+              - p["FLANK_DEF"] * ch[:, IX["flank_def"]] - p["KNIGHT_DEF"] * ch[:, IX["knight_def"]] \
+              + p["CONTEST_EXCESS"] * ch[:, IX["contest_excess"]] + p["CONTEST_SQ"] * cs \
+              + p["CONTEST_SQ_Q"] * cs * (ch[:, IX["enemy_queen"]] > 0)
     u = u - p["ONSET"]
     return np.maximum(u, 0)
 

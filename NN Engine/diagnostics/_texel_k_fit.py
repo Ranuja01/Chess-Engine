@@ -88,6 +88,11 @@ KS_SCALE = dict(ATT_SCALE=0.25, WEAK=30, ADJ=30, CHK_R=60, CHK_Q=60, CHK_B=60, C
 # value could not ship. Free it only after adding the knob.
 KS_BOUNDS = dict(ATT_SCALE=(1, 1), FLANK_DEF=(0, None), KNIGHT_DEF=(0, None), MAX=(0, None), HALF=(100, None),
                  EG_PCT=(0, 150), ONSET=(0, None))
+# PIN=ONSET[,...]: hold these KS parameters at their start. Owner rule 2026-09-27: KS fires only on REAL danger and a
+# threshold is never loosened to raise the fire rate -- Fit K1 took the onset 450 -> 242 and firing 2-4x, so the
+# onset-pinned fit is the arm that respects the rule by construction.
+for _k in [p for p in KV.get("PIN", "").split(",") if p]:
+    KS_BOUNDS[_k] = (KS_START[_k], KS_START[_k])
 NKS = len(KS_NAMES)
 S0 = np.array([KS_START[k] for k in KS_NAMES], dtype=np.float64)
 SC = np.array([KS_SCALE[k] for k in KS_NAMES], dtype=np.float64)

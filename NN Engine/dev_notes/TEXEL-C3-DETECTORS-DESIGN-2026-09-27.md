@@ -389,3 +389,7 @@ GAMES decide. `sprt_fitK1` (K1 vs shipped, NODE_LIMIT=50000, seed 40, 0/+10) lau
 **SPRT `sprt_fitK1` — H1 ACCEPTED (2026-09-28):** Fit K1 vs shipped, NODE_LIMIT=50000, UHO, seed 40, 0/+10:
 **+420 −323 =169 of 912 (55.3%), elo ≈ +37.1 ± 26.5, LLR +3.004.** ⚠️ SPRT point estimate — magnitude comes from the
 replication + SF18 gauntlet. `sprt_fitK1p` (onset pinned, seed 41, same terms) launched next; K1p closure EXACT.
+**SPRT `sprt_fitK1p` — H1 ACCEPTED (2026-09-28):** onset pinned at 450, seed 41, same terms: **+410 −315 =190 of 915
+(55.2%), elo ≈ +36.2 ± 26.4, LLR +3.013** — statistically identical to K1 (+37.1). ⇒ lowering the onset bought nothing
+in games either; **K1p is the candidate** (keeps the owner's threshold rule at equal strength). Next: `fitK1p_rep`,
+fixed 2,000 games, seed 42 (Fit A's replication recipe), then the SF18 gauntlet and variant/odds starts.

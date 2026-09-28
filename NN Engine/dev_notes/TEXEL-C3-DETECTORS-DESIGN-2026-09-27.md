@@ -418,3 +418,9 @@ the correlation with the result residual BEYOND the shipped eval on near-equal r
 Predictions (registered): now +0.02 (dir ✓, size larger), push +0.03 (✗, null). ⇒ Lever outcome ALONE is thin:
 suggestive for large forced exchanges, null for push levers, and its 3-7% coverage caps what it can carry. OvD's case
 rests on the broader block (mobile majority, tension resolution, eg winnability) fitted jointly, lever_now as one input.
+**REPLICATION `fitK1p_rep` — CONFIRMED (2026-09-28):** fixed 2,000 games, seed 42: **+895 −709 =396 (54.6%), Elo +32.4 ±
+17.9**; White +457 −347 =196, Black +438 −362 =200. Registered +20..+35 ✓. **Pooled with the SPRT (2,915 games) ≈ +34.**
+K2 build (attacker-weight knobs + per-type exports) fingerprints byte-identical (v1 250 / 35,310,778 / 3.784; v2 249 /
+53,405,821 / 3.973). SF18 gauntlet (ours NODE_LIMIT=250000 vs SF18 @400 nodes, 500 per seed, seeds 36 + 37, paired
+against the saved `gauntlet_fitA[_s37]` = today's shipped config) running; knobs verified live in the per-game stderr
+and by divergence from the baseline games.

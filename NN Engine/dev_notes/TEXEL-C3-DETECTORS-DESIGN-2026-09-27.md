@@ -161,3 +161,42 @@ all. Re-run:
 - Falsifiers: the corrected recall study must show (i) better near-equal DISCRIMINATION (the caught side scores clearly
   below the missed side), (ii) quiet-king fires within +1pp split by phase (attempt #24 failed on opening over-fire),
   (iii) channel r with w_att·n_att < 0.8. Then regret and games.
+
+## 7. DECISIONS AND OPEN DISCUSSIONS (as of 2026-09-27, context handoff)
+**Decided with the owner:**
+- **Order:**
+  1. KS attack/defence balance, "the highest ROI, it is what lets KS be computed";
+  2. then the OvD design;
+  3. then the other detectors (shelter/storm, KingProtector, pawnless flank);
+  4. then a joint KS tune of everything together;
+  5. then games.
+- **Design rule:** unique where we have a better idea, universal ideas kept, single-lineage ideas NOT dropped (added
+  at weight 0; the fit decides). Memory `unique-where-better-never-self-nerf`.
+- **KS must fire only when danger is real.** Never loosen thresholds for fire rate. Judge on near-equal discrimination
+  plus quiet-king fires by phase.
+- **Ownership:** the king's SQUARE belongs to the PST (average placement) and DANGER belongs to KS (situational).
+  They are separate but fitted jointly. Shelter/storm is a separate direct term; a coupling into KS danger is tested
+  later as one scalar.
+- **Adjacency:** keep the distinct-squares channel (breadth) AND add ring attack instances (convergence); the fit
+  weights them.
+- **KingProtector:** minors only (every reference that has it); rooks/queens defend from range, so their defence is
+  counted in the defender channels.
+- **The RFP / pruning-margin re-sweep waits until the eval block ends.**
+
+**Open (need the owner):**
+- **OvD design:** what the concept is, how it becomes ADDITIVE rather than duplicating KS / shelter / threats, and
+  where it lives. My earlier "OvD owns the uncommitted king" was RETRACTED as overstepping. The recall study says OvD
+  is not a KS-recall fix (uncommitted kings ×0.36 among misses), so its case rests on long-term pressure before
+  attackers arrive.
+- **Pawn storm:** a later discussion. It could be ours, or separate from shelter.
+- Whether the committed/uncommitted split for shelter survives the OvD design.
+
+**Built (all at 0, byte-identical, `0518604`):** `ks_channels` shared by the scorer and the probe; knobs:
+- modes `KS_V2_ATT_XRAY`, `KS_V2_PIN_DEF`, `KS_V2_GATE`, `KS_V2_DEFAWARE`;
+- weights `KS_V2_ADJ_INST`, `KS_V2_UNSAFE`, `KS_V2_BLOCKERS`, `KS_V2_FLANK_ATT`, `KS_V2_FLANK_ATT2`,
+  `KS_V2_FLANK_DEF`, `KS_V2_KNIGHT_DEF`, `KS_V2_CONTEST_EXCESS`, `KS_V2_CONTEST_SQ`, `KS_V2_CONTEST_SQ_Q`.
+
+**NEXT concrete step:** extend `_ks_recall_study.py` to read the new `ks_counts` keys. For each channel on NEAR-EQUAL
+positions, does it separate outcome among SF-endangered kings, and does it stay quiet on quiet kings (by phase)?
+Then try arm C (DEFAWARE + CONTEST_SQ) at plausible weights, then the joint KS fit (KS reproduced exactly in Python
+from the channels, onset/curve refit jointly).

@@ -565,3 +565,21 @@ better, 40x the floor). ★ The move-choice instruments disagreed with each othe
 agreed with itself and had a floor 1000x lower. **When instruments disagree, prefer the one that measures
 the quantity you actually changed** — we changed the EVAL, so measure the EVAL, not a move three plies of
 search downstream of it.
+
+## ☠️ 2026-09-26/27 — new ways instruments misled (or nearly did)
+- **Self-play overstates an eval gain ~3×.** Texel fit A read +111 vs v2 in self-play and +38 vs SF18 (paired, same
+  openings and colours, `gauntlet`, 1,000 games). Validate every eval ship EXTERNALLY.
+- **A held-out loss gain is not Elo below some size.** C1 improved held-out loss 0.5-0.76% and was Elo-null
+  (−5.5 ± 16); fit A's 2.75% was +38 external.
+- **Silent tool failures, caught by their signatures:**
+  - `_eval_accuracy_arms.py` printed "no rows" (schema mismatch);
+  - `_ks_footprint_regret.py` arms did not inherit BASE_KNOBS (three different arms returned byte-identical rows;
+    the neutral flipped 55%). Fixed `ad14423`;
+  - `vs_sf.py` ignored FEN starts. Fixed;
+  - `engine_server.py` swallowed table-load errors. Fixed `c561d42`: check `[c1]` / ☠ lines in game logs.
+- **Threshold on a field that already contains the threshold:** `ks_counts` units are post-onset. The recall study
+  compared them to the onset again, and the headline was wrong by 7× (`c3e7fc9`).
+- **"King danger" labels are confounded with already losing.** Always report KS results on NEAR-EQUAL positions.
+- **Lopsided starts saturate colour-swapped pairs** (queen odds 2% informative pairs). Use `_variant_report.py`'s pair
+  view; read heavy odds only against a fixed stronger opponent.
+- **`sprt.py --max-minutes` overrides `--max-games`.** The real cap is the time budget.

@@ -244,3 +244,21 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 3. **Carry a control set.** A term being large means nothing without a quiet-position baseline.
 4. **Do not select positions by the error you are trying to explain** — filter on where points are lost, then
    sample across the range (see `king_safety_probe.py`, `_collapse_leverage.py`).
+
+## Added 2026-09-26/27 — Texel pipeline, variant / odds games, KS balance
+| tool | what it does |
+|---|---|
+| `_texel_extract.py` | quiet positions + game results from stored games (SPSA `<tag>_k*` and tournament `<tag>` layouts) → gzip CSV on E: |
+| `_texel_engine_pass.py` | per position: eval without PST (`PST_V2_ZERO`) + phase, and the full eval (inert-row check) |
+| `_texel_pst_fit.py` | Fit A: 384 tied PST cells, mean-pinned, L2 + smoothness, two holdouts, bootstrap stability |
+| `_texel_phase_grid.py` | engine passes for a grid of phase limits (Fit A2; closed flat) |
+| `_texel_feature_pass.py` | C1 feature counts (`v2_features`) + a per-block exactness gate; doubles as the CLOSURE gate under `C1_V2_FIT=1` |
+| `_texel_c1_fit.py` | joint fit of PST + mobility / pawn / passer / placement, with a support freeze; variants pst / c1 / joint |
+| `_accuracy_arm_grid.py` | our arms scored on the SAME rows as `_reference_ceiling.py` (REFS=0), since `_eval_accuracy_arms.py` reads `best_cp` and finds no rows in the target_total corpora |
+| `_spsa_replication.py` | cross-run SPSA verdict: direction, size, combined drift z |
+| `_variant_report.py` | per-family report for FEN-start books, with odds split by role (converting / defending) and the PAIR (pentanomial) view |
+| `_odds_vs_sf_report.py` | the same for `vs_sf.py` runs (rebuilds each game's start from the schedule) |
+| `_ks_recall_study.py` | KS vs SF11's king-safety row: fires-at-all recall, near-equal discrimination, structural features of missed kings (`FIRE=0`) |
+| `selfplay/gen_variant_starts.py` / `gen_odds_starts.py` | variant book (2,376 starts, 27 families) and odds book (480 starts, 8 families) |
+| `ChessAI.v2_feature_counts` / `v2_feature_theta` | C1 features and starting values from C++ |
+| `ChessAI.ks_counts` | 18 keys: the rung-1 six + the 2026-09-27 balance channels (computed by the scorer's own `ks_channels`) |

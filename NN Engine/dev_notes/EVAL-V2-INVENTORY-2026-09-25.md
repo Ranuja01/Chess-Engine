@@ -646,3 +646,17 @@ rebuilds each game's start from the schedule, because vs_sf writes no per-openin
    - (d) apply Texel to the next tables (mobility, KS) before the search block, or go to search now.
 4. **Closed:** Fit A2 phase limits (flat). **Fixed:** regret ladder arms inheriting BASE_KNOBS · vs_sf FEN starts ·
    accuracy tool schema.
+
+## 12. STATUS AFTER 09-27 (continuation lives in other docs)
+- **SHIPPED:**
+  - Bundle A (≈+8).
+  - **Texel fit A** (`PST_V2_TAPERED=2`, compiled `pst_v2_fitted.h`): +111 self-play, **+38 vs SF18**. Fingerprint
+    249 / 53,405,821 / 3.973.
+- **Fit C / C1** (existing tables re-fitted): Elo-null → `TEXEL-FIT-C-DESIGN-2026-09-27.md` §6.
+- **C3 detectors + KS** (design, ownership, recall study, balance research, dependency audit) →
+  `TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md`.
+- **Still open from this inventory:**
+  - the material taper co-swept with RFP;
+  - the §I-only rejections (unread);
+  - the search block (node-TT / TT-move / IIR / singular / ProbCut / qsearch / margins, all at equal time, v2);
+  - the RFP re-sweep after the eval block ends (owner agreed: at the end of eval, not now).

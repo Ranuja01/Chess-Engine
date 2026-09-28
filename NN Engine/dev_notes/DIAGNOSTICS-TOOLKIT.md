@@ -258,7 +258,8 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `_spsa_replication.py` | cross-run SPSA verdict: direction, size, combined drift z |
 | `_variant_report.py` | per-family report for FEN-start books, with odds split by role (converting / defending) and the PAIR (pentanomial) view |
 | `_odds_vs_sf_report.py` | the same for `vs_sf.py` runs (rebuilds each game's start from the schedule) |
-| `_ks_recall_study.py` | KS vs SF11's king-safety row: fires-at-all recall, near-equal discrimination, structural features of missed kings (`FIRE=0`) |
+| `_ks_recall_study.py` | KS vs SF11's king-safety row: fires-at-all recall, near-equal discrimination, structural features of missed kings (`FIRE=0`); section 2 screens every `ks_counts` channel on near-equal kings (separation, quiet fires by phase, r with w·n) |
+| `_watch_run.py` | ★ **the timer after a handoff.** Launch as a background task: it exits (so the harness notifies) when a tournament tag FINISHES, DIES (missing on 2 polls → relaunch with `--resume`), STALLS, or hits `EXIT_AT`. `ONESHOT=1` = status line. Verified both ways (live job ALIVE; bogus tag → DIED) |
 | `selfplay/gen_variant_starts.py` / `gen_odds_starts.py` | variant book (2,376 starts, 27 families) and odds book (480 starts, 8 families) |
 | `ChessAI.v2_feature_counts` / `v2_feature_theta` | C1 features and starting values from C++ |
 | `ChessAI.ks_counts` | 18 keys: the rung-1 six + the 2026-09-27 balance channels (computed by the scorer's own `ks_channels`) |

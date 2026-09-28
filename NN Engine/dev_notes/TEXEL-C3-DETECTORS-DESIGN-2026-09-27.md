@@ -367,3 +367,22 @@ the fit + games decide. The move test stays in the plan for OvD (no C++ yet).
 PKC, KS non-linear with analytic gradients, attacker scale pinned — no engine knob). Smoke (200k rows, feasibility
 only): P −0.005% · PK −0.32% / −0.22% · PKC −0.35% / −0.24% (val_hash / val_block). ⚠️ Smaller than C1's −0.74%, which
 was Elo-null ⇒ games decide, not the held-out number.
+
+### 9a. FIT K RESULTS (2026-09-28, all 1,844,465 rows; `E:/chess_data/texel/fitK1*`)
+| arm | val_hash | val_block |
+|---|---|---|
+| P (PST re-fit) | −0.04% | −0.02% |
+| PK over P (KS re-priced) | −0.76% | −0.68% |
+| PKC over PK (+ C3 detectors) | −0.22% | −0.11% |
+| **Fit K1** final (onset free) | **−0.99%** | **−0.82%** |
+| **Fit K1p** final (`PIN=ONSET`, 450) | **−0.95%** | **−0.72%** |
+Both nested increments pay on both holdouts. Fit K1 moved the onset 450→242 (sd 38); K1p shows that buys only
+0.04-0.10 pp — the gain is the re-priced checks (Q ≈ 250-260, R ≈ 190, B ≈ 145, N ≈ 190 vs 126/122/80/152), ADJ
+61→42-50, NO_QUEEN ≈ 390-400, and the new channels (CONTEST_SQ ≈ 31, CONTEST_SQ_Q ≈ 17-22, CONTEST_EXCESS ≈ 11-15,
+UNSAFE ≈ 19, ADJ_INST ≈ −12..−15, KNIGHT_DEF 15-25 subtractive, FLANK_ATT 3-11); BLOCKERS and FLANK_DEF → 0.
+**Firing (Fit C data, per king):** shipped 4.5-11.5% · K1 18.6-26.3% · K1p 11.0-19.4%. Near-equal score firing vs quiet:
+all three ≈ 0.43-0.48 vs ≈ 0.50. ★ Danger MAGNITUDE vs own score on near-equal firing kings: shipped r ≈ 0 (−0.011 /
++0.002 — confirms the recall study), K1 −0.05, K1p −0.055 / −0.048 ⇒ the fit made KS magnitude informative.
+Closure: engine with K1 loaded == Python model (KS EXACT incl. balance channels; C3 blocks ≤ 1 mp).
+Owner call: the "never loosen" rule binds hand-tuning; a fit-moved threshold is flagged, a pinned control is kept, and
+GAMES decide. `sprt_fitK1` (K1 vs shipped, NODE_LIMIT=50000, seed 40, 0/+10) launched 2026-09-28.

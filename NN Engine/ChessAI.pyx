@@ -410,21 +410,22 @@ def ks_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occ
     the knobs, because it is the scored total. Same contract as threats_counts.
 
     Indexed by the KING examined: index 0 = White's king (so its attackers are Black's pieces), 1 = Black's king.
-    Returns {"n_att": (w,b), "w_att": (w,b), "weak": (w,b), "adj": (w,b), "checks": (w,b), "units": (w,b)}.
+    Returns {"n_att": (w,b), "w_att": (w,b), "weak": (w,b), "adj": (w,b), "checks": (w,b), "units": (w,b)} plus the
+    2026-09-27 balance channels n_att_x, adj_inst, unsafe, blockers, flank_att, flank_def, knight_def, contest_excess,
+    contest_sq, enemy_queen, w_att_contest, gate (see eval_v2.cpp ks_probe).
     """
     global _PAWN_PROBE_TABLES_READY
     if not _PAWN_PROBE_TABLES_READY:
         initialize_attack_tables()
         _PAWN_PROBE_TABLES_READY = True
-    cdef long long out[12]
+    cdef long long out[36]
     ks_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
              <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
-    return {"n_att": (int(out[0]), int(out[1])),
-            "w_att": (int(out[2]), int(out[3])),
-            "weak": (int(out[4]), int(out[5])),
-            "adj": (int(out[6]), int(out[7])),
-            "checks": (int(out[8]), int(out[9])),
-            "units": (int(out[10]), int(out[11]))}
+    names = ["n_att", "w_att", "weak", "adj", "checks", "units", "n_att_x", "adj_inst", "unsafe", "blockers",
+             "flank_att", "flank_def", "knight_def", "contest_excess", "contest_sq", "enemy_queen", "w_att_contest",
+             "gate"]
+    cdef int i
+    return {names[i]: (int(out[2 * i]), int(out[2 * i + 1])) for i in range(18)}
 
 
 def threats_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):

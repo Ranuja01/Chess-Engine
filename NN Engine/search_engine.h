@@ -869,6 +869,26 @@ namespace Config
     // leaves the fit OFF with a message. 0 = the constant path, byte-identical.
     inline int C1_V2_FIT = 0;
 
+    // ── KS ATTACK/DEFENCE BALANCE channels (2026-09-27; design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md) ──
+    // Every one defaults to 0 = the shipped KS units, byte-identical. Weights are in KS units (the same scale as
+    // KS_V2_WEAK / ADJ), meant to be priced by the joint KS fit rather than hand-set.
+    // Modes (0/1):
+    inline int KS_V2_ATT_XRAY = 0;       // attacker count/weight with the x-ray occupancy the shared maps use (fixes an inconsistency)
+    inline int KS_V2_PIN_DEF = 0;        // our pinned pieces defend only along their pin line (SF), for weak/safe sets
+    inline int KS_V2_GATE = 0;           // no danger unless >= 2 attackers, or 1 with an enemy queen (SF1.1, Ethereal, Weiss)
+    inline int KS_V2_DEFAWARE = 0;       // OURS: each attacker's weight x the contested share of its zone footprint
+    // Weights (units per count):
+    inline int KS_V2_ADJ_INST = 0;       // ring attack INSTANCES (convergence), alongside the distinct-square ADJ
+    inline int KS_V2_UNSAFE = 0;         // unsafe check squares (SF 148)
+    inline int KS_V2_BLOCKERS = 0;       // pieces blocking / pinned against the king (SF 98)
+    inline int KS_V2_FLANK_ATT = 0;      // flank attacks in our camp, linear
+    inline int KS_V2_FLANK_ATT2 = 0;     // flank attacks squared / 8 (SF 3)
+    inline int KS_V2_FLANK_DEF = 0;      // flank defence in our camp, SUBTRACTED (SF 4)
+    inline int KS_V2_KNIGHT_DEF = 0;     // our knight guards the king ring, SUBTRACTED (SF 100)
+    inline int KS_V2_CONTEST_EXCESS = 0; // OURS: sum over zone squares of (enemy attackers - own defenders, pawns x2), positive part
+    inline int KS_V2_CONTEST_SQ = 0;     // OURS: zone squares with >= 2 attackers that outnumber the defence
+    inline int KS_V2_CONTEST_SQ_Q = 0;   // OURS: the same, only while the enemy queen is on the board
+
     // ── gap-audit K2/A8: KING SAFETY'S ENDGAME LEG ───────────────────────────────────────────────
     // KS-A is ONE saturating curve for every phase. 3 of 4 references give king danger two legs -- SF
     // uses S(kD^2/4096, kD/16): quadratic in the midgame, LINEAR and far smaller in the endgame -- because

@@ -622,8 +622,11 @@ struct MobAcc {
 	Gating: mob == nullptr leaves the loop identical to rung 1. Cost with mob: one AND + popcount + two table
 	reads per non-pawn, non-king piece.
 */
-inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, MobAcc *mob = nullptr)
+inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, MobAcc *mob = nullptr,
+                               uint64_t pin_restrict = 0, uint8_t pin_ksq = 0)
 {
+	// pin_restrict (KS_V2_PIN_DEF only): pieces of this side pinned to their king at pin_ksq attack only along the
+	// pin line, as SF restricts its defender maps. 0 = the shared maps every other consumer reads, unchanged.
 	sa.all = sa.dbl = 0;
 	for (int t = 0; t < 7; ++t) sa.by[t] = 0;
 
@@ -642,7 +645,8 @@ inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, 
 				if (pt == BISHOP)    occ_for = c.occupied ^ c.queens;
 				else if (pt == ROOK) occ_for = c.occupied ^ c.queens ^ (c.rooks & own);
 			}
-			const uint64_t a = attacks_mask(white, occ_for, sq, pt);
+			uint64_t a = attacks_mask(white, occ_for, sq, pt);
+			if (pin_restrict && ((pin_restrict >> sq) & 1) && pt != PAWN && pt != KING) a &= ray(pin_ksq, sq);
 			sa.dbl |= sa.all & a;
 			sa.all |= a;
 			sa.by[pt] |= a;
@@ -713,126 +717,277 @@ inline uint64_t ks_zone(uint8_t ksq, bool white, uint64_t own_pawns)
 	return z;
 }
 
-/*
-	Attack units borne against ONE king. Returns SF-scale units (0 .. ~2000), NOT millipawns.
-
-	`white_king` selects whose king is examined; the ATTACKER is the other side. See
-	dev_notes/EVAL-V2-RUNG1-KS-DESIGN.md for the full 14-item audit of SF's kingDanger, why 7 components
-	are deferred, and why one (mobility -> kingDanger) is EXCLUDED as already refuted for us across a 4x
-	range including cranked.
-*/
-inline int ks_units(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, bool white_king)
+/* Pieces of EITHER colour that are the single piece between `white`'s king and an enemy slider (SF blockers_for_king).
+ * Snipers are enemy R/Q on the king's orthogonals and B/Q on its diagonals on an EMPTY board; occupancy with the snipers
+ * removed; exactly one piece between => blocker. The one definition both MOB_V2_PIN (mob_king_blockers) and KS read. */
+static inline uint64_t v2_king_blockers(const V2Context &c, bool white) noexcept
 {
+	const uint64_t own  = white ? c.white : c.black;
+	const uint64_t them = white ? c.black : c.white;
+	const uint8_t  ksq  = (uint8_t)__builtin_ctzll(c.kings & own);
+	const uint64_t snipers = ((attacks_mask(white, 0, ksq, ROOK)   & (c.rooks   | c.queens))
+	                        | (attacks_mask(white, 0, ksq, BISHOP) & (c.bishops | c.queens))) & them;
+	const uint64_t occ = c.occupied ^ snipers;
+	uint64_t blockers = 0, sn = snipers;
+	while (sn){
+		const uint8_t r = (uint8_t)__builtin_ctzll(sn); sn &= sn - 1;
+		const uint64_t b = betweenPieces(ksq, r) & occ;
+		if (b && !(b & (b - 1))) blockers |= b;
+	}
+	return blockers;
+}
+
+/*
+	Every king-safety CHANNEL for one king, computed ONCE and shared by the scorer (ks_units) and the probe (ks_probe),
+	so the two can never drift apart (they used to duplicate this logic line by line).
+
+	The rung-1 channels (attacker count and weight, weak squares, adjacent squares, safe checks, enemy queen) are computed
+	exactly as before, so the shipped path is byte-identical. The 2026-09-27 BALANCE channels are computed only when
+	`full` is set -- the probe always sets it; the scorer sets it only when one of their knobs is live:
+	  att_xray     attacker count / weight with the x-ray occupancy the shared maps already use (KS_V2_ATT_XRAY)
+	  adj_inst     attack INSTANCES on the king ring: per counted attacker, how many ring squares it hits -- convergence,
+	               where adj_sq measures breadth (SF counts instances)
+	  unsafe       check squares of R/B/N that exist but are not safe (SF unsafeChecks)
+	  blockers     pieces pinned or blocking against this king (SF blockersForKing)
+	  flank_att/def  attacks / defence on the king's flank inside its camp (SF kingFlankAttacks / Defense)
+	  knight_def   one of our knights guards the king ring (SF)
+	  contest_*    OUR per-square balance: on each zone square, enemy attack count vs own defence count (pawn defenders
+	               counted twice, king excluded); excess = sum of positive margins, sq = squares with >= 2 attackers
+	               that outnumber the defence
+	  w_att_contest  defaware-v2: each attacker's weight scaled by the share of its zone footprint that is contested
+	  gate         the universal attacker gate: >= 2 attackers, or 1 with an enemy queen (SF1.1, Ethereal, Weiss)
+*/
+struct KsChannels {
+	int  n_att, w_att, weak, adj_sq, n_att_x, w_att_x, adj_inst, unsafe, blockers, flank_att, flank_def, knight_def,
+	     contest_excess, contest_sq, w_att_contest;
+	uint64_t chk_r, chk_q, chk_b, chk_n;       // safe-check squares per type (masks)
+	bool enemy_queen, gate;
+};
+
+static constexpr int KS_W_OURS[7]   = {0, 0, 31, 31, 47, 78, 0};   // -, P, N, B, R, Q, K  (queen-high, ours)
+static constexpr int KS_W_KNIGHT[7] = {0, 0, 81, 52, 44, 10, 0};   // knight-high (SF11)
+// SF KingFlank: the king's file and its neighbours, 3 files at the edge, 4 inside.
+static constexpr uint64_t KS_FILE_BB(int f) { return 0x0101010101010101ULL << f; }
+
+inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &wa, const SideAttacks &ba,
+                        bool white_king, bool full)
+{
+	ch = KsChannels{};
 	const uint64_t kbb = c.kings & (white_king ? c.white : c.black);
-	if (!kbb) return 0;
+	if (!kbb) return;
 	const uint8_t ksq = __builtin_ctzll(kbb);
-
 	const SideAttacks &att = white_king ? ba : wa;   // the ATTACKING side
-	const SideAttacks &def = white_king ? wa : ba;   // the king's OWN side
+	const SideAttacks &def0 = white_king ? wa : ba;  // the king's OWN side
+	const uint64_t own   = white_king ? c.white : c.black;
 	const uint64_t enemy = white_king ? c.black : c.white;
-	const uint64_t zone  = ks_zone(ksq, white_king, c.pawns & (white_king ? c.white : c.black));
+	const uint64_t zone  = ks_zone(ksq, white_king, c.pawns & own);
+	ch.enemy_queen = (c.queens & enemy) != 0;
 
-	// ── attacker count and weight ────────────────────────────────────────────────────────────────
-	// ⚠️ PROFILE 0 keeps OUR ordering (queen-high, shared with Weiss); PROFILE 1 is the knight-high shape
-	// SF and Ethereal share. A design split ⇒ both are first-class; neither is "the fix".
-	// ☠️ SCALE, NOT RATIO. v1's raw weights are {N2, B2, R3, Q5} in v1's OWN unit scale, where KS_FLOOR=13
-	// and KS_CAP=80 -- units run 0..80. Every other constant here is SF-scale (WEAK 185, ADJ 69, checks
-	// 635-1080), where units run 0..2000+. Dropping the raw weights in unchanged would contribute ~14 units
-	// against ~370 from weak squares and ~780 from one safe check, i.e. the attacker channel would be
-	// SWITCHED OFF -- and profile 1 would then win for reasons having nothing to do with shape, confounding
-	// the one comparison this rung exists to make.
-	// ⇒ Our ordering is preserved EXACTLY, rescaled to SF magnitude: 2:2:3:5 x (187/12) = 31:31:47:78,
-	// matching SF's weight sum of 187 so the two profiles are compared at equal total scale.
-	static constexpr int W_OURS[7]   = {0, 0, 31, 31, 47, 78, 0};   // -, P, N, B, R, Q, K  (queen-high, ours)
-	static constexpr int W_KNIGHT[7] = {0, 0, 81, 52, 44, 10, 0};   // knight-high (SF11)
-	const int *W = Config::KS_V2_ATT_PROFILE ? W_KNIGHT : W_OURS;
+	// KS_V2_PIN_DEF: our pinned pieces defend only along their pin line (their own maps, never the shared ones).
+	SideAttacks defp;
+	const SideAttacks *defs = &def0;
+	uint64_t blk = 0;
+	if (full || Config::KS_V2_BLOCKERS || Config::KS_V2_PIN_DEF) blk = v2_king_blockers(c, white_king);
+	if (Config::KS_V2_PIN_DEF){
+		build_side_attacks(defp, c, white_king, nullptr, blk & own, ksq);
+		defs = &defp;
+	}
+	const SideAttacks &def = *defs;
+	ch.blockers = __builtin_popcountll(blk);
 
-	int n_att = 0, w_att = 0;
+	const int *W = Config::KS_V2_ATT_PROFILE ? KS_W_KNIGHT : KS_W_OURS;
+
+	// Contest planes (only when needed): per zone square, how many enemy men attack it and how many of ours defend it.
+	const bool want_contest = full || Config::KS_V2_DEFAWARE || Config::KS_V2_CONTEST_EXCESS
+	                       || Config::KS_V2_CONTEST_SQ || Config::KS_V2_CONTEST_SQ_Q;
+	uint64_t contested = 0;
+	if (want_contest){
+		int na[64] = {0}, nd[64] = {0};
+		const uint64_t typeAll[5] = {c.pawns, c.knights, c.bishops, c.rooks, c.queens};
+		for (int side = 0; side < 2; ++side){
+			const bool     w     = side == 0;
+			const uint64_t men   = w ? c.white : c.black;
+			const bool     is_att = (men == enemy);
+			for (int t = 0; t < 5; ++t){
+				const uint8_t pt = (uint8_t)(t + 1);
+				uint64_t bb = typeAll[t] & men;
+				while (bb){
+					const uint8_t sq = (uint8_t)__builtin_ctzll(bb);
+					bb &= bb - 1;
+					uint64_t occ_for = c.occupied;
+					if (Config::KS_V2_XRAY){
+						if (pt == BISHOP)    occ_for = c.occupied ^ c.queens;
+						else if (pt == ROOK) occ_for = c.occupied ^ c.queens ^ (c.rooks & men);
+					}
+					uint64_t a = attacks_mask(w, occ_for, sq, pt) & zone;
+					if (!is_att && Config::KS_V2_PIN_DEF && ((blk & own) >> sq & 1) && pt != PAWN) a &= ray(ksq, sq);
+					const int mult = (!is_att && pt == PAWN) ? 2 : 1;   // a pawn defender is the strongest guard
+					while (a){
+						const int z = __builtin_ctzll(a); a &= a - 1;
+						if (is_att) ++na[z]; else nd[z] += mult;
+					}
+				}
+			}
+		}
+		uint64_t zz = zone;
+		while (zz){
+			const int z = __builtin_ctzll(zz); zz &= zz - 1;
+			if (na[z] > nd[z]){
+				contested |= 1ULL << z;
+				ch.contest_excess += na[z] - nd[z];
+				if (na[z] >= 2) ++ch.contest_sq;
+			}
+		}
+	}
+
+	// ── attacker count and weight: plain occupancy (shipped), x-ray (KS_V2_ATT_XRAY), contest-scaled (DEFAWARE) ─────
 	const uint64_t typeMasks[4] = {c.knights, c.bishops, c.rooks, c.queens};
+	const uint64_t ring = BB_KING_ATTACKS[ksq];
+	long long w_contest256 = 0;
 	for (int i = 0; i < 4; ++i){
 		const uint8_t pt = (uint8_t)(i + 2);              // KNIGHT..QUEEN
 		uint64_t bb = typeMasks[i] & enemy;
 		while (bb){
 			const uint8_t sq = __builtin_ctzll(bb);
 			bb &= bb - 1;
-			if (attacks_mask(!white_king, c.occupied, sq, pt) & zone){
-				++n_att;
-				w_att += W[pt];
+			const uint64_t a = attacks_mask(!white_king, c.occupied, sq, pt);
+			if (a & zone){
+				++ch.n_att;
+				ch.w_att += W[pt];
+			}
+			if (full || Config::KS_V2_ATT_XRAY || Config::KS_V2_ADJ_INST || Config::KS_V2_DEFAWARE){
+				uint64_t ax = a;
+				if (Config::KS_V2_XRAY){
+					if (pt == BISHOP)    ax = attacks_mask(!white_king, c.occupied ^ c.queens, sq, pt);
+					else if (pt == ROOK) ax = attacks_mask(!white_king, c.occupied ^ c.queens ^ (c.rooks & enemy), sq, pt);
+				}
+				const uint64_t cnt_mask = Config::KS_V2_ATT_XRAY ? ax : a;
+				if (ax & zone){ ++ch.n_att_x; ch.w_att_x += W[pt]; }
+				if (cnt_mask & zone){
+					ch.adj_inst += __builtin_popcountll(cnt_mask & ring);
+					const int foot = __builtin_popcountll(cnt_mask & zone);
+					w_contest256 += (long long)W[pt] * 256 * __builtin_popcountll(cnt_mask & zone & contested) / foot;
+				}
 			}
 		}
 	}
+	ch.w_att_contest = (int)(w_contest256 / 256);
 
-	// ★ COORDINATION, as a CONTINUOUS parameter rather than a sum/product switch:
-	//     COORD_MUL[n] = 256 + (n-1) * KS_V2_COORD   ⇒   0 = pure sum · 256 = pure product
-	// A lone heavy attacker scores little until a second piece joins, and HOW MUCH that matters is the
-	// knob. ⚠️ v1 has this idea twice (KS_ATT_PRODUCT, KS_COORD_GATE_MODE), both default-off, and its
-	// record says the product is "necessary-but-insufficient, not a solo ship" -- so the interior of this
-	// range is where the answer plausibly lives.
-	// ★ SF seeds kingAttackersCount with enemy PAWN attacks on the ring: a pawn bearing on the zone
-	// counts toward COORDINATION even though its weight is zero.
+	// ★ SF seeds kingAttackersCount with enemy PAWN attacks on the ring: a pawn bearing on the zone counts toward
+	// COORDINATION even though its weight is zero.
 	if (Config::KS_V2_PAWN_ATT){
 		const uint64_t ep = c.pawns & enemy;
 		uint64_t l, rr;
 		if (white_king){ l = (ep & ~BB_FILE_A) >> 9; rr = (ep & ~BB_FILE_H) >> 7; }
 		else           { l = (ep & ~BB_FILE_A) << 7; rr = (ep & ~BB_FILE_H) << 9; }
-		n_att += __builtin_popcountll(zone & (l | rr)) > 0 ? 1 : 0;
+		const int seed = __builtin_popcountll(zone & (l | rr)) > 0 ? 1 : 0;
+		ch.n_att += seed;
+		ch.n_att_x += seed;
 	}
+	ch.gate = (ch.n_att >= 2) || (ch.n_att >= 1 && ch.enemy_queen);
 
+	// ── weak squares: SF's definition (attacked by them, not defended twice by us, undefended or only by K/Q) ──────
+	const uint64_t weak = att.all & ~def.dbl & (~def.all | def.by[KING] | def.by[QUEEN]);
+	ch.weak   = __builtin_popcountll(zone & weak);
+	ch.adj_sq = __builtin_popcountll(att.all & ring);
+
+	// ── checks: a check square is SAFE if we do not defend it, or if it is weak and they attack it twice. Sliding
+	// checks are traced THROUGH our own queen (SF does the same).
+	const uint64_t occ_x      = c.occupied ^ (c.queens & own);
+	const uint64_t rookRays   = attacks_mask(white_king, occ_x, ksq, ROOK);
+	const uint64_t bishopRays = attacks_mask(white_king, occ_x, ksq, BISHOP);
+	const uint64_t knightRays = attacks_mask(white_king, c.occupied, ksq, KNIGHT);
+	const uint64_t safe       = ~enemy & (~def.all | (weak & att.dbl));
+	ch.chk_r = rookRays & safe & att.by[ROOK];
+	ch.chk_q = (rookRays | bishopRays) & safe & att.by[QUEEN];
+	ch.chk_b = bishopRays & safe & att.by[BISHOP];
+	ch.chk_n = knightRays & safe & att.by[KNIGHT];
+	if (full || Config::KS_V2_UNSAFE){
+		// SF unsafeChecks: a type with NO safe check contributes the check squares it does have. The queen is excluded.
+		uint64_t unsafe = 0;
+		if (!ch.chk_r) unsafe |= rookRays & att.by[ROOK] & ~enemy;
+		if (!ch.chk_b) unsafe |= bishopRays & att.by[BISHOP] & ~enemy;
+		if (!ch.chk_n) unsafe |= knightRays & att.by[KNIGHT] & ~enemy;
+		ch.unsafe = __builtin_popcountll(unsafe);
+	}
+	if (full || Config::KS_V2_FLANK_ATT || Config::KS_V2_FLANK_ATT2 || Config::KS_V2_FLANK_DEF || Config::KS_V2_KNIGHT_DEF){
+		const int f = ksq & 7;
+		const int lo = f == 0 ? 0 : (f <= 2 ? 0 : (f <= 4 ? 2 : (f <= 6 ? 4 : 5)));
+		const int hi = f == 7 ? 7 : (f >= 5 ? 7 : (f >= 3 ? 5 : (f >= 1 ? 3 : 2)));
+		uint64_t flank = 0;
+		for (int x = lo; x <= hi; ++x) flank |= KS_FILE_BB(x);
+		const uint64_t camp = white_king ? 0x000000FFFFFFFFFFULL : 0xFFFFFFFFFF000000ULL;   // our 5 ranks
+		ch.flank_att  = __builtin_popcountll(att.all & flank & camp) + __builtin_popcountll(att.dbl & flank & camp);
+		ch.flank_def  = __builtin_popcountll(def.all & flank & camp);
+		ch.knight_def = (def.by[KNIGHT] & ring) ? 1 : 0;
+	}
+}
+
+/*
+	Attack units borne against ONE king. Returns SF-scale units (0 .. ~2000), NOT millipawns.
+
+	`white_king` selects whose king is examined; the ATTACKER is the other side. See
+	dev_notes/EVAL-V2-RUNG1-KS-DESIGN.md for the full 14-item audit of SF's kingDanger, and
+	dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md for the 2026-09-27 balance channels (every one 0 by default).
+*/
+inline int ks_units(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, bool white_king)
+{
+	const bool full = Config::KS_V2_ATT_XRAY || Config::KS_V2_ADJ_INST || Config::KS_V2_UNSAFE || Config::KS_V2_BLOCKERS
+	               || Config::KS_V2_FLANK_ATT || Config::KS_V2_FLANK_ATT2 || Config::KS_V2_FLANK_DEF
+	               || Config::KS_V2_KNIGHT_DEF || Config::KS_V2_CONTEST_EXCESS || Config::KS_V2_CONTEST_SQ
+	               || Config::KS_V2_CONTEST_SQ_Q || Config::KS_V2_DEFAWARE || Config::KS_V2_GATE || Config::KS_V2_PIN_DEF;
+	KsChannels ch;
+	ks_channels(ch, c, wa, ba, white_king, full);
+	if (!(c.kings & (white_king ? c.white : c.black))) return 0;
+	if (Config::KS_V2_GATE && !ch.gate) return 0;
+
+	// ★ COORDINATION as a CONTINUOUS parameter: COORD_MUL[n] = 256 + (n-1) * KS_V2_COORD (0 = sum, 256 = product).
+	const int n_att = Config::KS_V2_ATT_XRAY ? ch.n_att_x : ch.n_att;
+	const int w_att = Config::KS_V2_DEFAWARE ? ch.w_att_contest : (Config::KS_V2_ATT_XRAY ? ch.w_att_x : ch.w_att);
 	int u = 0;
 	if (n_att > 0){
 		const long long mul = 256LL + (long long)(n_att - 1) * (long long)Config::KS_V2_COORD;
 		u = (int)(((long long)w_att * mul) >> 8);
 	}
+	u += Config::KS_V2_WEAK * ch.weak;
+	u += Config::KS_V2_ADJ * ch.adj_sq;
 
-	// ── weak squares in the zone ─────────────────────────────────────────────────────────────────
-	// SF's definition: attacked by them, NOT defended twice by us, and either undefended or defended only
-	// by our king or queen -- squares whose defence collapses the moment the defender is deflected.
-	const uint64_t weak = att.all & ~def.dbl & (~def.all | def.by[KING] | def.by[QUEEN]);
-	u += Config::KS_V2_WEAK * __builtin_popcountll(zone & weak);
-
-	// ── attacks landing on squares adjacent to the king ──────────────────────────────────────────
-	u += Config::KS_V2_ADJ * __builtin_popcountll(att.all & BB_KING_ATTACKS[ksq]);
-
-	// ── safe checks, a SEPARATE channel ──────────────────────────────────────────────────────────
-	// A check square is safe if we do not defend it, or if it is weak and they attack it twice. Sliding
-	// checks are traced THROUGH our own queen (SF does the same): a queen that can be deflected is not a
-	// blocker worth trusting.
-	const uint64_t occ_x      = c.occupied ^ (c.queens & (white_king ? c.white : c.black));
-	const uint64_t rookRays   = attacks_mask(white_king, occ_x, ksq, ROOK);
-	const uint64_t bishopRays = attacks_mask(white_king, occ_x, ksq, BISHOP);
-	const uint64_t knightRays = attacks_mask(white_king, c.occupied, ksq, KNIGHT);
-	const uint64_t safe       = ~enemy & (~def.all | (weak & att.dbl));
-
-	// ⚠️ Ordering is a DESIGN SPLIT: SF ranks the rook clearly highest, v1 ties queen and rook. Profile 1
-	// is v1's ordering rescaled to SF magnitude, so the two are compared at equal total weight (3285).
-	// ☠️ Neither ordering has been tested; profile 0 is default only because it is what rung 1 was measured with.
+	// ⚠️ FORM is a knob because it is COUPLED to the magnitudes: SF11 fires once, Ethereal adds per square.
 	int chk_q = Config::KS_V2_CHK_Q, chk_r = Config::KS_V2_CHK_R;
 	int chk_b = Config::KS_V2_CHK_B, chk_n = Config::KS_V2_CHK_N;
 	if (Config::KS_V2_CHK_PROFILE == 1){ chk_q = 1046; chk_r = 1046; chk_b = 523; chk_n = 672; }
-
-	// ⚠️ FORM is a knob because it is COUPLED to the magnitudes: SF11 fires once, Ethereal adds per
-	// square. Running one engine's constants in the other's form mis-weights the whole channel.
 	if (Config::KS_V2_CHK_COUNT){
-		u += chk_r * __builtin_popcountll(rookRays                & safe & att.by[ROOK]);
-		u += chk_q * __builtin_popcountll((rookRays | bishopRays)  & safe & att.by[QUEEN]);
-		u += chk_b * __builtin_popcountll(bishopRays               & safe & att.by[BISHOP]);
-		u += chk_n * __builtin_popcountll(knightRays               & safe & att.by[KNIGHT]);
+		u += chk_r * __builtin_popcountll(ch.chk_r);
+		u += chk_q * __builtin_popcountll(ch.chk_q);
+		u += chk_b * __builtin_popcountll(ch.chk_b);
+		u += chk_n * __builtin_popcountll(ch.chk_n);
 	} else {
-		if (rookRays                & safe & att.by[ROOK])   u += chk_r;
-		if ((rookRays | bishopRays) & safe & att.by[QUEEN])  u += chk_q;
-		if (bishopRays              & safe & att.by[BISHOP]) u += chk_b;
-		if (knightRays              & safe & att.by[KNIGHT]) u += chk_n;
+		if (ch.chk_r) u += chk_r;
+		if (ch.chk_q) u += chk_q;
+		if (ch.chk_b) u += chk_b;
+		if (ch.chk_n) u += chk_n;
 	}
 
-	// ── no queen ─────────────────────────────────────────────────────────────────────────────────
-	// ★ The largest single term in SF's sum (-873), and correct to real chess: without a queen an attack
-	// usually cannot be converted. v1 has its own version (KS_NO_QUEEN / KS_NQ_SUP).
-	if (!(c.queens & enemy)) u -= Config::KS_V2_NO_QUEEN;
+	// ★ The largest single term in SF's sum (-873), and correct to real chess: without a queen an attack usually
+	// cannot be converted.
+	if (!ch.enemy_queen) u -= Config::KS_V2_NO_QUEEN;
 
-	// ★ ONSET: quiet positions must contribute EXACTLY zero, not a small positive. Both references do
-	// this (SF `if (kingDanger > 100)`, Ethereal `SafetyAdjustment -74` + `MAX(0,...)`). Without it the
-	// curve returns 400mp at u=100/HALF=300, which is pure error across the many quiet positions that
-	// dominate a representative corpus.
+	// ── the 2026-09-27 balance channels: every weight 0 by default, so the shipped units are unchanged ───────────
+	if (full){
+		u += Config::KS_V2_ADJ_INST * ch.adj_inst;
+		u += Config::KS_V2_UNSAFE * ch.unsafe;
+		u += Config::KS_V2_BLOCKERS * ch.blockers;
+		u += Config::KS_V2_FLANK_ATT * ch.flank_att;
+		u += Config::KS_V2_FLANK_ATT2 * ch.flank_att * ch.flank_att / 8;
+		u -= Config::KS_V2_FLANK_DEF * ch.flank_def;
+		u -= Config::KS_V2_KNIGHT_DEF * ch.knight_def;
+		u += Config::KS_V2_CONTEST_EXCESS * ch.contest_excess;
+		u += Config::KS_V2_CONTEST_SQ * ch.contest_sq;
+		if (ch.enemy_queen) u += Config::KS_V2_CONTEST_SQ_Q * ch.contest_sq;
+	}
+
+	// ★ ONSET: quiet positions must contribute EXACTLY zero, not a small positive (SF `kingDanger > 100`, Ethereal
+	// `SafetyAdjustment` + `MAX(0,...)`).
 	u -= Config::KS_V2_ONSET;
 	return u > 0 ? u : 0;
 }
@@ -1556,19 +1711,7 @@ static inline void mob_reset(MobAcc &m) noexcept
  */
 static inline uint64_t mob_king_blockers(const V2Context &c, bool white) noexcept
 {
-	const uint64_t own  = white ? c.white : c.black;
-	const uint64_t them = white ? c.black : c.white;
-	const uint8_t  ksq  = (uint8_t)__builtin_ctzll(c.kings & own);
-	const uint64_t snipers = ((attacks_mask(white, 0, ksq, ROOK)   & (c.rooks   | c.queens))
-	                        | (attacks_mask(white, 0, ksq, BISHOP) & (c.bishops | c.queens))) & them;
-	const uint64_t occ = c.occupied ^ snipers;
-	uint64_t blockers = 0, sn = snipers;
-	while (sn){
-		const uint8_t r = (uint8_t)__builtin_ctzll(sn); sn &= sn - 1;
-		const uint64_t b = betweenPieces(ksq, r) & occ;
-		if (b && !(b & (b - 1))) blockers |= b;
-	}
-	return blockers;
+	return v2_king_blockers(c, white);
 }
 
 /* Both sides' attack maps plus mobility accumulators -- the ONE setup every mobility consumer uses.
@@ -2372,15 +2515,15 @@ void placement_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsM
 
 /* KING-SAFETY COUNT PROBE (diagnostic; never called from search).
  *
- * Layout (long long, 12), indexed by the KING examined (0 = White's, 1 = Black's): 0-1 attacker count · 2-3 weighted
- * attacker sum · 4-5 weak zone squares · 6-7 king-adjacent attacked squares · 8-9 safe-check squares (all four channels
- * summed per-square) · 10-11 the scored unit total from ks_units.
- * ★ Purpose: give the collinearity gate its first view of KING SAFETY, so "threats double-counts KS" becomes a
- * measurement instead of a story. The channels chosen are the ones that could overlap threats -- both count attacks on
- * enemy men near the king.
- * ★ Recomputes the channels rather than instrumenting ks_units (same choice as space_probe / threats_probe): the hot
- * path carries no diagnostic branch, and a divergence between the two is itself a finding.
- * ☠️ Counts are UNCONDITIONAL; only out[10-11] respects the knobs, because that is the scored total.
+ * Layout (long long, 36), indexed by the KING examined (0 = White's, 1 = Black's), two slots per channel:
+ *   0 attacker count · 2 weighted attacker sum · 4 weak zone squares · 6 king-adjacent attacked squares · 8 safe-check
+ *   squares (all four types, summed per square) · 10 the scored unit total from ks_units (onset already subtracted)
+ *   -- the rung-1 layout, unchanged -- then the 2026-09-27 balance channels:
+ *   12 x-ray attacker count · 14 ring attack instances · 16 unsafe checks · 18 blockers · 20 flank attacks ·
+ *   22 flank defence · 24 knight guards the ring · 26 contest excess · 28 contested squares (>= 2 attackers) ·
+ *   30 enemy queen present · 32 contest-scaled attacker weight (defaware-v2) · 34 attacker gate passes
+ * ★ Computed by ks_channels, the SAME function ks_units scores from, so probe and scorer cannot disagree.
+ * ☠️ Channel counts are UNCONDITIONAL (every balance channel is computed); only out[10-11] respects the knobs.
  */
 void ks_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
               uint64_t queensMask, uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask, long long *out)
@@ -2391,47 +2534,29 @@ void ks_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, ui
 	SideAttacks wa, ba;
 	build_side_attacks(wa, c, true);
 	build_side_attacks(ba, c, false);
-	static constexpr int W_OURS[7]   = {0, 0, 31, 31, 47, 78, 0};
-	static constexpr int W_KNIGHT[7] = {0, 0, 81, 52, 44, 10, 0};
-	const int *W = Config::KS_V2_ATT_PROFILE ? W_KNIGHT : W_OURS;
 	for (int s = 0; s < 2; ++s){
-		const bool     white_king = (s == 0);
-		const uint64_t kbb = c.kings & (white_king ? c.white : c.black);
-		if (!kbb){
-			out[s] = out[2 + s] = out[4 + s] = out[6 + s] = out[8 + s] = out[10 + s] = 0;
-			continue;
-		}
-		const uint8_t  ksq   = (uint8_t)__builtin_ctzll(kbb);
-		const SideAttacks &att = white_king ? ba : wa;
-		const SideAttacks &def = white_king ? wa : ba;
-		const uint64_t enemy = white_king ? c.black : c.white;
-		const uint64_t zone  = ks_zone(ksq, white_king, c.pawns & (white_king ? c.white : c.black));
-		int n_att = 0, w_att = 0;
-		const uint64_t typeMasks[4] = {c.knights, c.bishops, c.rooks, c.queens};
-		for (int i = 0; i < 4; ++i){
-			const uint8_t pt = (uint8_t)(i + 2);
-			uint64_t bb = typeMasks[i] & enemy;
-			while (bb){
-				const uint8_t sq = (uint8_t)__builtin_ctzll(bb);
-				bb &= bb - 1;
-				if (attacks_mask(!white_king, c.occupied, sq, pt) & zone){ ++n_att; w_att += W[pt]; }
-			}
-		}
-		const uint64_t weak   = att.all & ~def.dbl & (~def.all | def.by[KING] | def.by[QUEEN]);
-		const uint64_t occ_x  = c.occupied ^ (c.queens & (white_king ? c.white : c.black));
-		const uint64_t rr     = attacks_mask(white_king, occ_x, ksq, ROOK);
-		const uint64_t bb_r   = attacks_mask(white_king, occ_x, ksq, BISHOP);
-		const uint64_t nr     = attacks_mask(white_king, c.occupied, ksq, KNIGHT);
-		const uint64_t safe   = ~enemy & (~def.all | (weak & att.dbl));
-		out[s]      = n_att;
-		out[2 + s]  = w_att;
-		out[4 + s]  = __builtin_popcountll(zone & weak);
-		out[6 + s]  = __builtin_popcountll(att.all & BB_KING_ATTACKS[ksq]);
-		out[8 + s]  = __builtin_popcountll(rr & safe & att.by[ROOK])
-		            + __builtin_popcountll((rr | bb_r) & safe & att.by[QUEEN])
-		            + __builtin_popcountll(bb_r & safe & att.by[BISHOP])
-		            + __builtin_popcountll(nr & safe & att.by[KNIGHT]);
-		out[10 + s] = ks_units(c, wa, ba, white_king);
+		const bool white_king = (s == 0);
+		KsChannels ch;
+		ks_channels(ch, c, wa, ba, white_king, true);
+		out[s]      = ch.n_att;
+		out[2 + s]  = ch.w_att;
+		out[4 + s]  = ch.weak;
+		out[6 + s]  = ch.adj_sq;
+		out[8 + s]  = __builtin_popcountll(ch.chk_r) + __builtin_popcountll(ch.chk_q)
+		            + __builtin_popcountll(ch.chk_b) + __builtin_popcountll(ch.chk_n);
+		out[10 + s] = (c.kings & (white_king ? c.white : c.black)) ? ks_units(c, wa, ba, white_king) : 0;
+		out[12 + s] = ch.n_att_x;
+		out[14 + s] = ch.adj_inst;
+		out[16 + s] = ch.unsafe;
+		out[18 + s] = ch.blockers;
+		out[20 + s] = ch.flank_att;
+		out[22 + s] = ch.flank_def;
+		out[24 + s] = ch.knight_def;
+		out[26 + s] = ch.contest_excess;
+		out[28 + s] = ch.contest_sq;
+		out[30 + s] = ch.enemy_queen ? 1 : 0;
+		out[32 + s] = ch.w_att_contest;
+		out[34 + s] = ch.gate ? 1 : 0;
 	}
 }
 

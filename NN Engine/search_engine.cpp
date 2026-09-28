@@ -2318,6 +2318,20 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             std::cerr << "☠️ EVAL_ARM=" << Config::EVAL_ARM << " invalid (expected 0|1|2) -- forced to 0 (v1)" << std::endl;
             Config::EVAL_ARM = 0;
         }
+        Config::KS_V2_ATT_XRAY = env_int("KS_V2_ATT_XRAY", Config::KS_V2_ATT_XRAY);
+        Config::KS_V2_PIN_DEF = env_int("KS_V2_PIN_DEF", Config::KS_V2_PIN_DEF);
+        Config::KS_V2_GATE = env_int("KS_V2_GATE", Config::KS_V2_GATE);
+        Config::KS_V2_DEFAWARE = env_int("KS_V2_DEFAWARE", Config::KS_V2_DEFAWARE);
+        Config::KS_V2_ADJ_INST = env_int("KS_V2_ADJ_INST", Config::KS_V2_ADJ_INST);
+        Config::KS_V2_UNSAFE = env_int("KS_V2_UNSAFE", Config::KS_V2_UNSAFE);
+        Config::KS_V2_BLOCKERS = env_int("KS_V2_BLOCKERS", Config::KS_V2_BLOCKERS);
+        Config::KS_V2_FLANK_ATT = env_int("KS_V2_FLANK_ATT", Config::KS_V2_FLANK_ATT);
+        Config::KS_V2_FLANK_ATT2 = env_int("KS_V2_FLANK_ATT2", Config::KS_V2_FLANK_ATT2);
+        Config::KS_V2_FLANK_DEF = env_int("KS_V2_FLANK_DEF", Config::KS_V2_FLANK_DEF);
+        Config::KS_V2_KNIGHT_DEF = env_int("KS_V2_KNIGHT_DEF", Config::KS_V2_KNIGHT_DEF);
+        Config::KS_V2_CONTEST_EXCESS = env_int("KS_V2_CONTEST_EXCESS", Config::KS_V2_CONTEST_EXCESS);
+        Config::KS_V2_CONTEST_SQ = env_int("KS_V2_CONTEST_SQ", Config::KS_V2_CONTEST_SQ);
+        Config::KS_V2_CONTEST_SQ_Q = env_int("KS_V2_CONTEST_SQ_Q", Config::KS_V2_CONTEST_SQ_Q);
         Config::C1_V2_FIT = env_int("C1_V2_FIT", Config::C1_V2_FIT);
         v2_c1_init();   // after every v2 knob: the fitted values start from the live constants
         if (Config::ENABLE_ORACLE_EVAL && Config::EVAL_ARM != 0)
@@ -2512,6 +2526,14 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " PST_V2_TAPERED=" << Config::PST_V2_TAPERED
                   << " PST_V2_ZERO=" << Config::PST_V2_ZERO
                   << " C1_V2_FIT=" << Config::C1_V2_FIT
+                  << " KS_V2_ATT_XRAY=" << Config::KS_V2_ATT_XRAY << " KS_V2_PIN_DEF=" << Config::KS_V2_PIN_DEF
+                  << " KS_V2_GATE=" << Config::KS_V2_GATE << " KS_V2_DEFAWARE=" << Config::KS_V2_DEFAWARE
+                  << " KS_V2_ADJ_INST=" << Config::KS_V2_ADJ_INST << " KS_V2_UNSAFE=" << Config::KS_V2_UNSAFE
+                  << " KS_V2_BLOCKERS=" << Config::KS_V2_BLOCKERS << " KS_V2_FLANK_ATT=" << Config::KS_V2_FLANK_ATT
+                  << " KS_V2_FLANK_ATT2=" << Config::KS_V2_FLANK_ATT2 << " KS_V2_FLANK_DEF=" << Config::KS_V2_FLANK_DEF
+                  << " KS_V2_KNIGHT_DEF=" << Config::KS_V2_KNIGHT_DEF
+                  << " KS_V2_CONTEST_EXCESS=" << Config::KS_V2_CONTEST_EXCESS
+                  << " KS_V2_CONTEST_SQ=" << Config::KS_V2_CONTEST_SQ << " KS_V2_CONTEST_SQ_Q=" << Config::KS_V2_CONTEST_SQ_Q
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")
                   << " KS_V2_EG_PCT=" << Config::KS_V2_EG_PCT
                   << " PS_V2_REAR_DOUBLED=" << Config::PS_V2_REAR_DOUBLED

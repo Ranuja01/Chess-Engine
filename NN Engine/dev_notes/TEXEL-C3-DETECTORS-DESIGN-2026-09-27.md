@@ -489,3 +489,7 @@ NODE_LIMIT=50000, seed 43, 0/+10). `K1p_c3` (detectors only) seed 36 running to 
 `K1p_c3` (C3 detectors ONLY: shipped PST + shipped KS), 250k vs SF18, pooled 1,000: seed 36 −1.50pp · seed 37 −0.50pp ·
 **−1.00pp ± 3.18 ⇒ −8.3 Elo [−33.8, +18.7]** — flat. ⇒ The d6-fitted C3 cell values do not pay at depth (not shown
 harmful); they stay at weight 0 in the engine (built, verified) until a play-depth fit or an OvD/K2 round prices them.
+**SPRT `sprt_K1p_ks` — H1 ACCEPTED (2026-09-29):** KS knobs only vs shipped, NODE_LIMIT=50000, seed 43, 0/+10:
+**+737 −633 =398 of 1,768 (52.9%), elo ≈ +20.5 ± 19.0** (LLR crossed the bound; in-flight drain left it at +2.930).
+⇒ KS-only: **+20 self-play @50k, +30 [+3, +59] vs SF18 @250k** — holds at depth, unlike the bundle. Replication
+`K1p_ks_rep` (2,000 fixed, seed 44) launched; then variants/odds; ship = owner.

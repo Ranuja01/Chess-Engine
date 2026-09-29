@@ -550,3 +550,9 @@ the 09-26 `_reference_ceiling.py` table on the same rows). STS = sts300, d10 and
 **OvD pilot, full middlegame set** (300k rows, near-equal residual r): lever_now +0.043 (2.3σ, 3.5% fire) · tension_centre
 +0.032 (1.5σ, 2.7%) · lever_push +0.012 (0.9σ) · **mobile_majority +0.005 (0.9σ) on 51%: NULL** (the passer/candidate terms
 likely already own it). ⇒ the mg block carries little beyond the eval; next = the eg WINNABILITY pilot.
+**OvD eg WINNABILITY pilot (2026-09-29, `_ovd_winnability_proto.py`): STRONG.** 358,727 rows, phase256 < 96, stronger side's
+edge 1-4 pawns; r(input, stronger side's residual beyond the eval): SF11 complexity composite **+0.153** · pawns +0.153 ·
+both flanks +0.152 · pawn ending +0.072 · outflanking −0.058 · passed −0.011. Complexity quintiles: lowest fifth scores
+**72.6% (residual −7.9pp)**, the rest 80-82% (+1..+3pp). ⇒ v2 OVERRATES edges in low-complexity endgames (few pawns / one
+flank) and slightly underrates the rest — exactly SF's winnability correction, which v2 lacks. ⚠️ rows are not independent
+(30k games): the σ is inflated, but the effect is far above the mg features. ⇒ OvD's evidence sits in its eg leg.

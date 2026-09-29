@@ -2344,6 +2344,15 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KSB_V2_CASTLE = env_int("KSB_V2_CASTLE", Config::KSB_V2_CASTLE);
         Config::KFL_V2 = env_int("KFL_V2", Config::KFL_V2);
         Config::KPROT_V2 = env_int("KPROT_V2", Config::KPROT_V2);
+        Config::WIN_V2 = env_int("WIN_V2", Config::WIN_V2);
+        Config::WIN_V2_PASSED = env_int("WIN_V2_PASSED", Config::WIN_V2_PASSED);
+        Config::WIN_V2_PAWNS = env_int("WIN_V2_PAWNS", Config::WIN_V2_PAWNS);
+        Config::WIN_V2_OUTFLANK = env_int("WIN_V2_OUTFLANK", Config::WIN_V2_OUTFLANK);
+        Config::WIN_V2_INFILT = env_int("WIN_V2_INFILT", Config::WIN_V2_INFILT);
+        Config::WIN_V2_FLANKS = env_int("WIN_V2_FLANKS", Config::WIN_V2_FLANKS);
+        Config::WIN_V2_PAWN_END = env_int("WIN_V2_PAWN_END", Config::WIN_V2_PAWN_END);
+        Config::WIN_V2_UNWIN = env_int("WIN_V2_UNWIN", Config::WIN_V2_UNWIN);
+        Config::WIN_V2_BASE = env_int("WIN_V2_BASE", Config::WIN_V2_BASE);
         Config::KS_V2_W_N = env_int("KS_V2_W_N", Config::KS_V2_W_N);
         Config::KS_V2_W_B = env_int("KS_V2_W_B", Config::KS_V2_W_B);
         Config::KS_V2_W_R = env_int("KS_V2_W_R", Config::KS_V2_W_R);
@@ -2551,6 +2560,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_V2_CONTEST_SQ=" << Config::KS_V2_CONTEST_SQ << " KS_V2_CONTEST_SQ_Q=" << Config::KS_V2_CONTEST_SQ_Q
                   << " KSB_V2=" << Config::KSB_V2 << " KSB_V2_CASTLE=" << Config::KSB_V2_CASTLE
                   << " KFL_V2=" << Config::KFL_V2 << " KPROT_V2=" << Config::KPROT_V2
+                  << " WIN_V2=" << Config::WIN_V2 << " WIN_V2_PASSED=" << Config::WIN_V2_PASSED
+                  << " WIN_V2_PAWNS=" << Config::WIN_V2_PAWNS << " WIN_V2_OUTFLANK=" << Config::WIN_V2_OUTFLANK
+                  << " WIN_V2_INFILT=" << Config::WIN_V2_INFILT << " WIN_V2_FLANKS=" << Config::WIN_V2_FLANKS
+                  << " WIN_V2_PAWN_END=" << Config::WIN_V2_PAWN_END << " WIN_V2_UNWIN=" << Config::WIN_V2_UNWIN
+                  << " WIN_V2_BASE=" << Config::WIN_V2_BASE
                   << " KS_V2_W_N=" << Config::KS_V2_W_N << " KS_V2_W_B=" << Config::KS_V2_W_B
                   << " KS_V2_W_R=" << Config::KS_V2_W_R << " KS_V2_W_Q=" << Config::KS_V2_W_Q
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")

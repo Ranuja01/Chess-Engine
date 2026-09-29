@@ -144,6 +144,11 @@ void threats_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t 
 void ks_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
               uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out);
 
+/* OvD eg WINNABILITY input probe (diagnostic): out[0..6] = passed, pawns, outflanking, infiltration, both_flanks,
+   pawn_ending, almost_unwinnable (eval_v2.cpp win_inputs); out[7] = phase256. `out` needs 8. Knob-free. */
+void win_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
+               uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out);
+
 void placement_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
                      uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights,
                      long long *out);

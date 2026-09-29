@@ -556,3 +556,16 @@ both flanks +0.152 · pawn ending +0.072 · outflanking −0.058 · passed −0.
 **72.6% (residual −7.9pp)**, the rest 80-82% (+1..+3pp). ⇒ v2 OVERRATES edges in low-complexity endgames (few pawns / one
 flank) and slightly underrates the rest — exactly SF's winnability correction, which v2 lacks. ⚠️ rows are not independent
 (30k games): the σ is inflated, but the effect is far above the mg features. ⇒ OvD's evidence sits in its eg leg.
+
+### 12. OvD eg WINNABILITY — BUILT + FITTED (2026-09-29)
+Built at 0 (`WIN_V2` + `WIN_V2_{PASSED,PAWNS,OUTFLANK,INFILT,FLANKS,PAWN_END,UNWIN,BASE}`; eval_v2.cpp `win_inputs` /
+`win_adjust`, applied once to the finished total, sign-preserving, eg-weighted (256−phase)/256; `ev_breakdown["v2_winnab"]`;
+probe `ChessAI.win_inputs`). Fingerprints byte-identical at 0. `_win_oracle.py` PASS (hand 2/2, 0 mismatches / 17,856,
+colour mirror 0). `_texel_win_pass.py` closure EXACT with test weights (16,554 live / 20k) and with the fit (18,005).
+`_eval_symmetry` with the term on: colour 0/4000, file 0/3170.
+**Fit W** (`_texel_win_fit.py`, nested on the shipped eval, 1.84M rows): ☠️ first run's L2 (λ 1e-8 ×1e4) was ~10× the
+effect and pinned the weights near 0 (the UNFITTED SF prior beat it) — fixed by a λ grid. λ 1e-11 ≈ 1e-13, both starts
+converge to the same point: **val_hash −0.30% · val_block −0.32% · ENDGAME rows −1.27% / −1.38%** (SF prior unfitted:
+−0.06 / −0.10 / −0.25 / −0.52). Weights (mp): PASSED 14 · PAWNS 27 · OUTFLANK 28 · INFILT −200 · FLANKS 795 · PAWN_END
+1734 · UNWIN 573 · BASE −877 ⇒ one-flank / few-pawn endgame edges shrink up to ~0.9 pawn; pure pawn endings boosted.
+⚠️ Large adjustments (up to ~1.7 pawns) ⇒ straight to the depth gate: SF18 gauntlet @250k (seeds 36 + 37), then SPRT.

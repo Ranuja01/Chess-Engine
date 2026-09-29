@@ -903,6 +903,15 @@ namespace Config
     inline int KPROT_V2 = 0;
     // KS attacker weight per type for the "ours" profile (KS_V2_ATT_PROFILE = 0), in KS units per attacker. Defaults are
     // the compiled KS_W_OURS {N 31, B 31, R 47, Q 78} = byte-identical; Fit K2 prices them (2026-09-28).
+    // ── OvD eg leg: WINNABILITY (2026-09-29; design TEXEL-C3-DETECTORS-DESIGN §8 + pilot §11) ──────────────────────
+    // A sign-preserving adjustment of the leader's score by position COMPLEXITY (SF11 `initiative` / SF12+ `winnable` /
+    // Ethereal `evaluateComplexity`), endgame-weighted by phase: C = Σ w·input (mp); total += sign(total) ·
+    // max(C·(256−phase)/256, −|total|) — it can shrink or grow an advantage but never flip it. Inputs: passed pawns ·
+    // pawns · outflanking (SF11 symmetric form) · infiltration · pawns on both flanks · pure pawn ending · almost
+    // unwinnable · constant. WIN_V2 = 0: absent, byte-identical. Weights in mp per unit, priced by the fit.
+    inline int WIN_V2 = 0;
+    inline int WIN_V2_PASSED = 0, WIN_V2_PAWNS = 0, WIN_V2_OUTFLANK = 0, WIN_V2_INFILT = 0, WIN_V2_FLANKS = 0,
+               WIN_V2_PAWN_END = 0, WIN_V2_UNWIN = 0, WIN_V2_BASE = 0;
     inline int KS_V2_W_N = 31;
     inline int KS_V2_W_B = 31;
     inline int KS_V2_W_R = 47;

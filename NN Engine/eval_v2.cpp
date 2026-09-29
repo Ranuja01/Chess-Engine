@@ -3387,6 +3387,62 @@ static inline int c3_block_mp(const V2Context &c, SideFn fn, int &dmg, int &deg)
 	     - ((wmg * c.phase256 + weg * (256 - c.phase256)) >> 8);
 }
 
+/* ═══ OvD eg leg: WINNABILITY inputs ════════════════════════════════════════════════════════════════════════════════
+ * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8 + the pilot in §11 (low-complexity endgames: the leader
+ * scores 72.6% where the eval predicts ~80%; v2 had no term for it -- the endgame could only say "draw" or full value).
+ * WHAT: SF11's complexity inputs, in its colour-SYMMETRIC form (SF15.1's signed outflanking would fail our mirror gate):
+ *   in[0] passed pawns (both sides, v2's own passer masks) · in[1] pawns · in[2] outflanking = file distance − rank
+ *   distance of the kings · in[3] infiltration (a king past the middle) · in[4] pawns on both flanks · in[5] pure pawn
+ *   ending · in[6] almost unwinnable (no passers, outflanking < 0, one flank).
+ * Purely board-derived and symmetric, so C = Σ w·in is colour-invariant and the applied adjustment (× sign(total)) is
+ * antisymmetric. Cost: a handful of popcounts, once per eval, only when WIN_V2 is on.
+ */
+static constexpr uint64_t WIN_QS = 0x0F0F0F0F0F0F0F0FULL, WIN_KS = 0xF0F0F0F0F0F0F0F0ULL;
+
+static inline void win_inputs(const V2Context &c, const PawnEntry &pe, int *in) noexcept
+{
+	const int wk = (c.kings & c.white) ? __builtin_ctzll(c.kings & c.white) : 0;
+	const int bk = (c.kings & c.black) ? __builtin_ctzll(c.kings & c.black) : 0;
+	const int fd = (wk & 7) > (bk & 7) ? (wk & 7) - (bk & 7) : (bk & 7) - (wk & 7);
+	const int rd = (wk >> 3) > (bk >> 3) ? (wk >> 3) - (bk >> 3) : (bk >> 3) - (wk >> 3);
+	in[0] = __builtin_popcountll(pe.passed[0] | pe.passed[1]);
+	in[1] = __builtin_popcountll(c.pawns);
+	in[2] = fd - rd;
+	in[3] = ((wk >> 3) > 3 || (bk >> 3) < 4) ? 1 : 0;
+	in[4] = ((c.pawns & WIN_QS) && (c.pawns & WIN_KS)) ? 1 : 0;
+	in[5] = (c.npm_white + c.npm_black == 0) ? 1 : 0;
+	in[6] = (in[0] == 0 && in[2] < 0 && !in[4]) ? 1 : 0;
+}
+
+/* The sign-preserving winnability adjustment for a Black-positive total: C = Σ w·in + BASE (mp), endgame-weighted by
+ * phase; the leader's score moves by max(C·eg, −|total|), so it can reach 0 but never flip. */
+static inline int win_adjust(int total, const int *in, int phase256) noexcept
+{
+	if (total == 0) return 0;
+	const int C = Config::WIN_V2_PASSED * in[0] + Config::WIN_V2_PAWNS * in[1] + Config::WIN_V2_OUTFLANK * in[2]
+	            + Config::WIN_V2_INFILT * in[3] + Config::WIN_V2_FLANKS * in[4] + Config::WIN_V2_PAWN_END * in[5]
+	            + Config::WIN_V2_UNWIN * in[6] + Config::WIN_V2_BASE;
+	const int v = C * (256 - phase256) / 256;
+	const int mag = total > 0 ? total : -total;
+	const int d = v > -mag ? v : -mag;
+	return total > 0 ? d : -d;
+}
+
+/* Winnability input probe (diagnostic): out[0..6] = in[0..6], out[7] = phase256. */
+void win_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask,
+               uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask, long long *out)
+{
+	V2Context c;
+	build_context(c, 0, true, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
+	              whiteMask, blackMask, whiteMask | blackMask, 0);
+	PawnEntry pe;
+	build_pawn_entry(pe, c);
+	int in[7];
+	win_inputs(c, pe, in);
+	for (int i = 0; i < 7; ++i) out[i] = in[i];
+	out[7] = c.phase256;
+}
+
 /* TEXEL FIT C1 feature extractor -- see eval_v2.h for the layout. Diagnostic only, never called from search.
  *
  * ★ It reuses the engine's own DETECTORS (build_pawn_entry, mobility_build, placement_detect) and re-derives only
@@ -3979,6 +4035,18 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// somewhere to put its endgame leg (gap audit A2 / A3).
 	if (pair_mode) total = eval_blend(acc, c.phase256);
 
+	// ── OvD eg leg: WINNABILITY (see win_inputs). Applied ONCE to the finished total, as SF applies `winnable`, and
+	// sign-preserving: the leader's score moves by max(C·eg, −|total|). Gated on WIN_V2, so 0 = absent = byte-identical.
+	// The pawn entry is reused when the pawn rungs already built it (the shipped config), else built here.
+	int win_mp = 0;
+	if (Config::WIN_V2){
+		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
+		int in[7];
+		win_inputs(c, pe, in);
+		win_mp = win_adjust(total, in, c.phase256);
+		total += win_mp;
+	}
+
 	// Later rungs accumulate here, each gated on its own knob.
 
 	// ⚠️ Arm 2 excluded deliberately: in SHADOW the value search uses is v1's, and v1 has already published
@@ -4071,6 +4139,10 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		if (g_kprot_on){
 			g_eval_breakdown.v2_kprot = kprot_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_KPROT);
+		}
+		if (Config::WIN_V2){
+			g_eval_breakdown.v2_winnab = win_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_WINNAB);
 		}
 	}
 

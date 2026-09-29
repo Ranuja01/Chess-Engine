@@ -139,6 +139,7 @@ cdef extern from "eval_v2.h":
     void space_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
     void threats_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
     void ks_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
+    void win_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, long long *out)
     void placement_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights, long long *out)
     void v2_features(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights, long long *out)
     void v2_features_theta(double *mg, double *eg)
@@ -252,6 +253,7 @@ cdef extern from "cpp_bitboard.h":
         int v2_shelter
         int v2_kflank
         int v2_kprot
+        int v2_winnab
     EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights)
 
     # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
@@ -435,6 +437,22 @@ def ks_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occ
              "share_n", "share_b", "share_r", "share_q", "w_att_x"]
     cdef int i
     return {names[i]: (int(out[2 * i]), int(out[2 * i + 1])) for i in range(35)}
+
+
+def win_inputs(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):
+    """OvD eg WINNABILITY inputs (eval v2 win_inputs, 2026-09-29): passed, pawns, outflanking, infiltration,
+    both_flanks, pawn_ending, almost_unwinnable, plus phase256. Knob-free (pure board function)."""
+    global _PAWN_PROBE_TABLES_READY
+    if not _PAWN_PROBE_TABLES_READY:
+        initialize_attack_tables()
+        _PAWN_PROBE_TABLES_READY = True
+    cdef long long out[8]
+    win_probe(<uint64_t>pawns, <uint64_t>knights, <uint64_t>bishops, <uint64_t>rooks, <uint64_t>queens,
+              <uint64_t>kings, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
+    names = ["passed", "pawns", "outflanking", "infiltration", "both_flanks", "pawn_ending", "almost_unwinnable",
+             "phase256"]
+    cdef int i
+    return {names[i]: int(out[i]) for i in range(8)}
 
 
 def threats_counts(pawns, knights, bishops, rooks, queens, kings, occupied_white, occupied_black):
@@ -958,6 +976,7 @@ cdef class ChessAI:
             ("v2_shelter", b.v2_shelter),
             ("v2_kflank", b.v2_kflank),
             ("v2_kprot", b.v2_kprot),
+            ("v2_winnab", b.v2_winnab),
         ]
 
         cdef int n_terms = len(pairs)

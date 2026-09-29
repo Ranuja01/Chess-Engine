@@ -471,3 +471,8 @@ replicate). `K1p_half` seed 36: −2.10pp ± 4.72 (seed 37 running). Move-regret
 `K1p_half` pooled 1,000: seed 36 −2.10pp · seed 37 −0.90pp · **−1.50pp ± 3.33 ⇒ −12.4 Elo [−38.8, +15.6]**. ⇒ All three
 arms (full / half-KS / positional-only) ≈ −11..−12 at 250k, none significant. Shared element = K1p's re-fitted PST + C3
 detectors ⇒ `gauntlet_K1p_ks` (K1p KS ONLY: shipped PST, detectors off), seed 36, launched to separate the parts.
+⚠️ **PROVISIONAL (1 seed): `K1p_ks` (K1p KS knobs ONLY — shipped PST, C3 off), 250k vs SF18, seed 36: 75.9% vs 71.3%,
++4.60pp ± 4.35, z 2.07 ⇒ +41.2 Elo [+2.1, +85.5].** On the same seed every arm WITH the re-fitted PST + C3 read −2.1 /
+−2.1 / −0.2. If seed 37 replicates, the KS re-pricing DOES transfer at depth and the positional parts (PST + C3, fitted
+jointly on d6 data) are what cancel it — which would REVISE `fit-data-depth-must-match-play-depth` (the depth effect
+would sit in the positional block, not KS). Seed 37 (`gauntlet_K1p_ks_s37`) running; do not act before it.

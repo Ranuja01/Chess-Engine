@@ -464,3 +464,7 @@ Queue (each launched when the previous finishes):
 Knob strings: K1p = §9a `ks_fitK1p.txt` + `PST_V2_FILE`/`KSB_V2`/`KFL_V2`/`KPROT_V2` files; K1p_half KS = WEAK 61 ADJ 56
 CHK_R 158 CHK_Q 193 CHK_B 111 CHK_N 171 NO_QUEEN 362 ONSET 450 ADJ_INST −6 UNSAFE 10 FLANK_ATT 6 KNIGHT_DEF 8
 CONTEST_EXCESS 7 CONTEST_SQ 15 CONTEST_SQ_Q 10 HALF 623 (rest as K1p).
+**Overnight results (2026-09-29):** `K1p_pos` (PST + C3 detectors, SHIPPED KS), 250k vs SF18@400n, 1,000 paired:
+seed 36 −0.20pp ± 4.52 · seed 37 −2.50pp ± 4.58 · **pooled −1.35pp ± 3.22 ⇒ −11.2 Elo [−36.8, +16.0]** — identical to full
+K1p ⇒ the structural detectors + re-fitted PST do NOT transfer at depth either (the seed-36 "only KS hurts" hint did not
+replicate). `K1p_half` seed 36: −2.10pp ± 4.72 (seed 37 running). Move-regret breakdown (§9b item 3) launched with JOBS=2.

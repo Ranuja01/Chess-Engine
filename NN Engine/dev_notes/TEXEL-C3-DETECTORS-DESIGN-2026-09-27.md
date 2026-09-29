@@ -438,3 +438,10 @@ the fresh baseline reads the same (−17.5 Elo, seed 36). ⇒ **Self-play +34 (2
 Two hypotheses, discriminated next: (1) SELF-PLAY EXPLOITATION (fit on v2-vs-v2 games; the checks re-price, Q 126→260,
 is the prime suspect); (2) DEPTH (SPRTs at 50k nodes, gauntlet at 250k). Test: the same gauntlet with OUR engine at 50k
 nodes, both arms, seed 36 (`gauntlet50k_shipped` / `gauntlet50k_fitK1p`): K1p ahead at 50k ⇒ depth; level ⇒ exploitation.
+**DISCRIMINATION (2026-09-28): it is DEPTH, not exploitation.** Same SF18@400n gauntlet, ours at **50k** nodes, seed 36,
+500 paired: shipped 47.5% → K1p 53.4%, **+5.90pp ± 4.75, z 2.43 ⇒ +41 Elo [+8, +75]** — the gain TRANSFERS at the SPRT
+budget and vanishes at 250k. Cause (best explanation): Fit C's labels are d6 games, where kings get walked into attacks,
+so the fit priced king danger for SHALLOW play (checks ~2×); deeper search finds the defences. Fit A (positional PSTs)
+was not exposed. Memory `fit-data-depth-must-match-play-depth`. Options: (a) play-depth training games for the KS block;
+(b) shrink K1p's KS change toward shipped and re-test at 250k; (c) keep the depth-robust parts (C3 detectors, PST) and
+re-test with shipped KS.

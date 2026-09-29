@@ -445,3 +445,22 @@ so the fit priced king danger for SHALLOW play (checks ~2×); deeper search find
 was not exposed. Memory `fit-data-depth-must-match-play-depth`. Options: (a) play-depth training games for the KS block;
 (b) shrink K1p's KS change toward shipped and re-test at 250k; (c) keep the depth-robust parts (C3 detectors, PST) and
 re-test with shipped KS.
+
+### 9b. OVERNIGHT QUEUE 2026-09-28 → 29 (which parts of K1p survive depth; does it upgrade CRITICAL positions?)
+Owner's question: K1p fires rarely but should win the critical moments — is the flat 250k result "critical gains,
+other positions not helped" or "critical gains offset by WORSE play elsewhere"? Games alone cannot say (any eval change
+diverges ~56% of games; a fresh shipped rerun changes only 2/500 ⇒ the divergence is caused by K1p, not its quality).
+**Exploratory game split** (baseline-game sharpness; v1 definition ≥300 cp swing was DEGENERATE, 995/1000; v2 = a ≥150 cp
+swing from a still-balanced |eval| ≤ 300 position, chosen before reading its numbers): sharp 911 games **+0.1pp ± 3.5**
+(259 better / 263 worse) · quiet 89 games **−14.6pp ± 8.9** (9 / 27) ⇒ hypothesis: not a sharp-game gain at depth, and
+worse in QUIET games (over-reaction without real danger) — to be tested at position level by (3).
+Queue (each launched when the previous finishes):
+1. `gauntlet_K1p_pos` (PST + C3 detectors, SHIPPED KS) and `gauntlet_K1p_half` (K1p with the KS change halved toward
+   shipped, onset 450), 250k vs SF18@400n, seed 36, conc 2 each.
+2. Same two arms, seed 37 ⇒ 1,000 paired each (pair vs `gauntlet_shipped_0928` / `gauntlet_fitA_s37`).
+3. Move regret at play depth: `pyrun diagnostics/_ks_footprint_regret.py SET=ks_sets/game_regret_set.csv DEPTH=11
+   JOBS=4 MAXN=4000 BASE_KNOBS='V2_PRESET=shipped' CAND_KNOBS='<K1p>;<K1p_half>;<K1p_pos>;ASPIRATION_DELTA=300'
+   CAND_NAME='K1p;K1p_half;K1p_pos;null_asp300'` — read win% of CHANGED moves vs the neutral arm, split BY_CRIT / BY_PHASE.
+Knob strings: K1p = §9a `ks_fitK1p.txt` + `PST_V2_FILE`/`KSB_V2`/`KFL_V2`/`KPROT_V2` files; K1p_half KS = WEAK 61 ADJ 56
+CHK_R 158 CHK_Q 193 CHK_B 111 CHK_N 171 NO_QUEEN 362 ONSET 450 ADJ_INST −6 UNSAFE 10 FLANK_ATT 6 KNIGHT_DEF 8
+CONTEST_EXCESS 7 CONTEST_SQ 15 CONTEST_SQ_Q 10 HALF 623 (rest as K1p).

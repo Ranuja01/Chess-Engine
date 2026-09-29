@@ -505,3 +505,9 @@ games, largest where king danger arises; no class where KS hurts relative to the
 [+3, +59] vs SF18 @250k.** ⇒ KS-only is the ship candidate (owner's call; variants/odds pending).
 Collapse revisit launched: v1's 276 classified collapse positions (`ks_sets/collapse_dataset_classified.csv`, labelled
 SF18 d14 multi-PV 16 → `collapse_regret_set.csv`, class in `phase_bucket`), base v1 vs v2 shipped / v2+K1p_ks / null, d11.
+**COLLAPSE REVISIT (2026-09-29):** v1's 276 classified collapse positions, base = v1, d11, changed-move win% (SF18 d14
+multi-PV 16): null (v1 ASPIRATION_DELTA=300) **43.5%** (+1.87) · v2 shipped **62.4%** (−1.61) · v2+K1p_ks **57.0%**
+(−1.69). ks_attack: null 40% (+2.70) · v2 63% (−2.57) · v2+KS 58% (**−3.29**); positional: null 45% (+0.94) · v2 62%
+(−0.90) · v2+KS 56% (−0.56). ⇒ The collapses are REAL v1 defects (a perturbation of v1 gets worse there, not better);
+v2 fixes a large share of both classes; the re-priced KS gives the largest mean regret cut on the KS-attack collapses
+(n ≈ 45 changed per class ⇒ KS-vs-shipped is a lean, not a verdict).

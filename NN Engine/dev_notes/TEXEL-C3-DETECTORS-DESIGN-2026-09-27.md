@@ -424,3 +424,17 @@ K2 build (attacker-weight knobs + per-type exports) fingerprints byte-identical 
 53,405,821 / 3.973). SF18 gauntlet (ours NODE_LIMIT=250000 vs SF18 @400 nodes, 500 per seed, seeds 36 + 37, paired
 against the saved `gauntlet_fitA[_s37]` = today's shipped config) running; knobs verified live in the per-game stderr
 and by divergence from the baseline games.
+☠️ **EXTERNAL CHECK — K1p does NOT transfer (2026-09-28).** SF18 gauntlet, ours NODE_LIMIT=250000 vs SF18 @400 nodes,
+paired by opening + colour (`_gauntlet_pair` in the session scratchpad; results.csv by game index):
+| seed | shipped baseline | K1p | paired diff |
+|---|---|---|---|
+| 36 | 71.50% | 69.20% | −2.30pp ± 4.56 |
+| 37 | 70.10% | 69.80% | −0.30pp ± 4.68 |
+| **pooled 1,000** | 70.80% (+154) | 69.50% (+143) | **−1.30pp ± 3.27 ⇒ −10.8 Elo [−36.8, +16.9]** |
+Registered +8..+20 ✗. Harness null MEASURED: a FRESH shipped baseline (`gauntlet_shipped_0928`, seed 36) reproduces the
+saved `gauntlet_fitA` to 2 of 500 changed results (71.3% vs 71.5%) ⇒ reusing saved baselines is sound here, and K1p vs
+the fresh baseline reads the same (−17.5 Elo, seed 36). ⇒ **Self-play +34 (2,915 g) vs external ≈ −11**: unlike Fit A
+(+111 → +38), K1p's gain is not established outside self-play. NOT SHIPPED.
+Two hypotheses, discriminated next: (1) SELF-PLAY EXPLOITATION (fit on v2-vs-v2 games; the checks re-price, Q 126→260,
+is the prime suspect); (2) DEPTH (SPRTs at 50k nodes, gauntlet at 250k). Test: the same gauntlet with OUR engine at 50k
+nodes, both arms, seed 36 (`gauntlet50k_shipped` / `gauntlet50k_fitK1p`): K1p ahead at 50k ⇒ depth; level ⇒ exploitation.

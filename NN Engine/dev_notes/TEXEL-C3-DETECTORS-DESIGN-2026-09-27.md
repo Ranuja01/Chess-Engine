@@ -532,3 +532,21 @@ base −0.152 / −0.092 (control; not 0 because the shipped KS was fitted joint
 val_block). The fit consistently wants lighter R/Q attacker weights and COORD ≈ 185, but it does not generalise. The
 gate does not address the variant gate's queenless lean. Predictions 1/5 (gate ≈ 0). ⇒ KS block DONE for now; base
 re-fit (−0.1%) is below the C1 Elo-null level, not gamed. Next = OvD.
+
+### 11. BASELINE SNAPSHOT before OvD (2026-09-29; re-run the same rows after any OvD ship)
+Accuracy = win%-MSE of the static eval vs SF18 d14 search, 3,000 rows, val split (`_accuracy_arm_grid.py`; references from
+the 09-26 `_reference_ceiling.py` table on the same rows). STS = sts300, d10 and at 249,014 nodes. WAC d10.
+| evaluator | own-play acc | diverse acc | STS d10 | STS @249k n | WAC |
+|---|---|---|---|---|---|
+| SF18 static | 61.93 | 68.85 | | | |
+| SF15.1 NNUE | 72.76 | 61.61 | | | |
+| SF11 classical | 151.41 | 95.26 | | | |
+| **v2 shipped now (Fit A + Fit K KS)** | **168.08** | **124.18** | **1891** | **1734** | **252** |
+| v2 before the KS ship (Fit A) | 170.17 ✓ | 126.93 ✓ | 1888 | 1760 ✓ | 249 |
+| SF15.1 classical | 192.35 | 139.20 | | | |
+| v1 | 188.85 ✓ | 238.77 ✓ | 1796 ✓ | 1752 ✓ | 250 |
+✓ = reproduces the stored value exactly (deterministic harness). The KS ship: accuracy −1.2% / −2.2%; STS +3 (d10) /
+−26 (@249k), inside the ±150 STS floor; STS is known blind to KS.
+**OvD pilot, full middlegame set** (300k rows, near-equal residual r): lever_now +0.043 (2.3σ, 3.5% fire) · tension_centre
++0.032 (1.5σ, 2.7%) · lever_push +0.012 (0.9σ) · **mobile_majority +0.005 (0.9σ) on 51%: NULL** (the passer/candidate terms
+likely already own it). ⇒ the mg block carries little beyond the eval; next = the eg WINNABILITY pilot.

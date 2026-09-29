@@ -102,18 +102,43 @@ def exchange_now(wp, bp, white, frm, to):
     return outs
 
 
-def side_options(wp, bp, occ, white, wmg, base):
-    """(best_now, best_push) Δ for side `white`, from S's view (S's structure minus the opponent's)."""
+CENTRE = 0x3C3C3C3C3C3C3C3C          # files c-f
+FLANKS = (0x0707070707070707, 0xE0E0E0E0E0E0E0E0)   # a-c, f-h
+
+
+def mobile_majority(wp, bp, occ):
+    """White-positive: Σ over flanks of the pawn EXCESS of the side holding a MOBILE majority there (at least one of
+    its flank pawns can advance: the square ahead is empty and not attacked by an enemy pawn)."""
+    watt_b, batt_w = batt(bp), watt(wp)            # squares Black's / White's pawns attack
+    v = 0
+    for fm in FLANKS:
+        nw, nb = bin(wp & fm).count("1"), bin(bp & fm).count("1")
+        if nw > nb:
+            ahead = ((wp & fm) << 8) & FULL
+            if ahead & ~occ & ~watt_b:
+                v += nw - nb
+        elif nb > nw:
+            ahead = (bp & fm) >> 8
+            if ahead & ~occ & ~batt_w:
+                v -= nb - nw
+    return v
+
+
+def side_options(wp, bp, occ, white, wmg, base, centre_only=False):
+    """(best_now, best_push) Δ for side `white`, from S's view (S's structure minus the opponent's). centre_only
+    restricts the immediate exchanges to captures landing on files c-f (the TENSION-resolution feature)."""
     sgn = 1.0 if white else -1.0
     own, opp = (wp, bp) if white else (bp, wp)
     best_now = best_push = 0.0
     # now: pawn x pawn with a pawn recapture; the opponent picks the recapture that is best for IT
     for frm in bits(own):
-        for to in bits(pawn_att_from(frm, white) & opp):
+        for to in bits(pawn_att_from(frm, white) & opp & (CENTRE if centre_only else FULL)):
             outs = exchange_now(wp, bp, white, frm, to)
             if outs:
                 d = min(sgn * (rel(a, b, wmg) - base) for a, b in outs)
                 best_now = max(best_now, d)
+    if centre_only:
+        return best_now, 0.0
     # push into contact, defended; the opponent takes (we recapture) or declines (we take, it recaptures)
     fwd = 8 if white else -8
     for frm in bits(own):
@@ -180,6 +205,8 @@ def main():
     wmg = ph[idx] / 256.0
     ln = np.zeros(len(idx))
     lp = np.zeros(len(idx))
+    lc = np.zeros(len(idx))
+    mm = np.zeros(len(idx))
     anyopt = np.zeros(len(idx), dtype=bool)
     for i, fen in enumerate(fens):
         wp, bp, occ = board_bits(fen)
@@ -187,6 +214,8 @@ def main():
         wn, wpu = side_options(wp, bp, occ, True, wmg[i], base)
         bn, bpu = side_options(wp, bp, occ, False, wmg[i], base)
         ln[i], lp[i] = wn - bn, wpu - bpu
+        lc[i] = side_options(wp, bp, occ, True, wmg[i], base, True)[0] - side_options(wp, bp, occ, False, wmg[i], base, True)[0]
+        mm[i] = mobile_majority(wp, bp, occ)
         anyopt[i] = (wn or bn or wpu or bpu) != 0
         if (i + 1) % 50000 == 0:
             print("  %d rows  %.0fs" % (i + 1, time.time() - T0), flush=True)
@@ -204,7 +233,7 @@ def main():
     near = np.abs(E) <= NEAR
     print("\nLEVER-OUTCOME PROTOTYPE  rows %d  near-equal %d  K %.6f  %.0fs" % (len(idx), near.sum(), K, time.time() - T0))
     print("  rows with any option: %.1f%%  (near-equal: %.1f%%)" % (100 * anyopt.mean(), 100 * anyopt[near].mean()))
-    for name, f in (("lever_now", ln), ("lever_push", lp)):
+    for name, f in (("lever_now", ln), ("lever_push", lp), ("tension_centre", lc), ("mobile_majority", mm)):
         m = near & (f != 0)
         r = np.corrcoef(f[m], res[m])[0, 1] if m.sum() > 50 else float("nan")
         se = 1.0 / math.sqrt(max(m.sum() - 3, 1))

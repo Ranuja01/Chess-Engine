@@ -522,3 +522,13 @@ queenless positions (gate / NO_QUEEN channel).
 ✅✅ **SHIPPED 2026-09-29 (owner sign-off): Fit K1p's KS knobs only** in `V2_PRESET=shipped` (search_engine.cpp preset,
 runner `V2=`, EVAL-V2-CURRENT-CONFIG §1). Fingerprints: v1 unchanged 250 / 35,310,778 / 3.784; **v2 shipped NOW 252 /
 49,094,807 / 4.012**; preset == explicit tested knobs (byte-identical WAC). C3 detectors stay built at weight 0.
+
+### 10a. FIT K2 RESULT (2026-09-29) — structure arms NULL
+Start = shipped KS (K1p knobs), PST = Fit A, C3 off; `fitC_ks2.npz` (per-type exports; `w_att == Σ W·att_t` checked 0
+mismatches; KS pass EXACT under the new ship). Held-out vs start (val_hash / val_block):
+base −0.152 / −0.092 (control; not 0 because the shipped KS was fitted jointly with K1p's PST+C3) · att −0.222 / −0.080
+(W 31/31/42/54, COORD 188) · xray −0.220 / −0.060 · defaware −0.260 / **+0.010** · gate −0.155 / −0.072.
+⇒ Against the base control no structure arm improves BOTH holdouts (each gains ~0.07-0.11 on val_hash and loses on
+val_block). The fit consistently wants lighter R/Q attacker weights and COORD ≈ 185, but it does not generalise. The
+gate does not address the variant gate's queenless lean. Predictions 1/5 (gate ≈ 0). ⇒ KS block DONE for now; base
+re-fit (−0.1%) is below the C1 Elo-null level, not gamed. Next = OvD.

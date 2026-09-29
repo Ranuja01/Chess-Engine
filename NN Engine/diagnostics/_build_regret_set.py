@@ -47,20 +47,37 @@ for name in ("_mp_target.csv", "_mp_holdout.csv"):
             if f:
                 exclude.add(f)
 
-by_phase = defaultdict(list)
-for r in csv.DictReader(open(WIDE, newline="")):
-    f = (r.get("fen") or "").strip()
-    if f and f not in exclude:
-        by_phase[r.get("phase_bucket", "?")].append(f)
+# IN=<csv> (added 2026-09-29): label EVERY row of any corpus instead of the stratified diverse sample. FENCOL names the
+# FEN column (default fen); TAGCOL names a column copied into `phase_bucket`, so _ks_footprint_regret.py's BY_PHASE split
+# reports per TAG (e.g. the collapse set's ks_class) with no change to it. ⚠️ With TAGCOL, `phase_bucket` holds that tag,
+# NOT a game phase -- the output file name should say which corpus it came from.
+IN = os.environ.get("IN", "")
+if IN:
+    src = IN if os.path.isabs(IN) else os.path.join(THIS, IN)
+    fcol, tcol = os.environ.get("FENCOL", "fen"), os.environ.get("TAGCOL", "")
+    picked, seen = [], set()
+    for r in csv.DictReader(open(src, newline="")):
+        f = (r.get(fcol) or "").strip()
+        if f and f not in seen:
+            seen.add(f)
+            picked.append((f, r.get(tcol, "?") if tcol else "?"))
+    phases = sorted({p for _, p in picked})
+    per = len(picked)
+else:
+    by_phase = defaultdict(list)
+    for r in csv.DictReader(open(WIDE, newline="")):
+        f = (r.get("fen") or "").strip()
+        if f and f not in exclude:
+            by_phase[r.get("phase_bucket", "?")].append(f)
 
-phases = sorted(by_phase)
-per = max(1, N // max(1, len(phases)))
-picked = []
-for ph in phases:
-    lst = by_phase[ph]
-    step = max(1, len(lst) // per)
-    picked += [(f, ph) for f in lst[::step][:per]]
-picked = picked[:N]
+    phases = sorted(by_phase)
+    per = max(1, N // max(1, len(phases)))
+    picked = []
+    for ph in phases:
+        lst = by_phase[ph]
+        step = max(1, len(lst) // per)
+        picked += [(f, ph) for f in lst[::step][:per]]
+    picked = picked[:N]
 
 done = {}
 if os.path.exists(OUT):

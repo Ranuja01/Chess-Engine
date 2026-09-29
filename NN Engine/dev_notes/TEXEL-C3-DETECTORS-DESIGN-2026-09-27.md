@@ -481,3 +481,8 @@ null_asp300 **52.0%** (1,190 changed) · K1p 49.1% (1,266; Δ +0.079) · K1p_hal
 All |Δ| < 0.2 = unresolvable by this tool; K1p mildly below the neutral arm (weakly consistent with the gauntlet). The
 CRITICAL split is UNREADABLE: changed moves are ~1,100 benign vs cr3 22-27 and cr4 2-3 per arm (the known `n_crit` limit)
 ⇒ the owner's "does it upgrade critical positions?" needs a CRITICAL-position corpus, not this set.
+★★★ **`K1p_ks` REPLICATES (2026-09-29):** seed 37 +2.30pp ± 4.40; **pooled 1,000: 70.70% → 74.15%, +3.45pp ± 3.09, z 2.18
+⇒ +30.0 Elo [+3.0, +59.3] vs SF18 at 250k.** ⇒ The KS re-pricing TRANSFERS at play depth; the PST refit + C3 detectors,
+fitted jointly with it on d6 data, are what cancel it. My 09-28 "KS is depth-fragile" was WRONG (memory
+`fit-data-depth-must-match-play-depth` corrected). Ship path launched: `sprt_K1p_ks` (KS knobs only vs shipped,
+NODE_LIMIT=50000, seed 43, 0/+10). `K1p_c3` (detectors only) seed 36 running to split C3 vs the PST refit.

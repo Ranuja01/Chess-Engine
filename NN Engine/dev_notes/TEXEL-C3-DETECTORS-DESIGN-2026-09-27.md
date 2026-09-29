@@ -500,3 +500,8 @@ net (K1p_ks − control): sharp (911) **+4.8pp** · quiet (89) +1.1 · same-side
 (429) +6.4 · opposite-side (43) +8 (unreadable n) · long/medium/short +2.4/+5.5/+4.7. ⇒ Broad gain, carried by sharp
 games, largest where king danger arises; no class where KS hurts relative to the control (per-class ±~5pp).
 ☠️ CORRECTION: the 09-28 "K1p loses QUIET games −14.6pp" was this artefact — the null-like control shows −10.7pp there.
+**REPLICATION `K1p_ks_rep` — CONFIRMED (2026-09-29):** 2,000 fixed games, seed 44: **+848 −711 =441 (53.4%), Elo +23.8 ±
+17.9**; White +433 −353 =214, Black +415 −358 =227. **Pooled with the SPRT (3,768 games) ≈ +22 self-play; external +30
+[+3, +59] vs SF18 @250k.** ⇒ KS-only is the ship candidate (owner's call; variants/odds pending).
+Collapse revisit launched: v1's 276 classified collapse positions (`ks_sets/collapse_dataset_classified.csv`, labelled
+SF18 d14 multi-PV 16 → `collapse_regret_set.csv`, class in `phase_bucket`), base v1 vs v2 shipped / v2+K1p_ks / null, d11.

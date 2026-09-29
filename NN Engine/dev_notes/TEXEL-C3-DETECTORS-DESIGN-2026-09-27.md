@@ -493,3 +493,10 @@ harmful); they stay at weight 0 in the engine (built, verified) until a play-dep
 **+737 −633 =398 of 1,768 (52.9%), elo ≈ +20.5 ± 19.0** (LLR crossed the bound; in-flight drain left it at +2.930).
 ⇒ KS-only: **+20 self-play @50k, +30 [+3, +59] vs SF18 @250k** — holds at depth, unlike the bundle. Replication
 `K1p_ks_rep` (2,000 fixed, seed 44) launched; then variants/odds; ship = owner.
+**Game-type split of K1p_ks vs SF18 (250k, 1,000 paired), classes from the BASELINE game.** ☠️ Classes tied to the
+baseline's own outcome (length, sharp/quiet) carry REGRESSION TO THE MEAN — any perturbation lifts the baseline's bad games
+and lowers its good ones — so each class is read against a CONTROL arm with ~zero net effect (`K1p_c3`, same games):
+net (K1p_ks − control): sharp (911) **+4.8pp** · quiet (89) +1.1 · same-side castling (528) +2.6 · king uncastled at ply 30
+(429) +6.4 · opposite-side (43) +8 (unreadable n) · long/medium/short +2.4/+5.5/+4.7. ⇒ Broad gain, carried by sharp
+games, largest where king danger arises; no class where KS hurts relative to the control (per-class ±~5pp).
+☠️ CORRECTION: the 09-28 "K1p loses QUIET games −14.6pp" was this artefact — the null-like control shows −10.7pp there.

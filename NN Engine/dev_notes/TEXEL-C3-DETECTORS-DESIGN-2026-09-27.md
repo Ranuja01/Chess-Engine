@@ -476,3 +476,8 @@ detectors ⇒ `gauntlet_K1p_ks` (K1p KS ONLY: shipped PST, detectors off), seed 
 −2.1 / −0.2. If seed 37 replicates, the KS re-pricing DOES transfer at depth and the positional parts (PST + C3, fitted
 jointly on d6 data) are what cancel it — which would REVISE `fit-data-depth-must-match-play-depth` (the depth effect
 would sit in the positional block, not KS). Seed 37 (`gauntlet_K1p_ks_s37`) running; do not act before it.
+**Move regret @ d11 (`_ks_footprint_regret.py`, 4,000 positions, base shipped) — within noise.** win% of CHANGED moves:
+null_asp300 **52.0%** (1,190 changed) · K1p 49.1% (1,266; Δ +0.079) · K1p_half 51.5% (Δ −0.157) · K1p_pos 50.9% (Δ −0.102).
+All |Δ| < 0.2 = unresolvable by this tool; K1p mildly below the neutral arm (weakly consistent with the gauntlet). The
+CRITICAL split is UNREADABLE: changed moves are ~1,100 benign vs cr3 22-27 and cr4 2-3 per arm (the known `n_crit` limit)
+⇒ the owner's "does it upgrade critical positions?" needs a CRITICAL-position corpus, not this set.

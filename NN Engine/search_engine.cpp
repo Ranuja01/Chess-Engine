@@ -2060,10 +2060,16 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             {
                 Config::EVAL_ARM = 1;
                 Config::KS_V2_ZONE_SF = 1;   Config::KS_V2_XRAY = 1;     Config::KS_V2_COORD = 256;
-                Config::KS_V2_WEAK = 57;     Config::KS_V2_ADJ = 61;     Config::KS_V2_NO_QUEEN = 321;
-                Config::KS_V2_CHK_Q = 126;   Config::KS_V2_CHK_R = 122;  Config::KS_V2_CHK_B = 80;
-                Config::KS_V2_CHK_N = 152;   Config::KS_V2_MAX = 4000;   Config::KS_V2_HALF = 600;
+                // KS re-priced by Texel Fit K1p, KS part only (shipped 2026-09-29; C3 doc §9a-9b): +30 [+3, +59] vs
+                // SF18 @250k nodes, ≈ +22 self-play over 3,768 games. Onset kept at 450 (owner rule). Previously
+                // WEAK 57 · ADJ 61 · NO_QUEEN 321 · CHK Q/R/B/N 126/122/80/152 · HALF 600 · balance channels all 0.
+                Config::KS_V2_WEAK = 64;     Config::KS_V2_ADJ = 50;     Config::KS_V2_NO_QUEEN = 402;
+                Config::KS_V2_CHK_Q = 260;   Config::KS_V2_CHK_R = 193;  Config::KS_V2_CHK_B = 141;
+                Config::KS_V2_CHK_N = 189;   Config::KS_V2_MAX = 4000;   Config::KS_V2_HALF = 646;
                 Config::KS_V2_ONSET = 450;
+                Config::KS_V2_ADJ_INST = -12;  Config::KS_V2_UNSAFE = 19;       Config::KS_V2_FLANK_ATT = 11;
+                Config::KS_V2_FLANK_ATT2 = -1; Config::KS_V2_KNIGHT_DEF = 15;   Config::KS_V2_CONTEST_EXCESS = 14;
+                Config::KS_V2_CONTEST_SQ = 30; Config::KS_V2_CONTEST_SQ_Q = 19;
                 Config::PS_V2_MAG = 100;     Config::PASSER_V2_MAG = 100;
                 Config::DRAW_V2_CLASS = true;  Config::DRAW_V2_KPK_EXACT = true;
                 Config::MOB_V2_MAG = 600;    Config::MOB_V2_EG_PCT = 125;

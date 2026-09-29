@@ -515,3 +515,10 @@ v2 fixes a large share of both classes; the re-priced KS gives the largest mean 
 `oddsSF_fitA` (= shipped) on 475 games (WSL restarted at 474/480; results rebuilt from the log): **−0.95pp ± 3.47**;
 defending −2.10pp ± 6.22, converting +0.21pp ± 3.07. ⇒ no harm; Fit A's odds gain was PST material handling, which KS
 does not touch. ⚠️ WSL restarted mid-run (uptime 0 at 16:21) with 2+2 concurrency — cause unknown; variant gate resumed.
+**VARIANT GATE (K1p_ks, 2,000 games, seed 40):** +833 −759 =408 (51.8%), **+12.9 [−0.7, +26.5]**; pairs [100 136 481
+156 127], net +74 half-points. Queen families positive (NQ_only +77 [+3, +158], RRvQ +63, array_std +63,
+QminorsvRRR +54, QvRB +49); queenless lean negative (noQ −52, KRNvRB −38, KNP −21, minors −17) ⇒ K2 target: KS in
+queenless positions (gate / NO_QUEEN channel).
+✅✅ **SHIPPED 2026-09-29 (owner sign-off): Fit K1p's KS knobs only** in `V2_PRESET=shipped` (search_engine.cpp preset,
+runner `V2=`, EVAL-V2-CURRENT-CONFIG §1). Fingerprints: v1 unchanged 250 / 35,310,778 / 3.784; **v2 shipped NOW 252 /
+49,094,807 / 4.012**; preset == explicit tested knobs (byte-identical WAC). C3 detectors stay built at weight 0.

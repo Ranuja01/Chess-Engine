@@ -28,9 +28,15 @@ is the `RFP_MARGIN=1000` row.
 EVAL_ARM=1
   # rung 1 -- king safety (KS-A)
   KS_V2_ZONE_SF=1  KS_V2_XRAY=1  KS_V2_COORD=256
-  KS_V2_WEAK=57    KS_V2_ADJ=61  KS_V2_NO_QUEEN=321
-  KS_V2_CHK_Q=126  KS_V2_CHK_R=122  KS_V2_CHK_B=80  KS_V2_CHK_N=152
-  KS_V2_MAX=4000   KS_V2_HALF=600   KS_V2_ONSET=450
+  # ── Texel Fit K1p, KS part only — shipped 2026-09-29 on the owner's sign-off (TEXEL-C3-DETECTORS-DESIGN §9a-9b):
+  # vs SF18 @250k nodes +30 [+3, +59] (1,000 paired) · SPRT H1 +20.5 ± 19.0 / 1,768 · replication +23.8 ± 17.9 / 2,000
+  # (pooled ≈ +22) · variants +12.9 [−0.7, +26.5] · odds vs SF18 neutral. Onset kept at 450 (owner rule).
+  # Revert = WEAK 57 · ADJ 61 · NO_QUEEN 321 · CHK Q/R/B/N 126/122/80/152 · HALF 600 · balance channels 0.
+  KS_V2_WEAK=64    KS_V2_ADJ=50  KS_V2_NO_QUEEN=402
+  KS_V2_CHK_Q=260  KS_V2_CHK_R=193  KS_V2_CHK_B=141  KS_V2_CHK_N=189
+  KS_V2_MAX=4000   KS_V2_HALF=646   KS_V2_ONSET=450
+  KS_V2_ADJ_INST=-12  KS_V2_UNSAFE=19  KS_V2_FLANK_ATT=11  KS_V2_FLANK_ATT2=-1  KS_V2_KNIGHT_DEF=15
+  KS_V2_CONTEST_EXCESS=14  KS_V2_CONTEST_SQ=30  KS_V2_CONTEST_SQ_Q=19
   # rung 2 -- pawns
   PS_V2_MAG=100          # structure: doubled + isolated + backward
   PASSER_V2_MAG=100      # passers, endgame leg only. 60 -> 100 shipped 2026-09-24 (joint retune, see below)

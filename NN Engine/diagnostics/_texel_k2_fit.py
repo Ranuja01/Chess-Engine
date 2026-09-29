@@ -36,7 +36,14 @@ STAGE = KV.get("STAGE", "fitC_stage1.csv.gz")
 ZERO = KV.get("ZERO", "fitC_pass/zero_0_of_1.csv")
 FEAT = KV.get("FEAT", "fitC_features.npz")
 KSF = KV.get("KS", "fitC_ks2.npz")
-START = KV.get("START", "fitK1p")
+START = KV.get("START", "fitK1p")                     # KS start = ks_<START>.txt
+# The frozen blocks can differ from START's (2026-09-29, after the KS-only ship): START_PST names the PST table,
+# C3_START the C3 cell files' tag or "none" (all zero = the shipped state, detectors off).
+START_PST = KV.get("START_PST", "pst_%s.txt" % START)
+C3_START = KV.get("C3_START", START)
+# KS_ENG: the pass whose ks_engine was computed under the SAME KS config as the ZERO pass (the fixed part subtracts it).
+# The channel pass KSF may be newer (per-type exports) and run under a different KS config -- channels are raw counts.
+KS_ENG = KV.get("KS_ENG", "fitC_ks.npz")
 REF_PST = KV.get("REF_PST", "pst_fitA.txt")          # the SHIPPED table: used only to find engine-inert rows
 ARMS = KV.get("ARMS", "base,att,xray,defaware,gate").split(",")
 KS_LAMBDA = float(KV.get("KS_LAMBDA", 1e-5))
@@ -156,7 +163,9 @@ def main():
     phase = z["phase256"].values.astype(np.float64)
     zero_total = z["total"].values.astype(np.float64)
     full = fz["total"].astype(np.float64)
-    ks_eng = kz["ks_engine"].astype(np.float64)
+    ke = np.load(os.path.join(DATA, KS_ENG))
+    assert len(ke["row"]) == n and (ke["row"] == kz["row"]).all(), "KS_ENG pass does not align with the channel pass"
+    ks_eng = ke["ks_engine"].astype(np.float64)
     keep = (phase >= 0) & ((fz["flags"] & 3) == 0) & (np.abs(full) < 30000) & (np.abs(zero_total) < 30000)
     idx = np.where(keep)[0]
     st = st.iloc[idx].reset_index(drop=True)
@@ -164,14 +173,21 @@ def main():
     D3 = fz["diff"][idx, C3_K0:C3_K0 + C3_N].astype(np.float32)
     CH = kz["ch"][idx]
     log("rows", len(st))
+    # The per-type export must reproduce the probe's own attacker weight exactly: w_att == Σ W_t · att_t (shipped W).
+    ix = {nm: i for i, nm in enumerate(names)}
+    for s in (0, 1):
+        rec = sum(w * CH[:, s, ix["att_" + t]].astype(np.int64) for w, t in zip((31, 31, 47, 78), TYPES))
+        bad = int((rec != CH[:, s, ix["w_att"]]).sum())
+        log("per-type export check (king %d): w_att mismatches %d" % (s, bad))
+        assert bad == 0, "per-type attacker export does not reproduce w_att -- do not fit"
 
     # Frozen blocks at K1p: PST table + C3 cells, precomputed once.
-    th_pst, _ = A.load_start_table(os.path.join(DATA, "pst_%s.txt" % START))
+    th_pst, _ = A.load_start_table(os.path.join(DATA, START_PST))
     th_ref, _ = A.load_start_table(os.path.join(DATA, REF_PST))
     Xp = A.build_features(st["fen"].values, phase)
     c3 = np.zeros(2 * C3_N)
-    for fname, k0, ncell in C3_FILES:
-        for line in open(os.path.join(DATA, "%s_%s.txt" % (fname, START))):
+    for fname, k0, ncell in ([] if C3_START == "none" else C3_FILES):
+        for line in open(os.path.join(DATA, "%s_%s.txt" % (fname, C3_START))):
             if line.startswith("#"):
                 continue
             k, leg, _s, v = line.split()

@@ -511,3 +511,7 @@ multi-PV 16): null (v1 ASPIRATION_DELTA=300) **43.5%** (+1.87) · v2 shipped **6
 (−0.90) · v2+KS 56% (−0.56). ⇒ The collapses are REAL v1 defects (a perturbation of v1 gets worse there, not better);
 v2 fixes a large share of both classes; the re-priced KS gives the largest mean regret cut on the KS-attack collapses
 (n ≈ 45 changed per class ⇒ KS-vs-shipped is a lean, not a verdict).
+**ODDS vs SF18 (K1p_ks, 250k vs SF18@400n, `openings_odds.txt`, seed 42) — NEUTRAL (2026-09-29):** paired with
+`oddsSF_fitA` (= shipped) on 475 games (WSL restarted at 474/480; results rebuilt from the log): **−0.95pp ± 3.47**;
+defending −2.10pp ± 6.22, converting +0.21pp ± 3.07. ⇒ no harm; Fit A's odds gain was PST material handling, which KS
+does not touch. ⚠️ WSL restarted mid-run (uptime 0 at 16:21) with 2+2 concurrency — cause unknown; variant gate resumed.

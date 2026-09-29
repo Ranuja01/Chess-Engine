@@ -486,3 +486,6 @@ CRITICAL split is UNREADABLE: changed moves are ~1,100 benign vs cr3 22-27 and c
 fitted jointly with it on d6 data, are what cancel it. My 09-28 "KS is depth-fragile" was WRONG (memory
 `fit-data-depth-must-match-play-depth` corrected). Ship path launched: `sprt_K1p_ks` (KS knobs only vs shipped,
 NODE_LIMIT=50000, seed 43, 0/+10). `K1p_c3` (detectors only) seed 36 running to split C3 vs the PST refit.
+`K1p_c3` (C3 detectors ONLY: shipped PST + shipped KS), 250k vs SF18, pooled 1,000: seed 36 −1.50pp · seed 37 −0.50pp ·
+**−1.00pp ± 3.18 ⇒ −8.3 Elo [−33.8, +18.7]** — flat. ⇒ The d6-fitted C3 cell values do not pay at depth (not shown
+harmful); they stay at weight 0 in the engine (built, verified) until a play-depth fit or an OvD/K2 round prices them.

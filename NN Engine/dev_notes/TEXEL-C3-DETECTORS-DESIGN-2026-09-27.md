@@ -468,3 +468,6 @@ CONTEST_EXCESS 7 CONTEST_SQ 15 CONTEST_SQ_Q 10 HALF 623 (rest as K1p).
 seed 36 −0.20pp ± 4.52 · seed 37 −2.50pp ± 4.58 · **pooled −1.35pp ± 3.22 ⇒ −11.2 Elo [−36.8, +16.0]** — identical to full
 K1p ⇒ the structural detectors + re-fitted PST do NOT transfer at depth either (the seed-36 "only KS hurts" hint did not
 replicate). `K1p_half` seed 36: −2.10pp ± 4.72 (seed 37 running). Move-regret breakdown (§9b item 3) launched with JOBS=2.
+`K1p_half` pooled 1,000: seed 36 −2.10pp · seed 37 −0.90pp · **−1.50pp ± 3.33 ⇒ −12.4 Elo [−38.8, +15.6]**. ⇒ All three
+arms (full / half-KS / positional-only) ≈ −11..−12 at 250k, none significant. Shared element = K1p's re-fitted PST + C3
+detectors ⇒ `gauntlet_K1p_ks` (K1p KS ONLY: shipped PST, detectors off), seed 36, launched to separate the parts.

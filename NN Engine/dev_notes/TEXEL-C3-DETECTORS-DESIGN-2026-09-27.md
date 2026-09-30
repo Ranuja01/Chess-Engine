@@ -593,3 +593,18 @@ baseline on unused seeds: seed 38 −4.20pp ± 4.47 · seed 39 −1.50pp ± 4.60
 [−51.2, +3.2]**. All five readings over four seeds negative. The misjudgement it targets is real (pilot §11: low-complexity
 edges over-rated ~8pp) but THIS fit (d6 game-outcome labels, swings up to ~1.7 pawns) hurts at depth. Next attempt: fit to
 SF18 search labels (depth-independent target) with the adjustment capped (~½ pawn), gated on fresh seeds (40, 41).
+
+### 14. POT NEXT ROUND — depth-independent labels (owner, 2026-09-30 night)
+Owner's framing: POT = the whole arc — opening/middlegame TRANSFORMATIONS that carry a position into a strong
+middlegame and a winnable endgame, with winnability continuing the shift at the end; the variant corpora add unusual
+structures / exposed kings, so piece and KING placement matter for how they affect TRANSFORMING the position (not KS).
+Idea to test: **projected winnability** — score the expected convertibility of where today's structure is heading
+(flanks, majorities, minor-vs-structure fit, king placement for the coming pawn battle), weighted by distance to the
+endgame, so the side ahead steers to convertible structures and the side behind to holdable ones.
+Why the last round failed and this one is different: the mg pilot and Fit W were fitted to d6 GAME OUTCOMES (priced for
+shallow play). This round uses SF18 SEARCH labels (depth-independent) and capped magnitudes, gated on fresh seeds.
+Samples (made 09-30): `ks_sets/fitC_eg_sample.csv` (20,000 endgame rows, phase < 96, `row` joins `fitC_win.npz`) and
+`ks_sets/fitC_mg_sample.csv` (10,000 standard midgame rows 96-224 + 5,000 variant-game rows).
+Overnight queue: C3 re-gate seeds 38 → 39 (`gauntlet_c3v2_s3x`, vs `gauntlet_ship2_s3x`); then label with
+`_build_regret_set.py IN=ks_sets/fitC_eg_sample.csv K=4 SF_DEPTH=14 OUT=ks_sets/fitC_eg_sf18.csv`, then the mg sample
+→ `fitC_mg_sf18.csv`.

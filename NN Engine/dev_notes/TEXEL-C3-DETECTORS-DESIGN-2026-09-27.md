@@ -577,3 +577,8 @@ engine from struggling vs 1600 bots to competing with 2000s on chess.com), is ca
 the endgame (winnability). The name no longer sums offence and defence scores, but the concept — long-term pressure and
 change, "long-term data without search" — is OvD's, and every POT note should say so. Code: the winnability knobs stay
 `WIN_V2_*` until the depth gate decides the ship; a shipped POT family moves to a `POT_V2_*` prefix.
+**POT winnability depth gate (2026-09-29): Fit W does NOT transfer as fitted.** SF18 @250k, paired vs the shipped
+config (`gauntlet_K1p_ks[_s37]`): seed 36 −2.40pp ± 4.36 · seed 37 −0.70pp ± 4.50 · **pooled −1.55pp ± 3.13 ⇒ −13.8 Elo
+[−40.2, +14.6]**. Held-out endgame −1.4% did not carry to games. Next: half-strength arm (`gauntlet_fitW_half`, all
+weights ×0.5) — magnitude (up to ~1.7-pawn swings) is the prime suspect; if also flat, POT winnability is parked
+priced-not-shipped (like the C3 detectors).

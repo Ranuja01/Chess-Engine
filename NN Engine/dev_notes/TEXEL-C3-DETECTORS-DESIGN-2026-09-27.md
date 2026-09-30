@@ -569,3 +569,11 @@ converge to the same point: **val_hash −0.30% · val_block −0.32% · ENDGAME
 −0.06 / −0.10 / −0.25 / −0.52). Weights (mp): PASSED 14 · PAWNS 27 · OUTFLANK 28 · INFILT −200 · FLANKS 795 · PAWN_END
 1734 · UNWIN 573 · BASE −877 ⇒ one-flank / few-pawn endgame edges shrink up to ~0.9 pawn; pure pawn endings boosted.
 ⚠️ Large adjustments (up to ~1.7 pawns) ⇒ straight to the depth gate: SF18 gauntlet @250k (seeds 36 + 37), then SPRT.
+
+### 13. NAME: **POT (Potential) — OvD reworked** (owner, 2026-09-29)
+The owner's long-term-pressure term, OvD ("offensive vs defensive", v1 — the change the owner credits with taking the
+engine from struggling vs 1600 bots to competing with 2000s on chess.com), is carried forward as **POT (Potential)**:
+*transformation potential* in the middlegame (who can force a favourable structural change) and *winning potential* in
+the endgame (winnability). The name no longer sums offence and defence scores, but the concept — long-term pressure and
+change, "long-term data without search" — is OvD's, and every POT note should say so. Code: the winnability knobs stay
+`WIN_V2_*` until the depth gate decides the ship; a shipped POT family moves to a `POT_V2_*` prefix.

@@ -582,3 +582,9 @@ config (`gauntlet_K1p_ks[_s37]`): seed 36 −2.40pp ± 4.36 · seed 37 −0.70pp
 [−40.2, +14.6]**. Held-out endgame −1.4% did not carry to games. Next: half-strength arm (`gauntlet_fitW_half`, all
 weights ×0.5) — magnitude (up to ~1.7-pawn swings) is the prime suspect; if also flat, POT winnability is parked
 priced-not-shipped (like the C3 detectors).
+`gauntlet_fitW_half` (all weights ×0.5), seed 36: −3.20pp ± 4.57 — no better than full strength ⇒ magnitude is not it.
+☠️ **GATING BIAS FOUND (2026-09-29): don't pair new candidates against the SHIP-SELECTION seeds.** The shipped config
+(K1p_ks) was chosen partly on its seed-36/37 gauntlet results (seed 36 75.9% vs its 74.15% mean). A candidate paired
+against a baseline selected-high on those seeds regresses and reads NEGATIVE by construction — the sharp/quiet artefact
+one level up. Every arm on seed 36 reads negative (fitW −2.4, half −3.2). ⇒ From now on each new gate uses FRESH seeds
+(38, 39, …) with a fresh shipped baseline on the same seeds. POT winnability re-gated on seeds 38 + 39 (4×500 games).

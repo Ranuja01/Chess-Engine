@@ -720,3 +720,10 @@ count types and outcomes; (2) PRECURSORS: which structural features N plies earl
 |owner(t+N) − owner(t)| from structure (locked pawns, tension, uncastled king, closed files …); (4) validate against SF18
 search residuals (the depth-independent "what search sees and static eval doesn't"), with the no-overlap collinearity
 check; (5) only then C++ and the Texel fit, gated on fresh seeds.
+☠️ **Owner correction (2026-10-01): U_k must NEVER be read from a subsystem's OUTPUT.** A quiet KS can be KINETIC with
+nothing to say (king safe, position settled) — a low score is not a potential zone. U_k = how much owner_k's INPUTS can
+still change (locked vs tense pawns, closed vs openable files, castling still pending …), judged from STRUCTURE only;
+empirically calibrated as the PREDICTED FUTURE MOVEMENT of owner_k, never its current level.
+**Next (owner):** distil human + computer knowledge of transformations first (Soviet "transformation of advantages",
+Nimzowitsch, Kmoch's levers, Flores/Soltis structure families, Shereshevsky, AlphaZero concept probing …) ⇒ a taxonomy
+(type → end result → precursors → early signs → owning subsystem), then work backwards to detection and relative scoring.

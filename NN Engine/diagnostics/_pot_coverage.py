@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """POT COVERAGE — how often is each transformation type's gate ON, and how often does its result arrive?
 
-POT = "OvD reworked" (the owner's v1 invention); type definitions: dev_notes/POT-TYPE-DEFINITIONS-2026-10-01.md.
-Answers the owner's "is the concept narrow?" (10-01) before any fitting. Pure Python on stage-1 game sequences.
+POT = "OvD reworked" (the owner's v1 invention); type definitions: dev_notes/POT-TYPE-DEFINITIONS-2026-09-30.md.
+Answers the owner's "is the concept narrow?" (09-30) before any fitting. Pure Python on stage-1 game sequences.
 Structure only; every gate = PRECURSORS present ∧ RESULT absent, per attacker side A (the side holding the option).
 
   T1 central opening vs uncastled king: D king on d/e; every file kf±1 ∩ c-f holds a D pawn; A has a central (c-f)

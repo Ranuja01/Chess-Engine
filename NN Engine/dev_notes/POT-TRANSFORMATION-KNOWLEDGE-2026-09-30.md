@@ -1,4 +1,4 @@
-# POT — knowledge distillation: positional TRANSFORMATIONS (2026-10-01)
+# POT — knowledge distillation: positional TRANSFORMATIONS (2026-09-30)
 
 Research agent report (Opus, from its own knowledge — NO web lookups this pass; chapter numbers approximate, the
 Pálsson & Björnsson citation and any pawn-structure-clustering literature UNVERIFIED). [INF] = the agent's inference.
@@ -83,7 +83,7 @@ owned by KS-B) · T4 · T3 · T5 · T7 (= the winnability leg) · T8.
   result appears (owner takes over) or the precursors die (lever gone, break permanently blocked, king castled into an
   intact shelter).
 
-## 5. What this means against our record (my reading, 2026-10-01)
+## 5. What this means against our record (my reading, 2026-09-30)
 - The §14 null tested lever/tension/majority features UNGATED (no precursor-present ∧ result-absent gate, no owner-state
   gate) and scored them as a pawn-STRUCTURE delta, not as the owner subsystem's FUTURE. The literature's variable is the
   same; the gating and the target are what was missing ⇒ the null does NOT refute the gated form.

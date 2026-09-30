@@ -913,7 +913,7 @@ namespace Config
     inline int WIN_V2_PASSED = 0, WIN_V2_PAWNS = 0, WIN_V2_OUTFLANK = 0, WIN_V2_INFILT = 0, WIN_V2_FLANKS = 0,
                WIN_V2_PAWN_END = 0, WIN_V2_UNWIN = 0, WIN_V2_BASE = 0;
     inline int WIN_V2_CAP = 0;   // |adjustment| bound in mp; 0 = uncapped (2026-09-30)
-    // ── POT winnability, REFERENCE FORM: endgame SCALE FACTOR (2026-10-01; C3 doc §16) ──────────────────────────────
+    // ── POT winnability, REFERENCE FORM: endgame SCALE FACTOR (2026-09-30; C3 doc §16) ──────────────────────────────
     // The additive form above is discontinuous at a level score (sign(T)·C) and lost ~−24 at depth twice. All four
     // references (SF11/15, Ethereal, Weiss) scale the endgame multiplicatively instead: total' = total·(1 + eg·(f−1)),
     // f = clamp(64 + BASE + SP·strong pawns + ONEFLANK·[pawns on one flank] + OCB·[bishops-only opposite colours] +
@@ -1186,7 +1186,7 @@ namespace Config
     // hypothesis implies. ☠️ A GLOBAL rescale is already refuted (MAG 250-2000 all monotonically worse), so this
     // is a DIFFERENTIAL reweighting: piece x piece ~0.27, piece x pawn ~0.52, pawn x pawn 1.00.
     // 3 = TEXEL-FITTED cells on SF18 search labels, loaded from env KAUF_V2_FILE (mp per unit; MAG 1000 = as fitted).
-    // 2026-10-01, `diagnostics/_texel_kauf_fit.py` (C3 doc §18c): the census was never fitted before.
+    // 2026-09-30, `diagnostics/_texel_kauf_fit.py` (C3 doc §18c): the census was never fitted before.
     inline int KAUF_V2_FORM = 0;
 
     // Slice 4 tier-2b -- TECHNIQUE VALUE for pawnless K+R vs K+minor. Design: EVAL-V2-SLICE4-*.md.

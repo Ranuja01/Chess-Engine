@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""KAUFMAN (census material imbalance), TEXEL-FITTED on SF18 SEARCH labels — never tried before (record check 10-01).
+"""KAUFMAN (census material imbalance), TEXEL-FITTED on SF18 SEARCH labels — never tried before (record check 09-30).
 
 Why: the queen lead (C3 doc §18b; memory `v2-overvalues-queen-vs-minor-compensation`): with one side queenless, SF18
 rates the queen side −5.3pp vs our static eval (−6.1 vs minors). v2's `kaufman_mp` (SF11's quadratic census, built at
 KAUF_V2_MAG=0) was closed 09-18 only as SF's fixed tables × one global scalar on §I corpus MSE — the cells were never
-fitted. The owner (10-01): Kaufman was never Texel-tuned, so that may be where it shines. The 09-18 header's "fitting
+fitted. The owner (09-30): Kaufman was never Texel-tuned, so that may be where it shines. The 09-18 header's "fitting
 the cells is NOT the plan" was a rule about d6-OUTCOME corpus fits; this fits SF18 labels (depth-independent).
 
 Model (White-POV cp): ours = (−T + Σ w·f)/10 + s·STM, T = shipped static total (fitC_win.npz, Black-positive mp);

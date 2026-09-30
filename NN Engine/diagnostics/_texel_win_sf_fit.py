@@ -13,7 +13,7 @@ Split by game hash (15% validation). Reports MSE before (shipped) / after, and t
   pyrun diagnostics/_texel_win_sf_fit.py [LABELS=ks_sets/fitC_eg_sf18.csv] [SAMPLE=ks_sets/fitC_eg_sample.csv]
         [CAP=500] [LAMBDA=1e-4] [TAG=fitWsf]
 
-MODE=scale (2026-10-01): the REFERENCE form instead — a multiplicative endgame SCALE FACTOR (SF11/15, Ethereal, Weiss
+MODE=scale (2026-09-30): the REFERENCE form instead — a multiplicative endgame SCALE FACTOR (SF11/15, Ethereal, Weiss
 all use one; the additive form above is discontinuous at T=0, C3 doc §12 end). T' = T·(1 + g·(f − 1)),
 f = clip(64 + BASE + Σ w·x, LO, HI)/64, x LEADER-relative (the leader = sign(T); continuous at 0 because T·f → 0):
   SP strong-side pawns (4/4) · ONEFLANK all pawns on one flank (4/4) · OCB_PURE / OCB_MIX opposite bishops, alone /

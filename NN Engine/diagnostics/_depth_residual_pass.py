@@ -7,7 +7,7 @@ short-horizon errors our search fixes anyway (tactics, the move being available:
 Serves the POT middlegame study and the queen/Kaufman lead (C3 doc §18b).
 
 Engine side: tactical_test.run_one (cold per FEN, search tables cleared). Its eval is SIDE-TO-MOVE POV in millipawns
-(verified 2026-10-01 on 12 labelled rows: ours/10 ≈ SF cp); mates (|ev| ≥ 9,000,000) are written as ±MATE_CP.
+(verified 2026-09-30 on 12 labelled rows: ours/10 ≈ SF cp); mates (|ev| ≥ 9,000,000) are written as ±MATE_CP.
 Output (append, resumable by FEN): fen, ours_cp_white, depth, nodes.
 
   PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 V2_PRESET=shipped \

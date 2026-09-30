@@ -1,19 +1,19 @@
-# POT — transformation TYPE definitions, for owner review (2026-10-01)
+# POT — transformation TYPE definitions, for owner review (2026-09-30)
 
-**POT (Potential) — "OvD reworked"**: the owner's v1 long-term-pressure invention, redefined 10-01 (C3 doc §17) as the
+**POT (Potential) — "OvD reworked"**: the owner's v1 long-term-pressure invention, redefined 09-30 (C3 doc §17) as the
 potential of either side to STRUCTURALLY transform the position so that another subsystem later "shines through".
-Sources: `POT-TRANSFORMATION-KNOWLEDGE-2026-10-01.md` (taxonomy), C3 doc §17-18a (definition, T1 study).
+Sources: `POT-TRANSFORMATION-KNOWLEDGE-2026-09-30.md` (taxonomy), C3 doc §17-18a (definition, T1 study).
 Status: DESIGN FOR REVIEW — nothing built. Every type below is measured before any C++ exists.
 
 ## 0. Rules every type obeys
 1. **Gate = PRECURSORS present ∧ RESULT absent**, both judged from STRUCTURE. Never from any subsystem's score (owner,
-   10-01: a quiet subsystem may be kinetic with nothing to say).
+   09-30: a quiet subsystem may be kinetic with nothing to say).
 2. **One owner per result.** POT carries only the LATENT part of the owner's future score and falls silent when the
    result appears (the owner takes over) or when the precursors die (break permanently blocked, king safe in an intact
    shelter, majority crippled).
-3. **Both sides, tempo to the mover** (owner, 09-27 / 10-01).
+3. **Both sides, tempo to the mover** (owner, 09-27 / 09-30).
 4. **A state of the king is KS's, not POT's.** Anything that describes how safe a king IS (castling delay, shelter)
-   goes to KS as a FEEDER, never as a POT score (owner, 10-01). POT may only say how the structure can CHANGE.
+   goes to KS as a FEEDER, never as a POT score (owner, 09-30). POT may only say how the structure can CHANGE.
 5. **Measure first:** coverage (gate on-rate) → event rate and precursors → signal on the DEPTH residual (SF18 −
    our d10-12 SEARCH: what our search still misses) → BEYOND-controls (owner term + KS channels + C1/C3 + stm). A type
    that fails beyond-controls is dropped, whatever its raw signal.
@@ -77,7 +77,7 @@ bad bishop, trapped rook) · tapered PST · winnability scale factor `WSF_V2` (i
 
 ## T7. Trade-down conversion → WINNABILITY (endgame hand-over)
 - Already built as the reference-form scale factor `WSF_V2` (C3 §16), in the gate now. POT's mg types fade with phase,
-  and winnability takes the endgame (owner, 10-01).
+  and winnability takes the endgame (owner, 09-30).
 
 ## Deferred (reasons)
 - **T6 freeing break:** its result is mostly "equality" (mobility/space) — low value, high overlap with mobility.
@@ -98,7 +98,7 @@ precursors; (c) the bundled fit with per-type verification.
 2. T4: fold it into the passer re-tune, or keep it as a POT type?
 3. Any transformation you've seen matter that is not on this list (your v1 games — e.g. the Bg7/Ba3 diagonal)?
 
-## Owner review, round 1 (2026-10-01)
+## Owner review, round 1 (2026-09-30)
 1. **T2 storm:** KS-B owns king-directed storms. Owner asks whether POT's storm should be the NON-king kind — pawns
    advancing toward the centre or the enemy structure to create a future break. Proposal: yes, as the general
    "lever REACH" precursor (a pawn that can march to make contact in 2-3 moves), feeding T1/T3/T4/T5 rather than a type
@@ -130,7 +130,7 @@ passer; T3/T5 U falls when the lever is played (tension) and 0 once the target i
 opened. P_k (reach) and V_k (value at the state) are fitted from data too; V_k is measured as the eval/outcome gain
 after reaching k, not hand-set.
 
-## Coverage study (2026-10-01, `diagnostics/_pot_coverage.py GAMES=1500 N=20`, 43,539 middlegame positions)
+## Coverage study (2026-09-30, `diagnostics/_pot_coverage.py GAMES=1500 N=20`, 43,539 middlegame positions)
 Predictions: any gate > 50% ✓ · T4/T5 fire least ✗ (they fire MOST) · T3 lowest event rate ✗ (T4 lowest).
 | type | gate on (share of positions) | result within 20 plies (of gated side-rows) |
 |---|---|---|
@@ -142,9 +142,9 @@ Predictions: any gate > 50% ✓ · T4/T5 fire least ✗ (they fire MOST) · T3 l
 Reading: the concept is NOT narrow in coverage — unresolved structure is the normal middlegame state. T4+T5 co-fire
 because they are the two sides of one flank (A's majority = D's minority) — POT nets both sides by design. These gates
 are LOOSE (definitions, not detectors): next is PRECISION — the event rate with the gate ON vs OFF (lift), per type,
-then the depth residual. Value per position is expected small; the fit shrinks it (owner, 10-01).
+then the depth residual. Value per position is expected small; the fit shrinks it (owner, 09-30).
 
-## Gate precision (2026-10-01, `_pot_coverage.py MODE=lift GAMES=1500 N=20`)
+## Gate precision (2026-09-30, `_pot_coverage.py MODE=lift GAMES=1500 N=20`)
 Event rate WITH the key precursor vs a near-miss population WITHOUT it (same gate minus that precursor).
 Predictions: all lifts > 1.2× ✗ · T1/T3 highest ✗ (they are the lowest).
 | type | key precursor | with | without | lift |

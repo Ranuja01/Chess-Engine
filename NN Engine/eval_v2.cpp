@@ -2083,7 +2083,7 @@ static constexpr int KAUF_V1_THEIRS[6][6] = {
  */
 static constexpr int KAUF_VAL_RATIO[6] = { 256, 256, 136, 137, 129, 129 };  // pair, P, N, B, R, Q
 
-/* FORM 3 (2026-10-01) -- TEXEL-FITTED cells on SF18 SEARCH labels (`diagnostics/_texel_kauf_fit.py`; C3 doc §18c),
+/* FORM 3 (2026-09-30) -- TEXEL-FITTED cells on SF18 SEARCH labels (`diagnostics/_texel_kauf_fit.py`; C3 doc §18c),
  * loaded from KAUF_V2_FILE. Never tried before: 09-18 only swept SF's fixed tables x one scalar on §I, and its "fitting
  * is NOT the plan" was a rule about d6-OUTCOME corpus fits (5/5 bench-negative) -- these labels are depth-independent.
  * Cells are in MILLIPAWNS per unit, White-POV, same index order as the tables above (0=pair 1=P 2=N 3=B 4=R 5=Q), so
@@ -3477,7 +3477,7 @@ static inline int win_adjust(int total, const int *in, int phase256) noexcept
 	return total > 0 ? d : -d;
 }
 
-/* ═══ POT winnability, REFERENCE FORM: ENDGAME SCALE FACTOR (2026-10-01; C3 doc §16) ═══════════════════════════════
+/* ═══ POT winnability, REFERENCE FORM: ENDGAME SCALE FACTOR (2026-09-30; C3 doc §16) ═══════════════════════════════
  * WHY: the additive form above is sign(T)·C — discontinuous at a level score (+1 mp becomes +C) — and two very
  * different fits of it both lost ~−24 Elo at depth. SF11/15, Ethereal and Weiss all scale the endgame MULTIPLICATIVELY
  * (eg·sf/64), which is continuous at 0 (T·f → 0 from both sides) and can never manufacture an edge from noise.
@@ -4130,7 +4130,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		win_mp = win_adjust(total, in, c.phase256);
 		total += win_mp;
 	}
-	// ── POT winnability, REFERENCE FORM (2026-10-01): the endgame scale factor (see win_scale_adjust). Replaces the
+	// ── POT winnability, REFERENCE FORM (2026-09-30): the endgame scale factor (see win_scale_adjust). Replaces the
 	// additive form above when on (running both is not a supported configuration). Gated on WSF_V2: 0 = byte-identical.
 	if (Config::WSF_V2){
 		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);

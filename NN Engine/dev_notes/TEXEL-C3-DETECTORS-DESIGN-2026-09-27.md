@@ -664,7 +664,7 @@ variant rows lack an engine pass) + samples; `collapse_regret_set.csv`.
 **Gate protocol now:** closure + symmetry + fingerprints → SF18 gauntlet @250k, 1,000 paired on FRESH seeds with a fresh
 baseline (`_gauntlet_pair.py`) → per-part ablation if it's a bundle → SPRT @50k + 2,000-game replication → variants/odds.
 
-## 16. POT WINNABILITY — REFERENCE FORM: ENDGAME SCALE FACTOR (2026-10-01)
+## 16. POT WINNABILITY — REFERENCE FORM: ENDGAME SCALE FACTOR (2026-09-30)
 **Reference extraction** (Opus engine-contrast agent; SF lines cited locally, Ethereal/Weiss fetched, line numbers approx.):
 all FOUR references scale the endgame MULTIPLICATIVELY (SF11 `evaluate.cpp:743-760` + material.cpp pawnless factor;
 SF15.1 `:908-947`; Ethereal `evaluateScaleFactor`; Weiss `ScaleFactor`) — continuous at eg = 0 because eg·sf → 0 from both
@@ -685,12 +685,12 @@ rejected) · SP > 0 (✓).
 **Build** (`WSF_V2`, `WSF_V2_{BASE,SP,ONEFLANK,OCB,PASSED}`, `win_scale_adjust`, publishes into `v2_winnab`): fingerprints
 byte-identical at 0 (252 / 49,094,807 / 4.012) · closure EXACT (`_texel_win_pass.py WSF_V2=1 …`, 1,919 live / 20k with
 ONEFLANK exercised; PASSED also exact, 1,060 live) · symmetry on the eg sample: colour 0/4000, file 0/3916.
-**Gate** (queued 2026-10-01, `selfplay/_queue_wsf_gate.sh`): SF18 @250k, 500 games per arm, FRESH seeds 42 + 43, fresh
+**Gate** (queued 2026-09-30, `selfplay/_queue_wsf_gate.sh`): SF18 @250k, 500 games per arm, FRESH seeds 42 + 43, fresh
 shipped baselines `gauntlet_ship4_s4x` vs `gauntlet_wsf_s4x`. **Predictions:** pooled in [−10, +15], most likely ≈ +3
 (the endgame has little eval-shaped headroom — inventory caveat); NOT clearly negative like W / W-SF (the discontinuity
 is gone); seeds differ by < 3pp.
 
-## 17. POT — THE OWNER'S DEFINITION (2026-10-01) ★ supersedes the §8 "pawn-transformation" reading
+## 17. POT — THE OWNER'S DEFINITION (2026-09-30) ★ supersedes the §8 "pawn-transformation" reading
 **Lineage:** v1 OvD (piece pressure on a heat map vs the defender's coverage) was retired because it was mostly KS; KS now
 owns that. POT is the TRUE meaning: the POTENTIAL of a position to transform. (§8's lever/tension/majority features and
 v1's heat-map pressure were both the wrong mechanism — the §14 screen nulls stand, the concept does not fall with them.)
@@ -720,7 +720,7 @@ count types and outcomes; (2) PRECURSORS: which structural features N plies earl
 |owner(t+N) − owner(t)| from structure (locked pawns, tension, uncastled king, closed files …); (4) validate against SF18
 search residuals (the depth-independent "what search sees and static eval doesn't"), with the no-overlap collinearity
 check; (5) only then C++ and the Texel fit, gated on fresh seeds.
-☠️ **Owner correction (2026-10-01): U_k must NEVER be read from a subsystem's OUTPUT.** A quiet KS can be KINETIC with
+☠️ **Owner correction (2026-09-30): U_k must NEVER be read from a subsystem's OUTPUT.** A quiet KS can be KINETIC with
 nothing to say (king safe, position settled) — a low score is not a potential zone. U_k = how much owner_k's INPUTS can
 still change (locked vs tense pawns, closed vs openable files, castling still pending …), judged from STRUCTURE only;
 empirically calibrated as the PREDICTED FUTURE MOVEMENT of owner_k, never its current level.
@@ -728,8 +728,8 @@ empirically calibrated as the PREDICTED FUTURE MOVEMENT of owner_k, never its cu
 Nimzowitsch, Kmoch's levers, Flores/Soltis structure families, Shereshevsky, AlphaZero concept probing …) ⇒ a taxonomy
 (type → end result → precursors → early signs → owning subsystem), then work backwards to detection and relative scoring.
 
-## 18. POT T1 STUDY — central opening vs an uncastled king (2026-10-01, `_pot_t1_study.py GAMES=3000 N=20`)
-First full pass of the owner's work-backwards method (§17; knowledge doc `POT-TRANSFORMATION-KNOWLEDGE-2026-10-01.md`).
+## 18. POT T1 STUDY — central opening vs an uncastled king (2026-09-30, `_pot_t1_study.py GAMES=3000 N=20`)
+First full pass of the owner's work-backwards method (§17; knowledge doc `POT-TRANSFORMATION-KNOWLEDGE-2026-09-30.md`).
 Structure only: UNRESOLVED gate = every file kf−1..kf+1 (c-f) still holds a defender pawn; EVENT = by t+20 plies the
 king is still on d-f and one of those files has lost all defender pawns.
 - Rows: KINETIC 41,893 · UNRESOLVED 29,340. Event 31.5% (predicted 10-20% ✗). Defender scores 0.470 with the event vs
@@ -745,7 +745,7 @@ king is still on d-f and one of those files has lost all defender pawns.
 - ⇒ Reading: the structural precursors predict THAT lines open, but SF18 does not price that as missing from our eval;
   what it prices is development / castling tempo (dynamic, T10-like, possibly owned elsewhere). n is small (1,426) and the
   event model was trained on d6 outcomes — a feasibility read, not a verdict.
-**18a. Follow-ups (2026-10-01).** `MODE=stm`: the side-to-move residual is GENERAL, not T1 — +2.39pp toward the mover on
+**18a. Follow-ups (2026-09-30).** `MODE=stm`: the side-to-move residual is GENERAL, not T1 — +2.39pp toward the mover on
 all 9,898 mg rows (central king +2.53, none +2.27, balanced +2.98) ⇒ a static-vs-search gap (the mover picks its best
 move in search), parked as a separate lead; NOT POT.
 `MODE=race` (owner: the castling race must not overlap KS — at most a KS FEEDER, not a POT rescoring): SF18 residual
@@ -766,7 +766,7 @@ beyond controls) — an existing term scoring latent pressure as kinetic; find t
 count? rook-file terms?) — the inverse of POT's own rule, and worth a look.
 T1 verdict so far: nothing for POT proper; one KS feeder lead; one over-scoring lead. Predictions for the race check
 were not registered (I did not write them down before running — noted).
-**18b. WHO over-credits heavy pieces on closed files? (2026-10-01, `_pot_t1_study.py MODE=heavy`, all 9,898 labelled
+**18b. WHO over-credits heavy pieces on closed files? (2026-09-30, `_pot_t1_study.py MODE=heavy`, all 9,898 labelled
 std mg positions × both sides, ev_breakdown only.)** Predictions: general not T1-only ✓ · open files ≈ 0 ✓ · the PST
 absorbs it ✗.
 - heavy (R+Q) on files holding an enemy pawn: −7.6σ raw, stepping +0.89 → −1.32pp from 0 to 3+; on open/half-open files
@@ -780,13 +780,13 @@ absorbs it ✗.
   lead (record check running; Kaufman was parked 09-18). ⚠️ static vs SF SEARCH: confirm on the depth residual (our
   d10-12 search) before acting; quiet-filtered rows, but imbalance positions can be transient.
 - §18a's "heavy_centre" finding is most likely this (queens sit on the king's files).
-**16a. WSF DEPTH GATE — PASSED (2026-10-01).** SF18 @250k, paired vs FRESH shipped baselines on unused seeds:
+**16a. WSF DEPTH GATE — PASSED (2026-09-30).** SF18 @250k, paired vs FRESH shipped baselines on unused seeds:
 seed 42 +1.60pp ± 2.52 · seed 43 +2.80pp ± 2.53 · **pooled +2.20pp ± 1.79, z 2.41 ⇒ +20.2 Elo [+3.7, +37.4]** (base
 73.45% → 75.65%). Predictions: not clearly negative ✓ · seeds within 3pp ✓ (1.2) · pooled in [−10, +15] ✗ (above).
 ⇒ the FORM was the problem: the same idea (winnability), in the reference engines' continuous multiplicative form, turns
 −23..−25 into +20. Next (protocol): SPRT @50k seed 45 → 2,000-game replication seed 46 (`selfplay/_queue_wsf_sprt.sh`),
 then variants/odds, then the owner ships. Knobs would move to a `POT_V2_*` prefix on ship (§13).
-**18c. KAUFMAN, TEXEL-FITTED on SF18 labels (2026-10-01, `_texel_kauf_fit.py`; owner: "Kaufman was never Texel-tuned,
+**18c. KAUFMAN, TEXEL-FITTED on SF18 labels (2026-09-30, `_texel_kauf_fit.py`; owner: "Kaufman was never Texel-tuned,
 so that may be where it shines").** 28,317 SF18-labelled std mg + eg rows, val by game hash 15%; every arm AND the
 baseline fit a side-to-move nuisance and (`SCALE=1`) a global-scale nuisance α (fitted +0.095 = SF search scores run
 ~9.5% larger than our static), neither shipped — so no arm can win by stretching evals (without it the cell arms

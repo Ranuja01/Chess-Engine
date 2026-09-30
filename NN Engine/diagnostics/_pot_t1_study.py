@@ -249,7 +249,7 @@ def stm_check():
 
 def race_check():
     """MODE=race: the CASTLING RACE (T1's textbook test #3: tempi until D can castle vs A's readiness) — does it carry
-    SF18 signal BEYOND KS and the existing eval features? Owner rule (10-01): if it only re-says king danger it belongs
+    SF18 signal BEYOND KS and the existing eval features? Owner rule (09-30): if it only re-says king danger it belongs
     in KS as a FEEDER, not as a POT rescoring. Controls: the engine KS total + all 68 KS channels (fitC_ks2 ch, both
     kings), the 184 C1/C3 feature diffs (fitC_features: mobility, pawns, passers, placement, shelter/storm cells), and
     side to move. Method: ridge-residualise the SF18 residual AND each race feature on the controls, out-of-fold (5

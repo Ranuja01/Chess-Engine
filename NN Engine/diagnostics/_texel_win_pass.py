@@ -29,7 +29,7 @@ W = [int(os.environ.get(k, "0")) for k in WN]
 BASE = int(os.environ.get("WIN_V2_BASE", "0"))
 ON = os.environ.get("WIN_V2", "0") == "1"
 CAP = int(os.environ.get("WIN_V2_CAP", "0"))
-# WSF_V2 (2026-10-01): closure for the reference-form SCALE FACTOR (win_scale_adjust); features via
+# WSF_V2 (2026-09-30): closure for the reference-form SCALE FACTOR (win_scale_adjust); features via
 # _texel_win_sf_fit.scale_features, whose PASSED is a python-chess approximation of v2's passer mask ⇒ exact closure
 # is claimed only with WSF_V2_PASSED=0; with it set the mismatch rate measures the definitional gap.
 WSF_ON = os.environ.get("WSF_V2", "0") == "1"

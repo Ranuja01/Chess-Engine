@@ -179,8 +179,8 @@ def sf_check(mu, sd, w):
     wp = lambda cp: 100.0 / (1.0 + np.exp(-K * np.clip(cp, -1500, 1500)))
     sample = {r["fen"]: int(r["row"]) for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sample.csv")))
               if r["src"] == "std"}
-    zw = np.load(os.path.join(DATA, "fitC_win.npz"))
-    zk = np.load(os.path.join(DATA, "fitC_ks2.npz"))
+    zw = {"total": np.load(os.path.join(DATA, "fitC_win.npz"))["total"]}   # load ONCE (npz re-reads per access)
+    zk = {"ks_engine": np.load(os.path.join(DATA, "fitC_ks2.npz"))["ks_engine"]}
     sc, rA, ours_A, ksD, fx = [], [], [], [], []
     for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sf18.csv"))):
         if not r.get("best_cp") or r["fen"] not in sample:
@@ -221,5 +221,99 @@ def sf_check(mu, sd, w):
               % (np.corrcoef(sc, ksD)[0, 1], 100 * (ksD != 0).mean()))
 
 
+def stm_check():
+    """MODE=stm: is the side-to-move residual (SF18 search − our static, toward the mover) general or T1-specific?"""
+    import csv
+    THIS = os.path.dirname(os.path.abspath(__file__))
+    K = 0.00368208
+    wp = lambda cp: 100.0 / (1.0 + np.exp(-K * np.clip(cp, -1500, 1500)))
+    sample = {r["fen"]: int(r["row"]) for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sample.csv")))
+              if r["src"] == "std"}
+    zw = {"total": np.load(os.path.join(DATA, "fitC_win.npz"))["total"]}   # load ONCE (npz re-reads per access)
+    rm, central, ours_m = [], [], []
+    for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sf18.csv"))):
+        if not r.get("best_cp") or r["fen"] not in sample:
+            continue
+        b = chess.Board(r["fen"])
+        ours_w = -float(zw["total"][sample[r["fen"]]]) / 10.0
+        s = 1.0 if b.turn == chess.WHITE else -1.0
+        rm.append(s * (wp(float(r["best_cp"])) - wp(ours_w)))
+        ours_m.append(s * ours_w)
+        central.append(any(chess.square_file(b.king(D)) in (3, 4) for D in (chess.WHITE, chess.BLACK)))
+    rm, central, ours_m = map(np.array, (rm, central, ours_m))
+    print("STM CHECK (residual toward the side to move, SF18 search − our static, pp)")
+    for name, m in (("all mg", np.ones(len(rm), bool)), ("a central king", central), ("no central king", ~central),
+                    ("balanced |ours|<100cp", np.abs(ours_m) < 100)):
+        print("  %-22s n %5d  mean %+.2f pp  (se %.2f)" % (name, m.sum(), rm[m].mean(), rm[m].std() / math.sqrt(m.sum())))
+
+
+def race_check():
+    """MODE=race: the CASTLING RACE (T1's textbook test #3: tempi until D can castle vs A's readiness) — does it carry
+    SF18 signal BEYOND KS and the existing eval features? Owner rule (10-01): if it only re-says king danger it belongs
+    in KS as a FEEDER, not as a POT rescoring. Controls: the engine KS total + all 68 KS channels (fitC_ks2 ch, both
+    kings), the 184 C1/C3 feature diffs (fitC_features: mobility, pawns, passers, placement, shelter/storm cells), and
+    side to move. Method: ridge-residualise the SF18 residual AND each race feature on the controls, out-of-fold (5
+    folds), then correlate the remainders = the signal no control carries."""
+    import csv
+    THIS = os.path.dirname(os.path.abspath(__file__))
+    K = 0.00368208
+    wp = lambda cp: 100.0 / (1.0 + np.exp(-K * np.clip(cp, -1500, 1500)))
+    sample = {r["fen"]: int(r["row"]) for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sample.csv")))
+              if r["src"] == "std"}
+    zw = {"total": np.load(os.path.join(DATA, "fitC_win.npz"))["total"]}   # load ONCE (npz re-reads per access)
+    _k = np.load(os.path.join(DATA, "fitC_ks2.npz"))
+    zk = {"ks_engine": _k["ks_engine"], "ch": _k["ch"]}
+    zf = {"diff": np.load(os.path.join(DATA, "fitC_features.npz"))["diff"]}
+    RN = ["castle_tempi", "dev_lead", "heavy_centre", "levers", "race"]
+    R, y, C = [], [], []
+    for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sf18.csv"))):
+        if not r.get("best_cp") or r["fen"] not in sample:
+            continue
+        b = chess.Board(r["fen"])
+        row = sample[r["fen"]]
+        ours_w = -float(zw["total"][row]) / 10.0
+        for D in (chess.WHITE, chess.BLACK):
+            kf = chess.square_file(b.king(D))
+            if kf not in (3, 4) or half_open_near(b, D, kf):
+                continue
+            f = dict(zip(FEATS, features(b, D)))
+            tD = min(f["block"] + 1, 4) if f["rights"] else 4          # moves until D can castle (4 = cannot)
+            race = f["dev"] + tD                                         # A's development lead + D's castling delay
+            R.append([tD, f["dev"], f["heavy"], f["levers"], race])
+            sA = -1.0 if D == chess.WHITE else 1.0
+            y.append(sA * (wp(float(r["best_cp"])) - wp(ours_w)))
+            ctrl = [sA * float(zk["ks_engine"][row]) * -1.0, float(b.turn != D)]
+            ctrl += list(zk["ch"][row].reshape(-1).astype(float))
+            ctrl += list(sA * zf["diff"][row].astype(float))
+            C.append(ctrl)
+    R, y, C = np.array(R, float), np.array(y, float), np.array(C, float)
+    C = C[:, C.std(0) > 0]
+    C = (C - C.mean(0)) / C.std(0)
+    n = len(y)
+    fold = np.arange(n) % 5
+    def oof(t, lam=50.0):
+        out = np.zeros(n)
+        for k in range(5):
+            tr, te = fold != k, fold == k
+            A = C[tr]
+            w = np.linalg.solve(A.T @ A + lam * np.eye(A.shape[1]), A.T @ (t[tr] - t[tr].mean()))
+            out[te] = t[te] - (t[tr].mean() + C[te] @ w)
+        return out
+    ey = oof(y)
+    print("RACE CHECK  unresolved central-king rows %d · controls %d columns (KS total + 68 KS channels + C1/C3 + stm)"
+          % (n, C.shape[1]))
+    print("  controls explain %.1f%% of the SF18 residual variance (out-of-fold)" % (100 * (1 - ey.var() / y.var())))
+    print("  %-13s %9s %9s %11s %12s" % ("feature", "raw r", "raw σ", "BEYOND r", "BEYOND σ"))
+    for k, name in enumerate(RN):
+        raw = np.corrcoef(R[:, k], y)[0, 1]
+        ex = oof(R[:, k])
+        bey = np.corrcoef(ex, ey)[0, 1]
+        ovl = np.nanmax(np.abs([np.corrcoef(R[:, k], C[:, j])[0, 1] for j in range(C.shape[1])]))
+        print("  %-13s %+9.3f %9.1f %+11.3f %12.1f   max|corr| with a control %.2f"
+              % (name, raw, raw * math.sqrt(n - 3), bey, bey * math.sqrt(n - 3), ovl))
+    print("  read: a race feature whose BEYOND σ stays >= 3 carries information KS and the eval do not ⇒ a POT candidate;\n"
+          "        if it collapses, the signal was already KS's / the eval's ⇒ at most a KS FEEDER, not a POT score.")
+
+
 if __name__ == "__main__":
-    main()
+    {"stm": stm_check, "race": race_check}.get(KV.get("MODE"), main)()

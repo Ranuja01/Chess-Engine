@@ -745,3 +745,24 @@ king is still on d-f and one of those files has lost all defender pawns.
 - ⇒ Reading: the structural precursors predict THAT lines open, but SF18 does not price that as missing from our eval;
   what it prices is development / castling tempo (dynamic, T10-like, possibly owned elsewhere). n is small (1,426) and the
   event model was trained on d6 outcomes — a feasibility read, not a verdict.
+**18a. Follow-ups (2026-10-01).** `MODE=stm`: the side-to-move residual is GENERAL, not T1 — +2.39pp toward the mover on
+all 9,898 mg rows (central king +2.53, none +2.27, balanced +2.98) ⇒ a static-vs-search gap (the mover picks its best
+move in search), parked as a separate lead; NOT POT.
+`MODE=race` (owner: the castling race must not overlap KS — at most a KS FEEDER, not a POT rescoring): SF18 residual
+toward the attacker, ridge-residualised out-of-fold on 235 control columns (engine KS + all 68 KS channels + C1/C3 incl.
+the shelter/castle cells + stm), 1,426 unresolved central-king rows:
+| feature | raw r (σ) | BEYOND controls r (σ) | max overlap |
+|---|---|---|---|
+| castle_tempi (moves until D can castle; 4 = cannot) | +0.102 (3.9) | **+0.102 (3.8)** | 0.34 |
+| dev_lead | +0.128 (4.8) | +0.008 (0.3) — owned already | 0.31 |
+| heavy_centre (A rooks/queens on the king's files) | −0.096 (−3.6) | **−0.131 (−5.0)** | 0.39 |
+| levers | +0.009 (0.3) | +0.013 (0.5) | 0.42 |
+| race = dev + tempi | +0.156 (5.9) | +0.090 (3.4) | 0.23 |
+⇒ (1) the STRUCTURAL T1 core (levers) carries no SF-priced signal, raw or beyond; (2) **castling delay survives every
+control** — but it is a king-SAFETY STATE (the king can't reach safety soon), i.e. KS's concept ⇒ per the owner's rule
+it is a **KS FEEDER candidate** (e.g. a danger input for an uncastled central king), not a POT score; (3) development is
+already carried by the eval; (4) **we OVER-credit the attacker's heavy pieces on the (still closed) king files** (−5.0σ
+beyond controls) — an existing term scoring latent pressure as kinetic; find the owner (PST rook/queen files? KS attacker
+count? rook-file terms?) — the inverse of POT's own rule, and worth a look.
+T1 verdict so far: nothing for POT proper; one KS feeder lead; one over-scoring lead. Predictions for the race check
+were not registered (I did not write them down before running — noted).

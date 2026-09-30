@@ -97,3 +97,35 @@ precursors; (c) the bundled fit with per-type verification.
 1. Is T2 (storm) KS-B's alone, i.e. POT out unless measurement says otherwise?
 2. T4: fold it into the passer re-tune, or keep it as a POT type?
 3. Any transformation you've seen matter that is not on this list (your v1 games — e.g. the Bg7/Ba3 diagonal)?
+
+## Owner review, round 1 (2026-10-01)
+1. **T2 storm:** KS-B owns king-directed storms. Owner asks whether POT's storm should be the NON-king kind — pawns
+   advancing toward the centre or the enemy structure to create a future break. Proposal: yes, as the general
+   "lever REACH" precursor (a pawn that can march to make contact in 2-3 moves), feeding T1/T3/T4/T5 rather than a type
+   of its own. King-directed storm stays KS-B (with the closed-centre condition as a KS-B feeder candidate).
+2. **T4 majority → passer IS POT** (owner): the POTENTIAL to break out into a passer, before any pawn is a candidate;
+   it turns down as it becomes kinetic (candidate/passer ⇒ the passer terms own it). ⇒ T4 back IN, gated on "no
+   candidate/passer on that flank yet". (§14's `mobile_majority` null was ungated and on the static residual — re-test.)
+3. **The scoring is REALIZABILITY OF POTENTIAL** (owner): POT = Σ_k P(reaching state k, alone or combined) × the
+   advantage the side would have AT that state. The type descriptions state end results only to define k; the score is
+   the chance of getting there × what it is worth there, discounted by how unresolved it still is.
+**New types from the owner:**
+- **T8' Centre liquidation → open board (piece activity):** potential = heavy pieces aligned behind own pawns on files
+  that would open; owner of the result = mobility / placement. ★ Directly relevant to §18a's finding that we already
+  OVER-credit heavy pieces on closed king files (−5.0σ beyond controls) — an existing term scores that pressure as
+  kinetic. ⇒ T8' cannot be ADDED on top until that term is found; it may be the correct SHAPE (credit ∝ P(open)) for
+  pressure some term now scores in full.
+- **T9' Fortress / blockade creation:** the defender's potential to build an unbreakable wedge. Proposal: model it as
+  the PRECURSOR-KILL side of the attacker's types (it lowers P_k), plus an endgame winnability input; static fortress
+  detection is notoriously hard ⇒ later.
+- **T6' Exchange sac / piece transformation:** the move is search's; the static part is the value of minor-piece
+  anchors (holes, outposts, colour complexes) when lines stay closed = a closedness-conditioned minor-vs-rook imbalance
+  (SF weighs space by `blockedCount`; Kaufman imbalance parked). ⇒ a separate imbalance lead, probably not POT.
+**Potential → kinetic per subsystem (owner question):** not all-or-nothing and not global. Per type k and per REGION
+(king file group, flank, centre), U_k ∈ [0,1] is CONTINUOUS (the winnability lesson: no cliffs) and structural:
+the expected remaining change of owner_k's INPUTS over the next N plies, regressed on structure (rams, levers, lever
+reach, open/half-open files, candidate status …) from game sequences. Examples of the natural limits: T1 U falls as
+king-adjacent files open (each open file moves it toward KS); T4 U falls as a pawn becomes a candidate, then 0 at a
+passer; T3/T5 U falls when the lever is played (tension) and 0 once the target is weak; T8' U falls per central file
+opened. P_k (reach) and V_k (value at the state) are fitted from data too; V_k is measured as the eval/outcome gain
+after reaching k, not hand-set.

@@ -624,3 +624,11 @@ val −8.4%**. Weights (mp): PASSED 1 · PAWNS 449 · OUTFLANK 69 · INFILT 136 
 −1155 ⇒ ≤2-pawn endgame edges shrink, ≥3-pawn edges grow (within ±½ pawn); pure pawn endings boosted. New knob
 `WIN_V2_CAP` (0 = uncapped = byte-identical; shipped fingerprint unchanged 252 / 49,094,807 / 4.012); closure EXACT with
 the fit + cap (18,117 live / 20k). ⚠️ Accuracy vs SF is not Elo — gate on FRESH seeds 40 + 41 with fresh baselines.
+**POT middlegame screen vs SF18 SEARCH labels (2026-09-30, `_pot_mg_screen.py`, 9,829 standard mg rows):** residual =
+win%(SF18) − win%(shipped). lever_now r −0.054 (−1.1σ, fires 4.5%) · tension_centre −0.055 (−1.0σ) · mobile_majority
++0.014 (+1.1σ, 61%) · projected winnability inputs (leader-relative): passed **−0.043 (−4.3σ)**, pawns +0.9σ, outflanking
++0.4σ, infiltration −1.3σ, both_flanks +0.2σ. Overlap with the 106 existing features ≤ 0.35 for all.
+⇒ No transformation feature explains our mg disagreement with SF — POT's mg half does NOT pass the fair test with these
+features; nothing built. The one signal (we over-rate the leader's mg edge when passers are on the board) is OWNED by the
+passer terms (no-overlap rule) ⇒ logged as a passer-term lead, not a POT feature. Variant mg rows (4,944) labelled but not
+yet engine-passed.

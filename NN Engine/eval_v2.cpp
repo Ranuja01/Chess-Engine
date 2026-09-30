@@ -58,6 +58,9 @@ WHAT IS DELIBERATELY ABSENT, and why (the inverse of an optimization log is the 
     first. ★ The concept it was reaching for is real and distinct -- LONG-TERM, prophylactic pressure (an
     oncoming pawn storm making castling to that side bad) as opposed to KS's IMMEDIATE pressure from
     attacking pieces -- so it returns as a late rung designed to be harmonious with KS, not as a port.
+    ★ It returned (2026-09-29) as **POT (Potential) -- OvD reworked**: the owner's long-term-pressure concept, redesigned
+    king-free as transformation potential (mg) + winning potential (eg winnability, `win_inputs` / `win_adjust`).
+    Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8, §11-13.
 
 THE LADDER. Config::EVAL_V2_RUNG selects how far up to evaluate; each rung is read against the PREVIOUS
 rung, which is a candidate-vs-candidate comparison and therefore null-independent -- the one comparison our

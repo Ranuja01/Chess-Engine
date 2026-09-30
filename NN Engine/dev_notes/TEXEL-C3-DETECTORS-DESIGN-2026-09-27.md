@@ -613,3 +613,8 @@ OWNER distinct from existing terms · a COLLINEARITY check vs the existing featu
 INCREMENTAL value (held-out, then games) on top of the shipped eval AND the other POT features · few features, each its
 own signal. Projected winnability overlaps winnability + pawn structure by construction ⇒ admitted only if it carries
 "where the structure is heading", not "what it is now".
+**C3 detectors — FRESH-SEED re-gate (2026-09-30):** K1p cell values on top of the shipped config, SF18 @250k vs a fresh
+baseline: seed 38 −4.10pp ± 4.59 · seed 39 −1.00pp ± 4.66 · **pooled −2.55pp ± 3.27 ⇒ −22.4 Elo [−49.4, +6.6]**. Agrees
+with the earlier −8 ⇒ with d6-outcome values the detectors do not pay at depth; they stay built at weight 0, to be
+re-priced on SF18 labels with POT. (Note: winnability and detectors both read ≈ −4.1 on seed 38 — one seed, not a pattern.)
+SF18 labelling of `fitC_eg_sample.csv` started (then the mg sample).

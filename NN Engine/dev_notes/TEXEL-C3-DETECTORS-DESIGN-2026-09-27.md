@@ -780,3 +780,9 @@ absorbs it ✗.
   lead (record check running; Kaufman was parked 09-18). ⚠️ static vs SF SEARCH: confirm on the depth residual (our
   d10-12 search) before acting; quiet-filtered rows, but imbalance positions can be transient.
 - §18a's "heavy_centre" finding is most likely this (queens sit on the king's files).
+**16a. WSF DEPTH GATE — PASSED (2026-10-01).** SF18 @250k, paired vs FRESH shipped baselines on unused seeds:
+seed 42 +1.60pp ± 2.52 · seed 43 +2.80pp ± 2.53 · **pooled +2.20pp ± 1.79, z 2.41 ⇒ +20.2 Elo [+3.7, +37.4]** (base
+73.45% → 75.65%). Predictions: not clearly negative ✓ · seeds within 3pp ✓ (1.2) · pooled in [−10, +15] ✗ (above).
+⇒ the FORM was the problem: the same idea (winnability), in the reference engines' continuous multiplicative form, turns
+−23..−25 into +20. Next (protocol): SPRT @50k seed 45 → 2,000-game replication seed 46 (`selfplay/_queue_wsf_sprt.sh`),
+then variants/odds, then the owner ships. Knobs would move to a `POT_V2_*` prefix on ship (§13).

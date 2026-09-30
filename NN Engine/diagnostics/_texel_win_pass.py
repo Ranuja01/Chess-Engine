@@ -28,6 +28,7 @@ WN = ["WIN_V2_PASSED", "WIN_V2_PAWNS", "WIN_V2_OUTFLANK", "WIN_V2_INFILT", "WIN_
 W = [int(os.environ.get(k, "0")) for k in WN]
 BASE = int(os.environ.get("WIN_V2_BASE", "0"))
 ON = os.environ.get("WIN_V2", "0") == "1"
+CAP = int(os.environ.get("WIN_V2_CAP", "0"))
 
 import chess
 import ChessAI
@@ -60,6 +61,8 @@ with gzip.open(IN, "rt") as f:
             v = cdiv(C * (256 - p), 256)
             m = abs(T)
             d = max(v, -m) if T != 0 else 0
+            if CAP > 0:
+                d = max(-CAP, min(CAP, d))
             model = d if T > 0 else (-d if T < 0 else 0)
             bad += model != a
             live += a != 0

@@ -3427,7 +3427,13 @@ static inline int win_adjust(int total, const int *in, int phase256) noexcept
 	            + Config::WIN_V2_UNWIN * in[6] + Config::WIN_V2_BASE;
 	const int v = C * (256 - phase256) / 256;
 	const int mag = total > 0 ? total : -total;
-	const int d = v > -mag ? v : -mag;
+	int d = v > -mag ? v : -mag;
+	// WIN_V2_CAP (2026-09-30): bound the adjustment to ±CAP mp. The d6-outcome fit (swings to ~1.7 pawns) hurt at depth;
+	// the SF18-label fit is priced under a ½-pawn cap. 0 = uncapped = the previous behaviour.
+	if (Config::WIN_V2_CAP > 0){
+		if (d > Config::WIN_V2_CAP) d = Config::WIN_V2_CAP;
+		if (d < -Config::WIN_V2_CAP) d = -Config::WIN_V2_CAP;
+	}
 	return total > 0 ? d : -d;
 }
 

@@ -912,6 +912,7 @@ namespace Config
     inline int WIN_V2 = 0;
     inline int WIN_V2_PASSED = 0, WIN_V2_PAWNS = 0, WIN_V2_OUTFLANK = 0, WIN_V2_INFILT = 0, WIN_V2_FLANKS = 0,
                WIN_V2_PAWN_END = 0, WIN_V2_UNWIN = 0, WIN_V2_BASE = 0;
+    inline int WIN_V2_CAP = 0;   // |adjustment| bound in mp; 0 = uncapped (2026-09-30)
     inline int KS_V2_W_N = 31;
     inline int KS_V2_W_B = 31;
     inline int KS_V2_W_R = 47;

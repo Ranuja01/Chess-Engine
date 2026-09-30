@@ -618,3 +618,9 @@ baseline: seed 38 −4.10pp ± 4.59 · seed 39 −1.00pp ± 4.66 · **pooled −
 with the earlier −8 ⇒ with d6-outcome values the detectors do not pay at depth; they stay built at weight 0, to be
 re-priced on SF18 labels with POT. (Note: winnability and detectors both read ≈ −4.1 on seed 38 — one seed, not a pattern.)
 SF18 labelling of `fitC_eg_sample.csv` started (then the mg sample).
+**POT winnability Fit W-SF (2026-09-30, `_texel_win_sf_fit.py`): fitted to SF18 d14 SEARCH labels** on the 20k endgame
+sample (18,488 joined rows, val by game hash 15%), adjustment capped ±500 mp: MSE of win% vs SF18 search **train −10.0%,
+val −8.4%**. Weights (mp): PASSED 1 · PAWNS 449 · OUTFLANK 69 · INFILT 136 · FLANKS 33 · PAWN_END 1346 · UNWIN 62 · BASE
+−1155 ⇒ ≤2-pawn endgame edges shrink, ≥3-pawn edges grow (within ±½ pawn); pure pawn endings boosted. New knob
+`WIN_V2_CAP` (0 = uncapped = byte-identical; shipped fingerprint unchanged 252 / 49,094,807 / 4.012); closure EXACT with
+the fit + cap (18,117 live / 20k). ⚠️ Accuracy vs SF is not Elo — gate on FRESH seeds 40 + 41 with fresh baselines.

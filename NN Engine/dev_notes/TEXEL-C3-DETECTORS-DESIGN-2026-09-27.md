@@ -663,3 +663,29 @@ fitC_ks2.npz (per-type, new KS), fitC_pass/zero, fitC_win.npz, fit outputs (`*_f
 variant rows lack an engine pass) + samples; `collapse_regret_set.csv`.
 **Gate protocol now:** closure + symmetry + fingerprints → SF18 gauntlet @250k, 1,000 paired on FRESH seeds with a fresh
 baseline (`_gauntlet_pair.py`) → per-part ablation if it's a bundle → SPRT @50k + 2,000-game replication → variants/odds.
+
+## 16. POT WINNABILITY — REFERENCE FORM: ENDGAME SCALE FACTOR (2026-10-01)
+**Reference extraction** (Opus engine-contrast agent; SF lines cited locally, Ethereal/Weiss fetched, line numbers approx.):
+all FOUR references scale the endgame MULTIPLICATIVELY (SF11 `evaluate.cpp:743-760` + material.cpp pawnless factor;
+SF15.1 `:908-947`; Ethereal `evaluateScaleFactor`; Weiss `ScaleFactor`) — continuous at eg = 0 because eg·sf → 0 from both
+sides. ★ Surprise: SF11/SF15/Ethereal's ADDITIVE complexity leg has the SAME step (2C) whenever C > 0 — they survive it
+because the base constant keeps C ≤ 0 except in pawn-rich / pure-pawn endings; our W-SF fit made C > 0 from ~3 pawns up.
+Weiss has no complexity term at all. Universal inputs (4/4, but one SF lineage): strong-side pawn count · pawns on one
+flank · opposite bishops; 3/4: pawn ending, bare-minor/pawnless edge; SF-only: passers, outflanking, infiltration.
+**Form:** total' = total·(1 + eg·(f − 64)/64), eg = (256−phase)/256, f = clamp(64 + BASE + SP·strong pawns + ONEFLANK +
+OCB (bishops only, opposite colours) + PASSED·strong passers, 0, 64); strong = sign(total). Non-pair approximation of
+eg·f (exact on the eg share when mg = eg). |adjustment| ≤ |total| ⇒ it can never create or grow an edge.
+**Fit** (`_texel_win_sf_fit.py MODE=scale`, SF18 d14 labels, 18,488 eg rows, val by game hash 15%), val MSE vs shipped:
+SF15-shaped prior UNFITTED +5.65% (worse) · HI 64 all 9 features −10.18% · HI 72 −14.75% · HI 80 −15.88% · HI 64
+4 features −10.18% · **HI 64, SP + OCB only −9.86% ⇒ SHIP ARM: BASE −37, SP 34, OCB −80** (f: 0 pawns 0.42, 1 pawn 0.95,
+≥2 pawns 1.0; OCB-only 0 at ≤1 pawn → 1.0 at 4). ☠️ HI > 64 REJECTED: it grows 89% of endgame evals ×1.1-1.2 = matching
+SF18's search-score SCALE (search magnitudes exceed static ones) — mean correction, not winnability.
+Predictions registered before fitting: prior helps 1-3% (✗, it hurt) · fit −3..−6% (✗, −10) · HI>64 helps (✓ but
+rejected) · SP > 0 (✓).
+**Build** (`WSF_V2`, `WSF_V2_{BASE,SP,ONEFLANK,OCB,PASSED}`, `win_scale_adjust`, publishes into `v2_winnab`): fingerprints
+byte-identical at 0 (252 / 49,094,807 / 4.012) · closure EXACT (`_texel_win_pass.py WSF_V2=1 …`, 1,919 live / 20k with
+ONEFLANK exercised; PASSED also exact, 1,060 live) · symmetry on the eg sample: colour 0/4000, file 0/3916.
+**Gate** (queued 2026-10-01, `selfplay/_queue_wsf_gate.sh`): SF18 @250k, 500 games per arm, FRESH seeds 42 + 43, fresh
+shipped baselines `gauntlet_ship4_s4x` vs `gauntlet_wsf_s4x`. **Predictions:** pooled in [−10, +15], most likely ≈ +3
+(the endgame has little eval-shaped headroom — inventory caveat); NOT clearly negative like W / W-SF (the discontinuity
+is gone); seeds differ by < 3pp.

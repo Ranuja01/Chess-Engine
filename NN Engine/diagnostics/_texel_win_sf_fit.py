@@ -12,6 +12,14 @@ Split by game hash (15% validation). Reports MSE before (shipped) / after, and t
 
   pyrun diagnostics/_texel_win_sf_fit.py [LABELS=ks_sets/fitC_eg_sf18.csv] [SAMPLE=ks_sets/fitC_eg_sample.csv]
         [CAP=500] [LAMBDA=1e-4] [TAG=fitWsf]
+
+MODE=scale (2026-10-01): the REFERENCE form instead — a multiplicative endgame SCALE FACTOR (SF11/15, Ethereal, Weiss
+all use one; the additive form above is discontinuous at T=0, C3 doc §12 end). T' = T·(1 + g·(f − 1)),
+f = clip(64 + BASE + Σ w·x, LO, HI)/64, x LEADER-relative (the leader = sign(T); continuous at 0 because T·f → 0):
+  SP strong-side pawns (4/4) · ONEFLANK all pawns on one flank (4/4) · OCB_PURE / OCB_MIX opposite bishops, alone /
+  with other pieces (4/4) · PAWN_END (3/4) · PASSED strong-side passers · OUTFLANK · INFILT (SF only).
+Features come from the FEN (python-chess); the engine side is ported only if this passes.
+  pyrun diagnostics/_texel_win_sf_fit.py MODE=scale [HI=64,72,80] [LO=0] [LAMBDA=1e-6]
 """
 import os, sys, csv, hashlib, math
 import numpy as np
@@ -94,5 +102,107 @@ def main():
     print("  ⚠️ the engine applies NO cap yet: if this ships, the cap must be added to win_adjust (knob WIN_V2_CAP).")
 
 
+SC_NAMES = ["BASE", "SP", "ONEFLANK", "OCB_PURE", "OCB_MIX", "PAWN_END", "PASSED", "OUTFLANK", "INFILT"]
+QS, KS = 0x0F0F0F0F0F0F0F0F, 0xF0F0F0F0F0F0F0F0
+
+
+def scale_features(fen, strong_black):
+    import chess
+    b = chess.Board(fen)
+    s = chess.BLACK if strong_black else chess.WHITE
+    pw = int(b.pawns)
+    sp = len(b.pieces(chess.PAWN, s))
+    oneflank = 0 if (pw & QS and pw & KS) else 1
+    wb, bb = b.pieces(chess.BISHOP, chess.WHITE), b.pieces(chess.BISHOP, chess.BLACK)
+    ocb = len(wb) == 1 and len(bb) == 1 and \
+        (chess.square_file(list(wb)[0]) + chess.square_rank(list(wb)[0])) % 2 != \
+        (chess.square_file(list(bb)[0]) + chess.square_rank(list(bb)[0])) % 2
+    others = int(b.knights | b.rooks | b.queens) != 0
+    npm = int(b.knights | b.bishops | b.rooks | b.queens) != 0
+    # strong-side passers: no enemy pawn ahead on the same or adjacent files
+    passed = 0
+    for sq in b.pieces(chess.PAWN, s):
+        f, r = chess.square_file(sq), chess.square_rank(sq)
+        blocked = False
+        for e in b.pieces(chess.PAWN, not s):
+            ef, er = chess.square_file(e), chess.square_rank(e)
+            if abs(ef - f) <= 1 and ((er > r) if s == chess.WHITE else (er < r)):
+                blocked = True
+                break
+        passed += not blocked
+    wk, bk = b.king(chess.WHITE), b.king(chess.BLACK)
+    outflank = abs(chess.square_file(wk) - chess.square_file(bk)) - abs(chess.square_rank(wk) - chess.square_rank(bk))
+    infilt = 1 if (chess.square_rank(wk) > 3 or chess.square_rank(bk) < 4) else 0
+    return [1, sp, oneflank, int(ocb and not others), int(ocb and others), int(not npm), passed, outflank, infilt]
+
+
+def main_scale():
+    his = [float(h) for h in KV.get("HI", "64,72,80").split(",")]
+    LO = float(KV.get("LO", 0))
+    lam = float(KV.get("LAMBDA", 1e-6))
+    sample = {r["fen"]: (int(r["row"]), r["game_id"]) for r in csv.DictReader(open(SAMPLE, newline=""))}
+    lab = [(r["fen"], float(r["best_cp"])) for r in csv.DictReader(open(LABELS, newline="")) if r.get("best_cp")]
+    z = np.load(os.path.join(DATA, "fitC_win.npz"))
+    fens, rows, sf, val = [], [], [], []
+    for fen, cp in lab:
+        if fen in sample:
+            row, gid = sample[fen]
+            fens.append(fen); rows.append(row); sf.append(cp)
+            val.append(int(hashlib.md5(gid.encode()).hexdigest()[:8], 16) % 100 < 15)
+    rows, sf, val = np.array(rows), np.array(sf), np.array(val)
+    T = z["total"][rows].astype(np.float64)
+    ph = z["phase"][rows].astype(np.float64)
+    ok = (ph >= 0) & (np.abs(T) < 30000) & (np.abs(sf) < 50000)
+    X = np.array([scale_features(f, t > 0) for f, t, o in zip(fens, T, ok) if o], dtype=np.float64)
+    if "KEEP" in KV:                                    # zero out the features not kept (BASE always kept)
+        keep = set(KV["KEEP"].split(",")) | {"BASE"}
+        X[:, [i for i, k in enumerate(SC_NAMES) if k not in keep]] = 0.0
+    T, ph, sf, val = T[ok], ph[ok], sf[ok], val[ok]
+    g = (256.0 - ph) / 256.0
+    tgt = winpct(sf)
+    tr = ~val
+    print("MODE=scale rows %d (train %d, val %d)" % (len(T), tr.sum(), val.sum()))
+    print("  feature means: " + " ".join("%s=%.2f" % (k, v) for k, v in zip(SC_NAMES, X.mean(axis=0))))
+
+    def tprime(wv, m, hi):
+        f = np.clip(64.0 + X[m] @ wv, LO, hi) / 64.0
+        return T[m] * (1.0 + g[m] * (f - 1.0)), f
+
+    def mse(wv, m, hi):
+        tp, _ = tprime(wv, m, hi)
+        return float(np.mean((winpct(-tp / 10.0) - tgt[m]) ** 2))
+
+    zero = np.zeros(len(SC_NAMES))
+    base = {"train": mse(zero, tr, 64), "val": mse(zero, val, 64)}
+    # SF15.1 'otherwise' branch as an unfitted prior: min(64, 36 + 7·sp) − 8·oneflank, OCB pure 18+4·passed
+    prior = np.array([-28, 7, -8, -18, -20, 0, 0, 0, 0], dtype=np.float64)
+    print("  shipped (f≡1)       train %.3f  val %.3f" % (base["train"], base["val"]))
+    print("  SF15-shaped prior   train %+.2f%%  val %+.2f%%" % tuple(
+        100 * (mse(prior, m, 64) / base[k] - 1) for k, m in (("train", tr), ("val", val))))
+    near = np.abs(T) < 200
+    out = []
+    for hi in his:
+        def loss(d):
+            return mse(d, tr, hi) + lam * float(d @ d)
+        best = None
+        for x0 in (zero, prior):
+            r = minimize(loss, x0, method="Powell", options={"maxiter": 20000, "xtol": 1e-2, "ftol": 1e-9})
+            if best is None or r.fun < best.fun:
+                best = r
+        wv = best.x
+        tpa, fa = tprime(wv, np.ones(len(T), bool), hi)
+        ratio = np.abs(tpa) / np.maximum(np.abs(T), 1)
+        vt, vv = mse(wv, tr, hi), mse(wv, val, hi)
+        print("  HI=%-3.0f fitted  train %+.2f%%  val %+.2f%% | f mean %.3f  shrunk %.1f%%  grown %.1f%%  max stretch %.3f"
+              "  | near-level rows (%d): max |T'-T| %.0f mp"
+              % (hi, 100 * (vt / base["train"] - 1), 100 * (vv / base["val"] - 1), fa.mean(),
+                 100 * (fa < 1).mean(), 100 * (fa > 1).mean(), ratio.max(), near.sum(),
+                 np.abs(tpa - T)[near].max() if near.any() else 0))
+        print("         weights: " + " ".join("%s=%.1f" % (k, v) for k, v in zip(SC_NAMES, wv)))
+        out.append("# HI=%.0f LO=%.0f val %+.2f%%\n" % (hi, LO, 100 * (vv / base["val"] - 1))
+                   + " ".join("%s=%.1f" % (k, v) for k, v in zip(SC_NAMES, wv)))
+    open(os.path.join(DATA, "win_%s.txt" % KV.get("TAG", "fitWscale")), "w").write("\n".join(out) + "\n")
+
+
 if __name__ == "__main__":
-    main()
+    main_scale() if KV.get("MODE") == "scale" else main()

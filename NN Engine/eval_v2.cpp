@@ -3437,6 +3437,40 @@ static inline int win_adjust(int total, const int *in, int phase256) noexcept
 	return total > 0 ? d : -d;
 }
 
+/* ═══ POT winnability, REFERENCE FORM: ENDGAME SCALE FACTOR (2026-10-01; C3 doc §16) ═══════════════════════════════
+ * WHY: the additive form above is sign(T)·C — discontinuous at a level score (+1 mp becomes +C) — and two very
+ * different fits of it both lost ~−24 Elo at depth. SF11/15, Ethereal and Weiss all scale the endgame MULTIPLICATIVELY
+ * (eg·sf/64), which is continuous at 0 (T·f → 0 from both sides) and can never manufacture an edge from noise.
+ * WHAT: f = clamp(64 + BASE + SP·strong pawns + ONEFLANK·[pawns on ≤1 flank] + OCB·[each side one bishop, opposite
+ * colours, no other pieces] + PASSED·strong passers, 0, 64); strong = the leader, sign(total). v2 ships in non-pair
+ * mode, so the scale enters as total·(1 + eg·(f−64)/64) with eg = (256−phase)/256 — exact on the eg share when
+ * mg = eg, and the mg share is untouched at phase 256. Inputs are leader-relative and board-derived, so a colour
+ * mirror swaps the leader together with the sign: antisymmetric. Division truncates toward zero on both signs.
+ * Returns the adjustment (mp, Black-positive); |adjustment| ≤ |total| because f ∈ [0, 64].
+ */
+static inline int win_scale_adjust(const V2Context &c, const PawnEntry &pe, int total) noexcept
+{
+	if (total == 0) return 0;
+	const int s = total > 0 ? 1 : 0;                    // Black-positive: a positive total means Black leads (s = 1)
+	const uint64_t own = s ? c.black : c.white;
+	const int sp = __builtin_popcountll(c.pawns & own);
+	const int oneflank = ((c.pawns & WIN_QS) && (c.pawns & WIN_KS)) ? 0 : 1;
+	const uint64_t wb = c.bishops & c.white, bb = c.bishops & c.black;
+	int ocb = 0;
+	if (__builtin_popcountll(wb) == 1 && __builtin_popcountll(bb) == 1 && !(c.knights | c.rooks | c.queens)){
+		const int ws = __builtin_ctzll(wb), bs = __builtin_ctzll(bb);
+		ocb = (((ws & 7) + (ws >> 3)) & 1) != (((bs & 7) + (bs >> 3)) & 1);
+	}
+	const int passed = __builtin_popcountll(pe.passed[s]);
+	int f = 64 + Config::WSF_V2_BASE + Config::WSF_V2_SP * sp + Config::WSF_V2_ONEFLANK * oneflank
+	      + Config::WSF_V2_OCB * ocb + Config::WSF_V2_PASSED * passed;
+	if (f > 64) f = 64;
+	if (f < 0) f = 0;
+	if (f == 64) return 0;
+	const long long num = (long long)total * (256 - c.phase256) * (f - 64);
+	return (int)(num / (256LL * 64));
+}
+
 /* Winnability input probe (diagnostic): out[0..6] = in[0..6], out[7] = phase256. */
 void win_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask,
                uint64_t kingsMask, uint64_t whiteMask, uint64_t blackMask, long long *out)
@@ -4055,6 +4089,14 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		win_mp = win_adjust(total, in, c.phase256);
 		total += win_mp;
 	}
+	// ── POT winnability, REFERENCE FORM (2026-10-01): the endgame scale factor (see win_scale_adjust). Replaces the
+	// additive form above when on (running both is not a supported configuration). Gated on WSF_V2: 0 = byte-identical.
+	if (Config::WSF_V2){
+		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
+		const int d = win_scale_adjust(c, pe, total);
+		win_mp += d;
+		total += d;
+	}
 
 	// Later rungs accumulate here, each gated on its own knob.
 
@@ -4149,7 +4191,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			g_eval_breakdown.v2_kprot = kprot_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_KPROT);
 		}
-		if (Config::WIN_V2){
+		if (Config::WIN_V2 || Config::WSF_V2){
 			g_eval_breakdown.v2_winnab = win_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_WINNAB);
 		}

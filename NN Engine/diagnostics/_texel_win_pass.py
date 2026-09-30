@@ -29,9 +29,16 @@ W = [int(os.environ.get(k, "0")) for k in WN]
 BASE = int(os.environ.get("WIN_V2_BASE", "0"))
 ON = os.environ.get("WIN_V2", "0") == "1"
 CAP = int(os.environ.get("WIN_V2_CAP", "0"))
+# WSF_V2 (2026-10-01): closure for the reference-form SCALE FACTOR (win_scale_adjust); features via
+# _texel_win_sf_fit.scale_features, whose PASSED is a python-chess approximation of v2's passer mask ⇒ exact closure
+# is claimed only with WSF_V2_PASSED=0; with it set the mismatch rate measures the definitional gap.
+WSF_ON = os.environ.get("WSF_V2", "0") == "1"
+WSF = {k: int(os.environ.get("WSF_V2_" + k, "0")) for k in ("BASE", "SP", "ONEFLANK", "OCB", "PASSED")}
 
 import chess
 import ChessAI
+if WSF_ON:
+    from _texel_win_sf_fit import scale_features
 
 
 def cdiv(a, b):
@@ -66,12 +73,24 @@ with gzip.open(IN, "rt") as f:
             model = d if T > 0 else (-d if T < 0 else 0)
             bad += model != a
             live += a != 0
+        if WSF_ON and p >= 0:
+            T = t - a
+            if T != 0:
+                x = scale_features(r["fen"], T > 0)   # [1, sp, oneflank, ocb_pure, ocb_mix, pawn_end, passed, ...]
+                fs = 64 + WSF["BASE"] + WSF["SP"] * x[1] + WSF["ONEFLANK"] * x[2] + WSF["OCB"] * x[3] \
+                    + WSF["PASSED"] * x[6]
+                fs = max(0, min(64, fs))
+                model = cdiv(T * (256 - p) * (fs - 64), 256 * 64)
+            else:
+                model = 0
+            bad += model != a
+            live += a != 0
         if (i + 1) % 200000 == 0:
             sys.stderr.write("[win pass] %d rows, %.0f/s\n" % (i + 1, (i + 1) / (time.time() - t0)))
 np.savez_compressed(OUT, row=np.array(rows, dtype=np.int32), inputs=np.array(ins, dtype=np.int16),
                     total=np.array(tot, dtype=np.int32), adj=np.array(adj, dtype=np.int32),
                     phase=np.array(ph, dtype=np.int16), keys=np.array(KEYS))
 print("WIN PASS  %d rows  %.0fs  WIN_V2=%d" % (len(rows), time.time() - t0, ON))
-if ON:
+if ON or WSF_ON:
     print("  closure: live rows %d · model mismatches %d  VERDICT %s" % (live, bad, "EXACT" if bad == 0 else "☠️ DIVERGES"))
 print("wrote", OUT)

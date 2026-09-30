@@ -913,6 +913,14 @@ namespace Config
     inline int WIN_V2_PASSED = 0, WIN_V2_PAWNS = 0, WIN_V2_OUTFLANK = 0, WIN_V2_INFILT = 0, WIN_V2_FLANKS = 0,
                WIN_V2_PAWN_END = 0, WIN_V2_UNWIN = 0, WIN_V2_BASE = 0;
     inline int WIN_V2_CAP = 0;   // |adjustment| bound in mp; 0 = uncapped (2026-09-30)
+    // ── POT winnability, REFERENCE FORM: endgame SCALE FACTOR (2026-10-01; C3 doc §16) ──────────────────────────────
+    // The additive form above is discontinuous at a level score (sign(T)·C) and lost ~−24 at depth twice. All four
+    // references (SF11/15, Ethereal, Weiss) scale the endgame multiplicatively instead: total' = total·(1 + eg·(f−1)),
+    // f = clamp(64 + BASE + SP·strong pawns + ONEFLANK·[pawns on one flank] + OCB·[bishops-only opposite colours] +
+    // PASSED·strong passers, 0, 64)/64, strong = the leader (sign of total). Continuous at 0, never grows an edge.
+    // WSF_V2 = 0: absent, byte-identical.
+    inline int WSF_V2 = 0;
+    inline int WSF_V2_BASE = 0, WSF_V2_SP = 0, WSF_V2_ONEFLANK = 0, WSF_V2_OCB = 0, WSF_V2_PASSED = 0;
     inline int KS_V2_W_N = 31;
     inline int KS_V2_W_B = 31;
     inline int KS_V2_W_R = 47;

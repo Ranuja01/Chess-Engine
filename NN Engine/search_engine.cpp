@@ -2354,6 +2354,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::WIN_V2_UNWIN = env_int("WIN_V2_UNWIN", Config::WIN_V2_UNWIN);
         Config::WIN_V2_BASE = env_int("WIN_V2_BASE", Config::WIN_V2_BASE);
         Config::WIN_V2_CAP = env_int("WIN_V2_CAP", Config::WIN_V2_CAP);
+        Config::WSF_V2 = env_int("WSF_V2", Config::WSF_V2);
+        Config::WSF_V2_BASE = env_int("WSF_V2_BASE", Config::WSF_V2_BASE);
+        Config::WSF_V2_SP = env_int("WSF_V2_SP", Config::WSF_V2_SP);
+        Config::WSF_V2_ONEFLANK = env_int("WSF_V2_ONEFLANK", Config::WSF_V2_ONEFLANK);
+        Config::WSF_V2_OCB = env_int("WSF_V2_OCB", Config::WSF_V2_OCB);
+        Config::WSF_V2_PASSED = env_int("WSF_V2_PASSED", Config::WSF_V2_PASSED);
         Config::KS_V2_W_N = env_int("KS_V2_W_N", Config::KS_V2_W_N);
         Config::KS_V2_W_B = env_int("KS_V2_W_B", Config::KS_V2_W_B);
         Config::KS_V2_W_R = env_int("KS_V2_W_R", Config::KS_V2_W_R);
@@ -2566,6 +2572,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " WIN_V2_INFILT=" << Config::WIN_V2_INFILT << " WIN_V2_FLANKS=" << Config::WIN_V2_FLANKS
                   << " WIN_V2_PAWN_END=" << Config::WIN_V2_PAWN_END << " WIN_V2_UNWIN=" << Config::WIN_V2_UNWIN
                   << " WIN_V2_BASE=" << Config::WIN_V2_BASE << " WIN_V2_CAP=" << Config::WIN_V2_CAP
+                  << " WSF_V2=" << Config::WSF_V2 << " WSF_V2_BASE=" << Config::WSF_V2_BASE
+                  << " WSF_V2_SP=" << Config::WSF_V2_SP << " WSF_V2_ONEFLANK=" << Config::WSF_V2_ONEFLANK
+                  << " WSF_V2_OCB=" << Config::WSF_V2_OCB << " WSF_V2_PASSED=" << Config::WSF_V2_PASSED
                   << " KS_V2_W_N=" << Config::KS_V2_W_N << " KS_V2_W_B=" << Config::KS_V2_W_B
                   << " KS_V2_W_R=" << Config::KS_V2_W_R << " KS_V2_W_Q=" << Config::KS_V2_W_Q
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")

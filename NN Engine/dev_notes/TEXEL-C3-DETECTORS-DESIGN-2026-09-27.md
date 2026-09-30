@@ -689,3 +689,34 @@ ONEFLANK exercised; PASSED also exact, 1,060 live) · symmetry on the eg sample:
 shipped baselines `gauntlet_ship4_s4x` vs `gauntlet_wsf_s4x`. **Predictions:** pooled in [−10, +15], most likely ≈ +3
 (the endgame has little eval-shaped headroom — inventory caveat); NOT clearly negative like W / W-SF (the discontinuity
 is gone); seeds differ by < 3pp.
+
+## 17. POT — THE OWNER'S DEFINITION (2026-10-01) ★ supersedes the §8 "pawn-transformation" reading
+**Lineage:** v1 OvD (piece pressure on a heat map vs the defender's coverage) was retired because it was mostly KS; KS now
+owns that. POT is the TRUE meaning: the POTENTIAL of a position to transform. (§8's lever/tension/majority features and
+v1's heat-map pressure were both the wrong mechanism — the §14 screen nulls stand, the concept does not fall with them.)
+**Owner's definition (paraphrase, key phrases verbatim):**
+- Subsystems (mobility, pawns, KS, passers …) are ABSOLUTES about what we see now; KS already carries short predictions
+  (storms, attackers + safe checks). POT is the SUPER-LONG-TERM prediction: can either side (both sides matter; the side
+  to move gets the tempo) STRUCTURALLY change the position so that a subsystem will later "shine through" — e.g. a closed
+  centre with a king stuck in it that one side can blow open: KS says nothing yet (lines blocked), POT gives a slight boost.
+- ★ **Potential vs kinetic:** "if things are already blown up and KS is in full effect, then this midgame potential is
+  not needed anymore as the potential is now kinetic." ⇒ **per subsystem, POT speaks only where that subsystem CANNOT yet
+  judge the position reliably (unresolved), and goes silent where it can — regardless of whether it fires high or zero.**
+  Non-KS transformations (pawn/majority/piece isolation…) count the same way.
+- The ideal: see what deep search sees (a push that yields favourable connections 30 plies later, when search stops at
+  15) — impossible exactly, but that is the direction. Part of the job is knowing WHEN something is unresolved.
+- **Method:** catalogue the TYPES of transformation and their END RESULTS, find what makes them happen, and work BACKWARDS
+  to detect the precursors early — a GM's intuition without calculation — then tune on it.
+- **Endgame:** potential of this kind fades ⇒ POT hands over to the known endgame metric, WINNABILITY (§16 scale factor).
+**Architecture this implies (my formalisation, for owner review):**
+    POT = Σ_k  U_k(position) · P_k(side can force transformation k) · E[Δ owner_k after k]      (mg; → winnability in eg)
+  k = transformation type; owner_k = the subsystem whose score it will change (KS, pawn structure, passers, mobility,
+  winnability); U_k ∈ [0,1] = how UNRESOLVED owner_k is (1 = cannot judge yet, 0 = already kinetic). ⇒ no toe-stepping by
+  construction: POT carries only the LATENT part of another subsystem's future score, and fades as that subsystem resolves.
+**Plan:** (1) transformation EVENT catalogue from game sequences: detect when an owner subsystem's state jumps (lines open
+toward a king, centre opens with an uncastled king, a passer/majority conversion, a weakness created, files opened …),
+count types and outcomes; (2) PRECURSORS: which structural features N plies earlier predict a SUCCESSFUL event
+(premature attempts are ~3× commoner, §8a — predict success, not attempts); (3) UNRESOLVED-ness per owner: predict
+|owner(t+N) − owner(t)| from structure (locked pawns, tension, uncastled king, closed files …); (4) validate against SF18
+search residuals (the depth-independent "what search sees and static eval doesn't"), with the no-overlap collinearity
+check; (5) only then C++ and the Texel fit, gated on fresh seeds.

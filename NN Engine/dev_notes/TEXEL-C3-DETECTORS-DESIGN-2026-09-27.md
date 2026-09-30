@@ -766,3 +766,17 @@ beyond controls) — an existing term scoring latent pressure as kinetic; find t
 count? rook-file terms?) — the inverse of POT's own rule, and worth a look.
 T1 verdict so far: nothing for POT proper; one KS feeder lead; one over-scoring lead. Predictions for the race check
 were not registered (I did not write them down before running — noted).
+**18b. WHO over-credits heavy pieces on closed files? (2026-10-01, `_pot_t1_study.py MODE=heavy`, all 9,898 labelled
+std mg positions × both sides, ev_breakdown only.)** Predictions: general not T1-only ✓ · open files ≈ 0 ✓ · the PST
+absorbs it ✗.
+- heavy (R+Q) on files holding an enemy pawn: −7.6σ raw, stepping +0.89 → −1.32pp from 0 to 3+; on open/half-open files
+  0.6σ. No published term absorbs it (pieces/PST, KS, mobility, placement, pawns, passers — partials all ≈ −0.08).
+- ☠️ my first material control was DEGENERATE (closed + open = R+Q count, so the partial was 0 by construction). The valid
+  placement test — the SHARE of A's heavy pieces on closed files, controls = stm + all terms + both sides' R/Q + rams —
+  leaves only −0.019 (≈ −2.7σ): **closed-file placement is a small effect; the signal is MATERIAL.**
+- ★ **QUEEN IMBALANCE:** A has a queen, the opponent none (n 1,499): residual toward A **−5.31pp (se 0.17)**; by rook
+  difference 0 (Q vs minors/pawns, n 1,145) **−6.13pp** · −1 (n 238) −1.95 · −2 (Q vs 2R, n 35) +1.20; both queens /
+  none: 0.00. ⇒ **v2 OVER-values the queen against minor-piece compensation by ~6pp win%.** Not POT — a material-imbalance
+  lead (record check running; Kaufman was parked 09-18). ⚠️ static vs SF SEARCH: confirm on the depth residual (our
+  d10-12 search) before acting; quiet-filtered rows, but imbalance positions can be transient.
+- §18a's "heavy_centre" finding is most likely this (queens sit on the king's files).

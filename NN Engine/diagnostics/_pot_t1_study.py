@@ -315,5 +315,96 @@ def race_check():
           "        if it collapses, the signal was already KS's / the eval's ⇒ at most a KS FEEDER, not a POT score.")
 
 
+def heavy_check():
+    """MODE=heavy: WHO over-credits heavy pieces on CLOSED files? (§18a: −5.0σ beyond KS + C1/C3 controls; the tapered
+    PST was NOT among those controls.) All SF18-labelled standard mg rows, per side A: rooks+queens on files that still
+    hold an ENEMY pawn (closed for A) vs on files without one (open/half-open for A). Residual toward A = win%(SF18) −
+    win%(ours). Then: does controlling for each published eval term (A-oriented, via ev_breakdown) absorb the effect?
+    Needs the engine in-process (ev_breakdown only — no search). Run with V2_PRESET=shipped."""
+    import csv
+    os.environ.setdefault("PRESET", "LONG_FORMAT"); os.environ.setdefault("USE_OPENING_BOOK", "0")
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    import ChessAI
+    ai = ChessAI.ChessAI(None, None, chess.Board(), True)
+    THIS = os.path.dirname(os.path.abspath(__file__))
+    K = 0.00368208
+    wp = lambda cp: 100.0 / (1.0 + np.exp(-K * np.clip(cp, -1500, 1500)))
+    TERMS = ["pieces", "king_safety", "mobility", "v2_placement", "pawn_struct", "v2_passers"]
+    std = {r["fen"] for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sample.csv"))) if r["src"] == "std"}
+    closed, openf, y, T, stm, mat = [], [], [], [], [], []
+    for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sf18.csv"))):
+        if not r.get("best_cp") or r["fen"] not in std:
+            continue
+        b = chess.Board(r["fen"])
+        bd = ai.ev_breakdown(b)
+        ours_w = -float(bd["total"]) / 10.0
+        for A in (chess.WHITE, chess.BLACK):
+            ep = int(b.pieces(chess.PAWN, not A))
+            hv = int(b.pieces(chess.ROOK, A) | b.pieces(chess.QUEEN, A))
+            c = o = 0
+            for sq in chess.SquareSet(hv):
+                if ep & chess.BB_FILES[chess.square_file(sq)]:
+                    c += 1
+                else:
+                    o += 1
+            s = 1.0 if A == chess.WHITE else -1.0                       # White-POV → A's POV
+            closed.append(c); openf.append(o)
+            y.append(s * (wp(float(r["best_cp"])) - wp(ours_w)))
+            T.append([-s * float(bd.get(k, 0)) for k in TERMS])          # breakdown is Black-positive
+            stm.append(float(b.turn == A))
+            ap, dp = int(b.pieces(chess.PAWN, A)), ep
+            rams = sum(1 for sq in chess.SquareSet(ap) if dp >> (sq + (8 if A == chess.WHITE else -8)) & 1)
+            mat.append([len(b.pieces(chess.ROOK, A)), len(b.pieces(chess.QUEEN, A)),
+                        len(b.pieces(chess.ROOK, not A)), len(b.pieces(chess.QUEEN, not A)), rams])
+    closed, openf, y, T, stm = map(lambda a: np.array(a, float), (closed, openf, y, T, stm))
+    mat = np.array(mat, float)
+    n = len(y)
+    print("HEAVY CHECK  side-rows %d  (mean heavy on closed files %.2f, on open/half-open %.2f)"
+          % (n, closed.mean(), openf.mean()))
+    for name, v in (("heavy_closed", closed), ("heavy_open", openf)):
+        r = np.corrcoef(v, y)[0, 1]
+        print("  %-12s raw corr with residual→A %+.4f (%.1fσ)" % (name, r, r * math.sqrt(n - 3)))
+        for L in range(0, 4):
+            m = np.clip(v, 0, 3) == L
+            if m.sum() > 100:
+                print("      %d%s: n %5d  mean residual→A %+.2f pp" % (L, "+" if L == 3 else "", m.sum(), y[m].mean()))
+    def partial(v, ctrl):
+        Z = np.c_[ctrl, np.ones(n)]
+        ry = y - Z @ np.linalg.lstsq(Z, y, rcond=None)[0]
+        rv = v - Z @ np.linalg.lstsq(Z, v, rcond=None)[0]
+        return np.corrcoef(rv, ry)[0, 1]
+    print("  heavy_closed partial corr, controlling for ONE term at a time (+ stm, heavy_open):")
+    base_ctrl = np.c_[stm, openf]
+    print("      %-14s %+.4f" % ("(stm+open only)", partial(closed, base_ctrl)))
+    for j, k in enumerate(TERMS):
+        print("      %-14s %+.4f   corr(heavy_closed, term) %+.3f" % (k, partial(closed, np.c_[base_ctrl, T[:, j]]),
+                                                                    np.corrcoef(closed, T[:, j])[0, 1]))
+    print("      %-14s %+.4f" % ("ALL terms", partial(closed, np.c_[base_ctrl, T])))
+    # material vs placement: hold the heavy-piece COUNTS fixed (A's and the opponent's rooks/queens) and the closedness
+    hvA = mat[:, 0] + mat[:, 1]
+    frac = closed / np.maximum(hvA, 1)
+    print("  MATERIAL vs PLACEMENT (controls: stm + all terms + rooks/queens of both sides [+ rams]):")
+    print("      heavy_closed           %+.4f" % partial(closed, np.c_[base_ctrl, T, mat[:, :4]]))
+    print("      heavy_closed (+rams)   %+.4f" % partial(closed, np.c_[base_ctrl, T, mat]))
+    print("      closed FRACTION (+rams)%+.4f   (share of A's heavy pieces on closed files)"
+          % partial(frac, np.c_[stm, T, mat]))
+    for k, name in enumerate(["A rooks", "A queens", "opp rooks", "opp queens", "A rams"]):
+        r = np.corrcoef(mat[:, k], y)[0, 1]
+        print("      raw corr(%-10s, residual→A) %+.4f (%.1fσ)" % (name, r, r * math.sqrt(n - 3)))
+    # QUEEN IMBALANCE: rows where A has a queen and the opponent does not (each position appears once this way)
+    qi = (mat[:, 1] > 0) & (mat[:, 3] == 0)
+    print("  QUEEN IMBALANCE (A has the queen, opponent none): n %d · mean residual→A %+.2f pp (se %.2f) · our eval→A mean %+.0f cp"
+          % (qi.sum(), y[qi].mean(), y[qi].std() / math.sqrt(max(qi.sum(), 1)), 0.0))
+    rd = (mat[:, 0] - mat[:, 2])[qi]
+    for L in sorted(set(rd.astype(int))):
+        m = rd == L
+        if m.sum() >= 30:
+            print("      rook diff (A − opp) %+d: n %4d  mean residual→A %+.2f pp" % (L, m.sum(), y[qi][m].mean()))
+    both = (mat[:, 1] > 0) & (mat[:, 3] > 0)
+    print("  both queens: n %d · mean residual→A %+.2f pp   · no queens: n %d · %+.2f pp"
+          % (both.sum(), y[both].mean(), ((mat[:, 1] == 0) & (mat[:, 3] == 0)).sum(),
+             y[(mat[:, 1] == 0) & (mat[:, 3] == 0)].mean()))
+
+
 if __name__ == "__main__":
-    {"stm": stm_check, "race": race_check}.get(KV.get("MODE"), main)()
+    {"stm": stm_check, "race": race_check, "heavy": heavy_check}.get(KV.get("MODE"), main)()

@@ -155,7 +155,7 @@ def main():
              cells=np.array(["%s_%d_%d" % c for c in CELLS]), **{"%s_%g" % (n, l): w for n, l, _, w in out})
 
 
-if __name__ == "__main__" and KV.get("MODE") != "export":
+if __name__ == "__main__" and KV.get("MODE") not in ("export", "closure"):
     main()
 
 
@@ -176,3 +176,35 @@ def export():
 
 if KV.get("MODE") == "export":
     export()
+
+
+def closure():
+    """MODE=closure (engine in-process; run with V2_PRESET=shipped KAUF_V2_MAG=1000 KAUF_V2_FORM=3 KAUF_V2_FILE=...):
+    the engine's published kaufman_imbalance must equal the Python model −round-trip(Σ cell·f) exactly on every row
+    (integer cells, integer counts ⇒ any mismatch is a bug). Exit code 1 on any mismatch (the overnight queue aborts)."""
+    os.environ.setdefault("PRESET", "LONG_FORMAT"); os.environ.setdefault("USE_OPENING_BOOK", "0")
+    sys.path.insert(0, os.path.dirname(THIS))
+    import ChessAI
+    cells = {}
+    for line in open(os.environ["KAUF_V2_FILE"]):
+        if line.strip() and not line.startswith("#"):
+            k, a, b, v = line.split()
+            cells[(k, int(a), int(b))] = int(round(float(v)))
+    w = np.array([cells.get(c, 0) for c in CELLS if c[0] != "L"], float)
+    mag = int(os.environ.get("KAUF_V2_MAG", "0"))
+    ai = ChessAI.ChessAI(None, None, chess.Board(), True)
+    bad = live = n = 0
+    for r in csv.DictReader(open(os.path.join(THIS, "ks_sets", "fitC_mg_sf18.csv"), newline="")):
+        b = chess.Board(r["fen"])
+        f = np.array(feats(b)[:len(w)], float)
+        s = int(f @ w)                                           # White-POV integer sum
+        q = abs(-s * mag) // 1000
+        model = q if -s * mag >= 0 else -q                       # C++ truncates toward zero
+        eng = int(ai.ev_breakdown(b).get("kaufman_imbalance", 0))
+        n += 1; live += eng != 0; bad += eng != model
+    print("KAUF CLOSURE  rows %d · live %d · mismatches %d  VERDICT %s" % (n, live, bad, "EXACT" if bad == 0 else "☠️ DIVERGES"))
+    sys.exit(0 if bad == 0 and live > 0 else 1)
+
+
+if KV.get("MODE") == "closure":
+    closure()

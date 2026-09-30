@@ -727,3 +727,21 @@ empirically calibrated as the PREDICTED FUTURE MOVEMENT of owner_k, never its cu
 **Next (owner):** distil human + computer knowledge of transformations first (Soviet "transformation of advantages",
 Nimzowitsch, Kmoch's levers, Flores/Soltis structure families, Shereshevsky, AlphaZero concept probing …) ⇒ a taxonomy
 (type → end result → precursors → early signs → owning subsystem), then work backwards to detection and relative scoring.
+
+## 18. POT T1 STUDY — central opening vs an uncastled king (2026-10-01, `_pot_t1_study.py GAMES=3000 N=20`)
+First full pass of the owner's work-backwards method (§17; knowledge doc `POT-TRANSFORMATION-KNOWLEDGE-2026-10-01.md`).
+Structure only: UNRESOLVED gate = every file kf−1..kf+1 (c-f) still holds a defender pawn; EVENT = by t+20 plies the
+king is still on d-f and one of those files has lost all defender pawns.
+- Rows: KINETIC 41,893 · UNRESOLVED 29,340. Event 31.5% (predicted 10-20% ✗). Defender scores 0.470 with the event vs
+  0.505 without — the event itself costs only ~3.5pp in d6 games.
+- Precursors → event: levers 29/39/48% (✓ Kmoch) · rams 3 → 2.4% (✓ freezes) · supported pushes FLAT (✗) · castling:
+  can castle now 18% vs rights lost 43% (dominant, partly mechanical: a king that castles leaves before it opens).
+  Logistic AUC val 0.651 (predicted 0.70 ✗). Overlap with engine KS +0.05 (KS silent on 89% of these rows).
+- **SF18 check** (1,426 unresolved central-king rows of the labelled mg sample): corr(P(event) score, SF18−ours residual
+  toward the attacker) **+0.10 (3.8σ); balanced +0.15 (3.3σ)** — but lopsided (low-score quintiles −2.1/−2.7pp, the rest ≈0)
+  and **per precursor the STRUCTURAL ones carry nothing** (levers +0.009, push −0.007, rams +0.023); the signal is
+  development (+0.128), castling (rights −0.084, block +0.090), heavy pieces (−0.096), and **side-to-move +0.232** (a
+  static-vs-search TEMPO effect, not POT — the flat tempo bonus is closed on mechanism; worth checking on ALL mg rows).
+- ⇒ Reading: the structural precursors predict THAT lines open, but SF18 does not price that as missing from our eval;
+  what it prices is development / castling tempo (dynamic, T10-like, possibly owned elsewhere). n is small (1,426) and the
+  event model was trained on d6 outcomes — a feasibility read, not a verdict.

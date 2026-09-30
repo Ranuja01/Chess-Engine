@@ -2226,9 +2226,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             Config::KAUF_V2_PAIR = 1;
         }
         Config::KAUF_V2_FORM = env_int("KAUF_V2_FORM", Config::KAUF_V2_FORM);
-        if (Config::KAUF_V2_FORM < 0 || Config::KAUF_V2_FORM > 2){
-            std::cerr << "☠️ KAUF_V2_FORM must be 0 (SF11 verbatim), 1 (v1 fitted, DIAGNOSTIC) or 2 (derived "
-                         "per-piece value-ratio rescale) -- restoring 0.\n";
+        if (Config::KAUF_V2_FORM < 0 || Config::KAUF_V2_FORM > 3){
+            std::cerr << "☠️ KAUF_V2_FORM must be 0 (SF11 verbatim), 1 (v1 fitted, DIAGNOSTIC), 2 (derived "
+                         "per-piece value-ratio rescale) or 3 (Texel-fitted cells from KAUF_V2_FILE) -- restoring 0.\n";
             Config::KAUF_V2_FORM = 0;
         }
         Config::TIER2_V2_MAG = env_int("TIER2_V2_MAG", Config::TIER2_V2_MAG);

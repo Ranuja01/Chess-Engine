@@ -786,3 +786,18 @@ seed 42 +1.60pp ± 2.52 · seed 43 +2.80pp ± 2.53 · **pooled +2.20pp ± 1.79, 
 ⇒ the FORM was the problem: the same idea (winnability), in the reference engines' continuous multiplicative form, turns
 −23..−25 into +20. Next (protocol): SPRT @50k seed 45 → 2,000-game replication seed 46 (`selfplay/_queue_wsf_sprt.sh`),
 then variants/odds, then the owner ships. Knobs would move to a `POT_V2_*` prefix on ship (§13).
+**18c. KAUFMAN, TEXEL-FITTED on SF18 labels (2026-10-01, `_texel_kauf_fit.py`; owner: "Kaufman was never Texel-tuned,
+so that may be where it shines").** 28,317 SF18-labelled std mg + eg rows, val by game hash 15%; every arm AND the
+baseline fit a side-to-move nuisance and (`SCALE=1`) a global-scale nuisance α (fitted +0.095 = SF search scores run
+~9.5% larger than our static), neither shipped — so no arm can win by stretching evals (without it the cell arms
+stretched ×1.06, the rejected WSF-HI pattern). Val MSE vs baseline (overall · mg · eg · queen-imbalance):
+SF tables unfitted +8.03 · +9.57 · +7.24 · +11.18 (worse — agrees with 09-18) ·
+**CELLS λ 0.01 −2.60 · −3.17 · −2.31 · −8.52** (stretch 0.986) · **QUEEN cells λ 0.001 −1.01 · −2.09 · −0.46 · −9.42** ·
+piece values only −0.26 · −0.37 · −0.20 · −2.66.
+Cells: CELLS = pieces gain with pawns on the board (own N×P +32, R×P +21; their R×P +28, N×P +24, B×P +25), pair
+×own pawns +28 / ×their pawns −25; QUEEN = queen loses with pawns (own Q×P −63, their −43) and is redundant with rooks
+(own Q×R −77; SF −134). Exported to `E:/chess_data/texel/kauf_full.txt` / `kauf_queen.txt`.
+Engine: `KAUF_V2_FORM=3` + `KAUF_V2_FILE` (cells in mp, MAG 1000 = as fitted), coded; ⚠️ NOT BUILT YET — the WSF SPRT
+runs from the working tree. After it: build → fingerprints byte-identical at 0 → closure (engine kaufman_imbalance =
+Python model) → symmetry → SF18 gauntlet @250k on fresh seeds, BOTH arms (per-part rule), vs a fresh baseline.
+Also: confirm the queen lead on the depth residual (`_depth_residual_pass.py`) in the same engine window.

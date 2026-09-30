@@ -1185,6 +1185,8 @@ namespace Config
     // 2 = DERIVED per-piece value-ratio rescale of SF's cells (zero free parameters) -- the one arm the basis
     // hypothesis implies. ☠️ A GLOBAL rescale is already refuted (MAG 250-2000 all monotonically worse), so this
     // is a DIFFERENTIAL reweighting: piece x piece ~0.27, piece x pawn ~0.52, pawn x pawn 1.00.
+    // 3 = TEXEL-FITTED cells on SF18 search labels, loaded from env KAUF_V2_FILE (mp per unit; MAG 1000 = as fitted).
+    // 2026-10-01, `diagnostics/_texel_kauf_fit.py` (C3 doc §18c): the census was never fitted before.
     inline int KAUF_V2_FORM = 0;
 
     // Slice 4 tier-2b -- TECHNIQUE VALUE for pawnless K+R vs K+minor. Design: EVAL-V2-SLICE4-*.md.

@@ -2083,6 +2083,44 @@ static constexpr int KAUF_V1_THEIRS[6][6] = {
  */
 static constexpr int KAUF_VAL_RATIO[6] = { 256, 256, 136, 137, 129, 129 };  // pair, P, N, B, R, Q
 
+/* FORM 3 (2026-10-01) -- TEXEL-FITTED cells on SF18 SEARCH labels (`diagnostics/_texel_kauf_fit.py`; C3 doc §18c),
+ * loaded from KAUF_V2_FILE. Never tried before: 09-18 only swept SF's fixed tables x one scalar on §I, and its "fitting
+ * is NOT the plan" was a rule about d6-OUTCOME corpus fits (5/5 bench-negative) -- these labels are depth-independent.
+ * Cells are in MILLIPAWNS per unit, White-POV, same index order as the tables above (0=pair 1=P 2=N 3=B 4=R 5=Q), so
+ * MAG = 1000 means "exactly as fitted". File lines: `O a b value` (OURS, b <= a) / `T a b value` (THEIRS, b < a).
+ * A missing/malformed file leaves the form OFF (every cell 0, reported) -- never a half-loaded table. */
+static int KAUF_FIT_OURS[6][6], KAUF_FIT_THEIRS[6][6];
+
+static void kauf_fit_load()
+{
+	for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b) KAUF_FIT_OURS[a][b] = KAUF_FIT_THEIRS[a][b] = 0;
+	const char *path = std::getenv("KAUF_V2_FILE");
+	if (!path || !*path){
+		std::cerr << "☠️ KAUF_V2_FORM=3 needs KAUF_V2_FILE -- the term stays at 0." << '\n';
+		return;
+	}
+	std::ifstream in(path);
+	if (!in){
+		std::cerr << "☠️ KAUF_V2_FILE=" << path << " cannot be opened -- the term stays at 0." << '\n';
+		return;
+	}
+	int o[6][6] = {}, t[6][6] = {}, n_set = 0;
+	std::string line;
+	while (std::getline(in, line)){
+		if (line.empty() || line[0] == '#') continue;
+		char k; int a, b; double v;
+		if (std::sscanf(line.c_str(), " %c %d %d %lf", &k, &a, &b, &v) != 4 || a < 0 || a > 5 || b < 0 || b > a
+		    || (k != 'O' && k != 'T') || (k == 'T' && b == a)){
+			std::cerr << "☠️ KAUF_V2_FILE malformed line '" << line << "' -- the term stays at 0." << '\n';
+			return;
+		}
+		(k == 'O' ? o : t)[a][b] = (int)std::lround(v);
+		++n_set;
+	}
+	for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b){ KAUF_FIT_OURS[a][b] = o[a][b]; KAUF_FIT_THEIRS[a][b] = t[a][b]; }
+	std::cerr << "[kauf] KAUF_V2_FORM=3 ON: " << n_set << " fitted cells from " << path << '\n';
+}
+
 static inline int kaufman_mp(const V2Context &c) noexcept
 {
 	const bool pair_here = Config::KAUF_V2_PAIR != 0;
@@ -2094,8 +2132,9 @@ static inline int kaufman_mp(const V2Context &c) noexcept
 		cw[t + 1] = (int)c.cnt_white[t];
 		cb[t + 1] = (int)c.cnt_black[t];
 	}
-	const int (*OURS)[6]   = v1_tables ? KAUF_V1_OURS   : KAUF_OURS;
-	const int (*THEIRS)[6] = v1_tables ? KAUF_V1_THEIRS : KAUF_THEIRS;
+	const bool fit_tables = Config::KAUF_V2_FORM == 3;
+	const int (*OURS)[6]   = fit_tables ? KAUF_FIT_OURS   : v1_tables ? KAUF_V1_OURS   : KAUF_OURS;
+	const int (*THEIRS)[6] = fit_tables ? KAUF_FIT_THEIRS : v1_tables ? KAUF_V1_THEIRS : KAUF_THEIRS;
 	const bool ratio_scale = Config::KAUF_V2_FORM == 2;
 	long long sum = 0;                      // White-POV, in the selected form's own cell units
 	for (int pt1 = 0; pt1 < 6; ++pt1)
@@ -2112,7 +2151,8 @@ static inline int kaufman_mp(const V2Context &c) noexcept
 	// ⚠️ The divisor is the FORM's native convention: SF divides its side-difference by 16 on a 128-mg pawn
 	// (=> 2048 against our 1000), while v1 applies its sum as millipawns directly (=> 1000). Keeping both at
 	// "MAG 1000 == this form's own native scale" is what makes the two ladders comparable.
-	return (int)(-sum * (long long)Config::KAUF_V2_MAG / (v1_tables ? 1000 : 2048));
+	// FORM 3's cells are already millipawns (as fitted) => divisor 1000, like FORM 1.
+	return (int)(-sum * (long long)Config::KAUF_V2_MAG / ((v1_tables || fit_tables) ? 1000 : 2048));
 }
 
 // Slice 3 -- SPACE region masks. SF counts OWN-CAMP development room; Ethereal counts a shared centre block.
@@ -3807,6 +3847,7 @@ void v2_c3_init()
 	g_kprot_on = Config::KPROT_V2 && c3_load_table("KPROT_V2", "KPROT_V2_FILE", V2F_KPROT, KPROT_CELLS,
 	                                               kprot_w[0], kprot_w[1]);
 	if (g_ksb_on && Config::KSB_V2_CASTLE) std::cerr << "[c3] KSB_V2_CASTLE: shelter scored at the castling max" << '\n';
+	if (Config::KAUF_V2_MAG != 0 && Config::KAUF_V2_FORM == 3) kauf_fit_load();
 }
 
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)

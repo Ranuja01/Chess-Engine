@@ -632,3 +632,13 @@ win%(SF18) − win%(shipped). lever_now r −0.054 (−1.1σ, fires 4.5%) · ten
 features; nothing built. The one signal (we over-rate the leader's mg edge when passers are on the board) is OWNED by the
 passer terms (no-overlap rule) ⇒ logged as a passer-term lead, not a POT feature. Variant mg rows (4,944) labelled but not
 yet engine-passed.
+☠️ **Fit W-SF — FRESH-SEED VERDICT (2026-09-30 night): NEGATIVE.** vs fresh shipped baselines: seed 40 −2.90pp ± 4.13 ·
+seed 41 −2.10pp ± 4.44 · **pooled −2.50pp ± 3.03, z −1.62 ⇒ −22.9 Elo [−48.9, +5.1]**. Two very different fits (d6
+outcomes; SF18 labels + ½-pawn cap) both ≈ −23..−25 ⇒ suspect the FORM, not the fit.
+★ **Diagnosed: the additive form is DISCONTINUOUS at a level score.** adj = sign(T)·C with C > 0 turns +1 mp into +500
+and −1 into −500. On the Fit C endgame rows: Fit W-SF GROWS the edge on 84.7% and amplifies 98.0% of near-level rows
+(|T| < 200 mp) beyond their own size (median +500 mp = the cap); Fit W 57.3% / 39.3% (median +131). Near-level rows are
+only 2.5% of the (quiet, finished-game) training data, so the fit barely paid for it — but search lives in balanced lines.
+⇒ Proposal (owner discussion): winnability as a multiplicative endgame SCALE FACTOR, E_eg = T·f(C), f ∈ ~[0.5, 1.2] —
+continuous at 0, cannot manufacture an edge from noise, still shrinks unwinnable edges. It is the universal form (4/4
+reference engines have an eg scale factor) and closes the recorded v2 gap ("the endgame can only say draw or full").

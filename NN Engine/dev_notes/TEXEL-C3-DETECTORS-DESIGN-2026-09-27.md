@@ -608,3 +608,8 @@ Samples (made 09-30): `ks_sets/fitC_eg_sample.csv` (20,000 endgame rows, phase <
 Overnight queue: C3 re-gate seeds 38 → 39 (`gauntlet_c3v2_s3x`, vs `gauntlet_ship2_s3x`); then label with
 `_build_regret_set.py IN=ks_sets/fitC_eg_sample.csv K=4 SF_DEPTH=14 OUT=ks_sets/fitC_eg_sf18.csv`, then the mg sample
 → `fitC_mg_sf18.csv`.
+☠️ **Owner condition (09-30): no forced overlap — "we may end up with a mess like v1 again".** Each POT feature: a stated
+OWNER distinct from existing terms · a COLLINEARITY check vs the existing features on the labelled data BEFORE any C++ ·
+INCREMENTAL value (held-out, then games) on top of the shipped eval AND the other POT features · few features, each its
+own signal. Projected winnability overlaps winnability + pawn structure by construction ⇒ admitted only if it carries
+"where the structure is heading", not "what it is now".

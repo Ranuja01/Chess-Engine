@@ -588,3 +588,8 @@ priced-not-shipped (like the C3 detectors).
 against a baseline selected-high on those seeds regresses and reads NEGATIVE by construction — the sharp/quiet artefact
 one level up. Every arm on seed 36 reads negative (fitW −2.4, half −3.2). ⇒ From now on each new gate uses FRESH seeds
 (38, 39, …) with a fresh shipped baseline on the same seeds. POT winnability re-gated on seeds 38 + 39 (4×500 games).
+☠️ **POT winnability Fit W — FRESH-SEED VERDICT (2026-09-30): NEGATIVE, PARKED.** SF18 @250k, paired vs a FRESH shipped
+baseline on unused seeds: seed 38 −4.20pp ± 4.47 · seed 39 −1.50pp ± 4.60 · **pooled −2.85pp ± 3.20, z −1.74 ⇒ −24.9 Elo
+[−51.2, +3.2]**. All five readings over four seeds negative. The misjudgement it targets is real (pilot §11: low-complexity
+edges over-rated ~8pp) but THIS fit (d6 game-outcome labels, swings up to ~1.7 pawns) hurts at depth. Next attempt: fit to
+SF18 search labels (depth-independent target) with the adjustment capped (~½ pawn), gated on fresh seeds (40, 41).

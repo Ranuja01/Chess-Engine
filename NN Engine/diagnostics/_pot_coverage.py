@@ -18,9 +18,9 @@ Structure only; every gate = PRECURSORS present ∧ RESULT absent, per attacker 
 LEVER REACH k: an A pawn that by ≤ k single pushes along an EMPTY path reaches a square attacking a D pawn.
 Middlegame = ≥ 20 men on the board. EVENT horizon: the first stored position with ply ≥ t + N.
 
-  pyrun diagnostics/_pot_coverage.py [GAMES=3000] [N=20]
+  pyrun diagnostics/_pot_coverage.py [GAMES=3000] [N=20] [MODE=lift]
 """
-import os, sys
+import os, sys, math
 import numpy as np
 import pandas as pd
 import chess
@@ -130,6 +130,73 @@ def gates(b, A):
     return out
 
 
+def controls(b, A):
+    """MODE=lift: the SAME gates with the KEY precursor removed (a near-miss population), so lift = event rate with
+    the precursor / without it. T1: central king + closed files, NO central lever reach. T3: supported ram bases with
+    NO lever reach against the base. T4: flanks with NO majority for A (na ≤ nd, nd ≥ 1), no A passer/candidate there.
+    T5: A minority flanks (1 ≤ na < nd, nd ≥ 2), no D isolani, NO lever reach on the flank."""
+    D = not A
+    ap, dp = pawns(b, A), pawns(b, D)
+    out = {}
+    kf = chess.square_file(b.king(D))
+    if kf in (3, 4) and half_open_near(b, D, kf) == 0 and lever_reach(b, A, 2, dp & CENTRE) == 0:
+        out["T1"] = kf
+    fwd = 8 if A == chess.WHITE else -8
+    bases = []
+    for sq in chess.SquareSet(ap & CENTRE):
+        t = sq + fwd
+        if 0 <= t < 64 and dp >> t & 1:
+            for base in chess.SquareSet(chess.BB_PAWN_ATTACKS[A][t] & dp):
+                if not isolated(dp, base) and lever_reach(b, A, 2, chess.BB_SQUARES[base]) == 0:
+                    bases.append(base)
+    if bases:
+        out["T3"] = bases
+    t4, t5 = [], []
+    for name, fm in FLANKS.items():
+        na, nd = chess.popcount(ap & fm), chess.popcount(dp & fm)
+        if 1 <= nd and na <= nd and na >= 1 and not any(passed(b, A, s) or candidate(b, A, s)
+                                                         for s in chess.SquareSet(ap & fm)):
+            t4.append(name)
+        if 1 <= na < nd and nd >= 2 and lever_reach(b, A, 2, dp & fm) == 0 \
+                and not any(isolated(dp, s) for s in chess.SquareSet(dp & fm)):
+            t5.append(name)
+    if t4:
+        out["T4"] = t4
+    if t5:
+        out["T5"] = t5
+    return out
+
+
+def main_lift():
+    st = pd.read_csv(os.path.join(DATA, "fitC_stage1.csv.gz"), usecols=["game_id", "ply", "fen"])
+    games = st["game_id"].unique()[:GAMES]
+    st = st[st["game_id"].isin(set(games))]
+    ev = {(t, k): [0, 0] for t in TYPES for k in ("gate", "ctrl")}
+    for gid, g in st.groupby("game_id", sort=False):
+        plies, fens = g["ply"].values, g["fen"].values
+        for i in range(len(g)):
+            b = chess.Board(fens[i])
+            if chess.popcount(int(b.occupied)) < 20:
+                continue
+            j = np.searchsorted(plies, plies[i] + N)
+            if j >= len(g):
+                continue
+            fut = chess.Board(fens[j])
+            for A in (chess.WHITE, chess.BLACK):
+                for kind, fn in (("gate", gates), ("ctrl", controls)):
+                    for typ, ctx in fn(b, A).items():
+                        ev[(typ, kind)][1] += 1
+                        ev[(typ, kind)][0] += bool(event(fut, A, typ, ctx))
+    print("POT GATE PRECISION  games %d · horizon %d plies (event rate WITH the key precursor vs the near-miss WITHOUT)"
+          % (len(games), N))
+    for t in TYPES:
+        (eg, ng), (ec, nc) = ev[(t, "gate")], ev[(t, "ctrl")]
+        pg, pc = eg / max(ng, 1), ec / max(nc, 1)
+        se = math.sqrt(pg * (1 - pg) / max(ng, 1) + pc * (1 - pc) / max(nc, 1))
+        print("  %s  with %5.1f%% (n %6d) · without %5.1f%% (n %6d) · lift %.2f× · diff %+.1fpp (%.1fσ)"
+              % (t, 100 * pg, ng, 100 * pc, nc, pg / max(pc, 1e-9), 100 * (pg - pc), (pg - pc) / max(se, 1e-9)))
+
+
 def event(fut, A, typ, ctx):
     D = not A
     ap, dp = pawns(fut, A), pawns(fut, D)
@@ -187,4 +254,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main_lift() if KV.get("MODE") == "lift" else main()

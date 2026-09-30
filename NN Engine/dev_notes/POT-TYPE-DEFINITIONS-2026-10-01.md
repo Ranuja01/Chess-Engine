@@ -143,3 +143,19 @@ Reading: the concept is NOT narrow in coverage — unresolved structure is the n
 because they are the two sides of one flank (A's majority = D's minority) — POT nets both sides by design. These gates
 are LOOSE (definitions, not detectors): next is PRECISION — the event rate with the gate ON vs OFF (lift), per type,
 then the depth residual. Value per position is expected small; the fit shrinks it (owner, 10-01).
+
+## Gate precision (2026-10-01, `_pot_coverage.py MODE=lift GAMES=1500 N=20`)
+Event rate WITH the key precursor vs a near-miss population WITHOUT it (same gate minus that precursor).
+Predictions: all lifts > 1.2× ✗ · T1/T3 highest ✗ (they are the lowest).
+| type | key precursor | with | without | lift |
+|---|---|---|---|---|
+| T1 | central lever reach ≤ 2 | 31.6% (13,665) | 32.7% (1,210) | 0.97× (−0.8σ) |
+| T3 | lever reach vs the chain base | 35.4% (8,954) | 37.6% (18,076) | 0.94× (−3.5σ) |
+| T4 | flank majority | 16.4% (13,002) | 9.9% (77,409) | **1.65× (+18.8σ)** |
+| T5 | lever reach on the minority flank | 21.7% (16,110) | 19.3% (9,253) | 1.13× (+4.7σ) |
+Reading: the MAJORITY precursor is real (Kmoch/Shereshevsky confirmed on our games); lever REACH as defined does not
+raise T1/T3 events. Two explanations, not yet separated: (a) my EVENTS are too generic ("a file lost D's pawns", "the
+base square changed" happen for many reasons: D's own captures, advances, piece trades) — an event should require the
+transformation to be caused by the lever (the lever pawn captures / is captured), and (b) d6 games — levers get played
+or ignored at random. Next: causal event definitions for T1/T3 (the lever exchange happened), re-run; strong-game
+(SF18 self-play) sequences when the engine is free. T4 is the first POT type with a demonstrated precursor.

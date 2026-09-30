@@ -129,3 +129,17 @@ king-adjacent files open (each open file moves it toward KS); T4 U falls as a pa
 passer; T3/T5 U falls when the lever is played (tension) and 0 once the target is weak; T8' U falls per central file
 opened. P_k (reach) and V_k (value at the state) are fitted from data too; V_k is measured as the eval/outcome gain
 after reaching k, not hand-set.
+
+## Coverage study (2026-10-01, `diagnostics/_pot_coverage.py GAMES=1500 N=20`, 43,539 middlegame positions)
+Predictions: any gate > 50% ✓ · T4/T5 fire least ✗ (they fire MOST) · T3 lowest event rate ✗ (T4 lowest).
+| type | gate on (share of positions) | result within 20 plies (of gated side-rows) |
+|---|---|---|
+| T1 central opening | 26.0% | 31.6% (13,665) |
+| T3 chain base | 18.4% | 35.4% (8,954) |
+| T4 majority → passer | 31.6% | 16.4% (13,002) |
+| T5 minority attack | 38.5% | 21.7% (16,110) |
+**ANY gate: 70.2%** of middlegame positions. Top combinations: none 29.8 · T4+T5 13.7 · T5 12.0 · T1 10.5 · T4 7.2 · T3 5.5.
+Reading: the concept is NOT narrow in coverage — unresolved structure is the normal middlegame state. T4+T5 co-fire
+because they are the two sides of one flank (A's majority = D's minority) — POT nets both sides by design. These gates
+are LOOSE (definitions, not detectors): next is PRECISION — the event rate with the gate ON vs OFF (lift), per type,
+then the depth residual. Value per position is expected small; the fit shrinks it (owner, 10-01).

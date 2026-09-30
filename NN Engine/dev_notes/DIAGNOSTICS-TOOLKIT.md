@@ -263,3 +263,21 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `selfplay/gen_variant_starts.py` / `gen_odds_starts.py` | variant book (2,376 starts, 27 families) and odds book (480 starts, 8 families) |
 | `ChessAI.v2_feature_counts` / `v2_feature_theta` | C1 features and starting values from C++ |
 | `ChessAI.ks_counts` | 18 keys: the rung-1 six + the 2026-09-27 balance channels (computed by the scorer's own `ks_channels`) |
+
+## Added 2026-09-28/30 — Fit K (KS, shipped), C3 detectors, POT (OvD reworked), gating
+| tool | what it does |
+|---|---|
+| `_c3_oracle.py` | C3 detectors (shelter/storm, flank/king-pawn distance, KingProtector) vs an independent python-chess implementation + hand rows + colour/file mirror + per-cell support. No engine instance |
+| `_texel_ks_pass.py` | every KS channel per king + the engine's KS; GATE = exact Python reproduction of KS (units + curve + balance channels; `KS_PARAMS=<ks_*.txt>` checks a FITTED KS). Now exports per-type attackers (`att_*`, `att_x_*`, `share_*`, `w_att_x`) and per-type safe checks |
+| `_texel_k_fit.py` | Fit K: nested arms P / PK / PKC (PST + non-linear KS + C3 cells), analytic KS gradients, `PIN=` for knobs, bootstrap; writes pst/ks/ksb/kfl/kprot files |
+| `_texel_k2_fit.py` | KS STRUCTURE arms (per-type attacker weights + coordination, x-ray, defence-aware, gate) with PST/C3 frozen; `START_PST`, `C3_START=none`, `KS_ENG` (pass whose KS matches the zero pass) |
+| `_ks_fire_compare.py` | KS fire rate by phase, near-equal separation and danger-magnitude r: shipped vs a fitted `ks_<tag>.txt` (arg = tag) |
+| `_gauntlet_pair.py` | ★ PAIRED SF18-gauntlet comparison by game index (same seed ⇒ same openings/colours): `base:cand [base:cand …]`, per seed + pooled ± 95% and Elo. ☠️ baselines must be FRESH seeds, not the seeds that selected the ship (memory `gate-new-candidates-on-fresh-seeds-not-ship-seeds`) |
+| `_gauntlet_gametype_split.py` | paired split by BASELINE-game class (castling geometry at ply 30, sharp/quiet, length). ☠️ classes tied to the baseline's own outcome regress to the mean ⇒ read against a near-null CONTROL arm on the same games |
+| `_odds_pair_from_log.py` | paired odds-vs-SF result rebuilt from a `vs_sf` LOG (when results.csv was lost), overall + defending/converting |
+| `_build_regret_set.py IN=<csv> FENCOL= TAGCOL=` | SF18 multi-PV labels for ANY corpus (tag copied into `phase_bucket` so `_ks_footprint_regret` splits by it). Used for the v1 collapse set and the 09-30 eg/mg samples |
+| `_ovd_lever_proto.py` | POT mg pilot vs d6 outcomes: lever_now / lever_push / tension_centre / mobile_majority (pure Python) |
+| `_ovd_winnability_proto.py` | POT eg pilot: SF11 complexity inputs vs the stronger side's residual on edge endgames |
+| `_pot_mg_screen.py` | POT mg candidates vs SF18 SEARCH residual + OVERLAP (max |corr| with the 106 existing features) — the owner's no-overlap condition as a tool |
+| `_win_oracle.py` / `_texel_win_pass.py` / `_texel_win_fit.py` / `_texel_win_sf_fit.py` / `_win_amplify_check.py` | winnability: input oracle (+mirror) · inputs + closure gate (models `WIN_V2_CAP`) · fit to d6 outcomes · fit to SF18 labels (capped) · how often a fit AMPLIFIES near-level evals (the additive form's discontinuity) |
+| `ChessAI.win_inputs` | the 7 winnability inputs + phase (knob-free) |

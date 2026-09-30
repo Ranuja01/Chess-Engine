@@ -583,3 +583,23 @@ search downstream of it.
 - **Lopsided starts saturate colour-swapped pairs** (queen odds 2% informative pairs). Use `_variant_report.py`'s pair
   view; read heavy odds only against a fixed stronger opponent.
 - **`sprt.py --max-minutes` overrides `--max-games`.** The real cap is the time budget.
+
+## ☠️ 2026-09-28/30 — new ways instruments misled (or nearly did)
+1. **50k SPRT + 50k replication can both pass a bundle that is flat at play depth.** Fit K1p read +34 self-play and +41 vs
+   SF18 at 50k nodes but −11 at 250k. ⇒ Gate every fitted change vs SF18 at ≥ 250k nodes, and **each part of a joint fit
+   separately** (K1p's KS alone was +30; its PST/C3 parts cancelled it).
+2. **A story before the ablation.** I blamed "tactical KS is depth-fragile" for a night; the KS-only arm disproved it.
+   Run the per-part ablation BEFORE explaining a bundle's failure.
+3. **Pairing against the ship-selection seeds biases every candidate negative** (the baseline was selected-high there) —
+   use fresh seeds + a fresh baseline (memory `gate-new-candidates-on-fresh-seeds-not-ship-seeds`).
+4. **Classes defined by the baseline game's own outcome regress to the mean** (length, sharp/quiet): "K1p loses quiet
+   games −14.6pp" was this artefact. Read every such split against a near-null CONTROL arm on the same games.
+5. **A tool's degenerate classifier** (sharp = any ≥300 cp swing put 995/1000 games in one class) — read class COUNTS first.
+6. **Over-strong L2 can pin a fit to ~0 and still "converge"** (Fit W first run: the unfitted SF prior beat it) — compare
+   against the prior; grid λ.
+7. **Better held-out prediction, worse games, from a DISCONTINUOUS form.** Additive `sign(T)·C` winnability amplified 98%
+   of near-level endgames to ±½ pawn; the training rows (quiet, decided) are only 2.5% near-level, so the fit barely paid
+   for it while search lives there. ⇒ check a term's behaviour around T = 0 (`_win_amplify_check.py`); prefer continuous
+   (multiplicative) forms for leader-relative terms.
+8. **The move-regret split by criticality is unreadable on our sets** (cr3/cr4 hold 2-27 changed moves per arm) — a
+   critical-position question needs a purpose-built critical corpus.

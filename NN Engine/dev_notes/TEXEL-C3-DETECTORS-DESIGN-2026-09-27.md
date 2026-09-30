@@ -642,3 +642,24 @@ only 2.5% of the (quiet, finished-game) training data, so the fit barely paid fo
 ⇒ Proposal (owner discussion): winnability as a multiplicative endgame SCALE FACTOR, E_eg = T·f(C), f ∈ ~[0.5, 1.2] —
 continuous at 0, cannot manufacture an edge from noise, still shrinks unwinnable edges. It is the universal form (4/4
 reference engines have an eg scale factor) and closes the recorded v2 gap ("the endgame can only say draw or full").
+
+## 15. STATE + DECISIONS AT THE 2026-09-30 CONTEXT HANDOFF
+**Shipped:** Fit K KS knobs only (09-29) — v2 fingerprint **252 / 49,094,807 / 4.012**; v1 unchanged 250 / 35,310,778 / 3.784.
+**Built at weight 0 (verified; not shipped):** C3 detectors (`KSB_V2`, `KFL_V2`, `KPROT_V2`); K2 attacker-weight knobs
+(`KS_V2_W_N/B/R/Q`); POT winnability (`WIN_V2_*`, `WIN_V2_CAP`).
+**Owner decisions (09-30 morning):**
+1. **POT mg half: the ALGORITHM, not the concept, is unproven** — "it's never been seen before, so consider what we have,
+   what's good, what's not". Next: a design re-think WITH the owner (no forced overlap — §14 condition), not more
+   variants of the tested features (lever / tension / majority / projected-winnability inputs all null vs SF18).
+2. **POT eg winnability: rebuild the FORM from the references** — SF11 `initiative`, SF12+/15 `winnable` (+ its scale
+   factor), Ethereal `evaluateComplexity`, Weiss `ScaleFactor`. The recorded failure is the additive discontinuity at 0
+   (§12 end) ⇒ a continuous, reference-shaped form (likely a multiplicative eg scale factor), fitted on the SF18-labelled
+   eg sample, gated on fresh seeds (next unused: 42+).
+3. **Passer re-tune** (the mg lead: we over-rate the leader's edge when passers are on the board) — same Texel method as
+   PST / KS — AFTER POT.
+**Data on disk:** `E:/chess_data/texel/` fitC_stage1 (1.84M), fitC_features.npz (184/side), fitC_ks.npz (old KS) /
+fitC_ks2.npz (per-type, new KS), fitC_pass/zero, fitC_win.npz, fit outputs (`*_fitK1p*`, `win_fitW*.txt`);
+`diagnostics/ks_sets/fitC_eg_sf18.csv` (19,779 SF18-labelled eg) + `fitC_mg_sf18.csv` (14,842 mg incl. 4,944 variant;
+variant rows lack an engine pass) + samples; `collapse_regret_set.csv`.
+**Gate protocol now:** closure + symmetry + fingerprints → SF18 gauntlet @250k, 1,000 paired on FRESH seeds with a fresh
+baseline (`_gauntlet_pair.py`) → per-part ablation if it's a bundle → SPRT @50k + 2,000-game replication → variants/odds.

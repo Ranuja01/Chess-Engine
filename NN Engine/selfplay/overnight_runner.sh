@@ -1573,7 +1573,7 @@ PYEOF
     # in-flight SPRT was reported dead, and a second SPRT was started against it -- seven workers competing
     # on time-controlled games. Add new job types here when they are added above.
     ps -eo pid,etime,args \
-      | grep -E 'tactical_test|sts_test|movematch|tournament\.py|sprt\.py|spsa\.py|gauntlet|annotate\.py|setupAI|diagnostics/' \
+      | grep -E 'tactical_test|sts_test|movematch|tournament\.py|sprt\.py|spsa\.py|vs_sf\.py|gauntlet|annotate\.py|setupAI|diagnostics/' \
       | grep -v grep || echo "none running"
     ;;
 

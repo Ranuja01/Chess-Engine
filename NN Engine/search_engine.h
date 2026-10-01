@@ -1170,6 +1170,12 @@ namespace Config
     // ☠️ SF's tables, NOT v1's fitted ones: v1's contradict SF's SIGN in B x own-pawn, N x enemy-pawn and 3 of 5
     // pair-vs-enemy cells, and price the bishop pair at only ~0.13 pawns.
     inline int KAUF_V2_MAG = 0;
+    // ── NARROW MATERIAL CLASSES (2026-10-01; eval_v2.cpp mcl_white_mp, C3 doc §18g) — each term fires ONLY inside its
+    // material class (queen vs no queen by compensation · rook vs two minors · minor vs >=2 pawns · bishop pair), in mp
+    // per unit, side-named-first oriented, x phase/256. MCL_V2 = 0: absent, byte-identical.
+    inline int MCL_V2 = 0;
+    inline int MCL_V2_Q0 = 0, MCL_V2_QR = 0, MCL_V2_QM = 0, MCL_V2_QP = 0, MCL_V2_R2M = 0, MCL_V2_MP0 = 0, MCL_V2_MPP = 0,
+               MCL_V2_PAIR = 0;
     // WHO OWNS THE BISHOP PAIR. 1 = this term does (SF's structure: the pair is a pseudo-piece whose value rises
     // with own pawns, falls with own queen, and falls with EVERY enemy unit -- SF prices it NOWHERE else).
     // 0 = the pair row/column are zeroed, leaving the standalone BPAIR_V2_MAG to own it.

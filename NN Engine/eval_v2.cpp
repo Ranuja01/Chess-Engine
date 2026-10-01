@@ -2121,6 +2121,45 @@ static void kauf_fit_load()
 	std::cerr << "[kauf] KAUF_V2_FORM=3 ON: " << n_set << " fitted cells from " << path << '\n';
 }
 
+/* ═══ NARROW MATERIAL CLASSES (2026-10-01; C3 doc §18f-g, `diagnostics/_material_class_fit.py`) ═══════════════════════
+ * WHY: SF18's d14 labels and OUR d10 search still disagree on four material signatures (depth residual, 9,827 rows):
+ * queen vs no queen −6.3pp toward the queen side · minor vs ≥2 pawns +4.7 · rook vs two minors −2.7 · bishop pair +1.8.
+ * The Texel-fitted Kaufman census (FORM 3) attacked the same errors but fired on 52-85% of all positions and lost at 250k
+ * (−30 / −20) ⇒ these terms fire ONLY inside their own class. A = the side named first; d = the OTHER side's surplus:
+ *   QUEEN  A has a queen, the other side none:  Q0 + QR·dR + QM·dM + QP·dP     (dR/dM/dP = rooks / minors / pawns)
+ *   R2M    A +1 rook, −2 minors, queens equal:  R2M
+ *   MINOR  A +1 minor, ≥2 fewer pawns, queens + rooks equal:  MP0 + MPP·(pawn deficit − 2)
+ *   PAIR   A has the bishop pair, the other side not; minors, queens, rooks equal:  PAIR
+ * Values in mp per unit, A-oriented, scaled by phase256/256 (fades into the endgame, which POT winnability owns).
+ * Antisymmetric by construction (each class is evaluated for both sides with opposite sign); truncation toward zero. */
+static inline int mcl_white_mp(const V2Context &c) noexcept      // White-oriented, unscaled (mp)
+{
+	int s = 0;
+	for (int side = 0; side < 2; ++side){
+		const int8_t *a = side == 0 ? c.cnt_white : c.cnt_black;   // 0=P 1=N 2=B 3=R 4=Q
+		const int8_t *o = side == 0 ? c.cnt_black : c.cnt_white;
+		const int sg = side == 0 ? 1 : -1;
+		const int dR = o[3] - a[3], dM = (o[1] + o[2]) - (a[1] + a[2]), dP = o[0] - a[0];
+		int v = 0;
+		if (a[4] > 0 && o[4] == 0)
+			v += Config::MCL_V2_Q0 + Config::MCL_V2_QR * dR + Config::MCL_V2_QM * dM + Config::MCL_V2_QP * dP;
+		if (a[4] == o[4] && a[3] - o[3] == 1 && dM == 2)
+			v += Config::MCL_V2_R2M;
+		if (a[4] == o[4] && a[3] == o[3] && dM == -1 && dP >= 2)
+			v += Config::MCL_V2_MP0 + Config::MCL_V2_MPP * (dP - 2);
+		if (dM == 0 && a[4] == o[4] && a[3] == o[3] && a[2] >= 2 && o[2] < 2)
+			v += Config::MCL_V2_PAIR;
+		s += sg * v;
+	}
+	return s;
+}
+
+/* Black-positive, mg-weighted contribution to the total (non-pair mode). */
+static inline int mcl_mp(const V2Context &c) noexcept
+{
+	return -(mcl_white_mp(c) * c.phase256 / 256);
+}
+
 static inline int kaufman_mp(const V2Context &c) noexcept
 {
 	const bool pair_here = Config::KAUF_V2_PAIR != 0;
@@ -3934,6 +3973,13 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		kauf_mp_v = kaufman_mp(c);
 		// Kaufman is PHASE-FLAT (no blend site), so it enters both legs identically.
 		if (pair_mode){ acc.mg += kauf_mp_v; acc.eg += kauf_mp_v; } else total += kauf_mp_v;
+	}
+
+	// ── NARROW MATERIAL CLASSES (2026-10-01; see mcl_mp). Middlegame-weighted, so it enters the mg leg only. Gated on
+	// MCL_V2: 0 = absent = byte-identical.
+	if (Config::MCL_V2){
+		const int m = mcl_mp(c);
+		if (pair_mode) acc.mg -= mcl_white_mp(c); else total += m;     // acc is Black-positive like the total
 	}
 
 	// ── rung 1: king safety (KS-A) ───────────────────────────────────────────────────────────────

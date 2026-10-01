@@ -845,3 +845,13 @@ openness-conditioned minor value is DROPPED (owner's mobility-overlap caution co
 SF18 @400 nodes (we score ~75%). Vs a much weaker opponent, a queen in a tactical imbalance is worth MORE than strong-play
 theory says ⇒ fitting strong-play labels can lower the weak-opponent gauntlet while making the eval truer. Would also fit
 WSF (+20 vs SF@400, flat self-play). Test: Kaufman queen arm in SELF-PLAY (never run) — queued after the WSF re-gate.
+**18g. NARROW MATERIAL CLASSES (MCL_V2), fitted on the DEPTH target (2026-10-01, `_material_class_fit.py`).** Each term
+fires ONLY in its class (the Kaufman lesson: same SHAPE as the error). Base = OUR d10 search, target = SF18 d14, std +
+VARIANT rows (14,518; the depth target needs no static total), × phase/256 (fades into the endgame, which POT winnability
+owns), STM nuisance fitted not shipped. Val MSE −1.87% overall; by class QUEEN (2,122 rows) −6.70% · PAIR (1,632) −4.46% ·
+MINOR vs ≥2 pawns (350) −4.29% · R vs 2 minors (294) −2.89%. Fitted (cp, A-oriented): q0 −43, per opposing extra rook +8,
+per extra minor −19, per extra pawn +2 (⇒ Q vs 3 minors ≈ −1 pawn, Q vs 2R ≈ neutral) · r2m −17 · mp0 +32 (+2 per extra
+pawn) · pair +20. Engine `MCL_V2` + `MCL_V2_{Q0,QR,QM,QP,R2M,MP0,MPP,PAIR}` (mp), default 0, syntax-clean; built by queue #5.
+Gates queued (`selfplay/_queue_mcl.sh`): closure + symmetry → SF18 @250k seeds 54/55 (all classes · queen class alone)
+→ self-play 2,000 @50k. ⚠️ PAIR re-opens a lane closed as "owned by PST + mobility" (flat pair, 09-18) — the depth
+residual says the pair is still +1.8pp under-valued; the per-part gate decides.

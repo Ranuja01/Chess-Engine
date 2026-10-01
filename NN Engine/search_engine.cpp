@@ -2222,6 +2222,15 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         }
         // ── slice 3: Kaufman / polynomial material imbalance ───────────────────────────────────
         Config::KAUF_V2_MAG = env_int("KAUF_V2_MAG", Config::KAUF_V2_MAG);
+        Config::MCL_V2 = env_int("MCL_V2", Config::MCL_V2);
+        Config::MCL_V2_Q0 = env_int("MCL_V2_Q0", Config::MCL_V2_Q0);
+        Config::MCL_V2_QR = env_int("MCL_V2_QR", Config::MCL_V2_QR);
+        Config::MCL_V2_QM = env_int("MCL_V2_QM", Config::MCL_V2_QM);
+        Config::MCL_V2_QP = env_int("MCL_V2_QP", Config::MCL_V2_QP);
+        Config::MCL_V2_R2M = env_int("MCL_V2_R2M", Config::MCL_V2_R2M);
+        Config::MCL_V2_MP0 = env_int("MCL_V2_MP0", Config::MCL_V2_MP0);
+        Config::MCL_V2_MPP = env_int("MCL_V2_MPP", Config::MCL_V2_MPP);
+        Config::MCL_V2_PAIR = env_int("MCL_V2_PAIR", Config::MCL_V2_PAIR);
         Config::KAUF_V2_PAIR = env_int("KAUF_V2_PAIR", Config::KAUF_V2_PAIR);
         if (Config::KAUF_V2_MAG < 0){
             std::cerr << "☠️ KAUF_V2_MAG must be >= 0 (1000 == SF's own scale in our millipawns) -- restoring 0.\n";
@@ -2581,6 +2590,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " POT_V2_WIN=" << Config::POT_V2_WIN << " POT_V2_WIN_BASE=" << Config::POT_V2_WIN_BASE
                   << " POT_V2_WIN_SP=" << Config::POT_V2_WIN_SP << " POT_V2_WIN_ONEFLANK=" << Config::POT_V2_WIN_ONEFLANK
                   << " POT_V2_WIN_OCB=" << Config::POT_V2_WIN_OCB << " POT_V2_WIN_PASSED=" << Config::POT_V2_WIN_PASSED
+                  << " MCL_V2=" << Config::MCL_V2 << " MCL_V2_Q0=" << Config::MCL_V2_Q0 << " MCL_V2_QR=" << Config::MCL_V2_QR
+                  << " MCL_V2_QM=" << Config::MCL_V2_QM << " MCL_V2_QP=" << Config::MCL_V2_QP
+                  << " MCL_V2_R2M=" << Config::MCL_V2_R2M << " MCL_V2_MP0=" << Config::MCL_V2_MP0
+                  << " MCL_V2_MPP=" << Config::MCL_V2_MPP << " MCL_V2_PAIR=" << Config::MCL_V2_PAIR
                   << " KS_V2_W_N=" << Config::KS_V2_W_N << " KS_V2_W_B=" << Config::KS_V2_W_B
                   << " KS_V2_W_R=" << Config::KS_V2_W_R << " KS_V2_W_Q=" << Config::KS_V2_W_Q
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")

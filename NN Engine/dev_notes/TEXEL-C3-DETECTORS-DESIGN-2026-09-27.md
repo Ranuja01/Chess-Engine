@@ -827,3 +827,10 @@ final joint retune (owner rule: universal kept), with per-part ablation.
   term (queen vs no-queen only, by compensation), fitted on the DEPTH residual, gated at 250k.
 - ★★ **v2 vs v1 (equal nodes 50k, 2,000 games, seed 49): +1072 −700 =228, 59.3% ⇒ +65.4 ± 17.9 Elo.** v2 now clearly
   beats v1 even at equal nodes (v2 gets ~40% more at equal time) — on 09-18 they were level.
+**18e. Kaufman "collateral" check — INCONCLUSIVE, a regression artefact (2026-10-01).** `_gauntlet_gametype_split.py`
+gained a material class (baseline game held a queen imbalance ≥ 10 plies; a transient mid-trade imbalance ≠ class — the
+naive version put 786/1000 games in it). Kaufman full: persistent-QI games (n 277, baseline 86.3%) −15.5pp, rest +1.4;
+queen cells −11.4 / +1.3. ☠️ CONTROL: the C3 arm (no material content) shows −14.9 / +2.6 on its own pairs; WSF (few changed
+games) −3.5 / +4.5 ⇒ the class selects openings where the BASELINE scored ~86% and any arm that changes many games
+regresses there. Says nothing about Kaufman. (The outcome-selected-class trap, one level up: a class defined by the
+baseline game's CONTENT still correlates with the baseline's success.)

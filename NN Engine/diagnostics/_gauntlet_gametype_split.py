@@ -1,6 +1,7 @@
 # Paired gauntlet split by GAME TYPE, classes taken from the BASELINE game (same opening as the candidate's game, so the
 # class does not depend on how the candidate played). Classes: castling geometry at ply ~30 (both kings' files),
-# sharp vs quiet (a >=150 cp swing from a still-balanced |eval|<=300 position), and game length.
+# sharp vs quiet (a >=150 cp swing from a still-balanced |eval|<=300 position), game length, and (2026-10-01) whether
+# the game ever reached a QUEEN IMBALANCE (one side has a queen, the other none) — the Kaufman collateral check.
 import sys, csv, json, math
 G = "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/selfplay/games/"
 
@@ -44,7 +45,15 @@ def classify(path):
         castle = "opposite-side" if ws != bs else "same-side"
     ev = [max(-3000, min(3000, r["our_pov_eval"])) for r in recs if "our_pov_eval" in r]
     sharp = max((abs(b - a) for a, b in zip(ev, ev[1:]) if abs(a) <= 300), default=0) >= 150
-    return castle, ("sharp" if sharp else "quiet")
+    # PERSISTENT queen imbalance: ≥ 10 consecutive recorded plies (a mid-trade position is not an imbalance)
+    run = best = 0
+    for r in recs:
+        if "fen" not in r:
+            continue
+        b0 = r["fen"].split()[0]
+        run = run + 1 if (b0.count("Q") > 0) != (b0.count("q") > 0) else 0
+        best = max(best, run)
+    return castle, ("sharp" if sharp else "quiet"), ("queen imbalance ≥10 plies" if best >= 10 else "none / transient")
 
 
 rows = []
@@ -53,10 +62,10 @@ for pair in sys.argv[1:]:
     rb = {int(r["game"]): r for r in csv.DictReader(open(G + base + "/results.csv"))}
     rc = {int(r["game"]): r for r in csv.DictReader(open(G + cand + "/results.csv"))}
     for g in sorted(set(rb) & set(rc)):
-        castle, sharp = classify(G + base + "/game_%03d.jsonl" % g)
+        castle, sharp, qimb = classify(G + base + "/game_%03d.jsonl" % g)
         plies = int(rb[g]["plies"])
         length = "short (<80 plies)" if plies < 80 else ("medium (80-140)" if plies <= 140 else "long (>140)")
-        rows.append({"castle": castle, "sharp": sharp, "length": length,
+        rows.append({"castle": castle, "sharp": sharp, "length": length, "material": qimb,
                      "d": float(rc[g]["our_score"]) - float(rb[g]["our_score"]),
                      "b": float(rb[g]["our_score"])})
 
@@ -74,5 +83,5 @@ def report(key):
 
 
 print("paired games: %d" % len(rows))
-for k in ("castle", "sharp", "length"):
+for k in ("castle", "sharp", "length", "material"):
     report(k)

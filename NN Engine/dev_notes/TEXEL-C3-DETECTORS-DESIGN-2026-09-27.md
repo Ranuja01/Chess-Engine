@@ -834,3 +834,14 @@ queen cells −11.4 / +1.3. ☠️ CONTROL: the C3 arm (no material content) sho
 games) −3.5 / +4.5 ⇒ the class selects openings where the BASELINE scored ~86% and any arm that changes many games
 regresses there. Says nothing about Kaufman. (The outcome-selected-class trap, one level up: a class defined by the
 baseline game's CONTENT still correlates with the baseline's success.)
+**18f. IMBALANCE DEPTH SCREEN (2026-10-01, `_imbalance_depth_screen.py`, 9,827 std mg rows, residual toward the first-named
+side, static → DEPTH pp):** Q vs no-Q rooks 0 (n 1,115) −6.19 → **−6.31** · Q vs no-Q rooks −1 (n 235) −1.97 → −3.65 ·
+R vs 2 minors (n 197) −3.61 → −2.74 · minor vs ≥2 pawns (n 283) +5.78 → **+4.65** · bishop pair (n 1,349) +2.42 → +1.79
+· exchange (n 798) +2.06 → +0.95 · B vs N (n 1,964) +0.80 → +0.51 — every class PERSISTS at depth. One direction: queen and
+rook too DEAR vs minors/pawns; minors and the pair too CHEAP.
+**B vs N × openness: NULL** (r +0.012 raw, +0.013 after the bishop/knight mobility counts; levers −0.005) ⇒ the
+openness-conditioned minor value is DROPPED (owner's mobility-overlap caution confirmed).
+**Hypothesis — OPPONENT-STRENGTH dependence of the gauntlet:** labels = SF18 d14 (strong play); the gauntlet opponent =
+SF18 @400 nodes (we score ~75%). Vs a much weaker opponent, a queen in a tactical imbalance is worth MORE than strong-play
+theory says ⇒ fitting strong-play labels can lower the weak-opponent gauntlet while making the eval truer. Would also fit
+WSF (+20 vs SF@400, flat self-play). Test: Kaufman queen arm in SELF-PLAY (never run) — queued after the WSF re-gate.

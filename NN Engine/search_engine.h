@@ -918,9 +918,9 @@ namespace Config
     // references (SF11/15, Ethereal, Weiss) scale the endgame multiplicatively instead: total' = total·(1 + eg·(f−1)),
     // f = clamp(64 + BASE + SP·strong pawns + ONEFLANK·[pawns on one flank] + OCB·[bishops-only opposite colours] +
     // PASSED·strong passers, 0, 64)/64, strong = the leader (sign of total). Continuous at 0, never grows an edge.
-    // WSF_V2 = 0: absent, byte-identical.
-    inline int WSF_V2 = 0;
-    inline int WSF_V2_BASE = 0, WSF_V2_SP = 0, WSF_V2_ONEFLANK = 0, WSF_V2_OCB = 0, WSF_V2_PASSED = 0;
+    // POT_V2_WIN = 0: absent, byte-identical.
+    inline int POT_V2_WIN = 0;
+    inline int POT_V2_WIN_BASE = 0, POT_V2_WIN_SP = 0, POT_V2_WIN_ONEFLANK = 0, POT_V2_WIN_OCB = 0, POT_V2_WIN_PASSED = 0;
     inline int KS_V2_W_N = 31;
     inline int KS_V2_W_B = 31;
     inline int KS_V2_W_R = 47;

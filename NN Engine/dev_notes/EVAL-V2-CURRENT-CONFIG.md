@@ -91,6 +91,16 @@ EVAL_ARM=1
   # Plateau checked: 1250 -> 253 solves / -10.2% nodes · 800 -> 248 solves / -19.8% ⇒ usable plateau 1000-1250,
   # and 1000 is its node-cheapest point at no solve cost. Revert = remove this line.
   RFP_MARGIN=1000
+  # ── POT (Potential) — "OvD reworked": the ENDGAME leg, WINNABILITY, shipped 2026-10-01 on the owner's sign-off ──
+  # POT is the owner's v1 long-term-pressure invention (OvD = offensive vs defensive, the change credited with taking the
+  # engine from struggling vs 1600 bots to competing with 2000s on chess.com), carried forward as potential to transform
+  # (middlegame — PARKED 10-01, null at depth) and, once the potential is kinetic, winning potential (this leg).
+  # Form = the 4/4 reference engines' multiplicative eg SCALE FACTOR (the additive sign(T)·C form lost −23..−25 twice):
+  # total' = total·(1 + eg·(f−64)/64), f = clamp(64 + BASE + SP·leader pawns + OCB·[opposite bishops only], 0, 64).
+  # Fitted on SF18 d14 labels (val −9.9%). Evidence: vs SF18 @250k +14.9 Elo [+3.4, +26.7] over 2,000 paired games, 4/4
+  # fresh seeds positive (42/43 +20.2, 50/51 +9.8); self-play SPRT H0 + replication ≈ −2 ± 10 over 5,972 games (no harm).
+  # Record: TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §16-16c. Revert = remove these lines.
+  POT_V2_WIN=1  POT_V2_WIN_BASE=-37  POT_V2_WIN_SP=34  POT_V2_WIN_OCB=-80
 ```
 Everything else is at its default, and the defaults encode the decisions below.
 

@@ -3502,8 +3502,8 @@ static inline int win_scale_adjust(const V2Context &c, const PawnEntry &pe, int 
 		ocb = (((ws & 7) + (ws >> 3)) & 1) != (((bs & 7) + (bs >> 3)) & 1);
 	}
 	const int passed = __builtin_popcountll(pe.passed[s]);
-	int f = 64 + Config::WSF_V2_BASE + Config::WSF_V2_SP * sp + Config::WSF_V2_ONEFLANK * oneflank
-	      + Config::WSF_V2_OCB * ocb + Config::WSF_V2_PASSED * passed;
+	int f = 64 + Config::POT_V2_WIN_BASE + Config::POT_V2_WIN_SP * sp + Config::POT_V2_WIN_ONEFLANK * oneflank
+	      + Config::POT_V2_WIN_OCB * ocb + Config::POT_V2_WIN_PASSED * passed;
 	if (f > 64) f = 64;
 	if (f < 0) f = 0;
 	if (f == 64) return 0;
@@ -4131,8 +4131,8 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		total += win_mp;
 	}
 	// ── POT winnability, REFERENCE FORM (2026-09-30): the endgame scale factor (see win_scale_adjust). Replaces the
-	// additive form above when on (running both is not a supported configuration). Gated on WSF_V2: 0 = byte-identical.
-	if (Config::WSF_V2){
+	// additive form above when on (running both is not a supported configuration). Gated on POT_V2_WIN: 0 = byte-identical.
+	if (Config::POT_V2_WIN){
 		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
 		const int d = win_scale_adjust(c, pe, total);
 		win_mp += d;
@@ -4232,7 +4232,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			g_eval_breakdown.v2_kprot = kprot_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_KPROT);
 		}
-		if (Config::WIN_V2 || Config::WSF_V2){
+		if (Config::WIN_V2 || Config::POT_V2_WIN){
 			g_eval_breakdown.v2_winnab = win_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_WINNAB);
 		}

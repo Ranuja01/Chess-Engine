@@ -2083,6 +2083,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 Config::PST_V2_KING_EG_ONLY = 1;
                 Config::PST_V2_TAPERED = 2;
                 Config::RFP_MARGIN = 1000;
+                // POT (Potential) — "OvD reworked", the owner's v1 long-term-pressure invention — endgame leg: WINNABILITY
+                // as the reference engines' multiplicative eg SCALE FACTOR (shipped 2026-10-01; C3 doc §16-16c). vs SF18
+                // @250k: +14.9 Elo [+3.4, +26.7] over 2,000 paired games, 4/4 fresh seeds positive; self-play ≈ −2 ± 10
+                // (no harm). Fitted on SF18 labels: f = clamp(64 − 37 + 34·leader pawns − 80·[OCB only], 0, 64)/64.
+                Config::POT_V2_WIN = 1;
+                Config::POT_V2_WIN_BASE = -37;  Config::POT_V2_WIN_SP = 34;  Config::POT_V2_WIN_OCB = -80;
             }
             else
                 std::cerr << "☠️ V2_PRESET=" << preset << " is unknown (expected: shipped) -- ignored." << std::endl;
@@ -2354,12 +2360,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::WIN_V2_UNWIN = env_int("WIN_V2_UNWIN", Config::WIN_V2_UNWIN);
         Config::WIN_V2_BASE = env_int("WIN_V2_BASE", Config::WIN_V2_BASE);
         Config::WIN_V2_CAP = env_int("WIN_V2_CAP", Config::WIN_V2_CAP);
-        Config::WSF_V2 = env_int("WSF_V2", Config::WSF_V2);
-        Config::WSF_V2_BASE = env_int("WSF_V2_BASE", Config::WSF_V2_BASE);
-        Config::WSF_V2_SP = env_int("WSF_V2_SP", Config::WSF_V2_SP);
-        Config::WSF_V2_ONEFLANK = env_int("WSF_V2_ONEFLANK", Config::WSF_V2_ONEFLANK);
-        Config::WSF_V2_OCB = env_int("WSF_V2_OCB", Config::WSF_V2_OCB);
-        Config::WSF_V2_PASSED = env_int("WSF_V2_PASSED", Config::WSF_V2_PASSED);
+        Config::POT_V2_WIN = env_int("POT_V2_WIN", Config::POT_V2_WIN);
+        Config::POT_V2_WIN_BASE = env_int("POT_V2_WIN_BASE", Config::POT_V2_WIN_BASE);
+        Config::POT_V2_WIN_SP = env_int("POT_V2_WIN_SP", Config::POT_V2_WIN_SP);
+        Config::POT_V2_WIN_ONEFLANK = env_int("POT_V2_WIN_ONEFLANK", Config::POT_V2_WIN_ONEFLANK);
+        Config::POT_V2_WIN_OCB = env_int("POT_V2_WIN_OCB", Config::POT_V2_WIN_OCB);
+        Config::POT_V2_WIN_PASSED = env_int("POT_V2_WIN_PASSED", Config::POT_V2_WIN_PASSED);
         Config::KS_V2_W_N = env_int("KS_V2_W_N", Config::KS_V2_W_N);
         Config::KS_V2_W_B = env_int("KS_V2_W_B", Config::KS_V2_W_B);
         Config::KS_V2_W_R = env_int("KS_V2_W_R", Config::KS_V2_W_R);
@@ -2572,9 +2578,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " WIN_V2_INFILT=" << Config::WIN_V2_INFILT << " WIN_V2_FLANKS=" << Config::WIN_V2_FLANKS
                   << " WIN_V2_PAWN_END=" << Config::WIN_V2_PAWN_END << " WIN_V2_UNWIN=" << Config::WIN_V2_UNWIN
                   << " WIN_V2_BASE=" << Config::WIN_V2_BASE << " WIN_V2_CAP=" << Config::WIN_V2_CAP
-                  << " WSF_V2=" << Config::WSF_V2 << " WSF_V2_BASE=" << Config::WSF_V2_BASE
-                  << " WSF_V2_SP=" << Config::WSF_V2_SP << " WSF_V2_ONEFLANK=" << Config::WSF_V2_ONEFLANK
-                  << " WSF_V2_OCB=" << Config::WSF_V2_OCB << " WSF_V2_PASSED=" << Config::WSF_V2_PASSED
+                  << " POT_V2_WIN=" << Config::POT_V2_WIN << " POT_V2_WIN_BASE=" << Config::POT_V2_WIN_BASE
+                  << " POT_V2_WIN_SP=" << Config::POT_V2_WIN_SP << " POT_V2_WIN_ONEFLANK=" << Config::POT_V2_WIN_ONEFLANK
+                  << " POT_V2_WIN_OCB=" << Config::POT_V2_WIN_OCB << " POT_V2_WIN_PASSED=" << Config::POT_V2_WIN_PASSED
                   << " KS_V2_W_N=" << Config::KS_V2_W_N << " KS_V2_W_B=" << Config::KS_V2_W_B
                   << " KS_V2_W_R=" << Config::KS_V2_W_R << " KS_V2_W_Q=" << Config::KS_V2_W_Q
                   << " PST_V2_FILE=" << (std::getenv("PST_V2_FILE") ? std::getenv("PST_V2_FILE") : "")

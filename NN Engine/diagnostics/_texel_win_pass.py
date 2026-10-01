@@ -29,11 +29,11 @@ W = [int(os.environ.get(k, "0")) for k in WN]
 BASE = int(os.environ.get("WIN_V2_BASE", "0"))
 ON = os.environ.get("WIN_V2", "0") == "1"
 CAP = int(os.environ.get("WIN_V2_CAP", "0"))
-# WSF_V2 (2026-09-30): closure for the reference-form SCALE FACTOR (win_scale_adjust); features via
+# POT_V2_WIN (2026-09-30): closure for the reference-form SCALE FACTOR (win_scale_adjust); features via
 # _texel_win_sf_fit.scale_features, whose PASSED is a python-chess approximation of v2's passer mask ⇒ exact closure
-# is claimed only with WSF_V2_PASSED=0; with it set the mismatch rate measures the definitional gap.
-WSF_ON = os.environ.get("WSF_V2", "0") == "1"
-WSF = {k: int(os.environ.get("WSF_V2_" + k, "0")) for k in ("BASE", "SP", "ONEFLANK", "OCB", "PASSED")}
+# is claimed only with POT_V2_WIN_PASSED=0; with it set the mismatch rate measures the definitional gap.
+WSF_ON = os.environ.get("POT_V2_WIN", "0") == "1"
+WSF = {k: int(os.environ.get("POT_V2_WIN_" + k, "0")) for k in ("BASE", "SP", "ONEFLANK", "OCB", "PASSED")}
 
 import chess
 import ChessAI

@@ -13,6 +13,9 @@ Output (append, resumable by FEN): fen, ours_cp_white, depth, nodes.
   PRESET=LONG_FORMAT MAX_DEPTH=10 USE_OPENING_BOOK=0 V2_PRESET=shipped \
   pyrun diagnostics/_depth_residual_pass.py IN=ks_sets/fitC_mg_sf18.csv OUT=ks_sets/fitC_mg_ours_d10.csv [SHARD=0/4] [LIMIT=0]
 Run one process per shard (≤ 4 concurrent — WSL rule), then concatenate.
+☠️ MEMORY: run_one builds a fresh engine per FEN and leaks ~1.2 MB each (2026-10-01: 4 shards × 3.7k rows reached
+4.3 GB per process, 17 GB total). CHUNK=N makes the process exit after N new rows (exit code 3 = more remain); loop it:
+  until pyrun ... CHUNK=1000; [ $? -ne 3 ]; do :; done     (resumable, so each restart frees the leak)
 """
 import os, sys, csv, time
 import chess
@@ -53,6 +56,10 @@ for r in rows:
     cp = max(-MATE_CP, min(MATE_CP, ev / 10.0)) if abs(ev) < 9_000_000 else (MATE_CP if ev > 0 else -MATE_CP)
     w.writerow([r["fen"], "%.1f" % (cp if b.turn == chess.WHITE else -cp), o["depth"], o["nodes"]])
     cnt += 1
+    if int(KV.get("CHUNK", 0)) and cnt >= int(KV["CHUNK"]):
+        f.close()
+        print("DEPTH PASS shard %d/%d: CHUNK of %d rows done, more remain" % (k, n, cnt))
+        sys.exit(3)
     if cnt % 100 == 0:
         f.flush()
         sys.stderr.write("[depth pass %d/%d] %d rows, %.1f/s\n" % (k, n, cnt, cnt / (time.time() - t0)))

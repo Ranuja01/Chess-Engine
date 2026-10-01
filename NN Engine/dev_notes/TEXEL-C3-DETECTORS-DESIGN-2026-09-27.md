@@ -806,3 +806,10 @@ Also: confirm the queen lead on the depth residual (`_depth_residual_pass.py`) i
 pattern is the reverse (self-play inflates: Fit A +111 vs +38). Not read as harm: self-play ≈ 0 ± ~10 says "no self-play
 gain", the external gate says "+20 with a lower bound of +3.7". Tie-breaker queued (`selfplay/_queue_wsf_regate.sh`, after
 queue #2): a SECOND SF18 gate on new seeds 50 + 51 with fresh baselines. Ship decision waits for it.
+**16c. WSF self-play verdicts (2026-09-30 night).** SPRT @50k seed 45: **H0 accepted** at 3,972 games, +1552 −1575 =845,
+elo −2.0 ± 12.7. Replication (2,000 fixed, seed 46): +782 −792 =426, **elo −1.7 ± 17.9**. Pooled self-play ≈ −1.9 over
+5,972 games (≈ ±10) ⇒ no self-play gain, no harm. External +20.2 [+3.7, +37.4] stands alone; the seed-50/51 re-gate
+decides (queue #3). Hypotheses (owner Q&A): (1) statistics — a true ≈ +5 fits both; (2) DEPTH — the external gate ran
+at 250k nodes, the SPRT at 50k, and an eg scale factor bites only where search reaches endgames; if the re-gate holds,
+test with a self-play match at 250k. Fallback if ≈ 0: universal term (4/4 refs) kept at its fitted value only via the
+final joint retune (owner rule: universal kept), with per-part ablation.

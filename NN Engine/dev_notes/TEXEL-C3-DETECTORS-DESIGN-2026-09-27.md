@@ -813,3 +813,17 @@ decides (queue #3). Hypotheses (owner Q&A): (1) statistics — a true ≈ +5 fit
 at 250k nodes, the SPRT at 50k, and an eg scale factor bites only where search reaches endgames; if the re-gate holds,
 test with a self-play match at 250k. Fallback if ≈ 0: universal term (4/4 refs) kept at its fitted value only via the
 final joint retune (owner rule: universal kept), with per-part ablation.
+**18d. OVERNIGHT 09-30 → 10-01 RESULTS.**
+- Build guard: fingerprints unchanged (v2 252 / 49,094,807 · v1 250 / 35,310,778). Kaufman FORM 3 closure EXACT (full
+  12,564 live / queen 7,764 live of 14,842) · symmetry colour 0/4000, file 0/3170, both arms.
+- ☠️ **Kaufman Texel cells LOSE at depth** (SF18 @250k, fresh seeds 47 + 48, fresh baselines `gauntlet_ship5_s4x`):
+  **full −3.30pp ± 3.16, z −2.04 ⇒ −29.6 Elo [−56.1, −1.3]** · **queen −2.20pp ± 3.05 ⇒ −20.0 [−46.1, +8.0]** — both
+  arms negative on both seeds. The 4th "fits the labels, loses at depth" case (C3, Fit W, Fit W-SF additive, Kaufman).
+- ★ **Depth residual** (`_depth_residual_pass.py` d10 on 14,696 rows → `_depth_residual_read.py`, 9,827 std mg rows):
+  mean |residual| static 8.39 → depth 5.63pp · side-to-move static +2.41 → **depth +0.80** (search fixes most of it — the
+  instrument reframe confirmed) · **queen imbalance static −5.35 → depth −5.71pp (se 0.14): PERSISTS** ⇒ real knowledge
+  search cannot supply. ⇒ The lead is right; the FORM was wrong: the census cells fire on 52-85% of positions (any queen ×
+  any pawn/piece count) while the misjudgement lives only where ONE side lacks the queen. Next shape: a NARROW conditional
+  term (queen vs no-queen only, by compensation), fitted on the DEPTH residual, gated at 250k.
+- ★★ **v2 vs v1 (equal nodes 50k, 2,000 games, seed 49): +1072 −700 =228, 59.3% ⇒ +65.4 ± 17.9 Elo.** v2 now clearly
+  beats v1 even at equal nodes (v2 gets ~40% more at equal time) — on 09-18 they were level.

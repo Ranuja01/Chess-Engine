@@ -159,3 +159,24 @@ base square changed" happen for many reasons: D's own captures, advances, piece 
 transformation to be caused by the lever (the lever pawn captures / is captured), and (b) d6 games — levers get played
 or ignored at random. Next: causal event definitions for T1/T3 (the lever exchange happened), re-run; strong-game
 (SF18 self-play) sequences when the engine is free. T4 is the first POT type with a demonstrated precursor.
+
+## ☠️ POT DEPTH SCREEN — NULL (2026-10-01, `diagnostics/_pot_depth_screen.py`)
+POT's first test on the right instrument: y = win%(SF18 d14) − win%(our d10 SEARCH), 8,128 std middlegame rows (power:
+3σ at |r| ≈ 0.033); x = net White − Black gates / precursors; controls = engine KS + 68 KS channels + 184 C1/C3 + stm
+(they explain 15.2% of the depth residual vs 2.9% of the static one).
+| feature | raw r (σ) | beyond controls r (σ) | fires |
+|---|---|---|---|
+| T1 gate | −0.025 (−2.2) | −0.015 (−1.4) | 11% |
+| T3 gate | −0.005 (−0.4) | −0.005 (−0.4) | 15% |
+| T4 gate | +0.010 (+0.9) | +0.003 (+0.3) | 29% |
+| T5 gate | −0.017 (−1.5) | −0.011 (−1.0) | 39% |
+| central lever reach | +0.009 (+0.8) | −0.014 (−1.2) | 60% |
+| majority size | −0.002 (−0.1) | +0.010 (+0.9) | 64% |
+| minority lever reach | −0.007 (−0.7) | −0.015 (−1.3) | 44% |
+Castling-race KS feeder (`_pot_t1_study.py MODE=race DEPTH=1`): castle_tempi beyond controls +0.031 (1.2σ) — the static
++3.8σ does NOT persist at depth (search handles it) ⇒ feeder lead DROPPED.
+**Verdict (the stop rule agreed with the owner 10-01):** POT's middlegame types, as defined, carry NO information about
+what our search still misjudges. T4's precursor predicts passers (1.65×) but the passer terms + search already price it.
+⚠️ Bound on the verdict: SF18 d14 labels vs our d10 — potential that pays off beyond ~14 plies is invisible to BOTH; SF18's
+NNUE does encode long-horizon judgement, so this is the best proxy we have, but a deeper label (SF d20+ or strong-engine
+game outcomes) is the one remaining fair test. ⇒ PARKED (not rejected) with that trigger; POT = winnability (eg) for now.

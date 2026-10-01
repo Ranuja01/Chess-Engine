@@ -265,6 +265,13 @@ def race_check():
     zk = {"ks_engine": _k["ks_engine"], "ch": _k["ch"]}
     zf = {"diff": np.load(os.path.join(DATA, "fitC_features.npz"))["diff"]}
     RN = ["castle_tempi", "dev_lead", "heavy_centre", "levers", "race"]
+    # DEPTH=1 (2026-10-01): residual vs our d10 SEARCH (`_depth_residual_pass.py`) instead of the static eval
+    ours_d = {}
+    if KV.get("DEPTH") == "1":
+        import glob
+        for p_ in glob.glob(os.path.join(THIS, "ks_sets", "fitC_mg_ours_d10_s*of4.csv")):
+            for r_ in csv.DictReader(open(p_, newline="")):
+                ours_d[r_["fen"]] = float(r_["ours_cp_white"])
     R, y, C = [], [], []
     for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sf18.csv"))):
         if not r.get("best_cp") or r["fen"] not in sample:
@@ -272,6 +279,10 @@ def race_check():
         b = chess.Board(r["fen"])
         row = sample[r["fen"]]
         ours_w = -float(zw["total"][row]) / 10.0
+        if KV.get("DEPTH") == "1":
+            if r["fen"] not in ours_d:
+                continue
+            ours_w = ours_d[r["fen"]]
         for D in (chess.WHITE, chess.BLACK):
             kf = chess.square_file(b.king(D))
             if kf not in (3, 4) or half_open_near(b, D, kf):

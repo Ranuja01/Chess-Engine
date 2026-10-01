@@ -801,3 +801,8 @@ Engine: `KAUF_V2_FORM=3` + `KAUF_V2_FILE` (cells in mp, MAG 1000 = as fitted), c
 runs from the working tree. After it: build → fingerprints byte-identical at 0 → closure (engine kaufman_imbalance =
 Python model) → symmetry → SF18 gauntlet @250k on fresh seeds, BOTH arms (per-part rule), vs a fresh baseline.
 Also: confirm the queen lead on the depth residual (`_depth_residual_pass.py`) in the same engine window.
+**16b. WSF — the instruments DISAGREE (2026-09-30, 20:45).** Self-play SPRT @50k (seed 45) at 3,480 games: +1362 −1381
+=737, **elo ≈ −2, LLR −2.52 → heading to H0** (H0 ≤ 0 / H1 ≥ +10), against the external +20.2 [+3.7, +37.4]. The usual
+pattern is the reverse (self-play inflates: Fit A +111 vs +38). Not read as harm: self-play ≈ 0 ± ~10 says "no self-play
+gain", the external gate says "+20 with a lower bound of +3.7". Tie-breaker queued (`selfplay/_queue_wsf_regate.sh`, after
+queue #2): a SECOND SF18 gate on new seeds 50 + 51 with fresh baselines. Ship decision waits for it.

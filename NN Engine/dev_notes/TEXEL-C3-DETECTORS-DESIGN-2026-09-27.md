@@ -855,3 +855,10 @@ pawn) · pair +20. Engine `MCL_V2` + `MCL_V2_{Q0,QR,QM,QP,R2M,MP0,MPP,PAIR}` (mp
 Gates queued (`selfplay/_queue_mcl.sh`): closure + symmetry → SF18 @250k seeds 54/55 (all classes · queen class alone)
 → self-play 2,000 @50k. ⚠️ PAIR re-opens a lane closed as "owned by PST + mobility" (flat pair, 09-18) — the depth
 residual says the pair is still +1.8pp under-valued; the per-part gate decides.
+**16d. WSF SHIP BUILT (2026-10-01).** Fingerprints: v1 250 / 35,310,778 (unchanged) · shipped with POT_V2_WIN=0 252 /
+49,094,807 (exactly the old v2 ⇒ the ship changed nothing else) · **NEW shipped v2: 251 / 49,211,859 / 4.014**. Runner
+`V2=` line + CURRENT-CONFIG §1 carry the POT_V2_WIN knobs.
+**18h. Kaufman SELF-PLAY (queue #4, 2,000 each @50k, seed 52):** queen cells +3.3 ± 17.9 · **full table +11.8 ± 17.9**
+(vs −29.6 [−56, −1.3] in the SF18 @250k gauntlet ⇒ ~41-Elo swing, ≈2.5σ). Supports an instrument difference, but
+CONFOUNDED: self-play @50k vs gauntlet @250k (depth) AND equal vs weak opponent. Queue #5's 250k self-play (WSF) separates
+the two for winnability; a 250k Kaufman self-play would do the same for material.

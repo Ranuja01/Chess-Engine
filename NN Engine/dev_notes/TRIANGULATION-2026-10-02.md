@@ -51,3 +51,23 @@ TRIANGULATION  candidates 40 (SF better for White than us: 27 · worse: 13) — 
 2. Levers SF actually plays (#5 g5, #8 ...b5) — the POT-shaped signal, concretely.
 3. Piece quality: stranded/offside pieces scored as active (#3 knights a5/b3; #4).
 4. A protected far-advanced passer under-valued (#1 c6) — the opposite of the Carlsen 47.c7 over-valuation ⇒ passer value is context-dependent.
+
+## Side by side with SF11's static eval (`diagnostics/_triangulate_sf11.py`; owner: "same subsystems — does SF11 get it, and where?")
+| case | SF18 d14 | SF11 static | ours static | ours d10 |
+|---|---|---|---|---|
+| #1 | +222 | +74 | −14 | +6 |
+| #2 | −252 | −108 | −18 | −41 |
+| #3 | +159 | +58 | −8 | −41 |
+| #4 | −232 | −188 | −85 | −55 |
+| #5 | +296 | +156 | +51 | +84 |
+| #6 | −122 | −111 | +21 | +33 |
+| #7 | +182 | +93 | +22 | −3 |
+| #8 | −283 | −138 | −114 | −109 |
+SF11 static is closer to SF18 than our static in 7/8 (≈ equal in #8, which neither gets) ⇒ most of the gap IS statically
+expressible. Term differences (SF11 blended with its own phase, White cp):
+- **THREATS** — SF11 #2 −56 · #4 −46 · #5 +46 · #6 −46 · #7 −24 · #1 −18; **v2 ships no threats term** (slice-3 threats was
+  parked "move-null", judged before the depth target existed) ⇒ strongest case to REOPEN, on the depth residual.
+- **STRUCTURAL KING SAFETY** — SF11 #7 +93 · #2 −62 · #6 −50 · #1 +32; ours 0 in all four ⇒ KS-B shelter/storm (built at 0)
+  in the FULL KS TUNE.
+- **PASSED** #1 SF11 +86 vs ours +27; **PAWNS** #4 SF11 −87 vs ours −14 ⇒ passer / pawn-structure re-tunes.
+- SPACE #3 +28 · #5 +17 (not shipped). #8: beyond static for both (SF18 finds …b5 by search) — the POT-shaped case.

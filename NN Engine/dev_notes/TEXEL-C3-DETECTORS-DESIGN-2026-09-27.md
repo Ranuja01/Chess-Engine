@@ -876,3 +876,7 @@ the anchor was set at ~45-55% ("sweep N until 45-55%", runner `gauntlet`) and v2
 has drifted to a much WEAKER opponent, against whom keeping the queen / complications pays more than strong-play labels
 say. ⇒ RECALIBRATE before any material verdict: `selfplay/_queue_recalibrate.sh` (SF18 nodes 800/1600/3200, 200 games
 each, shipped config) → re-gate MCL all / MCL queen / Kaufman full / WSF on the ~50% anchor.
+**18j. GAUNTLET RECALIBRATED (2026-10-02, queue #7, shipped v2 @250k, 200 games each, seed 57):** SF18 @800 nodes
+**54.2%** · @1600 29.8% · @3200 13.0% (and @400 ≈ 75%) ⇒ **the new external anchor is SF18 @800 nodes**. Re-gate queued
+(`selfplay/_queue_regate800.sh`, seeds 58/59, fresh baselines): shipped · winnability OFF · MCL all · MCL queen · Kaufman
+full — the material verdicts and WSF's value wait for it.

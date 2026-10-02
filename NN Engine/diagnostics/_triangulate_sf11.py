@@ -11,6 +11,7 @@ initiative are already inside SF11's Total; per-term blends ignore the scale fac
   pyrun diagnostics/_triangulate_sf11.py [NOTE=dev_notes/TRIANGULATION-2026-10-02.md]   (run with V2_PRESET=shipped)
 """
 import os, sys, re, subprocess
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import chess
 
 KV = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a)
@@ -71,5 +72,51 @@ def main():
     p.stdin.write("quit\n"); p.stdin.flush()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and KV.get("MODE") != "aggregate":
     main()
+
+
+def aggregate():
+    """MODE=aggregate [GAP=8]: over ALL triangulation candidates (`_triangulate_cases.select`), per SF11 term vs our
+    nearest term: how often the difference (≥ 30 cp) points the SAME way as SF18's disagreement with our d10 search
+    (helps) vs the opposite (hurts), and the mean signed contribution toward closing the gap. Also: how often SF11's
+    static total is closer to SF18 than ours."""
+    import numpy as np
+    import _triangulate_cases as TC
+    cands, ai = TC.select(float(KV.get("GAP", 8)))
+    PAIRS = [("Threats", None), ("King safety", "king_safety"), ("Passed", "v2_passers"), ("Pawns", "pawn_struct"),
+             ("Mobility", "mobility"), ("Space", None), ("pieces(N+B+R+Q)", "v2_placement")]
+    p = subprocess.Popen([SF11], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    p.stdin.write("uci\n"); p.stdin.flush()
+    while p.stdout.readline().strip() != "uciok":
+        pass
+    stats = {k: [0, 0, []] for k, _ in PAIRS}
+    closer = n = 0
+    for _, gap, f, sf18, d10, stat, _, _ in cands:
+        b = chess.Board(f)
+        total, terms = sf11_eval(p, f)
+        if total is None:
+            continue
+        ph = sf11_phase(b)
+        bl = lambda k: sum((terms[t][0] * ph + terms[t][1] * (128 - ph)) / 128 * 100 for t in k if t in terms)
+        bd = ai.ev_breakdown(b)
+        ours = lambda key: -float(bd.get(key) or 0) / 10.0 if key else 0.0
+        n += 1
+        closer += abs(100 * total - sf18) < abs(stat - sf18)
+        s = 1.0 if gap > 0 else -1.0
+        for name, key in PAIRS:
+            sfv = bl(["Knights", "Bishops", "Rooks", "Queens"]) if name.startswith("pieces") else bl([name])
+            d = sfv - ours(key)
+            stats[name][2].append(s * d)
+            if abs(d) >= 30:
+                stats[name][0 if s * d > 0 else 1] += 1
+    print("TRIANGULATION AGGREGATE  cases %d (GAP ≥ %s pp) · SF11 static closer to SF18 than ours: %d/%d (%.0f%%)"
+          % (n, KV.get("GAP", 8), closer, n, 100.0 * closer / max(n, 1)))
+    print("  %-18s %6s %6s %22s" % ("SF11 term vs ours", "helps", "hurts", "mean push toward SF18"))
+    for name, _ in PAIRS:
+        h, u, v = stats[name]
+        print("  %-18s %6d %6d %+18.1f cp" % (name, h, u, float(np.mean(v)) if v else 0.0))
+
+
+if KV.get("MODE") == "aggregate":
+    aggregate()

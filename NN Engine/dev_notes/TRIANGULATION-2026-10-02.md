@@ -79,3 +79,19 @@ KS-B shelter/storm → passers + pawn structure → re-measure the remaining gap
 triangulation) → POT only for a non-tactical gap no tuned term explains (so it never steps on a term that was merely
 under-tuned). Then the v2 search retune (owner games: relaxed selectivity matched SF 5/12 vs 2/12) and the giant-corpus
 final retune.
+
+## ☠️ CORRECTION — the aggregate over ALL candidates (2026-10-02, `_triangulate_sf11.py MODE=aggregate GAP=8`)
+111 quiet equal-material cases (gap ≥ 8pp): SF11 static closer to SF18 than ours in 80/111 (72%). Per SF11 term vs ours,
+"helps" = the difference (≥ 30 cp) points the same way as SF18's disagreement with our d10 search:
+| term | helps | hurts | mean push toward SF18 |
+|---|---|---|---|
+| **King safety** | **48** | 17 | **+24.1 cp** |
+| Pawns | 15 | 6 | +5.6 |
+| Passed | 6 | 3 | +3.1 |
+| pieces (N+B+R+Q) | 10 | 10 | +3.7 |
+| **Threats** | 20 | 18 | **+0.4** |
+| Mobility / Space | 0 / 0 | 1 / 0 | −2.2 / +1.0 |
+⇒ The 8 hand-picked cases OVERSTATED threats (6/8 there; a wash over 111). **Structural KING SAFETY is the consistent,
+largest statically-expressible miss** (≈3:1, +24 cp mean) ⇒ the FULL KS TUNE with KS-B shelter/storm moves to the front
+of the post-material order; threats drops to "fit it only if the KS tune leaves a threats-shaped residual".
+Lesson (again): a hand-picked set reads a pattern the population does not have — aggregate before reordering lanes.

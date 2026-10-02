@@ -71,3 +71,11 @@ expressible. Term differences (SF11 blended with its own phase, White cp):
   in the FULL KS TUNE.
 - **PASSED** #1 SF11 +86 vs ours +27; **PAWNS** #4 SF11 −87 vs ours −14 ⇒ passer / pawn-structure re-tunes.
 - SPACE #3 +28 · #5 +17 (not shipped). #8: beyond static for both (SF18 finds …b5 by search) — the POT-shaped case.
+
+## OWNER DECISION (2026-10-02)
+Tune the known-powerful items first, keep POT's middlegame PARKED, then re-measure: material classes (gating overnight)
+→ THREATS reopened (confirm the pattern over all 40 cases, Texel-fit on the depth target, gate) → full KS tune incl.
+KS-B shelter/storm → passers + pawn structure → re-measure the remaining gap to SF18 (depth target + fresh
+triangulation) → POT only for a non-tactical gap no tuned term explains (so it never steps on a term that was merely
+under-tuned). Then the v2 search retune (owner games: relaxed selectivity matched SF 5/12 vs 2/12) and the giant-corpus
+final retune.

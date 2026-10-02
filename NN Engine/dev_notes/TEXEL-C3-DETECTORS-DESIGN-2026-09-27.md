@@ -886,3 +886,11 @@ full — the material verdicts and WSF's value wait for it.
 ⚠️ BROAD: the cells touch 98% of rows (every king has a shelter; 4/4 references score it) — the Kaufman lesson says gate
 on BOTH instruments. Cells → `E:/chess_data/texel/ksb_depth.txt` (existing KSB_V2_FILE loader). Gate queued
 (`selfplay/_queue_ksb.sh`, after the @800 re-gate): symmetry → SF18 @800 seeds 60/61 → self-play 2,000.
+**18l. FULL KS TUNE step 2 — KS attack knobs + KS-B JOINT on the depth target (2026-10-02, `_ks_depth_fit.py`).** Python
+KS(ship) vs the engine's KS: max 2.7 mp (closure). Val vs base (9,771 rows): KS alone / KS-B alone / JOINT —
+KS_λ 1e-3: −2.44 / −3.08 / −4.55% · **KS_λ 1e-2: −1.86 / −3.08 / −4.07%** · 1e-1: −0.93 / −3.08 / −3.43%. Knob DIRECTIONS
+are stable across λ (N, B attackers ↑ · R, Q ↓ · WEAK, CHK_R, UNSAFE, FLANK_ATT, KNIGHT_DEF ↑ · NO_QUEEN ↓ · BLOCKERS < 0 ·
+MAX, HALF ↑ · EG ↓); size scales with λ ⇒ a real shape. Gate arm = λ 1e-2 (MAX 4000→5315, HALF 646→772, NO_QUEEN
+402→252, EG 100→66; files `ks_depth_L1e-2_{ks,ksb}.txt`). Engine closure with the new knobs: 3,000 rows, 1,189 change,
+max |model − engine| 4.9 mp, corr 0.99997. Gate queued per part (`selfplay/_queue_ksjoint.sh`, after queue #9's KS-B-alone
+arm, same seeds 60/61 ⇒ shared baselines) + self-play 2,000.

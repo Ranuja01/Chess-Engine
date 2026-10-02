@@ -880,3 +880,9 @@ each, shipped config) → re-gate MCL all / MCL queen / Kaufman full / WSF on th
 **54.2%** · @1600 29.8% · @3200 13.0% (and @400 ≈ 75%) ⇒ **the new external anchor is SF18 @800 nodes**. Re-gate queued
 (`selfplay/_queue_regate800.sh`, seeds 58/59, fresh baselines): shipped · winnability OFF · MCL all · MCL queen · Kaufman
 full — the material verdicts and WSF's value wait for it.
+**18k. KS-B on the DEPTH target — full KS tune, step 1 (2026-10-02, `_ksb_depth_fit.py`).** 56 shelter/storm cells
+(mg leg × phase), base = our d10 search, target = SF18 d14, 9,771 std mg rows (val 15% by game): λ 1e-3 −3.00% · **λ 1e-2
+−3.08%** (mean |θ| 66 mp, max 270) · λ 1e-1 −1.79%. The largest single-term gain on the depth target so far (MCL all −1.87%).
+⚠️ BROAD: the cells touch 98% of rows (every king has a shelter; 4/4 references score it) — the Kaufman lesson says gate
+on BOTH instruments. Cells → `E:/chess_data/texel/ksb_depth.txt` (existing KSB_V2_FILE loader). Gate queued
+(`selfplay/_queue_ksb.sh`, after the @800 re-gate): symmetry → SF18 @800 seeds 60/61 → self-play 2,000.

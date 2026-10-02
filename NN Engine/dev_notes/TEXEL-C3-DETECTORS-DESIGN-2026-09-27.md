@@ -867,3 +867,12 @@ the two for winnability; a 250k Kaufman self-play would do the same for material
 (weak SF@400 vs equal self-play) or a small true effect (+15 external [+3, +27] and +3.5 ± 25 overlap). Not decisive at
 this n. Practical consequence: for terms whose external and self-play reads disagree, the SF@400 gauntlet alone is not
 enough — keep both instruments in every gate (as queue #6 does).
+**18i. MCL GATES (queue #6, 2026-10-02).** Closure EXACT (2,085 live / 6,000), symmetry 0/4000 + 0/3170. SF18 @250k,
+fresh seeds 54/55: **ALL classes −2.70pp ± 2.99 ⇒ −24.3 Elo [−49.5, +2.7]** · **QUEEN class alone −0.15pp ⇒ −1.4
+[−27.2, +26.5]**. Self-play 2,000 @50k (seed 56): **ALL classes +8.7 ± 17.9**.
+☠️ **THIRD material term with the SAME split** (Kaufman full −30 / +12 · Kaufman queen −20 / +3 · MCL all −24 / +9):
+negative vs SF18@400, positive/neutral in self-play. And the gauntlet's own baselines now score **~75%** (ship7 75.2%) —
+the anchor was set at ~45-55% ("sweep N until 45-55%", runner `gauntlet`) and v2 has outgrown it. ⇒ The external judge
+has drifted to a much WEAKER opponent, against whom keeping the queen / complications pays more than strong-play labels
+say. ⇒ RECALIBRATE before any material verdict: `selfplay/_queue_recalibrate.sh` (SF18 nodes 800/1600/3200, 200 games
+each, shipped config) → re-gate MCL all / MCL queen / Kaufman full / WSF on the ~50% anchor.

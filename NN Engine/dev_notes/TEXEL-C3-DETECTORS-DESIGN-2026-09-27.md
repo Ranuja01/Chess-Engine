@@ -862,3 +862,8 @@ residual says the pair is still +1.8pp under-valued; the per-part gate decides.
 (vs −29.6 [−56, −1.3] in the SF18 @250k gauntlet ⇒ ~41-Elo swing, ≈2.5σ). Supports an instrument difference, but
 CONFOUNDED: self-play @50k vs gauntlet @250k (depth) AND equal vs weak opponent. Queue #5's 250k self-play (WSF) separates
 the two for winnability; a 250k Kaufman self-play would do the same for material.
+**16e. WSF 250k SELF-PLAY (queue #5, 1,000 games, seed 53): +399 −389 =212, Elo +3.5 ± 25.3** — flat at play depth too.
+⇒ The DEPTH hypothesis is NOT supported (self-play ≈ 0 at 50k AND 250k); the remaining readings are opponent strength
+(weak SF@400 vs equal self-play) or a small true effect (+15 external [+3, +27] and +3.5 ± 25 overlap). Not decisive at
+this n. Practical consequence: for terms whose external and self-play reads disagree, the SF@400 gauntlet alone is not
+enough — keep both instruments in every gate (as queue #6 does).

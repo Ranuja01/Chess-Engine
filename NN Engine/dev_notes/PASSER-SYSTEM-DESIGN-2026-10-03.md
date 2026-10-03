@@ -82,3 +82,17 @@ gates go PER PART (stop-state block · support block (4,5,7) · king escort bloc
   rule); reasoning why references skip it: a pawn block is not a passer; a minor blockader is usually an outpost (already
   rewarded); a heavy blockader being chased is a threat that search resolves — mostly priced elsewhere, cheap to test.
 - **Square rule:** IN, defender without non-pawn material, overridden by the exact KPK bitbase where that applies.
+
+## 7. Can a STATIC eval price passers? (owner's question; `diagnostics/_passer_static_study.py`, 2026-10-03)
+Mean |win% gap to SF18 d14 search| on SF18-labelled positions with an advanced passer (relative rank ≥ 5):
+| set | n | SF11 static | OURS static | OURS d10 search |
+|---|---|---|---|---|
+| middlegame, all | 2,123 | 8.43 | 8.78 | **5.80** |
+| middlegame r5 / r6 / r7 | 1,162 / 767 / 194 | 8.27 / 8.28 / 10.00 | 8.39 / 9.04 / 10.05 | 5.90 / 5.72 / 5.46 |
+| **endgame, all** | 8,839 | **6.86** | 7.45 | (no d10 pass) |
+| endgame r5 / r6 / r7 | 3,838 / 3,435 / 1,566 | 6.15 / 7.02 / 8.24 | 6.82 / 7.77 / 8.30 | — |
+⇒ **Middlegame: SF11's static eval is NO better than ours** on passers — the rare cases are priced by SEARCH (both
+statics ≈ 8.5 vs our search 5.8). **Endgame: SF11 is modestly better** (6.86 vs 7.45, ≈ 0.6-0.75pp at ranks 5-6; equal at
+rank 7) ⇒ the classical static headroom over us is real but small, concentrated in eg ranks 5-6 — exactly where the
+stop-state / support / escort cells live. The depth-target fit can exceed SF11-level (KS did), so this bounds the
+"copy SF11" gain, not the fit's.

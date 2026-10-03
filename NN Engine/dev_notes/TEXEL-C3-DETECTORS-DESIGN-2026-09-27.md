@@ -894,3 +894,15 @@ MAX, HALF ↑ · EG ↓); size scales with λ ⇒ a real shape. Gate arm = λ 1e
 402→252, EG 100→66; files `ks_depth_L1e-2_{ks,ksb}.txt`). Engine closure with the new knobs: 3,000 rows, 1,189 change,
 max |model − engine| 4.9 mp, corr 0.99997. Gate queued per part (`selfplay/_queue_ksjoint.sh`, after queue #9's KS-B-alone
 arm, same seeds 60/61 ⇒ shared baselines) + self-play 2,000.
+**18m. RE-GATE ON THE CALIBRATED JUDGE (SF18 @800, seeds 58/59, fresh baselines; 2026-10-02 night).** Pooled 1,000 paired:
+| arm | old judge (SF@400) | **calibrated (SF@800)** | self-play |
+|---|---|---|---|
+| winnability (on vs off) | +14.9 [+3.4, +26.7] | **+12.9 [−1.4, +27.3]** | ≈ 0 (50k and 250k) |
+| MCL all classes | −24.3 | **−2.4 [−27.1, +22.4]** | +8.7 ± 17.9 |
+| MCL queen class | −1.4 | **+1.4 [−23.4, +26.5]** | — |
+| **Kaufman full (FORM 3)** | **−29.6** | **+18.9 [−6.5, +44.9]** | **+11.8 ± 17.9** |
+⇒ **The opponent-strength hypothesis is SUPPORTED:** Kaufman full swings from −30 (weak judge) to +19 (calibrated), now
+agreeing with self-play (+12). The narrow MCL classes are ≈ neutral on the fair judge. Winnability holds (+13). ⇒ The
+material candidate is the BROAD Kaufman table after all (the "same shape as the error" story was built on the biased
+judge — ☠️ a reasoning error of mine, recorded). Kaufman full: positive on both fair instruments but neither significant
+alone (z 1.46 / ≈1.3) ⇒ firm it up with more calibrated games before shipping.

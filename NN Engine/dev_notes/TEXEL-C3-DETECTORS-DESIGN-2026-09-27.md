@@ -915,3 +915,7 @@ baselines as KS-B alone): +1.9pp · +1.3pp ⇒ **pooled +1.60pp ± 3.46 ⇒ +11.
 (seed 63): **+844 −742 =414 ⇒ +17.7 ± 17.9**. ⇒ Positive on BOTH fair instruments, both seeds — unlike KS-B alone (−13 /
 +16) ⇒ the attack-model re-pricing is what makes the shelter/storm cells work (per-part reading: joint − KS-B ≈ +24 on
 the calibrated judge, same baselines). Neither instrument significant alone ⇒ firm up before shipping.
+**18p. KAUFMAN FULL — calibrated firm-up (queue #11, seeds 60/61, 2026-10-03).** +1.5pp · +0.6pp ⇒ +7.4 [−17.1, +32.2].
+**All four calibrated seeds pooled (2,000 paired): +1.88pp ± 2.52 ⇒ +13.1 Elo [−4.5, +31.0], z 1.46** (seeds +5.9 · +1.5 ·
++0.6 · −0.5pp). With self-play +11.8 ± 17.9 (2,000): an inverse-variance combination of the two fair instruments ≈ +12.5
+± 6.4 Elo (≈ 2σ). The old-judge −29.6 is discounted (§18m).

@@ -68,3 +68,17 @@ gates go PER PART (stop-state block · support block (4,5,7) · king escort bloc
 3. Feature pass on the labelled rows; fit jointly with the pawn-structure columns on the depth target (current ship).
 4. Closure + symmetry → per-part gates on the calibrated judge (SF18 @800) + self-play.
 5. Then the isolated/backward exclusion refit folds in (§19a).
+
+## 6. Owner review, round 1 (2026-10-03)
+- **Order:** passers FIRST as their own pass, pawn structure SEPARATELY after (owner: "not convolute them just because
+  they are both pawns"). The passer fit holds structure at whatever ships from queue #14; the structure pass (incl. the
+  isolated/backward exclusion) holds the passer system fixed.
+- **Free-advance mg sign:** leave every cell per-rank with both legs free — the owner's case (closed mg, an opened flank,
+  a far passer forcing sacs) must be expressible as a strongly POSITIVE r6-r7 mg cell; nothing forces a sign.
+- **King escort in the middlegame — "inherently available, like central":** mg legs for BOTH kings (escort and the
+  commoner DEFENDING king in its own backyard), rank-weighted so they only matter for far passers; KS remains the
+  counterweight against kings marching out (both fitted, the fit sets the balance).
+- **Blockade quality:** split the blocked-passer cells by blocker type (minor vs rook/queen), entered at 0 (single-lineage
+  rule); reasoning why references skip it: a pawn block is not a passer; a minor blockader is usually an outpost (already
+  rewarded); a heavy blockader being chased is a threat that search resolves — mostly priced elsewhere, cheap to test.
+- **Square rule:** IN, defender without non-pawn material, overridden by the exact KPK bitbase where that applies.

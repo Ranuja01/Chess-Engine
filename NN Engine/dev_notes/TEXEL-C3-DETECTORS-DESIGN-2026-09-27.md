@@ -906,3 +906,7 @@ agreeing with self-play (+12). The narrow MCL classes are ≈ neutral on the fai
 material candidate is the BROAD Kaufman table after all (the "same shape as the error" story was built on the biased
 judge — ☠️ a reasoning error of mine, recorded). Kaufman full: positive on both fair instruments but neither significant
 alone (z 1.46 / ≈1.3) ⇒ firm it up with more calibrated games before shipping.
+**18n. KS-B ALONE (depth-fitted cells) — gate (queue #9, 2026-10-03).** Symmetry 0/4000 + 0/3170 (56 cells loaded).
+Calibrated SF18 @800, seeds 60/61: +0.3pp · −4.1pp ⇒ **pooled −1.90pp ± 3.54 ⇒ −13.3 Elo [−37.8, +11.5]**. Self-play
+2,000 @50k (seed 62): **+858 −764 =378 ⇒ +16.3 ± 17.9**. Instruments disagree again, neither significant: not a ship on
+its own. The joint arm (queue #10) runs next on the same seeds/baselines.

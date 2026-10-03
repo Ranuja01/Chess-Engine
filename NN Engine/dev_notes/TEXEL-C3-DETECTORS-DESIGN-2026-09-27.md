@@ -928,3 +928,14 @@ Kaufman's ≈ +12.5 ± 6.4, with the calibrated judge the more cautious of the t
 49,211,859 (exact) · compiled == file tables · **NEW shipped v2 255 / 47,218,480 / 4.007** (+4 WAC solves, −2.0M nodes).
 Additive expectation ≈ +24 but winner's-curse + overlap ⇒ realistic +15-20; a CONFIRMATION gauntlet (new vs old shipped,
 calibrated SF18 @800 + self-play) measures the combination.
+
+## 19. PAWN STRUCTURE + PASSERS on the DEPTH target (2026-10-03; owner: "consolidate pawns, then Texel tune")
+Record check: never fitted on a depth target (C1 = d6 outcomes, joint with everything, 50k self-play only; C1 wanted the
+hard-zero mg legs of passers/weak-unopposed). Most concept closures (connected, passer mg leg, magnitudes) rest on §I or
+d7 regret — UNREADABLE now. Fitter `diagnostics/_pawn_depth_fit.py`: C1 cols 66-96 (doubled, isolated by file, backward,
+weak-unopposed · passed / candidate by rank, passer king terms), BOTH legs free, arms STRUCT / PASSER / JOINT.
+PROVISIONAL (base = the pre-10-03 depth pass): val λ1e-3 −1.09 / −1.16 / −2.21% · **λ1e-2 −0.97 / −1.07 / −1.99%** · λ1e-1
+−0.68 / −0.86 / −1.52% (parts ~additive). Joint wants mg penalties for isolated (h-file −162) and weak-unopposed (−55),
+small + mg passer legs (+12..+48), doubled mg −112 / eg −180 (from −263), backward mg +46.
+Queue #14 (`selfplay/_queue_pawns.sh`, after #13): depth pass of the CURRENT ship (CHUNK-bounded) → refit → feature-pass
+closure (C1_V2_FIT) + symmetry → SF18 @800 seeds 70/71 (STRUCT · PASSER · JOINT vs a shared baseline) → self-play JOINT.

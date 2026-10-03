@@ -939,3 +939,18 @@ PROVISIONAL (base = the pre-10-03 depth pass): val λ1e-3 −1.09 / −1.16 / �
 small + mg passer legs (+12..+48), doubled mg −112 / eg −180 (from −263), backward mg +46.
 Queue #14 (`selfplay/_queue_pawns.sh`, after #13): depth pass of the CURRENT ship (CHUNK-bounded) → refit → feature-pass
 closure (C1_V2_FIT) + symmetry → SF18 @800 seeds 70/71 (STRUCT · PASSER · JOINT vs a shared baseline) → self-play JOINT.
+**19a. Reference contrast for pawns/passers (Opus engine-contrast, 2026-10-03; Ethereal/Weiss line numbers UNVERIFIED).**
+Almost every universal pawn concept is already built and measured in v2; what is genuinely NEW:
+1. ★ **Isolated pawns are ALSO charged as backward** (eval_v2.cpp ~1133: the backward detector has no neighbour
+   requirement) — 4/4 references exclude it (SF else-if chain, Ethereal `neighbors &&`, Weiss adjacent-file mask). A
+   blocked isolani pays ≈ −110 + −113 mp eg (+ weak-unopposed). NEVER TRIED as an exclusion (co-firing was measured,
+   RUNG2 design:220). A correctness fix INTO absorbed tuning ⇒ must be refit with the values (queue #14's fit prices
+   the double charge as it stands).
+2. **Defended / connected passers get nothing extra** — 4/4 pay (SF/Ethereal via Connected, Weiss `PassedDefended`,
+   r7 S(158,96)); Weiss's form was chosen as the owner in RUNG2B:208 and NEVER BUILT. (The design doc's "Ethereal denies
+   connected to passers" may be wrong — the fetched master attaches that else-if to backward; check pinned commit.)
+3. **Passer mg leg** — 4/4 have one, concentrated at r6-r7 (small/negative below); ours is ×0 and Fit A's pawn PST holds
+   part of it. Queue #14's joint arm frees the mg legs, so it tests this directly.
+Untried shapes worth noting: Weiss's flat-support + phalanx-only connected split; table-indexed blocked/free-advance
+(mg NEGATIVE, eg positive). Already closed and not re-proposed: SF-shaped connected (both shapes), the SF11 path ladder.
+⇒ Follow-up after queue #14: (a) backward-requires-neighbours knob + refit; (b) a defended/connected-passer cell.

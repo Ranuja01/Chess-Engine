@@ -26,6 +26,8 @@ J="C1_V2_FIT=1 C1_V2_FILE=$TX/pawn_depth_joint.txt"
 env V2_PRESET=shipped $J bash "$R" pyrun diagnostics/_texel_feature_pass.py IN=/mnt/e/chess_data/texel/fitC_stage1.csv.gz LIMIT=20000 OUT=/tmp/q14_c1.npz > /tmp/q14_clo.txt 2>&1
 grep -E "pawn_struct|v2_passers" /tmp/q14_clo.txt | sed 's/^/[q14] closure /'
 BAD=$(grep -E "^ *(pawn_struct|v2_passers) " /tmp/q14_clo.txt | awk '{ if ($NF+0 > 10 || $NF+0 < -10) print }' | wc -l)
+NLINES=$(grep -cE "^ *(pawn_struct|v2_passers) " /tmp/q14_clo.txt)   # a silent tool must not read as a pass
+[ "$NLINES" = "2" ] || BAD=99
 SYM=$(env V2_PRESET=shipped $J bash "$R" pyrun diagnostics/_eval_symmetry.py N=4000 2>&1 | grep -E "violations")
 echo "[q14] symmetry: $(echo "$SYM" | tr '\n' ' ')"
 if [ "$BAD" != "0" ] || [ "$(echo "$SYM" | grep -c 'violations 0 ')" != "2" ]; then

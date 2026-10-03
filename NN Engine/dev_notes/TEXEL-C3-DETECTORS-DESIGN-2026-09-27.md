@@ -910,3 +910,8 @@ alone (z 1.46 / ≈1.3) ⇒ firm it up with more calibrated games before shippin
 Calibrated SF18 @800, seeds 60/61: +0.3pp · −4.1pp ⇒ **pooled −1.90pp ± 3.54 ⇒ −13.3 Elo [−37.8, +11.5]**. Self-play
 2,000 @50k (seed 62): **+858 −764 =378 ⇒ +16.3 ± 17.9**. Instruments disagree again, neither significant: not a ship on
 its own. The joint arm (queue #10) runs next on the same seeds/baselines.
+**18o. KS + KS-B JOINT — gate (queue #10, 2026-10-03).** Symmetry 0/4000 + 0/3170. Calibrated SF18 @800, seeds 60/61 (same
+baselines as KS-B alone): +1.9pp · +1.3pp ⇒ **pooled +1.60pp ± 3.46 ⇒ +11.2 Elo [−12.9, +35.8]**. Self-play 2,000 @50k
+(seed 63): **+844 −742 =414 ⇒ +17.7 ± 17.9**. ⇒ Positive on BOTH fair instruments, both seeds — unlike KS-B alone (−13 /
++16) ⇒ the attack-model re-pricing is what makes the shelter/storm cells work (per-part reading: joint − KS-B ≈ +24 on
+the calibrated judge, same baselines). Neither instrument significant alone ⇒ firm up before shipping.

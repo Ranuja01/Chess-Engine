@@ -96,3 +96,15 @@ statics ≈ 8.5 vs our search 5.8). **Endgame: SF11 is modestly better** (6.86 v
 rank 7) ⇒ the classical static headroom over us is real but small, concentrated in eg ranks 5-6 — exactly where the
 stop-state / support / escort cells live. The depth-target fit can exceed SF11-level (KS did), so this bounds the
 "copy SF11" gain, not the fit's.
+
+## 8. BUILD STATE (2026-10-03 night) — code written, NOT built (the gauntlet queues run from the working tree)
+- C++ (commit b09a2fc): `px_counts` — 51 cells per side (layout in its header comment), `PX_V2` + `PX_V2_FILE` loader
+  (c3_load_table contract), scored like the C3 blocks (needs the shared attack maps), published as `v2_pxpass`
+  (EB_V2_PXPASS, v2-only, masked from EB_ALL); exported in `v2_features` at 184-234 (V2F_PER_SIDE 184 → 235; ChessAI.pyx
+  buffers updated). Syntax-clean. Default PX_V2 = 0 ⇒ byte-identical expected — the build guard must prove it.
+- Pipeline: `_px_export.py` (features + live theta for the ~34k LABELLED rows only) → `_px_depth_fit.py` (passer rank
+  columns 77-96 + PX cells, both legs, on the DEPTH target, mg + eg sets, structure fixed; per-block arms RANK / STOP /
+  SUPPORT / ESCORT / MISC / ALL, each also on top of RANK) → closure (`_texel_feature_pass.py` with PX_V2=1, block
+  `v2_pxpass`) + symmetry → per-block gates (calibrated SF18 @800 + self-play).
+- Needs first: a depth pass on the ENDGAME labelled set (`fitC_eg_sf18.csv`) with the current ship — passers matter most
+  there and no eg d10 pass exists.

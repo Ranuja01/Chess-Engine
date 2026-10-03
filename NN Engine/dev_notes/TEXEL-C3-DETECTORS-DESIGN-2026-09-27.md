@@ -919,3 +919,7 @@ the calibrated judge, same baselines). Neither instrument significant alone ⇒ 
 **All four calibrated seeds pooled (2,000 paired): +1.88pp ± 2.52 ⇒ +13.1 Elo [−4.5, +31.0], z 1.46** (seeds +5.9 · +1.5 ·
 +0.6 · −0.5pp). With self-play +11.8 ± 17.9 (2,000): an inverse-variance combination of the two fair instruments ≈ +12.5
 ± 6.4 Elo (≈ 2σ). The old-judge −29.6 is discounted (§18m).
+**18q. JOINT KS — calibrated firm-up (queue #12, fresh seeds 64/65, 2026-10-03).** +2.2pp · −2.0pp ⇒ +0.7 [−23.3, +25.1].
+**All four calibrated seeds (2,000 paired): +0.85pp ± 2.43 ⇒ +6.0 Elo [−11.1, +23.2], z 0.68** (seeds +1.9 · +1.3 · +2.2 ·
+−2.0pp). Self-play +17.7 ± 17.9. Inverse-variance combination ≈ **+11.7 ± 6.3 Elo (≈ 1.8σ)** — slightly weaker than
+Kaufman's ≈ +12.5 ± 6.4, with the calibrated judge the more cautious of the two reads.

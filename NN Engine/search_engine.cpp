@@ -2373,6 +2373,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KSB_V2_CASTLE = env_int("KSB_V2_CASTLE", Config::KSB_V2_CASTLE);
         Config::KFL_V2 = env_int("KFL_V2", Config::KFL_V2);
         Config::KPROT_V2 = env_int("KPROT_V2", Config::KPROT_V2);
+        Config::PX_V2 = env_int("PX_V2", Config::PX_V2);
         Config::WIN_V2 = env_int("WIN_V2", Config::WIN_V2);
         Config::WIN_V2_PASSED = env_int("WIN_V2_PASSED", Config::WIN_V2_PASSED);
         Config::WIN_V2_PAWNS = env_int("WIN_V2_PAWNS", Config::WIN_V2_PAWNS);
@@ -2595,7 +2596,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_V2_CONTEST_EXCESS=" << Config::KS_V2_CONTEST_EXCESS
                   << " KS_V2_CONTEST_SQ=" << Config::KS_V2_CONTEST_SQ << " KS_V2_CONTEST_SQ_Q=" << Config::KS_V2_CONTEST_SQ_Q
                   << " KSB_V2=" << Config::KSB_V2 << " KSB_V2_CASTLE=" << Config::KSB_V2_CASTLE
-                  << " KFL_V2=" << Config::KFL_V2 << " KPROT_V2=" << Config::KPROT_V2
+                  << " KFL_V2=" << Config::KFL_V2 << " KPROT_V2=" << Config::KPROT_V2 << " PX_V2=" << Config::PX_V2
                   << " WIN_V2=" << Config::WIN_V2 << " WIN_V2_PASSED=" << Config::WIN_V2_PASSED
                   << " WIN_V2_PAWNS=" << Config::WIN_V2_PAWNS << " WIN_V2_OUTFLANK=" << Config::WIN_V2_OUTFLANK
                   << " WIN_V2_INFILT=" << Config::WIN_V2_INFILT << " WIN_V2_FLANKS=" << Config::WIN_V2_FLANKS

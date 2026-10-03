@@ -901,6 +901,9 @@ namespace Config
     // contract -- 1 = on with the cells from env KFL_V2_FILE / KPROT_V2_FILE, 0 = absent, byte-identical.
     inline int KFL_V2 = 0;
     inline int KPROT_V2 = 0;
+    // PX — the passer system (51 cells: stop state incl. blocker type, path, support, king escort, pieces behind, file,
+    // square rule; dev_notes/PASSER-SYSTEM-DESIGN-2026-10-03.md). 1 = on with cells from env PX_V2_FILE; 0 = absent.
+    inline int PX_V2 = 0;
     // KS attacker weight per type for the "ours" profile (KS_V2_ATT_PROFILE = 0), in KS units per attacker. Defaults are
     // the compiled KS_W_OURS {N 31, B 31, R 47, Q 78} = byte-identical; Fit K2 prices them (2026-09-28).
     // ── OvD eg leg: WINNABILITY (2026-09-29; design TEXEL-C3-DETECTORS-DESIGN §8 + pilot §11) ──────────────────────

@@ -41,7 +41,8 @@ BLOCKS = [("mobility", slice(0, 66)), ("pawn_struct", slice(66, 77)), ("v2_passe
           # and theta is 0, so the gate passes VACUOUSLY; prove closure under KSB_V2=1 with a non-zero test table.
           ("v2_shelter", slice(106, 162)),
           ("v2_kflank", slice(162, 172)),       # C3-b pawnless flank + king-pawn distance (same vacuity caveat)
-          ("v2_kprot", slice(172, 184))]        # C3-c KingProtector (same vacuity caveat)
+          ("v2_kprot", slice(172, 184)),        # C3-c KingProtector (same vacuity caveat)
+          ("v2_pxpass", slice(184, 235))]       # PX passer system (2026-10-03; same vacuity caveat — prove it under PX_V2=1)
 
 rows, diffs, phases, totals, blocks, flags = [], [], [], [], [], []
 t0 = time.time()

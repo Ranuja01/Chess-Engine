@@ -318,6 +318,11 @@ static constexpr int KFL_CELLS = 10;                // nearest own pawn d 2/3/4/
 static constexpr int KPROT_CELLS = 12;              // knight d 1..6+ · bishop d 1..6+ (Chebyshev to our king)
 static bool   g_kfl_on = false, g_kprot_on = false;
 static int    kfl_w[2][KFL_CELLS], kprot_w[2][KPROT_CELLS];
+// PX: the PASSER SYSTEM cells (2026-10-03, dev_notes/PASSER-SYSTEM-DESIGN-2026-10-03.md; layout at px_counts). Loaded
+// from PX_V2_FILE under PX_V2=1 (c3_load_table contract: a missing/malformed file leaves the block OFF).
+static constexpr int PX_CELLS = 51;
+static int    px_w[2][PX_CELLS];
+static bool   g_px_on = false;
 
 static constexpr int V2_PST_VALUES = 6 * 2 * 64;
 
@@ -3462,6 +3467,87 @@ static inline void kprot_side(const V2Context &c, bool white, int &mg, int &eg) 
 
 /* Black-positive blended value of a per-side (mg, eg) scorer, plus its raw legs for pair mode. Blended PER SIDE, as
  * KS-A and C3-a are, so the colour mirror sees the same truncation on both sides. */
+/* ═══ PX: THE PASSER SYSTEM (2026-10-03; dev_notes/PASSER-SYSTEM-DESIGN-2026-10-03.md) ════════════════════════════
+ * The passer DYNAMICS every reference prices and v2 did not (11 engines / 7 lineages): stop-square state, path, support,
+ * king escort, pieces behind, file, square rule. Counts only — every cell is a Texel-fitted (mg, eg) pair, so the fit
+ * decides sign and size (owner: "find what works for OUR engine"); all start at 0. Applies to TRUE passers (candidates
+ * stay with passer_value_mp). Rank cells cover relative ranks 4-7 (0-based r = 3..6, ri = r - 3).
+ *   0-3   blocked by an OWN piece [ri]      4-7   blocked by an enemy MINOR [ri]   8-11  blocked by an enemy R/Q [ri]
+ *   12-15 blocked by the enemy KING [ri]    16-19 stop free AND not enemy-attacked [ri]
+ *   20-23 whole path to promotion free of enemy pieces and enemy attacks [ri] (nested in 16-19)
+ *   24-27 stop square attacked by us [ri]   28-31 passer defended by an own pawn [ri]  32-35 phalanx passer [ri]
+ *   36-39 OUR king's distance to the stop [ri]   40-43 THEIR king's distance to the stop [ri]   (ps_kdist, capped 5)
+ *   44-46 our king's distance to the square AFTER the stop (SF's second push), r = 3..5
+ *   47 own R/Q behind (line of sight)   48 enemy R/Q behind (line of sight)
+ *   49 file distance from the nearest edge (0 = a/h)   50 square rule: the defender has NO non-pawn material and its
+ *      king (exact Chebyshev) is more than one step outside the pawn's square — stm-free, so it never needs the tempo.
+ * Blockade by piece TYPE (4-15) is the owner's invented split (no reference has it) — at 0 like everything else.
+ * Attack maps: the SAME shared maps passer_value_mp and mobility use (x-ray occupancy, see the ladder note above).
+ * Mirror-safe: every count is relative to the side, so a colour mirror swaps the per-side vectors exactly. */
+static constexpr int PX_BLK_OWN = 0, PX_BLK_MINOR = 4, PX_BLK_HEAVY = 8, PX_BLK_KING = 12, PX_FREE_SAFE = 16,
+                     PX_PATH_FREE = 20, PX_STOP_DEF = 24, PX_PAWN_DEF = 28, PX_PHALANX = 32, PX_KD_US = 36,
+                     PX_KD_THEM = 40, PX_KD2_US = 44, PX_RQB_OWN = 47, PX_RQB_THEM = 48, PX_FILE = 49, PX_SQUARE = 50;
+static_assert(PX_SQUARE + 1 == PX_CELLS, "PX layout must fill PX_CELLS");
+
+static inline void px_counts(const V2Context &c, const PawnEntry &pe, const SideAttacks &wa, const SideAttacks &ba,
+                             bool white, int *cnt) noexcept
+{
+	for (int i = 0; i < PX_CELLS; ++i) cnt[i] = 0;
+	const int s = white ? 0 : 1;
+	const uint64_t own = white ? c.white : c.black, theirs = white ? c.black : c.white;
+	const uint64_t our_att = white ? wa.all : ba.all, their_att = white ? ba.all : wa.all;
+	const uint64_t ownPawns = c.pawns & own;
+	const uint64_t okb = c.kings & own, tkb = c.kings & theirs;
+	const int ourK = okb ? __builtin_ctzll(okb) : -1, theirK = tkb ? __builtin_ctzll(tkb) : -1;
+	const int their_npm = white ? c.npm_black : c.npm_white;
+	const int step = white ? 8 : -8;
+	uint64_t bb = pe.passed[s];
+	while (bb){
+		const int sq = __builtin_ctzll(bb);
+		bb &= bb - 1;
+		const uint64_t m = 1ULL << sq;
+		const int f = sq & 7;
+		const int r = white ? (sq >> 3) : (7 - (sq >> 3));
+		cnt[PX_FILE] += f < 7 - f ? f : 7 - f;
+		// pieces behind on the file, first one met (line of sight)
+		for (int t = sq - step; t >= 0 && t < 64; t -= step){
+			const uint64_t tb = 1ULL << t;
+			if (!(c.occupied & tb)) continue;
+			if ((c.rooks | c.queens) & tb) ++cnt[(own & tb) ? PX_RQB_OWN : PX_RQB_THEM];
+			break;
+		}
+		// square rule (defender without pieces); exact Chebyshev to the promotion square
+		if (their_npm == 0 && theirK >= 0){
+			const int promo = white ? (56 + f) : f;
+			const int dx = (theirK & 7) > f ? (theirK & 7) - f : f - (theirK & 7);
+			const int dy = (theirK >> 3) > (promo >> 3) ? (theirK >> 3) - (promo >> 3) : (promo >> 3) - (theirK >> 3);
+			const int kd = dx > dy ? dx : dy;
+			const int steps = (r == 1) ? 5 : 7 - r;              // a pawn on its 2nd rank may double-push
+			if (kd - 1 > steps) ++cnt[PX_SQUARE];
+		}
+		if (r < 3) continue;
+		const int ri = r - 3;
+		const int stop = sq + step;
+		const uint64_t sb = 1ULL << stop;
+		if (c.occupied & sb){
+			if (own & sb)                           ++cnt[PX_BLK_OWN + ri];
+			else if (c.kings & sb)                  ++cnt[PX_BLK_KING + ri];
+			else if ((c.knights | c.bishops) & sb)  ++cnt[PX_BLK_MINOR + ri];
+			else                                    ++cnt[PX_BLK_HEAVY + ri];
+		} else if (!(their_att & sb)){
+			++cnt[PX_FREE_SAFE + ri];
+			const uint64_t toQueen = (white ? passed_span_white[sq] : passed_span_black[sq]) & BB_FILES[f];
+			if (!(toQueen & theirs) && !(toQueen & their_att)) ++cnt[PX_PATH_FREE + ri];
+		}
+		if (our_att & sb) ++cnt[PX_STOP_DEF + ri];
+		if (ownPawns & (white ? ps_batt(m) : ps_watt(m))) ++cnt[PX_PAWN_DEF + ri];
+		if (ownPawns & (ps_east(m) | ps_west(m)))         ++cnt[PX_PHALANX + ri];
+		if (ourK >= 0)   cnt[PX_KD_US + ri]   += ps_kdist(ourK, stop);
+		if (theirK >= 0) cnt[PX_KD_THEM + ri] += ps_kdist(theirK, stop);
+		if (r <= 5 && ourK >= 0) cnt[PX_KD2_US + ri] += ps_kdist(ourK, stop + step);
+	}
+}
+
 template <typename SideFn>
 static inline int c3_block_mp(const V2Context &c, SideFn fn, int &dmg, int &deg) noexcept
 {
@@ -3581,8 +3667,9 @@ void win_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, u
 static constexpr int V2F_MOB = 0, V2F_DOUBLED = 66, V2F_ISO = 67, V2F_BACKWARD = 75, V2F_WU = 76,
                      V2F_PASSED = 77, V2F_CAND = 85, V2F_KD = 93, V2F_OUT_N = 97, V2F_OUT_B = 98,
                      V2F_BEHIND = 99, V2F_BADB = 100, V2F_TRAPR = 104, V2F_WEAKQ = 105,
-                     V2F_C1_END = 106, V2F_KSB = 106, V2F_KFL = V2F_KSB + KSB_CELLS, V2F_KPROT = V2F_KFL + KFL_CELLS;
-static_assert(V2F_KPROT + KPROT_CELLS == V2F_PER_SIDE, "v2_features layout: the C3 cells must end the per-side block");
+                     V2F_C1_END = 106, V2F_KSB = 106, V2F_KFL = V2F_KSB + KSB_CELLS, V2F_KPROT = V2F_KFL + KFL_CELLS,
+                     V2F_PX = V2F_KPROT + KPROT_CELLS;    // PX passer cells appended 2026-10-03
+static_assert(V2F_PX + PX_CELLS == V2F_PER_SIDE, "v2_features layout: the PX cells must end the per-side block");
 static constexpr int V2F_MOB_BASE[4] = {0, 9, 23, 38};   // offsets of N / B / R / Q move-count cells
 
 void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
@@ -3695,6 +3782,13 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 		kprot_counts(c, white, pc2);
 		for (int i = 0; i < KPROT_CELLS; ++i) out[s * V2F_PER_SIDE + V2F_KPROT + i] += pc2[i];
 	}
+
+	// PX passer cells (2026-10-03), unconditional, from the same pawn entry and shared attack maps the scorer uses.
+	for (int s = 0; s < 2; ++s){
+		int px[PX_CELLS];
+		px_counts(c, pe, wa, ba, s == 0, px);
+		for (int i = 0; i < PX_CELLS; ++i) out[s * V2F_PER_SIDE + V2F_PX + i] = px[i];
+	}
 }
 
 /* Starting value of every C1 parameter, (mg, eg) millipawns per unit of its count, from the live Config: the
@@ -3709,6 +3803,8 @@ void v2_features_theta(double *mg, double *eg)
 		for (int i = 0; i < KFL_CELLS; ++i){ mg[V2F_KFL + i] = kfl_w[0][i]; eg[V2F_KFL + i] = kfl_w[1][i]; }
 	if (g_kprot_on)
 		for (int i = 0; i < KPROT_CELLS; ++i){ mg[V2F_KPROT + i] = kprot_w[0][i]; eg[V2F_KPROT + i] = kprot_w[1][i]; }
+	if (g_px_on)
+		for (int i = 0; i < PX_CELLS; ++i){ mg[V2F_PX + i] = px_w[0][i]; eg[V2F_PX + i] = px_w[1][i]; }
 	if (g_c1_fit){
 		// The ACTIVE fitted values, so a pass under C1_V2_FIT=1 checks the engine against the fitted model (closure).
 		for (int i = 0; i < 4; ++i)
@@ -3901,6 +3997,7 @@ void v2_c3_init()
 	                                               kprot_w[0], kprot_w[1]);
 	if (g_ksb_on && Config::KSB_V2_CASTLE) std::cerr << "[c3] KSB_V2_CASTLE: shelter scored at the castling max" << '\n';
 	if (Config::KAUF_V2_MAG != 0 && Config::KAUF_V2_FORM == 3) kauf_fit_load();
+	g_px_on = Config::PX_V2 && c3_load_table("PX_V2", "PX_V2_FILE", V2F_PX, PX_CELLS, px_w[0], px_w[1]);
 }
 
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)
@@ -4150,6 +4247,22 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		}
 	}
 
+	// ── PX: the passer system (2026-10-03; px_counts). Needs the shared attack maps; gated on g_px_on (PX_V2 = 1 with
+	// a loaded PX_V2_FILE), so off = absent = byte-identical. Same contract as the C3 blocks.
+	int px_mp = 0;
+	if (g_px_on && atk_ready){
+		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
+		int dmg, deg;
+		auto px_side = [&](const V2Context &cc, bool white, int &mg, int &eg){
+			int cnt[PX_CELLS];
+			px_counts(cc, pe, wa, ba, white, cnt);
+			mg = eg = 0;
+			for (int i = 0; i < PX_CELLS; ++i){ mg += cnt[i] * px_w[0][i]; eg += cnt[i] * px_w[1][i]; }
+		};
+		px_mp = c3_block_mp(c, px_side, dmg, deg);
+		if (pair_mode){ acc.mg += dmg; acc.eg += deg; } else total += px_mp;
+	}
+
 	// ── slice 1 / component 1: tempo ─────────────────────────────────
 	// A bonus for simply being the side to move. This is the ONLY place in v2 that reads c.turn, which is
 	// what makes its gate an exact identity rather than a statistic: with v2 otherwise side-to-move-blind,
@@ -4295,6 +4408,10 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		if (Config::WIN_V2 || Config::POT_V2_WIN){
 			g_eval_breakdown.v2_winnab = win_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_WINNAB);
+		}
+		if (g_px_on && atk_ready){
+			g_eval_breakdown.v2_pxpass = px_mp;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_PXPASS);
 		}
 	}
 

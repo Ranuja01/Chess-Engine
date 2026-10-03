@@ -554,6 +554,7 @@ struct EvalBreakdown {
 	int v2_kflank;     // eval_v2 C3-b pawnless flank + king-pawn distance (KFL_V2), Black-positive. Appended 2026-09-27.
 	int v2_kprot;      // eval_v2 C3-c KingProtector, minors (KPROT_V2), Black-positive. Appended 2026-09-27.
 	int v2_winnab;     // eval_v2 OvD eg winnability adjustment (WIN_V2), Black-positive. Appended 2026-09-29.
+	int v2_pxpass;     // eval_v2 PX passer system (PX_V2), Black-positive. Appended 2026-10-03.
 };
 
 // Bit index per EvalBreakdown field, in the SAME ORDER as ChessAI.ev_breakdown builds its dict.
@@ -589,6 +590,7 @@ enum EvalBreakdownBit {
 	EB_V2_SHELTER,     // appended 2026-09-27 (C3-a); v2-only, masked out of EB_ALL below
 	EB_V2_KFLANK, EB_V2_KPROT,   // appended 2026-09-27 (C3-b, C3-c); v2-only
 	EB_V2_WINNAB,                // appended 2026-09-29 (OvD eg winnability); v2-only
+	EB_V2_PXPASS,                // appended 2026-10-03 (PX passer system); v2-only
 	EB_NUM_FIELDS
 };
 // ☠️ EB_ALL IS "EVERYTHING v1 WRITES", NOT "EVERY BIT". v1 sets this wholesale (cpp_bitboard.cpp:8784), so a
@@ -602,7 +604,8 @@ static constexpr uint64_t EB_V2_ONLY = (1ULL << EB_V2_PASSERS)
                                      | (1ULL << EB_V2_SHELTER)
                                      | (1ULL << EB_V2_KFLANK)
                                      | (1ULL << EB_V2_KPROT)
-                                     | (1ULL << EB_V2_WINNAB);
+                                     | (1ULL << EB_V2_WINNAB)
+                                     | (1ULL << EB_V2_PXPASS);
 static constexpr uint64_t EB_ALL = ~0ULL & ~EB_V2_ONLY;
 
 extern EvalBreakdown g_eval_breakdown;

@@ -254,6 +254,7 @@ cdef extern from "cpp_bitboard.h":
         int v2_kflank
         int v2_kprot
         int v2_winnab
+        int v2_pxpass
     EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights)
 
     # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
@@ -366,7 +367,7 @@ def placement_counts(pawns, knights, bishops, rooks, queens, kings, occupied_whi
 
 
 # ☠️ Must equal eval_v2.h's V2F_PER_SIDE; the buffers below are sized 2*V2F_PER_SIDE+1 and V2F_PER_SIDE by hand.
-V2F_PER_SIDE = 184
+V2F_PER_SIDE = 235
 
 
 def v2_feature_counts(board):
@@ -380,7 +381,7 @@ def v2_feature_counts(board):
     if not _PAWN_PROBE_TABLES_READY:
         initialize_attack_tables()
         _PAWN_PROBE_TABLES_READY = True
-    cdef long long out[369]
+    cdef long long out[471]
     v2_features(<uint64_t>board.pawns, <uint64_t>board.knights, <uint64_t>board.bishops, <uint64_t>board.rooks,
                 <uint64_t>board.queens, <uint64_t>board.kings, <uint64_t>board.occupied_co[True],
                 <uint64_t>board.occupied_co[False], <uint64_t>board.castling_rights, out)
@@ -392,8 +393,8 @@ def v2_feature_counts(board):
 
 def v2_feature_theta():
     """Starting value (mg, eg) in millipawns of each C1 parameter, from the live Config. Returns two lists."""
-    cdef double mg[184]
-    cdef double eg[184]
+    cdef double mg[235]
+    cdef double eg[235]
     v2_features_theta(mg, eg)
     cdef int k
     return ([mg[k] for k in range(V2F_PER_SIDE)], [eg[k] for k in range(V2F_PER_SIDE)])
@@ -977,6 +978,7 @@ cdef class ChessAI:
             ("v2_kflank", b.v2_kflank),
             ("v2_kprot", b.v2_kprot),
             ("v2_winnab", b.v2_winnab),
+            ("v2_pxpass", b.v2_pxpass),
         ]
 
         cdef int n_terms = len(pairs)

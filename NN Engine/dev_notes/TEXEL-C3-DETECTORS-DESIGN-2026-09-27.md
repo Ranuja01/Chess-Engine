@@ -923,3 +923,8 @@ the calibrated judge, same baselines). Neither instrument significant alone ⇒ 
 **All four calibrated seeds (2,000 paired): +0.85pp ± 2.43 ⇒ +6.0 Elo [−11.1, +23.2], z 0.68** (seeds +1.9 · +1.3 · +2.2 ·
 −2.0pp). Self-play +17.7 ± 17.9. Inverse-variance combination ≈ **+11.7 ± 6.3 Elo (≈ 1.8σ)** — slightly weaker than
 Kaufman's ≈ +12.5 ± 6.4, with the calibrated judge the more cautious of the two reads.
+**18r. SHIPPED 2026-10-03 (owner: "sure"): Kaufman fitted cells + joint KS/KS-B.** Tables compiled into `ship_tables_v2.h`
+(loaders fall back to them when no *_FILE is set). Guards: v1 250 / 35,310,778 · old shipped via env overrides 251 /
+49,211,859 (exact) · compiled == file tables · **NEW shipped v2 255 / 47,218,480 / 4.007** (+4 WAC solves, −2.0M nodes).
+Additive expectation ≈ +24 but winner's-curse + overlap ⇒ realistic +15-20; a CONFIRMATION gauntlet (new vs old shipped,
+calibrated SF18 @800 + self-play) measures the combination.

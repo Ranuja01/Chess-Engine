@@ -2063,13 +2063,27 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // KS re-priced by Texel Fit K1p, KS part only (shipped 2026-09-29; C3 doc §9a-9b): +30 [+3, +59] vs
                 // SF18 @250k nodes, ≈ +22 self-play over 3,768 games. Onset kept at 450 (owner rule). Previously
                 // WEAK 57 · ADJ 61 · NO_QUEEN 321 · CHK Q/R/B/N 126/122/80/152 · HALF 600 · balance channels all 0.
-                Config::KS_V2_WEAK = 64;     Config::KS_V2_ADJ = 50;     Config::KS_V2_NO_QUEEN = 402;
-                Config::KS_V2_CHK_Q = 260;   Config::KS_V2_CHK_R = 193;  Config::KS_V2_CHK_B = 141;
-                Config::KS_V2_CHK_N = 189;   Config::KS_V2_MAX = 4000;   Config::KS_V2_HALF = 646;
-                Config::KS_V2_ONSET = 450;
-                Config::KS_V2_ADJ_INST = -12;  Config::KS_V2_UNSAFE = 19;       Config::KS_V2_FLANK_ATT = 11;
-                Config::KS_V2_FLANK_ATT2 = -1; Config::KS_V2_KNIGHT_DEF = 15;   Config::KS_V2_CONTEST_EXCESS = 14;
-                Config::KS_V2_CONTEST_SQ = 30; Config::KS_V2_CONTEST_SQ_Q = 19;
+                // ── FULL KS TUNE step 2 (shipped 2026-10-03; C3 doc §18l/§18o/§18q): KS attack knobs + KS-B shelter/storm
+                // fitted JOINTLY on the DEPTH target (SF18 d14 vs our d10 search; `_ks_depth_fit.py` KS_LAMBDA=1e-2).
+                // Calibrated SF18@800 +6.0 over 2,000 paired (3/4 seeds +), self-play +17.7 ± 17.9 (≈ +11.7 ± 6.3 combined).
+                // Previous (Fit K, 09-29): W N/B/R/Q 31/31/47/78 · COORD 256 · WEAK 64 · ADJ 50 · CHK Q/R/B/N 260/193/141/189
+                // · NO_QUEEN 402 · MAX 4000 · HALF 646 · EG 100 · ADJ_INST −12 · UNSAFE 19 · BLOCKERS 0 · FLANK_ATT 11 ·
+                // FLANK_ATT2 −1 · KNIGHT_DEF 15 · CONTEST_EXCESS 14 · CONTEST_SQ 30 · CONTEST_SQ_Q 19 · KSB off. ONSET kept 450.
+                Config::KS_V2_W_N = 37;      Config::KS_V2_W_B = 40;     Config::KS_V2_W_R = 31;     Config::KS_V2_W_Q = 61;
+                Config::KS_V2_COORD = 243;
+                Config::KS_V2_WEAK = 78;     Config::KS_V2_ADJ = 49;     Config::KS_V2_NO_QUEEN = 252;
+                Config::KS_V2_CHK_Q = 247;   Config::KS_V2_CHK_R = 249;  Config::KS_V2_CHK_B = 155;
+                Config::KS_V2_CHK_N = 165;   Config::KS_V2_MAX = 5315;   Config::KS_V2_HALF = 772;
+                Config::KS_V2_ONSET = 450;   Config::KS_V2_EG_PCT = 66;
+                Config::KS_V2_ADJ_INST = -14;  Config::KS_V2_UNSAFE = 30;       Config::KS_V2_FLANK_ATT = 21;
+                Config::KS_V2_FLANK_ATT2 = -3; Config::KS_V2_KNIGHT_DEF = 24;   Config::KS_V2_CONTEST_EXCESS = 11;
+                Config::KS_V2_CONTEST_SQ = 39; Config::KS_V2_CONTEST_SQ_Q = 16; Config::KS_V2_BLOCKERS = -20;
+                Config::KS_V2_FLANK_DEF = 0;
+                Config::KSB_V2 = 1;          // compiled shipped cells (ship_tables_v2.h) unless KSB_V2_FILE is given
+                // ── Kaufman census imbalance, Texel-fitted cells (shipped 2026-10-03; C3 doc §18c/§18m/§18p): calibrated
+                // SF18@800 +13.1 over 2,000 paired, self-play +11.8 ± 17.9 (≈ +12.5 ± 6.4 combined). Owns the bishop pair
+                // (KAUF_V2_PAIR = 1; BPAIR_V2_MAG stays 0). Compiled cells unless KAUF_V2_FILE is given.
+                Config::KAUF_V2_MAG = 1000;  Config::KAUF_V2_FORM = 3;   Config::KAUF_V2_PAIR = 1;
                 Config::PS_V2_MAG = 100;     Config::PASSER_V2_MAG = 100;
                 Config::DRAW_V2_CLASS = true;  Config::DRAW_V2_KPK_EXACT = true;
                 Config::MOB_V2_MAG = 600;    Config::MOB_V2_EG_PCT = 125;

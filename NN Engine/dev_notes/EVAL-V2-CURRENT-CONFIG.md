@@ -6,7 +6,7 @@
 Update at the END OF EVERY RUNG. The design docs carry reasoning, `EVAL-V2-REBUILD-LOG.md` carries history;
 this carries only the standing state, so a disagreement about "what are we going with" is settled here.
 
-Last updated: **2026-09-27** — ★★ **Texel fit A shipped (`PST_V2_TAPERED=2`, compiled tables): +111 self-play, +38 vs
+Last updated: **2026-10-03** — ★ **Kaufman (fitted cells) + joint KS/KS-B shipped; NEW FINGERPRINT WAC d10 `255 / 47,218,480 / EBF 4.007`** (C3 doc §18). Previously **2026-09-27** — ★★ **Texel fit A shipped (`PST_V2_TAPERED=2`, compiled tables): +111 self-play, +38 vs
 SF18.** ⚠️ **NEW CURRENT FINGERPRINT: WAC d10 `249 / 53,405,821 / EBF 3.973`** (v1 verified unchanged). Previously
 **2026-09-26** — ★ **Bundle A shipped (`PS_V2_WEAKUNOPP_EG=127 PS_V2_REAR_DOUBLED=2
 PST_V2_KING_EG_ONLY=1`), ≈ +8 Elo pooled over 12,741 games.** ⚠️ **NEW CURRENT FINGERPRINT: WAC d10 `255 / 50,578,535 /
@@ -27,16 +27,27 @@ is the `RFP_MARGIN=1000` row.
 ```
 EVAL_ARM=1
   # rung 1 -- king safety (KS-A)
-  KS_V2_ZONE_SF=1  KS_V2_XRAY=1  KS_V2_COORD=256
-  # ── Texel Fit K1p, KS part only — shipped 2026-09-29 on the owner's sign-off (TEXEL-C3-DETECTORS-DESIGN §9a-9b):
-  # vs SF18 @250k nodes +30 [+3, +59] (1,000 paired) · SPRT H1 +20.5 ± 19.0 / 1,768 · replication +23.8 ± 17.9 / 2,000
-  # (pooled ≈ +22) · variants +12.9 [−0.7, +26.5] · odds vs SF18 neutral. Onset kept at 450 (owner rule).
-  # Revert = WEAK 57 · ADJ 61 · NO_QUEEN 321 · CHK Q/R/B/N 126/122/80/152 · HALF 600 · balance channels 0.
-  KS_V2_WEAK=64    KS_V2_ADJ=50  KS_V2_NO_QUEEN=402
-  KS_V2_CHK_Q=260  KS_V2_CHK_R=193  KS_V2_CHK_B=141  KS_V2_CHK_N=189
-  KS_V2_MAX=4000   KS_V2_HALF=646   KS_V2_ONSET=450
-  KS_V2_ADJ_INST=-12  KS_V2_UNSAFE=19  KS_V2_FLANK_ATT=11  KS_V2_FLANK_ATT2=-1  KS_V2_KNIGHT_DEF=15
-  KS_V2_CONTEST_EXCESS=14  KS_V2_CONTEST_SQ=30  KS_V2_CONTEST_SQ_Q=19
+  KS_V2_ZONE_SF=1  KS_V2_XRAY=1
+  # ── FULL KS TUNE step 2 — KS attack knobs + KS-B shelter/storm, fitted JOINTLY on the DEPTH target (SF18 d14 vs our
+  # d10 search), shipped 2026-10-03 on the owner's sign-off (TEXEL-C3-DETECTORS-DESIGN §18l/§18o/§18q). Calibrated SF18
+  # @800 +6.0 over 2,000 paired (3/4 seeds +) · self-play +17.7 ± 17.9 (≈ +11.7 ± 6.3 combined). KS-B alone was −13 / +16
+  # ⇒ the attack-model re-pricing is what makes the cells pay. KS-B cells are COMPILED (ship_tables_v2.h). Onset kept 450.
+  # Revert to Fit K (09-29): W 31/31/47/78 · COORD 256 · WEAK 64 · ADJ 50 · NO_QUEEN 402 · CHK Q/R/B/N 260/193/141/189 ·
+  # MAX 4000 · HALF 646 · EG 100 · ADJ_INST −12 · UNSAFE 19 · FLANK_ATT 11 · FLANK_ATT2 −1 · KNIGHT_DEF 15 ·
+  # CONTEST_EXCESS 14 · CONTEST_SQ 30 · CONTEST_SQ_Q 19 · BLOCKERS 0 · KSB_V2=0.
+  KS_V2_W_N=37  KS_V2_W_B=40  KS_V2_W_R=31  KS_V2_W_Q=61  KS_V2_COORD=243
+  KS_V2_WEAK=78    KS_V2_ADJ=49  KS_V2_NO_QUEEN=252
+  KS_V2_CHK_Q=247  KS_V2_CHK_R=249  KS_V2_CHK_B=155  KS_V2_CHK_N=165
+  KS_V2_MAX=5315   KS_V2_HALF=772   KS_V2_ONSET=450   KS_V2_EG_PCT=66
+  KS_V2_ADJ_INST=-14  KS_V2_UNSAFE=30  KS_V2_FLANK_ATT=21  KS_V2_FLANK_ATT2=-3  KS_V2_KNIGHT_DEF=24  KS_V2_BLOCKERS=-20
+  KS_V2_CONTEST_EXCESS=11  KS_V2_CONTEST_SQ=39  KS_V2_CONTEST_SQ_Q=16
+  KSB_V2=1
+  # ── KAUFMAN census imbalance, Texel-fitted cells on SF18 labels, shipped 2026-10-03 (§18c/§18m/§18p). Calibrated SF18
+  # @800 +13.1 over 2,000 paired · self-play +11.8 ± 17.9 (≈ +12.5 ± 6.4 combined); the old SF@400 judge read −29.6 and
+  # was shown biased (it flipped this term's sign). Owns the bishop pair (BPAIR_V2_MAG stays 0). Cells COMPILED
+  # (ship_tables_v2.h). ⚠️ The final retune must fit v2 piece values and these cells TOGETHER (never values[] — v1/search).
+  # Revert = remove this line.
+  KAUF_V2_MAG=1000  KAUF_V2_FORM=3  KAUF_V2_PAIR=1
   # rung 2 -- pawns
   PS_V2_MAG=100          # structure: doubled + isolated + backward
   PASSER_V2_MAG=100      # passers, endgame leg only. 60 -> 100 shipped 2026-09-24 (joint retune, see below)

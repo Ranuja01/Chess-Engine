@@ -71,6 +71,7 @@ instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora, first tr
 
 #include "eval_v2.h"
 #include "pst_v2_fitted.h"
+#include "ship_tables_v2.h"
 #include "cpp_bitboard.h"
 #include "move_gen.h"
 #include "search_engine.h"
@@ -2096,7 +2097,11 @@ static void kauf_fit_load()
 	for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b) KAUF_FIT_OURS[a][b] = KAUF_FIT_THEIRS[a][b] = 0;
 	const char *path = std::getenv("KAUF_V2_FILE");
 	if (!path || !*path){
-		std::cerr << "☠️ KAUF_V2_FORM=3 needs KAUF_V2_FILE -- the term stays at 0." << '\n';
+		// No file: the SHIPPED fitted cells, compiled in (ship_tables_v2.h, 2026-10-03) — V2_PRESET=shipped needs no file.
+		for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b){
+			KAUF_FIT_OURS[a][b] = KAUF_SHIP_OURS[a][b]; KAUF_FIT_THEIRS[a][b] = KAUF_SHIP_THEIRS[a][b];
+		}
+		std::cerr << "[kauf] KAUF_V2_FORM=3 ON: compiled shipped cells (ship_tables_v2.h)" << '\n';
 		return;
 	}
 	std::ifstream in(path);
@@ -3881,7 +3886,16 @@ void v2_c3_init()
 	KS_W_LIVE[BISHOP] = Config::KS_V2_W_B;
 	KS_W_LIVE[ROOK]   = Config::KS_V2_W_R;
 	KS_W_LIVE[QUEEN]  = Config::KS_V2_W_Q;
-	g_ksb_on   = Config::KSB_V2   && c3_load_table("KSB_V2", "KSB_V2_FILE", V2F_KSB, KSB_CELLS, ksb_w[0], ksb_w[1]);
+	// KS-B: an explicit KSB_V2_FILE wins; without one, the SHIPPED depth-fitted cells compiled in (ship_tables_v2.h,
+	// 2026-10-03) — so V2_PRESET=shipped needs no file. (Before 10-03, KSB_V2=1 without a file stayed OFF.)
+	const char *ksb_path = std::getenv("KSB_V2_FILE");
+	if (Config::KSB_V2 && !(ksb_path && *ksb_path)){
+		for (int i = 0; i < KSB_CELLS; ++i) ksb_w[0][i] = ksb_w[1][i] = 0;
+		for (int i = 0; i < KSB_SHIP_N; ++i) ksb_w[KSB_SHIP_LEG[i]][KSB_SHIP_K[i] - V2F_KSB] = KSB_SHIP_V[i];
+		g_ksb_on = true;
+		std::cerr << "[c3] KSB_V2 ON: " << KSB_SHIP_N << " compiled shipped cells (ship_tables_v2.h)" << '\n';
+	} else
+		g_ksb_on = Config::KSB_V2 && c3_load_table("KSB_V2", "KSB_V2_FILE", V2F_KSB, KSB_CELLS, ksb_w[0], ksb_w[1]);
 	g_kfl_on   = Config::KFL_V2   && c3_load_table("KFL_V2", "KFL_V2_FILE", V2F_KFL, KFL_CELLS, kfl_w[0], kfl_w[1]);
 	g_kprot_on = Config::KPROT_V2 && c3_load_table("KPROT_V2", "KPROT_V2_FILE", V2F_KPROT, KPROT_CELLS,
 	                                               kprot_w[0], kprot_w[1]);

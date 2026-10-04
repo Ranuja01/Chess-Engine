@@ -95,3 +95,26 @@ final retune.
 largest statically-expressible miss** (≈3:1, +24 cp mean) ⇒ the FULL KS TUNE with KS-B shelter/storm moves to the front
 of the post-material order; threats drops to "fit it only if the KS tune leaves a threats-shaped residual".
 Lesson (again): a hand-picked set reads a pattern the population does not have — aggregate before reordering lanes.
+
+## STEP 1 RE-MEASURE on the 10-03 ship (2026-10-04)
+Tools now take `OURS=fitC_mg_ours1003_d10` (+ `STATIC=live` for `_depth_residual_read.py`); defaults unchanged — the
+default run reproduces the 10-01 read exactly (8.39 / 5.63), the guard for the edit.
+**Depth residual** (9,823 std middlegame rows, SF18 d14 vs our d10): mean |residual| static 8.39 → **7.92** · depth
+5.63 → **5.23 pp** · side-to-move depth +0.80 → +0.72 · ☠️ **queen imbalance depth −5.71 → −4.73 pp (se 0.16)** —
+Kaufman REDUCED the queen-side error by ~1pp; it did NOT remove it (the handoff's "fixed by Kaufman" overstated it).
+**Aggregate** (quiet, equal material, gap ≥ 8pp): **cases 111 → 60**; SF11 static closer than ours 72% → 65%.
+| SF11 term vs ours | helps | hurts | mean push | (10-01 ship) |
+|---|---|---|---|---|
+| King safety | 20 | 9 | +14.5 cp | 48 / 17, +24.1 |
+| **Pawns** | **18** | **2** | **+15.7 cp** | 15 / 6, +5.6 |
+| Mobility | 12 | 8 | +6.9 | 0 / 1, −2.2 |
+| Threats | 12 | 9 | +0.9 | 20 / 18, +0.4 |
+| Passed | 6 | 1 | +5.9 | 6 / 3, +3.1 |
+| pieces (N+B+R+Q) | 5 | 4 | +4.9 | 10 / 10, +3.7 |
+Predictions (registered first): cases 90-105 (MISS — 60, the ship removed far more) · SF11-closer 60-70% (HIT, 65%) ·
+KS ≈ 30/20, +10-15 cp (push HIT, counts lower with fewer cases) · depth |residual| 5.3-5.5 (near miss, 5.23).
+⇒ The 10-03 ship (Kaufman + joint KS/KS-B) roughly HALVED the quiet triangulation population; structural KS shrank
+from the dominant miss to a co-equal one. **PAWNS is now the most one-sided term (18:2, sign-test p ≈ 4e-4)** although
+the 10-04 pawn re-price failed its gates. Concrete, testable lead: v2's CONNECTED-pawn term (`eval_v2.cpp` ~1278,
+SF11-shaped) is NOT a fitter column — v2_features 66-76 hold only doubled / isolated / backward / weak-unopposed — so
+that re-price never priced connected pawns. Not yet shown to be the cause (n = 60; SF11's trace gives one Pawns total).

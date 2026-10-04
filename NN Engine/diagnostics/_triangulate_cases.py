@@ -11,7 +11,7 @@ Selection (std middlegame rows with a d10 score, `_depth_residual_pass.py`):
 Prints the N largest, alternating the sign (we over-rate White / we over-rate Black), with the ev_breakdown terms.
 Needs the engine in-process (ev_breakdown only). Run with V2_PRESET=shipped.
 
-  pyrun diagnostics/_triangulate_cases.py [GAP=12] [N=8]
+  pyrun diagnostics/_triangulate_cases.py [GAP=12] [N=8] [OURS=fitC_mg_ours1003_d10]
 """
 import os, sys, csv, glob
 import numpy as np
@@ -31,7 +31,9 @@ TERMS = ["pieces", "material", "king_safety", "mobility", "pawn_struct", "v2_pas
 def select(GAP):
     """The candidate list (see the module docstring); importable by _triangulate_sf11.py MODE=aggregate."""
     ours_d = {}
-    for p in glob.glob(os.path.join(THIS, "ks_sets", "fitC_mg_ours_d10_s*of4.csv")):
+    # OURS = the depth pass of the ship under test (default = the 10-01 ship the 10-02 note used; 10-03 ship:
+    # OURS=fitC_mg_ours1003_d10)
+    for p in glob.glob(os.path.join(THIS, "ks_sets", KV.get("OURS", "fitC_mg_ours_d10") + "_s*of4.csv")):
         for r in csv.DictReader(open(p, newline="")):
             ours_d[r["fen"]] = float(r["ours_cp_white"])
     std = {r["fen"] for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/fitC_mg_sample.csv"))) if r["src"] == "std"}

@@ -140,3 +140,15 @@ middlegame passers are priced by search; the static headroom (eg ranks 5-6) is s
 14.7 / SF11 14.8) — v2 now under-reads (or misjudges) contested/attacked passers; controls also regressed (7.7 vs 5.2).
 The PX fit moves these 0.1-0.3pp only. SF11 static still ≈ 2pp better overall ⇒ a concrete passer weakness remains: the
 under-fire class. (Depth-10 search comparison running.)
+**10a. DEPTH-10 SEARCH on the same corpora (2026-10-04):**
+| corpus / tier | v1 d10 | **v2 shipped d10** | v2 + PX d10 |
+|---|---|---|---|
+| passer_corpus all | 9.25 | **6.68** | 6.59 |
+| blowup_guard | 11.47 | **7.08** | 7.01 |
+| control | 6.38 | 5.16 | 4.84 |
+| under_fire | 8.17 | **7.60** | 7.70 |
+| passers_suite all | 9.10 | **5.86** | 5.87 |
+⇒ **v1's passer weaknesses are largely PLUGGED in v2 at search depth** (6.7 vs 9.3; 5.9 vs 9.1), INCLUDING under_fire
+(7.6 vs 8.2 — the static 18.6 was search-resolvable, not a persistent eval hole). **The PX fit adds nothing measurable at
+depth** (6.59 vs 6.68; 5.87 vs 5.86). VERDICT (owner's question "is there measurable gain from these additions?"): NO —
+PX stays built at 0, NOT gated; revisit only inside the giant-corpus final retune (where it is free to be priced jointly).

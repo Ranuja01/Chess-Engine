@@ -108,3 +108,19 @@ stop-state / support / escort cells live. The depth-target fit can exceed SF11-l
   `v2_pxpass`) + symmetry → per-block gates (calibrated SF18 @800 + self-play).
 - Needs first: a depth pass on the ENDGAME labelled set (`fitC_eg_sf18.csv`) with the current ship — passers matter most
   there and no eg d10 pass exists.
+
+## 9. FIRST PX FIT (queue #15, 2026-10-04 02:26) — prep only, gates await the owner
+Build guards: v1 250 / 35,310,778 · shipped v2 255 / 47,218,480 (PX off ⇒ unchanged). Endgame depth pass of the current
+ship complete (19,280 rows; the log's "rows: 0" is my wrong relative path in the count line). Export: 34,621 labelled
+FENs. Fit on the DEPTH target, mg + eg (32,707 rows, val 4,998; a PX cell fires on 55.6%), λ 1e-2, val vs base:
+| arm | val | | arm | val |
+|---|---|---|---|---|
+| RANK (77-96 only) | −0.22% | | RANK+STOP | −0.35% |
+| STOP | −0.11% | | RANK+SUPPORT | −0.40% |
+| SUPPORT | −0.16% | | RANK+ESCORT | −0.26% |
+| ESCORT | −0.16% | | RANK+MISC | −0.24% |
+| MISC | −0.02% | | **ALL** | **−0.66%** |
+Closure: `v2_pxpass` max 1.0 mp (9,662 live / 20k), `v2_passers` max 3.2 mp · symmetry colour 0/4000, file 0/3170.
+⇒ Real but MODEST on this target (compare KS joint −4.07%, pawn joint −1.26% on mg only). Consistent with §7: in the
+middlegame passers are priced by search; the static headroom (eg ranks 5-6) is small. Blocks are roughly additive
+(STOP + SUPPORT + ESCORT ≈ ALL − RANK). Files: `E:/chess_data/texel/px_depth_{c1,px}.txt` (ALL arm).

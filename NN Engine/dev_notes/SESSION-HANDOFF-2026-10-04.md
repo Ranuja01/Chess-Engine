@@ -44,6 +44,12 @@ v2 vs v1 at EQUAL nodes (10-01, before the last ships): **+65.4 ± 17.9** (2,000
 - POT stays parked until the tuned eval's remaining gap to SF18 is re-measured.
 
 ## 6. Next — the agreed order
+0. **Where does SF11's remaining STATIC edge come from — weighting or missing knowledge?** (owner, 10-04) On the passer
+   corpora SF11 static is still ≈ 2pp better (9.94 vs 12.01; under-fire 14.8 vs 18.6) although our d10 search beats it
+   easily. (a) PREVIEW of the final retune: fit ALL linear terms JOINTLY on the depth target (PST, mobility, pawns,
+   passers, PX, KS-B, Kaufman) and re-run `_passer_corpus_check.py MODE=static` — most of the gap closing ⇒ WEIGHTING
+   (the final retune's job); little closing ⇒ MISSING KNOWLEDGE ⇒ (b) triangulate the under-fire class against SF11's
+   term table (`_triangulate_sf11.py` style) to name it. Diagnostic only — static closeness is not the goal, Elo is.
 1. **Re-measure the remaining gap** to SF18 on the depth target + fresh TRIANGULATION (`_triangulate_cases.py`,
    `_triangulate_sf11.py MODE=aggregate`) on the CURRENT ship — the 10-02 aggregate pointed at structural KS (now shipped).
 2. **The v2 SEARCH retune** (owner's games: a less selective d12 matched SF18 5/12 vs 2/12 for normal d12 AND d18 —

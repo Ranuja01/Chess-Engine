@@ -31,8 +31,7 @@ v2 vs v1 at EQUAL nodes (10-01, before the last ships): **+65.4 ± 17.9** (2,000
 - Threats: the triangulation AGGREGATE says a wash (20 helps / 18 hurts) — not reopened.
 
 ## 4. Running at handoff
-- Queue #16's last step: self-play JOINT pawn arm (`pawnjoint_selfplay`, 2,000 @50k, seed 72). Informational only (the
-  calibrated reads already say no ship). Check with `overnight_runner.sh ps`; result in `selfplay/games/pawnjoint_selfplay/`.
+- **Nothing.** Queue #16's last step finished 12:25 on 10-04: pawn JOINT self-play −19.1 ± 17.9 (C3 §19d) — no pawn ship.
 
 ## 5. Owner decisions in force (this session)
 - Universal concepts kept; single-lineage ideas added at 0 and priced by the fit; "find what works for OUR engine".

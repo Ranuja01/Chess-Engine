@@ -972,3 +972,5 @@ negative) · **JOINT +0.7 [−23.7, +25.6]**. Self-play JOINT running at handoff
 mg leg is the harmful half"); structure alone is a small, unresolved plus. With the PX verdict (passer design §10a: v2
 already plugs v1's passer weaknesses at depth; PX adds nothing measurable) the PASSER lane is CLOSED for now — PX and the
 fitted structure tables stay available for the giant-corpus final retune.
+**19d. Pawn JOINT self-play (queue #16 last step, seed 72): +749 −859 =392 ⇒ −19.1 ± 17.9.** Confirms the calibrated
+reads: no pawn ship. Nothing running after this (2026-10-04 12:25).

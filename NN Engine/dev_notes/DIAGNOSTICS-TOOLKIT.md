@@ -281,3 +281,22 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `_pot_mg_screen.py` | POT mg candidates vs SF18 SEARCH residual + OVERLAP (max |corr| with the 106 existing features) — the owner's no-overlap condition as a tool |
 | `_win_oracle.py` / `_texel_win_pass.py` / `_texel_win_fit.py` / `_texel_win_sf_fit.py` / `_win_amplify_check.py` | winnability: input oracle (+mirror) · inputs + closure gate (models `WIN_V2_CAP`) · fit to d6 outcomes · fit to SF18 labels (capped) · how often a fit AMPLIFIES near-level evals (the additive form's discontinuity) |
 | `ChessAI.win_inputs` | the 7 winnability inputs + phase (knob-free) |
+
+## Added 2026-10-01/04 (winnability ship, depth target, calibrated judge, Kaufman/KS ship, pawns, passers)
+| tool | what it does |
+|---|---|
+| `_depth_residual_pass.py IN= OUT= SHARD=k/n CHUNK=N` | ★ our d-N SEARCH score on SF18-labelled rows (side-to-move eval → White cp); resumable; `CHUNK` exits after N rows (exit 3) — run in an `until … [ $? -ne 3 ]` loop to bound memory (run_one leaks ~1.2 MB/FEN) |
+| `_depth_residual_read.py` | static vs DEPTH residual side by side (side-to-move, queen imbalance) — a static finding that does not survive into the depth residual is search's, not the eval's |
+| `_texel_win_sf_fit.py MODE=scale` | winnability as a multiplicative eg scale factor (the shipped POT_V2_WIN form) |
+| `_texel_kauf_fit.py [SCALE=1] [MODE=export|closure]` | Kaufman census cells on SF18 labels (+ STM and global-scale nuisances so no arm wins by stretching evals); export to KAUF_V2_FILE; engine closure |
+| `_material_class_fit.py [MODE=dump|closure]` | narrow material-class terms (MCL_V2) on the depth target; closure via two dumps (on/off) |
+| `_imbalance_depth_screen.py` | depth residual per material signature (Q vs no-Q by compensation, R vs 2 minors, minor vs pawns, pair, B vs N) + B-vs-N openness after mobility |
+| `_ksb_depth_fit.py` · `_ks_depth_fit.py [KS_LAMBDA=] [MODE=dump|closure]` | KS-B cells / joint KS attack knobs + KS-B on the depth target (reuses `_texel_k2_fit.ks_eval`); engine closure on Δking_safety |
+| `_pawn_depth_fit.py OURS= TAG=` | pawn structure + passer columns (C1 66-96), both legs, arms STRUCT/PASSER/JOINT; ☠️ isolated-by-file cells are MIRROR-TIED (untied fits broke the file-mirror gate) |
+| `_px_export.py` · `_px_depth_fit.py` | the 51-cell PX passer system: labelled-row feature export (+ live theta) and per-block depth fit (RANK/STOP/SUPPORT/ESCORT/MISC/ALL) |
+| `_passer_static_study.py [SET=eg]` | SF11 static vs ours vs our d10 on advanced-passer positions (is it static or search?) |
+| `_passer_corpus_check.py MODE=static|search|sf11 LABEL=` | the v1-era passer corpora (passer_corpus tiers, passers suite categories) vs their SF labels |
+| `_triangulate_cases.py GAP= N=` · `_triangulate_sf11.py [MODE=aggregate]` | ★ TRIANGULATION (the v1 method): quiet, equal-material depth-residual cases with our term breakdown; SF11's term table side by side; aggregate per term over all candidates (helps / hurts / mean push) |
+| `_pot_t1_study.py MODE=stm|race|heavy [DEPTH=1]` · `_pot_coverage.py [MODE=lift]` · `_pot_depth_screen.py` | POT middlegame: T1 event study, side-to-move / castling-race / heavy-piece checks, type coverage + gate precision, the depth screen (null) |
+| `_gauntlet_gametype_split.py` (material class) | + a persistent queen-imbalance class (≥ 10 plies) — ☠️ read only against a control arm (baseline-content classes regress) |
+| `selfplay/_queue_*.sh` (13 queues) | the session's guarded overnight chains (build + fingerprint guards, closure/symmetry before any gate, waits on the previous queue's log) |

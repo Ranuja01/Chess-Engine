@@ -603,3 +603,19 @@ search downstream of it.
    (multiplicative) forms for leader-relative terms.
 8. **The move-regret split by criticality is unreadable on our sets** (cr3/cr4 hold 2-27 changed moves per arm) — a
    critical-position question needs a purpose-built critical corpus.
+
+## 2026-10-01/04 — new ways instruments misled (and the fixes)
+1. ★ **The STATIC residual is mostly search-resolvable.** SF18 − our static: side-to-move +2.41pp → +0.80 against our
+   d10 SEARCH; mean |gap| 8.39 → 5.63. Use the DEPTH residual (`_depth_residual_pass.py`) to look for missing eval
+   knowledge; POT's middlegame was null on it, the queen imbalance persisted on it.
+2. ★★ **The external judge drifted too weak.** SF18 @400 nodes was anchored at ~50% and v2 reached ~75%; three material
+   terms read negative there but positive in self-play, and Kaufman flipped −29.6 → +18.9 on SF18 @800 (54%). Re-anchor
+   after every ship (the 10-03 ship moved the @800 baseline to ~56%); gate on BOTH the calibrated judge and self-play.
+3. **A class defined by the baseline game's CONTENT still regresses** (persistent queen-imbalance games: Kaufman −15.5pp
+   — and the unrelated C3 arm −14.9pp). Always read a game-class split against a control arm.
+4. **Hand-picked cases overstate patterns:** 8 triangulation cases said "threats" (6/8); the aggregate over 111 said
+   threats is a wash (20 helps / 18 hurts) and structural KS is the consistent miss (48/17, +24 cp).
+5. **A fit that frees per-FILE cells breaks the file-mirror gate** unless mirrored files are tied (pawn fit: 2,435 / 3,170
+   violations) — the guard caught it; the fitter now ties a=h, b=g, c=f, d=e.
+6. **Partial self-play reads swing:** the 10-03 confirmation read 46.4% at 460 games and finished +13.6 at 2,000 — the
+   "never call a direction on partial data" rule, again.

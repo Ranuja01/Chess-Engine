@@ -964,3 +964,11 @@ done (the "rows: 0" print was a wrong relative path in my count, not a failure).
 3,170 (76.8%)** — my fitter freed isolated-by-FILE cells independently (iso_c −75 vs iso_f ≈ 0), breaking a↔h symmetry.
 Fix: tie a=h, b=g, c=f, d=e in `_pawn_depth_fit.py` (pool counts, copy δ back) ⇒ refit JOINT −1.26% (mirror-symmetric:
 iso a/h mg −78, b/g −11, c/f −54). Gates re-queued as queue #16 (`selfplay/_queue_pawns2.sh`, after the PX prep).
+**19c. PAWN GATES (queue #16, 2026-10-04; mirror-tied fit, base = the 10-03 ship).** Closure max 1 mp · symmetry colour
+0/4000, file 0/3170 (the tie fixed it). Calibrated SF18 @800, seeds 70/71, shared baselines (56.2% — the anchor is
+drifting up again after the +15.7 ship): **STRUCT +5.7 [−19.7, +31.5]** · **PASSER −22.1 [−47.1, +3.2]** (both seeds
+negative) · **JOINT +0.7 [−23.7, +25.6]**. Self-play JOINT running at handoff (`pawnjoint_selfplay`, seed 72).
+⇒ No pawn ship from this round. Re-pricing the passer rank tables with FREE mg legs hurts (−22; echoes the 09-12 "the
+mg leg is the harmful half"); structure alone is a small, unresolved plus. With the PX verdict (passer design §10a: v2
+already plugs v1's passer weaknesses at depth; PX adds nothing measurable) the PASSER lane is CLOSED for now — PX and the
+fitted structure tables stay available for the giant-corpus final retune.

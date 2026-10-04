@@ -954,3 +954,7 @@ Almost every universal pawn concept is already built and measured in v2; what is
 Untried shapes worth noting: Weiss's flat-support + phalanx-only connected split; table-indexed blocked/free-advance
 (mg NEGATIVE, eg positive). Already closed and not re-proposed: SF-shaped connected (both shapes), the SF11 path ladder.
 ⇒ Follow-up after queue #14: (a) backward-requires-neighbours knob + refit; (b) a defended/connected-passer cell.
+**18s. 10-03 SHIP CONFIRMED (queue #13, new shipped vs the 10-01 config).** Calibrated SF18 @800, fresh seeds 66/67: +2.8pp
+on both ⇒ **+19.6 Elo [−4.3, +44.0]**. Self-play 2,000 @50k (seed 68): **+849 −771 =380 ⇒ +13.6 ± 17.9** (it read 46.4% at
+460 games — partial-data noise, as the rule says). Inverse-variance combination ≈ **+15.7 ± 7.3 Elo (≈ 2.1σ)** — inside
+the predicted +15-20 (vs the additive +24: winner's curse as expected). Kaufman + joint KS stay shipped.

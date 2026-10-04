@@ -124,3 +124,19 @@ Closure: `v2_pxpass` max 1.0 mp (9,662 live / 20k), `v2_passers` max 3.2 mp · s
 ⇒ Real but MODEST on this target (compare KS joint −4.07%, pawn joint −1.26% on mg only). Consistent with §7: in the
 middlegame passers are priced by search; the static headroom (eg ranks 5-6) is small. Blocks are roughly additive
 (STOP + SUPPORT + ESCORT ≈ ALL − RANK). Files: `E:/chess_data/texel/px_depth_{c1,px}.txt` (ALL arm).
+
+## 10. v1-era PASSER CORPORA — have we plugged the weaknesses? (owner, 10-04; `diagnostics/_passer_corpus_check.py`)
+`ks_sets/passer_corpus.csv` (288, SF18 labels, tiers) + `suites/passers.csv` (405, SF labels, blockade categories); mean
+|win% gap to the SF label|, STATIC evals:
+| corpus / tier | v1 | v2 shipped | v2 + PX fit | SF11 static |
+|---|---|---|---|---|
+| passer_corpus all (288) | 12.51 | 12.01 | 11.86 | **9.94** |
+| blowup_guard (140) | 15.57 | **11.19** | 11.05 | 10.01 |
+| control (79) | **5.20** | 7.68 | 7.63 | 5.57 |
+| **under_fire (69)** | 14.65 | **18.63** | 18.35 | 14.79 |
+| passers_suite all (405) | 12.23 | 11.02 | 10.97 | **9.38** |
+| suite clear / major / minor / other | 12.66 / 12.29 / 11.69 / 11.59 | 10.81 / 12.22 / 11.01 / 10.21 | ≈ v2 | 9.73 / 9.73 / 9.44 / 8.45 |
+⇒ v1's passer BLOW-UPS (over-reading) are fixed (15.6 → 11.2 ≈ SF11), but **UNDER-FIRE passers got WORSE** (v2 18.6 vs v1
+14.7 / SF11 14.8) — v2 now under-reads (or misjudges) contested/attacked passers; controls also regressed (7.7 vs 5.2).
+The PX fit moves these 0.1-0.3pp only. SF11 static still ≈ 2pp better overall ⇒ a concrete passer weakness remains: the
+under-fire class. (Depth-10 search comparison running.)

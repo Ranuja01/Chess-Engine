@@ -152,3 +152,35 @@ under-fire class. (Depth-10 search comparison running.)
 (7.6 vs 8.2 — the static 18.6 was search-resolvable, not a persistent eval hole). **The PX fit adds nothing measurable at
 depth** (6.59 vs 6.68; 5.87 vs 5.86). VERDICT (owner's question "is there measurable gain from these additions?"): NO —
 PX stays built at 0, NOT gated; revisit only inside the giant-corpus final retune (where it is free to be priced jointly).
+
+## 11. STEP 0 — is SF11's static edge WEIGHTING or MISSING KNOWLEDGE? (owner, 10-04; `diagnostics/_joint_depth_preview.py`)
+Diagnostic only (static closeness is not the goal; §10a shows our d10 search already beats both static evals here).
+(a) JOINT DEPTH FIT, a preview of the final retune: PST (file-mirror-tied, mg/eg) + all 235 v2 columns (mg/eg) + Kaufman
+cells and N/B/R/Q value corrections, 894 params, fitted together on the depth target (SF18 d14 vs our d10 search of the
+10-03 ship; 32,707 rows, val 4,998), then applied to the SHIPPED static on the §10 corpora. (ceiling) The same features
+re-weighted on the corpora's OWN labels from the static base, 5-fold CV — the most reweighting alone could buy here.
+Guard: shipped static reproduced §10 exactly (12.01 / 18.63 / 11.02).
+| λ | depth val | passer_corpus all | under_fire | control | passers_suite all |
+|---|---|---|---|---|---|
+| shipped | — | 12.01 | 18.63 | 7.68 | 11.02 |
+| joint 1e-1 | −4.65% | 11.73 | 18.37 | — | 10.94 |
+| joint 1e-2 | −8.56% | 11.39 | 17.89 | — | 10.79 |
+| **joint 1e-3** | **−9.74%** | **11.08** | **17.45** | 6.47 | **10.65** |
+| ceiling 1e-3 / 1e-2 / 3e-2 / 1e-1 / 1 / 10 | — | 12.54 / 11.20 / 10.82 / **10.67** / 11.14 / 11.46 | **14.43** / 14.47 / 14.71 / 14.93 / 16.26 / 17.43 | 12.39 / 9.77 / 8.50 / 7.74 / — / 7.68 | 14.99 / 12.04 / 11.36 / 11.05 / 11.00 / 10.98 |
+| SF11 static | — | 9.94 | 14.79 | 5.57 | 9.38 |
+Predictions (registered first): joint passer_corpus 11.3-11.9 (MISS — 11.08, better) · under_fire 17.5-18.5 (borderline
+miss, 17.45) · ceiling ≈ 10.5-11 and short of SF11 (HIT, 10.67) · under_fire ceiling reaching SF11 — NOT predicted.
+⇒ **MIXED, and it splits by corpus:**
+- **passer_corpus: about half WEIGHTING.** The general depth fit closes 45% of the gap to SF11 (12.01 → 11.08); even
+  in-domain reweighting stops at 10.67 ⇒ the remaining ≈ 0.7pp is not expressible by our features.
+- **under_fire: EXPRESSIBLE, but in CONFLICT with the general fit.** In-domain weights reach SF11 (14.4-14.9), but only
+  by wrecking the controls (control 7.7 → 12.4 at λ 1e-3); the depth target moves it just 31%. ⇒ a missing INTERACTION /
+  gate (the weights that fix contested passers are wrong elsewhere), not a missing raw feature — and §10a shows d10
+  search resolves this class (7.60), so it is search's job today.
+- **passers_suite: MISSING KNOWLEDGE (or a label mismatch).** NO reweighting improves it (best ceiling 10.98 vs 11.02;
+  SF11 9.38); the depth fit buys 0.37. ⚠️ The suite's `sf_cp` labels are a fixed-MOVETIME SF search (`gen_passer_corpus.py`,
+  `Arbiter(find_stockfish(), movetime=…)`), not SF18 d14 — relabel before charging the 1.6pp to our eval. Largest category gap: major (12.2 vs 9.7).
+Side finding (do NOT act on it alone): the JOINT depth fit gains −9.7% val vs ≈ −1% for every per-part fit (pawns, PX) —
+joint pricing is where the final retune's room is. ☠️ No scale nuisance and Kaufman moves of ~243 mp rms at λ 1e-3 ⇒ part
+may be piece-value stretching; corpus fit is anti-correlated with Elo until gated (memory
+`corpus-fit-is-anti-correlated-with-elo`, Fit K "parts cancel"). It is a preview, not a candidate.

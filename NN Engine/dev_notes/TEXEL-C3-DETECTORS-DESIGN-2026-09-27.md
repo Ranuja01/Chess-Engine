@@ -958,3 +958,9 @@ Untried shapes worth noting: Weiss's flat-support + phalanx-only connected split
 on both ⇒ **+19.6 Elo [−4.3, +44.0]**. Self-play 2,000 @50k (seed 68): **+849 −771 =380 ⇒ +13.6 ± 17.9** (it read 46.4% at
 460 games — partial-data noise, as the rule says). Inverse-variance combination ≈ **+15.7 ± 7.3 Elo (≈ 2.1σ)** — inside
 the predicted +15-20 (vs the additive +24: winner's curse as expected). Kaufman + joint KS stay shipped.
+**19b. Queue #14 (2026-10-04 01:42): gates CORRECTLY SKIPPED — file-mirror failure.** Depth pass of the confirmed ship
+done (the "rows: 0" print was a wrong relative path in my count, not a failure). Refit (base = 10-03 ship): λ1e-2 STRUCT
+−0.47 · PASSER −0.84 · JOINT −1.28%. Closure EXACT-ish (max 1 mp). Symmetry: colour 0/4000 but **file mirror 2,435 /
+3,170 (76.8%)** — my fitter freed isolated-by-FILE cells independently (iso_c −75 vs iso_f ≈ 0), breaking a↔h symmetry.
+Fix: tie a=h, b=g, c=f, d=e in `_pawn_depth_fit.py` (pool counts, copy δ back) ⇒ refit JOINT −1.26% (mirror-symmetric:
+iso a/h mg −78, b/g −11, c/f −54). Gates re-queued as queue #16 (`selfplay/_queue_pawns2.sh`, after the PX prep).

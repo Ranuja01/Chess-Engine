@@ -54,6 +54,13 @@ def main():
     ph = PH[rows].astype(np.float64)
     cols = STRUCT + PASSER
     D = DIFF[rows][:, cols].astype(np.float64)
+    # ☠️ FILE-MIRROR TIE (2026-10-04): fitting isolated-by-file independently broke the file-mirror gate (2,435 / 3,170
+    # violations, queue #14). Tie a=h, b=g, c=f, d=e: pool the mirrored file's counts into the a-d column, zero the e-h
+    # column, and copy the fitted δ back after the fit (the shipped start table is already mirror-symmetric).
+    MIRROR = [(cols.index(67 + f), cols.index(67 + 7 - f)) for f in range(4)]
+    for lo, hi in MIRROR:
+        D[:, lo] += D[:, hi]
+        D[:, hi] = 0.0
     Xmg = D * (ph / 256.0)[:, None]
     Xeg = D * ((256.0 - ph) / 256.0)[:, None]
     X = np.concatenate([Xmg, Xeg], 1)                       # params: [δmg (len cols), δeg (len cols)]
@@ -85,6 +92,8 @@ def main():
                 np.r_[gw + 2 * lam * pp[:-1] / 1e4, float((g * stm[tr]).mean())]
         res = minimize(fg, pb.copy(), jac=True, method="L-BFGS-B", options={"maxiter": 3000})
         p = res.x.copy(); p[:-1][~m2] = 0.0
+        for lo, hi in MIRROR:                       # the mirrored file gets the tied value (both legs)
+            p[hi] = p[lo]; p[nc + hi] = p[nc + lo]
         return p
 
     arms = {"STRUCT": np.array([c in STRUCT for c in cols]), "PASSER": np.array([c in PASSER for c in cols]),

@@ -40,3 +40,12 @@ Agreement with SF18: normal d12 2/12 · normal d18 2/12 · **relaxed d12 5/12**.
    - ending pessimism (55.: −1.54 vs −0.29 ⇒ a pawn-ending trade looked no worse) → winnability only SHRINKS edges;
      nothing values a defensive HOLD in minor-piece endings — candidate for the eg/winnability lane;
    - 18…Bxf2+ (+1.59 vs 0.00): tactical over-optimism — check after the material classes ship.
+
+## 2026-10-04 evening — owner's UI games on the connected-pawn ship (v2 254 / 50,622,239), vs SF18 @ 0.005 s
+- **Loss as White (Open Ruy, 9.Nxc6 Bxf2+ 10.Kf1 Qh4):** owner spotted **14.Qd3?** (the 2-move …Qg1+ Ke2 Bf5 pin of Re4 to
+  Qd3 loses the exchange). Checked: FEN after 13…Qxh2. SF18 d16: **Kxf2 −83** · Nf3 −103 · Nxc6 −139 · Qb3 −144 · Qd3 −261.
+  OURS (V2_PRESET=shipped, MAX_DEPTH sweep): d4/d5 Qd6 · d6 Qd3 · d7 Qd1 · **d8-d12 Qd3, eval +0.7…+1.4** — never Kxf2.
+  ⇒ a PERSISTENT failure (wrong at every depth to 12; the refutation is ~4 plies, inside d12): our root eval is ~+2 pawns
+  too optimistic for White with its own king exposed (Kf1, Black Q on h2, B on f2). Either the search prunes …Qg1+/…Bf5
+  or the eval misjudges own-king exposure / the hanging-bishop capture. ★ A step-2 (search retune) + KS test position.
+- **Win with knight odds** and **win in the all-knights vs all-bishops start** (both mates) — unusual material handled fine.

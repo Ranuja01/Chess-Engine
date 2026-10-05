@@ -128,6 +128,84 @@ def columns():
               % (name, X.shape[1], fire, 100 * (loss_of(X, p, val) / vb - 1), p[-1]))
 
 
+def export():
+    """MODE=gateexport PSTDUMP=<PST_V2_DUMP of the shipped engine> [OUTDIR=/mnt/e/chess_data/texel/revival] — refit each GATE
+    block exactly as screened (λ, SCALE nuisance, by-game split) and write engine-format files (each loads ON TOP of the
+    shipped eval, one arm per file):
+      kauf_depth.txt   KAUF_V2_FILE (O/T a b mp, White-POV) = shipped cells (kauf_full.txt) + δ   [KAUF_V2_FORM=3, MAG 1000]
+      mob_depth_c1.txt C1_V2_FILE (k leg start fitted), k 0-65, start = live θ                    [C1_V2_FIT=1]
+      pst_depth.txt    PST_V2_FILE (768 ints, per piece 64 mg then 64 eg, White-POV) = shipped tables + δ (file-tied)
+      kprot_depth.txt  KPROT_V2_FILE (k leg 0 fitted), k 172-183                                 [KPROT_V2=1]
+      kfl_depth.txt    KFL_V2_FILE   (k leg 0 fitted), k 162-171                                 [KFL_V2=1]
+    Sign convention (all blocks): columns are Black − White, δ adds to the Black-positive total ⇒ a White-POV table
+    value moves by +δ (KAUF: feats are White-POV and the block used −feats ⇒ cell += δ)."""
+    from _joint_depth_preview import pst_kauf
+    import _texel_kauf_fit as KF_
+    out = KV.get("OUTDIR", DATA + "/revival")
+    os.makedirs(out, exist_ok=True)
+    fens, D, ph, sf, base, val, stm = load_rows()
+    tgt, tr = wp(sf), ~val
+    a, e = (ph / 256.0)[:, None], ((256.0 - ph) / 256.0)[:, None]
+    legs = lambda M: np.concatenate([M * a, M * e], 1)
+    pk = [pst_kauf(f) for f in fens]
+    PST = np.array([p for p, _ in pk]); KF = np.array([k for _, k in pk])[:, :36]
+    fit, loss_of, vb = fitter(base, tgt, stm, tr, val)
+    lam = float(KV.get("LAMBDA", 1e-2))
+    z = np.load(os.path.join(DATA, "px_labelled.npz"))
+    tmg, teg = z["theta_mg"], z["theta_eg"]
+
+    def report(name, X, p):
+        print("EXPORT %-6s val %+6.2f%% · max |δ| %4.0f mp · rms %4.0f mp" % (name, 100 * (loss_of(X, p, val) / vb - 1),
+              np.abs(p[:-2]).max(), np.sqrt(np.mean(p[:-2] ** 2))))
+
+    # KAUF cells
+    X = KF; p = fit(X, lam); report("KAUF", X, p)
+    ship = {}
+    for line in open(os.path.join(DATA, "kauf_full.txt")):
+        if line.strip() and not line.startswith("#"):
+            k_, a_, b_, v_ = line.split(); ship[(k_, int(a_), int(b_))] = float(v_)
+    with open(os.path.join(out, "kauf_depth.txt"), "w") as f:
+        f.write("# Kaufman cells = shipped (kauf_full.txt) + DEPTH re-fit δ (_revival_screen.py MODE=gateexport λ=%g)\n" % lam)
+        for i, (k_, a_, b_) in enumerate(KF_.CELLS[:36]):
+            v = ship.get((k_, a_, b_), 0.0) + p[i]
+            if round(v) != 0:
+                f.write("%s %d %d %.0f\n" % (k_, a_, b_, v))
+    # MOB
+    X = legs(D[:, 0:66]); p = fit(X, lam); report("MOB", X, p)
+    with open(os.path.join(out, "mob_depth_c1.txt"), "w") as f:
+        f.write("# mobility cells, DEPTH fit (_revival_screen.py MODE=gateexport λ=%g) — k leg start fitted (mp)\n" % lam)
+        for k in range(66):
+            for leg, (st, d) in enumerate(((tmg[k], p[k]), (teg[k], p[66 + k]))):
+                if round(d) != 0:
+                    f.write("%d %d %.0f %.0f\n" % (k, leg, st, st + d))
+    # KPROT / KFL (built at 0 ⇒ start 0)
+    for name, lo, hi, fn in (("KPROT", 172, 184, "kprot_depth.txt"), ("KFL", 162, 172, "kfl_depth.txt")):
+        X = legs(D[:, lo:hi]); p = fit(X, lam); report(name, X, p); n = hi - lo
+        with open(os.path.join(out, fn), "w") as f:
+            f.write("# %s cells, DEPTH fit (_revival_screen.py MODE=gateexport λ=%g) — feature_k leg start fitted\n" % (name, lam))
+            for i in range(n):
+                for leg in (0, 1):
+                    f.write("%d %d 0 %.0f\n" % (lo + i, leg, p[i + leg * n]))
+    # PST (file-tied δ on top of the shipped tables from PST_V2_DUMP)
+    X = legs(PST); p = fit(X, lam); report("PST", X, p)
+    vals = [int(t) for line in open(KV["PSTDUMP"]) if not line.startswith("#") for t in line.split()]
+    assert len(vals) == 768, "PST dump has %d values" % len(vals)
+    newv = list(vals)
+    for t in range(6):
+        for leg in (0, 1):
+            for sq in range(64):
+                r, fl = sq >> 3, sq & 7
+                d = p[leg * 192 + t * 32 + r * 4 + min(fl, 7 - fl)]
+                newv[t * 128 + leg * 64 + sq] = int(round(vals[t * 128 + leg * 64 + sq] + d))
+    with open(os.path.join(out, "pst_depth.txt"), "w") as f:
+        f.write("# v2 PST = shipped (PST_V2_DUMP) + DEPTH re-fit δ (file-tied; _revival_screen.py MODE=gateexport λ=%g)\n" % lam)
+        for t in range(6):
+            for leg in (0, 1):
+                for r in range(8):
+                    f.write(" ".join(str(newv[t * 128 + leg * 64 + r * 8 + c]) for c in range(8)) + "\n")
+    print("EXPORT wrote kauf_depth / mob_depth_c1 / kprot_depth / kfl_depth / pst_depth → %s" % out)
+
+
 def dump():
     for k, v in KV.items():
         os.environ[k] = v
@@ -176,4 +254,4 @@ def knobs():
 
 
 if __name__ == "__main__":
-    {"columns": columns, "dump": dump, "knobs": knobs}[KV.get("MODE", "columns")]()
+    {"columns": columns, "dump": dump, "knobs": knobs, "gateexport": export}[KV.get("MODE", "columns")]()  # ☠️ not "export": _texel_kauf_fit (imported) runs its own export on MODE=export

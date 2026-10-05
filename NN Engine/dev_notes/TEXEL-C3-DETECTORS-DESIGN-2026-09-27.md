@@ -1000,3 +1000,30 @@ match the 10-03 pass ±1) — the base for every later depth fit. Peak RSS ~3 GB
 **Anchor re-check, SF18 @800 on the new ship:** s76 56.2% · s77 61.2% ⇒ **58.7% pooled (1,000 games)**, up from the 53.4% /
 56.2% pre-ship baselines — the drift the ship predicts. Still near enough to 50% to judge fairly, but trending: if the
 next ship pushes it past ~60-62%, recalibrate (the @400 judge misled at ~75%; sweep @1000/@1200 then).
+
+## 20. REVIVAL SCREEN (owner, 2026-10-05) — every unfitted / built-at-0 term on the DEPTH target (`diagnostics/_revival_screen.py`)
+Base = our d10 search of the 10-04 ship (`fitC_*_ours1004_d10`), 32,708 rows, **val = 15% of GAMES** (19,683 games),
+STM + GLOBAL-SCALE nuisances in the baseline and every arm (never shipped), each block fitted ALONE (λ 1e-2).
+Knob terms: static ON/OFF dumps at the audited reference magnitudes (queue #20; knob-audit agent 10-05), one multiplier α.
+| block | status | fires | val | read |
+|---|---|---|---|---|
+| **KAUF cells, depth re-fit** | shipped (10-03 fit on SF18 STATIC labels) | 91% | **−3.16%** | ⭐ gate |
+| **MOB cells 0-65** | shipped, never fitted (SF shape, MAG 600) | 98% | **−1.44%** | ⭐ gate |
+| **PST depth re-fit** (file-tied) | shipped (Fit A, d6 OUTCOMES) | 100% | **−1.23%** | ⭐ gate |
+| **KPROT C3-c 172-183** | built at 0 | 86% | **−0.91%** | ⭐ gate (revival) |
+| KAUF values N/B/R/Q | — | 74% | −0.67% | owner rule: final retune, jointly with cells |
+| ref STRUCT 66-76 | depth-fitted 10-04, not shipped | 84% | −0.61% | gated +5.7 n.s. |
+| **KFL C3-b 162-171** | built at 0 | 80% | −0.53% | borderline gate (revival) |
+| rook files (α 0.77 ⇒ open 154 / semi 69) | built at 0 | 58% | −0.21% | final retune |
+| taper (α 0.32 ⇒ pawn mg ≈ 888) · threats · longdiag · reach · latent · space | built at 0 | 12-45% | −0.13…0.00% | NULL (all fire ⇒ real nulls) |
+| PLACE 97-105 (bundle E) | shipped, SF/ref % | 75% | +0.00% (λ 1e-3 +0.12 · 1e-1 −0.13 · no-scale +0.04) | NULL |
+| ALL of the above | | | −6.88% | |
+Not screenable: heat map (v1-only, unreachable at EVAL_ARM=1 — unbuilt for v2) · tempo (= the STM nuisance; ~+8 cp read
+on the depth target) · KPROT/KFL as knobs (silently OFF without a file — screened as cells instead).
+☠️ Instrument fixes, all caught before any verdict: (1) NO SCALE nuisance ⇒ blocks won by stretching (first run KAUF
+cells+values −5.0%, KPROT −0.97); (2) optimizer stopped at its start once SCALE dominated (KFL/KPROT read exactly −0.00%)
+⇒ start at the baseline nuisances + tight tolerances; (3) FEN-hash val split leaked same-game rows (PLACE −0.54 → 0.00
+by game). Predictions: MOB/PST/KPROT beat my ranges; KAUF far beyond (−0.3…−1.0 predicted); PLACE miss (null); part-2
+terms at/below their ranges; ALL −5…−9 HIT.
+⇒ Gate order (per part, fresh seeds, calibrated SF18 @800 + self-play; owner's ~2σ rule): KAUF cells → MOB → PST →
+KPROT → KFL. Each needs export → closure → symmetry first. Winner's curse expected (first reads re-measure lower).

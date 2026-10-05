@@ -1027,3 +1027,17 @@ by game). Predictions: MOB/PST/KPROT beat my ranges; KAUF far beyond (−0.3…�
 terms at/below their ranges; ALL −5…−9 HIT.
 ⇒ Gate order (per part, fresh seeds, calibrated SF18 @800 + self-play; owner's ~2σ rule): KAUF cells → MOB → PST →
 KPROT → KFL. Each needs export → closure → symmetry first. Winner's curse expected (first reads re-measure lower).
+**20a. THREATS per-leg retry + WINNABILITY depth re-fit (2026-10-05).**
+THREATS (owner: SF11's threats edged us out statically — maybe a place if tuned right; queue #21, `_revival_screen.py
+MODE=knobs JOINT=1`): core + 5 legs as increments, one multiplier per leg, fitted jointly (the Kaufman lesson: shape, not
+magnitude). All legs fire (core 27% · hanging 34% · restrict 82% · king 6% · pawn targets 54% · push 23%); alone −0.05…+0.04%;
+**JOINT −0.01%** (α core +0.13 · hanging −0.01 · restrict −0.11 · king +0.15 · pawntgt +0.34 · push +0.07). Prediction −0.1…−0.4:
+MISS. ⇒ **THREATS CLOSED on a fair test** (not reasoned away). Why SF11's static threats looked strong: threats are
+TACTICAL — a d10 search resolves "piece attacked" itself, so a STATIC edge does not survive onto the depth target
+(Kaufman's material-imbalance knowledge did). Legs stay at 0 for the final retune.
+WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
+−74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
+(python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),
+PASSED in range. ⇒ below the 0.5% bar → final retune with rook files. ☠️ The scale is inert at ≥ 2 leader pawns, so the owner's
+10-04 K+P loss (5 pawns) is out of its reach by FORM — the "leader cannot create a passer" input (POT design) is the fix.
+⇒ GATE SET: KAUF cells (depth) · MOB · PST (depth) · KPROT · KFL. Final retune: KAUF values, rook files, winnability PASSED, struct.

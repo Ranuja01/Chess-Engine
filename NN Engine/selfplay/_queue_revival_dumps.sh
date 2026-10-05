@@ -5,7 +5,7 @@
 # (unreachable at EVAL_ARM=1); tempo is a side-to-move constant (= the STM nuisance) — not dumped. ≤ 3 engines at a time.
 ND="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine"
 R="$ND/selfplay/overnight_runner.sh"
-O=/tmp/revival
+O=/mnt/e/chess_data/texel/revival   # persistent — WSL /tmp is wiped when the distro idles down
 mkdir -p "$O"
 cd "$ND" || exit 1
 d() { env V2_PRESET=shipped "${@:2}" bash "$R" pyrun diagnostics/_revival_screen.py MODE=dump OUT=$O/$1.csv 2>&1 | grep -E "REVIVAL DUMP|rror"; }

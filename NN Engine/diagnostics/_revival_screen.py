@@ -153,17 +153,26 @@ def knobs():
     tgt, tr = wp(sf), ~val
     fit, loss_of, vb = fitter(base, tgt, stm, tr, val)
     print("REVIVAL SCREEN (knobs)  rows %d (val %d) · base = our d10 search of %s" % (len(sf), val.sum(), OURS))
+    T = lambda p: {r["fen"]: float(r["total"]) for r in csv.DictReader(open(p, newline=""))}
+    cols, names = [], []
     for spec in KV["KNOBS"].split(","):
         name, on, off = spec.split(":")
-        T = lambda p: {r["fen"]: float(r["total"]) for r in csv.DictReader(open(p, newline=""))}
         ton, toff = T(on), T(off)
         X = np.array([[ton.get(f, 0.0) - toff.get(f, 0.0)] for f in fens])
         fire = 100 * (np.abs(X[:, 0]) > 0).mean()
         if fire == 0:
             print("  %-22s ☠️ VACUOUS — the term never fired (dump identical); not a null" % name); continue
+        cols.append(X); names.append(name)
         p = fit(X, 0.0)
         print("  %-22s fires %5.1f%% · median |Δ| %5.0f mp · α %+5.2f · val %+6.2f%% · scale %+.3f"
               % (name, fire, np.median(np.abs(X[X[:, 0] != 0, 0])), p[0], 100 * (loss_of(X, p, val) / vb - 1), p[-1]))
+    if KV.get("JOINT") == "1" and len(cols) > 1:
+        # the Kaufman lesson applied to a multi-leg term: one multiplier per LEG, fitted together, so the term's SHAPE
+        # (the mix of legs) can change — a single global multiplier only tests magnitude and lets wrong legs cancel right ones
+        X = np.concatenate(cols, 1)
+        p = fit(X, 0.0)
+        print("  JOINT (%d legs)          val %+6.2f%% · scale %+.3f · α per leg: %s" % (len(cols),
+              100 * (loss_of(X, p, val) / vb - 1), p[-1], "  ".join("%s %+.2f" % (n, a) for n, a in zip(names, p[:len(cols)]))))
 
 
 if __name__ == "__main__":

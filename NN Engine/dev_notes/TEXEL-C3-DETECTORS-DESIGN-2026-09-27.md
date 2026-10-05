@@ -994,3 +994,9 @@ agree 86.5 → 87.1% · paired −0.41 pp (se 0.15, t −2.8; 212 better / 146 w
 ☠️ Side finding: **~1/3 of SF-DRAWN K+P positions read as decisive (|cp| > 150) by our d10 search** (both arms) — the
 owner's 10-04 UI loss at scale; evidence for the POT winnability item "leader cannot create a passer" (memory
 `ovd-is-the-owners-long-term-pressure-concept`).
+**19g. Overnight queue #19 (2026-10-05 02:49).** Fingerprint guard passed (v1 250/35,310,778 · v2 254/50,622,239). DEPTH PASS
+refreshed on the 10-04 ship: `fitC_mg_ours1004_d10_s*of4` 14,697 rows · `fitC_eg_ours1004_d10_s*of4` 19,281 rows (both
+match the 10-03 pass ±1) — the base for every later depth fit. Peak RSS ~3 GB/shard (CHUNK 800), bounded.
+**Anchor re-check, SF18 @800 on the new ship:** s76 56.2% · s77 61.2% ⇒ **58.7% pooled (1,000 games)**, up from the 53.4% /
+56.2% pre-ship baselines — the drift the ship predicts. Still near enough to 50% to judge fairly, but trending: if the
+next ship pushes it past ~60-62%, recalibrate (the @400 judge misled at ~75%; sweep @1000/@1200 then).

@@ -974,3 +974,15 @@ already plugs v1's passer weaknesses at depth; PX adds nothing measurable) the P
 fitted structure tables stay available for the giant-corpus final retune.
 **19d. Pawn JOINT self-play (queue #16 last step, seed 72): +749 −859 =392 ⇒ −19.1 ± 17.9.** Confirms the calibrated
 reads: no pawn ship. Nothing running after this (2026-10-04 12:25).
+**19e. CONNECTED PAWNS on the depth target (queue #17, 2026-10-04).** Step-1 triangulation (TRIANGULATION note, end):
+Pawns 18:2 toward SF18 over 60 cases; v2's connected term ships at `PS_V2_CONN_MAG=0` (closed 09-12 on §I corpus MSE —
+an instrument now read as unreadable; record check: never a fitter column, never on the depth target).
+`diagnostics/_conn_depth_fit.py` (base = 10-03 ship d10, 32,707 rows): FREE 38 params −0.64% · **KNOBS −0.59%
+(`PS_V2_CONN_MAG=21 PS_V2_SUPPORT=99 PS_V2_EG_RATIO=101`)** · unfitted CONN_MAG=100 +2.21% (the 09-12 harm, reproduced:
+the term was right, the magnitude ~5× too big). ☠️ First run read ±0.00% everywhere — a scorer closure bound to the
+baseline; caught before any verdict, guard added. Closure EXACT (1,922/3,000 live, worst 1 mp); symmetry 0/4000, 0/3170.
+Gates (fresh seeds, fresh baseline): **SF18 @800** s73 51.7 → 56.9 · s74 55.0 → 55.4 ⇒ pooled 53.4 → 56.2% ≈ **+20 ± 15**
+· **self-play 2,000 @50k seed 75: +840 −768 =392 ⇒ +12.5 ± 17.9 (95%)** (level at 1,220 games, positive finish) ⇒
+**combined ≈ +14.5 ± 7.7 (≈ 1.9σ)** — both instruments positive; the 10-03 ship's bar. Predictions +0-8 on both: MISS
+(higher). ⇒ SHIP-ELIGIBLE under the owner's rule; owner decision pending; K+pawns stress check (gen_kp_fens dense,
+held-out) agreed as a check-only read. Anchor: baseline @800 pooled 53.4% (was 56.2%) — still calibrated.

@@ -49,3 +49,12 @@ Agreement with SF18: normal d12 2/12 · normal d18 2/12 · **relaxed d12 5/12**.
   too optimistic for White with its own king exposed (Kf1, Black Q on h2, B on f2). Either the search prunes …Qg1+/…Bf5
   or the eval misjudges own-king exposure / the hanging-bishop capture. ★ A step-2 (search retune) + KS test position.
 - **Win with knight odds** and **win in the all-knights vs all-bishops start** (both mates) — unusual material handled fine.
+- **Loss from a drawn K+P ending (refused the draw).** From 56…g5 (W: K + b2 c3 e4 g4 g2 vs B: K + c5 c4 e5 g5) SF18 d24 reads
+  **0.00** through move 77; our engine reads White **+0.5…+0.9** (static +0.55…+0.88; search d10 AND d14 alike) — the extra
+  pawn is the DOUBLED g-pawn and can never make a passer. Believing it is better, it rightly (given its eval) avoided
+  repetition and pressed (69.b3, 71.c4+, 73.g3) — all still 0.00 per SF — then **78.Kd2?? (−12.7; 78.Kc2 holds 0.00)** let
+  Black's king in via a5-a4-b3. At FIXED depth 10/14/18 we play Kc2 ⇒ the losing move itself was LIGHTNING time-depth;
+  the ROOT cause is the eval: ~+0.7 in a dead-drawn pawn ending (worthless extra pawn not scaled down).
+  ★ Targets: (1) winnability/scale for pawn endings with a non-passer-capable extra pawn (doubled / blocked) — POT
+  winnability (`POT_V2_WIN_*`) is the owner of this; (2) the K+pawns stress check (gen_kp_fens dense/pure) measures
+  exactly this class; (3) the repetition-vs-eval interaction: a small false edge turns draws into losses.

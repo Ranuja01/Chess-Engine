@@ -986,3 +986,11 @@ Gates (fresh seeds, fresh baseline): **SF18 @800** s73 51.7 → 56.9 · s74 55.0
 **combined ≈ +14.5 ± 7.7 (≈ 1.9σ)** — both instruments positive; the 10-03 ship's bar. Predictions +0-8 on both: MISS
 (higher). ⇒ SHIP-ELIGIBLE under the owner's rule; owner decision pending; K+pawns stress check (gen_kp_fens dense,
 held-out) agreed as a check-only read. Anchor: baseline @800 pooled 53.4% (was 56.2%) — still calibrated.
+**19f. SHIPPED 10-04 (owner sign-off; fingerprint 254 / 50,622,239 / 4.029) + K+PAWNS STRESS CHECK (queue #18).**
+Held-out, check-only (`diagnostics/_kp_stress_check.py`; gen_kp_fens SEED 41, 600 positions, dense:pure 2:1; SF18 d14
+labels; our d10 search): connected OFF → ON mean|gap| 9.46 → **8.96 pp** (dense 10.39 → 9.77 · pure 7.88 → 7.58) · W/D/L
+agree 86.5 → 87.1% · paired −0.41 pp (se 0.15, t −2.8; 212 better / 146 worse). Prediction ±0.3: MISS (better).
+⇒ the depth-fitted term GENERALISES to never-seen extreme pawn structures — understanding, not memorisation (owner's test).
+☠️ Side finding: **~1/3 of SF-DRAWN K+P positions read as decisive (|cp| > 150) by our d10 search** (both arms) — the
+owner's 10-04 UI loss at scale; evidence for the POT winnability item "leader cannot create a passer" (memory
+`ovd-is-the-owners-long-term-pressure-concept`).

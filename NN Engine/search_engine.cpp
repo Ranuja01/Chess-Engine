@@ -2094,6 +2094,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 Config::WEAKQ_V2_PCT = 25;
                 Config::BEHIND_V2_PCT = 25;  Config::BEHIND_V2_FORM = 1;
                 Config::PS_V2_WEAKUNOPP_EG = 127;  Config::PS_V2_REAR_DOUBLED = 2;
+                // ── CONNECTED PAWNS (shipped 2026-10-04; C3 doc §19e): the SF11-shaped connected term, off since 09-12
+                // (§I corpus MSE, "harmful at every magnitude" — right term, ~5× too big), fitted on the DEPTH target
+                // (`_conn_depth_fit.py` KNOBS). SF18@800 +20 ± 15 over 1,000 paired · self-play +12.5 ± 17.9 (95%) ⇒
+                // ≈ +14.5 ± 7.7 combined. Previously CONN_MAG 0 (SUPPORT 164, EG_RATIO 60 inert).
+                Config::PS_V2_CONN_MAG = 21; Config::PS_V2_SUPPORT = 99;  Config::PS_V2_EG_RATIO = 101;
                 Config::PST_V2_KING_EG_ONLY = 1;
                 Config::PST_V2_TAPERED = 2;
                 Config::RFP_MARGIN = 1000;

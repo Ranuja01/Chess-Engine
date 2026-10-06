@@ -1041,3 +1041,19 @@ WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shi
 PASSED in range. ⇒ below the 0.5% bar → final retune with rook files. ☠️ The scale is inert at ≥ 2 leader pawns, so the owner's
 10-04 K+P loss (5 pawns) is out of its reach by FORM — the "leader cannot create a passer" input (POT design) is the fix.
 ⇒ GATE SET: KAUF cells (depth) · MOB · PST (depth) · KPROT · KFL. Final retune: KAUF values, rook files, winnability PASSED, struct.
+**20b. REVIVAL GATES — calibrated SF18 @800 (queues #22/#23, 2026-10-05/06; seeds 78/79, 500 games per arm per seed, ONE
+shared baseline per seed: s78 54.3% · s79 55.7% ⇒ 55.0%).** Guards: all five closure-exact + symmetry 0/0 (mob/kprot/kfl
+closures with PS_V2_CONN_MAG=0 — the feature pass refuses the shipped connected knob, memory
+`feature-pass-closure-refuses-under-shipped-connected`; #22 dropped them on that tooling, #23 gated them on #22's baselines).
+| arm | s78 | s79 | pooled Δ | read |
+|---|---|---|---|---|
+| **KPROT C3-c (built at 0)** | +3.7 | +4.1 | **+3.9pp ≈ +27 (~2σ)** | ⭐ self-play #25 (seed 82) |
+| **KFL C3-b (built at 0)** | +2.9 | +2.3 | **+2.6pp ≈ +18 (~1.3σ)** | ⭐ self-play #26 (seed 83) |
+| KAUF cells, depth re-fit | +4.8 | −0.3 | +2.25pp ≈ +16 (~1.1σ) | self-play #24 (seed 80) |
+| PST, depth re-fit | +2.5 | +0.2 | +1.35pp ≈ +9 (~0.7σ) | self-play #24 (seed 81) |
+| MOB cells | +2.1 | −2.1 | **0.0pp** | ✗ FAILS — the 2nd-largest fit signal (−1.44%) gives nothing in games |
+☠️ SHARED-BASELINE CORRELATION: s78's baseline (54.3%) was the lowest anchor read in two days, so EVERY s78 arm read
++2…+5pp together; s79 (55.7%) separated them (KAUF/PST/MOB fell to ~0, KPROT/KFL held). Read pooled, never one seed.
+Predictions (registered at launch): KAUF +5…+25 → +16 HIT · MOB +3…+15 → 0 MISS · PST 0…+12 → +9 HIT · KPROT 0…+10 → +27
+MISS (higher) · KFL −3…+8 → +18 MISS (higher). The two REVIVALS beat their predictions; fit size did NOT predict game size
+(MOB −1.44% fit → 0; KPROT −0.91% → +27).

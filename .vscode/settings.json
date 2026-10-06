@@ -37,6 +37,18 @@
     "**/__pycache__/**": true
   },
 
+  // Pylance builds its OWN file list and does not reliably honour files.exclude, so without this it can still walk
+  // selfplay/games/ (tens of thousands of generated .jsonl/.stderr files; every gate queue adds ~4,000 more) and grow the
+  // language-server process. Same generated-output set as above, plus the old engine archive (no live Python in it).
+  "python.analysis.exclude": [
+    "**/selfplay/games",
+    "**/selfplay/crashcheck",
+    "**/diagnostics/results",
+    "**/build",
+    "**/__pycache__",
+    "**/selfplay/old CE"
+  ],
+
   // C++ IntelliSense. This block earns its place even ignoring memory:
   //   - `selfplay/old CE/` is a COMPLETE DUPLICATE of the engine (cpp_bitboard.cpp,
   //     search_engine.cpp, move_gen.h, two cache_management.h variants). Indexing both trees

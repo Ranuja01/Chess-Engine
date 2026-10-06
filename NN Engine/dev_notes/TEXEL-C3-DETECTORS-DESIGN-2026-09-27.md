@@ -1057,3 +1057,17 @@ closures with PS_V2_CONN_MAG=0 — the feature pass refuses the shipped connecte
 Predictions (registered at launch): KAUF +5…+25 → +16 HIT · MOB +3…+15 → 0 MISS · PST 0…+12 → +9 HIT · KPROT 0…+10 → +27
 MISS (higher) · KFL −3…+8 → +18 MISS (higher). The two REVIVALS beat their predictions; fit size did NOT predict game size
 (MOB −1.44% fit → 0; KPROT −0.91% → +27).
+**20c. REVIVAL SELF-PLAY (queues #24-26, 2,000 @50k each, fresh seeds 80-83) + combined reads (±1σ; SF from the 1,000-paired
+pooled Δ, self-play ±17.9/1.96).**
+| arm | SF18 @800 | self-play | combined | read |
+|---|---|---|---|---|
+| **KFL C3-b** (built at 0) | +18 ± 14 | +10.6 ± 9 (807-746-447) | **≈ +12.8 ± 7.6 (1.7σ)** | both +; borderline ⭐ |
+| **PST depth re-fit** | +9 ± 14 | +13.2 ± 9 (855-779-366) | **≈ +12.0 ± 7.6 (1.6σ)** | both +; borderline ⭐ |
+| KAUF cells depth re-fit | +16 ± 14 | +3.5 ± 9 (809-789-402) | ≈ +7.2 ± 7.6 (0.9σ) | ✗ → final retune (jointly with piece values, owner rule) |
+| KPROT C3-c (built at 0) | **+27 ± 14** | −2.3 ± 9 (807-820-373) | ≈ +6.4 ± 7.6 (0.8σ) | ✗ INSTRUMENTS DISAGREE — strong vs SF18, flat vs ourselves |
+| MOB cells | 0.0 | — | — | ✗ |
+⇒ Two borderline-positive arms on BOTH instruments (KFL, PST) — each just under the owner's ~2σ bar (connected shipped at
+1.9σ). Next per protocol: a COMBINED confirmation (KFL + PST together vs the ship, both instruments, fresh seeds) — parts can
+cancel ([[bundling-is-refuted-components-cancel-26-percent]]) — ship together if the pair holds ≳ 2σ. KPROT: the
+SF-strong / self-play-flat split (cf. winnability: calibrated +12.9, self-play ≈ 0, shipped) deserves a larger SF read before
+any verdict. Fit-size did NOT predict game-size: MOB fit −1.44% → 0; KPROT −0.91% → +27 SF / −2 self-play.

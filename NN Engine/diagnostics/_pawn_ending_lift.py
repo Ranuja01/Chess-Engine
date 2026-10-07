@@ -40,6 +40,15 @@ def pawn_only(b):
     return not (b.knights | b.bishops | b.rooks | b.queens)
 
 
+def potential(b, our_cp):
+    """Form D gate: OUR leader can create a passer (eval_v2 `passer_potential`) and the other side cannot."""
+    if abs(our_cp) < 1:
+        return 0.0
+    pw, pb = ChessAI.pawn_masks(int(b.pawns), int(b.occupied_co[chess.WHITE]), int(b.occupied_co[chess.BLACK]))["potential"]
+    pl, po = (pw, pb) if our_cp > 0 else (pb, pw)
+    return 1.0 if (pl and not po) else 0.0
+
+
 def progress(b, our_cp):
     """Leader (sign of OUR score) has a passer or a mobile wing majority."""
     if abs(our_cp) < 1:
@@ -63,7 +72,7 @@ def rows_from(ai, fens, sfv, d10, sf11p=None):
             if tot is not None:
                 s11 = 100 * tot - (SF11_TEMPO_PAWNS if b.turn == chess.WHITE else -SF11_TEMPO_PAWNS) * 100
         R.append(dict(fen=f, tgt=t, d10=d, stat=stat, kfl=kfl, npawn=len(b.pieces(chess.PAWN, True)) + len(b.pieces(chess.PAWN, False)),
-                      prog=progress(b, stat), sf11=s11))
+                      prog=progress(b, stat), pot=potential(b, stat), sf11=s11))
     return R
 
 
@@ -71,6 +80,8 @@ def g_of(form, p, r):
     if form == "A":
         return p[0]
     g = p[0] + p[1] * r["npawn"] / 8.0
+    if form == "D":
+        return g * r["pot"]
     return g * r["prog"] if form == "C" else g
 
 
@@ -116,7 +127,7 @@ def main():
     print("PAWN-ENDING LIFT — depth rows (pawn-only): train %d · val %d · K+P stress (held-out) %d · KFL %s" %
           (len(tr), len(va), len(KP), "LIVE" if kfl_live else "off"))
     print("  owner 10-04 position: ours static %+.0f cp (truth 0.00) · leader-can-progress %d" % (own[0]["stat"], own[0]["prog"]))
-    arms = [("ship", None, "none")] + [("lift " + f, f, "none") for f in "ABC"]
+    arms = [("ship", None, "none")] + [("lift " + f, f, "none") for f in "ABCD"]
     if kfl_live:
         arms += [("KFL alone", None, "on")] + [("KFL + lift " + f, f, "on") for f in "ABC"]
     for leg in ("depth", "static"):

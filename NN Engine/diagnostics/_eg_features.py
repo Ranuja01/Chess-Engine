@@ -86,7 +86,10 @@ def labels(b, L):
             if any(not blocked(s, L) for s in a):
                 mob = 1
     allp = pl + po
+    pot = ChessAI.pawn_masks(int(b.pawns), int(b.occupied_co[chess.WHITE]), int(b.occupied_co[chess.BLACK]))["potential"]
+    pot_L, pot_O = (pot[0], pot[1]) if L == chess.WHITE else (pot[1], pot[0])
     return dict(
+        pot_L=bin(pot_L).count("1"), pot_O=bin(pot_O).count("1"),
         pawn_diff=len(pl) - len(po), passers_L=len(pasL), passers_O=len(pasO),
         protected_L=sum(att(s, L) for s in pasL), protected_O=sum(att(s, O) for s in pasO),
         outside_L=sum(all(abs(chess.square_file(s) - chess.square_file(e)) >= 3 for e in po) for s in pasL),
@@ -102,7 +105,7 @@ def main():
     fens, _, ph, sfl, base, _, _ = RS.load_rows()
     ai = ChessAI.ChessAI(None, None, chess.Board(), True)
     win = defaultdict(list)
-    pe = []
+    pe, ruled = [], []
     for f, phase, tgt, d10 in zip(fens, ph, sfl, base):
         if phase >= 128:
             continue
@@ -114,6 +117,11 @@ def main():
         stat = -float(bd["total"]) / 10.0
         w = -float(bd.get("v2_winnab") or 0) / 10.0
         win[c[0]].append((tgt, stat, w))
+        if c[0] == "pawn ending" and abs(stat) >= 50:
+            # the owner's rule, tested directly: OUR leader (sign of our static) with NO passer potential ⇒ drawish?
+            Lo = chess.WHITE if stat > 0 else chess.BLACK
+            lo = labels(b, Lo)
+            ruled.append((lo["pot_L"] > 0, lo["pot_O"] > 0, stat, tgt, d10, f))
         if c[0] == "pawn ending" and abs(tgt) > 25:
             L = chess.WHITE if tgt > 0 else chess.BLACK
             s = 1.0 if tgt > 0 else -1.0
@@ -141,7 +149,7 @@ def main():
         print("\n  %s: %d rows · mean UNDER static %+.1f, d10 %+.1f · rows UNDER ≥ %.0f: %d" % (
             scope, len(R), u.mean(), np.mean([r["under_d10"] for r in R]), GAP, int(big.sum())))
         print("    %-16s %12s %12s %16s %10s" % ("label", "mean | big", "mean | rest", "UNDER if >0 / =0", "corr"))
-        for k in ("pawn_diff", "passers_L", "passers_O", "protected_L", "outside_L", "outside_O", "unstop_L", "unstop_O",
+        for k in ("pot_L", "pot_O", "pawn_diff", "passers_L", "passers_O", "protected_L", "outside_L", "outside_O", "unstop_L", "unstop_O",
                   "kdist", "kadv", "opposition", "majority", "mobile_majority", "blocked_frac"):
             x = np.array([r[k] for r in R], dtype=float)
             pos = x > 0 if k not in ("kdist",) else x < 0
@@ -149,6 +157,35 @@ def main():
             print("    %-16s %12.2f %12.2f %8.1f / %5.1f %+10.2f" % (k, x[big].mean() if big.any() else float("nan"),
                   x[~big].mean() if (~big).any() else float("nan"), u[pos].mean() if pos.any() else float("nan"),
                   u[~pos].mean() if (~pos).any() else float("nan"), c))
+    print("\nC ▶ OWNER'S RULE — pawn endings where WE call a side ahead (|static| ≥ 0.5): does 'that side cannot create a passer'"
+          " mean SF18 calls it drawish?  (SF18 win%% for OUR leader; 50 = level)")
+    for pl_, po_ in ((True, False), (True, True), (False, False), (False, True)):
+        S = [r for r in ruled if r[0] == pl_ and r[1] == po_]
+        if not S:
+            continue
+        ours = [wp(abs(r[2])) for r in S]
+        sf = [wp(r[3] * np.sign(r[2])) for r in S]
+        d10 = [wp(r[4] * np.sign(r[2])) for r in S]
+        print("  leader potential %-3s · other potential %-3s : %3d rows · ours static %.1f%% · our d10 %.1f%% · SF18 %.1f%% · "
+              "SF18 within ±10 of 50: %d%%" % ("yes" if pl_ else "NO", "yes" if po_ else "no", len(S), np.mean(ours),
+              np.mean(d10), np.mean(sf), 100 * np.mean([abs(x - 50) <= 10 for x in sf])))
+    if KV.get("REVIEW"):
+        n = int(KV["REVIEW"])
+        Q = [r for r in pe if r["quiet"]]
+        groups = [("UNDER-RATED, EQUAL PAWNS (quiet)", [r for r in Q if r["pawn_diff"] == 0], "under"),
+                  ("UNDER-RATED, LEADER A PAWN+ UP (quiet)", [r for r in Q if r["pawn_diff"] > 0], "under"),
+                  ("SF18 WINS DESPITE THE OTHER SIDE'S PASSER", [r for r in pe if r["passers_O"] > 0], "under"),
+                  ("WE CALL A SIDE AHEAD THAT HAS NO PASSER POTENTIAL", None, None)]
+        for title, G, key in groups:
+            print("\n  ── %s" % title)
+            if G is None:
+                for pl_, po_, st, tg, dd, f in sorted([r for r in ruled if not r[0]], key=lambda r: -abs(r[2]))[:n]:
+                    print("    %s   ours static %+.0f · d10 %+.0f · SF18 %+.0f" % (f, st, dd, tg))
+                continue
+            for r in sorted(G, key=lambda r: -r[key])[:n]:
+                print("    %s   too drawish by %.0f pp (d10 %.0f) · pawns %+d · pot L/O %d/%d · passers L/O %d/%d · kdist %+d"
+                      % (r["fen"], r["under"], r["under_d10"], r["pawn_diff"], r["pot_L"], r["pot_O"], r["passers_L"],
+                         r["passers_O"], r["kdist"]))
     out = KV.get("OUT", "/mnt/e/chess_data/bench1007/pawn_ending_labels.csv")
     import csv
     with open(out, "w", newline="") as fh:

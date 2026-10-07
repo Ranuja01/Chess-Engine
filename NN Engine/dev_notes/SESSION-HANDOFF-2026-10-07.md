@@ -116,6 +116,13 @@ initiative, placement, passers; pawn endings are a SEARCH gap (SF11 d10 −1.0 v
    be cheap, and have its own owner. Built: `passer_potential` (probe-only) and lift form D (candidate).
 3. **Giant retune, HYBRID:** Texel-style fit on SF18 labels (depth target + static component, eg weighted, K+8P stress
    train/held-out) for the bulk; GAMES gate every part on both instruments; SPSA only for a few scalar knobs. Then close the eval arc.
+   ★ **Owner (later 10-07): fit EVERY term's mg and eg legs separately** (no averaging across phases; fixed-ratio knobs such as
+   `MOB_V2_EG_PCT` / `PS_V2_EG_RATIO` become two free legs; mobility/king/pawn terms can grow into the endgame). KS keeps its own
+   phase design (`KS_V2_EG_PCT`, KS-B legs) — nudged, not doubled. Clean = same code, numbers in tables, zero NPS cost.
+   ☠️ **TWO LANES** (memory `root-delta-depth-proxy-is-biased-against-dynamic-terms`): STRUCTURAL terms (pawns, PST, Kaufman,
+   passers…) on the depth target + static component; DYNAMIC terms (threats, mobility…) on the static target, each part
+   CONFIRMED by a REAL d10 re-search (`MODE=dual VALOUT` → depth pass → `MODE=dualread` vs an identical-conditions ship re-run)
+   before any game gate. Per-phase picks made on the val rows are optimistic — games are the independent check.
 4. **Search arc** opens with SF11's pawn-ending rules (no null move / no shallow pruning when the mover has only pawns; passed-
    pawn push extension — SF11 search.cpp:846/998/1079; ours: null-move guard counts pawns, `isUnsafeForNullMovePruning`).
 

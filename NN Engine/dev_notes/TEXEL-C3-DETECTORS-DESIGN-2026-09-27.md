@@ -1071,3 +1071,11 @@ pooled Δ, self-play ±17.9/1.96).**
 cancel ([[bundling-is-refuted-components-cancel-26-percent]]) — ship together if the pair holds ≳ 2σ. KPROT: the
 SF-strong / self-play-flat split (cf. winnability: calibrated +12.9, self-play ≈ 0, shipped) deserves a larger SF read before
 any verdict. Fit-size did NOT predict game-size: MOB fit −1.44% → 0; KPROT −0.91% → +27 SF / −2 self-play.
+**20d. CONFIRMATION (queue #27, 2026-10-06; fresh seeds 84/85, shared baseline s84 57.4% / s85 59.2%).**
+KFL + PST TOGETHER: SF18 @800 s84 +1.8 / s85 −3.0 ⇒ **−0.6 pp (≈ −4 ± 14)** · self-play 2,000 seed 86: 851-764-385 ⇒
+**+15.1 ± 9** ⇒ combined ≈ +9 ± 7.6 (1.2σ). Self-play is positive in ALL THREE runs touching these changes (KFL +10.6, PST
++13.2, pair +15.1; ~6,000 games); SF18 @800 positive on each part, flat on the pair. KPROT, two more SF seeds: s84 +2.0 / s85
+−0.4 ⇒ four-seed SF +2.35 pp ≈ +16 (2,000) vs self-play −2.3 ⇒ ≈ +6 ± 7 ⇒ ✗, final retune.
+☠️ ANCHOR DRIFT: shipped baselines @800 now read 57.4 / 59.2% (pooled q22-q27 ≈ 56.6%) — approaching the ~60% where the @400
+judge began to mislead (10-02). ⇒ RECALIBRATE (sweep @1000/@1200) and re-gate the KFL+PST pair on the recalibrated judge
+before deciding it. Predictions: combo SF +8…+25 MISS (−4); combo SP +5…+20 HIT (+15.1); KPROT +5…+20 → +16 four-seed HIT.

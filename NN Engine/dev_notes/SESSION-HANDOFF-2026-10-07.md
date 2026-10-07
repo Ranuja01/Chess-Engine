@@ -106,6 +106,19 @@ Old configs by env override: the 10-03 ship = `PS_V2_CONN_MAG=0` (255 / 47,218,4
   re-pricing −3.4% (→ final retune); PERSISTS: **pawn endings −9.3**, pure minor −4.5, pure rook −4.4.
 - **STS300 @ equal nodes:** v2 1838 · v1 1752 · (SF11 2374). **Mediocre v0.5 @ ~1 s:** v2 45% (v1 ≈ 15% in July).
 
+## ▶️ PLAN AGREED 2026-10-07 EVENING (owner) — supersedes the step order below where they differ
+Evidence: REFERENCE-BENCH-LADDER §3a. The static endgame excess vs SF11 is threats-led (−75% counterfactual), then KFL/king,
+initiative, placement, passers; pawn endings are a SEARCH gap (SF11 d10 −1.0 vs ours −8.5), not an eval one.
+1. **Plug the known gaps** (threats, KFL, passers, placement): judged on STATIC/ordering accuracy + "no harm at depth/games";
+   threats must also pay its NPS. SF11 = how far plugging can go.
+2. **POT design — midgame AND endgame** (endgame POT = dynamic potential: races/square rule, king entry, reserve tempi, key
+   squares; winnability stays the convertibility scale), only after 1; each feature must add measurably to OUR tuned eval,
+   be cheap, and have its own owner. Built: `passer_potential` (probe-only) and lift form D (candidate).
+3. **Giant retune, HYBRID:** Texel-style fit on SF18 labels (depth target + static component, eg weighted, K+8P stress
+   train/held-out) for the bulk; GAMES gate every part on both instruments; SPSA only for a few scalar knobs. Then close the eval arc.
+4. **Search arc** opens with SF11's pawn-ending rules (no null move / no shallow pruning when the mover has only pawns; passed-
+   pawn push extension — SF11 search.cpp:846/998/1079; ours: null-move guard counts pawns, `isUnsafeForNullMovePruning`).
+
 ## ▶️ NEXT STEPS (owner's order: finish the eval → POT → giant joint retune → search)
 0. **POT design session with the owner — ENDGAME SIDE FIRST** (data-backed: pawn endings −9.3 at d10). Design inputs on record:
    pawn-ending conversion knowledge (outside / protected passers, king activity, opposition, the square rule — PX cell 50 is

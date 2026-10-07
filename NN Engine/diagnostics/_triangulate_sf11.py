@@ -315,13 +315,24 @@ def egshare_mode():
     import _revival_screen as RS
     from _endgame_types import classify
     wpf = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * np.clip(cp, -1500, 1500)))
-    fens, _, ph, sfl, _, _, _ = RS.load_rows()
+    if KV.get("DUMP"):
+        # DUMP=<_reference_ceiling.py DUMP csv> (fen,split,evaluator,pred,target in PAWNS): the BENCH's own rows and labels
+        # (SF18 d14), so the decomposition explains the 10-07 bench ratios directly. Phase is v2's (classify returns None ≥ 128).
+        tg = {}
+        for r in csv.DictReader(open(KV["DUMP"], newline="")):
+            if KV.get("SPLIT", "all") in ("all", r["split"]):
+                tg[r["fen"]] = 100.0 * float(r["target"])
+        fens, sfl = list(tg), list(tg.values())
+        ph = [0.0] * len(fens)
+    else:
+        fens, _, ph, sfl, _, _, _ = RS.load_rows()
     p = subprocess.Popen([SF11], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
     p.stdin.write("uci\n"); p.stdin.flush()
     while p.stdout.readline().strip() != "uciok":
         pass
     ai = ChessAI.ChessAI(None, None, chess.Board(), True)
     acc = defaultdict(lambda: defaultdict(float))            # type -> stat -> sum
+    dec = defaultdict(lambda: [0, 0.0])                      # |target| band -> n, excess
     cls = defaultdict(lambda: [0, 0.0, 0.0, 0.0])            # imbalance class -> n, excess, our bias, sf11 bias
     N = 0
     for f, phase, tgt in zip(fens, ph, sfl):
@@ -343,12 +354,23 @@ def egshare_mode():
         N += 1
         A = acc[c[0]]
         A["n"] += 1; A["us"] += e_us; A["sf"] += e_sf
+        band = "level <1" if abs(tgt) < 100 else ("1-3 pawns" if abs(tgt) < 300 else "decisive >3")
+        dec[band][0] += 1; dec[band][1] += e_us - e_sf
+        # UNQUIET proxy: the side to move can capture an UNDEFENDED piece/pawn, or a piece worth more than the capturer
+        pv = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 100}
+        unq = any(b.is_capture(m) and not b.is_en_passant(m) and (
+                  not b.attackers(not b.turn, m.to_square)
+                  or pv[b.piece_type_at(m.to_square)] > pv[b.piece_type_at(m.from_square)]) for m in b.legal_moves)
+        q = "unquiet (capture on)" if unq else "quiet"
+        dec[q][0] += 1; dec[q][1] += e_us - e_sf
         if terms.get("Total", (0.0, 0.0)) != (0.0, 0.0) and bd.get("material") is not None:
             unscaled = bl(terms["Total"])
             for name, sfk, uk in EG_PAIRS:
                 sfv = (sf11_cp - unscaled) if sfk is None else sum(bl(terms[k]) for k in sfk if k in terms)
                 usv = sum(-float(bd[k]) / 10.0 for k in uk if bd.get(k) is not None)
                 A["cf_" + name] += (wpf(stat + sfv - usv) - wpf(tgt)) ** 2 - e_us
+                if name == "threats":
+                    dec["threats cf · " + q][1] += (wpf(stat + sfv - usv) - wpf(tgt)) ** 2 - e_us
             # pricing = material + imbalance together (SF folds Kaufman-like pricing into both)
         else:
             A["short"] += 1
@@ -369,6 +391,8 @@ def egshare_mode():
     for t, A in sorted(acc.items(), key=lambda kv: -(kv[1]["us"] - kv[1]["sf"])):
         print("  %-26s %6d %6.1f%% %8.1f %8.1f %7.2fx %12.1f%%" % (t, A["n"], 100 * A["n"] / N, A["us"] / A["n"], A["sf"] / A["n"],
               A["us"] / max(A["sf"], 1e-9), 100 * (A["us"] - A["sf"]) / tot_ex))
+    print("\n  by |SF18 target|: " + " · ".join("%s %d rows → %.0f%% of excess" % (k, v[0], 100 * v[1] / tot_ex)
+                                             for k, v in sorted(dec.items())))
     print("\n  COUNTERFACTUAL — our MSE change if ONE pair took SF11's value, as %% of our total excess (− = closes the gap)")
     print("  %-26s " % "type" + " ".join("%10s" % n for n, _, _ in EG_PAIRS))
     for t, A in sorted(acc.items(), key=lambda kv: -(kv[1]["us"] - kv[1]["sf"])):

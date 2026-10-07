@@ -361,6 +361,16 @@ endgame-leaning + full EG own-play 46% of rows → 114% of the excess; decisive 
 **Endgame types** (`_endgame_types.py`, static): pawn endings 1.57× SF11 (side-ahead bias −11.4 win% pts) · rook+minor 1.42×
 (−8.6) · queen 1.39× (−9.1) · mixed 1.27× · pure rook ≈ SF11 · pure minor ≈ SF11. Our d10 SEARCH bias: −1.0 overall, but pawn
 endings −9.3, pure minor −4.5, pure rook −4.4 (`_eg_leg_inspect.py`: not a magnitude issue; eg-leg re-pricing −3.4%).
+**3a. WHAT MAKES UP THE ENDGAME EXCESS (added 2026-10-07 evening; `_triangulate_sf11.py MODE=egshare DUMP=playdist_ceiling.csv`,
+ALL splits, 1,283 own-play endgame rows, SF11 term table vs ours, closure-checked):** ours 188.5 vs SF11 170.0 (excess 18.5/row).
+By type: rook+minor 38% · mixed 35% (R v N + R v B alone 35%) · rook only 29% · minor 6% · queen 3% · ⚠️ **pawn endings −11%
+(0.87×, we are BETTER on all 26 rows)** — the "1.57×" above rested on the val split's handful of pawn-ending rows. By size:
+decisive >3 pawns 60% · 1-3 27% · level 13%. Quiet (no winning capture for the mover) rows carry 94%. Pair counterfactual
+(SF11's value swapped in; upper bound): **threats −75%** (half on quiet rows: attacked/hanging/restricted pieces — closed at
+DEPTH 10-05, so a static-only gain) · king −18% · initiative −16% · placement −15% · passed −12% · pawns −6%; SF11's scaling
++85%, imbalance +37%, material +34% would HURT (ours better). **Pawn endings are a SEARCH gap** (`_pe_search_bias.py`, 313
+depth rows): static bias ours −22 / SF11 −16; d10 SEARCH ours −8.5 vs SF11 −1.0 (ours d14 −5.8) — SF11 drops null move AND all
+shallow pruning when the mover has only pawns, and extends passed-pawn pushes (search.cpp:846/998/1079) ⇒ first search-arc item.
 
 **4. Calibrated judge re-anchored:** SF18 @1000 = 48.6% (s87 48.7 / s88 48.5) · @1200 = 42.45% · @800 (q22-q27) 54.3-59.2%.
 

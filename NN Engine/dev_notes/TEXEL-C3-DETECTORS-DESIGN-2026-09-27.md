@@ -1111,3 +1111,17 @@ KNOWLEDGE signal, not a weighting one ⇒ the POT endgame side (winnability take
 without capture-gains = **725** (worse than v2): random-walk variant positions are tactically UNRESOLVED; v1's static capgains
 anticipates the pending captures that search resolves anyway. Odds: v2 signs fine (97%), error is scale. ⇒ for variants,
 judge UNDERSTANDING with our d10 SEARCH vs SF18 (the K+P method), never the static ladder.
+**21a. WHICH ENDGAMES + the ENDGAME-LEG INSPECTION (2026-10-07; `_endgame_types.py`, `_eg_leg_inspect.py`).**
+STATIC (bench dumps, phase256 < 128, 714 val rows; MSE · side-ahead BIAS in win% pts, − = under-confident): ALL v2 126 / bias
+−5.7 (SF11 97 / −3.4; SF18s 71) · pawn endings 204 / −11.4 (SF11 130 — 1.57×) · rook+minor 156 / −8.6 (1.42×) · queen 158 / −9.1
+(1.39×) · mixed/imbalanced 101 / −4.0 (1.27×) · rook only 99 (≈ SF11) · minor only 154 (≈ SF11).
+DEPTH target, endgame rows only (23,778; val 3,579 by game): our **d10 SEARCH bias −1.0** overall (static −5.7 ⇒ search fixes
+most of it) but PAWN ENDINGS −9.3 · minor only −4.5 · rook only −4.4 · rook+minor −2.7 · queen −2.4 · mixed +0.1.
+Arms: A EG-STRETCH **+0.00%** (s −0.002 — NOT a magnitude problem) · B eg legs of v2 cols **−3.35%** · C eg legs PST −1.53% ·
+D all −3.43% (stretch +0.009). Bias after ANY arm ≈ unchanged (ALL −0.7; pawn endings −8.8…−9.2).
+⇒ (1) the static under-confidence is mostly search-resolved; (2) not a global eg-scale issue; (3) eg-leg re-pricing is a real
+accuracy gain → FINAL JOINT RETUNE; (4) what persists at depth is STRUCTURAL and concentrated — **pawn endings** (winning
+pawn-ending knowledge: outside / protected passers, king activity, opposition, square rule — PX square rule built at 0) and
+pure minor / pure rook endings (conversion vs drawishness) ⇒ the data-backed START for the POT design (endgame side first:
+winnability + "leader can/cannot create a passer" + pawn-ending conversion), owner's design rule: winnability takes over in the eg.
+Predictions: stretch +5…15% MISS (0) · B −1…−2 MISS (−3.35) · D −2…−3 near (−3.43) · search less biased than static HIT.

@@ -72,7 +72,7 @@ def main():
     p.stdin.write("quit\n"); p.stdin.flush()
 
 
-if __name__ == "__main__" and KV.get("MODE") not in ("aggregate", "eg"):
+if __name__ == "__main__" and KV.get("MODE") not in ("aggregate", "eg", "egshare"):
     main()
 
 
@@ -288,5 +288,105 @@ def eg_mode():
     print("\nrows → %s" % out)
 
 
+def imbalance_class(b):
+    """Non-pawn pieces left after cancelling the common ones, as 'extra(White side) v extra(other side)', side-agnostic,
+    e.g. 'R v B', 'Q v RR', '- v N' (one side simply a piece up); pawn balance appended as the pawn count of the side
+    with the extra 'larger' set minus the other's (+2 = that side also has 2 more pawns)."""
+    sym = "QRBN"
+    cnt = lambda c: [len(b.pieces(p, c)) for p in (chess.QUEEN, chess.ROOK, chess.BISHOP, chess.KNIGHT)]
+    w, k = cnt(chess.WHITE), cnt(chess.BLACK)
+    ew = "".join(s * max(0, a - c) for s, a, c in zip(sym, w, k)) or "-"
+    eb = "".join(s * max(0, c - a) for s, a, c in zip(sym, w, k)) or "-"
+    val = lambda e: sum({"Q": 10, "R": 5, "B": 3.3, "N": 3.2, "-": 0}[ch] for ch in e)
+    dp = len(b.pieces(chess.PAWN, chess.WHITE)) - len(b.pieces(chess.PAWN, chess.BLACK))
+    if val(eb) > val(ew) or (val(eb) == val(ew) and eb > ew):
+        ew, eb, dp = eb, ew, -dp
+    return "%s v %s" % (ew, eb), dp
+
+
+def egshare_mode():
+    """MODE=egshare — WHERE IS THE ENDGAME GAP, WEIGHTED BY VOLUME? Over ALL endgame depth rows (no GAP filter): per type,
+    our win% MSE vs SF11's vs SF18 d14, and each type's SHARE of our total excess over SF11; per type × pair, the
+    counterfactual MSE change if that pair took SF11's value (☠️ upper bound — assumes SF11 right), as a share of the excess;
+    and inside 'mixed / imbalanced pieces', the imbalance classes ranked by their excess.
+      pyrun diagnostics/_triangulate_sf11.py MODE=egshare [TOP=15]   (run with V2_PRESET=shipped)"""
+    import numpy as np
+    from collections import defaultdict
+    import _revival_screen as RS
+    from _endgame_types import classify
+    wpf = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * np.clip(cp, -1500, 1500)))
+    fens, _, ph, sfl, _, _, _ = RS.load_rows()
+    p = subprocess.Popen([SF11], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    p.stdin.write("uci\n"); p.stdin.flush()
+    while p.stdout.readline().strip() != "uciok":
+        pass
+    ai = ChessAI.ChessAI(None, None, chess.Board(), True)
+    acc = defaultdict(lambda: defaultdict(float))            # type -> stat -> sum
+    cls = defaultdict(lambda: [0, 0.0, 0.0, 0.0])            # imbalance class -> n, excess, our bias, sf11 bias
+    N = 0
+    for f, phase, tgt in zip(fens, ph, sfl):
+        if phase >= 128:
+            continue
+        c = classify(f)
+        b = chess.Board(f)
+        if c is None or b.is_check():
+            continue
+        bd = ai.ev_breakdown(b)
+        stat = -float(bd["total"]) / 10.0
+        total, terms = sf11_eval(p, f)
+        if total is None:
+            continue
+        sph = sf11_phase(b)
+        bl = lambda mgeg: (mgeg[0] * sph + mgeg[1] * (128 - sph)) / 128 * 100
+        sf11_cp = 100 * total - (SF11_TEMPO_PAWNS if b.turn == chess.WHITE else -SF11_TEMPO_PAWNS) * 100
+        e_us, e_sf = (wpf(stat) - wpf(tgt)) ** 2, (wpf(sf11_cp) - wpf(tgt)) ** 2
+        N += 1
+        A = acc[c[0]]
+        A["n"] += 1; A["us"] += e_us; A["sf"] += e_sf
+        if terms.get("Total", (0.0, 0.0)) != (0.0, 0.0) and bd.get("material") is not None:
+            unscaled = bl(terms["Total"])
+            for name, sfk, uk in EG_PAIRS:
+                sfv = (sf11_cp - unscaled) if sfk is None else sum(bl(terms[k]) for k in sfk if k in terms)
+                usv = sum(-float(bd[k]) / 10.0 for k in uk if bd.get(k) is not None)
+                A["cf_" + name] += (wpf(stat + sfv - usv) - wpf(tgt)) ** 2 - e_us
+            # pricing = material + imbalance together (SF folds Kaufman-like pricing into both)
+        else:
+            A["short"] += 1
+        if c[0].startswith("mixed"):
+            k, dp = imbalance_class(b)
+            s = 1.0 if abs(tgt) > 25 else 0.0
+            sg = np.sign(tgt)
+            C = cls[k]
+            C[0] += 1; C[1] += e_us - e_sf
+            C[2] += s * (wpf(stat) - wpf(tgt)) * sg; C[3] += s * (wpf(sf11_cp) - wpf(tgt)) * sg
+    p.stdin.write("quit\n"); p.stdin.flush()
+
+    tot_ex = sum(A["us"] - A["sf"] for A in acc.values())
+    print("WHERE IS THE ENDGAME GAP — %d endgame depth rows (v2 phase256 < 128), win%% MSE vs SF18 d14" % N)
+    print("  overall: ours %.1f · SF11 %.1f · our EXCESS %.1f (per row, averaged over all endgame rows)"
+          % (sum(A["us"] for A in acc.values()) / N, sum(A["sf"] for A in acc.values()) / N, tot_ex / N))
+    print("\n  %-26s %6s %7s %8s %8s %8s %13s" % ("type", "rows", "share", "MSE us", "SF11", "ratio", "excess share"))
+    for t, A in sorted(acc.items(), key=lambda kv: -(kv[1]["us"] - kv[1]["sf"])):
+        print("  %-26s %6d %6.1f%% %8.1f %8.1f %7.2fx %12.1f%%" % (t, A["n"], 100 * A["n"] / N, A["us"] / A["n"], A["sf"] / A["n"],
+              A["us"] / max(A["sf"], 1e-9), 100 * (A["us"] - A["sf"]) / tot_ex))
+    print("\n  COUNTERFACTUAL — our MSE change if ONE pair took SF11's value, as %% of our total excess (− = closes the gap)")
+    print("  %-26s " % "type" + " ".join("%10s" % n for n, _, _ in EG_PAIRS))
+    for t, A in sorted(acc.items(), key=lambda kv: -(kv[1]["us"] - kv[1]["sf"])):
+        print("  %-26s " % t + " ".join("%+9.1f%%" % (100 * A["cf_" + n] / tot_ex) for n, _, _ in EG_PAIRS))
+    print("  %-26s " % "ALL" + " ".join("%+9.1f%%" % (100 * sum(A["cf_" + n] for A in acc.values()) / tot_ex) for n, _, _ in EG_PAIRS))
+    top = int(KV.get("TOP", 15))
+    print("\n  MIXED / IMBALANCED — classes by their excess (share of the TOTAL endgame excess); bias = side-ahead win%% pts "
+          "(− = too drawish, + = over-rating)")
+    print("  %-14s %6s %13s %11s %11s" % ("class", "rows", "excess share", "our bias", "SF11 bias"))
+    ranked = sorted(cls.items(), key=lambda kv: -kv[1][1])
+    for k, (n, ex, bu, bs) in ranked[:top]:
+        print("  %-14s %6d %12.1f%% %+11.1f %+11.1f" % (k, n, 100 * ex / tot_ex, bu / n, bs / n))
+    print("  … where we BEAT SF11 (most negative excess):")
+    for k, (n, ex, bu, bs) in ranked[::-1][:top]:
+        print("  %-14s %6d %12.1f%% %+11.1f %+11.1f" % (k, n, 100 * ex / tot_ex, bu / n, bs / n))
+
+
 if KV.get("MODE") == "eg":
     eg_mode()
+if KV.get("MODE") == "egshare":
+    egshare_mode()

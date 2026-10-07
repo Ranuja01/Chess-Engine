@@ -159,7 +159,7 @@ if KV.get("MODE") == "aggregate":
 #              traced (Total row 0) → counted, excluded from term rows. Ours `draw_class` returns 0 with no terms → same.
 #   tempo      SF11 adds Tempo (28 ≈ 0.13 pawn) for the side to move; ours none — removed from SF11's total here.
 # CLOSURE: the mapped rows must sum to each engine's total (printed); a residual means an unmapped field.
-#   pyrun diagnostics/_triangulate_sf11.py MODE=eg [GAP=15] [QUIET=1 QTOL=8] [EXAMPLES=3] [OURS=ours1004] [OUT=]
+#   pyrun diagnostics/_triangulate_sf11.py MODE=eg [GAP=15] [QUIET=1 QTOL=8] [ROWS=<prior csv>] [EXAMPLES=3] [OURS=ours1004] [OUT=]
 #   (run with V2_PRESET=shipped)
 EG_PAIRS = [("material",   ["Material"],                              ["material", "pieces"]),
             ("imbalance",  ["Imbalance"],                             ["kaufman_imbalance", "pair_bonus"]),
@@ -183,6 +183,8 @@ def eg_mode():
     GAP, EX = float(KV.get("GAP", 15)), int(KV.get("EXAMPLES", 3))
     wpf = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * np.clip(cp, -1500, 1500)))
     fens, _, ph, sfl, base, _, _ = RS.load_rows()
+    # ROWS=<csv from a previous run>: score exactly those positions (an arm vs the ship on the SAME rows; GAP/QUIET off)
+    fixed = {r["fen"] for r in csv.DictReader(open(KV["ROWS"], newline=""))} if KV.get("ROWS") else None
     p = subprocess.Popen([SF11], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
     p.stdin.write("uci\n"); p.stdin.flush()
     while p.stdout.readline().strip() != "uciok":
@@ -203,11 +205,14 @@ def eg_mode():
         bd = ai.ev_breakdown(b)
         stat = -float(bd["total"]) / 10.0
         gap = wpf(tgt) - wpf(stat)
-        if abs(gap) < GAP:
+        if fixed is not None:
+            if f not in fixed:
+                continue
+        elif abs(gap) < GAP:
             continue
         # QUIET=1: keep rows where our d10 SEARCH agrees with our static (≤ QTOL pp) — the static error then PERSISTS at
         # depth, and the row is not a tactic a static eval cannot see (unquiet rows read 'threats' as the gap).
-        if KV.get("QUIET") == "1" and abs(wpf(d10) - wpf(stat)) > float(KV.get("QTOL", 8)):
+        if fixed is None and KV.get("QUIET") == "1" and abs(wpf(d10) - wpf(stat)) > float(KV.get("QTOL", 8)):
             continue
         total, terms = sf11_eval(p, f)
         if total is None:

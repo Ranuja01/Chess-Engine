@@ -173,6 +173,18 @@ at all**) · `PawnDoubled2` (1/4, no record hit) · rook/bishop-on-king-ring · 
 
 ---
 
+
+## ★ REVIVAL ROUND 2026-10-05/07 (C3 doc §20-21a) — every item MEASURED on the depth target + games
+| item | outcome | where it goes |
+|---|---|---|
+| connected pawns (rank-flat form #7 above, and the shipped form) | ✅ SHIPPED 10-04 (CONN_MAG 21 / SUPPORT 99 / EG_RATIO 101; +14.5 ± 7.7) | done |
+| threats (all 6 legs, Kaufman-style per-leg fit) | ☠️ CLOSED on a fair test (joint −0.01%; tactical ⇒ search's) | search phase only (threat-aware ordering) |
+| material taper · space · long diagonal · reach · latent · placement bundle | null on the depth target (all fire) | final retune at 0 |
+| rook files · winnability +PASSED | small (−0.21% / −0.33%) | final retune |
+| Kaufman depth re-fit · mobility cells · king protector (C3-c) · KFL+PST pair | gated, NOT shipped (combined 0.9σ / SF 0 / instruments split / instruments split) | final joint retune |
+| heat map | v1-only — never built for v2 | unbuilt |
+| tempo | = the STM nuisance (~+8 cp) — not separable here | search phase / final retune |
+
 ## PROVENANCE
 Built by a full sweep of `dev_notes/` + memory on 2026-09-20. Companion docs:
 `EVAL-V2-CURRENT-CONFIG.md` (shipped config + decision register) · `EVAL-V2-REBUILD-LOG.md` (the narrative) ·

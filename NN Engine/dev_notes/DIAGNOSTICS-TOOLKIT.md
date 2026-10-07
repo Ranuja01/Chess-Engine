@@ -300,3 +300,20 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `_pot_t1_study.py MODE=stm|race|heavy [DEPTH=1]` · `_pot_coverage.py [MODE=lift]` · `_pot_depth_screen.py` | POT middlegame: T1 event study, side-to-move / castling-race / heavy-piece checks, type coverage + gate precision, the depth screen (null) |
 | `_gauntlet_gametype_split.py` (material class) | + a persistent queen-imbalance class (≥ 10 plies) — ☠️ read only against a control arm (baseline-content classes regress) |
 | `selfplay/_queue_*.sh` (13 queues) | the session's guarded overnight chains (build + fingerprint guards, closure/symmetry before any gate, waits on the previous queue's log) |
+
+## Added 2026-10-04/07 (connected ship, revival screen + gates, re-anchor, bench, endgame inspection)
+| tool | what it does |
+|---|---|
+| `_conn_depth_fit.py [MODE=dump|closure]` | connected pawns on the DEPTH target: FREE (per-rank conn/phalanx/opposed/supporters) and KNOBS (the engine's 3 env knobs, exact form); exact integer closure vs the engine. ☠️ score each arm with ITS OWN model (a baseline closure once read every arm ±0.00%) |
+| `_joint_depth_preview.py [JOINT=0 CEIL_LAMBDA=]` | all linear terms (PST + 235 v2 cols + Kaufman) fitted JOINTLY on the depth target, applied to the shipped static on the passer corpora; + an in-sample CV reweighting CEILING (weighting vs missing knowledge) |
+| `_kp_stress_check.py MODE=label|read` | K+pawns STRESS check (gen_kp_fens dense/pure, held-out): our d10 SEARCH vs SF18 d14 — win% gap + W/D/L agreement, per arm (understanding vs memorisation) |
+| ★ `_revival_screen.py MODE=columns|dump|knobs [JOINT=1]|gateexport` | the REVIVAL SCREEN: every unfitted / built-at-0 term on the depth target — column blocks (cell fits) and knob terms (ON/OFF static dumps + one multiplier; JOINT=1 = one multiplier per LEG). STM + GLOBAL-SCALE nuisances, start at the baseline nuisances, tight tolerances, by-GAME val split. `gateexport` writes engine-format files (KAUF/C1/PST/KPROT/KFL) for gating. ☠️ not `MODE=export` (clashes with `_texel_kauf_fit`) |
+| `_win_depth_fit.py MODE=dump|fit` | the shipped winnability scale factor's knobs re-fitted on the depth target (phase from px_labelled.npz) |
+| `_reference_ceiling.py DUMP= DUMPLABEL=` | (extended) per-position dump of every evaluator for stratification |
+| `_gap_strata.py DUMPS= OURS= [TYPES=]` | where the (ours − SF11) excess lives: stage (v2's own phase256), phase, structure (closed/semi/open), material class, |target|, corpus type |
+| `_bench_type_corpora.py` | builds bench_variant / bench_odds (SF18-labelled) / bench_kp corpora for the ladder (all val) |
+| `_endgame_types.py DUMPS=` | static MSE + side-ahead confidence BIAS by endgame type (pawn / minor / rook / rook+minor / queen / mixed) |
+| `_eg_leg_inspect.py` | endgame rows of the depth target: EG-STRETCH (magnitude) vs eg legs of v2 cols / PST; d10-search bias by endgame type |
+| `selfplay/_launch_detached.sh <q> <log> [--waits]` | ★ launch a queue DETACHED (setsid+nohup) — tracked tasks are capped at 30 min after a reload; refuses a duplicate / any running games job (`--waits` allows a self-waiting queue) |
+| `selfplay/_queue_mediocre.sh` | v2 vs Mediocre v0.5 at ~1 s/move (raw-pipe driver), SF18 draw arbiter |
+| `selfplay/_queue_*.sh` (#17-#31) | connected gate, K+P stress, depth refresh, revival dumps/gates/self-play, re-anchor, bench ladder/types, Mediocre |

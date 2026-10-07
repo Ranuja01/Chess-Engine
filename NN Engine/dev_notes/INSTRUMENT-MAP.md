@@ -619,3 +619,22 @@ search downstream of it.
    violations) — the guard caught it; the fitter now ties a=h, b=g, c=f, d=e.
 6. **Partial self-play reads swing:** the 10-03 confirmation read 46.4% at 460 games and finished +13.6 at 2,000 — the
    "never call a direction on partial data" rule, again.
+
+## 2026-10-04/07 — new ways instruments misled (and the fixes)
+1. ★★ **Judge re-anchored: SF18 @1000** (48.6% on the 10-04 ship; @800 had drifted to 57-59%, @1200 = 42.5%). Re-sweep when
+   the baseline leaves ~45-55%.
+2. ★★ **A SHARED BASELINE correlates its arms:** seed 78's baseline read low (54.3%) and EVERY arm of that seed read +2…+5pp;
+   seed 79 separated them. Read pooled seeds only, never one seed of a shared-baseline batch.
+3. ★★ **Fit size does NOT predict game size:** mobility (fit −1.44%) → 0 in games; king protector (−0.91%) → +16 on SF18 but −2
+   in self-play; Kaufman depth re-fit (−3.16%) → +7 combined. The screen ranks; games decide.
+4. ★ **Two fair instruments can genuinely DISAGREE** (not noise): KPROT SF +16 (2,000) vs self-play −2; KFL+PST pair SF −3 ± 8
+   (3,000, three SF levels) vs self-play +15. The rule ships only on both — a style-specific gain is not a strength gain.
+5. ★ **Revival-screen artefacts, all caught before a verdict:** no global-SCALE nuisance ⇒ blocks win by stretching; the
+   optimizer stops at its start once SCALE dominates (exact −0.00% reads) ⇒ start at the baseline nuisances + tight
+   tolerances; a FEN-hash val split leaks same-game rows ⇒ split by GAME.
+6. ★ **The static ladder on UNQUIET positions measures static TACTICS:** v1 "beat" v2 2× on random-walk variants purely via
+   capture-gains (v1 without it: 725 vs v2 624). Judge variants/odds understanding with our d10 SEARCH vs SF18.
+7. **Static accuracy ≠ Elo, again:** the 10-03/10-04 ships (≈ +30 Elo) left static MSE slightly WORSE (depth-target fits);
+   STS at equal nodes rose 1747 → 1838 with them.
+8. **Tooling:** feature-pass closures refuse under the shipped connected knob (add PS_V2_CONN_MAG=0); WSL /tmp is wiped
+   when the distro idles (dumps → E:); tracked background tasks die at 30 min after a reload (launch detached).

@@ -253,5 +253,90 @@ def knobs():
               100 * (loss_of(X, p, val) / vb - 1), p[-1], "  ".join("%s %+.2f" % (n, a) for n, a in zip(names, p[:len(cols)]))))
 
 
+def dual():
+    """MODE=dual KNOBS=<as knobs> BASE=<off.csv: the ship's STATIC totals> — owner 2026-10-07: "improve actual play AND what
+    pruning sees". The same legs fitted three ways — DEPTH (base = our d10 search), STATIC (base = our static eval, the ship's
+    totals from BASE=), COMBINED (both losses, each normalised by its own baseline, equal weight; α shared, each target keeps
+    its own STM + SCALE nuisances) — and EVERY fit scored on BOTH targets (val), plus the endgame rows (phase < 128) apart.
+    Reading: a static gain is only worth having if the depth column does not get worse."""
+    fens, _, ph, sf, d10, val, stm = load_rows()
+    tgt, tr = wp(sf), ~val
+    T = lambda p: {r["fen"]: float(r["total"]) for r in csv.DictReader(open(p, newline=""))}
+    off = T(KV["BASE"])
+    keep = np.array([f in off for f in fens])
+    fens = [f for f, k in zip(fens, keep) if k]
+    ph, tgt, d10, val, stm, tr = ph[keep], tgt[keep], d10[keep], val[keep], stm[keep], tr[keep]
+    stat = np.array([-off[f] / 10.0 for f in fens])
+    if KV.get("VALOUT"):                      # the val rows as an IN for a REAL arm depth pass (_depth_residual_pass.py)
+        sfcp = {}
+        for lab in ("fitC_mg_sf18.csv", "fitC_eg_sf18.csv"):
+            for r in csv.DictReader(open(os.path.join(THIS, "ks_sets", lab), newline="")):
+                sfcp[r["fen"]] = (r.get("best_uci", ""), r["best_cp"])
+        with open(os.path.join(THIS, "ks_sets", KV["VALOUT"]), "w", newline="") as fh:
+            w = csv.writer(fh); w.writerow(["fen", "best_uci", "best_cp"])
+            for f, v in zip(fens, val):
+                if v:
+                    w.writerow([f, *sfcp[f]])
+        print("VALOUT: %d val rows → ks_sets/%s" % (val.sum(), KV["VALOUT"]))
+        return
+    cols, names = [], []
+    for spec in KV["KNOBS"].split(","):
+        name, on, off_ = spec.split(":")
+        ton, toff = T(on), T(off_)
+        cols.append(np.array([[ton.get(f, 0.0) - toff.get(f, 0.0)] for f in fens])); names.append(name)
+    X = np.concatenate(cols, 1)
+    nk = X.shape[1]
+    eg = ph < 128
+
+    def cp(base, p, nuis):                    # nuis = (STM, SCALE)
+        return base * (1.0 + nuis[1]) - (X @ p) / 10.0 + nuis[0] * stm
+
+    def loss(base, p, nuis, m):
+        return float(np.mean((wp(cp(base, p, nuis))[m] - tgt[m]) ** 2))
+
+    def fit_nuis(base, p):                    # best (STM, SCALE) for fixed α, on train
+        return minimize(lambda n: loss(base, p, n, tr), np.zeros(2), method="Nelder-Mead",
+                        options=dict(xatol=1e-6, fatol=1e-9, maxiter=4000)).x
+
+    z = np.zeros(nk)
+    nd0, ns0 = fit_nuis(d10, z), fit_nuis(stat, z)
+    vb = {("d", "all"): loss(d10, z, nd0, val), ("s", "all"): loss(stat, z, ns0, val),
+          ("d", "eg"): loss(d10, z, nd0, val & eg), ("s", "eg"): loss(stat, z, ns0, val & eg)}
+    trb_d, trb_s = loss(d10, z, nd0, tr), loss(stat, z, ns0, tr)
+
+    def objective(q, wd, ws):
+        p, nd, ns = q[:nk], q[nk:nk + 2], q[nk + 2:]
+        o = 0.0
+        if wd:
+            o += wd * loss(d10, p, nd, tr) / trb_d
+        if ws:
+            o += ws * loss(stat, p, ns, tr) / trb_s
+        return o
+
+    print("THREATS DUAL FIT — rows %d (val %d, of which endgame %d) · legs: %s" % (len(fens), val.sum(), (val & eg).sum(),
+          ", ".join("%s fires %.0f%%" % (n, 100 * (np.abs(c[:, 0]) > 0).mean()) for n, c in zip(names, cols))))
+    print("  baselines (val win%% MSE): depth %.1f (eg %.1f) · static %.1f (eg %.1f)"
+          % (vb[("d", "all")], vb[("d", "eg")], vb[("s", "all")], vb[("s", "eg")]))
+    print("  %-10s %-48s %11s %11s %11s %11s" % ("fit on", "α per leg", "DEPTH all", "DEPTH eg", "STATIC all", "STATIC eg"))
+    arms = [("depth", 1, 0), ("static", 0, 1), ("combined", 1, 1)]
+    if KV.get("FIXED"):                       # FIXED=a,b,… — score an ENGINE-REALISABLE α (legs are on/off at one PCT)
+        arms.append(("fixed", None, np.array([float(x) for x in KV["FIXED"].split(",")])))
+    for label, wd, ws in arms:
+        if wd is None:
+            p = ws
+        else:
+            q0 = np.r_[z, nd0, ns0]
+            q = minimize(lambda q: objective(q, wd, ws), q0, method="Powell",
+                         options=dict(xtol=1e-4, ftol=1e-10, maxiter=40000)).x
+            p = q[:nk]
+        nd, ns = fit_nuis(d10, p), fit_nuis(stat, p)    # each target re-fits ITS nuisances for the shared α
+        cells = []
+        for tag, base, nu in (("d", d10, nd), ("s", stat, ns)):
+            for scope, m in (("all", val), ("eg", val & eg)):
+                cells.append(100 * (loss(base, p, nu, m) / vb[(tag, scope)] - 1))
+        print("  %-10s %-48s %+10.2f%% %+10.2f%% %+10.2f%% %+10.2f%%" % (
+            label, " ".join("%s %+.2f" % (n, a) for n, a in zip(names, p)), *cells))
+
+
 if __name__ == "__main__":
-    {"columns": columns, "dump": dump, "knobs": knobs, "gateexport": export}[KV.get("MODE", "columns")]()  # ☠️ not "export": _texel_kauf_fit (imported) runs its own export on MODE=export
+    {"columns": columns, "dump": dump, "knobs": knobs, "gateexport": export, "dual": dual}[KV.get("MODE", "columns")]()  # ☠️ not "export": _texel_kauf_fit (imported) runs its own export on MODE=export

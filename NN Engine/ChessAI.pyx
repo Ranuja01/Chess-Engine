@@ -325,7 +325,7 @@ def pawn_masks(pawns, occupied_white, occupied_black):
     if not _PAWN_PROBE_TABLES_READY:
         initialize_attack_tables()
         _PAWN_PROBE_TABLES_READY = True
-    cdef uint64_t out[27]
+    cdef uint64_t out[29]
     pawn_entry_probe(<uint64_t>pawns, <uint64_t>occupied_white, <uint64_t>occupied_black, out)
     cdef int i
     names = ["isolated", "doubled", "backward", "phalanx", "supported", "opposed",
@@ -337,6 +337,7 @@ def pawn_masks(pawns, occupied_white, occupied_black):
     res["halfOpen"] = (int(out[21]), int(out[22]))
     res["passed"] = (int(out[23]), int(out[24]))
     res["candidate"] = (int(out[25]), int(out[26]))
+    res["potential"] = (int(out[27]), int(out[28]))   # passer_potential: classic candidate | front-most passer
     return res
 
 

@@ -2838,6 +2838,48 @@ void mobility_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMa
 	out[12] = (long long)mw.area; out[13] = (long long)mb.area;
 }
 
+/* PASSER-CREATION POTENTIAL ("can this side ever make a passer?") — the input POT winnability needs on pawn-only boards
+ * (owner, 2026-10-07: the 10-04 loss read +0.7 in a dead draw whose extra pawn was a doubled g-pawn).
+ *
+ * WHY NOT `candidate[]`. Layer A's candidate is SF11's NARROW test: a pawn ONE exchange from passing (every stopper a
+ * lever, or out-supported head-on). The winnability question is structural and longer-range, so this is the CLASSIC
+ * candidate (SF 1.x–5 `candidate`, the textbook definition): a pawn with NO enemy pawn ahead on its own file whose
+ * HELPERS (own pawns on the adjacent files, at most one rank ahead of it — they can advance level and trade) are at
+ * least as many as its SENTRIES (enemy pawns on the adjacent files ahead of it). Equal numbers trade off and leave
+ * the pawn free. A pawn with an own pawn ahead on its file (rear-doubled) is never one: only the front pawn can run.
+ *
+ * Returns, for side s (0 White, 1 Black): bit 0..63 mask of pawns that are a FRONT-MOST passer or a classic candidate.
+ * Empty ⇒ this side cannot create a passer from the pawn structure alone (king raids can still change the structure —
+ * that is the king-activity input's job, not this one's).
+ * Pure, pawn-only; not on any search path today (diagnostic probe), so the engine is byte-identical.
+ */
+static uint64_t passer_potential(const PawnEntry &e, const V2Context &c, int s) noexcept
+{
+	const bool white = (s == 0);
+	const uint64_t own   = c.pawns & (white ? c.white : c.black);
+	const uint64_t enemy = c.pawns & (white ? c.black : c.white);
+	uint64_t out = 0;
+	for (uint64_t it = own; it; it &= it - 1){
+		const int sq = __builtin_ctzll(it);
+		const uint64_t m = 1ULL << sq;
+		const int f = sq & 7, r = sq >> 3;
+		const uint64_t file  = BB_FILES[f];
+		const uint64_t ahead = white ? ps_nfill(m << 8) : ps_sfill(m >> 8);       // own file, strictly ahead
+		if (ahead & own) continue;                                                 // rear-doubled: only the front runs
+		if (e.passed[s] & m){ out |= m; continue; }
+		if (ahead & enemy) continue;                                               // opposed: not a candidate
+		const uint64_t adj = (f > 0 ? BB_FILES[f - 1] : 0) | (f < 7 ? BB_FILES[f + 1] : 0);
+		const uint64_t span = white ? passed_span_white[sq] : passed_span_black[sq];
+		const int sentries = __builtin_popcountll(span & ~file & enemy);
+		// helpers: adjacent-file own pawns on ranks up to ONE ahead of this pawn (relative), i.e. able to come level
+		const uint64_t upto = white ? (r + 2 >= 8 ? ~0ULL : (1ULL << ((r + 2) * 8)) - 1)
+		                            : (r - 1 <= 0 ? ~0ULL : ~((1ULL << ((r - 1) * 8)) - 1));
+		const int helpers = __builtin_popcountll(adj & upto & own);
+		if (helpers >= sentries) out |= m;
+	}
+	return out;
+}
+
 /* DETECTOR ORACLE PROBE -- exports Layer A's raw masks so they can be compared against the independent
  * Python implementation in diagnostics/_pawn_term_overlap.py, which is validated 8/8 on hand-checked
  * positions and colour-symmetric 3/3.
@@ -2851,12 +2893,12 @@ void mobility_probe(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMa
  * Layout, 2 entries per predicate, [White, Black]:
  *   0-1 isolated - 2-3 doubled - 4-5 backward - 6-7 phalanx - 8-9 supported - 10-11 opposed
  *   12-13 lever - 14-15 blocked - 16-17 stop_held - 18-19 attacks - 20 openFiles - 21-22 halfOpen
- *   23-24 passed - 25-26 candidate
+ *   23-24 passed - 25-26 candidate - 27-28 passer_potential (classic candidate | front-most passer)
  *
  * @param pawnsMask  all pawns
  * @param whiteMask  all White occupancy
  * @param blackMask  all Black occupancy
- * @param out        caller-provided, at least 27 entries; fully written
+ * @param out        caller-provided, at least 29 entries; fully written
  *
  * Gating: none -- diagnostic only, never called from search.
  * Cost: one detector build. Not on any hot path.
@@ -2885,6 +2927,7 @@ void pawn_entry_probe(uint64_t pawnsMask, uint64_t whiteMask, uint64_t blackMask
 		out[21 + s] = (uint64_t)e.halfOpen[s];
 		out[23 + s] = e.passed[s];
 		out[25 + s] = e.candidate[s];
+		out[27 + s] = passer_potential(e, c, s);
 	}
 	out[20] = (uint64_t)e.openFiles;
 }

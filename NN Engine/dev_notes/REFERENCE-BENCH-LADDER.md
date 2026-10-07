@@ -336,3 +336,39 @@ equal depth (2104 vs 1854 STS at d10). That is why handicapped SF18 was sometime
 moves vs 30-50% for SF18 (control SF18 game: 83% SF18 vs 58% SF1.1). WSL's Windows-exe interop worked when they were
 played and failed later — the record's "flaky binfmt" again.
 ▶️ For UI games, a NODE limit (`Limit(nodes=N)`) gives a repeatable opponent; a time limit does not.
+
+## ★★★★ 2026-10-07 — BENCH SNAPSHOT before the POT design (v2 254 / 50,622,239 = Fit A + winnability + Kaufman + joint KS/KS-B + connected pawns)
+Sources: C3 doc §20e-§21a · queues #28-#31 · raw dumps `E:/chess_data/bench1007/*.csv` (per-position, every evaluator).
+
+**1. Static win% MSE vs SF18 d14 search** (val; `_reference_ceiling.py`, N=3000; references REPRODUCE 09-26 exactly):
+| evaluator | own-play | diverse | variants/960* | odds starts | K+P stress |
+|---|---|---|---|---|---|
+| SF18 static | 61.93 | 68.85 | 332 | 34 | 517 |
+| SF15.1 NNUE | 72.76 | 61.61 | 384 | 53 | 534 |
+| SF11 classical | 151.41 | 95.26 | 575 | 90 | 1170 |
+| v2 shipped (10-07) | 171.49 | 123.57 | 624 | 115 | 904 |
+| v2 as of 10-01 | 168.15 | 121.50 | 612 | 137 | 892 |
+| v2 + KFL+PST (not shipped) | 169.75 | 122.53 | 623 | 115 | 901 |
+| v1 | 188.85 | 238.77 | 291* | 62* | 1210 |
+| SF15.1 classical | 192.35 | 139.20 | 519 | 161 | 991 |
+\* variants/odds are tactically UNRESOLVED random-walk positions: v1's static capture-gains wins there (v1 without it: 725).
+
+**2. STS300 at EQUAL NODES (249,014):** v2 shipped **1838** · v2+pair 1834 · v1 1752 · v2 10-01 1747 · (2026-09-22: v2 1689 ·
+SF11 2374 · SF15.1c 2492 · SF15.1n 2599 · SF18 2605 · SF19 2636).
+
+**3. Where the gap to SF11 sits** (`_gap_strata.py`): level positions (<1 pawn) and middlegame-leaning — we MATCH/BEAT SF11;
+endgame-leaning + full EG own-play 46% of rows → 114% of the excess; decisive (>3) 35% → 88%.
+**Endgame types** (`_endgame_types.py`, static): pawn endings 1.57× SF11 (side-ahead bias −11.4 win% pts) · rook+minor 1.42×
+(−8.6) · queen 1.39× (−9.1) · mixed 1.27× · pure rook ≈ SF11 · pure minor ≈ SF11. Our d10 SEARCH bias: −1.0 overall, but pawn
+endings −9.3, pure minor −4.5, pure rook −4.4 (`_eg_leg_inspect.py`: not a magnitude issue; eg-leg re-pricing −3.4%).
+
+**4. Calibrated judge re-anchored:** SF18 @1000 = 48.6% (s87 48.7 / s88 48.5) · @1200 = 42.45% · @800 (q22-q27) 54.3-59.2%.
+
+**5. Absolute anchor — Mediocre v0.5 (Java; CCRL 40/40 lists v0.4 = 2274 ±21; author: v0.5 "noticeably stronger"):**
+| date | engine | games | score | notes |
+|---|---|---|---|---|
+| 2026-07-15/16 | v1 | 300 (`mediocre_mine`) + 80 | **≈ 15%** (≈ −300 Elo) | ~585k nodes/move, d13; results RECONSTRUCTED from the final eval (15/300 exact) |
+| **2026-10-07** | **v2 shipped** | 50 (`mediocre_v05_1s`) | **45.0%** (≈ −35 ± ~95) | PRESET=LIGHTNING ~1 s/move vs movetime 1.0 s; raw-pipe driver; SF18 draw arbiter |
+⇒ ≈ +250 Elo vs the same opponent since v1; v2 ≈ 2265-2340 CCRL-40/40-anchored (±100), before any speed / v2-search work.
+Reproduce: `selfplay/_queue_mediocre.sh` (launch via `_launch_detached.sh`); ladder `selfplay/_queue_bench_ladder.sh` /
+`_queue_bench_types.sh`; re-anchor `selfplay/_queue_reanchor.sh`.

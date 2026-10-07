@@ -83,3 +83,6 @@ Pylance picks up the exclusion.
   evals mid-search, so the eval must DIFFERENTIATE positions accurately. ⇒ add a sibling-ordering (discrimination) metric;
   the final joint retune fits the depth target AND a static/ordering component, endgames weighted; fix the endgame static
   weakness before the search arc (memory `static-discrimination-matters-even-when-search-fixes-the-verdict`).
+- **All dated numbers in one place:** `dev_notes/REFERENCE-BENCH-LADDER.md` "2026-10-07 — BENCH SNAPSHOT" (static ladder ×5
+  corpora, STS eq-nodes history, gap strata, endgame types, judge re-anchor, Mediocre v1 ≈ 15% (07-16) → v2 45% (10-07)).
+  Raw per-position dumps: `E:/chess_data/bench1007/`.

@@ -79,3 +79,7 @@ Pylance picks up the exclusion.
 - **NEXT: the POT design discussion with the owner — endgame side first** (pawn-ending conversion, "can the leader make a
   passer?", drawishness in pure minor / rook endings; winnability takes over in the endgame), then middlegame potential,
   then the giant joint retune (incl. eg legs, Kaufman, pair, KPROT, mobility, rook files, piece values), then search.
+- **Owner principle (10-07):** search fixing the final score is not enough — pruning / qsearch / ordering decide from STATIC
+  evals mid-search, so the eval must DIFFERENTIATE positions accurately. ⇒ add a sibling-ordering (discrimination) metric;
+  the final joint retune fits the depth target AND a static/ordering component, endgames weighted; fix the endgame static
+  weakness before the search arc (memory `static-discrimination-matters-even-when-search-fixes-the-verdict`).

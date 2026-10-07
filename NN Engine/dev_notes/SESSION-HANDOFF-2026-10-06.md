@@ -61,3 +61,21 @@ reads low flatters every arm of that seed together — read pooled only; a pair 
 ## 7. State
 HEAD on NN-ENgine, ~60 commits unpushed (push only on the owner's say-so). VS Code: reload once nothing is running so
 Pylance picks up the exclusion.
+
+## 8. UPDATE 2026-10-07 (overnight + morning) — supersedes §4/§6 where they differ
+- **Judge re-anchored: SF18 @1000** = 48.6% (1,000 games); @1200 42.5%; @800 had drifted to 57-59%. Use `gauntlet 500 1000 4 …`.
+- **KFL+PST pair: NOT shipped** — SF18 ≈ −3 ± 8 over 6 seeds at @800/@1000/@1200 vs self-play +15 ± 9 (genuine instrument split).
+- **Bench (C3 §21):** reference ladder reproduces 09-26 exactly. Static win% MSE vs SF18 search: own-play v2 171 · SF11 151 · v1
+  189 · SF15.1c 192 · SF18s 62; diverse v2 124 · SF11 95 · v1 239. **STS300 @ equal nodes 1838** (09-22: 1689; v1 1752; SF11 2374).
+  Where the gap to SF11 lives: we MATCH/BEAT SF11 in level positions and middlegame-leaning ones, and beat SF11 + v1 on K+P
+  stress; the gap is in ENDGAMES and in decisive positions. The v1 "variant win" is static capture-gains on unquiet positions
+  (v1 without it 725 vs v2 624) — not memorisation.
+- **Endgame inspection (C3 §21a):** static under-confidence (side ahead −5.7 win% pts, SF11 −3.4) is mostly search-resolved
+  (d10 search −1.0); NOT a magnitude issue (eg-stretch fits 0); eg-leg re-pricing −3.4% → final retune; what PERSISTS at d10:
+  **pawn endings −9.3**, pure minor −4.5, pure rook −4.4 ⇒ the data-backed START of the POT design (endgame side first).
+- **Mediocre v0.5 at ~1 s/move: v2 45.0% over 50 games** ⇒ ≈ 2265-2340 CCRL-40/40-anchored (±100), with no speed / v2-search
+  work yet. Owner will supply Mediocre's source snapshot for the search/NPS phase.
+- **Ops:** tracked background tasks die at 30 min after a VS Code reload ⇒ launch queues with `selfplay/_launch_detached.sh`.
+- **NEXT: the POT design discussion with the owner — endgame side first** (pawn-ending conversion, "can the leader make a
+  passer?", drawishness in pure minor / rook endings; winnability takes over in the endgame), then middlegame potential,
+  then the giant joint retune (incl. eg legs, Kaufman, pair, KPROT, mobility, rook files, piece values), then search.

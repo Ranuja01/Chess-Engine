@@ -1079,3 +1079,9 @@ KFL + PST TOGETHER: SF18 @800 s84 +1.8 / s85 −3.0 ⇒ **−0.6 pp (≈ −4 ±
 ☠️ ANCHOR DRIFT: shipped baselines @800 now read 57.4 / 59.2% (pooled q22-q27 ≈ 56.6%) — approaching the ~60% where the @400
 judge began to mislead (10-02). ⇒ RECALIBRATE (sweep @1000/@1200) and re-gate the KFL+PST pair on the recalibrated judge
 before deciding it. Predictions: combo SF +8…+25 MISS (−4); combo SP +5…+20 HIT (+15.1); KPROT +5…+20 → +16 four-seed HIT.
+**20e. RE-ANCHOR + the pair's final read (queue #28, 2026-10-06/07; fresh seeds 87/88; detached after the 30-min task cap
+killed the first attempt).** Shipped baselines: **@1000 48.7 / 48.5% ⇒ 48.6%** · @1200 42.5 / 42.4% ⇒ 42.45% (·@800 was 57-59%).
+⇒ **NEW CALIBRATED JUDGE: SF18 @1000 nodes** (our 250k vs SF18 1000). Predictions @1000 53-55 MISS (lower), @1200 49-52 MISS.
+KFL+PST pair, all SF18 seeds (3,000 games per side): @800 +1.8/−3.0 · @1000 +2.3/−1.8 · @1200 −0.6/−1.7 ⇒ **≈ −0.5 pp ≈ −3 ± 8**
+vs self-play **+15.1 ± 9** ⇒ combined ≈ +5 ± 6 (0.8σ). ⇒ **NOT SHIPPED** — a genuine instrument split (SF well-powered at ~0;
+self-play consistently ~+15): the changes help vs our own style, not vs a differently built engine. → final joint retune.

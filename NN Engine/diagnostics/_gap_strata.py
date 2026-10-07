@@ -6,7 +6,7 @@ arms on the SAME rows, the SAME loss: win% squared error vs SF18 d14 search, val
 Per stratum: each evaluator's val MSE, and the GAP SHARE = how much of (ours − SF11) total squared-error excess sits in
 that stratum vs its share of rows. A gap spread in proportion to the rows ⇒ WEIGHTING (the joint retune's job); a gap
 concentrated in one stratum where SF11 is much better ⇒ a candidate MISSING FEATURE there.
-Strata: stage (opening ≤ move 10 / middlegame / endgame) · phase (non-pawn material, both sides) · structure (closed /
+Strata: stage (v2's own phase256: full MG / MG-leaning / EG-leaning / full EG) · phase (non-pawn material, both sides) · structure (closed /
 semi-open / open: blocked pawn pairs + open files) · material class (balanced / minor-for-pawns / exchange / queen
 imbalance / other) · |target| (level < 1 pawn, edge 1-3, decisive > 3) · optional corpus `type` (TYPES=).
 Error is the WIN% squared error (k=0.00368208): +15 vs +12 is ~0 (both winning), +0.5 vs −0.5 is large — by design.
@@ -42,8 +42,14 @@ def strata(fen, target):
         mat = "other imbalance"
     a = abs(target)
     lvl = "level (<1)" if a < 1 else ("edge (1-3)" if a <= 3 else "decisive (>3)")
-    # STAGE (owner 10-06): opening = early move number with most material still on; then middlegame / endgame by material.
-    stage = "opening (≤ move 10)" if (b.fullmove_number <= 10 and npm >= 50) else ("middlegame" if npm >= 30 else "endgame")
+    # STAGE (owner 10-06: "use the eval's own phase definitions"): v2's phase256 exactly — non-pawn material of BOTH sides in
+    # the engine's values (N 3250 B 3450 R 5000 Q 10000), 256 at ≥ EVAL_V2_MG_LIMIT 61,700, 0 at ≤ EVAL_V2_EG_LIMIT 15,800,
+    # linear between (eval_v2.cpp build_context). v2 has NO separate opening phase — "full MG" covers it.
+    npm_mp = sum(v * (len(b.pieces(p, chess.WHITE)) + len(b.pieces(p, chess.BLACK)))
+                 for p, v in ((chess.KNIGHT, 3250), (chess.BISHOP, 3450), (chess.ROOK, 5000), (chess.QUEEN, 10000)))
+    ph = 0 if npm_mp <= 15800 else (256 if npm_mp >= 61700 else (256 * (npm_mp - 15800)) // (61700 - 15800))
+    stage = ("1 full MG (phase 256)" if ph == 256 else "2 MG-leaning (128-255)" if ph >= 128 else
+             "3 EG-leaning (1-127)" if ph >= 1 else "4 full EG (phase 0)")
     # STRUCTURE: blocked pawn pairs (a pawn with an enemy pawn directly in front) and fully open files.
     wp_, bp_ = b.pieces(chess.PAWN, chess.WHITE), b.pieces(chess.PAWN, chess.BLACK)
     blocked = sum(1 for s in wp_ if chess.square_rank(s) < 7 and (s + 8) in bp_)

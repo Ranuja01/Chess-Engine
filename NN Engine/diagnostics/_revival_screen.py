@@ -338,5 +338,56 @@ def dual():
             label, " ".join("%s %+.2f" % (n, a) for n, a in zip(names, p)), *cells))
 
 
+def dualread():
+    """MODE=dualread ARM=<glob of the arm's d10 pass csvs> [SHIP=<glob of a ship re-run, reproduction check>]
+    (the arm's STATIC effect is MODE=dual FIXED=…, from the same dumps.) The REAL depth effect of an arm (queue #32): its own d10 search on the val rows vs the ship's d10 (`OURS`) on the same rows,
+    win% MSE (each with its own fitted STM+SCALE nuisance, as everywhere in this screen) and side-ahead bias, all / endgame."""
+    fens, _, ph, sf, d10, val, stm = load_rows()
+    idx = {f: i for i, f in enumerate(fens)}
+    arm = {}
+    for pth in glob.glob(KV["ARM"]):
+        for r in csv.DictReader(open(pth, newline="")):
+            arm[r["fen"]] = float(r["ours_cp_white"])
+    if KV.get("SHIP"):
+        ship = {}
+        for pth in glob.glob(KV["SHIP"]):
+            for r in csv.DictReader(open(pth, newline="")):
+                ship[r["fen"]] = float(r["ours_cp_white"])
+        same = sum(1 for f, v in ship.items() if f in idx and abs(v - d10[idx[f]]) < 0.051)
+        print("  ship d10 reproduction: %d / %d rows identical to %s" % (same, len(ship), OURS))
+    rows = [idx[f] for f in arm if f in idx]
+    rows = np.array(rows)
+    a = np.array([arm[fens[i]] for i in rows])
+    b, t, s, egm = d10[rows], wp(sf[rows]), stm[rows], ph[rows] < 128
+    sgn, big = np.sign(sf[rows]), np.abs(sf[rows]) > 25
+
+    def nuis_loss(x, m):
+        f = lambda n: float(np.mean((wp(x[m] * (1 + n[1]) + n[0] * s[m]) - t[m]) ** 2))
+        n = minimize(f, np.zeros(2), method="Nelder-Mead", options=dict(xatol=1e-6, fatol=1e-9)).x
+        return f(n), float(np.mean(((wp(x * (1 + n[1]) + n[0] * s) - t) * sgn)[m & big]))
+
+    print("THREATS REAL d10 (queue #32) — %d val rows (endgame %d) · arm vs ship (%s)" % (len(rows), egm.sum(), OURS))
+    allm = np.ones(len(rows), bool)
+    for scope, m in (("all", allm), ("endgame", egm), ("non-endgame", ~egm)):
+        (lb, bb), (la, ba) = nuis_loss(b, m), nuis_loss(a, m)
+        print("  %-12s win%% MSE ship %.1f → arm %.1f (%+.2f%%) · bias %+.2f → %+.2f" % (scope, lb, la, 100 * (la / lb - 1), bb, ba))
+    diff = np.abs(a - b)
+    print("  score changed by > 10 cp on %.0f%% of rows; median |Δ| %.0f cp" % (100 * (diff > 10).mean(), np.median(diff)))
+    if KV.get("SHIP"):
+        # THE HARNESS NULL: the ship re-run vs the stored ship pass on the SAME rows — the arm's effect must clear it
+        com = [k for k, i in enumerate(rows) if fens[i] in ship]
+        if com:
+            com = np.array(com)
+            sn = np.array([ship[fens[rows[k]]] for k in com])
+            m = np.zeros(len(rows), bool); m[com] = True
+            def l(x):
+                xx = np.zeros(len(rows)); xx[com] = x
+                return nuis_loss(xx, m)[0]
+            lo, lr, la = l(b[com]), l(sn), l(a[com])
+            print("  HARNESS NULL on the %d re-run rows: stored ship %.1f · ship RE-RUN %.1f (%+.2f%%) · arm %.1f (%+.2f%%) · "
+                  "median |re-run − stored| %.0f cp" % (len(com), lo, lr, 100 * (lr / lo - 1), la, 100 * (la / lo - 1),
+                                                       np.median(np.abs(sn - b[com]))))
+
+
 if __name__ == "__main__":
-    {"columns": columns, "dump": dump, "knobs": knobs, "gateexport": export, "dual": dual}[KV.get("MODE", "columns")]()  # ☠️ not "export": _texel_kauf_fit (imported) runs its own export on MODE=export
+    {"columns": columns, "dump": dump, "knobs": knobs, "gateexport": export, "dual": dual, "dualread": dualread}[KV.get("MODE", "columns")]()  # ☠️ not "export": _texel_kauf_fit (imported) runs its own export on MODE=export

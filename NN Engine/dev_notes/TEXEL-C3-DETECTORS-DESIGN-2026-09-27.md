@@ -1035,6 +1035,13 @@ magnitude). All legs fire (core 27% · hanging 34% · restrict 82% · king 6% ·
 MISS. ⇒ **THREATS CLOSED on a fair test** (not reasoned away). Why SF11's static threats looked strong: threats are
 TACTICAL — a d10 search resolves "piece attacked" itself, so a STATIC edge does not survive onto the depth target
 (Kaufman's material-imbalance knowledge did). Legs stay at 0 for the final retune.
+☠️ **REVERSED 2026-10-07 evening (queues #32/#33, `_revival_screen.py MODE=dual / dualread`):** the "closed" verdict was the
+ROOT-Δ PROXY's (ours' = d10 − α·Δroot), which is structurally biased against terms search resolves. A REAL d10 re-search of the
+4,952 val rows with PCT 100 + hanging + king + pawn targets: win% MSE **−7.78%** (eg −4.88 · non-eg −15.82) vs an
+identical-conditions ship re-run at −0.10% (the harness null; the stored 10-04 ship pass reproduced on only 146/300 rows).
+Static −4.1% (eg −4.9); speed ~free (NPS 412k vs 415k, within the 12% spread; nodes to d10 −4%). Proxy read +12.6%. ⇒ THREATS
+REOPENED → games gate (SF18 @1000 + self-play). Memory `root-delta-depth-proxy-is-biased-against-dynamic-terms`; every other
+DYNAMIC term closed on the proxy (mobility, space, longdiag, reach, latent, KPROT) needs the same real re-search.
 WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
 −74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
 (python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),

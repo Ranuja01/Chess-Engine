@@ -1,0 +1,10 @@
+# Pawn-ending cases reviewed with the owner 2026-10-07 (from the depth-target rows; #9 = owner's 10-04 game, kings reconstructed)
+8/1k6/7p/3p1p1P/3P1P2/8/3K4/8 b - - 3 63  # 1 locked, equal; Black's tempo to infiltrate
+8/1p2p3/2p5/2PpP3/pP1Pk3/P1K5/8/8 w - - 0 19  # 2 equal; king closeness wins a pawn
+8/8/p7/1p1k1p1K/1P3P2/P7/8/8 b - - 3 41  # 3 king/pawn race for the f-pawn
+8/5kp1/8/4KP1p/p6P/8/1P3P2/8 b - - 4 55  # 4 pawn up; f3 tempo move lets the king in
+8/6k1/8/8/K5p1/6P1/7P/8 w - - 1 50  # 5 majority + king tempo / opposition
+5k2/8/7P/5K2/pP6/6P1/2P2P2/8 b - - 0 63  # 6 race: a-pawn vs h-pawn, king distances
+8/5p2/2P5/7p/p1k5/8/4K3/8 b - - 0 64  # 7 unopposed c-pawn two from queening
+8/6p1/k2p2P1/3K3p/5P1P/2P5/8/8 b - - 1 21  # 8 d-pawn about to fall
+8/8/3k4/2p1p1p1/2p1P1P1/2P5/1P1K2P1/8 w - - 0 57  # 9 owner 10-04: dead draw (truth 0.00)

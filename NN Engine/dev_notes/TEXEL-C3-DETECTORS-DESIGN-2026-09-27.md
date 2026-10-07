@@ -1085,3 +1085,29 @@ killed the first attempt).** Shipped baselines: **@1000 48.7 / 48.5% ⇒ 48.6%**
 KFL+PST pair, all SF18 seeds (3,000 games per side): @800 +1.8/−3.0 · @1000 +2.3/−1.8 · @1200 −0.6/−1.7 ⇒ **≈ −0.5 pp ≈ −3 ± 8**
 vs self-play **+15.1 ± 9** ⇒ combined ≈ +5 ± 6 (0.8σ). ⇒ **NOT SHIPPED** — a genuine instrument split (SF well-powered at ~0;
 self-play consistently ~+15): the changes help vs our own style, not vs a differently built engine. → final joint retune.
+
+## 21. BENCH BEFORE THE POT DESIGN (owner, 2026-10-06/07; queues #29/#30, `_reference_ceiling.py DUMP=` + `_gap_strata.py`)
+**Static win% MSE vs SF18 d14 search (val; references REPRODUCE 09-26 exactly — the guard):**
+| evaluator | own-play | diverse | variants/960 | odds starts | K+P stress |
+|---|---|---|---|---|---|
+| SF18 static | 61.93 | 68.85 | 332 | 34 | 517 |
+| SF15.1 NNUE | 72.76 | 61.61 | 384 | 53 | 534 |
+| **SF11 classical** | **151.41** | **95.26** | 575 | 90 | 1170 |
+| v2 10-01 | 168.15 | 121.50 | 612 | 137 | 892 |
+| v2 + KFL+PST | 169.75 | 122.53 | 623 | 115 | 901 |
+| **v2 shipped** | **171.49** | **123.57** | 624 | 115 | **904** |
+| v1 | 188.85 | 238.77 | **291** | **62** | 1210 |
+| SF15.1 classical | 192.35 | 139.20 | 519 | 161 | 991 |
+(09-26: v2+FitA 170.17 / 126.93.) The 10-03/10-04 ships (≈ +30 Elo in games) made static error slightly WORSE (fitted on
+the depth target, not on static agreement) — static accuracy ≠ Elo, again.
+**STS300 at EQUAL NODES (249,014):** v2 shipped **1838** · v2+pair 1834 · v1 1752 · v2 10-01 1747 · (09-22 v2 1689; SF11 2374).
+**WHERE THE GAP TO SF11 LIVES** (share of rows → share of the v2−SF11 squared-error excess):
+endgame-leaning + full EG own-play 46% → 114% · diverse 53% → 68% · DECISIVE (>3) 35% → 88% / 51% → 65% · EDGE (1-3)
+diverse 24% → 46% · LEVEL (<1) 38% → −1% / 26% → −11% (we match/beat SF11) · MG-leaning own-play −16% (we beat SF11) ·
+EXCHANGE (R vs minor) own-play 13% → 43%. ⇒ CONCENTRATED: endgames + judging the SIZE of an advantage (conversion /
+scaling knowledge — SF11's scale factors, specialised endgames, material-dependent imbalance) + the exchange. A missing-
+KNOWLEDGE signal, not a weighting one ⇒ the POT endgame side (winnability takes over from POT, owner's design).
+☠️ **The v1 "variant win" is TACTICAL, not memorisation:** v1 291 vs v2 624 on variants (v2 sign-wrong 31% vs v1 14%), BUT v1
+without capture-gains = **725** (worse than v2): random-walk variant positions are tactically UNRESOLVED; v1's static capgains
+anticipates the pending captures that search resolves anyway. Odds: v2 signs fine (97%), error is scale. ⇒ for variants,
+judge UNDERSTANDING with our d10 SEARCH vs SF18 (the K+P method), never the static ladder.

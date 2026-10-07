@@ -4,13 +4,16 @@
 # wsl.exe wrapper killed queue #28 mid-block. ☠️ Memory `nohup-orphans-a-games-job-and-relaunch-double-cores-oom`: a
 # detached job is invisible to the session — so this REFUSES if the queue (or any games job) is already running, and
 # the caller must watch the LOG, not a task.
-#   bash selfplay/_launch_detached.sh <queue_script.sh> <log>
+#   bash selfplay/_launch_detached.sh <queue_script.sh> <log> [--waits]
 Q="$1"; LOG="$2"
 [ -f "$Q" ] || { echo "no such queue: $Q"; exit 1; }
 # Match the queue's EXACT command ("bash <queue path>", fixed string) — this launcher's own command line and the
 # $(...) subshell both contain the queue's name, so a name match refuses on itself (it did, twice, 10-06).
 RUNNING=$(ps -eo pid=,args= | grep -F "bash $Q" | grep -v -e grep -e _launch_detached)
 GAMES=$(ps -eo pid=,args= | grep -E "vs_sf\.py|tournament\.py" | grep -v grep)
+# --waits (3rd arg): the queue itself WAITS for the running job (an `until … DONE` + pgrep loop at its top), so only a
+# DUPLICATE of this same queue is refused.
+[ "$3" = "--waits" ] && GAMES=""
 if [ -n "$RUNNING$GAMES" ]; then
   echo "REFUSED: the queue or a games job is already running"; echo "$RUNNING"; echo "$GAMES"; exit 1
 fi

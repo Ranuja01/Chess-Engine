@@ -109,7 +109,15 @@ def main():
     import chess
     from ChessAI import ChessAI
     ai = ChessAI(None, None, chess.Board(), True)
-    engines.append(("OURS (current build)", lambda f: -ai.ev(chess.Board(f)) / 1000.0, "scalar"))
+    engines.append((os.environ.get("DUMPLABEL", "OURS (current build)"), lambda f: -ai.ev(chess.Board(f)) / 1000.0, "scalar"))
+    # DUMP=<csv> (2026-10-06): append one row per (evaluator, position) — fen, split, evaluator, pred, target (White-POV
+    # pawns) — so the gap can be STRATIFIED afterwards (phase / material class / |target|) without re-running engines.
+    dump = None
+    if os.environ.get("DUMP"):
+        new = not os.path.exists(os.environ["DUMP"])
+        dump = csv.writer(open(os.environ["DUMP"], "a", newline=""))
+        if new:
+            dump.writerow(["fen", "split", "evaluator", "pred", "target"])
 
     print("REFERENCE CEILING — static eval vs SF18-SEARCH target, %d corpus rows" % len(rows))
     print("Same loss as _ks_fit_eval (win%% squared error, Lichess k=0.00368208). Lower is better.\n")
@@ -131,6 +139,8 @@ def main():
                     continue
                 sse[sp] += (winpct(v * 100.0) - winpct(tgt * 100.0)) ** 2
                 cnt[sp] += 1
+                if dump is not None:
+                    dump.writerow([r["fen"], sp, label, "%.3f" % v, "%.3f" % tgt])
             except Exception:
                 continue
         tr = sse["train"] / cnt["train"] if cnt["train"] else float("nan")

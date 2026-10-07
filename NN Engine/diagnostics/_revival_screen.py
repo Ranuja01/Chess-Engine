@@ -344,6 +344,13 @@ def dualread():
     win% MSE (each with its own fitted STM+SCALE nuisance, as everywhere in this screen) and side-ahead bias, all / endgame."""
     fens, _, ph, sf, d10, val, stm = load_rows()
     idx = {f: i for i, f in enumerate(fens)}
+    if KV.get("REF"):                         # REF=<glob>: compare against THIS pass (e.g. threats-only) instead of `OURS`
+        ref = {}
+        for pth in glob.glob(KV["REF"]):
+            for r in csv.DictReader(open(pth, newline="")):
+                ref[r["fen"]] = float(r["ours_cp_white"])
+        d10 = np.array([ref.get(f, np.nan) for f in fens])
+        print("  REF = %s (%d rows)" % (KV["REF"], len(ref)))
     arm = {}
     for pth in glob.glob(KV["ARM"]):
         for r in csv.DictReader(open(pth, newline="")):
@@ -355,7 +362,7 @@ def dualread():
                 ship[r["fen"]] = float(r["ours_cp_white"])
         same = sum(1 for f, v in ship.items() if f in idx and abs(v - d10[idx[f]]) < 0.051)
         print("  ship d10 reproduction: %d / %d rows identical to %s" % (same, len(ship), OURS))
-    rows = [idx[f] for f in arm if f in idx]
+    rows = [idx[f] for f in arm if f in idx and not np.isnan(d10[idx[f]])]
     rows = np.array(rows)
     a = np.array([arm[fens[i]] for i in rows])
     b, t, s, egm = d10[rows], wp(sf[rows]), stm[rows], ph[rows] < 128

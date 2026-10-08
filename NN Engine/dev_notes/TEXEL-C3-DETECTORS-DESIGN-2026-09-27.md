@@ -1042,6 +1042,14 @@ identical-conditions ship re-run at −0.10% (the harness null; the stored 10-04
 Static −4.1% (eg −4.9); speed ~free (NPS 412k vs 415k, within the 12% spread; nodes to d10 −4%). Proxy read +12.6%. ⇒ THREATS
 REOPENED → games gate (SF18 @1000 + self-play). Memory `root-delta-depth-proxy-is-biased-against-dynamic-terms`; every other
 DYNAMIC term closed on the proxy (mobility, space, longdiag, reach, latent, KPROT) needs the same real re-search.
+**Real re-search on top of threats (queues #34/#35, 10-07; vs threats-only, all / eg / mg):** mobility (fitted) −2.7/−4.3/+1.6 ·
+**mobility EG LEG ONLY −3.2/−4.2/−0.3** · space −0.9/−0.1/**−3.5** · rook files −1.0/−1.0/−1.1 · reach −0.6/−2.3/+4.3 · KPROT
+0.0/−1.3/+3.5 · longdiag +0.2/−1.2/+3.8 · latent −0.2/−0.9/+1.3. Stacked (threats+mob-eg+space+rook files, #36): −0.7/−2.6/**+4.4**
+⇒ space/rook files interact in the mg → retune's dynamic lane.
+**GAMES (queue #37, 10-07/08; fresh seeds):** SF18 @1000 seeds 101-102 pooled (1,000 paired games): threats **+2 ± 12** · threats
++mob-eg +0 ± 13 (ship 50.4%). Self-play @50k, 2,000 g: threats **+32.1 ± 9** (54.6%) · threats+mob-eg +29.1 ± 9. Combined ≈ +21 ± 7
+(threats) — but the INSTRUMENTS DISAGREE (the KPROT / KFL+PST pattern); mob-eg adds nothing in games → retune. Predictions:
+threats +5…+20 (borderline HIT, +21) · pair ≥ threats (MISS). ⇒ queue #38: SF18 seeds 104-107, ship vs threats.
 WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
 −74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
 (python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),

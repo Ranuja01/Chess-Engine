@@ -123,6 +123,12 @@ initiative, placement, passers; pawn endings are a SEARCH gap (SF11 d10 −1.0 v
    passers…) on the depth target + static component; DYNAMIC terms (threats, mobility…) on the static target, each part
    CONFIRMED by a REAL d10 re-search (`MODE=dual VALOUT` → depth pass → `MODE=dualread` vs an identical-conditions ship re-run)
    before any game gate. Per-phase picks made on the val rows are optimistic — games are the independent check.
+   🔧 **RETUNE PLUMBING AUDIT (10-08):** per-leg TABLE loaders exist for PST, Kaufman, C1 (mobility · pawn structure ·
+   passers incl. king distance · placement's 9 sub-terms — missing cells keep LIVE θ, verified in the loader), KS-B, KFL, KPROT,
+   PX. KNOB-ONLY (need a loader before the split-leg retune): **threats** (compiled per-victim tables, one PCT, bool legs),
+   **space**, **rook files**, **connected pawns** (MAG + fixed `PS_V2_EG_RATIO`; computed BEFORE the C1 branch, so it survives
+   any C1 table), **reach / longdiag / latent**. KS attack knobs + winnability stay scalars. Build these after the running games
+   (never rebuild while a job runs), each byte-identical at its default.
 4. **Search arc** opens with SF11's pawn-ending rules (no null move / no shallow pruning when the mover has only pawns; passed-
    pawn push extension — SF11 search.cpp:846/998/1079; ours: null-move guard counts pawns, `isUnsafeForNullMovePruning`).
 

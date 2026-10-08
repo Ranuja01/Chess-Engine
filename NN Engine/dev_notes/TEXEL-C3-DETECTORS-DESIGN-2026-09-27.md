@@ -1060,6 +1060,11 @@ budget (self-play 50k vs gauntlet 250k: a tactical term fades with depth), (2) s
 **PX cells + passer re-price −2.31/−2.82/−0.68** · **free-path ladder (PATH 100) −2.59/−2.88/−0.79**. ⇒ two more PROXY-era
 closures REVERSE: PX ("adds nothing at depth", 10-04) and the path ladder (rejected 09-25 at the old passer magnitude) — passers
 are partly dynamic (races, path safety). Queue #40 re-measures them on the SHIP base (threats not shipping) + their stack.
+**10-08, queues #40/#41 — SHIP base (vs identical-conditions ship control; all / eg / mg):** **PX (cells + joint re-price)
+−5.56/−5.15/−6.76** · KFL −2.78/−0.17/**−9.60** (vs −0.8 mg on top of threats: KFL's mg signal overlaps threats' king/pawn-target
+legs) · path −1.25/−1.16/−1.06 · KFL+PX −3.94/−2.80/−6.89 (KFL costs PX's endgame). ☠️ **PATH LADDER IS DEAD UNDER ANY C1 TABLE**:
+`passer_value_mp`'s `g_c1_fit` branch `continue`s before the ladder, so "KFL+PX+path" was BYTE-IDENTICAL to KFL+PX (caught by the
+identical numbers). ⇒ queue #42: PX and KFL as SEPARATE arms vs the ship, SF18 @1000 seeds 108-109 + self-play seed 110.
 WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
 −74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
 (python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),

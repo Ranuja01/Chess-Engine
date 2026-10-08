@@ -1050,6 +1050,11 @@ DYNAMIC term closed on the proxy (mobility, space, longdiag, reach, latent, KPRO
 +mob-eg +0 ± 13 (ship 50.4%). Self-play @50k, 2,000 g: threats **+32.1 ± 9** (54.6%) · threats+mob-eg +29.1 ± 9. Combined ≈ +21 ± 7
 (threats) — but the INSTRUMENTS DISAGREE (the KPROT / KFL+PST pattern); mob-eg adds nothing in games → retune. Predictions:
 threats +5…+20 (borderline HIT, +21) · pair ≥ threats (MISS). ⇒ queue #38: SF18 seeds 104-107, ship vs threats.
+**10-08, queue #38 (stopped early at 4 seeds, owner decision):** seed 104 ship 50.0 / threats 47.3 · 105 50.7 / 50.0 ⇒ SF18
+pooled 101-105 (2,000 paired games) **−5 ± 9 Elo** vs self-play +32 ± 9 — a genuine instrument split. Hypotheses: (1) node
+budget (self-play 50k vs gauntlet 250k: a tactical term fades with depth), (2) symmetric threats mislead stand-pat/pruning,
+(3) self-play exploitation of the ship's blind spot. ⇒ NOT shipped; threats moves to the SEARCH TRANSITION (handoff 10-07,
+"ORDER RESHAPED 10-08"), first test self-play @250k.
 WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
 −74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
 (python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),

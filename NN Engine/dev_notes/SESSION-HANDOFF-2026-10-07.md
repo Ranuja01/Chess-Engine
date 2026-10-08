@@ -106,6 +106,16 @@ Old configs by env override: the 10-03 ship = `PS_V2_CONN_MAG=0` (255 / 47,218,4
   re-pricing −3.4% (→ final retune); PERSISTS: **pawn endings −9.3**, pure minor −4.5, pure rook −4.4.
 - **STS300 @ equal nodes:** v2 1838 · v1 1752 · (SF11 2374). **Mediocre v0.5 @ ~1 s:** v2 45% (v1 ≈ 15% in July).
 
+## ▶️ ORDER RESHAPED 2026-10-08 (owner) — supersedes the plan below where they differ
+Threats: real d10 −7.8%, self-play +32 ± 9, but SF18 @1000 **−5 ± 9 over 4 seeds** (2,000 paired games; queue #38 stopped early
+at 4 seeds by owner decision). Dynamic terms interact with search (pruning reads the static eval; corr hist may absorb part
+of what they add) ⇒ they cannot be priced before the search they interact with is settled. Order:
+1. finish the known STRUCTURAL elements (KFL, passers — queue #39) · 2. POT design (mg = structural, design + fit now; eg
+races/tempo/entry = design now, fit later) · 3. STRUCTURAL retune (split mg/eg legs; depth target + static component) ·
+4. **SEARCH TRANSITION**: SF11 pawn-ending rules · corr hist · **threats + its search interaction** (qsearch / pruning /
+side to move; first test: self-play at 250k nodes to see whether its gain fades with depth) · maybe NPS · 5. DYNAMIC-lane
+retune on the new search (threats, mobility, space, rook files, eg-POT dynamic parts) · 6. rest of the search arc.
+
 ## ▶️ PLAN AGREED 2026-10-07 EVENING (owner) — supersedes the step order below where they differ
 Evidence: REFERENCE-BENCH-LADDER §3a. The static endgame excess vs SF11 is threats-led (−75% counterfactual), then KFL/king,
 initiative, placement, passers; pawn endings are a SEARCH gap (SF11 d10 −1.0 vs ours −8.5), not an eval one.

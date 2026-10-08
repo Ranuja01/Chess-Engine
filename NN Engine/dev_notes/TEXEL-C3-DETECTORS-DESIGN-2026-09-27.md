@@ -1055,6 +1055,11 @@ pooled 101-105 (2,000 paired games) **−5 ± 9 Elo** vs self-play +32 ± 9 — 
 budget (self-play 50k vs gauntlet 250k: a tactical term fades with depth), (2) symmetric threats mislead stand-pat/pruning,
 (3) self-play exploitation of the ship's blind spot. ⇒ NOT shipped; threats moves to the SEARCH TRANSITION (handoff 10-07,
 "ORDER RESHAPED 10-08"), first test self-play @250k.
+**10-08, queue #39 — KNOWN ELEMENTS, real d10 re-search on top of threats (all / eg / mg vs threats-only):** KFL −1.95/−2.29/
+−0.82 · KFL eg-leg only −1.84/−2.33/−0.31 (no need to split) · passer re-price alone **+4.06**/+4.29/+2.04 (✗, as 10-04) ·
+**PX cells + passer re-price −2.31/−2.82/−0.68** · **free-path ladder (PATH 100) −2.59/−2.88/−0.79**. ⇒ two more PROXY-era
+closures REVERSE: PX ("adds nothing at depth", 10-04) and the path ladder (rejected 09-25 at the old passer magnitude) — passers
+are partly dynamic (races, path safety). Queue #40 re-measures them on the SHIP base (threats not shipping) + their stack.
 WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
 −74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
 (python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),

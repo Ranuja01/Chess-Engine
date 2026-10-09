@@ -112,6 +112,12 @@ Path = **"search v2"** with v2's method (reference audit → instruments first �
 params). **The search switches to NEGAMAX** (owner: the min/max split came from translating by hand; "no one is looking at code
 style — keep PLAY style unique while gaining strength"). Estimates: eval arc done ~2350-2450 · first transition ~2500 · speed
 rebuild + reductions ~2700 · mature search + synergy ~3000 — months. Memory `long-term-goal-3000-single-core-hce-via-search-v2`.
+★ **SEARCH v2, FIRST RULE (owner 10-08): re-audit every closed search item against the PREMISE it was closed under** (the
+"fifteen nulls" lesson, applied to search). All ~35 arms + 52 configs were swept at EVAL_ARM=0 (v1: expensive, colour-asymmetric
+eval). Premises that have since changed, with the items they reopen: cheap stand-pat / futility evals (`QSTANDPAT_EVAL_MODE`,
+`FUTILITY_EVAL_MODE` — v2 is ~11.5% of node cost and symmetric) · static move ordering (`ENABLE_STATIC_ORDER`) · pruning margins
+(a truer eval buys pruning headroom — `a-truer-eval-buys-pruning-headroom-the-crank-result`, measured on v1) · corr hist, singular,
+ProbCut, IIR (built, off). Table: item · premise · still true? · re-test.
 
 ## ▶️ ORDER RESHAPED 2026-10-08 (owner) — supersedes the plan below where they differ
 Threats: real d10 −7.8%, self-play +32 ± 9, but SF18 @1000 **−5 ± 9 over 4 seeds** (2,000 paired games; queue #38 stopped early

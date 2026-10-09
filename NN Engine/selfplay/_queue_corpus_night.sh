@@ -50,6 +50,21 @@ for i in 0 1 2 3; do
 done
 wait
 echo "[q49] $(date) VAR labelled: $(cat $D/VAR_sf18_s*.csv 2>/dev/null | grep -vc '^fen,')"
+# ── 1e. THIRD-OPPONENT tie-breaker (owner ship rule 10-09) for the KFL+PST pair (self-play +15, SF18 −3 ± 8): ship vs pair vs
+#        Mediocre v0.5, 50 games each, same seed, ~1 s/move. TIMED ⇒ skipped if it would start at/after 20:00 (owner games 9pm). ──
+O=/mnt/e/chess_data/texel/revival
+if [ "$(date +%H)" -lt 20 ]; then
+  for arm in ship kflpst; do
+    K=""; [ "$arm" = kflpst ] && K="KFL_V2=1 KFL_V2_FILE=$O/kfl_depth.txt PST_V2_FILE=$O/pst_depth.txt"
+    bash "$R" pyrun selfplay/vs_sf.py --our-label $arm --our-config "V2_PRESET=shipped $K MAX_DEPTH=64 USE_OPENING_BOOK=0" \
+      --preset LIGHTNING --sf-path "$ND/selfplay/mediocre_uci.sh" --opponent-raw --sf-elo 0 --sf-movetime 1.0 \
+      --games 50 --concurrency 2 --openings selfplay/openings_uho.txt --seed 111 --tag mediocre_${arm}_s111 --adjudicate-draw --quiet \
+      > $D/q49_mediocre_$arm.log 2>&1
+    echo "[q49] $(date) mediocre $arm done"
+  done
+else
+  echo "[q49] $(date) mediocre tie-breaker SKIPPED (would start after 20:00)"
+fi
 # ── 2. our d10 depth pass on slice A ──
 [ -s $D/A_sf18.csv ] || { head -1 $D/A_sf18_s0.csv > $D/A_sf18.csv; for i in 0 1 2 3; do tail -n +2 $D/A_sf18_s$i.csv >> $D/A_sf18.csv; done; }
 FP=$(env V2_PRESET=shipped bash "$R" wac fp_v2 2>&1 | grep -E "SOLVED|NODES" | tr '\n' ' ')

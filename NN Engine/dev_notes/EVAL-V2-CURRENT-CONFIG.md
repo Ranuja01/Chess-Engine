@@ -108,6 +108,10 @@ EVAL_ARM=1
   # Plateau checked: 1250 -> 253 solves / -10.2% nodes · 800 -> 248 solves / -19.8% ⇒ usable plateau 1000-1250,
   # and 1000 is its node-cheapest point at no solve cost. Revert = remove this line.
   RFP_MARGIN=1000
+  # ☠️ NAMING NOTE (owner 2026-10-09): WINNABILITY = "how winnable is the EXISTING edge" — a multiplicative endgame scale,
+  # the analogue of SF's scale_factor() ONLY. It is NOT SF12+'s winnable(), which bundles that scale with an ADDITIVE
+  # complexity term (SF11 "initiative"); in our scheme complexity belongs to POT's magnitude half. Since 10-09 winnability is
+  # STANDALONE (no longer POT's endgame leg); the POT_V2_WIN_* knob prefix is historical and kept on purpose.
   # ── POT (Potential) — "OvD reworked": the ENDGAME leg, WINNABILITY, shipped 2026-10-01 on the owner's sign-off ──
   # POT is the owner's v1 long-term-pressure invention (OvD = offensive vs defensive, the change credited with taking the
   # engine from struggling vs 1600 bots to competing with 2000s on chess.com), carried forward as potential to transform

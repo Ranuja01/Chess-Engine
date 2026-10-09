@@ -34,6 +34,7 @@ N = int(os.environ.get("N", "6000"))
 K = int(os.environ.get("K", "8"))
 SF_DEPTH = int(os.environ.get("SF_DEPTH", "14"))
 PLY_STRIDE = int(os.environ.get("PLY_STRIDE", "7"))
+EG_QUOTA = float(os.environ.get("EG_QUOTA", "0"))   # 2026-10-09: e.g. 0.5 ⇒ up to half the set "endgame" (≤ 13 pieces)
 OUT = os.environ.get("OUT", "ks_sets/game_regret_set.csv")
 if not os.path.isabs(OUT):
     OUT = os.path.join(THIS, OUT)
@@ -53,6 +54,10 @@ _srcs = [(os.path.join(THIS, rel), col) for rel, col in
           ("ks_sets/lowdepth_tuneset.csv", "fen"), ("ks_sets/regret_set.csv", "fen"))]
 _srcs += [(p, "fen") for p in sorted(glob.glob(os.path.join(THIS, "ks_sets", "game_regret_set*.csv")))
           if os.path.abspath(p) != os.path.abspath(OUT)]
+# 2026-10-09 (retune corpus): also keep disjoint from the existing DEPTH-labelled rows and every HELD-OUT set, so the new
+# corpus can never leak into a validation read.
+_srcs += [(os.path.join(THIS, "ks_sets", n), "fen") for n in
+          ("fitC_mg_sf18.csv", "fitC_eg_sf18.csv", "kp_stress_sf18.csv", "pe_rows_sf18.csv", "dual_val_sf18.csv")]
 for p, col in _srcs:
     if os.path.exists(p):
         try:
@@ -74,7 +79,8 @@ def phase_of(board):
 _gg = os.environ.get("GAMES_GLOB", os.path.join("*", "*.jsonl"))
 files = sorted(glob.glob(os.path.join(GAMES, _gg)))
 files = [f for f in files if "_archive" not in f and "_bak" not in f]
-stride_f = max(1, len(files) // 2500)          # spread over up to ~2500 distinct games
+MAX_GAMES = int(os.environ.get("MAX_GAMES", "2500"))   # 2026-10-09: configurable (2,500 games caps a set near ~35k rows)
+stride_f = max(1, len(files) // MAX_GAMES)     # spread over up to MAX_GAMES distinct games
 sel_files = files[::stride_f]
 # Optional file-SHARD (SHARD=i/n): split the selected game files across parallel labeler instances so spare
 # cores can be used (each SF engine is single-threaded). Shards are disjoint by construction -> just concat.
@@ -104,9 +110,24 @@ for fp in sel_files:
             continue
         seen.add(fen)
         picked.append((fen, phase_of(board)))
-    if len(picked) >= N:
+    if len(picked) >= N * (2 if EG_QUOTA else 1):
         break
+if EG_QUOTA:
+    # 2026-10-09: endgame-leaning quota (the retune weights endgames; own games under-sample them). Keep up to
+    # EG_QUOTA·N "endgame" rows first, then fill the rest in file order — deterministic.
+    eg = [p for p in picked if p[1] == "endgame"][:int(EG_QUOTA * N)]
+    rest = [p for p in picked if p[1] != "endgame"][:N - len(eg)]
+    picked = eg + rest
 picked = picked[:N]
+if os.environ.get("SAMPLE_ONLY"):
+    # 2026-10-09: write the sampled FENs only (fen, phase_bucket) and stop — label in parallel shards with
+    # _build_regret_set.py IN=… (this script's own labeller is single-process).
+    with open(os.environ["SAMPLE_ONLY"], "w", newline="") as fh:
+        w = csv.writer(fh); w.writerow(["fen", "phase_bucket"]); w.writerows(picked)
+    from collections import Counter
+    print("  SAMPLE_ONLY: %d FENs from %d game files → %s  %s" % (len(picked), len(sel_files), os.environ["SAMPLE_ONLY"],
+          dict(Counter(p for _, p in picked))), flush=True)
+    sys.exit(0)
 
 # Resume.
 done = {}

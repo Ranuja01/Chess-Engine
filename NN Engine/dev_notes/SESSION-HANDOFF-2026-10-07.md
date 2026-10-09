@@ -119,6 +119,20 @@ eval). Premises that have since changed, with the items they reopen: cheap stand
 (a truer eval buys pruning headroom — `a-truer-eval-buys-pruning-headroom-the-crank-result`, measured on v1) · corr hist, singular,
 ProbCut, IIR (built, off). Table: item · premise · still true? · re-test.
 
+## ▶️ DECISIONS 2026-10-09 (owner) — supersede the sections below where they differ
+- **ORDER:** retune plumbing → corpus generation → GIANT RETUNE → **POT LAST** (owner: POT is the final gap-filler, designed
+  from data AFTER every known term has grown to its optimum, so it fits the gaps instead of taking over) → search.
+- **SHIP RULE for small items (owner + 10-09 discussion):** SF18 measures the DEFENSIVE half (holes a strong opponent exploits);
+  self-play mostly the ATTACKING half against our own family's blind spots. Ship when **self-play ≥ +2σ AND SF18 not clearly
+  negative (better than −1σ) AND a THIRD opponent (Mediocre gauntlet) not negative** — the third opponent tests whether the
+  attacking gain generalises to hand-written peers, guarding against pure self-exploitation. Bundles allowed when parts are
+  individually too small to resolve (attribution only when a bundle wins).
+- **CORPUS:** start now, pausable/resumable: ~200k SF18 d14 single-best labels on E:\chess_data\retune (slice A: 140k own-play
+  from the never-sampled nested v2-era games, endgame quota 50%, disjoint from every depth/held-out set; then B variant 20k+5k
+  held-out, C odds 5k, D K+8P 5k seed≠41). Labels are engine-independent and reusable for every future tune (and the NN later);
+  our d10 pass is per-ship (~10 h / 200k). Real cost ≈ 1.5-2 days continuous (the pre-plan's "4 nights" counted nights only).
+- Pushed 2026-10-09: 118 commits (origin/NN-ENgine = ad463d9).
+
 ## ▶️ ORDER RESHAPED 2026-10-08 (owner) — supersedes the plan below where they differ
 Threats: real d10 −7.8%, self-play +32 ± 9, but SF18 @1000 **−5 ± 9 over 4 seeds** (2,000 paired games; queue #38 stopped early
 at 4 seeds by owner decision). Dynamic terms interact with search (pruning reads the static eval; corr hist may absorb part

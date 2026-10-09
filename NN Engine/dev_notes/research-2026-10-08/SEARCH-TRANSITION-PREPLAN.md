@@ -515,3 +515,13 @@ from the code read above.
   corrhist-qsearch-harmful…, corrhist-pawn-structure-reopens-pawn-hash, singular-banked, improving-heuristic-shelved,
   lighteval-standpat-is-leaf, ordering-and-reduction-idea-backlog, sf-source-paths-and-pruning-shapes,
   cutnode-allnode…, search-value-bugs…, tt-and-cache-architecture, root-delta-depth-proxy-is-biased-against-dynamic-terms.
+
+---
+## VERIFIED 2026-10-09 (code read; for the transition — nothing changed yet)
+1. **Null-move guard counts pawns as pieces** — `isUnsafeForNullMovePruning` (search_engine.cpp ~8509): `pieceNum` = all non-king
+   pieces incl. pawns; unsafe only below 7 (below 4 with a queen) ⇒ a PAWN-ONLY side with ≥ 7 pawns is null-moved (zugzwang). SF11
+   disables null move whenever the mover has no non-pawn material (search.cpp:846). Fix = a `non_pawn_material(us)==0` gate.
+2. **qsearch horizon return precedes the in-check test** — `qDepth >= MAX_QDEPTH` returns the static eval (search_engine.cpp ~7766)
+   before `currently_in_check` is computed (~7789) ⇒ a mated position at q-depth 10 is scored as a normal position (the 07-24
+   mate-blind defect, still live; rare). Fix = test check first (or never horizon-return while in check).
+Both change search behaviour and the fingerprint ⇒ gate each like any arm, first items of the transition.

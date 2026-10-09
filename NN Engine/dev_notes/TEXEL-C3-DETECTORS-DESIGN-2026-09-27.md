@@ -1065,6 +1065,12 @@ are partly dynamic (races, path safety). Queue #40 re-measures them on the SHIP 
 legs) · path −1.25/−1.16/−1.06 · KFL+PX −3.94/−2.80/−6.89 (KFL costs PX's endgame). ☠️ **PATH LADDER IS DEAD UNDER ANY C1 TABLE**:
 `passer_value_mp`'s `g_c1_fit` branch `continue`s before the ladder, so "KFL+PX+path" was BYTE-IDENTICAL to KFL+PX (caught by the
 identical numbers). ⇒ queue #42: PX and KFL as SEPARATE arms vs the ship, SF18 @1000 seeds 108-109 + self-play seed 110.
+**10-09, queue #42 GAMES (fresh seeds):** ship 51.6% on 108-109. **PX: SF18 −12 ± 12 · self-play +4.9 ± 9 ⇒ combined ≈ −1 ± 7.
+KFL: SF18 −15 ± 12 · self-play +10.6 ± 9 ⇒ ≈ +1 ± 7.** Neither ships. Queue #43: passer subsystem refitted on the 10-04 base
+(by-game split + SCALE nuisance, `px_depth1008_*`) — real d10 only −2.93 / eg −1.62 / mg −6.46 (vs the 10-03-base PX −5.56).
+☠️ **THIRD real-d10 gain that did not become Elo** (threats −7.8% → SF18 −5; PX −5.6% → −12; KFL −2.8% → −15): the depth target
+measures score CALIBRATION, not move choice — memory `real-d10-accuracy-gains-did-not-become-elo`. Before the final retune
+leans on it, validate a MOVE-based instrument (move-regret / sibling ordering) against these three known game outcomes.
 WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
 −74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
 (python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),

@@ -132,6 +132,14 @@ ProbCut, IIR (built, off). Table: item · premise · still true? · re-test.
   held-out, C odds 5k, D K+8P 5k seed≠41). Labels are engine-independent and reusable for every future tune (and the NN later);
   our d10 pass is per-ship (~10 h / 200k). Real cost ≈ 1.5-2 days continuous (the pre-plan's "4 nights" counted nights only).
 - Pushed 2026-10-09: 118 commits (origin/NN-ENgine = ad463d9).
+- **POT ↔ RETUNE (owner + recommendation, 10-09 evening) — NESTED, the 09-27 rule:** (1) retune the known terms; (2) design
+  POT against the RESIDUAL of the retuned eval; (3) fit POT on top with the known terms FROZEN (it must pay incrementally);
+  (4) a light JOINT refit of everything — known terms shifting a lot when POT enters = POT taking over (counts AGAINST POT);
+  (5) games. POT is shaped by the gaps yet priced jointly (no double count).
+- **CORPUS USE:** structural retune fits on QUIET rows only (SF18 best move not a capture/check/promotion, no qsearch swing —
+  Ethereal's PV-leaf filter); UNQUIET/tactical rows are kept labelled + tagged for the dynamic lane and for designing POT from
+  data. Label mix (A 140k / A2 400k): level 19% · 0.5-1.5 15% · 1.5-4 26-28% · 4-15 36-39% · ≥15 2%; colours balanced ⇒ the fit
+  weights rows by score band (emphasise ≈ −4…+4; decided rows are near-saturated in win%).
 
 ## ▶️ ORDER RESHAPED 2026-10-08 (owner) — supersedes the plan below where they differ
 Threats: real d10 −7.8%, self-play +32 ± 9, but SF18 @1000 **−5 ± 9 over 4 seeds** (2,000 paired games; queue #38 stopped early

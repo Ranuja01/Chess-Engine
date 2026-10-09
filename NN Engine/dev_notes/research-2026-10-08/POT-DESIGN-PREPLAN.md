@@ -438,3 +438,13 @@ Proposed three-quantity split (for discussion):
   transformation works) · eg complexity (pending races/entries, reserve tempi) / eg potential (who wins the race/entry; tempo).
   Separate mg/eg legs like every v2 term. SF11's asymmetry is a design hint: mg complexity mostly = "less certain" (dampen),
   eg complexity can mean "more winning" too.
+- **CONSOLIDATION NEEDED (owner 10-09).** The giants run TWO mechanisms here; we have one: (a) the multiplicative eg SCALE —
+  shipped, but missing SF15.1's queen-vs-no-queen, OCB-with-pieces, rook-ending and lone-minor-leader rules (EVAL-NUANCES doc) →
+  structural, do them with the known elements before the structural retune; (b) COMPLEXITY — absent (WIN_V2 failed on its
+  additive form; a continuous form is untested) → POT's magnitude half. Draw/repetition behaviour (10-04 game) re-checked in the
+  search transition where eval meets repetition.
+- **mg POT must push EITHER WAY (owner):** its POTENTIAL half is directional — "this trade gives us a good pawn structure / an
+  isolated passer" favours one side. SF's "mg only dampens" applies to its COMPLEXITY only (SF has no potential term). So: mg
+  complexity mostly dampens · mg potential both ways · eg both halves both ways. Guard rails: score the OPTION not the execution
+  (once the trade happens, search and the pawn/passer terms own the result); POT feeds/modulates the owner term (likelihood of
+  the structure), never prices the structure itself.

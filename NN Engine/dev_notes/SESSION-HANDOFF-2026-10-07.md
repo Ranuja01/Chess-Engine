@@ -106,6 +106,13 @@ Old configs by env override: the 10-03 ship = `PS_V2_CONN_MAG=0` (255 / 47,218,4
   re-pricing −3.4% (→ final retune); PERSISTS: **pawn endings −9.3**, pure minor −4.5, pure rook −4.4.
 - **STS300 @ equal nodes:** v2 1838 · v1 1752 · (SF11 2374). **Mediocre v0.5 @ ~1 s:** v2 45% (v1 ≈ 15% in July).
 
+## 🎯 LONG-TERM GOAL (owner, 2026-10-08): ~3000 CCRL, SINGLE CORE, hand-written eval
+Today ≈ 2265-2340 (±100, Mediocre anchor). Gap ≈ 700 Elo, mostly SEARCH + SPEED (~450k NPS vs 1.5-3M in 3000-class HCEs).
+Path = **"search v2"** with v2's method (reference audit → instruments first → one feature at a time → fair gates; SPSA for search
+params). **The search switches to NEGAMAX** (owner: the min/max split came from translating by hand; "no one is looking at code
+style — keep PLAY style unique while gaining strength"). Estimates: eval arc done ~2350-2450 · first transition ~2500 · speed
+rebuild + reductions ~2700 · mature search + synergy ~3000 — months. Memory `long-term-goal-3000-single-core-hce-via-search-v2`.
+
 ## ▶️ ORDER RESHAPED 2026-10-08 (owner) — supersedes the plan below where they differ
 Threats: real d10 −7.8%, self-play +32 ± 9, but SF18 @1000 **−5 ± 9 over 4 seeds** (2,000 paired games; queue #38 stopped early
 at 4 seeds by owner decision). Dynamic terms interact with search (pruning reads the static eval; corr hist may absorb part

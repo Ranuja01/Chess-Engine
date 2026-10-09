@@ -429,3 +429,12 @@ Proposed three-quantity split (for discussion):
   = POT ("entry potential"). Meeting point to settle: "no potential left ⇒ drawish" (the 10-04 game) — one owner only.
 - Also: reserve-tempi / zugzwang parity (encoded by no reference) · tablebase WDL labels as the horizon-free instrument for ≤7-man
   eg-POT · later (search v2): a cheap "how unresolved" signal could drive LMR/time management (unique-where-better candidate).
+- ☠️ **NAMING (10-09): our "winnability" ≠ SF's "winnable".** SF11 = `initiative()` (additive complexity; mg can only DAMPEN —
+  `min(complexity + 50, 0)` — eg either way) + `scale_factor()` (multiplicative eg scale). SF12+/15.1 renamed initiative →
+  `winnable()` AND folded the scale factor into it. Ethereal = `evaluateComplexity()` (king-free) + `evaluateScaleFactor()`.
+  Weiss = scale factor only. OURS: "winnability" (`POT_V2_WIN`) ≈ SF's `scale_factor()` only; the old additive `WIN_V2` ≈ SF11
+  initiative (failed on form). In our scheme: complexity → POT magnitude; scale factor → winnability.
+- **POT's two halves exist PER PHASE** (owner): mg complexity (tension, levers, centre, unresolved KS) / mg potential (whose
+  transformation works) · eg complexity (pending races/entries, reserve tempi) / eg potential (who wins the race/entry; tempo).
+  Separate mg/eg legs like every v2 term. SF11's asymmetry is a design hint: mg complexity mostly = "less certain" (dampen),
+  eg complexity can mean "more winning" too.

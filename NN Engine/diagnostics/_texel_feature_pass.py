@@ -35,7 +35,9 @@ import ChessAI
 ai = ChessAI.ChessAI(None, None, chess.Board(), True)
 tmg, teg = (np.array(x) for x in ChessAI.v2_feature_theta())
 P = ChessAI.V2F_PER_SIDE
-BLOCKS = [("mobility", slice(0, 66)), ("pawn_struct", slice(66, 77)), ("v2_passers", slice(77, 97)),
+# pawn_struct = doubled/isolated/backward/weak-unopposed (66-76) + the CONN connected-pawn cells (235-336, 2026-10-09): the
+# block's published score includes connected pawns, which flag-4 refused before they were decomposed.
+BLOCKS = [("mobility", slice(0, 66)), ("pawn_struct", np.r_[66:77, 235:337]), ("v2_passers", slice(77, 97)),
           ("v2_placement", slice(97, 106)),
           # C3-a king shelter + pawn storm (2026-09-27). ⚠️ With KSB_V2 off its block score is ABSENT (read as 0 here)
           # and theta is 0, so the gate passes VACUOUSLY; prove closure under KSB_V2=1 with a non-zero test table.

@@ -100,7 +100,7 @@ def load_depth():
 def corpora_rows():
     import ChessAI
     ai = ChessAI.ChessAI(None, None, chess.Board(), True)
-    assert ChessAI.V2F_PER_SIDE == NV
+    assert ChessAI.V2F_PER_SIDE >= NV   # 337 since the CONN cells (2026-10-09); this tool reads the first NV columns
     out = []
     srcs = [("passer_corpus", r["tier"], r["fen"], 100.0 * float(r["sf18"]))
             for r in csv.DictReader(open(os.path.join(THIS, "ks_sets/passer_corpus.csv"), newline=""))
@@ -114,7 +114,7 @@ def corpora_rows():
         wc, bc, fl = ChessAI.v2_feature_counts(b)
         occ, kf = pst_kauf(fen)
         out.append((corpus, grp, fen, sf, -float(eb["total"]) / 10.0, int(eb.get("v2_phase256", -1)), fl,
-                    np.array([y - x for x, y in zip(wc, bc)], float), occ, kf))
+                    np.array([y - x for x, y in zip(wc, bc)], float)[:NV], occ, kf))
     return out
 
 

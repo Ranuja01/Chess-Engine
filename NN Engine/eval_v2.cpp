@@ -323,6 +323,13 @@ static int    kfl_w[2][KFL_CELLS], kprot_w[2][KPROT_CELLS];
 static constexpr int PX_CELLS = 51;
 static int    px_w[2][PX_CELLS];
 static bool   g_px_on = false;
+// CONN: the CONNECTED-PAWN term as fittable cells (2026-10-09, retune plumbing; Config::CONN_V2 + CONN_V2_FILE). Cells
+// [relative rank 1..6][file class a-h 0, b-g 1, c-f 2, d-e 3][phalanx][opposed] = 96 main cells, then 6 supporter cells
+// (per supporting pawn, by rank — a supporter's eg value depends on the rank). Value per PAWN (main) / per SUPPORTER, mg and
+// eg legs FREE (the shipped form derives eg from mg via PS_V2_EG_RATIO; the table does not). Unread while g_conn_on is false.
+static constexpr int CONN_MAIN = 96, CONN_CELLS = CONN_MAIN + 6;
+static int    conn_w[2][CONN_CELLS];
+static bool   g_conn_on = false;
 
 static constexpr int V2_PST_VALUES = 6 * 2 * 64;
 
@@ -1244,6 +1251,27 @@ static constexpr int PS_CONN_FILE_256[8] = {143, 284, 287, 309, 309, 287, 284, 1
 static constexpr int PS_ISO_FILE_MG[8] = {-104,  -31,   25,   61,   61,   25,  -31, -104};
 static constexpr int PS_ISO_FILE_EG[8] = {-101, -104, -108, -129, -129, -108, -104, -101};
 
+/* CONN cells (retune plumbing, 2026-10-09). File class is file-mirror symmetric (PS_CONN_FILE_256 is), so f and 7 − f share
+ * a cell. conn_main_live = the constant path's EXACT integer arithmetic for one connected pawn up to (not including) the
+ * supporter bonus and PS_V2_CONN_MAG — the starting value of a main cell (see conn_load_table for the rounding caveat). */
+static inline int conn_fclass(int f) noexcept { return f < 4 ? f : 7 - f; }
+static inline int conn_cell(int r, int f, bool ph, bool op) noexcept
+{
+	return ((r - 1) * 4 + conn_fclass(f)) * 4 + (ph ? 2 : 0) + (op ? 1 : 0);
+}
+static inline int conn_main_live(int r, int f, bool ph, bool op) noexcept
+{
+	int mod = 256;
+	if (ph) mod += 128;
+	if (op) mod -= 128;
+	int base = (Config::PS_V2_CONN_FORM == 2) ? Config::PS_V2_CONN_FLAT : PS_CONN_RANK_MP[r];
+	if (Config::PS_V2_CONN_FORM == 0 && r >= Config::PS_V2_TILT_MIN_RANK){
+		const int tilt = 256 + ((PS_CONN_FILE_256[f] - 256) * Config::PS_V2_FILE_TILT) / 256;
+		base = (base * tilt) >> 8;
+	}
+	return (base * mod) >> 8;
+}
+
 /* LAYER B -- the structure SCORE. Reads ONLY Layer A's masks, so it caches alongside them.
  * Returns Black-positive milli-pawns: White's structure subtracts, Black's adds.
  *
@@ -1286,6 +1314,15 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c, Eval
 			const uint64_t m  = 1ULL << sq;
 			const int      f  = sq & 7;
 			const int      r  = white ? (sq >> 3) : (7 - (sq >> 3));   // relative rank, 0-based
+
+			// CONN table (retune plumbing): free mg/eg legs per cell, every knob folded in at load.
+			if (g_conn_on && r >= 1 && r <= 6){
+				const int cell = conn_cell(r, f, (m & e.phalanx[s]) != 0, (m & e.opposed[s]) != 0);
+				const int nsup = __builtin_popcountll(own & (white ? ps_batt(m) : ps_watt(m)));
+				side_mg[s] += conn_w[0][cell] + nsup * conn_w[0][CONN_MAIN + r - 1];
+				side_eg[s] += conn_w[1][cell] + nsup * conn_w[1][CONN_MAIN + r - 1];
+				continue;
+			}
 
 			// SF's (2 + phalanx - opposed), expressed in /256 so the neutral case is exactly 256.
 			int mod = 256;
@@ -3757,8 +3794,9 @@ static constexpr int V2F_MOB = 0, V2F_DOUBLED = 66, V2F_ISO = 67, V2F_BACKWARD =
                      V2F_PASSED = 77, V2F_CAND = 85, V2F_KD = 93, V2F_OUT_N = 97, V2F_OUT_B = 98,
                      V2F_BEHIND = 99, V2F_BADB = 100, V2F_TRAPR = 104, V2F_WEAKQ = 105,
                      V2F_C1_END = 106, V2F_KSB = 106, V2F_KFL = V2F_KSB + KSB_CELLS, V2F_KPROT = V2F_KFL + KFL_CELLS,
-                     V2F_PX = V2F_KPROT + KPROT_CELLS;    // PX passer cells appended 2026-10-03
-static_assert(V2F_PX + PX_CELLS == V2F_PER_SIDE, "v2_features layout: the PX cells must end the per-side block");
+                     V2F_PX = V2F_KPROT + KPROT_CELLS,    // PX passer cells appended 2026-10-03
+                     V2F_CONN = V2F_PX + PX_CELLS;        // CONN connected-pawn cells appended 2026-10-09 (retune plumbing)
+static_assert(V2F_CONN + CONN_CELLS == V2F_PER_SIDE, "v2_features layout: the CONN cells must end the per-side block");
 static constexpr int V2F_MOB_BASE[4] = {0, 9, 23, 38};   // offsets of N / B / R / Q move-count cells
 
 void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
@@ -3776,7 +3814,8 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 	// Knobs whose terms this extractor does not decompose: a live one would leave its value in the "fixed" part.
 	if (Config::OUTPOST_V2_FORM != 0 || Config::BADB_V2_FORM != 1 || Config::TRAPROOK_V2_FORM != 0
 	    || Config::MOB_V2_SAFE || Config::REACH_V2_PCT || Config::LONGDIAG_V2_PCT || Config::LATENT_V2_PCT
-	    || Config::PASSER_V2_PATH_PCT || Config::PS_V2_CONN_MAG || (g_ksb_on && Config::KSB_V2_CASTLE)) flags |= 4;
+	    || Config::PASSER_V2_PATH_PCT || (g_ksb_on && Config::KSB_V2_CASTLE)) flags |= 4;
+	// (PS_V2_CONN_MAG left this list 2026-10-09: the connected term is now decomposed as the CONN cells.)
 	out[2 * V2F_PER_SIDE] = flags;
 
 	// Mobility: the same area, pin restriction and x-ray occupancy the scorer's attack build uses.
@@ -3878,6 +3917,24 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 		px_counts(c, pe, wa, ba, s == 0, px);
 		for (int i = 0; i < PX_CELLS; ++i) out[s * V2F_PER_SIDE + V2F_PX + i] = px[i];
 	}
+
+	// CONN connected-pawn cells (2026-10-09), unconditional: the scorer's exact pawn set (incl. PS_V2_CONN_EXCL).
+	for (int s = 0; s < 2; ++s){
+		const bool white = (s == 0);
+		const uint64_t own = c.pawns & (white ? c.white : c.black);
+		long long *o = out + s * V2F_PER_SIDE;
+		uint64_t bb = own & (pe.phalanx[s] | pe.supported[s]);
+		if (Config::PS_V2_CONN_EXCL >= 1) bb &= ~pe.backward[s];
+		while (bb){
+			const int sq = __builtin_ctzll(bb);
+			bb &= bb - 1;
+			const uint64_t m = 1ULL << sq;
+			const int r = white ? (sq >> 3) : (7 - (sq >> 3));
+			if (r < 1 || r > 6) continue;
+			++o[V2F_CONN + conn_cell(r, sq & 7, (m & pe.phalanx[s]) != 0, (m & pe.opposed[s]) != 0)];
+			o[V2F_CONN + CONN_MAIN + r - 1] += __builtin_popcountll(own & (white ? ps_batt(m) : ps_watt(m)));
+		}
+	}
 }
 
 /* Starting value of every C1 parameter, (mg, eg) millipawns per unit of its count, from the live Config: the
@@ -3894,6 +3951,26 @@ void v2_features_theta(double *mg, double *eg)
 		for (int i = 0; i < KPROT_CELLS; ++i){ mg[V2F_KPROT + i] = kprot_w[0][i]; eg[V2F_KPROT + i] = kprot_w[1][i]; }
 	if (g_px_on)
 		for (int i = 0; i < PX_CELLS; ++i){ mg[V2F_PX + i] = px_w[0][i]; eg[V2F_PX + i] = px_w[1][i]; }
+	// CONN (2026-10-09): the loaded table when on; else the LIVE connected term decomposed (0 when the term is off). Set before
+	// the C1 return — CONN is independent of C1. Under C1 the block's final PS_V2_MAG scale is skipped, so ps = 1 there.
+	if (g_conn_on){
+		for (int i = 0; i < CONN_CELLS; ++i){ mg[V2F_CONN + i] = conn_w[0][i]; eg[V2F_CONN + i] = conn_w[1][i]; }
+	} else if (Config::PS_V2_MAG && Config::PS_V2_CONN_MAG){
+		const double psc = (g_c1_fit ? 1.0 : Config::PS_V2_MAG / 100.0) * Config::PS_V2_CONN_MAG / 100.0;
+		const bool flat = (Config::PS_V2_CONN_FORM == 2);
+		for (int r = 1; r <= 6; ++r){
+			const double egf = flat ? 1.0 : (r - 2) / 4.0 * Config::PS_V2_EG_RATIO / 100.0;
+			for (int fc = 0; fc < 4; ++fc)
+				for (int ph = 0; ph < 2; ++ph)
+					for (int op = 0; op < 2; ++op){
+						const int k = V2F_CONN + conn_cell(r, fc, ph, op);
+						mg[k] = conn_main_live(r, fc, ph, op) * psc;
+						eg[k] = mg[k] * egf;
+					}
+			mg[V2F_CONN + CONN_MAIN + r - 1] = Config::PS_V2_SUPPORT * psc;
+			eg[V2F_CONN + CONN_MAIN + r - 1] = Config::PS_V2_SUPPORT * psc * egf;
+		}
+	}
 	if (g_c1_fit){
 		// The ACTIVE fitted values, so a pass under C1_V2_FIT=1 checks the engine against the fitted model (closure).
 		for (int i = 0; i < 4; ++i)
@@ -4061,6 +4138,8 @@ static bool c3_load_table(const char *knob, const char *env_name, int k0, int n,
 	return true;
 }
 
+static void conn_load_table();
+
 /* Load the C3 detector tables -- C3-a shelter/storm (KSB_V2), C3-b pawnless flank + king-pawn distance (KFL_V2), C3-c
  * KingProtector (KPROT_V2) -- once at engine init. Each block is independent, so the nested fits can switch them
  * separately. */
@@ -4087,6 +4166,49 @@ void v2_c3_init()
 	if (g_ksb_on && Config::KSB_V2_CASTLE) std::cerr << "[c3] KSB_V2_CASTLE: shelter scored at the castling max" << '\n';
 	if (Config::KAUF_V2_MAG != 0 && Config::KAUF_V2_FORM == 3) kauf_fit_load();
 	g_px_on = Config::PX_V2 && c3_load_table("PX_V2", "PX_V2_FILE", V2F_PX, PX_CELLS, px_w[0], px_w[1]);
+	if (Config::CONN_V2) conn_load_table();
+}
+
+/* CONN table (retune plumbing, 2026-10-09). UNLIKE the C3 tables (reference 0), every cell STARTS at the live connected term
+ * (v2_features_theta's decomposition, rounded), so a file naming only some cells — fitters skip unchanged ones — still
+ * reproduces the ship elsewhere UP TO ROUNDING: cells are integers per pawn / per supporter, where the constant path rounds
+ * once per pawn after summing, so expect ≤ ~1 mp per connected pawn of difference — the TABLE path is a fittable form, the
+ * constant path stays the shipped one (CONN_V2 = 0 is byte-identical). Line format as C1/C3: `feature_k leg start fitted`, k in [V2F_CONN, V2F_CONN + CONN_CELLS).
+ * A missing or malformed file leaves the block OFF (the constant path), never half-loaded. Under the table PS_V2_CONN_MAG /
+ * PS_V2_SUPPORT / PS_V2_EG_RATIO / the file tilt are folded into the values; PS_V2_MAG is folded too (warned if ≠ 100). */
+static void conn_load_table()
+{
+	g_conn_on = false;
+	std::vector<double> tmg(V2F_PER_SIDE), teg(V2F_PER_SIDE);
+	v2_features_theta(tmg.data(), teg.data());               // g_conn_on is false here ⇒ the LIVE decomposition
+	int w[2][CONN_CELLS];
+	for (int i = 0; i < CONN_CELLS; ++i){
+		w[0][i] = (int)std::lround(tmg[V2F_CONN + i]);
+		w[1][i] = (int)std::lround(teg[V2F_CONN + i]);
+	}
+	const char *path = std::getenv("CONN_V2_FILE");
+	int n_set = 0;
+	if (path && *path){
+		std::ifstream in(path);
+		if (!in){ std::cerr << "☠️ CONN_V2_FILE=" << path << " cannot be opened -- CONN_V2 stays OFF." << '\n'; return; }
+		std::string line;
+		while (std::getline(in, line)){
+			if (line.empty() || line[0] == '#') continue;
+			int k, leg; double start, fitted;
+			if (std::sscanf(line.c_str(), "%d %d %lf %lf", &k, &leg, &start, &fitted) != 4 || k < V2F_CONN
+			    || k >= V2F_CONN + CONN_CELLS || leg < 0 || leg > 1){
+				std::cerr << "☠️ CONN_V2_FILE malformed line '" << line << "' -- CONN_V2 stays OFF." << '\n';
+				return;
+			}
+			w[leg][k - V2F_CONN] = (int)std::lround(fitted);
+			++n_set;
+		}
+	}
+	for (int i = 0; i < CONN_CELLS; ++i){ conn_w[0][i] = w[0][i]; conn_w[1][i] = w[1][i]; }
+	g_conn_on = true;
+	if (Config::PS_V2_MAG != 100)
+		std::cerr << "⚠️ CONN_V2 folds PS_V2_MAG into the cell values; it is not 100 here." << '\n';
+	std::cerr << "[c3] CONN_V2 ON: " << n_set << " values from " << (path && *path ? path : "(none — live decomposition)") << '\n';
 }
 
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)

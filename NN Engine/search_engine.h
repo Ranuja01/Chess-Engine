@@ -930,6 +930,10 @@ namespace Config
     //   ROOKE: R vs R, leader ≤ 1 pawn up, its pawns on one flank, defending king next to its pawns (SF: 36 ⇒ −28)
     //   QNOQ (+ QNOQ_MINOR × minors of the side without the queen): exactly one queen (SF: 37 + 3·minors ⇒ −27, +3)
     //   LONEMINOR: leader has no pawns and at most one minor, no rook/queen — cannot win (SF: draw ⇒ −64)
+    // CONN_V2 (2026-10-09, retune plumbing): score connected pawns from the CONN cell table (96 rank × file-class × phalanx ×
+    // opposed cells + 6 supporter cells, FREE mg/eg legs) instead of MAG/SUPPORT/EG_RATIO. Cells start at the live term;
+    // CONN_V2_FILE overrides some or all (k leg start fitted). 0 = the constant path = byte-identical.
+    inline int CONN_V2 = 0;
     inline int POT_V2_WIN_OCBX = 0, POT_V2_WIN_OCBX_PC = 0, POT_V2_WIN_ROOKE = 0, POT_V2_WIN_QNOQ = 0, POT_V2_WIN_QNOQ_MINOR = 0,
                POT_V2_WIN_LONEMINOR = 0;
     inline int KS_V2_W_N = 31;

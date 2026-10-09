@@ -2395,6 +2395,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::POT_V2_WIN_ONEFLANK = env_int("POT_V2_WIN_ONEFLANK", Config::POT_V2_WIN_ONEFLANK);
         Config::POT_V2_WIN_OCB = env_int("POT_V2_WIN_OCB", Config::POT_V2_WIN_OCB);
         Config::POT_V2_WIN_PASSED = env_int("POT_V2_WIN_PASSED", Config::POT_V2_WIN_PASSED);
+        Config::CONN_V2 = env_int("CONN_V2", Config::CONN_V2);
         Config::POT_V2_WIN_OCBX = env_int("POT_V2_WIN_OCBX", Config::POT_V2_WIN_OCBX);
         Config::POT_V2_WIN_OCBX_PC = env_int("POT_V2_WIN_OCBX_PC", Config::POT_V2_WIN_OCBX_PC);
         Config::POT_V2_WIN_ROOKE = env_int("POT_V2_WIN_ROOKE", Config::POT_V2_WIN_ROOKE);
@@ -2619,7 +2620,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " POT_V2_WIN_OCBX=" << Config::POT_V2_WIN_OCBX << " POT_V2_WIN_OCBX_PC=" << Config::POT_V2_WIN_OCBX_PC
                   << " POT_V2_WIN_ROOKE=" << Config::POT_V2_WIN_ROOKE << " POT_V2_WIN_QNOQ=" << Config::POT_V2_WIN_QNOQ
                   << " POT_V2_WIN_QNOQ_MINOR=" << Config::POT_V2_WIN_QNOQ_MINOR
-                  << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR
+                  << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR << " CONN_V2=" << Config::CONN_V2
                   << " MCL_V2=" << Config::MCL_V2 << " MCL_V2_Q0=" << Config::MCL_V2_Q0 << " MCL_V2_QR=" << Config::MCL_V2_QR
                   << " MCL_V2_QM=" << Config::MCL_V2_QM << " MCL_V2_QP=" << Config::MCL_V2_QP
                   << " MCL_V2_R2M=" << Config::MCL_V2_R2M << " MCL_V2_MP0=" << Config::MCL_V2_MP0

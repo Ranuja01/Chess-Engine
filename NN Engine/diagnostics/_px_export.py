@@ -19,7 +19,7 @@ import chess
 import ChessAI
 
 OUT = os.environ.get("OUT", "/mnt/e/chess_data/texel/px_labelled.npz")
-assert ChessAI.V2F_PER_SIDE == 235, "this build predates the PX block (V2F_PER_SIDE %d)" % ChessAI.V2F_PER_SIDE
+assert ChessAI.V2F_PER_SIDE >= 235, "this build predates the PX block (V2F_PER_SIDE %d)" % ChessAI.V2F_PER_SIDE   # 337 since the CONN cells (2026-10-09); all columns are exported
 ai = ChessAI.ChessAI(None, None, chess.Board(), True)
 fens, diffs, phases, flags = [], [], [], []
 seen = set()

@@ -48,13 +48,15 @@ void v2_pst_init();
 	C3-a king shelter cells 106-129 (file class F x 6 states) and pawn storm cells 130-161 (F x 8 states), counted at
 	the king's actual square · C3-b 162-171 (nearest own pawn d 2/3/4/5+, nearest enemy pawn d 2/3/4/5+, flank empty,
 	flank only enemy) · C3-c KingProtector 172-183 (knight d 1..6+, bishop d 1..6+) · PX passer system 184-234
-	(layout at eval_v2.cpp px_counts; 2026-10-03). All C3 cells are reported whether
+	(layout at eval_v2.cpp px_counts; 2026-10-03) · CONN connected pawns 235-336 (2026-10-09): 96 main cells
+	[rank 1..6][file class a-h/b-g/c-f/d-e][phalanx][opposed] (count of pawns) then 6 supporter cells by rank (count of
+	supporters; layout at eval_v2.cpp conn_cell). All C3 cells are reported whether
 	or not their knob is on (layouts: ksb_cells / kfl_cells / kprot_counts in eval_v2.cpp).
 	v2_features_theta writes each parameter's STARTING value (mg, eg) in millipawns from the live Config, so every
 	unit conversion stays here in C++. Blocks: see diagnostics/_texel_feature_pass.py.
 	☠️ ChessAI.pyx hard-codes V2F_PER_SIDE and the 2*V2F_PER_SIDE+1 buffer size; change them together.
 */
-constexpr int V2F_PER_SIDE = 235;   // 184 + 51 PX passer cells (2026-10-03)
+constexpr int V2F_PER_SIDE = 337;   // 184 + 51 PX passer cells (2026-10-03) + 102 CONN cells (2026-10-09)
 void v2_features(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens,
                  uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t castling_rights,
                  long long *out);

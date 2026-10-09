@@ -1537,6 +1537,37 @@ static inline int ps_kdist(int a, int b) noexcept
  * ☠️ Taking piece attacks here does NOT cost the pawn cache: the cacheable block is the DETECTOR
  * (build_pawn_entry), not this scorer, and this scorer already read c.kings for king distance.
  */
+/* SF11's PATH-SAFETY LADDER for one passer (evaluate.cpp:626-635), in SF units × the rank weight w × PASSER_V2_PATH_PCT.
+ * Shared by the constant and the C1 paths (2026-10-09: it used to live inside the constant path only, so ANY C1 table made
+ * PASSER_V2_PATH_PCT silently dead — caught when a "+path" stack read byte-identical to the stack without it).
+ * Gated on an EMPTY stop square exactly as SF is. Returns 0 when the stop square is off-board or occupied.
+ * ⚠️ KNOWN DEVIATION FROM SF, deliberate: SF intersects with a PLAIN attack set; ours is the SHARED map (x-ray under
+ * KS_V2_XRAY), so `unsafe` is strictly larger and k is, if anything, one rung more pessimistic.
+ * ☠️ SF's asymmetry (the enemy half of rook-behind-passer): with an enemy R/Q behind the pawn the span stays MAXIMALLY unsafe. */
+static inline int passer_path_kw(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, bool white, int sq,
+                                 int stop, int w) noexcept
+{
+	if (stop < 0 || stop >= 64 || (c.occupied & (1ULL << stop))) return 0;
+	const uint64_t spanf   = white ? passed_span_white[sq] : passed_span_black[sq];
+	const uint64_t toQueen = spanf & BB_FILES[sq & 7];
+	// Squares BEHIND the pawn on its own file = the OTHER colour's forward span, same file (SF's forward_file_bb(Them, s)).
+	const uint64_t behind  = (white ? passed_span_black[sq] : passed_span_white[sq]) & BB_FILES[sq & 7];
+	const uint64_t rq      = (c.rooks | c.queens) & behind;
+	const uint64_t theirs  = white ? c.black : c.white;
+	const uint64_t ours    = white ? c.white : c.black;
+	const uint64_t their_att = white ? ba.all : wa.all;
+	const uint64_t our_att   = white ? wa.all : ba.all;
+	uint64_t unsafe_sq = spanf;
+	if (!(theirs & rq)) unsafe_sq &= their_att;
+	int k = !unsafe_sq                        ? PS_PATH_K[0]
+	      : !(unsafe_sq & toQueen)            ? PS_PATH_K[1]
+	      : !(unsafe_sq & (1ULL << stop))     ? PS_PATH_K[2]
+	      :                                     PS_PATH_K[3];
+	// Our own R/Q behind, or a defended stop square -- SF's other half of P3.
+	if ((ours & rq) || (our_att & (1ULL << stop))) k += PS_PATH_K_DEFENDED;
+	return k * w * Config::PASSER_V2_PATH_PCT / 100;
+}
+
 static inline int passer_value_mp(const PawnEntry &e, const V2Context &c,
                                   const SideAttacks *wa, const SideAttacks *ba, EvalPair *legs = nullptr)
 {
@@ -1574,6 +1605,17 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c,
 					if (stop >= 0 && stop < 64)
 						feg += (int)std::lround((ps_kdist(theirK, stop) * c1_kd[ci][0]
 						                       + ps_kdist(ourK, stop) * c1_kd[ci][1]) * w);
+					// The path ladder is NOT a C1 column, so it is not folded into the fitted values: apply it with the
+					// same candidate / phase-percent / magnitude scaling the constant path gives it.
+					if (path_on){
+						const int kw = passer_path_kw(c, *wa, *ba, white, sq, stop, w);
+						if (kw){
+							long long lm = (long long)kw * 1000 / PS_SF_PAWN_MG, le = (long long)kw * 1000 / PS_SF_PAWN_EG;
+							if (ci){ lm = lm * Config::PASSER_V2_CAND_PCT / 100; le = le * Config::PASSER_V2_CAND_PCT / 100; }
+							fmg += (int)(lm * Config::PASSER_V2_MG_PCT / 100 * Config::PASSER_V2_MAG / 100);
+							feg += (int)(le * Config::PASSER_V2_EG_PCT / 100 * Config::PASSER_V2_MAG / 100);
+						}
+					}
 				}
 				side_mg[s] += fmg;
 				side_eg[s] += feg;
@@ -1595,44 +1637,9 @@ static inline int passer_value_mp(const PawnEntry &e, const V2Context &c,
 					     - ps_kdist(ourK,   stop) * Config::PASSER_V2_KING_US) * w / 100;
 				}
 
-				// ── gap-audit P1+P2: SF's PATH-SAFETY LADDER (evaluate.cpp:626-635) ──────────────
-				// ⚠️ Gated on an EMPTY stop square exactly as SF is: a pawn that cannot take its first
-				// step is not "free to advance", and the whole ladder is about advancing.
-				if (path_on && stop >= 0 && stop < 64 && !(c.occupied & (1ULL << stop))){
-					const uint64_t spanf   = white ? passed_span_white[sq] : passed_span_black[sq];
-					const uint64_t toQueen = spanf & BB_FILES[sq & 7];
-					// Squares BEHIND the pawn on its own file = the OTHER colour's forward span, same
-					// file. This is SF's forward_file_bb(Them, s).
-					const uint64_t behind  = (white ? passed_span_black[sq] : passed_span_white[sq])
-					                       & BB_FILES[sq & 7];
-					const uint64_t rq      = (c.rooks | c.queens) & behind;
-					const uint64_t theirs  = white ? c.black : c.white;
-					const uint64_t ours    = white ? c.white : c.black;
-					// ⚠️ KNOWN DEVIATION FROM SF, deliberate. SF intersects with attackedBy[ALL_PIECES],
-					// a PLAIN attack set. Ours is the SHARED map, which under KS_V2_XRAY (on in the
-					// shipped config) sees bishops through queens and rooks through queens + own rooks.
-					// So our `unsafe` set is strictly larger than SF's and our k is, if anything, one rung
-					// more pessimistic. Reusing the shared map is the right trade -- a second, x-ray-free
-					// build for one term would cost more than the rung it buys -- but if the ladder ever
-					// reads as too weak, this is the first thing to test (KS_V2_XRAY=0).
-					const uint64_t their_att = white ? ba->all : wa->all;
-					const uint64_t our_att   = white ? wa->all : ba->all;
-
-					// ☠️ SF's asymmetry, and it IS the enemy half of rook-behind-passer: with an enemy
-					// R/Q behind the pawn the span stays MAXIMALLY unsafe -- the attack intersection is
-					// skipped -- because that piece rakes the file as the pawn advances. Dropping this
-					// branch would silently turn the ladder into "is the span attacked right now".
-					uint64_t unsafe_sq = spanf;
-					if (!(theirs & rq)) unsafe_sq &= their_att;
-
-					int k = !unsafe_sq                        ? PS_PATH_K[0]
-					      : !(unsafe_sq & toQueen)            ? PS_PATH_K[1]
-					      : !(unsafe_sq & (1ULL << stop))     ? PS_PATH_K[2]
-					      :                                     PS_PATH_K[3];
-					// Our own R/Q behind, or a defended stop square -- SF's other half of P3.
-					if ((ours & rq) || (our_att & (1ULL << stop))) k += PS_PATH_K_DEFENDED;
-
-					const int kw = k * w * Config::PASSER_V2_PATH_PCT / 100;
+				// ── gap-audit P1+P2: SF's PATH-SAFETY LADDER (evaluate.cpp:626-635) — see passer_path_kw ──
+				if (path_on){
+					const int kw = passer_path_kw(c, *wa, *ba, white, sq, stop, w);
 					mg += kw * 1000 / PS_SF_PAWN_MG;
 					eg += kw * 1000 / PS_SF_PAWN_EG;
 				}

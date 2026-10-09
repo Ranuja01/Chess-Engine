@@ -152,6 +152,11 @@ initiative, placement, passers; pawn endings are a SEARCH gap (SF11 d10 −1.0 v
    **space**, **rook files**, **connected pawns** (MAG + fixed `PS_V2_EG_RATIO`; computed BEFORE the C1 branch, so it survives
    any C1 table), **reach / longdiag / latent**. KS attack knobs + winnability stay scalars. Build these after the running games
    (never rebuild while a job runs), each byte-identical at its default.
+   ➕ **WINNABILITY MATERIAL-CLASS CAPS (built 10-09, byte-identical at 0; queue #45)** → the retune's STRUCTURAL lane (owner:
+   "a couple of small gains put together may add up"; fitted JOINTLY with Kaufman + material, gated as part of the retune — no
+   standalone gate). Fires: QNOQ 10.6% · OCBX 7.5% · ROOKE 0.16% · LONEMINOR 0.16%. Start values: QNOQ −27/+3 (fit α ≈ 0.9 of SF),
+   OCBX ≈ 0.4 × SF (−17/+1), ROOKE −28, LONEMINOR −64. Fitted together: depth −1.2%, static −1.2%, no harm; symmetry clean.
+   ⚠️ Small gains have also CANCELLED when stacked (KFL+PX, space+rook files) — joint fit + gate the stack, never sum parts.
 4. **Search arc** opens with SF11's pawn-ending rules (no null move / no shallow pruning when the mover has only pawns; passed-
    pawn push extension — SF11 search.cpp:846/998/1079; ours: null-move guard counts pawns, `isUnsafeForNullMovePruning`).
 

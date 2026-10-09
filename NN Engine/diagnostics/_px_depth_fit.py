@@ -12,6 +12,7 @@ MISC (PX 49-50: file, square rule) · ALL. Each block also read on top of RANK (
 Output: C1_V2_FILE lines for 77-96 and PX_V2_FILE lines for 184-234 (`k leg start fitted`).
 
   pyrun diagnostics/_px_depth_fit.py [OURS_MG=fitC_mg_ours1003_d10] [OURS_EG=fitC_eg_ours1003_d10] [LAMBDA=1e-2] [TAG=px_depth]
+                                     [SPLIT=game|fen] [SCALE=1|0]   (2026-10-08: by-game split + SCALE nuisance by default)
 """
 import os, sys, csv, glob, hashlib
 import numpy as np
@@ -46,6 +47,12 @@ def main():
     ours.update(load_ours(KV.get("OURS_EG", "fitC_eg_ours1003_d10")))
     z = np.load(os.path.join(DATA, KV.get("FEAT", "px_labelled.npz")))
     idx = {f: i for i, f in enumerate(z["fen"])}
+    # ☠️ VAL SPLIT BY GAME (2026-10-08; the revival screen's 10-05 fix): positions of one game share material and structure,
+    # so a FEN-hash split leaks near-copies into val and flatters high-capacity blocks. SPLIT=fen reproduces the old runs.
+    gid = {}
+    for smp in ("fitC_mg_sample.csv", "fitC_eg_sample.csv"):
+        for r in csv.DictReader(open(os.path.join(THIS, "ks_sets", smp), newline="")):
+            gid[r["fen"]] = r["game_id"]
     rows, sf, base, val, stm = [], [], [], [], []
     for lab in ("fitC_mg_sf18.csv", "fitC_eg_sf18.csv"):
         for r in csv.DictReader(open(os.path.join(THIS, "ks_sets", lab), newline="")):
@@ -55,7 +62,8 @@ def main():
             if z["flags"][idx[f]] & 3:          # draw-classifier / tier-2b rows: the linear model does not hold
                 continue
             rows.append(idx[f]); sf.append(float(r["best_cp"])); base.append(ours[f])
-            val.append(int(hashlib.md5(f.encode()).hexdigest()[:8], 16) % 100 < 15)
+            key = gid.get(f, f) if KV.get("SPLIT", "game") == "game" else f
+            val.append(int(hashlib.md5(key.encode()).hexdigest()[:8], 16) % 100 < 15)
             stm.append(1.0 if f.split()[1] == "w" else -1.0)
     rows, sf, base, val, stm = map(np.array, (rows, sf, base, val, stm))
     ph = z["phase"][rows].astype(np.float64)
@@ -67,40 +75,52 @@ def main():
     print("PX DEPTH FIT  rows %d (val %d) · columns %d × 2 legs · rows with a PX cell %.1f%%"
           % (len(sf), val.sum(), nc, 100 * (np.abs(D[:, len(RANK):]).sum(1) > 0).mean()))
 
+    # p = [weights (2·nc), STM nuisance, SCALE nuisance s]: ours' = base·(1+s) − X·w/10 + STM·stm.
+    # ☠️ SCALE (2026-10-08; the revival screen's 10-05 control): SF18 search scores run larger than ours, so without a free
+    # GLOBAL stretch in the baseline AND every arm, a block can 'win' by inflating evals. Never exported. SCALE=0 disables.
+    use_s = KV.get("SCALE", "1") == "1"
+    nw = 2 * nc
+
     def cp(p):
-        return base - (X @ p[:-1]) / 10.0 + p[-1] * stm
+        return base * (1.0 + p[-1]) - (X @ p[:nw]) / 10.0 + p[-2] * stm
 
     def loss(p, m):
         return float(np.mean((wp(cp(p)[m]) - tgt[m]) ** 2))
 
-    s0 = minimize(lambda q: loss(np.r_[np.zeros(2 * nc), q], tr), [0.0]).x[0]
-    pb = np.r_[np.zeros(2 * nc), s0]
-    vb = loss(pb, val)
     lam = float(KV.get("LAMBDA", 1e-2))
 
-    def fit(colset):
+    def fit(colset, start):
         mask = np.array([c in colset for c in cols])
         m2 = np.r_[mask, mask]
         def fg(p):
-            pp = p.copy(); pp[:-1][~m2] = 0.0
+            pp = p.copy(); pp[:nw][~m2] = 0.0
             c = cp(pp)[tr]; q = wp(c); r = q - tgt[tr]
             g = 2.0 * r * q * (1 - q / 100.0) * K * (np.abs(c) < 1500)
             gw = -(X[tr] * g[:, None]).mean(0) / 10.0
             gw[~m2] = 0.0
-            return float(np.mean(r * r)) + lam * float(pp[:-1] @ pp[:-1]) / 1e4, \
-                np.r_[gw + 2 * lam * pp[:-1] / 1e4, float((g * stm[tr]).mean())]
-        res = minimize(fg, pb.copy(), jac=True, method="L-BFGS-B", options={"maxiter": 4000})
-        p = res.x.copy(); p[:-1][~m2] = 0.0
+            gs = float((g * base[tr]).mean()) if use_s else 0.0
+            return float(np.mean(r * r)) + lam * float(pp[:nw] @ pp[:nw]) / 1e4, \
+                np.r_[gw + 2 * lam * pp[:nw] / 1e4, float((g * stm[tr]).mean()), gs]
+        # tight tolerances + start at the baseline nuisances (the 10-05 lesson: a loose stop reads blocks as −0.00%)
+        res = minimize(fg, start.copy(), jac=True, method="L-BFGS-B",
+                       options={"maxiter": 20000, "ftol": 1e-15, "gtol": 1e-12})
+        p = res.x.copy(); p[:nw][~m2] = 0.0
         return p
+
+    pb = fit(set(), np.zeros(nw + 2))           # the baseline: nuisances only
+    vb = loss(pb, val)
+    print("  baseline nuisances: STM %+.1f cp · SCALE %+.3f" % (pb[-2], pb[-1]))
 
     arms = {"RANK": set(RANK)}
     for b, cs in BLOCKS.items():
         arms[b] = set(cs)
         arms["RANK+" + b] = set(RANK) | set(cs)
     arms["ALL"] = set(cols)
+    if KV.get("ARMS"):                          # ARMS=ALL (comma list): fit only these — the export needs ALL alone
+        arms = {k: v for k, v in arms.items() if k in KV["ARMS"].split(",")}
     out = {}
     for name, cs in arms.items():
-        p = fit(cs)
+        p = fit(cs, pb)
         out[name] = p
         print("  %-14s val %+.2f%%" % (name, 100 * (loss(p, val) / vb - 1)))
     p = out["ALL"]

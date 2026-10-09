@@ -413,3 +413,19 @@ Memory: `ovd-is-the-owners-long-term-pressure-concept`, `the-remaining-eval-gap-
 References: SF11 `evaluate.cpp`, `material.cpp`, `endgame.cpp`, `search.cpp`; SF15.1 `evaluate.cpp`; Ethereal and Weiss
 `evaluate.c` (GitHub master, fetched; line numbers unverified); chessprogramming.org (Pawn Endgame, Unstoppable Passer);
 Wikipedia (K+P vs K, Opposition, Corresponding squares, Passed pawn, Tempo); arXiv 2310.16410.
+
+---
+## Framing notes from the owner conversation (2026-10-09, before the POT discussion)
+Owner: winnability is now STANDALONE (not POT's endgame half); POT = intuitively capturing POTENTIAL ("not yet kinetic").
+Proposed three-quantity split (for discussion):
+- **Winnability** — can the edge that exists NOW be converted? (multiplicative scale; material config, pawn count, OCB, "leader
+  can ever create a passer", fortress/blockade, material realizability, queen-vs-no-queen scale).
+- **POT magnitude = complexity** — how much can the position still change (direction-free). SF11's "Initiative" (SF12+
+  "winnable") and Ethereal's complexity are THIS, lumped with convertibility — which is why SF files *infiltration* there.
+- **POT direction = potential** — WHO benefits from what is unresolved; TIMING TEMPO decides races/entry/zugzwang, so it lives here.
+  The flat side-to-move bonus stays a search margin; "initiative" in the human (forcing-play) sense is kinetic → threats/search.
+- Ownership rule: decides whether an EXISTING edge converts → winnability; describes an edge that does not exist yet but could →
+  POT. Owner's distinction applied: infiltration ALREADY happened = kinetic; the POSSIBILITY (entry squares, defender too slow)
+  = POT ("entry potential"). Meeting point to settle: "no potential left ⇒ drawish" (the 10-04 game) — one owner only.
+- Also: reserve-tempi / zugzwang parity (encoded by no reference) · tablebase WDL labels as the horizon-free instrument for ≤7-man
+  eg-POT · later (search v2): a cheap "how unresolved" signal could drive LMR/time management (unique-where-better candidate).

@@ -1071,6 +1071,11 @@ KFL: SF18 −15 ± 12 · self-play +10.6 ± 9 ⇒ ≈ +1 ± 7.** Neither ships. 
 ☠️ **THIRD real-d10 gain that did not become Elo** (threats −7.8% → SF18 −5; PX −5.6% → −12; KFL −2.8% → −15): the depth target
 measures score CALIBRATION, not move choice — memory `real-d10-accuracy-gains-did-not-become-elo`. Before the final retune
 leans on it, validate a MOVE-based instrument (move-regret / sibling ordering) against these three known game outcomes.
+**10-09, queue #44 — INSTRUMENT VALIDATION** (footprint d7 regret vs the ship, changed-move win%, 6,000 rows × game_regret_set /
+_v2; neutral ASPIRATION_DELTA=300 = 50.4 / 49.7): +threats 48.3/49.3 · +PX 51.4/49.5 · +KFL 49.9/47.8 · −connected 51.4/50.8 (a
++14.5 gain removed reads BETTER — wrong sign) · −10-03 ship 49.0/48.6 · −PST fit A 47.8/48.5. ⇒ regret tracks the SF18-game sign on
+4/6 (d10 MSE: 0/3 on the nulls) but mostly inside its ~2-2.5 pp bar. Neither cheap instrument resolves ±15-Elo items ⇒ the retune:
+fits propose · d10 MSE + regret screen HARM · GAMES decide per part.
 WINNABILITY (`diagnostics/_win_depth_fit.py`; scale active on 8.4% of rows): shipped knobs re-fit to BASE −40 / SP 30 / OCB
 −74 at **+0.04%** — the 10-01 static-label fit is CONFIRMED on the depth target; +ONEFLANK +0.02%; **+PASSED +5 → −0.33%**
 (python-chess passers; closure needed before any gate); ALL −0.36%. Prediction −0.1…−0.4 for the ship knobs: MISS (no gain),

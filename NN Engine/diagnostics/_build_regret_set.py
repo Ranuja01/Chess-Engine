@@ -82,21 +82,25 @@ else:
 done = {}
 if os.path.exists(OUT):
     for r in csv.DictReader(open(OUT, newline="")):
-        if r.get("fen"):
+        # ☠️ APPEND mode (2026-10-09): a pause/kill can leave a HALF-WRITTEN last line — only COMPLETE rows count as done,
+        # so a truncated one is relabelled (assembly keeps the last complete row per FEN).
+        if r.get("fen") and r.get("best_cp") not in (None, "") and r.get("moves"):
             done[r["fen"]] = r
 
 FIELDS = ["fen", "phase_bucket", "best_uci", "best_cp", "moves"]
 out_rows = list(done.values())
 
+# 2026-10-09: APPEND-ONLY writing. The old flush rewrote the WHOLE file every 50 rows — O(n²), already slowing a 35k-row shard
+# from 29 to 18 rows/s and prohibitive at 100k+. Each row is now written once; flushed every 50.
+_new_file = not os.path.exists(OUT) or os.path.getsize(OUT) == 0
+_fh = open(OUT, "a", newline="")
+_w = csv.DictWriter(_fh, fieldnames=FIELDS)
+if _new_file:
+    _w.writeheader()
+
 
 def flush():
-    tmp = OUT + ".tmp"
-    with open(tmp, "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=FIELDS)
-        w.writeheader()
-        for r in out_rows:
-            w.writerow({k: r.get(k, "") for k in FIELDS})
-    os.replace(tmp, OUT)
+    _fh.flush()
 
 
 atexit.register(flush)
@@ -131,8 +135,10 @@ for i, (fen, ph) in enumerate(picked, 1):
     if not pairs:
         continue
     best_uci, best_cp = pairs[0]
-    out_rows.append({"fen": fen, "phase_bucket": ph, "best_uci": best_uci, "best_cp": best_cp,
-                     "moves": ";".join("%s:%d" % (u, c) for u, c in pairs)})
+    row = {"fen": fen, "phase_bucket": ph, "best_uci": best_uci, "best_cp": best_cp,
+           "moves": ";".join("%s:%d" % (u, c) for u, c in pairs)}
+    out_rows.append(row)
+    _w.writerow(row)
     n_new += 1
     if n_new % 50 == 0:
         flush()

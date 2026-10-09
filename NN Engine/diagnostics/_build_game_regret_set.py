@@ -58,6 +58,8 @@ _srcs += [(p, "fen") for p in sorted(glob.glob(os.path.join(THIS, "ks_sets", "ga
 # corpus can never leak into a validation read.
 _srcs += [(os.path.join(THIS, "ks_sets", n), "fen") for n in
           ("fitC_mg_sf18.csv", "fitC_eg_sf18.csv", "kp_stress_sf18.csv", "pe_rows_sf18.csv", "dual_val_sf18.csv")]
+# EXCLUDE_EXTRA=a.csv,b.csv (2026-10-09): further sets to stay disjoint from (e.g. earlier retune-corpus slices on E:).
+_srcs += [(p, "fen") for p in os.environ.get("EXCLUDE_EXTRA", "").split(",") if p]
 for p, col in _srcs:
     if os.path.exists(p):
         try:

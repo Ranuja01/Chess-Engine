@@ -924,6 +924,14 @@ namespace Config
     // POT_V2_WIN = 0: absent, byte-identical.
     inline int POT_V2_WIN = 0;
     inline int POT_V2_WIN_BASE = 0, POT_V2_WIN_SP = 0, POT_V2_WIN_ONEFLANK = 0, POT_V2_WIN_OCB = 0, POT_V2_WIN_PASSED = 0;
+    // Material-class CAPS on the winnability scale (2026-10-09, SF15.1 winnable()/material.cpp; EVAL-NUANCES-VS-GIANTS doc).
+    // When the class holds, f = min(f, 64 + knob …); 0 = cap 64 = absent = byte-identical. The base knob enables each rule.
+    //   OCBX (+ OCBX_PC × leader's piece count): opposite bishops WITH other pieces (SF: 22 + 3·pieces ⇒ OCBX −42, PC +3)
+    //   ROOKE: R vs R, leader ≤ 1 pawn up, its pawns on one flank, defending king next to its pawns (SF: 36 ⇒ −28)
+    //   QNOQ (+ QNOQ_MINOR × minors of the side without the queen): exactly one queen (SF: 37 + 3·minors ⇒ −27, +3)
+    //   LONEMINOR: leader has no pawns and at most one minor, no rook/queen — cannot win (SF: draw ⇒ −64)
+    inline int POT_V2_WIN_OCBX = 0, POT_V2_WIN_OCBX_PC = 0, POT_V2_WIN_ROOKE = 0, POT_V2_WIN_QNOQ = 0, POT_V2_WIN_QNOQ_MINOR = 0,
+               POT_V2_WIN_LONEMINOR = 0;
     inline int KS_V2_W_N = 31;
     inline int KS_V2_W_B = 31;
     inline int KS_V2_W_R = 47;

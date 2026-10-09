@@ -2395,6 +2395,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::POT_V2_WIN_ONEFLANK = env_int("POT_V2_WIN_ONEFLANK", Config::POT_V2_WIN_ONEFLANK);
         Config::POT_V2_WIN_OCB = env_int("POT_V2_WIN_OCB", Config::POT_V2_WIN_OCB);
         Config::POT_V2_WIN_PASSED = env_int("POT_V2_WIN_PASSED", Config::POT_V2_WIN_PASSED);
+        Config::POT_V2_WIN_OCBX = env_int("POT_V2_WIN_OCBX", Config::POT_V2_WIN_OCBX);
+        Config::POT_V2_WIN_OCBX_PC = env_int("POT_V2_WIN_OCBX_PC", Config::POT_V2_WIN_OCBX_PC);
+        Config::POT_V2_WIN_ROOKE = env_int("POT_V2_WIN_ROOKE", Config::POT_V2_WIN_ROOKE);
+        Config::POT_V2_WIN_QNOQ = env_int("POT_V2_WIN_QNOQ", Config::POT_V2_WIN_QNOQ);
+        Config::POT_V2_WIN_QNOQ_MINOR = env_int("POT_V2_WIN_QNOQ_MINOR", Config::POT_V2_WIN_QNOQ_MINOR);
+        Config::POT_V2_WIN_LONEMINOR = env_int("POT_V2_WIN_LONEMINOR", Config::POT_V2_WIN_LONEMINOR);
         Config::KS_V2_W_N = env_int("KS_V2_W_N", Config::KS_V2_W_N);
         Config::KS_V2_W_B = env_int("KS_V2_W_B", Config::KS_V2_W_B);
         Config::KS_V2_W_R = env_int("KS_V2_W_R", Config::KS_V2_W_R);
@@ -2610,6 +2616,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " POT_V2_WIN=" << Config::POT_V2_WIN << " POT_V2_WIN_BASE=" << Config::POT_V2_WIN_BASE
                   << " POT_V2_WIN_SP=" << Config::POT_V2_WIN_SP << " POT_V2_WIN_ONEFLANK=" << Config::POT_V2_WIN_ONEFLANK
                   << " POT_V2_WIN_OCB=" << Config::POT_V2_WIN_OCB << " POT_V2_WIN_PASSED=" << Config::POT_V2_WIN_PASSED
+                  << " POT_V2_WIN_OCBX=" << Config::POT_V2_WIN_OCBX << " POT_V2_WIN_OCBX_PC=" << Config::POT_V2_WIN_OCBX_PC
+                  << " POT_V2_WIN_ROOKE=" << Config::POT_V2_WIN_ROOKE << " POT_V2_WIN_QNOQ=" << Config::POT_V2_WIN_QNOQ
+                  << " POT_V2_WIN_QNOQ_MINOR=" << Config::POT_V2_WIN_QNOQ_MINOR
+                  << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR
                   << " MCL_V2=" << Config::MCL_V2 << " MCL_V2_Q0=" << Config::MCL_V2_Q0 << " MCL_V2_QR=" << Config::MCL_V2_QR
                   << " MCL_V2_QM=" << Config::MCL_V2_QM << " MCL_V2_QP=" << Config::MCL_V2_QP
                   << " MCL_V2_R2M=" << Config::MCL_V2_R2M << " MCL_V2_MP0=" << Config::MCL_V2_MP0

@@ -3677,6 +3677,45 @@ static inline int win_scale_adjust(const V2Context &c, const PawnEntry &pe, int 
 	const int passed = __builtin_popcountll(pe.passed[s]);
 	int f = 64 + Config::POT_V2_WIN_BASE + Config::POT_V2_WIN_SP * sp + Config::POT_V2_WIN_ONEFLANK * oneflank
 	      + Config::POT_V2_WIN_OCB * ocb + Config::POT_V2_WIN_PASSED * passed;
+	// ── MATERIAL-CLASS CAPS (2026-10-09; EVAL-NUANCES-VS-GIANTS doc; SF15.1 evaluate.cpp winnable() + material.cpp) ──────
+	// SF's class rules REPLACE its pawn-count formula, so here each rule is a CAP: when its condition holds,
+	// f = min(f, 64 + knob …). A knob at 0 caps at 64 = no change ⇒ byte-identical; the base knob of each rule enables it.
+	// Leader-relative and board-derived ⇒ antisymmetric under the colour mirror, like every other input here.
+	if (Config::POT_V2_WIN_OCBX | Config::POT_V2_WIN_ROOKE | Config::POT_V2_WIN_QNOQ | Config::POT_V2_WIN_LONEMINOR){
+		const uint64_t them = s ? c.white : c.black;
+		const int minors_own = __builtin_popcountll((c.knights | c.bishops) & own);
+		const bool heavy_own = (c.rooks | c.queens) & own;
+		auto cap = [&](int v){ if (v < f) f = v; };
+		// Opposite-coloured bishops WITH other pieces (4/4 universal; ours above fires on pure OCB only):
+		// SF15.1 sf = 22 + 3 · count<ALL_PIECES>(strong).
+		if (Config::POT_V2_WIN_OCBX && !ocb && __builtin_popcountll(wb) == 1 && __builtin_popcountll(bb) == 1){
+			const int ws = __builtin_ctzll(wb), bs = __builtin_ctzll(bb);
+			if ((((ws & 7) + (ws >> 3)) & 1) != (((bs & 7) + (bs >> 3)) & 1))
+				cap(64 + Config::POT_V2_WIN_OCBX + Config::POT_V2_WIN_OCBX_PC * __builtin_popcountll(own));
+		}
+		// Rook ending, one rook each and nothing else: leader at most one pawn up, its pawns on ONE flank, the defending king
+		// touching one of its own pawns (SF15.1 sf = 36).
+		if (Config::POT_V2_WIN_ROOKE && !(c.knights | c.bishops | c.queens)
+		    && __builtin_popcountll(c.rooks & c.white) == 1 && __builtin_popcountll(c.rooks & c.black) == 1){
+			const uint64_t sp_bb = c.pawns & own;
+			const int diff = sp - __builtin_popcountll(c.pawns & them);
+			const uint64_t tk = c.kings & them;
+			if (diff <= 1 && sp_bb && (bool(sp_bb & WIN_KS) != bool(sp_bb & WIN_QS)) && tk
+			    && (BB_KING_ATTACKS[__builtin_ctzll(tk)] & c.pawns & them))
+				cap(64 + Config::POT_V2_WIN_ROOKE);
+		}
+		// Queen vs no queen (exactly one queen on the board): SF15.1 sf = 37 + 3 · minors of the side WITHOUT the queen.
+		// The one persistent material misjudgement (v2 over-values queen-vs-minors compensation) was only ever attacked
+		// additively; this is the multiplicative form.
+		if (Config::POT_V2_WIN_QNOQ && __builtin_popcountll(c.queens) == 1){
+			const uint64_t noq = (c.queens & c.white) ? c.black : c.white;
+			cap(64 + Config::POT_V2_WIN_QNOQ + Config::POT_V2_WIN_QNOQ_MINOR * __builtin_popcountll((c.knights | c.bishops) & noq));
+		}
+		// Leader with NO pawns and at most a lone minor (no rook/queen): cannot win (SF material.cpp → SCALE_FACTOR_DRAW).
+		// The shipped BASE leaves this at 27/64 ≈ 0.42.
+		if (Config::POT_V2_WIN_LONEMINOR && sp == 0 && !heavy_own && minors_own <= 1)
+			cap(64 + Config::POT_V2_WIN_LONEMINOR);
+	}
 	if (f > 64) f = 64;
 	if (f < 0) f = 0;
 	if (f == 64) return 0;

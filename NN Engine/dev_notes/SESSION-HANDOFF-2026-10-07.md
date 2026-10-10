@@ -144,6 +144,17 @@ ProbCut, IIR (built, off). Table: item · premise · still true? · re-test.
   (`A_ours1004_d10_s*of4.csv`, ship 254/50,622,239; ~3k skipped — check at assembly). Real labelling rate ≈ 200k/h (4 engines);
   the d10 pass ≈ 17k/h. Phase tag is "?" in the label files (join with the `*_fens.csv` samples). Next: assemble (dedupe, quiet
   vs unquiet tag, band weights, held-out split by game), then the remaining plumbing, then the retune.
+- **RETUNE METHOD (10-10):** hybrid — Texel-style GRADIENT fit on the ~1M SF18 score labels (win%, quiet rows) = the STATIC
+  component + the DEPTH target on the 137k rows (structural terms only); one weighted objective, L2 toward the ship, split mg/eg,
+  nested blocks; games gate. Endgame gaps split by CAUSE: structural → this retune; search-caused (pawn endings, threats, corr
+  hist) → the transition; re-measure the endgame breakdown after each.
+- **STRESS-SLICE WEIGHT (owner: understanding over memorisation, but regular-play strength is the point):** stress/variant
+  slices are primarily HELD-OUT understanding checks; train weight w ∈ {0, 0.25, 0.5} — keep the largest that does NOT worsen the
+  held-out own-play error (then games).
+- **GATE PRACTICE:** screening / bundles / many arms → self-play 50k nodes, 2,000 g (±9 Elo) · ship decision → + SF18 @1000
+  (2 seeds × 500) + Mediocre ≥ 200 g per arm when they disagree · final retune confirmation → + one TIMED LIGHTNING run (never in
+  the owner's 9pm-midnight window). Depth-pass rows missing (~3k of 140k) = mate-scored labels (|cp| ≥ 50,000 excluded) — they keep
+  their SF labels for the static fit (capped).
 - **CORPUS USE:** structural retune fits on QUIET rows only (SF18 best move not a capture/check/promotion, no qsearch swing —
   Ethereal's PV-leaf filter); UNQUIET/tactical rows are kept labelled + tagged for the dynamic lane and for designing POT from
   data. Label mix (A 140k / A2 400k): level 19% · 0.5-1.5 15% · 1.5-4 26-28% · 4-15 36-39% · ≥15 2%; colours balanced ⇒ the fit

@@ -317,3 +317,12 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `selfplay/_launch_detached.sh <q> <log> [--waits]` | ★ launch a queue DETACHED (setsid+nohup) — tracked tasks are capped at 30 min after a reload; refuses a duplicate / any running games job (`--waits` allows a self-waiting queue) |
 | `selfplay/_queue_mediocre.sh` | v2 vs Mediocre v0.5 at ~1 s/move (raw-pipe driver), SF18 draw arbiter |
 | `selfplay/_queue_*.sh` (#17-#31) | connected gate, K+P stress, depth refresh, revival dumps/gates/self-play, re-anchor, bench ladder/types, Mediocre |
+
+## Added 2026-10-10 (structural retune: corpus assembly, hybrid fit, engine-table export)
+| tool | what it does |
+|---|---|
+| ★ `_corpus_assemble.py MODE=map|assemble` | the retune corpus (`E:\chess_data\retune\corpus_v1.csv`, 956,670 positions): `map` recovers each own-play FEN's GAME from the stored games (the sampler kept none; resumable, flat layout first); `assemble` dedupes by position, marks held-out/bench/regret overlaps `excluded`, splits own-play BY GAME (15%) and KP/VAR by row (20% never trained), tags QUIET (not in check, SF best not capture/promo/check, no winning capture), phase256 + stage, score band, joins our d10 (slice A) |
+| `_px_export.py IN=<csv> OUT=…npz` | (extended) chunked, resumable feature export of any corpus + the ship's static `total` from the same pass |
+| ★ `_retune_fit.py EXPERIMENT=weights|lambda|hybrid` | the STRUCTURAL RETUNE fitter on the corpus: X = 337 v2 cols × legs + file-tied PST + Kaufman; L2 toward the ship, STM + SCALE nuisances, standardised coordinates. `weights` (band scheme × quiet/all × stress weight) · `lambda` (eval movement vs gain) · `hybrid` (static on quiet SF18 labels + DEPTH target on slice-A d10 rows, shared δ, mobility out of the depth design; piece-value cells + KD-mg frozen; isolated-pawn cells FILE-TIED). Prints per-block shares of the eval change |
+| ★ `_retune_export.py MODE=tables|verify [ONLY=blocks]` | one fit arm → engine table files (C1, KSB, KFL, KPROT, PX, CONN, KAUF, PST = ship + δ, every cell written) + `env.txt`; `verify` = closure vs the linear prediction split by winnability activity + the REALISED win% gain of the engine arm. ☠️ never `MODE=export`/`closure` (`_texel_kauf_fit` acts on those at import) · ☠️ C1 KD cells are FRACTIONAL — write full precision |
+| `selfplay/_queue_retune_screen.sh` (#50) | first games screen of the hybrid arms (λ 0.1 / λ 1), self-play @50k, guards: fingerprint + colour/file symmetry |

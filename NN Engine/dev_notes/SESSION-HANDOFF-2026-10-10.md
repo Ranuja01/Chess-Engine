@@ -72,6 +72,29 @@ A non-negamax C++ HCE in `NN Engine/` (separate minimizer / maximizer / qSearch)
 millipawns, driven through Cython under WSL; v1 is the frozen control. Roadmap: strongest single-core HCE (**goal ~3000 CCRL**) via a
 "search v2" that switches to **negamax** (owner 10-08: uniqueness lives in PLAY style, not code style), then the owner's own NN taught by it.
 
+## 📜 HISTORY ARC (where this came from — pointers, not retelling)
+- **v1 (to 09-09):** the owner's hand-translated engine; its inventions (heat map, OvD, capture gains, latent activity, multiplicative
+  passers) took it from ~1600 to ~2000-level on chess.com (memory `owners-engine-origin-article`). ~85 eval attempts, ~35 search arms + 52
+  configs all swept on v1; v1's eval was degenerate (~30 terms, ~2 signals) and colour-asymmetric (capgains) ⇒ the rebuild
+  (memories `eval-lane-state-2026-09-09`, `eval-program-history-2026-06-to-08`, `bundling-is-refuted-components-cancel-26-percent`).
+- **v2 rebuild (09-10 → 10-01):** term by term against references with collinearity + symmetry gates; "eval CLOSED" was wrong (the
+  fifteen nulls mixed three classes); Texel PST fit A = the biggest win (+111 self-play / +38 SF18, 09-27); v2 beat v1 +65 at equal
+  nodes (10-01). Handoffs: `SESSION-HANDOFF-2026-09-25/-09-30/-10-04/-10-06/-10-07.md`.
+- **Ships on v2:** PST fit A (09-27) · POT winnability scale (10-01) · Kaufman cells + joint KS/KS-B (10-03, ≈ +15.7) · connected
+  pawns (10-04, ≈ +14.5) · none since — this phase built instruments, plumbing and the corpus. Register: `OPTIMIZATION_LOG.md`,
+  `EVAL-V2-CURRENT-CONFIG.md`, memory `baseline-fingerprints-register`.
+- **Absolute anchors:** Mediocre v0.5: v1 ≈ 15% (July) → v2 43-45% ⇒ ≈ 2265-2340 CCRL ±100; SF18 judge @1000 ≈ 48.6% (bench ladder 10-07).
+- **Instrument lessons over time** (each one a past mis-verdict): STS blind spots → d7 regret → calibrated SF18 judge (drifted @400 → @800 →
+  @1000) → depth target → real re-search → games-decide (`INSTRUMENT-MAP.md` is the catalogue).
+
+## 🔭 LONG-RANGE PLAN (after the next steps)
+1. Finish the eval: structural retune → POT nested → (after the transition) dynamic lane nested ⇒ eval arc closed.
+2. Search v2 to ~3000 single-core (memory `long-term-goal-3000-single-core-hce-via-search-v2`; estimates ~2500 after the transition,
+   ~2700 after the speed rebuild, ~3000 with a mature search + eval-search synergy — months).
+3. The owner's own NN, TAUGHT by this HCE (the eval carries over informationally as the teacher: memory
+   `the-hce-is-the-nnue-teacher-so-eval-carries-informationally`); the 960k SF18-labelled corpus is reusable there too.
+4. Standing: keep the engine's PLAY style unique (owner inventions kept where better, `unique-where-better-never-self-nerf`).
+
 ## 🚨 BASELINES (MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT)
 | arm | WAC d10 |
 |---|---|

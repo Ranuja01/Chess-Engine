@@ -155,6 +155,14 @@ ProbCut, IIR (built, off). Table: item · premise · still true? · re-test.
   (2 seeds × 500) + Mediocre ≥ 200 g per arm when they disagree · final retune confirmation → + one TIMED LIGHTNING run (never in
   the owner's 9pm-midnight window). Depth-pass rows missing (~3k of 140k) = mate-scored labels (|cp| ≥ 50,000 excluded) — they keep
   their SF labels for the static fit (capped).
+- **DYNAMIC TERMS (threats, space, rook files, reach/longdiag/latent — all at 0 in the ship, never tuned):** NOT in the
+  structural retune; after the search transition they join NESTED (fit on top, rest frozen, real-depth + games) then a light
+  JOINT refit — same pattern as POT; no second from-scratch retune. Their table plumbing is needed only then (off the critical
+  path). Dynamic terms already ON (mobility, KS attack) stay in the structural retune, fitted on the STATIC component only.
+- **EVAL SPEED INFRA (owner 10-10):** v2 has NO pawn hash yet (Layer A is laid out for a pawnKey cache), no lazy eval, and
+  recomputes material/PST per node. ⇒ SEARCH v2 speed work, profile-first, not before the retune: pawn hash + incremental
+  material/PST are EXACT (value-neutral, anytime) but capped by eval ≈ 11.5% of node cost; LAZY EVAL changes values ⇒ with the
+  pruning work in the transition; movegen (41%) is the big lever.
 - **CORPUS USE:** structural retune fits on QUIET rows only (SF18 best move not a capture/check/promotion, no qsearch swing —
   Ethereal's PV-leaf filter); UNQUIET/tactical rows are kept labelled + tagged for the dynamic lane and for designing POT from
   data. Label mix (A 140k / A2 400k): level 19% · 0.5-1.5 15% · 1.5-4 26-28% · 4-15 36-39% · ≥15 2%; colours balanced ⇒ the fit

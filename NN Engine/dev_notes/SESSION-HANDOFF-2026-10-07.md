@@ -137,6 +137,13 @@ ProbCut, IIR (built, off). Table: item · premise · still true? · re-test.
   POT against the RESIDUAL of the retuned eval; (3) fit POT on top with the known terms FROZEN (it must pay incrementally);
   (4) a light JOINT refit of everything — known terms shifting a lot when POT enters = POT taking over (counts AGAINST POT);
   (5) games. POT is shaped by the gaps yet priced jointly (no double count).
+- **CORPUS BUILT 10-09/10 (queues #48/#49, all on `E:\chess_data\retune`, SF18 d14 single-best, append-only + resumable):**
+  A own-play v2-era 140,000 (`A_sf18_s0-3.csv`; 50% endgame) · A2 denser own-play 400,000 (`A2_fens_sf18_s*`) · flat-layout games
+  (v1-era + SF18 gauntlets; tagged "V1") 300,000 (`V1_fens_sf18_s*`) · K+P stress seed 77 20,000 (`KP_fens_sf18_s*`) · whacky
+  piece-swap/960 variants 100,000 (`VAR_sf18_s*`) = **960,000 labelled**; **our d10 depth pass on A = 136,997 rows**
+  (`A_ours1004_d10_s*of4.csv`, ship 254/50,622,239; ~3k skipped — check at assembly). Real labelling rate ≈ 200k/h (4 engines);
+  the d10 pass ≈ 17k/h. Phase tag is "?" in the label files (join with the `*_fens.csv` samples). Next: assemble (dedupe, quiet
+  vs unquiet tag, band weights, held-out split by game), then the remaining plumbing, then the retune.
 - **CORPUS USE:** structural retune fits on QUIET rows only (SF18 best move not a capture/check/promotion, no qsearch swing —
   Ethereal's PV-leaf filter); UNQUIET/tactical rows are kept labelled + tagged for the dynamic lane and for designing POT from
   data. Label mix (A 140k / A2 400k): level 19% · 0.5-1.5 15% · 1.5-4 26-28% · 4-15 36-39% · ≥15 2%; colours balanced ⇒ the fit

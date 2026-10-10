@@ -126,7 +126,8 @@ ProbCut, IIR (built, off). Table: item · premise · still true? · re-test.
   self-play mostly the ATTACKING half against our own family's blind spots. Ship when **self-play ≥ +2σ AND SF18 not clearly
   negative (better than −1σ) AND a THIRD opponent (Mediocre gauntlet) not negative** — the third opponent tests whether the
   attacking gain generalises to hand-written peers, guarding against pure self-exploitation. Bundles allowed when parts are
-  individually too small to resolve (attribution only when a bundle wins).
+  individually too small to resolve (attribution only when a bundle wins). ⚠️ Third-opponent reads need ≥ ~200 paired games per
+  arm (50 = ±54 Elo ⇒ inconclusive). KFL+PST vs Mediocre (10-09, 50 g): −42 ± 54 → INCONCLUSIVE; left to the retune.
 - **CORPUS:** start now, pausable/resumable: ~200k SF18 d14 single-best labels on E:\chess_data\retune (slice A: 140k own-play
   from the never-sampled nested v2-era games, endgame quota 50%, disjoint from every depth/held-out set; then B variant 20k+5k
   held-out, C odds 5k, D K+8P 5k seed≠41). Labels are engine-independent and reusable for every future tune (and the NN later);

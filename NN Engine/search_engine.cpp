@@ -2354,6 +2354,14 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             Config::KS_V2_HALF = 900;
         }
         Config::EVAL_V2_PIECE_MG_PCT = env_int("EVAL_V2_PIECE_MG_PCT", Config::EVAL_V2_PIECE_MG_PCT);
+        {
+            static const char *VAL_NAMES[6] = {"", "N", "B", "R", "Q", ""};
+            for (int t = 1; t <= 4; ++t){
+                const std::string mg = std::string("V2_VAL_") + VAL_NAMES[t] + "_MG", eg = std::string("V2_VAL_") + VAL_NAMES[t] + "_EG";
+                Config::V2_VAL_MG[t] = env_int(mg.c_str(), Config::V2_VAL_MG[t]);
+                Config::V2_VAL_EG[t] = env_int(eg.c_str(), Config::V2_VAL_EG[t]);
+            }
+        }
         Config::EVAL_V2_MG_LIMIT = env_int("EVAL_V2_MG_LIMIT", Config::EVAL_V2_MG_LIMIT);
         Config::EVAL_V2_EG_LIMIT = env_int("EVAL_V2_EG_LIMIT", Config::EVAL_V2_EG_LIMIT);
         if (Config::EVAL_V2_MG_LIMIT <= Config::EVAL_V2_EG_LIMIT){
@@ -2631,6 +2639,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " POT_V2_WIN_ROOKE=" << Config::POT_V2_WIN_ROOKE << " POT_V2_WIN_QNOQ=" << Config::POT_V2_WIN_QNOQ
                   << " POT_V2_WIN_QNOQ_MINOR=" << Config::POT_V2_WIN_QNOQ_MINOR
                   << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR << " CONN_V2=" << Config::CONN_V2 << " V2_SHIP_GEN=" << Config::V2_SHIP_GEN
+                  << " V2_VAL_MG=" << Config::V2_VAL_MG[1] << "/" << Config::V2_VAL_MG[2] << "/" << Config::V2_VAL_MG[3] << "/" << Config::V2_VAL_MG[4]
+                  << " V2_VAL_EG=" << Config::V2_VAL_EG[1] << "/" << Config::V2_VAL_EG[2] << "/" << Config::V2_VAL_EG[3] << "/" << Config::V2_VAL_EG[4]
                   << " MCL_V2=" << Config::MCL_V2 << " MCL_V2_Q0=" << Config::MCL_V2_Q0 << " MCL_V2_QR=" << Config::MCL_V2_QR
                   << " MCL_V2_QM=" << Config::MCL_V2_QM << " MCL_V2_QP=" << Config::MCL_V2_QP
                   << " MCL_V2_R2M=" << Config::MCL_V2_R2M << " MCL_V2_MP0=" << Config::MCL_V2_MP0

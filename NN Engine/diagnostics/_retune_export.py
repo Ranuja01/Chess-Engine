@@ -58,11 +58,20 @@ def load_arm():
     return d
 
 
+def ship_gen():
+    """The ship generation the export's θ comes from: V2_PRESET=shipped seeds gen 2 unless V2_SHIP_GEN says otherwise."""
+    if os.environ.get("V2_SHIP_GEN"):
+        return int(os.environ["V2_SHIP_GEN"])
+    return 2 if os.environ.get("V2_PRESET") == "shipped" else 0
+
+
 def ship_kauf():
-    src = open(os.path.join(ENGINE, "ship_tables_v2.h")).read()
+    # the Kaufman cells of the ship the arm is a δ on: gen 2 = ship_tables_v3.h (KAUF_SHIP2_*), else ship_tables_v2.h
+    g2 = ship_gen() >= 2
+    src = open(os.path.join(ENGINE, "ship_tables_v3.h" if g2 else "ship_tables_v2.h")).read()
     out = {}
     for tag, key in (("OURS", "O"), ("THEIRS", "T")):
-        body = re.search(r"KAUF_SHIP_%s\[6\]\[6\] = \{(.*?)\};" % tag, src, re.S).group(1)
+        body = re.search(r"KAUF_SHIP%s_%s\[6\]\[6\] = \{(.*?)\};" % ("2" if g2 else "", tag), src, re.S).group(1)
         rows = [[int(x) for x in re.findall(r"-?\d+", r)] for r in re.findall(r"\{([^{}]*)\}", body)]
         for a in range(6):
             for b in range(6):
@@ -121,6 +130,16 @@ def export():
                 for r in range(8):
                     f.write(" ".join(str(newv[t * 128 + leg * 64 + r * 8 + c]) for c in range(8)) + "\n")
     env.append("PST_V2_FILE=%s" % os.path.join(out, "pst.txt"))
+    # PIECE VALUES (V2_VAL_* knobs, 10-11): deltas on top of the ship's (gen 2 ships them at 0; the pawn mg leg is
+    # EVAL_V2_PAWN_MG, 1000 in every ship so far)
+    for p in "NBRQ":
+        for leg in ("mg", "eg"):
+            v = d.get("val:%s:%s" % (p, leg))
+            if v is not None and round(v) != 0:
+                env.append("V2_VAL_%s_%s=%d" % (p, leg.upper(), round(v)))
+    if d.get("val:P:mg") is not None and round(d["val:P:mg"]) != 0:
+        env.append("EVAL_V2_PAWN_MG=%d" % (1000 + round(d["val:P:mg"])))
+    print("  values: %s" % " ".join(e for e in env if e.startswith(("V2_VAL", "EVAL_V2_PAWN"))))
     line = " ".join(env)
     open(os.path.join(out, "env.txt"), "w").write(line + "\n")
     print("EXPORT → %s\n  env: %s" % (out, line))
@@ -140,7 +159,7 @@ def closure():
     rows = rows[::7][:n]
     # the shipped totals from the export chunks (same pass that gave the features)
     want = set(rows); ship = {}
-    for p in sorted(glob.glob(os.path.join(D, "feat_ship_c*.npz"))):
+    for p in sorted(glob.glob(os.path.join(D, KV.get("FEAT", "feat_ship") + "_c*.npz"))):
         z = np.load(p)
         for f, t, df, ph in zip(z["fen"], z["total"], z["diff"], z["phase"]):
             if f in want:
@@ -162,6 +181,12 @@ def closure():
         for k in range(36):
             if kf[k]:
                 pred += kf[k] * d.get("kauf:%d" % k, 0.0)
+        pl = f.split()[0]
+        for p in "pnbrq":                     # piece values: Black − White count × leg (the pawn has an mg leg only)
+            cd = pl.count(p) - pl.count(p.upper())
+            if cd:
+                P_ = p.upper()
+                pred += cd * (a * round(d.get("val:%s:mg" % P_, 0.0)) + e * round(d.get("val:%s:eg" % P_, 0.0)))
         bd = ai.ev_breakdown(chess.Board(f))
         got = int(bd["total"])
         res.append(got - pred); P.append(pred); G.append(got); eg_res.append(ph < 128); win.append(int(bd.get("v2_winnab", 0) or 0) != 0)

@@ -47,6 +47,21 @@ def pst_kauf_row(fen):
     return occ, -np.array(KF.feats(b), np.float32)
 
 
+def d10_override(d10, fens):
+    """D10_GLOB=<csv glob> (10-11): our d10 depth rows of the CURRENT ship (e.g. A_ours1011_d10_s*of4.csv) replace the corpus's
+    ours_d10 column (the 10-04 ship's pass); rows the new pass lacks become NaN (excluded from the depth target)."""
+    if not KV.get("D10_GLOB"):
+        return d10
+    new = {}
+    for p in glob.glob(os.path.join(D, KV["D10_GLOB"])):
+        for r in csv.DictReader(open(p, newline="")):
+            if r.get("ours_cp_white") not in (None, ""):
+                new[" ".join(r["fen"].split()[:4])] = float(r["ours_cp_white"])
+    out = np.array([new.get(" ".join(f.split()[:4]), np.nan) for f in fens])
+    print("  D10_GLOB %s: %d rows → %d matched" % (KV["D10_GLOB"], len(new), int(np.isfinite(out).sum())), flush=True)
+    return out
+
+
 def load():
     t0 = time.time()
     cols = {c: [] for c in ("fen", "slice", "split", "quiet", "band", "stage", "sf_cp", "ours_d10")}
@@ -55,7 +70,8 @@ def load():
         for r in rd:
             for c, i in ix.items():
                 cols[c].append(r[i])
-    chunks = sorted(glob.glob(os.path.join(D, "feat_ship_c*.npz")))
+    # FEAT=<prefix> (10-11): the feature/static export of the CURRENT ship (feat_ship = the 10-04 ship, feat_gen2 = ship gen 2)
+    chunks = sorted(glob.glob(os.path.join(D, KV.get("FEAT", "feat_ship") + "_c*.npz")))
     flags = np.concatenate([np.load(p)["flags"] for p in chunks])
     assert len(flags) == len(cols["fen"]), "export / corpus row counts differ"
     rng = np.random.default_rng(int(KV.get("SEED", 1)))
@@ -99,11 +115,22 @@ def load():
             kf = np.zeros((len(idx), len(k)), np.float32)
         kf[j] = k
     a, e = (ph / 256.0)[:, None], ((256.0 - ph) / 256.0)[:, None]
-    X = sp.hstack([sp.csr_matrix(V * a), sp.csr_matrix(V * e), sp.csr_matrix(occ * a), sp.csr_matrix(occ * e),
-                   sp.csr_matrix(kf)], format="csr")
+    blocks_ = [sp.csr_matrix(V * a), sp.csr_matrix(V * e), sp.csr_matrix(occ * a), sp.csr_matrix(occ * e), sp.csr_matrix(kf)]
     names = (["v2:%d:mg" % k for k in range(V.shape[1])] + ["v2:%d:eg" % k for k in range(V.shape[1])]
              + ["pst:%d:mg" % k for k in range(192)] + ["pst:%d:eg" % k for k in range(192)]
              + ["kauf:%d" % k for k in range(kf.shape[1])])
+    if KV.get("VAL") == "1":
+        # PIECE VALUES (10-11, V2_VAL_* knobs): Black − White piece counts × leg; δ = mp per piece. The pawn gets only an mg leg
+        # (EVAL_V2_PAWN_MG) — the endgame pawn stays the unit of account.
+        cnt = np.zeros((len(idx), 5), np.float32)
+        for j, i in enumerate(idx):
+            pl = cols["fen"][i].split()[0]
+            for c_ in pl:
+                if c_.isalpha() and c_.lower() in "pnbrq":
+                    cnt[j, "pnbrq".index(c_.lower())] += 1 if c_.islower() else -1
+        blocks_.append(sp.csr_matrix(np.c_[cnt[:, :1] * a, cnt[:, 1:] * a, cnt[:, 1:] * e]))
+        names += ["val:P:mg"] + ["val:%s:mg" % p for p in "NBRQ"] + ["val:%s:eg" % p for p in "NBRQ"]
+    X = sp.hstack(blocks_, format="csr")
     live = np.flatnonzero(np.asarray((X[role == "tr_own"] != 0).sum(0)).ravel() > 0)
     X = X[:, live].tocsr(); names = [names[k] for k in live]
     meta = {
@@ -111,7 +138,8 @@ def load():
         "band": np.array([cols["band"][i] for i in idx]), "stage": np.array([cols["stage"][i] for i in idx]),
         "sf": np.array([float(cols["sf_cp"][i]) for i in idx]), "static": -total / 10.0,
         "stm": np.array([1.0 if cols["fen"][i].split()[1] == "w" else -1.0 for i in idx]),
-        "d10": np.array([float(cols["ours_d10"][i]) if cols["ours_d10"][i] else np.nan for i in idx]),
+        "d10": d10_override(np.array([float(cols["ours_d10"][i]) if cols["ours_d10"][i] else np.nan for i in idx]),
+                            [cols["fen"][i] for i in idx]),
         "fen": [cols["fen"][i] for i in idx],
     }
     print("  design: %d rows × %d live columns, nnz %d · load %.0fs" % (X.shape[0], X.shape[1], X.nnz, time.time() - t0), flush=True)
@@ -231,7 +259,7 @@ def experiment_weights(X, names, meta):
                         deltas=np.array([p for p in res.values()]))
 
 
-def fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, wstat, wdep, p0=None):
+def fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, wstat, wdep, p0=None, pin_groups=(), pin_w=0.0):
     """The agreed HYBRID objective (10-10): wstat·L_static/L_s0 + wdep·L_depth/L_d0 + λ·|δ|²/1e4, δ SHARED; each target
     has its own (STM, SCALE) nuisances. Static rows ms (row weights ws_rows), base = ship static; depth rows md, base =
     our d10 search of the ship, design Wd = X with the non-structural columns zeroed (mobility: the dynamic lane).
@@ -277,7 +305,12 @@ def fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, wstat, wdep, p0=None):
         d = u / sig
         # λ is defined against the static loss scale (~125 win%²) so it means the same as in the weights / lambda runs
         lw = lam / 125.0
-        return o + lw * float(d @ d) / 1e4, np.r_[gu + 2 * lw * d / sig / 1e4, gn]
+        pen, gpin = 0.0, np.zeros(nk)
+        for g in pin_groups:                  # PIN (10-11): each PST group's MEAN δ held at 0 — material lives in val:*
+            mg_ = float(d[g].mean())
+            pen += pin_w * mg_ * mg_ / 1e4
+            gpin[g] += 2.0 * pin_w * mg_ / len(g) / 1e4
+        return o + lw * float(d @ d) / 1e4 + pen, np.r_[gu + 2 * lw * d / sig / 1e4 + gpin / sig, gn]
     q0 = np.zeros(nk + 4) if p0 is None else np.r_[p0[:nk] * sig, p0[nk:nk + 2] / ns, p0[nk + 2:] / ns]
     res = minimize(fg, q0, jac=True, method="L-BFGS-B",
                    options={"maxiter": int(KV.get("MAXITER", 2000)), "maxcor": 30, "ftol": float(KV.get("FTOL", 1e-10)), "gtol": 1e-9})
@@ -319,6 +352,17 @@ def experiment_hybrid(X, names, meta):
         names = [names[j] for j in keepc]
         print("  file-mirror ties: %d pairs merged (isolated-pawn cells)" % len(ties), flush=True)
     struct = np.array([not (n.startswith("v2:") and int(n.split(":")[1]) < 66) for n in names], float)
+    # PIN=<weight> (10-11, default 1000 with VAL=1, else off): PST mean per (piece, leg) held at the ship's
+    pin_w = float(KV.get("PIN", "1000" if KV.get("VAL") == "1" else "0"))
+    pin_groups = []
+    if pin_w > 0:
+        grp = {}
+        for j, n in enumerate(names):
+            if n.startswith("pst:"):
+                _, k, leg = n.split(":")
+                grp.setdefault((int(k) // 32, leg), []).append(j)
+        pin_groups = [np.array(v) for v in grp.values()]
+        print("  PST mean pin: %d groups, weight %g" % (len(pin_groups), pin_w), flush=True)
     Wd = (X @ sp.diags(struct)).tocsr()
     okd = (meta["slice"] == "A") & ~np.isnan(meta["d10"]) & (np.abs(meta["sf"]) < 50000) & (np.abs(np.nan_to_num(meta["d10"])) < 4999)
     w_st = float(KV.get("STRESS_W", 0.5))
@@ -356,7 +400,7 @@ def experiment_hybrid(X, names, meta):
     for lam in [float(x) for x in KV.get("LAMBDAS", "0.1,1").split(",")]:
         for label, a, b in modes:
             t0 = time.time()
-            p, info = fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, a, b)
+            p, info = fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, a, b, pin_groups=pin_groups, pin_w=pin_w)
             mv = (X[role == "va_own"] @ p[:X.shape[1]]) / 10.0
             res["%s/λ%g" % (label, lam)] = p
             print("  %-7s λ %-5g · %s · %.0fs · rms δ %.1f mp · moves the ship rms %.1f cp" % (label, lam, info, time.time() - t0,
@@ -393,6 +437,8 @@ def _block_of(n):
         return "PST" + n.split(":")[2]
     if n.startswith("kauf"):
         return "KAUF"
+    if n.startswith("val"):
+        return "VAL" + n.split(":")[2]
     k = int(n.split(":")[1]); leg = n.split(":")[2]
     for lo, hi, nm in ((0, 66, "MOB"), (66, 77, "STRUCT"), (77, 97, "PASS"), (97, 106, "PLACE"), (106, 162, "KSB"),
                        (162, 172, "KFL"), (172, 184, "KPROT"), (184, 235, "PX"), (235, 337, "CONN")):

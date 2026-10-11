@@ -513,6 +513,12 @@ namespace Config
     // pieces are relatively DEARER in the midgame. Preserving our shipped endgame values and adding only
     // the relative shift gives 6.10/4.01 = 152%. So 152 reproduces SF's ratio movement with our material.
     inline int EVAL_V2_PIECE_MG_PCT = 100;
+    // V2_VAL_{N,B,R,Q}_{MG,EG} (2026-10-11): per-piece, per-leg deltas (mp) on v2's own material value — the explicit home
+    // for material re-pricing the retune had been doing through Kaufman count PRODUCTS (measured 10-11: rook +0.2 pawn in
+    // endgames, queen +0.17 mg). values[] (SEE / ordering / null move) is untouched. Index by v2 type: 1 N, 2 B, 3 R, 4 Q.
+    // All 0 = byte-identical (the identity short-circuit in v2_piece_value is kept).
+    inline int V2_VAL_MG[6] = {0, 0, 0, 0, 0, 0};
+    inline int V2_VAL_EG[6] = {0, 0, 0, 0, 0, 0};
 
     // Phase interpolation endpoints for v2, in non-pawn material summed over BOTH sides (our units, so a
     // full army is 43,400). Scaled from SF11's MidgameLimit/EndgameLimit as a fraction of its own full

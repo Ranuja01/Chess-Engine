@@ -205,9 +205,12 @@ inline int v2_piece_value(int t, int phase256)
 		// to the pawn keeps the pawn at 1000 as the UNIT OF ACCOUNT, so every positional constant keeps
 		// its meaning. ☠️ Tapering the pawn instead inflates them all in the midgame: STS measured
 		// 1698 flat -> 1614 at PAWN_MG 550 -> 1522 at 700, monotone.
-		const int peg = values[t + 1];
-		if (Config::EVAL_V2_PIECE_MG_PCT == 100) return peg;   // identity short-circuit
-		const int pmg = peg * Config::EVAL_V2_PIECE_MG_PCT / 100;
+		const int base = values[t + 1];
+		const int dmg = Config::V2_VAL_MG[t], deg = Config::V2_VAL_EG[t];   // per-piece re-price (0 for the king)
+		if (Config::EVAL_V2_PIECE_MG_PCT == 100 && dmg == 0 && deg == 0) return base;   // identity short-circuit
+		const int peg = base + deg;
+		const int pmg = (Config::EVAL_V2_PIECE_MG_PCT == 100 ? base : base * Config::EVAL_V2_PIECE_MG_PCT / 100) + dmg;
+		if (pmg == peg) return peg;
 		return (pmg * phase256 + peg * (256 - phase256)) >> 8;
 	}
 	const int mg = Config::EVAL_V2_PAWN_MG;
@@ -221,9 +224,10 @@ inline int v2_piece_value(int t, int phase256)
 static inline void v2_piece_value_legs(int t, int &pmg, int &peg)
 {
 	if (t != 0){
-		peg = values[t + 1];
-		pmg = (Config::EVAL_V2_PIECE_MG_PCT == 100) ? peg
-		                                            : peg * Config::EVAL_V2_PIECE_MG_PCT / 100;
+		const int base = values[t + 1];
+		peg = base + Config::V2_VAL_EG[t];
+		pmg = ((Config::EVAL_V2_PIECE_MG_PCT == 100) ? base
+		                                             : base * Config::EVAL_V2_PIECE_MG_PCT / 100) + Config::V2_VAL_MG[t];
 		return;
 	}
 	pmg = Config::EVAL_V2_PAWN_MG;

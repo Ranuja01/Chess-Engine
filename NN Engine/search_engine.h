@@ -934,6 +934,10 @@ namespace Config
     // opposed cells + 6 supporter cells, FREE mg/eg legs) instead of MAG/SUPPORT/EG_RATIO. Cells start at the live term;
     // CONN_V2_FILE overrides some or all (k leg start fitted). 0 = the constant path = byte-identical.
     inline int CONN_V2 = 0;
+    // V2_SHIP_GEN (2026-10-11): which compiled v2 ship the table loaders fall back to when no file is given. 0/1 = the 10-04 ship
+    // (ship_tables_v2.h + pst_v2_fitted.h; C1/KFL/KPROT/PX/CONN need files); 2 = the STRUCTURAL RETUNE (ship_tables_v3.h:
+    // C1, KS-B, KFL, KPROT, PX, CONN, Kaufman, PST). V2_PRESET=shipped seeds 2; V2_PRESET=shipped V2_SHIP_GEN=1 = the 10-04 ship.
+    inline int V2_SHIP_GEN = 0;
     inline int POT_V2_WIN_OCBX = 0, POT_V2_WIN_OCBX_PC = 0, POT_V2_WIN_ROOKE = 0, POT_V2_WIN_QNOQ = 0, POT_V2_WIN_QNOQ_MINOR = 0,
                POT_V2_WIN_LONEMINOR = 0;
     inline int KS_V2_W_N = 31;

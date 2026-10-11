@@ -4,6 +4,14 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🏆★★★★ 2026-10-11 — SHIPPED: the STRUCTURAL RETUNE, v2 ship gen 2 (self-play +56.6 / SF18 +22 / Mediocre +10)
+- ONE hybrid fit of every structural block (C1 mobility/structure/passers/placement, KS-B, KFL, KPROT, PX, CONN, Kaufman cells,
+  PST): static win% on quiet SF18 d14 labels (956k-position corpus, by-game split) + the depth target on 137k d10 rows, λ 0.1.
+  Gates (owner rule, all three legs): self-play @50k **+56.6 ± 17.9** (2,000 g) · SF18 @1000 pooled **+22 ± 14** (2 × 500, both
+  seeds +) · Mediocre @1 s **+10 ± 30** (200 g). First v2 accuracy gain to become Elo since 10-04; λ 1 (smaller move) +16.7 / ≈ 0.
+- Compiled in `ship_tables_v3.h` behind `V2_SHIP_GEN=2` (seeded by `V2_PRESET=shipped`; `V2_SHIP_GEN=1` = the 10-04 ship).
+  Config §1 of EVAL-V2-CURRENT-CONFIG.md; method + lessons in memory `static-only-fit-worsens-the-depth-target`.
+
 ## 📏★★★★ 2026-09-06→09 — THE EVAL LANE PRICED, THREE THESES REFUTED, NOTHING SHIPPED
 
     Fingerprint UNCHANGED throughout:  250 / 35,310,778 / EBF 3.784 / STS 1796  (verified after 5 builds)

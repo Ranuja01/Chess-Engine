@@ -2108,10 +2108,20 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // (no harm). Fitted on SF18 labels: f = clamp(64 − 37 + 34·leader pawns − 80·[OCB only], 0, 64)/64.
                 Config::POT_V2_WIN = 1;
                 Config::POT_V2_WIN_BASE = -37;  Config::POT_V2_WIN_SP = 34;  Config::POT_V2_WIN_OCB = -80;
+                // ── SHIP GEN 2 — the STRUCTURAL RETUNE (shipped 2026-10-11; queues #50-#52): one hybrid fit (static win% on
+                // quiet SF18 d14 labels + the depth target on 137k d10 rows, λ 0.1) of C1 (mobility, pawn structure, passers,
+                // placement), KS-B, KFL, KPROT, PX, CONN, Kaufman cells and PST, compiled in ship_tables_v3.h. Self-play @50k
+                // +56.6 ± 17.9 (2,000 g) · SF18 @1000 pooled +22 ± 14 (2 seeds × 500) · Mediocre @1 s +10 ± 30 (200 g).
+                // V2_SHIP_GEN=1 restores the 10-04 ship exactly (254 / 50,622,239).
+                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 2);
+                if (Config::V2_SHIP_GEN >= 2){
+                    Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
+                }
             }
             else
                 std::cerr << "☠️ V2_PRESET=" << preset << " is unknown (expected: shipped) -- ignored." << std::endl;
         }
+        Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", Config::V2_SHIP_GEN);
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
         Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
         Config::RFP_MIN_DEPTH = env_int("RFP_MIN_DEPTH", Config::RFP_MIN_DEPTH);
@@ -2620,7 +2630,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " POT_V2_WIN_OCBX=" << Config::POT_V2_WIN_OCBX << " POT_V2_WIN_OCBX_PC=" << Config::POT_V2_WIN_OCBX_PC
                   << " POT_V2_WIN_ROOKE=" << Config::POT_V2_WIN_ROOKE << " POT_V2_WIN_QNOQ=" << Config::POT_V2_WIN_QNOQ
                   << " POT_V2_WIN_QNOQ_MINOR=" << Config::POT_V2_WIN_QNOQ_MINOR
-                  << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR << " CONN_V2=" << Config::CONN_V2
+                  << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR << " CONN_V2=" << Config::CONN_V2 << " V2_SHIP_GEN=" << Config::V2_SHIP_GEN
                   << " MCL_V2=" << Config::MCL_V2 << " MCL_V2_Q0=" << Config::MCL_V2_Q0 << " MCL_V2_QR=" << Config::MCL_V2_QR
                   << " MCL_V2_QM=" << Config::MCL_V2_QM << " MCL_V2_QP=" << Config::MCL_V2_QP
                   << " MCL_V2_R2M=" << Config::MCL_V2_R2M << " MCL_V2_MP0=" << Config::MCL_V2_MP0

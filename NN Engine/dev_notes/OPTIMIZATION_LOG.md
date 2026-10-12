@@ -4,6 +4,12 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🏆 2026-10-12 — SHIPPED: retune round 2 + explicit piece values, v2 ship gen 3 (self-play +22.8 / SF18 +9 / Mediocre +7.3 pts)
+- Hybrid λ 0.03 on the gen-2 base with `V2_VAL_*` piece values free and PST means pinned: material lives in per-phase values,
+  Kaufman back to interactions. All three legs passed (2,000 g self-play · 2 × 500 SF18 @1000 · 200 g Mediocre); the no-values
+  twin tied externally and was not shipped. Fingerprint 259 / 47,869,841 / 3.927; `V2_SHIP_GEN=2` restores gen 2.
+- Two-round total vs the 10-04 ship: self-play ≈ +80, external ≈ +25-30 Elo.
+
 ## 🏆★★★★ 2026-10-11 — SHIPPED: the STRUCTURAL RETUNE, v2 ship gen 2 (self-play +56.6 / SF18 +22 / Mediocre +10)
 - ONE hybrid fit of every structural block (C1 mobility/structure/passers/placement, KS-B, KFL, KPROT, PX, CONN, Kaufman cells,
   PST): static win% on quiet SF18 d14 labels (956k-position corpus, by-game split) + the depth target on 137k d10 rows, λ 0.1.

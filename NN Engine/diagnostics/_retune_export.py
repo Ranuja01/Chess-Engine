@@ -62,16 +62,21 @@ def ship_gen():
     """The ship generation the export's θ comes from: V2_PRESET=shipped seeds gen 2 unless V2_SHIP_GEN says otherwise."""
     if os.environ.get("V2_SHIP_GEN"):
         return int(os.environ["V2_SHIP_GEN"])
-    return 2 if os.environ.get("V2_PRESET") == "shipped" else 0
+    return 3 if os.environ.get("V2_PRESET") == "shipped" else 0     # the preset's default generation (gen 3 since 10-12)
+
+
+# the piece values each ship generation carries (V2_VAL_* mp deltas; P = EVAL_V2_PAWN_MG) — an arm's knobs are BASE + δ
+SHIP_VALUES = {3: {"N:mg": 17, "B:mg": 10, "R:mg": -136, "Q:mg": -3, "N:eg": -70, "B:eg": -64, "R:eg": 127, "Q:eg": -68, "P:mg": -1}}
 
 
 def ship_kauf():
-    # the Kaufman cells of the ship the arm is a δ on: gen 2 = ship_tables_v3.h (KAUF_SHIP2_*), else ship_tables_v2.h
-    g2 = ship_gen() >= 2
-    src = open(os.path.join(ENGINE, "ship_tables_v3.h" if g2 else "ship_tables_v2.h")).read()
+    # the Kaufman cells of the ship the arm is a δ on: gen 3 = ship_tables_v4.h, gen 2 = ship_tables_v3.h, else ship_tables_v2.h
+    g = ship_gen()
+    hdr, sfx = ("ship_tables_v4.h", "3") if g >= 3 else (("ship_tables_v3.h", "2") if g >= 2 else ("ship_tables_v2.h", ""))
+    src = open(os.path.join(ENGINE, hdr)).read()
     out = {}
     for tag, key in (("OURS", "O"), ("THEIRS", "T")):
-        body = re.search(r"KAUF_SHIP%s_%s\[6\]\[6\] = \{(.*?)\};" % ("2" if g2 else "", tag), src, re.S).group(1)
+        body = re.search(r"KAUF_SHIP%s_%s\[6\]\[6\] = \{(.*?)\};" % (sfx, tag), src, re.S).group(1)
         rows = [[int(x) for x in re.findall(r"-?\d+", r)] for r in re.findall(r"\{([^{}]*)\}", body)]
         for a in range(6):
             for b in range(6):
@@ -132,13 +137,16 @@ def export():
     env.append("PST_V2_FILE=%s" % os.path.join(out, "pst.txt"))
     # PIECE VALUES (V2_VAL_* knobs, 10-11): deltas on top of the ship's (gen 2 ships them at 0; the pawn mg leg is
     # EVAL_V2_PAWN_MG, 1000 in every ship so far)
+    base = SHIP_VALUES.get(ship_gen(), {})
     for p in "NBRQ":
         for leg in ("mg", "eg"):
-            v = d.get("val:%s:%s" % (p, leg))
-            if v is not None and round(v) != 0:
-                env.append("V2_VAL_%s_%s=%d" % (p, leg.upper(), round(v)))
-    if d.get("val:P:mg") is not None and round(d["val:P:mg"]) != 0:
-        env.append("EVAL_V2_PAWN_MG=%d" % (1000 + round(d["val:P:mg"])))
+            key = "%s:%s" % (p, leg)
+            v = base.get(key, 0) + round(d.get("val:" + key, 0.0))
+            if v != 0 or key in base:          # always restate the ship's own values (explicit beats implicit)
+                env.append("V2_VAL_%s_%s=%d" % (p, leg.upper(), v))
+    pmg = base.get("P:mg", 0) + round(d.get("val:P:mg", 0.0))
+    if pmg != 0 or "P:mg" in base:
+        env.append("EVAL_V2_PAWN_MG=%d" % (1000 + pmg))
     print("  values: %s" % " ".join(e for e in env if e.startswith(("V2_VAL", "EVAL_V2_PAWN"))))
     line = " ".join(env)
     open(os.path.join(out, "env.txt"), "w").write(line + "\n")

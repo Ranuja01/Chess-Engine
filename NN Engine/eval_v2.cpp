@@ -73,6 +73,13 @@ instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora, first tr
 #include "pst_v2_fitted.h"
 #include "ship_tables_v2.h"
 #include "ship_tables_v3.h"   // V2_SHIP_GEN = 2: the structural-retune tables (2026-10-11)
+#include "ship_tables_v4.h"   // V2_SHIP_GEN = 3: retune round 2 + explicit piece values (2026-10-12)
+
+/* One compiled table of the CURRENT ship generation (gen 3 → *_SHIP3_*, gen 2 → *_SHIP2_*), as plain pointers. */
+struct ShipCells { int n; const int *k; const int *leg; const int *v; };
+#define V2_SHIP_CELLS(NAME) (Config::V2_SHIP_GEN >= 3 \
+	? ShipCells{NAME##_SHIP3_N, NAME##_SHIP3_K, NAME##_SHIP3_LEG, NAME##_SHIP3_V} \
+	: ShipCells{NAME##_SHIP2_N, NAME##_SHIP2_K, NAME##_SHIP2_LEG, NAME##_SHIP2_V})
 #include "cpp_bitboard.h"
 #include "move_gen.h"
 #include "search_engine.h"
@@ -367,8 +374,9 @@ void v2_pst_init_impl()
 	if (Config::PST_V2_TAPERED == 2 && Config::V2_SHIP_GEN >= 2)
 		for (int t = 0; t < 6; ++t)
 			for (int sq = 0; sq < 64; ++sq){
-				v2PstMg[t][sq] = V2_PST_SHIP2[t][0][sq];
-				v2PstEg[t][sq] = V2_PST_SHIP2[t][1][sq];
+				const bool g3 = Config::V2_SHIP_GEN >= 3;
+				v2PstMg[t][sq] = g3 ? V2_PST_SHIP3[t][0][sq] : V2_PST_SHIP2[t][0][sq];
+				v2PstEg[t][sq] = g3 ? V2_PST_SHIP3[t][1][sq] : V2_PST_SHIP2[t][1][sq];
 			}
 
 	if (const char *path = std::getenv("PST_V2_FILE"); path && *path){
@@ -2159,12 +2167,12 @@ static void kauf_fit_load()
 	const char *path = std::getenv("KAUF_V2_FILE");
 	if (!path || !*path){
 		// No file: the SHIPPED fitted cells, compiled in (ship_tables_v2.h, 2026-10-03) — V2_PRESET=shipped needs no file.
-		const bool g2 = Config::V2_SHIP_GEN >= 2;
+		const int g = Config::V2_SHIP_GEN;
 		for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b){
-			KAUF_FIT_OURS[a][b]   = g2 ? KAUF_SHIP2_OURS[a][b]   : KAUF_SHIP_OURS[a][b];
-			KAUF_FIT_THEIRS[a][b] = g2 ? KAUF_SHIP2_THEIRS[a][b] : KAUF_SHIP_THEIRS[a][b];
+			KAUF_FIT_OURS[a][b]   = g >= 3 ? KAUF_SHIP3_OURS[a][b]   : g >= 2 ? KAUF_SHIP2_OURS[a][b]   : KAUF_SHIP_OURS[a][b];
+			KAUF_FIT_THEIRS[a][b] = g >= 3 ? KAUF_SHIP3_THEIRS[a][b] : g >= 2 ? KAUF_SHIP2_THEIRS[a][b] : KAUF_SHIP_THEIRS[a][b];
 		}
-		std::cerr << "[kauf] KAUF_V2_FORM=3 ON: compiled shipped cells (" << (g2 ? "ship_tables_v3.h, gen 2" : "ship_tables_v2.h") << ")" << '\n';
+		std::cerr << "[kauf] KAUF_V2_FORM=3 ON: compiled shipped cells (" << (g >= 3 ? "ship_tables_v4.h, gen 3" : g >= 2 ? "ship_tables_v3.h, gen 2" : "ship_tables_v2.h") << ")" << '\n';
 		return;
 	}
 	std::ifstream in(path);
@@ -4070,8 +4078,12 @@ void v2_c1_init()
 	const bool from_ship = (!path || !*path) && Config::V2_SHIP_GEN >= 2;
 	if (from_ship){
 		// Ship gen 2: the compiled structural-retune values (ship_tables_v3.h), exactly as the file path would load them.
-		for (int i = 0; i < C1_SHIP2_N; ++i){ set(C1_SHIP2_K[i], C1_SHIP2_LEG[i], C1_SHIP2_V[i]); ++n_set; }
-		path = "ship_tables_v3.h (gen 2)";
+		const bool g3 = Config::V2_SHIP_GEN >= 3;
+		const int n = g3 ? C1_SHIP3_N : C1_SHIP2_N;
+		const int *K = g3 ? C1_SHIP3_K : C1_SHIP2_K, *L = g3 ? C1_SHIP3_LEG : C1_SHIP2_LEG;
+		const double *V = g3 ? C1_SHIP3_V : C1_SHIP2_V;
+		for (int i = 0; i < n; ++i){ set(K[i], L[i], V[i]); ++n_set; }
+		path = g3 ? "ship_tables_v4.h (gen 3)" : "ship_tables_v3.h (gen 2)";
 	}
 	else if (!path || !*path){
 		std::cerr << "☠️ C1_V2_FIT=1 needs C1_V2_FILE -- fit stays OFF." << std::endl;
@@ -4166,15 +4178,14 @@ static void conn_load_table();
 /* A C3 table from its file when one is given; otherwise, under ship gen 2, the compiled cells (ship_tables_v3.h) — the
  * same contract as c3_load_table (cells not named stay 0). Without a file and below gen 2 it defers to c3_load_table,
  * which reports the missing file and leaves the block OFF. */
-static bool c3_table_or_ship2(const char *knob, const char *env_name, int k0, int n, int *w_mg, int *w_eg,
-                              int ship_n, const int *ship_k, const int *ship_leg, const int *ship_v)
+static bool c3_table_or_ship2(const char *knob, const char *env_name, int k0, int n, int *w_mg, int *w_eg, ShipCells s)
 {
 	const char *path = std::getenv(env_name);
 	if ((path && *path) || Config::V2_SHIP_GEN < 2)
 		return c3_load_table(knob, env_name, k0, n, w_mg, w_eg);
 	for (int i = 0; i < n; ++i) w_mg[i] = w_eg[i] = 0;
-	for (int i = 0; i < ship_n; ++i) (ship_leg[i] ? w_eg : w_mg)[ship_k[i] - k0] = ship_v[i];
-	std::cerr << "[c3] " << knob << " ON: " << ship_n << " compiled cells (ship_tables_v3.h, gen 2)" << '\n';
+	for (int i = 0; i < s.n; ++i) (s.leg[i] ? w_eg : w_mg)[s.k[i] - k0] = s.v[i];
+	std::cerr << "[c3] " << knob << " ON: " << s.n << " compiled cells (gen " << Config::V2_SHIP_GEN << ")" << '\n';
 	return true;
 }
 
@@ -4194,8 +4205,9 @@ void v2_c3_init()
 	if (Config::KSB_V2 && !(ksb_path && *ksb_path)){
 		for (int i = 0; i < KSB_CELLS; ++i) ksb_w[0][i] = ksb_w[1][i] = 0;
 		if (Config::V2_SHIP_GEN >= 2){
-			for (int i = 0; i < KSB_SHIP2_N; ++i) ksb_w[KSB_SHIP2_LEG[i]][KSB_SHIP2_K[i] - V2F_KSB] = KSB_SHIP2_V[i];
-			std::cerr << "[c3] KSB_V2 ON: " << KSB_SHIP2_N << " compiled cells (ship_tables_v3.h, gen 2)" << '\n';
+			const ShipCells s = V2_SHIP_CELLS(KSB);
+			for (int i = 0; i < s.n; ++i) ksb_w[s.leg[i]][s.k[i] - V2F_KSB] = s.v[i];
+			std::cerr << "[c3] KSB_V2 ON: " << s.n << " compiled cells (gen " << Config::V2_SHIP_GEN << ")" << '\n';
 		} else {
 			for (int i = 0; i < KSB_SHIP_N; ++i) ksb_w[KSB_SHIP_LEG[i]][KSB_SHIP_K[i] - V2F_KSB] = KSB_SHIP_V[i];
 			std::cerr << "[c3] KSB_V2 ON: " << KSB_SHIP_N << " compiled shipped cells (ship_tables_v2.h)" << '\n';
@@ -4204,14 +4216,13 @@ void v2_c3_init()
 	} else
 		g_ksb_on = Config::KSB_V2 && c3_load_table("KSB_V2", "KSB_V2_FILE", V2F_KSB, KSB_CELLS, ksb_w[0], ksb_w[1]);
 	g_kfl_on   = Config::KFL_V2   && c3_table_or_ship2("KFL_V2", "KFL_V2_FILE", V2F_KFL, KFL_CELLS, kfl_w[0], kfl_w[1],
-	                                                   KFL_SHIP2_N, KFL_SHIP2_K, KFL_SHIP2_LEG, KFL_SHIP2_V);
+	                                                   V2_SHIP_CELLS(KFL));
 	g_kprot_on = Config::KPROT_V2 && c3_table_or_ship2("KPROT_V2", "KPROT_V2_FILE", V2F_KPROT, KPROT_CELLS,
-	                                                   kprot_w[0], kprot_w[1],
-	                                                   KPROT_SHIP2_N, KPROT_SHIP2_K, KPROT_SHIP2_LEG, KPROT_SHIP2_V);
+	                                                   kprot_w[0], kprot_w[1], V2_SHIP_CELLS(KPROT));
 	if (g_ksb_on && Config::KSB_V2_CASTLE) std::cerr << "[c3] KSB_V2_CASTLE: shelter scored at the castling max" << '\n';
 	if (Config::KAUF_V2_MAG != 0 && Config::KAUF_V2_FORM == 3) kauf_fit_load();
 	g_px_on = Config::PX_V2 && c3_table_or_ship2("PX_V2", "PX_V2_FILE", V2F_PX, PX_CELLS, px_w[0], px_w[1],
-	                                             PX_SHIP2_N, PX_SHIP2_K, PX_SHIP2_LEG, PX_SHIP2_V);
+	                                             V2_SHIP_CELLS(PX));
 	if (Config::CONN_V2) conn_load_table();
 }
 
@@ -4236,8 +4247,9 @@ static void conn_load_table()
 	int n_set = 0;
 	if (!(path && *path) && Config::V2_SHIP_GEN >= 2){
 		// Ship gen 2: the compiled structural-retune cells (ship_tables_v3.h) over the live start, as the file path does.
-		for (int i = 0; i < CONN_SHIP2_N; ++i){ w[CONN_SHIP2_LEG[i]][CONN_SHIP2_K[i] - V2F_CONN] = CONN_SHIP2_V[i]; ++n_set; }
-		path = "ship_tables_v3.h (gen 2)";
+		const ShipCells s = V2_SHIP_CELLS(CONN);
+		for (int i = 0; i < s.n; ++i){ w[s.leg[i]][s.k[i] - V2F_CONN] = s.v[i]; ++n_set; }
+		path = Config::V2_SHIP_GEN >= 3 ? "ship_tables_v4.h (gen 3)" : "ship_tables_v3.h (gen 2)";
 	}
 	else if (path && *path){
 		std::ifstream in(path);

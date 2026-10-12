@@ -2113,9 +2113,19 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // placement), KS-B, KFL, KPROT, PX, CONN, Kaufman cells and PST, compiled in ship_tables_v3.h. Self-play @50k
                 // +56.6 ± 17.9 (2,000 g) · SF18 @1000 pooled +22 ± 14 (2 seeds × 500) · Mediocre @1 s +10 ± 30 (200 g).
                 // V2_SHIP_GEN=1 restores the 10-04 ship exactly (254 / 50,622,239).
-                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 2);
+                // ── SHIP GEN 3 — retune ROUND 2 on the gen-2 base (shipped 2026-10-12; queues #56-#58): hybrid λ 0.03 with explicit
+                // per-phase PIECE VALUES (V2_VAL_*, PST means pinned) — material moved out of the Kaufman products. Tables in
+                // ship_tables_v4.h. vs gen 2: self-play +22.8 ± 17.9 (2,000 g) · SF18 @1000 pooled 53.85% vs 52.5% (≈ +9 ± 14)
+                // · Mediocre @1 s 51.8% vs 44.5% (200 g). V2_SHIP_GEN=2 restores gen 2 exactly (256 / 47,473,313).
+                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 3);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
+                }
+                if (Config::V2_SHIP_GEN >= 3){
+                    // index 1 N · 2 B · 3 R · 4 Q (mp deltas on values[]); the pawn's mg leg is EVAL_V2_PAWN_MG
+                    Config::V2_VAL_MG[1] = 17;   Config::V2_VAL_MG[2] = 10;   Config::V2_VAL_MG[3] = -136; Config::V2_VAL_MG[4] = -3;
+                    Config::V2_VAL_EG[1] = -70;  Config::V2_VAL_EG[2] = -64;  Config::V2_VAL_EG[3] = 127;  Config::V2_VAL_EG[4] = -68;
+                    Config::EVAL_V2_PAWN_MG = 999;
                 }
             }
             else

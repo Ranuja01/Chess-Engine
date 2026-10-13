@@ -66,6 +66,43 @@ equal −14.6 → −11.0, a pawn up −6.5 → −4.4; rook+minor −2.5 → �
    live in POT. Round 3 (running) prices the four winnability caps — its result tells us how much of the endgame bias the
    scale side can absorb before POT's additive side starts.
 
+## Appendix A — the endgame-knowledge package: Stockfish's endgame.cpp signatures in OUR games (2026-10-13)
+
+`_eg_signatures.py` (queue #62): ~6,000 held-out own-play positions grouped by the material signatures Stockfish 11's
+`endgame.cpp` has recipes for (the catalogue itself is in the 10-08 pre-plan §3a), scored by the static ladder against SF18 d14.
+Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all our endgame-leaning + endgame positions.
+
+| signature | share | **v2 gen 3** | SF11 | SF15.1 cl. | SF18 NNUE | reading |
+|---|---|---|---|---|---|---|
+| rook ending (general) | 8.2% | **122** (−6.1) | 136 (−6.5) | 260 | 47 | ahead of SF11 |
+| lone king vs mating material (KXK) | 4.6% | **57** (−3.7) | 392 (+17.5) | 392 | 39 | far ahead (SF11 has no conversion scale here) |
+| KRPKB rook+pawns vs bishop | 3.9% | **153** (−6.1) | 160 | 377 | 77 | ≈ / ahead |
+| KBPKB opposite bishops | 1.9% | 198 (−7.9) | 195 (−16.6) | 243 | 79 | level (we're less drawish than SF11) |
+| KPsK pawns vs bare king | 1.8% | **196** (−11.8) | 226 (+2.0) | 388 | 32 | ahead, but under-confident |
+| minor ending (general) | 1.7% | 122 (−4.8) | **99** | 158 | 41 | SF11 ahead |
+| pawn ending (general) | 1.6% | 511 (**−20.2**) | **438** (−17.5) | 714 | 224 | SF11 ahead; worst bias (search) |
+| KQKR(Ps) queen vs rook | 1.4% | **92** (−0.3) | 129 | 288 | 63 | ahead |
+| KRPKR | 1.1% | 206 (−8.5) | **176** (−15.2) | 280 | 34 | SF11 ahead (its KRPKR scaling rules) |
+| KNPKB / KBPKN | 1.0% each | 210 / 189 | **140 / 152** | 283 / 247 | 89 / 86 | SF11 ahead (KNPKB / KBPKN scaling) |
+| KRPPKRP | 0.9% | 186 (−9.1) | **145** | 247 | 69 | SF11 ahead (its KRPPKRP rule) |
+| KRKP rook vs pawns | 0.75% | 335 (**−17.5**) | 340 (−10.9) | 466 | **64** | both HCEs weak; NNUE / search |
+| KBPKB same-colour bishops | 0.7% | 215 (−11.8) | 222 | 428 | 109 | level, under-confident |
+| KBPsK (wrong-bishop fortress) | 0.4% | 208 (+0.4) | **102** (−7.5) | 435 | 36 | SF11's fortress recipe wins |
+| KQKP queen vs pawns | 0.3% | **119** | 279 | 163 | 61 | ahead |
+| KBNK · KNPK · KRKN · KRKB | ≤ 0.2% each | **ahead** | | | | ahead |
+| KPKP | 0.15% | 316 (−17.9) | **253** | 433 | 30 | SF11 ahead (KPKP → bitbase probe) |
+
+**Reading for the design discussion:**
+1. **We already beat SF11's recipes where conversion matters** (lone king, queen vs rook/pawns, rook vs minor, general rook
+   endings) — POT must not regress these.
+2. **SF11's recipes still beat us on FORTRESS / DRAWING knowledge**: wrong-bishop fortress (KBPsK), minor vs minor with pawns
+   (KNPKB / KBPKN), KRPKR / KRPPKRP drawing technique. These are SCALE-side (winnability) rules — candidates for porting or
+   improving, each small, each measurable here.
+3. **The largest misses are pawn endings, KPKP and rook vs pawns**, where both hand-written evals are weak and only search
+   (or NNUE) gets it right ⇒ supports the cause split: pawn-ending search rules first (§3 decision 1, option c).
+4. Under-confidence is the common thread (bias negative in almost every signature) — consistent with §2's finding that POT's
+   magnitude half (complexity) is the missing piece.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

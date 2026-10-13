@@ -51,6 +51,10 @@ def load_arm():
                 return "pst"
             if n.startswith("kauf"):
                 return "kauf"
+            if n.startswith("val"):
+                return "val"
+            if n.startswith("cap"):
+                return "cap"
             k = int(n.split(":")[1])
             if k < 106:                       # C1 sub-blocks, so one can be isolated (ONLY=c1 keeps all four)
                 return "c1mob" if k < 66 else ("c1ps" if k < 77 else ("c1pass" if k < 97 else "c1place"))

@@ -21,6 +21,7 @@
       the engine scales the eg total on ~8% of rows). Reports median / p95 / p99 |residual| and the share over 10 mp.
 """
 import os, sys, csv, glob, re
+from collections import defaultdict
 import numpy as np
 
 KV = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a)
@@ -64,6 +65,11 @@ def ship_gen():
         return int(os.environ["V2_SHIP_GEN"])
     return 3 if os.environ.get("V2_PRESET") == "shipped" else 0     # the preset's default generation (gen 3 since 10-12)
 
+
+# the winnability material-class caps' START values (the 10-09 SF15.1 forms the cap dumps were made at, queue #60)
+CAP_START = {"QNOQ": [("POT_V2_WIN_QNOQ", -27), ("POT_V2_WIN_QNOQ_MINOR", 3)],
+             "OCBX": [("POT_V2_WIN_OCBX", -17), ("POT_V2_WIN_OCBX_PC", 1)],
+             "ROOKE": [("POT_V2_WIN_ROOKE", -28)], "LONEMINOR": [("POT_V2_WIN_LONEMINOR", -64)]}
 
 # the piece values each ship generation carries (V2_VAL_* mp deltas; P = EVAL_V2_PAWN_MG) — an arm's knobs are BASE + δ
 SHIP_VALUES = {3: {"N:mg": 17, "B:mg": 10, "R:mg": -136, "Q:mg": -3, "N:eg": -70, "B:eg": -64, "R:eg": 127, "Q:eg": -68, "P:mg": -1}}
@@ -148,6 +154,16 @@ def export():
     if pmg != 0 or "P:mg" in base:
         env.append("EVAL_V2_PAWN_MG=%d" % (1000 + pmg))
     print("  values: %s" % " ".join(e for e in env if e.startswith(("V2_VAL", "EVAL_V2_PAWN"))))
+    # WINNABILITY CAPS (10-13): δ = multiplier ×1000 on each cap's start value ⇒ knob = round(start × δ/1000); 0 stays off
+    for cname, pairs in CAP_START.items():
+        dv = d.get("cap:" + cname)
+        if dv is None:
+            continue
+        for knob, start in pairs:
+            v = int(round(start * dv / 1000.0))
+            if v != 0:
+                env.append("%s=%d" % (knob, v))
+    print("  caps: %s" % " ".join(e for e in env if e.startswith("POT_V2_WIN_")))
     line = " ".join(env)
     open(os.path.join(out, "env.txt"), "w").write(line + "\n")
     print("EXPORT → %s\n  env: %s" % (out, line))
@@ -173,6 +189,16 @@ def closure():
         for f, t, df, ph, wn in zip(z["fen"], z["total"], z["diff"], z["phase"], wz):
             if f in want:
                 ship[f] = (int(t), df.astype(float), float(ph), int(wn))
+    # caps (10-13): their Δ at the start value, from the cap dumps of the same base (final totals, so NOT scaled by m)
+    capd = defaultdict(dict)
+    for cname in CAP_START:
+        if "cap:" + cname not in d:
+            continue
+        for p in sorted(glob.glob(os.path.join(D, KV.get("FEAT", "feat_ship") + "cap_" + cname + "_c*.npz"))):
+            zc = np.load(p)
+            for f, t in zip(zc["fen"], zc["total"]):
+                if f in want:
+                    capd[f][cname] = int(t) - ship[f][0]
     res, eg_res, win, P, G = [], [], [], [], []
     for f in rows:
         t0, df, ph, wn = ship[f]
@@ -201,6 +227,8 @@ def closure():
                 P_ = p.upper()
                 pred += cd * (a * round(d.get("val:%s:mg" % P_, 0.0)) + e * round(d.get("val:%s:eg" % P_, 0.0)))
         pred = t0 + mscale * pred              # pred held the CHANGE; the ship's total plus the (scaled) change
+        for cname, dlt in capd.get(f, {}).items():
+            pred += dlt * d["cap:" + cname] / 1000.0   # linear around the cap's start value (the cap itself is min-form)
         bd = ai.ev_breakdown(chess.Board(f))
         got = int(bd["total"])
         res.append(got - pred); P.append(pred); G.append(got); eg_res.append(ph < 128); win.append(int(bd.get("v2_winnab", 0) or 0) != 0)

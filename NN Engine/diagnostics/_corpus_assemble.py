@@ -47,10 +47,13 @@ SLICES = [
     ("A",   [os.path.join(D, "A_sf18.csv")]),
     ("A2",  sorted(glob.glob(os.path.join(D, "A2_fens_sf18_s*.csv")))),
     ("V1",  sorted(glob.glob(os.path.join(D, "V1_fens_sf18_s*.csv")))),
+    # GAUNT (10-13, round 3): our games vs STRONGER opponents (SF18 @1000 gauntlets + Mediocre) — the positions a stronger
+    # engine steers us into; game id from the sampler's `game` column (GAUNT_fens.csv), split by game like own-play
+    ("GAUNT", sorted(glob.glob(os.path.join(D, "GAUNT_fens_sf18_s*.csv")))),
     ("KP",  sorted(glob.glob(os.path.join(D, "KP_fens_sf18_s*.csv")))),
     ("VAR", sorted(glob.glob(os.path.join(D, "VAR_sf18_s*.csv")))),
 ]
-OWNPLAY = ("A", "A2", "V1")
+OWNPLAY = ("A", "A2", "V1", "GAUNT")
 MATE_CP = 50000                   # _build_regret_set scores mates as ±(100000 − distance)
 PV = {chess.PAWN: 1000, chess.KNIGHT: 3250, chess.BISHOP: 3450, chess.ROOK: 5000, chess.QUEEN: 10000, chess.KING: 100000}
 NPM_LO, NPM_HI = 10000, 40000     # EVAL_V2_EG_LIMIT / EVAL_V2_MG_LIMIT defaults (eval_v2.cpp phase256)
@@ -241,6 +244,12 @@ def run_assemble():
             gmap[r["key"]] = r["group"]
     else:
         print("  ☠️ no %s — run MODE=map first" % MAP_OUT); sys.exit(1)
+    # slices sampled WITH their game id (10-13: GAUNT) carry it in <slice>_fens.csv's `game` column
+    gpath = os.path.join(D, "GAUNT_fens.csv")
+    if os.path.exists(gpath):
+        for r in csv.DictReader(open(gpath, newline="")):
+            if r.get("game"):
+                gmap.setdefault(key_of(r["fen"]), "gaunt:" + r["game"])
     hold, hold_per = held_out_keys()
     print("  game map: %d keys · held-out/bench/regret keys: %d %s" % (len(gmap), len(hold), hold_per), flush=True)
     d10 = {}
@@ -250,7 +259,7 @@ def run_assemble():
                 d10[key_of(r["fen"])] = r["ours_cp_white"]
     print("  d10 depth rows (slice A): %d" % len(d10), flush=True)
 
-    out_path = os.path.join(D, "corpus_v1.csv")
+    out_path = os.path.join(D, os.environ.get("OUT", "corpus_v1.csv"))   # OUT=corpus_v2.csv (10-13) keeps v1 reproducible
     fields = ["fen", "key", "slice", "group", "split", "phase256", "stage", "pieces", "sf_cp", "sf_best", "mate",
               "quiet", "unq", "band", "w_band", "ours_d10"]
     seen = set()

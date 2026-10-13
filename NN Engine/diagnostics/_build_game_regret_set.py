@@ -111,7 +111,7 @@ for fp in sel_files:
         if board.is_game_over():
             continue
         seen.add(fen)
-        picked.append((fen, phase_of(board)))
+        picked.append((fen, phase_of(board), os.path.relpath(fp, GAMES)))   # + the GAME (10-13: by-game splits downstream)
     if len(picked) >= N * (2 if EG_QUOTA else 1):
         break
 if EG_QUOTA:
@@ -125,10 +125,10 @@ if os.environ.get("SAMPLE_ONLY"):
     # 2026-10-09: write the sampled FENs only (fen, phase_bucket) and stop — label in parallel shards with
     # _build_regret_set.py IN=… (this script's own labeller is single-process).
     with open(os.environ["SAMPLE_ONLY"], "w", newline="") as fh:
-        w = csv.writer(fh); w.writerow(["fen", "phase_bucket"]); w.writerows(picked)
+        w = csv.writer(fh); w.writerow(["fen", "phase_bucket", "game"]); w.writerows(picked)
     from collections import Counter
     print("  SAMPLE_ONLY: %d FENs from %d game files → %s  %s" % (len(picked), len(sel_files), os.environ["SAMPLE_ONLY"],
-          dict(Counter(p for _, p in picked))), flush=True)
+          dict(Counter(p[1] for p in picked))), flush=True)
     sys.exit(0)
 
 # Resume.
@@ -168,7 +168,7 @@ print("  %d files, sampled %d positions (%d already done)  SF d%d multipv %d -> 
       % (len(sel_files), len(picked), len(done), SF_DEPTH, K, os.path.basename(OUT)), flush=True)
 
 n_new = 0
-for i, (fen, ph) in enumerate(picked, 1):
+for i, (fen, ph, _game) in enumerate(picked, 1):
     if fen in done:
         continue
     board = chess.Board(fen)

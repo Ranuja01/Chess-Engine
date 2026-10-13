@@ -65,7 +65,7 @@ def d10_override(d10, fens):
 def load():
     t0 = time.time()
     cols = {c: [] for c in ("fen", "slice", "split", "quiet", "band", "stage", "sf_cp", "ours_d10")}
-    with open(os.path.join(D, "corpus_v1.csv"), newline="") as fh:
+    with open(os.path.join(D, KV.get("CORPUS", "corpus_v1.csv")), newline="") as fh:   # CORPUS=corpus_v2.csv (10-13)
         rd = csv.reader(fh); hdr = next(rd); ix = {c: hdr.index(c) for c in cols}
         for r in rd:
             for c, i in ix.items():
@@ -77,7 +77,7 @@ def load():
     rng = np.random.default_rng(int(KV.get("SEED", 1)))
     sl = np.array(cols["slice"]); split = np.array(cols["split"])
     ok = (flags & 3) == 0
-    own = np.isin(sl, ["A", "A2", "V1"])
+    own = np.isin(sl, ["A", "A2", "V1", "GAUNT"])          # GAUNT (10-13): our games vs stronger opponents — real play
     pick = lambda m, n: np.sort(rng.permutation(np.flatnonzero(m))[:n])
     if KV.get("EXPERIMENT") == "hybrid":
         # every slice-A row (the only rows with our d10 depth score) is kept; the rest of the quota is sampled from A2/V1
@@ -143,6 +143,22 @@ def load():
         m = np.clip(m, 0.0, 1.0)
         X = (sp.diags(m.astype(np.float32)) @ X).tocsr()
         print("  WIN_AWARE: %d rows scaled (median m %.2f on those)" % (int((m < 1).sum()), float(np.median(m[m < 1])) if (m < 1).any() else 1.0), flush=True)
+    if KV.get("CAPS"):
+        # WINNABILITY CAPS (10-13): CAPS=QNOQ,OCBX,… — each a static export of the same corpus with that cap ON at its start
+        # value (<FEAT>cap_<NAME>_cNN.npz); column = total_on − total_base (Black-positive mp, FINAL totals ⇒ the scale is already
+        # inside, so these columns join AFTER the WIN_AWARE row scaling), δ = the multiplier ×1000 on that start value
+        # (δ 1000 = "as started", 0 = off). A NONLINEAR term (min(f, 64 + knob)) priced linearly around its start.
+        cap_cols = []
+        for cname in KV["CAPS"].split(","):
+            cchunks = sorted(glob.glob(os.path.join(D, KV.get("FEAT", "feat_ship") + "cap_" + cname + "_c*.npz")))
+            assert len(cchunks) == len(chunks), "cap %s: %d chunks vs %d" % (cname, len(cchunks), len(chunks))
+            ton = np.concatenate([np.load(p)["total"] for p in cchunks]).astype(float)
+            col = (ton[idx] - total).astype(np.float32)     # `total` is already in idx order
+            cap_cols.append(sp.csr_matrix(col[:, None] / 1000.0))
+            names.append("cap:" + cname)
+            print("  cap %s: fires on %.1f%% of rows, median |Δ| %.0f mp" % (cname, 100 * (col != 0).mean(),
+                  float(np.median(np.abs(col[col != 0]))) if (col != 0).any() else 0.0), flush=True)
+        X = sp.hstack([X] + cap_cols, format="csr")
     live = np.flatnonzero(np.asarray((X[role == "tr_own"] != 0).sum(0)).ravel() > 0)
     X = X[:, live].tocsr(); names = [names[k] for k in live]
     meta = {
@@ -451,6 +467,8 @@ def _block_of(n):
         return "KAUF"
     if n.startswith("val"):
         return "VAL" + n.split(":")[2]
+    if n.startswith("cap"):
+        return "CAP"
     k = int(n.split(":")[1]); leg = n.split(":")[2]
     for lo, hi, nm in ((0, 66, "MOB"), (66, 77, "STRUCT"), (77, 97, "PASS"), (97, 106, "PLACE"), (106, 162, "KSB"),
                        (162, 172, "KFL"), (172, 184, "KPROT"), (184, 235, "PX"), (235, 337, "CONN")):

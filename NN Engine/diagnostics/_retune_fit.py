@@ -169,6 +169,7 @@ def load():
         "d10": d10_override(np.array([float(cols["ours_d10"][i]) if cols["ours_d10"][i] else np.nan for i in idx]),
                             [cols["fen"][i] for i in idx]),
         "fen": [cols["fen"][i] for i in idx],
+        "phase": ph,                          # v2 phase256 per row (10-13: the POT probe weights by it)
     }
     print("  design: %d rows × %d live columns, nnz %d · load %.0fs" % (X.shape[0], X.shape[1], X.nnz, time.time() - t0), flush=True)
     return X, names, meta

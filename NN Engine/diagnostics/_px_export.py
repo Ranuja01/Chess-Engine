@@ -41,14 +41,18 @@ if os.environ.get("IN"):
         part = fens[c0:c0 + chunk]
         diff = np.zeros((len(part), nf), np.int16)
         phase = np.zeros(len(part), np.int16); flags = np.zeros(len(part), np.int8); total = np.zeros(len(part), np.int32)
+        # winnab (10-12): the winnability scale's published adjustment (mp). The scale multiplies the whole pre-scale total by a
+        # per-position factor m = total / (total − winnab), so a fit can carry it into every feature row exactly.
+        winnab = np.zeros(len(part), np.int32)
         for i, f in enumerate(part):
             b = chess.Board(f)
             wc, bc, fl = ChessAI.v2_feature_counts(b)
             diff[i] = np.subtract(bc, wc)
             bd = ai.ev_breakdown(b)
             phase[i] = int(bd.get("v2_phase256", -1)); total[i] = int(bd["total"]); flags[i] = fl
+            winnab[i] = int(bd.get("v2_winnab", 0) or 0)
         tmp = path + ".tmp.npz"
-        np.savez_compressed(tmp, fen=np.array(part), diff=diff, phase=phase, flags=flags, total=total,
+        np.savez_compressed(tmp, fen=np.array(part), diff=diff, phase=phase, flags=flags, total=total, winnab=winnab,
                             theta_mg=np.array(tmg), theta_eg=np.array(teg))
         os.replace(tmp, path)
         print("  chunk %02d: %d rows → %s" % (c0 // chunk, len(part), path), flush=True)

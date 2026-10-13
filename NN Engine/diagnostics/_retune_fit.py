@@ -97,6 +97,7 @@ def load():
     order = np.argsort(idx)
     sidx = idx[order]                         # sidx[k] is row idx[order[k]]
     V = np.zeros((len(idx), 0), np.float32); ph = np.zeros(len(idx), np.float32); total = np.zeros(len(idx))
+    winnab = np.zeros(len(idx))
     c0 = 0
     for p in chunks:
         z = np.load(p); n = len(z["flags"])
@@ -105,6 +106,8 @@ def load():
             V = np.zeros((len(idx), z["diff"].shape[1]), np.float32)
         dst = order[np.searchsorted(sidx, sel)]
         V[dst] = z["diff"][sel - c0]; ph[dst] = z["phase"][sel - c0]; total[dst] = z["total"][sel - c0]
+        if "winnab" in z.files:
+            winnab[dst] = z["winnab"][sel - c0]
         assert all(z["fen"][s - c0] == cols["fen"][s] for s in sel[::499]), "export / corpus row order differ in %s" % p
         c0 += n
     occ = np.zeros((len(idx), 192), np.float32); kf = None
@@ -131,6 +134,15 @@ def load():
         blocks_.append(sp.csr_matrix(np.c_[cnt[:, :1] * a, cnt[:, 1:] * a, cnt[:, 1:] * e]))
         names += ["val:P:mg"] + ["val:%s:mg" % p for p in "NBRQ"] + ["val:%s:eg" % p for p in "NBRQ"]
     X = sp.hstack(blocks_, format="csr")
+    if KV.get("WIN_AWARE") == "1":
+        # WINNABILITY-AWARE (10-12): the engine multiplies the whole pre-scale total by m = total / (total − winnab); a δ in any
+        # term moves the final eval by m·δ, so each row's features are scaled by its m (exact for the static target). Needs an
+        # export carrying `winnab` (feat_gen3 on). Rows with no scale (winnab 0) keep m = 1.
+        pre = total - winnab
+        m = np.where((winnab != 0) & (np.abs(pre) > 0), total / np.where(pre == 0, 1, pre), 1.0)
+        m = np.clip(m, 0.0, 1.0)
+        X = (sp.diags(m.astype(np.float32)) @ X).tocsr()
+        print("  WIN_AWARE: %d rows scaled (median m %.2f on those)" % (int((m < 1).sum()), float(np.median(m[m < 1])) if (m < 1).any() else 1.0), flush=True)
     live = np.flatnonzero(np.asarray((X[role == "tr_own"] != 0).sum(0)).ravel() > 0)
     X = X[:, live].tocsr(); names = [names[k] for k in live]
     meta = {

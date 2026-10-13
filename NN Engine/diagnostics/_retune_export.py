@@ -169,15 +169,20 @@ def closure():
     want = set(rows); ship = {}
     for p in sorted(glob.glob(os.path.join(D, KV.get("FEAT", "feat_ship") + "_c*.npz"))):
         z = np.load(p)
-        for f, t, df, ph in zip(z["fen"], z["total"], z["diff"], z["phase"]):
+        wz = z["winnab"] if "winnab" in z.files else np.zeros(len(z["total"]), np.int32)
+        for f, t, df, ph, wn in zip(z["fen"], z["total"], z["diff"], z["phase"], wz):
             if f in want:
-                ship[f] = (int(t), df.astype(float), float(ph))
+                ship[f] = (int(t), df.astype(float), float(ph), int(wn))
     res, eg_res, win, P, G = [], [], [], [], []
     for f in rows:
-        t0, df, ph = ship[f]
+        t0, df, ph, wn = ship[f]
         a, e = ph / 256.0, (256.0 - ph) / 256.0
         occ, kf = R.pst_kauf_row(f)
-        pred = t0
+        # WIN_AWARE=1 (10-12): the winnability scale multiplies the whole pre-scale change by m = total / (total − winnab)
+        mscale = 1.0
+        if KV.get("WIN_AWARE") == "1" and wn and (t0 - wn) != 0:
+            mscale = min(1.0, max(0.0, t0 / float(t0 - wn)))
+        pred = 0.0
         for k in range(len(df)):
             if df[k]:
                 # the export drops the king-distance cells' mg δ (no engine leg) — predict what was WRITTEN
@@ -195,6 +200,7 @@ def closure():
             if cd:
                 P_ = p.upper()
                 pred += cd * (a * round(d.get("val:%s:mg" % P_, 0.0)) + e * round(d.get("val:%s:eg" % P_, 0.0)))
+        pred = t0 + mscale * pred              # pred held the CHANGE; the ship's total plus the (scaled) change
         bd = ai.ev_breakdown(chess.Board(f))
         got = int(bd["total"])
         res.append(got - pred); P.append(pred); G.append(got); eg_res.append(ph < 128); win.append(int(bd.get("v2_winnab", 0) or 0) != 0)

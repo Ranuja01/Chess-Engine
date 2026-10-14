@@ -92,6 +92,12 @@ sel_files = sel_files[_si::_sn]
 
 picked = []
 seen = set()
+# EG_SIG_QUOTA=N (10-14, POT data): keep ONLY positions with a Stockfish endgame.cpp signature (_eg_signatures.signature), at
+# most N per signature, so the rare weak endgame types get coverage instead of rook endings swamping them.
+SIG_QUOTA = int(os.environ.get("EG_SIG_QUOTA", "0"))
+if SIG_QUOTA:
+    from _eg_signatures import signature as _eg_sig
+    sig_count = defaultdict(int)
 for fp in sel_files:
     try:
         lines = open(fp).read().splitlines()
@@ -110,6 +116,11 @@ for fp in sel_files:
             continue
         if board.is_game_over():
             continue
+        if SIG_QUOTA:
+            sg = _eg_sig(fen)
+            if sg is None or sig_count[sg] >= SIG_QUOTA:
+                continue
+            sig_count[sg] += 1
         seen.add(fen)
         picked.append((fen, phase_of(board), os.path.relpath(fp, GAMES)))   # + the GAME (10-13: by-game splits downstream)
     if len(picked) >= N * (2 if EG_QUOTA else 1):

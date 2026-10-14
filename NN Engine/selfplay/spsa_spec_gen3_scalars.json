@@ -1,0 +1,8 @@
+[
+  {"name": "KS_V2_MAX",       "init": 5315, "min": 2500, "max": 9000, "scale": 600},
+  {"name": "KS_V2_HALF",      "init": 772,  "min": 300,  "max": 1500, "scale": 90},
+  {"name": "KS_V2_EG_PCT",    "init": 66,   "min": 0,    "max": 150,  "scale": 15},
+  {"name": "POT_V2_WIN_BASE", "init": -37,  "min": -64,  "max": 0,    "scale": 8},
+  {"name": "POT_V2_WIN_SP",   "init": 34,   "min": 0,    "max": 64,   "scale": 6},
+  {"name": "POT_V2_WIN_OCB",  "init": -80,  "min": -128, "max": 0,    "scale": 12}
+]

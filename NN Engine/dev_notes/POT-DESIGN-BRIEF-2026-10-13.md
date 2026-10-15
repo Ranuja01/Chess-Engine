@@ -103,6 +103,17 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
 4. Under-confidence is the common thread (bias negative in almost every signature) — consistent with §2's finding that POT's
    magnitude half (complexity) is the missing piece.
 
+## Appendix B — data ready for POT's fits (2026-10-15)
+- **Endgame enrichment (EGX):** 60,000 positions with an SF endgame signature (≤ 4,000 each, 55k endgame), SF18 d14 labels +
+  58,929 gen-3 d10 depth rows — `E:\chess_data\retune\EGX_fens.csv` (game ids), `EGX_sf18.csv`, `EGX_ours1012_d10_s*of4.csv`.
+  Not yet assembled into a corpus (add as a slice like GAUNT, split by game).
+- **Trajectory set (owner's idea):** ~39k starts (70% unresolved systems, 30% random control) rolled forward by SF18 @50k
+  nodes/move, our static + SF18 d14 at +0/8/16/24 plies + resolution markers — `E:\chess_data\traj\traj_s*of4.csv` (156,478
+  rows). Fit targets: transformation `static(t+k) − static(t)` and outcome `sf(t+k)`, then the depth target.
+- **Judge:** gen 3 vs SF18 @1000 / 1500 / 2000 = 54.0 / 37.3 / 28.3% ⇒ gate POT at SF18 **@~1100** nodes.
+- Winnability scalars: SPSA (2 cold-start runs) found no consistent direction for BASE / SP / OCB ⇒ the scale side is at its
+  optimum; POT's additive (complexity) side is where the endgame under-confidence must be addressed.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

@@ -10,6 +10,15 @@ shipped; a diagnostic is running. POT groundwork is done and the design brief is
    · `V2_SHIP_GEN=1` 254 / 50,622,239.
 3. Read #63's result (below), then `dev_notes/POT-DESIGN-BRIEF-2026-10-13.md` before the POT discussion.
 
+## ▶️ UPDATE 2026-10-15 (supersedes "NOT SHIPPED — round 3" below)
+- R3A CLOSED: #63 halves values-only +3 / cells-only +4 on SF18 (self-play +10 / +12); #64 R3A whole on seeds 224/225 −3 ⇒
+  4-seed pooled ≈ −8 ± 10 (self-play +21) ⇒ not shipped; structural retune done (+22 → +9 → ~0 external).
+- Judge re-anchor (#65): gen 3 vs SF18 @1000 54.0% · @1500 37.3% · @2000 28.3% ⇒ POT gates at SF18 @~1100.
+- SPSA (#65, 2 cold-start runs): only `KS_V2_HALF` replicates (772 → 814 / 822) ⇒ candidate ≈ 818, needs the games gate;
+  KS MAX / EG_PCT and winnability BASE / SP / OCB did not replicate (at optimum).
+- Data for POT: EGX endgame enrichment (#66, 60k + 58,929 d10 rows) and the trajectory set (#67, ~39k) — POT brief appendix B.
+- Nothing running; machine idle. Next: POT discussion (brief + appendices A/B), then the KS_V2_HALF gate if wanted.
+
 ## SHIPS (all three legs of the owner rule: self-play ≥ +2σ · SF18 > −1σ · Mediocre ≥ 200 g not negative)
 | gen | what | self-play | SF18 @1000 | Mediocre | commit |
 |---|---|---|---|---|---|

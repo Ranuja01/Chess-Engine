@@ -114,6 +114,36 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
 - Winnability scalars: SPSA (2 cold-start runs) found no consistent direction for BASE / SP / OCB ⇒ the scale side is at its
   optimum; POT's additive (complexity) side is where the endgame under-confidence must be addressed.
 
+## 5. DECISIONS (owner, 2026-10-15 discussion) — these supersede §3's options
+1. **Pawn endings: search rules FIRST (option c), entering search is fine.** Evidence it is search is an INFERENCE: same 313
+   pawn-only rows, our static 0.87× SF11's error but our d10 bias −8.5 vs SF11 −1.0 (d14 −5.8) + a VERIFIED defect: the null-move
+   guard counts pawns as pieces (K+≥7P is null-moved; K+Q+N+B is refused). ⇒ guard on NON-PAWN MATERIAL (consistent with v2's
+   phase, which already excludes pawns); test SF's `npm(us)==0` and a threshold form. v2-only knobs (v1 frozen). Then SF11's
+   shallow-pruning gate and passed-push extension, each its own knob. Measure on the 313 rows (`_pe_search_bias.py`), then games.
+2. **Complexity = the reliability of the other systems' verdict** (owner): unresolved ⇒ the regular terms read UNRELIABLE, not 0;
+   ~0 in a kinetic position is a real verdict. It never adds score on its own (true in SF11 `evaluate.cpp:718-731` / Ethereal too:
+   always × sign of the existing edge). Two legs, both fitted: (a) EDGE — SF-bounded confidence on the existing edge;
+   (b) POTENTIAL — complexity SCALES how far POT's directional nudge may move the score. A measured, tuned NUDGE toward what
+   search would find; no attempt to compute transformations.
+3. **Endgame potential** (the probe's DIRECTION null did NOT test these): opposition (direct / distant, parity), key squares,
+   king entry vs defender distance, breakthroughs, spare tempi. **Tempo within reason:** a rule fires only where the structure's
+   verdict DIFFERS between White-to-move and Black-to-move (contested opposition, mutual zugzwang, one-move races) and scores that
+   difference; where both agree it is exactly 0 ⇒ no side-to-move boost in non-critical positions. Gate: EVAL STABILITY
+   (ply-to-ply static swing, depth n vs n+1 oscillation) must shrink where it fires.
+4. **Exact theory → the draw section + winnability** (SF's tiers: exact / known-win + drive / technique gradient / graded scale).
+   Fortress ports (KBPsK, KNPKB / KBPKN, KRPKR / KRPPKRP) → `DRAW_V2_CLASS` if the condition is STATIC and provable, else the
+   scale. ☠️ Every binary draw rule that failed the tablebase on 09-13 was a RACE ⇒ races / entries / opposition belong to POT
+   as nudges, never to a draw verdict. "No potential left ⇒ drawish": POT computes it, FEEDS winnability (one owner).
+5. **Trajectory labels:** potential FOR and AGAINST the side to move, realised / not (feature-matched counter-examples) /
+   partial; balanced on side to move (else the fit learns a disguised tempo bonus). ☠️ The existing set has NO pure endgames
+   (starts mg / mgl / egl, middlegame markers) ⇒ build an ENDGAME trajectory slice from EGX with endgame unresolved markers.
+   Tablebase (Lichess API, 7-man; no Syzygy on disk) only for a sample, and only with owner OK (external service).
+6. **Middlegame potential: parked** — same concept, harder to define.
+7. **Cheap in cycles** (owner): pawn-cache for pawn-only features, endgame legs skipped by one phase branch, reuse counts.
+   ☠️ Node-limited self-play CANNOT charge eval cost ⇒ every arm also gets a same-session NPS read + a timed check before a ship.
+   Search is unoptimised and may be hiding static-discrimination gains ⇒ another reason the search rules go first.
+8. Order of WRITING doesn't matter (owner): write everything during queue #68, compile + test when the engine is free.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

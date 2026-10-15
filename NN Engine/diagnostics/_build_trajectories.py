@@ -14,6 +14,12 @@ resolution markers (material vs start, passers per side, pawn count, both kings'
 Rows: one per (start, checkpoint) — start_fen, game, start_stage, markers_at_start, k, fen_k, ours_static_k, sf_k, … so a fit
 can target static(t+k) − static(t) (TRANSFORMATION our eval later sees) or sf(t+k) (the realised OUTCOME), then the depth target.
 Resumable (starts already in OUT are skipped); SHARD splits the starts across parallel processes (one SF18 + our engine each).
+
+MODE=eg (2026-10-15, POT brief §5.3/§5.5): the ENDGAME slice the mg set lacks. Starts = EGX endgame rows
+(IN=/mnt/e/chess_data/retune/EGX_fens.csv, phase_bucket == endgame), chosen by ENDGAME unresolved markers (contested
+opposition · a pawn race within one tempo · a breakthrough clash · unequal spare tempi) + the CONTROL share, and BALANCED on
+side to move (half White, half Black to move) so a fit cannot learn a disguised tempo bonus. Same roll-out and row layout;
+the marker columns are the eg ones. OUT default /mnt/e/chess_data/traj/traj_eg.csv.
 """
 import os, sys, csv, random, time
 for _a in sys.argv[1:]:
@@ -34,8 +40,9 @@ PLIES = [int(x) for x in os.environ.get("PLIES", "8,16,24").split(",")]
 MOVE_NODES = int(os.environ.get("MOVE_NODES", "50000"))
 LABEL_DEPTH = int(os.environ.get("LABEL_DEPTH", "14"))
 CONTROL = float(os.environ.get("CONTROL", "0.3"))
-IN = os.environ.get("IN", "/mnt/e/chess_data/retune/corpus_v2.csv")
-OUT = os.environ.get("OUT", "/mnt/e/chess_data/traj/traj.csv")
+MODE = os.environ.get("MODE", "mg")
+IN = os.environ.get("IN", "/mnt/e/chess_data/retune/EGX_fens.csv" if MODE == "eg" else "/mnt/e/chess_data/retune/corpus_v2.csv")
+OUT = os.environ.get("OUT", "/mnt/e/chess_data/traj/traj_eg.csv" if MODE == "eg" else "/mnt/e/chess_data/traj/traj.csv")
 si, sn = (int(x) for x in os.environ.get("SHARD", "0/1").split("/"))
 if sn > 1:
     OUT = OUT.replace(".csv", "_s%dof%d.csv" % (si, sn))
@@ -86,6 +93,58 @@ def unresolved(b):
     return [tension, lever, major, imbal, king]
 
 
+MG_MARKERS = ["tension", "lever", "majority", "imbalance", "king_center"]
+EG_MARKERS = ["opposition", "race", "breakthrough", "tempi_unequal"]
+
+
+def spare_tempi(b, c):
+    """Pawn moves side c could make that neither capture nor walk into an enemy pawn's attack (a cheap reserve-tempo
+    count: the moves that pass the turn in a zugzwang)."""
+    n, occ = 0, b.occupied
+    for s in b.pieces(chess.PAWN, c):
+        t = s + 8 if c else s - 8
+        if not 0 <= t < 64 or occ & (1 << t):
+            continue
+        if not (b.attackers_mask(not c, t) & b.pieces_mask(chess.PAWN, not c)):
+            n += 1
+    return n
+
+
+def unresolved_eg(b):
+    """ENDGAME markers of systems that are not yet kinetic (each 0/1). Cheap structure reads, not verdicts."""
+    wk, bk = b.king(True), b.king(False)
+    pawns = b.pieces_mask(chess.PAWN, True) | b.pieces_mask(chess.PAWN, False)
+    if wk is None or bk is None:
+        return [0, 0, 0, 0]
+    df, dr = abs(chess.square_file(wk) - chess.square_file(bk)), abs(chess.square_rank(wk) - chess.square_rank(bk))
+    # Opposition and reserve tempi decide only where zugzwang can: no queens or rooks (pawn / minor endings).
+    light = not (b.pieces_mask(chess.QUEEN, True) | b.pieces_mask(chess.QUEEN, False) |
+                 b.pieces_mask(chess.ROOK, True) | b.pieces_mask(chess.ROOK, False))
+    # direct / distant opposition: kings on a line (file, rank or diagonal) an EVEN number of squares apart
+    on_line = df == 0 or dr == 0 or df == dr
+    opposition = int(light and bool(pawns) and on_line and max(df, dr) in (2, 4, 6))
+    # a race within one tempo: a TRUE passed pawn's distance to promotion vs the enemy king's distance to that square
+    race = 0
+    for c in (True, False):
+        ek = bk if c else wk
+        for s in b.pieces(chess.PAWN, c):
+            f, r = chess.square_file(s), chess.square_rank(s)
+            ahead = range(r + 1, 8) if c else range(0, r)
+            if any(b.piece_at(chess.square(ff, rr)) == chess.Piece(chess.PAWN, not c)
+                   for ff in (f - 1, f, f + 1) if 0 <= ff < 8 for rr in ahead):
+                continue
+            q = chess.square(f, 7 if c else 0)
+            steps = (7 - r) if c else r
+            if abs(chess.square_distance(ek, q) - steps) <= 1:
+                race = 1
+    # breakthrough clash: >= 2 blocked pawn pairs (a pawn directly facing an enemy pawn) on adjacent files
+    blocked = sorted(chess.square_file(s) for s in b.pieces(chess.PAWN, True)
+                     if s + 8 < 64 and b.piece_at(s + 8) == chess.Piece(chess.PAWN, False))
+    breakthrough = int(any(blocked[i + 1] - blocked[i] == 1 for i in range(len(blocked) - 1)))
+    tempi_unequal = int(light and spare_tempi(b, True) != spare_tempi(b, False))
+    return [opposition, race, breakthrough, tempi_unequal]
+
+
 def marks(b, start_mat):
     return [material(b) - start_mat, passers(b, True), passers(b, False), len(b.pieces(chess.PAWN, True)) + len(b.pieces(chess.PAWN, False)),
             chess.square_rank(b.king(True)) if b.king(True) is not None else -1,
@@ -94,21 +153,47 @@ def marks(b, start_mat):
 
 def main():
     rows = []
-    for r in csv.DictReader(open(IN, newline="")):
-        if r["slice"] in ("A", "A2", "V1", "GAUNT") and r["mate"] != "1" and r["stage"] in ("mg", "mgl", "egl") and r["split"] != "excluded":
-            rows.append((r["fen"], r["group"], r["stage"], r["split"]))
+    if MODE == "eg":
+        # EGX carries no split: the split is assigned by game at corpus assembly, so record the game id only.
+        for r in csv.DictReader(open(IN, newline="")):
+            if r["phase_bucket"] == "endgame":
+                rows.append((r["fen"], r["game"], "eg", ""))
+    else:
+        for r in csv.DictReader(open(IN, newline="")):
+            if r["slice"] in ("A", "A2", "V1", "GAUNT") and r["mate"] != "1" and r["stage"] in ("mg", "mgl", "egl") and r["split"] != "excluded":
+                rows.append((r["fen"], r["group"], r["stage"], r["split"]))
     random.seed(1014)
     random.shuffle(rows)
+    markers_fn = unresolved_eg if MODE == "eg" else unresolved
     # choose starts: unresolved-system positions + a uniform CONTROL share (deterministic across shards)
     chosen, n_ctl = [], int(N * CONTROL)
-    for fen, g, st, sp in rows:
-        if len(chosen) >= N:
-            break
-        if len(chosen) < n_ctl:
-            chosen.append((fen, g, st, sp, 1))
-            continue
-        if sum(unresolved(chess.Board(fen))) >= 1:
-            chosen.append((fen, g, st, sp, 0))
+    if MODE == "eg":
+        # Side-to-move BALANCE by exact COLOUR MIRROR: EGX is ~96% White to move, so every other chosen start is
+        # replaced by board.mirror() (same position, colours swapped; our eval and SF are colour-symmetric). The
+        # mover-vs-opponent balance of WHOSE potential is realised is only known after the roll-out ⇒ fit weighting.
+        n_sel = 0
+        for fen, g, st, sp in rows:
+            if len(chosen) >= N:
+                break
+            b = chess.Board(fen)
+            if b.is_game_over():
+                continue
+            ctl = 1 if len(chosen) < n_ctl else 0
+            if not ctl and sum(markers_fn(b)) < 1:
+                continue
+            if n_sel % 2 == 1:
+                b = b.mirror()
+            n_sel += 1
+            chosen.append((b.fen(), g, st, sp, ctl))
+    else:
+        for fen, g, st, sp in rows:
+            if len(chosen) >= N:
+                break
+            if len(chosen) < n_ctl:
+                chosen.append((fen, g, st, sp, 1))
+                continue
+            if sum(unresolved(chess.Board(fen))) >= 1:
+                chosen.append((fen, g, st, sp, 0))
     chosen = chosen[si::sn]
     done = set()
     if os.path.exists(OUT):
@@ -118,7 +203,7 @@ def main():
     fh = open(OUT, "a", newline="")
     w = csv.writer(fh)
     if new:
-        w.writerow(["start_fen", "game", "start_stage", "split", "control", "tension", "lever", "majority", "imbalance", "king_center",
+        w.writerow(["start_fen", "game", "start_stage", "split", "control", *(EG_MARKERS if MODE == "eg" else MG_MARKERS),
                     "k", "fen_k", "ours_static_k", "sf_k", "mat_change", "passers_w", "passers_b", "pawns", "wk_rank", "bk_rank",
                     "in_check", "game_over"])
     ai = ChessAI.ChessAI(None, None, chess.Board(), True)
@@ -140,7 +225,7 @@ def main():
         if fen in done:
             continue
         b = chess.Board(fen)
-        um = unresolved(b)
+        um = markers_fn(b)
         m0 = material(b)
         out = [(0, b.fen(), ours(b), label(b), marks(b, m0))]
         ply = 0

@@ -144,6 +144,18 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
    Search is unoptimised and may be hiding static-discrimination gains ⇒ another reason the search rules go first.
 8. Order of WRITING doesn't matter (owner): write everything during queue #68, compile + test when the engine is free.
 
+### 5a. RESULTS 2026-10-15
+- **KS_V2_HALF=818** (queue #68): self-play −6.1 ± 17.9 ⇒ not shipped; POT's base stays gen 3.
+- **Race-margin prototype** (`_pot_race_proto.py`, 7,097 EGX pawn endings, 5-fold game CV): static + race features −7.2%
+  held-out win% MSE vs our static alone, 95% CI [−11.0, −3.3] (1,212 games), shuffled null +0.1…+0.3. Decisive races −9.4%,
+  contested −7.1%, no-race rows +1.4% (silent where no race — as designed). Weights: promotion race with side to move +0.39,
+  best goal margin +0.17, spare tempi ON CONTESTED RACES +0.15; stm alone, overload flag, contested count ≈ 0.
+- **☠️ Pawn-ending SEARCH rules do NOT fix the d10 bias** (queue #69, d10 on 313 own + 1,972 EGX pawn-only rows vs SF18 d14):
+  base −7.32 · npm null guard −7.34 (29% of rows changed) · legacy-OR-npm −7.33 · prune gate −7.34 (72% changed, +33% nodes)
+  · passed-push ext −7.05 (MSE −2.1%, +17% nodes) · all three −6.97 (+52% nodes). Registered prediction ("all" ≈ −3) FAILED.
+  ⇒ The §0a inference (SF11 d10 −1.0 vs ours −8.5 ⇒ our null move / pruning) is REFUTED for these rules; the lever is back on the
+  EVAL side (POT race) — consistent with the prototype. Knobs stay at 0 (no ship); the extension may be re-read at equal TIME later.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

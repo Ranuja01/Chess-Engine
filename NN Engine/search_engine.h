@@ -2812,6 +2812,21 @@ namespace Config
     // fires only at non-PV (beta-alpha==1), not-in-check, non-mate, shallow-remaining nodes.
     inline bool ENABLE_RFP = true;      // node-entry reverse futility (static null) -- SHIPPED (+73 Elo SPRT)
     inline int RFP_MARGIN = 1500;       // milli-pawn margin PER remaining ply (pawn=1000); shipped value
+    // ── PAWN-ENDING SEARCH RULES (2026-10-15, POT brief §5.1; SF11 search.cpp:846 / :997-999 / :1078-1081) ─────────
+    // Our pawn endings stay under-confident at d10 (bias −8.5 vs SF11 −1.0 on the same 313 rows) although our STATIC
+    // eval is better there (0.87× SF11) ⇒ search discards pawn-ending truth. All three default to today's behaviour
+    // (byte-identical); they are SEARCH knobs shared with arm 0, so they may only ever be enabled in the v2 env block.
+    // NULL_NPM_GUARD: 0 = legacy count rule (pawns counted as pieces: K+7P is null-moved, K+Q+N+B is refused) ·
+    //   1 = SF: unsafe iff the mover has NO non-pawn material (replaces the count rule) · 2 = legacy OR npm == 0 ·
+    //   3 = unsafe iff the mover's non-pawn material < NULL_NPM_MIN (mp, nominal 3250/3450/5000/10000).
+    inline int NULL_NPM_GUARD = 0;
+    inline int NULL_NPM_MIN = 5000;
+    // PE_PRUNE_GATE: no LMP / history / quiet-SEE / capture-SEE / futility pruning when the MOVER has only pawns (SF11
+    // step 13's `non_pawn_material(us)` gate; LMR itself is unchanged, as in SF11).
+    inline bool PE_PRUNE_GATE = false;
+    // PE_PASSER_EXT: SF11's passed-pawn push extension (killer-slot-0 move, pawn from relative rank ≥ 5, true passer
+    // after the push) ⇒ +1 ply. Value = the per-path extension cap it shares with check extensions; 0 = off.
+    inline int PE_PASSER_EXT = 0;
     inline int RFP_MIN_DEPTH = 1;       // fire only when (depth_limit - cur_depth) >= RFP_MIN_DEPTH (skip leaf-adjacent rd)
     inline int RFP_MAX_DEPTH = 6;       // fire only when (depth_limit - cur_depth) in [RFP_MIN_DEPTH, RFP_MAX_DEPTH]
     inline int RFP_EVAL_MODE = 0;       // eval_by_mode arg for the RFP/gate eval: 0=full, 1=cheap

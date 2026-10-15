@@ -525,6 +525,31 @@ static inline int cutoff_move_class(const Move &m, const BoardState &st, int ply
 // Passed-pawn LMP/LMR exemption fires (diagnostic): how often an otherwise-reducible advanced pawn push
 // was exempted from pruning/reduction. Cumulative across the run; printed beside the histogram.
 static long g_passer_exempt_fires = 0;
+// Pawn-ending search rules (Config::NULL_NPM_GUARD / PE_PRUNE_GATE / PE_PASSER_EXT; POT brief §5.1). Fire counters:
+// null_refused = null moves the npm guard refused that the legacy count rule would have allowed (and vice versa for
+// null_allowed); prune_gated = prunes skipped because the mover had only pawns; passer_ext = extensions granted.
+static long g_pe_null_refused = 0, g_pe_null_allowed = 0, g_pe_prune_gated = 0, g_pe_passer_ext = 0;
+
+// The mover has no non-pawn material (SF11 `!pos.non_pawn_material(us)`).
+static inline bool pe_pawns_only(const BoardState &s)
+{
+    return (s.occupied_colour[s.turn] & ~(s.pawns | s.kings)) == 0;
+}
+
+// SF11 search.cpp:1078-1081: the killer-slot-0 move is an advanced push (from relative rank >= 5) of a pawn that is
+// passed after the push. `before` = the mover's position, `after` = the child.
+static inline bool pe_passer_push(const Move &move, const BoardState &before, const BoardState &after, int cur_depth)
+{
+    if (move.promotion != 1 || !(after.pawns & (1ULL << move.to_square)) || !(killerMoves[cur_depth][0] == move))
+        return false;
+    const bool white = before.turn;
+    const int from_rank = move.from_square >> 3;
+    if ((white ? from_rank : 7 - from_rank) < 4)
+        return false;
+    const uint64_t enemy_pawns = after.pawns & after.occupied_colour[!white];
+    const uint64_t span = white ? passed_span_white[move.to_square] : passed_span_black[move.to_square];
+    return (enemy_pawns & span) == 0;
+}
 // LMR bet accounting, to settle WHY a reduction guard can REDUCE node count. A reduction is a bet:
 // win => only the reduced search is paid; lose => the reduced search is thrown away AND the full
 // re-search is paid, so a wrong reduction costs MORE than never reducing. If a guard that declines
@@ -2134,6 +2159,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", Config::V2_SHIP_GEN);
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
         Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
+        Config::NULL_NPM_GUARD = env_int("NULL_NPM_GUARD", Config::NULL_NPM_GUARD);
+        Config::NULL_NPM_MIN = env_int("NULL_NPM_MIN", Config::NULL_NPM_MIN);
+        Config::PE_PRUNE_GATE = env_flag("PE_PRUNE_GATE", Config::PE_PRUNE_GATE);
+        Config::PE_PASSER_EXT = env_int("PE_PASSER_EXT", Config::PE_PASSER_EXT);
         Config::RFP_MIN_DEPTH = env_int("RFP_MIN_DEPTH", Config::RFP_MIN_DEPTH);
         Config::RFP_MAX_DEPTH = env_int("RFP_MAX_DEPTH", Config::RFP_MAX_DEPTH);
         Config::RFP_EVAL_MODE = env_int("RFP_EVAL_MODE", Config::RFP_EVAL_MODE);
@@ -2790,6 +2819,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CAPCHAIN_REDUCE_LESS=" << Config::CAPCHAIN_REDUCE_LESS
                   << " CAPCHAIN_RUN_THRESH=" << Config::CAPCHAIN_RUN_THRESH
                   << " ENABLE_LMP=" << Config::ENABLE_LMP
+                  << " NULL_NPM_GUARD=" << Config::NULL_NPM_GUARD
+                  << " NULL_NPM_MIN=" << Config::NULL_NPM_MIN
+                  << " PE_PRUNE_GATE=" << Config::PE_PRUNE_GATE
+                  << " PE_PASSER_EXT=" << Config::PE_PASSER_EXT
                   << " ENABLE_SEE_PRUNE=" << Config::ENABLE_SEE_PRUNE
                   << " SEE_PRUNE_MARGIN=" << Config::SEE_PRUNE_MARGIN
                   << " SEE_PRUNE_MAX_DEPTH=" << Config::SEE_PRUNE_MAX_DEPTH
@@ -3651,6 +3684,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     }
     std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires
               << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires << std::endl;
+    if (Config::NULL_NPM_GUARD || Config::PE_PRUNE_GATE || Config::PE_PASSER_EXT)
+        std::cerr << "[pe_rules] null_refused=" << g_pe_null_refused << " null_allowed=" << g_pe_null_allowed
+                  << " prune_gated=" << g_pe_prune_gated << " passer_ext=" << g_pe_passer_ext << std::endl;
     // Futility cost/benefit: evals = full CHILD static evals paid at the gate (unconditional, before the
     // ENABLE_FUTILITY test); fires = times the prune actually returned. A low rate means we are paying a
     // per-move eval for nearly nothing, which is what a parent-eval (SF-style) futility would recover.
@@ -4459,6 +4495,13 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 see(move.to_square, updated_state.turn, updated_state) > Config::SEE_EXTEND_MARGIN)
                 extend = false;
         }
+        // SF11 passed-pawn push extension (Config::PE_PASSER_EXT = its per-path cap, shared counter with checks).
+        if (!extend && Config::PE_PASSER_EXT > 0 && g_check_extensions < Config::PE_PASSER_EXT && depth_limit + 2 < MAX_PLY &&
+            pe_passer_push(move, current_state, updated_state, cur_depth))
+        {
+            extend = true;
+            ++g_pe_passer_ext;
+        }
         CheckExtensionGuard ceg(extend);
         if (extend)
             depth_limit++;
@@ -4570,10 +4613,15 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 if (Config::ENABLE_LMR_COUNTERS && do_lmr)
                     g_lmr_applied++;
 
+                // SF11 step-13 gate: with only pawns the mover is in zugzwang territory, so no shallow pruning
+                // (LMP / history / SEE / futility); LMR still applies. Off = byte-identical.
+                const bool pe_gate = Config::PE_PRUNE_GATE && pe_pawns_only(current_state);
+                if (pe_gate)
+                    ++g_pe_prune_gated;
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
                 // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
-                if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
+                if (Config::ENABLE_LMP && do_lmr && !pe_gate && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
                     bool lmp_reached = rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd;
@@ -4593,7 +4641,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
 
                 // History pruning: skip a late quiet the ordering strongly condemns (very negative butterfly
                 // history) at low remaining depth. Reads the existing from×to table; default off = byte-identical.
-                if (Config::ENABLE_HIST_PRUNE && do_lmr)
+                if (Config::ENABLE_HIST_PRUNE && do_lmr && !pe_gate)
                 {
                     int rd_hp = depth_limit - cur_depth;
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
@@ -4606,7 +4654,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
                 // captured by the immediate recapture (post-move see() from the opponent's side). do_lmr
                 // already excludes captures/checks/promotions/killers/in-check. Default off = byte-identical.
-                if (Config::ENABLE_SEE_PRUNE && do_lmr)
+                if (Config::ENABLE_SEE_PRUNE && do_lmr && !pe_gate)
                 {
                     int rd_see = depth_limit - cur_depth;
                     if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -4617,7 +4665,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
                 // see() from the mover's side) is skipped at low remaining depth. Captures bypass do_lmr; a
                 // checking capture (extend) is never pruned. Default off = byte-identical.
-                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend)
+                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !pe_gate)
                 {
                     int rd_cap = depth_limit - cur_depth;
                     if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -4635,7 +4683,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, false);
                         if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
 
-                        if (Config::ENABLE_FUTILITY &&
+                        if (Config::ENABLE_FUTILITY && !pe_gate &&
                             (early_score - FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] > beta))
                         {
                             if (Config::ENABLE_PRUNE_LOG) g_futility_fires++;
@@ -4864,6 +4912,13 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 see(move.to_square, updated_state.turn, updated_state) > Config::SEE_EXTEND_MARGIN)
                 extend = false;
         }
+        // SF11 passed-pawn push extension (Config::PE_PASSER_EXT = its per-path cap, shared counter with checks).
+        if (!extend && Config::PE_PASSER_EXT > 0 && g_check_extensions < Config::PE_PASSER_EXT && depth_limit + 2 < MAX_PLY &&
+            pe_passer_push(move, current_state, updated_state, cur_depth))
+        {
+            extend = true;
+            ++g_pe_passer_ext;
+        }
         CheckExtensionGuard ceg(extend);
         if (extend)
             depth_limit++;
@@ -4975,10 +5030,15 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 if (Config::ENABLE_LMR_COUNTERS && do_lmr)
                     g_lmr_applied++;
 
+                // SF11 step-13 gate: with only pawns the mover is in zugzwang territory, so no shallow pruning
+                // (LMP / history / SEE / futility); LMR still applies. Off = byte-identical.
+                const bool pe_gate = Config::PE_PRUNE_GATE && pe_pawns_only(current_state);
+                if (pe_gate)
+                    ++g_pe_prune_gated;
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
                 // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
-                if (Config::ENABLE_LMP && do_lmr && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
+                if (Config::ENABLE_LMP && do_lmr && !pe_gate && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
                     bool lmp_reached = rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd;
@@ -4998,7 +5058,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
 
                 // History pruning: skip a late quiet the ordering strongly condemns (very negative butterfly
                 // history) at low remaining depth. Reads the existing from×to table; default off = byte-identical.
-                if (Config::ENABLE_HIST_PRUNE && do_lmr)
+                if (Config::ENABLE_HIST_PRUNE && do_lmr && !pe_gate)
                 {
                     int rd_hp = depth_limit - cur_depth;
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
@@ -5011,7 +5071,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
                 // captured by the immediate recapture (post-move see() from the opponent's side). do_lmr
                 // already excludes captures/checks/promotions/killers/in-check. Default off = byte-identical.
-                if (Config::ENABLE_SEE_PRUNE && do_lmr)
+                if (Config::ENABLE_SEE_PRUNE && do_lmr && !pe_gate)
                 {
                     int rd_see = depth_limit - cur_depth;
                     if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -5022,7 +5082,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
                 // see() from the mover's side) is skipped at low remaining depth. Captures bypass do_lmr; a
                 // checking capture (extend) is never pruned. Default off = byte-identical.
-                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend)
+                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !pe_gate)
                 {
                     int rd_cap = depth_limit - cur_depth;
                     if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -5039,7 +5099,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, true);
                         if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
-                        if (Config::ENABLE_FUTILITY &&
+                        if (Config::ENABLE_FUTILITY && !pe_gate &&
                             (early_score + FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] < alpha))
                         {
                             if (Config::ENABLE_PRUNE_LOG) g_futility_fires++;
@@ -8574,16 +8634,36 @@ inline bool isUnsafeForNullMovePruning(BoardState current_state)
     // Acquire the number of pieces on the board not including the kings
     int pieceNum = __builtin_popcountll(current_state.occupied_colour[current_state.turn]) - 1;
 
-    if ((current_state.occupied_colour[current_state.turn] & current_state.queens) == 0)
+    const bool legacy_unsafe = ((current_state.occupied_colour[current_state.turn] & current_state.queens) == 0)
+                                   ? (pieceNum < 7)
+                                   : (pieceNum < 4);
+    if (Config::NULL_NPM_GUARD == 0)
+        return legacy_unsafe;
+
+    // Non-pawn material guard (POT brief §5.1): pawns never count, as in v2's phase. Counters record only the
+    // positions where the new rule DISAGREES with the legacy one, i.e. exactly where it changes the search.
+    bool unsafe;
+    if (Config::NULL_NPM_GUARD == 3)
     {
-        if (pieceNum < 7)
-            return true;
+        const uint64_t mine = current_state.occupied_colour[current_state.turn];
+        const int npm = 3250 * __builtin_popcountll(mine & current_state.knights) +
+                        3450 * __builtin_popcountll(mine & current_state.bishops) +
+                        5000 * __builtin_popcountll(mine & current_state.rooks) +
+                        10000 * __builtin_popcountll(mine & current_state.queens);
+        unsafe = npm < Config::NULL_NPM_MIN;
     }
     else
     {
-        if (pieceNum < 4)
-            return true;
+        unsafe = pe_pawns_only(current_state);
+        if (Config::NULL_NPM_GUARD == 2)
+            unsafe = unsafe || legacy_unsafe;
     }
+    if (unsafe && !legacy_unsafe)
+        ++g_pe_null_refused;
+    else if (!unsafe && legacy_unsafe)
+        ++g_pe_null_allowed;
+    if (unsafe)
+        return true;
 
     // 4. (Optional) Check for fortress / locked structure heuristics
 

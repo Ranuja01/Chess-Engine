@@ -1,0 +1,19 @@
+# POT owner cases — positions from the owner's UI games where our eval misses POTENTIAL that later becomes kinetic.
+# Every POT version must be read on these (static + d10), beside SF18 d18. Scores White POV, pawns.
+# Game 1 (2026-10-15, gen 3 as White, B vs N with pawns): Black's g/h majority breaks through while White's king and knight
+# are on the queenside; our static reads +1.6..+1.9 until the passed h-pawn EXISTS (58...gxh3 → +0.2). Needs the race
+# inputs extended to light-piece endings (the knight's tempi to the queening path, not only the kings').
+5k2/8/5ppp/2NPp3/2p1P1b1/2P1P3/1P1K2P1/8 b - - 7 48  # g1a after 48.Kd2 (SF +0.2, ours +1.6) — SF wanted 48.b4
+2b1k3/8/3P1pp1/2N1p2p/2p1P3/2P1P3/1PK3P1/8 w - - 0 51  # g1b after 50...h5 (SF 0.0, ours +1.7)
+2b1k3/8/3P1p2/2N1p1p1/2K1P2p/2P1P3/6P1/8 w - - 0 54  # g1c after 53...h4 (SF 0.0, ours +1.8)
+2b1k3/8/3P1p2/1KN1p3/4P1pp/2P1P3/6P1/8 w - - 0 55  # g1d after 54...g4 (SF -1.3, ours +1.6)
+3k4/3b4/2KP1p2/4p3/4P1pp/2PNP3/6P1/8 w - - 4 57  # g1e after 56...Bd7+ (SF -3.2, ours +1.9)
+# Game 3 (2026-10-16, gen 3 as White vs Chessiverse "Morphy" 3231, lost). The blunders 17.f3? / 37.Rdf1?? are NOT found by our
+# LONG_FORMAT search (it plays SF's Nac3 / Rc1 at d20-21) ⇒ the UI game was faster or nondeterministic. STATIC over-optimism:
+# doubled e-pawns + a4 knight read as assets; to SF they are targets / a bad piece (Black later wins e5, e4). Structural, not a race.
+r3k2r/1pp1bppp/2p5/4Pb2/N2nN3/1P5P/P1PB1PP1/R2R2K1 w - - 1 17  # g3a White to move: SF best Nac3 -0.5 (f3? -1.6); ours static +1.3..+1.4
+4k2r/2p1bp2/4n1p1/r1p1P3/Np2P2p/1P2BR1P/P5P1/2R3K1 w - - 2 36  # g3b White to move: SF -1.6 (Rc4); ours static +0.1
+# Game 2 (2026-10-15, gen 3 as White vs lichess AI level 6, won by mate after Black's 32...Rh4??). MOVE-level misses:
+# the static ranks the breakthrough LAST / the structural give-away FIRST (sibling ordering — static discrimination).
+3b3r/3bk1p1/4p3/1p1pB3/p4PP1/P1P2N2/1P4K1/4R3 w - - 6 31  # g2a EG, White to move: SF +2.1, ours +0.7. 31.f5! SF +2.1 / ours +0.3 (ranked below 31.Ng5: SF +0.9 / ours +0.9, played)
+3rkb1r/pppbnpp1/2p4p/4P3/3N2P1/2N4P/PPP2PK1/R1BR4 w - - 5 15  # g2b MG (parked half), White to move: 15.e6?! gives up the Berlin e5 asset: SF -0.1 / ours +1.1 (ranked first); 15.f4 SF +0.3 / ours +1.0

@@ -10,6 +10,7 @@
       reads /mnt/e/chess_data/pe/d10_<arm>_s*of3.csv (our d10 search per arm, _depth_residual_pass.py) and prints per arm and
       stratum: win% MSE and side-ahead BIAS vs SF18 d14 (bias over |SF18| > 25 cp; − = too drawish), CHANGED-rate vs base (a
       rule that changes 0% of rows did not fire — the liveness check), and total nodes vs base.
+  pyrun diagnostics/_pe_arms.py MODE=sf11 DEPTHS=6,8   — SF11 searches in the same file format (see sf11()).
 """
 import os, sys, csv, glob, random
 import numpy as np
@@ -88,5 +89,23 @@ def read():
             print("%-6s %-5s %6d %9.1f %+8.2f %8.1f%% %10.3f" % (a, st, len(fens), mse, bias, 100 * ch, nr))
 
 
+def sf11():
+    """MODE=sf11 DEPTHS=6,8: SF11 (classical) search on pe_in.csv at each depth → d10_sf11d<N>_s0of3.csv in the depth-pass
+    format (nodes 0), so MODE=read ARMS=base,sf11d6,... compares it with our arms (horizon vs constant-offset split)."""
+    import chess.engine
+    from _triangulate_sf11 import SF11
+    rows = list(csv.DictReader(open(os.path.join(D, "pe_in.csv"), newline="")))
+    eng = chess.engine.SimpleEngine.popen_uci(SF11, timeout=120)
+    for dd in [int(x) for x in KV.get("DEPTHS", "10").split(",")]:
+        out = os.path.join(D, "d10_sf11d%d_s0of3.csv" % dd)
+        with open(out, "w", newline="") as fh:
+            w = csv.writer(fh); w.writerow(["fen", "ours_cp_white", "depth", "nodes"])
+            for r in rows:
+                sc = eng.analyse(chess.Board(r["fen"]), chess.engine.Limit(depth=dd))["score"].white().score(mate_score=5000)
+                w.writerow([r["fen"], "%.1f" % max(-5000, min(5000, sc)), dd, 0])
+        print("SF11 d%d: %d rows → %s" % (dd, len(rows), out), flush=True)
+    eng.quit()
+
+
 if __name__ == "__main__":
-    prep() if KV.get("MODE") == "prep" else read()
+    {"prep": prep, "sf11": sf11}.get(KV.get("MODE"), read)()

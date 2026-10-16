@@ -156,6 +156,24 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   ⇒ The §0a inference (SF11 d10 −1.0 vs ours −8.5 ⇒ our null move / pruning) is REFUTED for these rules; the lever is back on the
   EVAL side (POT race) — consistent with the prototype. Knobs stay at 0 (no ship); the extension may be re-read at equal TIME later.
 
+### 5b. RESULTS 2026-10-16 (race prototype extended: breakthrough goal + minor-piece cover; light endings = pawns + minors)
+- Overnight #71: winnability OFF on the pawn rows ⇒ d10 bias −7.3 → −4.8 but MSE +9% (the scale damps decisive AND drawn);
+  bias by depth ours −11.7/−9.6/−7.3/−5.8/−4.2 (d6-14) vs SF11 −4.4/−1.7/+0.4/+2.2/+3.7 (same slope, ~7 pts behind).
+  NULL_NPM_GUARD=1 self-play −1.4 ± 17.9 (not shipped). Eval symmetry on EGX endgames clean (0/8000, 0/7997).
+- Light endings 29,291 / 2,885 games: static + race −5.8% … ☠️ **CONFOUNDED**: material-CLASS indicators (pawn-only, one minor,
+  signed by the edge) alone give **−8.7%** (pure pawn endings are under-confident AS A CLASS — a winnability cell). With the
+  class control in every arm, the race adds **−3.9%** (helped 41% / hurt 40% — near coin flip with pieces) and **−4.1% gated to
+  pawn endings** (helped 54% / hurt 39%, gain 4.5 vs loss 4.2). Pawn-only fit (no class confound): −7.0%, CI [−10.8, −3.0].
+- With-edge half carries the race gain (−5.3 of −5.9, pre-control) ⇒ the race FEEDS winnability first; against-edge (POT's own
+  term) −1.0% alone. Breakthrough goal as built: −4.2% on light rows where it fires, +6.3% on pawn rows (formula too crude).
+- MOVE test (5,974 SF18 multi-PV light endgames, 5 game folds): top-1 30.2 → 29.7%, pairs 74.2 → 74.6%; critical (283)
+  58.0 → 60.8% / 82.1 → 83.6% (~1σ). The race term ALONE orders SF's move above a ≥10-pt loser 52.5% (≈ blind): it knows WHO
+  wins the race, not WHICH MOVE does (straight-line king distances cannot see the opposition step). Owner game-1 positions not fixed.
+- Magnitude: nudge median 1.9 / 99th 10 / max 24 win% pts; gains and losses the SAME size (2.9 vs 2.8) — net gain from frequency.
+- **Proposed first C++ build:** (1) winnability confidence cell for pure pawn endings (+ one minor) — the −8.7% class effect;
+  (2) POT race margin GATED to pure pawn endings (pawn-cache), feeding winnability + POT's own term; light-piece endings wait
+  for a king-path flood fill + defender overload. Test at depth on the pawn rows, then games.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

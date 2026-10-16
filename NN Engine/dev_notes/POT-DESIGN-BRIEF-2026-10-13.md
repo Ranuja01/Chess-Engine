@@ -187,6 +187,23 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   RESIGN_THRESHOLD (−15,000 mp) ⇒ the engine returned no move; re-run with resignation disabled (numbers above). Watch resign in games.
 - Next: games — targeted (K+P stress starts) + standard self-play @50k, then SF18 @1100, Mediocre.
 
+### 5d. 2026-10-16 afternoon — pre-game checks, profile, speed plan
+- #73: ONEMINOR cell on 2,000 one-minor endings at d10: bias −3.54 → +0.07, MSE 73.8 → 74.2 (flat) ⇒ safe. Dropping WIN_RACE
+  (set S): own pawn rows 79.5 vs A 68.0 (+17%, predicted ≤ 3%) ⇒ KEEP WIN_RACE (set A goes to games). SPEED inside pure
+  pawn endings: NPS 618k → 480k (−22%), time to d10 +3.6% (nodes −19%) ⇒ a TIMED check before any ship.
+- v2 eval PROFILE (`_eval_profile_v2.py`, gen 3 + set A, 2,000-game positions): KS-A ~30% of eval in every phase (24% late
+  endgame) · attack build 8-15% · C3 ~10% · pawn detector 5-8% · structure / placement ~7% each · PX 3-5% · winnability+race
+  1-2% · ☠️ 26% of LATE-ENDGAME eval is outside every scope (draw class / KPK probe / mobility scoring? — scope it).
+  Speed levers for search v2: a result-identical KS early exit when no danger is possible; pawn-hash caching; the unscoped block.
+- RACE SPEED PLAN (result-identical ⇒ byte-identity + closure re-check only): (1) distance RINGS `RING[sq][d]` (64×8 masks): the
+  nearest square of a set from a king = first d with RING & set ≠ 0, replacing per-square loops; (2) precomputed key-square masks
+  `KEYSQ[colour][sq]`; (3) cache the pawn-only part (passer / candidate masks, key-square sets, promotion squares, spare-tempi
+  counts) in the pawn hash — in pawn endings most nodes are KING moves, so the cache hits; (4) targets: one pawn-attack fill per side.
+- Queued tonight: #74 games (targeted 1,200 from pawn-dominated starts + 2,000 UHO, then SF18 @1100 if self-play passes or
+  targeted ≥ +2σ with standard > 0) → #75 TIMED targeted (600 games LIGHTNING, after midnight).
+- Prototype: `KPATH=1` = real king routes (no own pawns, no enemy-pawn-attacked squares, not next to the enemy king) for the
+  race distances — ready to test (pawn fit + move test) in a gap.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

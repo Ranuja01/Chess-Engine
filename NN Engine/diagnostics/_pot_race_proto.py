@@ -62,6 +62,52 @@ def dist(a, b):
     return chess.square_distance(a, b)
 
 
+# ── KPATH=1 (2026-10-16): REAL king routes instead of straight-line distance. The king may not step onto its own pawns, onto
+# squares the enemy pawns attack, or next to the enemy king (opposition) — so a blocked chain or a held opposition shows up as a
+# LONGER route, which straight-line distance cannot see (the move test read 52.5% ≈ blind with it). BFS over at most 64
+# squares; unreachable = 15. Default off ⇒ every earlier result reproduces.
+KPATH = os.environ.get("KPATH", "0") == "1"
+_KCACHE = {}
+
+
+def king_routes(b, c):
+    """Route length from side c's king to every square under the rules above (cached per board + side)."""
+    key = (b.board_fen(), c)
+    if key in _KCACHE:
+        return _KCACHE[key]
+    k = b.king(c)
+    blocked = int(b.pieces_mask(chess.PAWN, c))
+    for s in b.pieces(chess.PAWN, not c):
+        blocked |= int(chess.BB_PAWN_ATTACKS[not c][s])
+    ek = b.king(not c)
+    if ek is not None:
+        blocked |= int(chess.BB_KING_ATTACKS[ek]) | (1 << ek)
+    d = [15] * 64
+    d[k] = 0
+    frontier = [k]
+    step = 0
+    while frontier:
+        step += 1
+        nxt = []
+        for s in frontier:
+            for t in chess.SquareSet(chess.BB_KING_ATTACKS[s] & ~blocked):
+                if d[t] == 15:
+                    d[t] = step
+                    nxt.append(t)
+        frontier = nxt
+    if len(_KCACHE) > 200000:
+        _KCACHE.clear()
+    _KCACHE[key] = d
+    return d
+
+
+def kdist(b, c, target):
+    """Side c's king → target: route length under KPATH, else straight-line."""
+    if KPATH:
+        return king_routes(b, c)[target]
+    return dist(b.king(c), target)
+
+
 def _knight_table():
     t = [[NEVER] * 64 for _ in range(64)]
     for s in range(64):
@@ -148,8 +194,15 @@ def run_margin(b, s, c, extra, stm):
     steps = 7 - rel_rank(s, c) - (1 if rel_rank(s, c) == 1 else 0) + extra
     q = chess.square(f, 7 if c else 0)
     path = [chess.square(f, r) for r in (range(chess.square_rank(s) + 1, 8) if c else range(0, chess.square_rank(s)))]
-    d = min(dist(b.king(not c), q), piece_cover(b, not c, path) if path else NEVER)
+    d = min(kdist(b, not c, q), piece_cover(b, not c, path) if path else NEVER)
     return d - steps + stm
+
+
+def adj_route(b, side, s):
+    """Tempi for side's king to reach a square ADJACENT to s (to win or to guard the pawn on s)."""
+    if KPATH:
+        return min(kdist(b, side, t) for t in chess.SquareSet(chess.BB_KING_ATTACKS[s]))
+    return max(0, dist(b.king(side), s) - 1)
 
 
 def goals(b, c):
@@ -167,14 +220,14 @@ def goals(b, c):
                 out.append((run_margin(b, s, c, sen, stm), f, "break"))
         ks = [k for k in key_squares(s, c) if not b.piece_at(k)]
         if ks:
-            a = min(dist(ak, k) for k in ks)
-            d = min(dist(dk, k) for k in ks)
+            a = min(kdist(b, c, k) for k in ks)
+            d = min(kdist(b, not c, k) for k in ks)
             out.append((d - a + stm, f, "key"))
     for s in b.pieces(chess.PAWN, not c):               # enemy pawns not defended by a pawn
         if b.attackers_mask(not c, s) & b.pieces_mask(chess.PAWN, not c):
             continue
-        a = max(0, dist(ak, s) - 1)
-        d = max(0, dist(dk, s) - 1)
+        a = adj_route(b, c, s)
+        d = adj_route(b, not c, s)
         out.append((d - a + stm, chess.square_file(s), "target"))
     return out
 
@@ -325,7 +378,7 @@ def main_moves():
     for p in sorted(glob.glob(MPV)):
         for r in csv.DictReader(open(p, newline="")):
             mv = [(u, float(c)) for u, c in (x.split(":") for x in r["moves"].split(";") if ":" in x)]
-            if len(mv) >= 2:
+            if len(mv) >= 2 and in_set(chess.Board(r["fen"])):          # score only the class the model was trained on
                 mpv.append((r["fen"], mv))
     games = {r["fen"]: r["game"] for r in csv.DictReader(open(FENS, newline=""))}
     # 5 folds BY GAME over the multi-PV positions; fold k is scored by models trained on every EGX row whose game is NOT

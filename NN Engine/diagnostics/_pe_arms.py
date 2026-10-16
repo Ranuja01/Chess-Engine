@@ -62,7 +62,7 @@ def prep():
 
 def read():
     tgt, strat = {}, {}
-    for r in csv.DictReader(open(os.path.join(D, "pe_in.csv"), newline="")):
+    for r in csv.DictReader(open(KV.get("PEIN", os.path.join(D, "pe_in.csv")), newline="")):
         tgt[r["fen"]] = float(r["best_cp"]); strat[r["fen"]] = r["stratum"]
     arms = KV.get("ARMS", "base,g1,g2,gate,ext,all").split(",")
     res = {}

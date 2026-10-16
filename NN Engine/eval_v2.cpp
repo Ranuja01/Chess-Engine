@@ -4492,7 +4492,11 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	EvalPair lp;    // scratch legs, refilled per term
 
 	int w_mat = 0, b_mat = 0, w_pst = 0, b_pst = 0;
-	int total = rung0_material_and_placement(c, w_mat, b_mat, w_pst, b_pst, &lp);
+	int total;
+	{
+		PROF_BLOCK(PROF_V2_RUNG0);
+		total = rung0_material_and_placement(c, w_mat, b_mat, w_pst, b_pst, &lp);
+	}
 	if (pair_mode){ acc = lp; total = 0; }
 
 	// ── slice 3: bishop pair ─────────────────────────────────────────────────────────────────────
@@ -4510,7 +4514,10 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// cannot move the colour-symmetry gate (v2 is 0/4000 and must stay there).
 	int kauf_mp_v = 0;
 	if (Config::KAUF_V2_MAG > 0){
-		kauf_mp_v = kaufman_mp(c);
+		{
+			PROF_BLOCK(PROF_V2_KAUF);
+			kauf_mp_v = kaufman_mp(c);
+		}
 		// Kaufman is PHASE-FLAT (no blend site), so it enters both legs identically.
 		if (pair_mode){ acc.mg += kauf_mp_v; acc.eg += kauf_mp_v; } else total += kauf_mp_v;
 	}
@@ -4636,12 +4643,15 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		// ⚠️ `lp` is RESET per term here: pawn_structure_mp and passer_value_mp return early (leaving lp
 		// untouched) when their magnitude knob is 0, so a stale lp would be added as that term's legs.
 		EvalPair lps, lpp, lpr;
-		ps_mp = pawn_structure_mp(pe, c, &lps);   // returns 0 when PS_V2_MAG == 0
-		// ⚠️ The maps are passed only when they were actually built; with the shared attack build off the
-		// path-safety ladder is ABSENT rather than reading uninitialised stack.
-		pp_mp = passer_value_mp(pe, c, atk_ready ? &wa : nullptr, atk_ready ? &ba : nullptr, &lpp);
-		// slice 2: rook files read the file masks this detector already built
-		if (rf_on) rf_mp = rookfile_mp(pe, c, &lpr);
+		{
+			PROF_BLOCK(PROF_V2_STRUCT);
+			ps_mp = pawn_structure_mp(pe, c, &lps);   // returns 0 when PS_V2_MAG == 0
+			// ⚠️ The maps are passed only when they were actually built; with the shared attack build off the
+			// path-safety ladder is ABSENT rather than reading uninitialised stack.
+			pp_mp = passer_value_mp(pe, c, atk_ready ? &wa : nullptr, atk_ready ? &ba : nullptr, &lpp);
+			// slice 2: rook files read the file masks this detector already built
+			if (rf_on) rf_mp = rookfile_mp(pe, c, &lpr);
+		}
 		// slice 2: per-piece placement sub-terms, also reading this detector's masks
 		if (pl_on){
 			PROF_BLOCK(PROF_V2_PLACEMENT);
@@ -4661,6 +4671,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// Same contract, each on its own knob and table, each published separately so its closure is checked alone.
 	int ksb_mp = 0, kfl_mp = 0, kprot_mp = 0;
 	{
+		PROF_BLOCK(PROF_V2_C3);
 		int dmg, deg;
 		if (g_ksb_on){
 			ksb_mp = c3_block_mp(c, ksb_side, dmg, deg);
@@ -4680,6 +4691,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// a loaded PX_V2_FILE), so off = absent = byte-identical. Same contract as the C3 blocks.
 	int px_mp = 0;
 	if (g_px_on && atk_ready){
+		PROF_BLOCK(PROF_V2_PX);
 		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
 		int dmg, deg;
 		auto px_side = [&](const V2Context &cc, bool white, int &mg, int &eg){
@@ -4693,7 +4705,9 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	}
 
 	// ── slice 1 / component 1: tempo ─────────────────────────────────
-	// A bonus for simply being the side to move. This is the ONLY place in v2 that reads c.turn, which is
+	// A bonus for simply being the side to move. ⚠️ No longer the only reader of c.turn: the exact KPK rule and the POT
+	// race (POT_V2_RACE: stm + spare tempi on contested races only, 2026-10-16) read it too, so the TEMPO-swing identity
+	// below holds only with those off. Originally the only one, which is
 	// what makes its gate an exact identity rather than a statistic: with v2 otherwise side-to-move-blind,
 	// diagnostics/eval_symmetry.py's TEMPO swing must equal exactly 2*t on EVERY position, so one run
 	// validates sign, magnitude and the phase curve at once.
@@ -4738,6 +4752,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	bool race_on = false;
 	int race_mp = 0;
 	if (Config::POT_V2_RACE && c.npm_white + c.npm_black == 0 && c.pawns && (c.kings & c.white) && (c.kings & c.black)){
+		PROF_BLOCK(PROF_V2_WIN);
 		race = pot_race(c);
 		race_on = true;
 		race_mp = pot_race_mp(race);
@@ -4746,6 +4761,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// ── POT winnability, REFERENCE FORM (2026-09-30): the endgame scale factor (see win_scale_adjust). Replaces the
 	// additive form above when on (running both is not a supported configuration). Gated on POT_V2_WIN: 0 = byte-identical.
 	if (Config::POT_V2_WIN){
+		PROF_BLOCK(PROF_V2_WIN);
 		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
 		const int d = win_scale_adjust(c, pe, total, race_on ? &race : nullptr);
 		win_mp += d;

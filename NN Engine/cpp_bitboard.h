@@ -684,6 +684,9 @@ enum ProfTerm {
 	// V2_EVAL is the OUTER scope (whole evaluator, context build included); the rest are nested inside
 	// it and therefore do not sum to it exactly -- unscoped remainder is the rest of the evaluator.
 	PROF_V2_EVAL, PROF_V2_CONTEXT, PROF_V2_ATTACK, PROF_V2_KS, PROF_V2_PAWNENTRY, PROF_V2_PLACEMENT,
+	// Finer v2 scopes, added 2026-10-16 (the terms shipped since 09-20 were never timed individually): material + PST,
+	// Kaufman, pawn structure + passers + rook files, the C3 blocks (KS-B / KFL / KPROT), PX, winnability + POT race.
+	PROF_V2_RUNG0, PROF_V2_KAUF, PROF_V2_STRUCT, PROF_V2_C3, PROF_V2_PX, PROF_V2_WIN,
 	// ★ THE DENOMINATOR. One scope at the NON-RECURSIVE root (get_engine_move), so eval share of node
 	// cost = V2_EVAL / SEARCH_ROOT -- the quantity the 2026-09-20 arithmetic rests on, which until now
 	// rested on a remembered "skeleton NPS was ~1.5x" figure. ⚠️ Must NEVER be placed on minimizer /

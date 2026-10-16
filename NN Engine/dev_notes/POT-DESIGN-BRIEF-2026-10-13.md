@@ -174,6 +174,19 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   (2) POT race margin GATED to pure pawn endings (pawn-cache), feeding winnability + POT's own term; light-piece endings wait
   for a king-path flood fill + defender overload. Test at depth on the pawn rows, then games.
 
+### 5c. BUILT + FITTED 2026-10-16 (commit b2c64bd + knob fit)
+- C++: `pot_race()` (pure pawn endings) + `POT_V2_WIN_PAWNEND / _ONEMINOR` class cells (may RAISE f) + `POT_V2_WIN_RACE` feed +
+  `POT_V2_RACE_W_*` additive term; all 0 ⇒ v1 / gen 3 / gen 2 fingerprints unchanged; closure C++ == prototype (2,872 rows,
+  0 mismatches); symmetry 0/8000 + 0/7997 with every knob on; live 95.8% / 77.6%.
+- STATIC fit by exact emulation (`_pot_knob_fit.py`, verify 3,000/3,000 exact), 27,511 EGX rows, 5-fold by game: pawn endings
+  391.5 → 187.4 (−52%), one-minor 160.0 → 148.0 (−7.5%). Knobs: PAWNEND 64 · ONEMINOR 16 · WIN_RACE −12 · RACE_W BEST 137 ·
+  PROMO 217 · TEMPI 202 · DECISIVE 51 (POT_V2_RACE=1).
+- DEPTH (#72, d10, 2,313 pawn rows; OWN 313 = held out): base 169.9 / bias −7.72 → **A full 68.0 (−60%) / +0.09, nodes 0.78** ·
+  C cells only 75.6 / −1.52 · B half 90.5 / −3.13 · D race only 115.1 / −5.51 · (our d14 108.1 / −4.80 · SF11 d10 114.2 / −1.80).
+  Prediction "the static fit overshoots at depth" FAILED. ☠️ Run 1 lost 113 decisive rows: the amplified evals crossed
+  RESIGN_THRESHOLD (−15,000 mp) ⇒ the engine returned no move; re-run with resignation disabled (numbers above). Watch resign in games.
+- Next: games — targeted (K+P stress starts) + standard self-play @50k, then SF18 @1100, Mediocre.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

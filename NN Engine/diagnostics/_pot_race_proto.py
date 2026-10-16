@@ -188,19 +188,19 @@ def features(b):
         clip = lambda v: max(-3, min(3, v))
         best = clip(ms[0]) if ms else -3
         second = clip(ms[1]) if len(ms) > 1 else -3
-        gap = abs(sorted(g, reverse=True)[0][1] - sorted(g, reverse=True)[1][1]) if len(g) > 1 else 0
+        # overload (10-16, tie-free ⇒ file-mirror symmetric; matches eval_v2 race_side): two goals with margin ≥ 1, ≥ 3 files apart
+        live = [fl for m, fl, _ in g if m >= 1]
+        over = 1 if live and max(live) - min(live) >= 3 else 0
         promo = clip(max([m for m, _, k in g if k == "promo"], default=-3))
         brk = clip(max([m for m, _, k in g if k == "break"], default=-3))
-        f.append((best, second, gap, promo, brk, sum(1 for m, _, _ in g if abs(m) <= 1)))
-    (bw, sw, gpw, pw, kw, cw), (bb, sb, gpb, pb, kb, cb) = f
+        f.append((best, second, over, promo, brk, sum(1 for m, _, _ in g if abs(m) <= 1)))
+    (bw, sw, over_w, pw, kw, cw), (bb, sb, over_b, pb, kb, cb) = f
     contested = cw + cb
     tie = 1 if contested else 0
     tempi = (spare_tempi(b, True) - spare_tempi(b, False)) * tie         # tempi only where a race is contested
     stm = (1 if b.turn else -1) * tie                                     # side to move only where contested
     win_w = 1.0 if bw >= 2 else 0.0
     win_b = 1.0 if bb >= 2 else 0.0
-    over_w = 1.0 if (sw >= 1 and gpw >= 3) else 0.0                      # decoy: a second live goal far from the first
-    over_b = 1.0 if (sb >= 1 and gpb >= 3) else 0.0
     return [bw - bb, sw - sb, pw - pb, kw - kb, win_w - win_b, over_w - over_b, tempi, stm, contested]
 
 

@@ -2459,6 +2459,18 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::POT_V2_WIN_QNOQ = env_int("POT_V2_WIN_QNOQ", Config::POT_V2_WIN_QNOQ);
         Config::POT_V2_WIN_QNOQ_MINOR = env_int("POT_V2_WIN_QNOQ_MINOR", Config::POT_V2_WIN_QNOQ_MINOR);
         Config::POT_V2_WIN_LONEMINOR = env_int("POT_V2_WIN_LONEMINOR", Config::POT_V2_WIN_LONEMINOR);
+        Config::POT_V2_WIN_PAWNEND = env_int("POT_V2_WIN_PAWNEND", Config::POT_V2_WIN_PAWNEND);
+        Config::POT_V2_WIN_ONEMINOR = env_int("POT_V2_WIN_ONEMINOR", Config::POT_V2_WIN_ONEMINOR);
+        Config::POT_V2_RACE = env_int("POT_V2_RACE", Config::POT_V2_RACE);
+        Config::POT_V2_RACE_W_BEST = env_int("POT_V2_RACE_W_BEST", Config::POT_V2_RACE_W_BEST);
+        Config::POT_V2_RACE_W_SECOND = env_int("POT_V2_RACE_W_SECOND", Config::POT_V2_RACE_W_SECOND);
+        Config::POT_V2_RACE_W_PROMO = env_int("POT_V2_RACE_W_PROMO", Config::POT_V2_RACE_W_PROMO);
+        Config::POT_V2_RACE_W_BREAK = env_int("POT_V2_RACE_W_BREAK", Config::POT_V2_RACE_W_BREAK);
+        Config::POT_V2_RACE_W_DECISIVE = env_int("POT_V2_RACE_W_DECISIVE", Config::POT_V2_RACE_W_DECISIVE);
+        Config::POT_V2_RACE_W_OVER = env_int("POT_V2_RACE_W_OVER", Config::POT_V2_RACE_W_OVER);
+        Config::POT_V2_RACE_W_TEMPI = env_int("POT_V2_RACE_W_TEMPI", Config::POT_V2_RACE_W_TEMPI);
+        Config::POT_V2_RACE_W_STM = env_int("POT_V2_RACE_W_STM", Config::POT_V2_RACE_W_STM);
+        Config::POT_V2_WIN_RACE = env_int("POT_V2_WIN_RACE", Config::POT_V2_WIN_RACE);
         Config::KS_V2_W_N = env_int("KS_V2_W_N", Config::KS_V2_W_N);
         Config::KS_V2_W_B = env_int("KS_V2_W_B", Config::KS_V2_W_B);
         Config::KS_V2_W_R = env_int("KS_V2_W_R", Config::KS_V2_W_R);
@@ -2677,7 +2689,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " POT_V2_WIN_OCBX=" << Config::POT_V2_WIN_OCBX << " POT_V2_WIN_OCBX_PC=" << Config::POT_V2_WIN_OCBX_PC
                   << " POT_V2_WIN_ROOKE=" << Config::POT_V2_WIN_ROOKE << " POT_V2_WIN_QNOQ=" << Config::POT_V2_WIN_QNOQ
                   << " POT_V2_WIN_QNOQ_MINOR=" << Config::POT_V2_WIN_QNOQ_MINOR
-                  << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR << " CONN_V2=" << Config::CONN_V2 << " V2_SHIP_GEN=" << Config::V2_SHIP_GEN
+                  << " POT_V2_WIN_LONEMINOR=" << Config::POT_V2_WIN_LONEMINOR
+                  << " POT_V2_WIN_PAWNEND=" << Config::POT_V2_WIN_PAWNEND << " POT_V2_WIN_ONEMINOR=" << Config::POT_V2_WIN_ONEMINOR
+                  << " POT_V2_RACE=" << Config::POT_V2_RACE << " POT_V2_RACE_W=" << Config::POT_V2_RACE_W_BEST << "/"
+                  << Config::POT_V2_RACE_W_SECOND << "/" << Config::POT_V2_RACE_W_PROMO << "/" << Config::POT_V2_RACE_W_BREAK << "/"
+                  << Config::POT_V2_RACE_W_DECISIVE << "/" << Config::POT_V2_RACE_W_OVER << "/" << Config::POT_V2_RACE_W_TEMPI << "/"
+                  << Config::POT_V2_RACE_W_STM << " POT_V2_WIN_RACE=" << Config::POT_V2_WIN_RACE << " CONN_V2=" << Config::CONN_V2 << " V2_SHIP_GEN=" << Config::V2_SHIP_GEN
                   << " V2_VAL_MG=" << Config::V2_VAL_MG[1] << "/" << Config::V2_VAL_MG[2] << "/" << Config::V2_VAL_MG[3] << "/" << Config::V2_VAL_MG[4]
                   << " V2_VAL_EG=" << Config::V2_VAL_EG[1] << "/" << Config::V2_VAL_EG[2] << "/" << Config::V2_VAL_EG[3] << "/" << Config::V2_VAL_EG[4]
                   << " MCL_V2=" << Config::MCL_V2 << " MCL_V2_Q0=" << Config::MCL_V2_Q0 << " MCL_V2_QR=" << Config::MCL_V2_QR

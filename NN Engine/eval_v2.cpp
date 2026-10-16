@@ -3716,6 +3716,140 @@ static inline int win_adjust(int total, const int *in, int phase256) noexcept
 	return total > 0 ? d : -d;
 }
 
+/* ═══ POT RACE — the relaxed tempo race, PURE PAWN ENDINGS (2026-10-16; POT brief §5/§5b) ═══════════════════════════
+ * WHY: the human procedure (owner's design): name each side's GOALS, count the tempi to reach each against the tempi the
+ * defender needs to cover it, and let side-to-move / spare tempi decide only NEAR-TIES. Prototype
+ * diagnostics/_pot_race_proto.py: on 7,097 pawn endings static + race −7.0% held-out win% MSE (CI [−10.8, −3.0]); with
+ * pieces the relaxed race is near a coin flip, so this fires in PURE PAWN ENDINGS only (npm == 0 on both sides).
+ * GOALS of side X (margin = defender tempi − attacker tempi, +1 if X is to move; > 0 ⇒ X gets there first):
+ *   promo  — a passed pawn's run: king distance to the queening square − steps (rule of the square; double step counted);
+ *   break  — a Kmoch candidate (no pawn ahead on its file, own helpers ≥ enemy sentries): steps + one tempo per sentry;
+ *   key    — Averbakh key squares (empty ones) of each own pawn: defender king distance − attacker king distance;
+ *   target — an enemy pawn no enemy pawn defends: both kings' distance to an adjacent square.
+ * FEATURES (White − Black, as the prototype): best margin, second best, best promo, best break (each clipped to ±3, −3 when
+ * absent), decisive (best ≥ 2), overload (two goals with margin ≥ 1 at least 3 files apart — tie-free, so file-mirror
+ * symmetric), spare-tempi difference and side to move (both × [any contested goal]), contested count (|margin| ≤ 1, both
+ * sides; unsigned). ⚠️ Must equal the prototype's features exactly — closure-checked through ev_breakdown (pot_race_*).
+ * Board-derived and colour-relative ⇒ a colour mirror negates every signed feature and keeps `contested`.
+ */
+struct PotRace { int best, second, promo, brk, decisive, over, tempi, stm, contested; };
+
+static inline int race_dist(int a, int b) noexcept
+{
+	int df = (a & 7) - (b & 7), dr = (a >> 3) - (b >> 3);
+	if (df < 0) df = -df;
+	if (dr < 0) dr = -dr;
+	return df > dr ? df : dr;
+}
+static inline int race_clip(int v) noexcept { return v < -3 ? -3 : (v > 3 ? 3 : v); }
+
+struct RaceSide { int best, second, promo, brk, cnt, over; };
+
+static RaceSide race_side(const V2Context &c, bool white) noexcept
+{
+	const uint64_t own = white ? c.white : c.black, them = white ? c.black : c.white;
+	const uint64_t op = c.pawns & own, ep = c.pawns & them;
+	const int ak = __builtin_ctzll(c.kings & own), dk = __builtin_ctzll(c.kings & them);
+	const int stm = (c.turn == white) ? 1 : 0;
+	int m[48], fl[48], kd[48], n = 0;                     // ≤ 8 own pawns × (run + key) + 8 targets
+	auto add = [&](int mm, int f, int k) { m[n] = mm; fl[n] = f; kd[n] = k; ++n; };
+	for (uint64_t b = op; b; b &= b - 1){
+		const int s = __builtin_ctzll(b), f = s & 7, r = s >> 3, rr = white ? r : 7 - r;
+		const uint64_t span = white ? passed_span_white[s] : passed_span_black[s];
+		const int steps = 7 - rr - (rr == 1 ? 1 : 0);
+		const int q = white ? 56 + f : f;
+		if (!(span & ep)){
+			add(race_dist(dk, q) - steps + stm, f, 2);                                // promo
+		} else if (!(span & BB_FILES[f] & c.pawns)){
+			const uint64_t adj = (f > 0 ? BB_FILES[f - 1] : 0) | (f < 7 ? BB_FILES[f + 1] : 0);
+			const int sentries = __builtin_popcountll(span & adj & ep);
+			const uint64_t rear = white ? (r == 7 ? ~0ULL : ((1ULL << ((r + 1) * 8)) - 1)) : ~((1ULL << (r * 8)) - 1);
+			const int helpers = __builtin_popcountll(adj & rear & op);
+			if (sentries && helpers >= sentries)
+				add(race_dist(dk, q) - (steps + sentries) + stm, f, 0);               // break
+		}
+		// Averbakh key squares (relative rank rr; rook pawn: the two squares on the adjacent file at ranks 7-8).
+		int best_a = 99, best_d = 99;
+		auto key = [&](int ff, int rel){
+			if (ff < 0 || ff > 7 || rel < 0 || rel > 7) return;
+			const int k = (white ? rel : 7 - rel) * 8 + ff;
+			if ((c.occupied >> k) & 1ULL) return;
+			const int a = race_dist(ak, k), d = race_dist(dk, k);
+			if (a < best_a) best_a = a;
+			if (d < best_d) best_d = d;
+		};
+		if (f == 0 || f == 7){
+			const int ff = f == 0 ? 1 : 6;
+			key(ff, 6); key(ff, 7);
+		} else {
+			const int r0 = rr <= 3 ? rr + 2 : (rr <= 5 ? rr + 1 : 6), r1 = rr <= 3 ? rr + 2 : (rr <= 5 ? rr + 2 : 7);
+			for (int rel = r0; rel <= r1; ++rel)
+				for (int ff = f - 1; ff <= f + 1; ++ff)
+					if (!(rel == rr && ff == f)) key(ff, rel);
+		}
+		if (best_a < 99) add(best_d - best_a + stm, f, 1);                           // key
+	}
+	for (uint64_t b = ep; b; b &= b - 1){                                            // targets: undefended enemy pawns
+		const int s = __builtin_ctzll(b);
+		const uint64_t sq = 1ULL << s;
+		const uint64_t defenders = (white ? ps_watt(sq) : ps_batt(sq)) & ep;      // enemy pawns that attack s
+		if (defenders) continue;
+		const int a = race_dist(ak, s) - 1, d = race_dist(dk, s) - 1;
+		add((d > 0 ? d : 0) - (a > 0 ? a : 0) + stm, s & 7, 3);
+	}
+	RaceSide o{-3, -3, -3, -3, 0, 0};
+	int top = -99, sec = -99, promo = -99, brk = -99;
+	for (int i = 0; i < n; ++i){
+		if (m[i] > top){ sec = top; top = m[i]; } else if (m[i] > sec) sec = m[i];
+		if (kd[i] == 2 && m[i] > promo) promo = m[i];
+		if (kd[i] == 0 && m[i] > brk) brk = m[i];
+		if (m[i] >= -1 && m[i] <= 1) ++o.cnt;
+		for (int j = 0; j < i && !o.over; ++j)
+			if (m[i] >= 1 && m[j] >= 1 && (fl[i] - fl[j] >= 3 || fl[j] - fl[i] >= 3)) o.over = 1;
+	}
+	if (top > -99) o.best = race_clip(top);
+	if (sec > -99) o.second = race_clip(sec);
+	if (promo > -99) o.promo = race_clip(promo);
+	if (brk > -99) o.brk = race_clip(brk);
+	return o;
+}
+
+/* Pawn pushes side `white` can make that neither capture nor walk into an enemy pawn's attack (the prototype's spare tempi). */
+static inline int race_spare(const V2Context &c, bool white) noexcept
+{
+	const uint64_t op = c.pawns & (white ? c.white : c.black), ep = c.pawns & (white ? c.black : c.white);
+	const uint64_t push = (white ? op << 8 : op >> 8) & ~c.occupied;
+	const uint64_t hit = white ? ps_batt(ep) : ps_watt(ep);
+	return __builtin_popcountll(push & ~hit);
+}
+
+static PotRace pot_race(const V2Context &c) noexcept
+{
+	const RaceSide w = race_side(c, true), b = race_side(c, false);
+	PotRace r;
+	r.contested = w.cnt + b.cnt;
+	const int tie = r.contested ? 1 : 0;
+	r.best = w.best - b.best;
+	r.second = w.second - b.second;
+	r.promo = w.promo - b.promo;
+	r.brk = w.brk - b.brk;
+	r.decisive = (w.best >= 2 ? 1 : 0) - (b.best >= 2 ? 1 : 0);
+	r.over = w.over - b.over;
+	r.tempi = (race_spare(c, true) - race_spare(c, false)) * tie;
+	r.stm = (c.turn ? 1 : -1) * tie;
+	return r;
+}
+
+/* POT's own additive term (Black-positive mp) from the White-minus-Black race features. */
+static inline int pot_race_mp(const PotRace &r) noexcept
+{
+	const int w = Config::POT_V2_RACE_W_BEST * r.best + Config::POT_V2_RACE_W_SECOND * r.second
+	            + Config::POT_V2_RACE_W_PROMO * r.promo + Config::POT_V2_RACE_W_BREAK * r.brk
+	            + Config::POT_V2_RACE_W_DECISIVE * r.decisive + Config::POT_V2_RACE_W_OVER * r.over
+	            + Config::POT_V2_RACE_W_TEMPI * r.tempi + Config::POT_V2_RACE_W_STM * r.stm;
+	return -w;
+}
+
 /* ═══ POT winnability, REFERENCE FORM: ENDGAME SCALE FACTOR (2026-09-30; C3 doc §16) ═══════════════════════════════
  * WHY: the additive form above is sign(T)·C — discontinuous at a level score (+1 mp becomes +C) — and two very
  * different fits of it both lost ~−24 Elo at depth. SF11/15, Ethereal and Weiss all scale the endgame MULTIPLICATIVELY
@@ -3727,7 +3861,7 @@ static inline int win_adjust(int total, const int *in, int phase256) noexcept
  * mirror swaps the leader together with the sign: antisymmetric. Division truncates toward zero on both signs.
  * Returns the adjustment (mp, Black-positive); |adjustment| ≤ |total| because f ∈ [0, 64].
  */
-static inline int win_scale_adjust(const V2Context &c, const PawnEntry &pe, int total) noexcept
+static inline int win_scale_adjust(const V2Context &c, const PawnEntry &pe, int total, const PotRace *race = nullptr) noexcept
 {
 	if (total == 0) return 0;
 	const int s = total > 0 ? 1 : 0;                    // Black-positive: a positive total means Black leads (s = 1)
@@ -3782,7 +3916,28 @@ static inline int win_scale_adjust(const V2Context &c, const PawnEntry &pe, int 
 		if (Config::POT_V2_WIN_LONEMINOR && sp == 0 && !heavy_own && minors_own <= 1)
 			cap(64 + Config::POT_V2_WIN_LONEMINOR);
 	}
-	if (f > 64) f = 64;
+	// ── MATERIAL-CLASS CONFIDENCE CELLS + POT race feed (2026-10-16, POT brief §5b) ─────────────────────────────────────
+	// Unlike the caps above these may RAISE f above 64 (more confident), but only inside their class: the upper clamp becomes
+	// 64 + max(0, cell). The race feed moves f by WIN_RACE per tempo of race margin in the LEADER's favour (clipped ±3).
+	// All knobs 0 ⇒ f and the clamp are unchanged ⇒ byte-identical. Leader-relative ⇒ antisymmetric under the colour mirror.
+	int fmax = 64;
+	if (Config::POT_V2_WIN_PAWNEND | Config::POT_V2_WIN_ONEMINOR | Config::POT_V2_WIN_RACE){
+		const int npm = c.npm_white + c.npm_black;
+		const int wmin = __builtin_popcountll((c.knights | c.bishops) & c.white), bmin = __builtin_popcountll((c.knights | c.bishops) & c.black);
+		if (npm == 0){
+			f += Config::POT_V2_WIN_PAWNEND;
+			if (Config::POT_V2_WIN_PAWNEND > 0) fmax = 64 + Config::POT_V2_WIN_PAWNEND;
+		} else if (!(c.rooks | c.queens) && wmin <= 1 && bmin <= 1){
+			f += Config::POT_V2_WIN_ONEMINOR;
+			if (Config::POT_V2_WIN_ONEMINOR > 0) fmax = 64 + Config::POT_V2_WIN_ONEMINOR;
+		}
+		if (race && Config::POT_V2_WIN_RACE){
+			const int lead = race_clip(s ? -race->best : race->best);      // race margin difference in the leader's favour
+			f += Config::POT_V2_WIN_RACE * lead;
+			if (Config::POT_V2_WIN_RACE * lead > 0 && 64 + Config::POT_V2_WIN_RACE * 3 > fmax) fmax = 64 + Config::POT_V2_WIN_RACE * 3;
+		}
+	}
+	if (f > fmax) f = fmax;
 	if (f < 0) f = 0;
 	if (f == 64) return 0;
 	const long long num = (long long)total * (256 - c.phase256) * (f - 64);
@@ -4577,11 +4732,22 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		win_mp = win_adjust(total, in, c.phase256);
 		total += win_mp;
 	}
+	// ── POT race (2026-10-16): pure pawn endings only (see pot_race). Its own additive term enters BEFORE the winnability scale;
+	// the race also feeds the scale (POT_V2_WIN_RACE). Gated on POT_V2_RACE: 0 = not computed = byte-identical.
+	PotRace race{};
+	bool race_on = false;
+	int race_mp = 0;
+	if (Config::POT_V2_RACE && c.npm_white + c.npm_black == 0 && c.pawns && (c.kings & c.white) && (c.kings & c.black)){
+		race = pot_race(c);
+		race_on = true;
+		race_mp = pot_race_mp(race);
+		total += race_mp;
+	}
 	// ── POT winnability, REFERENCE FORM (2026-09-30): the endgame scale factor (see win_scale_adjust). Replaces the
 	// additive form above when on (running both is not a supported configuration). Gated on POT_V2_WIN: 0 = byte-identical.
 	if (Config::POT_V2_WIN){
 		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
-		const int d = win_scale_adjust(c, pe, total);
+		const int d = win_scale_adjust(c, pe, total, race_on ? &race : nullptr);
 		win_mp += d;
 		total += d;
 	}
@@ -4682,6 +4848,15 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		if (Config::WIN_V2 || Config::POT_V2_WIN){
 			g_eval_breakdown.v2_winnab = win_mp;
 			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_WINNAB);
+		}
+		if (race_on){
+			g_eval_breakdown.pot_race_mp = race_mp;
+			g_eval_breakdown.pot_race_best = race.best;         g_eval_breakdown.pot_race_second = race.second;
+			g_eval_breakdown.pot_race_promo = race.promo;       g_eval_breakdown.pot_race_break = race.brk;
+			g_eval_breakdown.pot_race_decisive = race.decisive; g_eval_breakdown.pot_race_over = race.over;
+			g_eval_breakdown.pot_race_tempi = race.tempi;       g_eval_breakdown.pot_race_stm = race.stm;
+			g_eval_breakdown.pot_race_contested = race.contested;
+			g_eval_breakdown.terms_valid |= (1ULL << EB_V2_POTRACE);
 		}
 		if (g_px_on && atk_ready){
 			g_eval_breakdown.v2_pxpass = px_mp;

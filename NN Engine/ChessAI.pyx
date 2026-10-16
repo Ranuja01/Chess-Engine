@@ -255,6 +255,17 @@ cdef extern from "cpp_bitboard.h":
         int v2_kprot
         int v2_winnab
         int v2_pxpass
+        # POT race, appended 2026-10-16 -- one bit (EB_V2_POTRACE) gates all of them; order must match the C++ struct.
+        int pot_race_mp
+        int pot_race_best
+        int pot_race_second
+        int pot_race_promo
+        int pot_race_break
+        int pot_race_decisive
+        int pot_race_over
+        int pot_race_tempi
+        int pot_race_stm
+        int pot_race_contested
     EvalBreakdown eval_breakdown_capture(int moveNum, bint turn, uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_t rooks, uint64_t queens, uint64_t kings, uint64_t occupied_white, uint64_t occupied_black, uint64_t occupied, uint64_t castling_rights)
 
     # Compile-gated per-term eval profiler (no-ops unless built with PROFILE_EVAL=1).
@@ -980,6 +991,7 @@ cdef class ChessAI:
             ("v2_kprot", b.v2_kprot),
             ("v2_winnab", b.v2_winnab),
             ("v2_pxpass", b.v2_pxpass),
+            ("pot_race_mp", b.pot_race_mp),
         ]
 
         cdef int n_terms = len(pairs)
@@ -988,6 +1000,13 @@ cdef class ChessAI:
         for i in range(n_terms):
             if tv & ((<uint64_t>1) << i):
                 out[pairs[i][0]] = pairs[i][1]
+        # POT race features ride on the pot_race_mp bit (EB_V2_POTRACE = the last pairs index): one bit for all of them.
+        if tv & ((<uint64_t>1) << (n_terms - 1)):
+            out.update({"pot_race_best": b.pot_race_best, "pot_race_second": b.pot_race_second,
+                        "pot_race_promo": b.pot_race_promo, "pot_race_break": b.pot_race_break,
+                        "pot_race_decisive": b.pot_race_decisive, "pot_race_over": b.pot_race_over,
+                        "pot_race_tempi": b.pot_race_tempi, "pot_race_stm": b.pot_race_stm,
+                        "pot_race_contested": b.pot_race_contested})
 
         global _EV_ARM_BANNER_SHOWN
         if b.arm != 0 and not _EV_ARM_BANNER_SHOWN:

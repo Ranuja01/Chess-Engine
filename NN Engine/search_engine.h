@@ -946,6 +946,21 @@ namespace Config
     inline int V2_SHIP_GEN = 0;
     inline int POT_V2_WIN_OCBX = 0, POT_V2_WIN_OCBX_PC = 0, POT_V2_WIN_ROOKE = 0, POT_V2_WIN_QNOQ = 0, POT_V2_WIN_QNOQ_MINOR = 0,
                POT_V2_WIN_LONEMINOR = 0;
+    // ── POT race + material-class confidence (2026-10-16, POT brief §5b) — all 0 = absent = byte-identical ─────────────────
+    // Class CELLS on the winnability scale that may RAISE confidence (f above 64; the upper clamp becomes 64 + cell in that class
+    // only): PAWNEND = pure pawn ending (no pieces), ONEMINOR = no rook / queen and each side ≤ 1 minor (≥ 1 minor on board).
+    // The prototype's class indicators alone gave −8.7% win% MSE on light endings: pure pawn endings are under-confident AS A CLASS.
+    inline int POT_V2_WIN_PAWNEND = 0, POT_V2_WIN_ONEMINOR = 0;
+    // POT_V2_RACE = 1: compute the relaxed tempo race in PURE PAWN ENDINGS (goals: passed-pawn promotion by the rule of the square,
+    // breakthrough candidates, Averbakh key squares, undefended enemy pawns; side to move / spare tempi only on contested races)
+    // and publish its 9 features in ev_breakdown (pot_race_*). Weights (mp per feature unit, White-minus-Black features):
+    //   POT_V2_RACE_W_{BEST,SECOND,PROMO,BREAK,DECISIVE,OVER,TEMPI,STM} — POT's own ADDITIVE directional term;
+    //   POT_V2_WIN_RACE — the winnability FEED: f += WIN_RACE × the race's best-margin difference IN THE LEADER'S FAVOUR (clipped
+    //   to ±3), so a race won by the side ahead raises confidence and one won by the side behind lowers it.
+    inline int POT_V2_RACE = 0;
+    inline int POT_V2_RACE_W_BEST = 0, POT_V2_RACE_W_SECOND = 0, POT_V2_RACE_W_PROMO = 0, POT_V2_RACE_W_BREAK = 0,
+               POT_V2_RACE_W_DECISIVE = 0, POT_V2_RACE_W_OVER = 0, POT_V2_RACE_W_TEMPI = 0, POT_V2_RACE_W_STM = 0;
+    inline int POT_V2_WIN_RACE = 0;
     inline int KS_V2_W_N = 31;
     inline int KS_V2_W_B = 31;
     inline int KS_V2_W_R = 47;

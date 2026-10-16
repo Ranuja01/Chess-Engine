@@ -555,6 +555,12 @@ struct EvalBreakdown {
 	int v2_kprot;      // eval_v2 C3-c KingProtector, minors (KPROT_V2), Black-positive. Appended 2026-09-27.
 	int v2_winnab;     // eval_v2 OvD eg winnability adjustment (WIN_V2), Black-positive. Appended 2026-09-29.
 	int v2_pxpass;     // eval_v2 PX passer system (PX_V2), Black-positive. Appended 2026-10-03.
+	// eval_v2 POT race (POT_V2_RACE, pure pawn endings), appended 2026-10-16. ALL gated by the ONE bit EB_V2_POTRACE (the
+	// 64-bit mask had 10 bits left); ChessAI.pyx adds every pot_race_* key when that bit is set. Features are White-minus-Black
+	// (unitless tempi / flags, as in diagnostics/_pot_race_proto.py); pot_race_mp = the additive term, Black-positive.
+	int pot_race_mp;
+	int pot_race_best, pot_race_second, pot_race_promo, pot_race_break, pot_race_decisive, pot_race_over;
+	int pot_race_tempi, pot_race_stm, pot_race_contested;
 };
 
 // Bit index per EvalBreakdown field, in the SAME ORDER as ChessAI.ev_breakdown builds its dict.
@@ -591,6 +597,7 @@ enum EvalBreakdownBit {
 	EB_V2_KFLANK, EB_V2_KPROT,   // appended 2026-09-27 (C3-b, C3-c); v2-only
 	EB_V2_WINNAB,                // appended 2026-09-29 (OvD eg winnability); v2-only
 	EB_V2_PXPASS,                // appended 2026-10-03 (PX passer system); v2-only
+	EB_V2_POTRACE,               // appended 2026-10-16 (POT race; gates ALL pot_race_* fields); v2-only
 	EB_NUM_FIELDS
 };
 // ☠️ EB_ALL IS "EVERYTHING v1 WRITES", NOT "EVERY BIT". v1 sets this wholesale (cpp_bitboard.cpp:8784), so a
@@ -605,7 +612,8 @@ static constexpr uint64_t EB_V2_ONLY = (1ULL << EB_V2_PASSERS)
                                      | (1ULL << EB_V2_KFLANK)
                                      | (1ULL << EB_V2_KPROT)
                                      | (1ULL << EB_V2_WINNAB)
-                                     | (1ULL << EB_V2_PXPASS);
+                                     | (1ULL << EB_V2_PXPASS)
+                                     | (1ULL << EB_V2_POTRACE);
 static constexpr uint64_t EB_ALL = ~0ULL & ~EB_V2_ONLY;
 
 extern EvalBreakdown g_eval_breakdown;

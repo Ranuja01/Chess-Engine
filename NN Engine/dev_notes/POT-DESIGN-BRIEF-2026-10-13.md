@@ -220,6 +220,9 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   ChessAI.pyx (source; build after #75). ☠️ BIGGER: games from FEN starts consult the book for 30 plies and M11.2.bin holds
   endgame positions ⇒ in the balanced match 5.3% of moves (23% of games, plies 1-12) were BOOK moves, not either eval's ⇒ the
   +8.3 is DILUTED toward 0. Re-run with USE_OPENING_BOOK=0 (#75 v3, `q75v3_pot_timed.log`); every FEN-start venue: book OFF.
+- #75 v3 node-limited, book OFF: **+9.0 ± 23.1** (+156 −125 =919), 0 voids (⇒ the voids were all the book), 552/600 pairs
+  discriminate, POT 51.4%. Prediction (slightly above +8.3, 0 voids) held. Still < +2σ ⇒ not proven under the narrow rule.
+  Timed run (600 LIGHTNING, book off) started 00:11.
 
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with

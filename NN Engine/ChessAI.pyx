@@ -1101,6 +1101,11 @@ cdef class ChessAI:
                 best_move.b = ord(cur[1]) - ord('0')
                 best_move.c = ord(cur[2]) - 96
                 best_move.d = ord(cur[3]) - ord('0')
+                # ☠️ 2026-10-16: the promotion piece was never set (stayed -1), so a promoting book move came back as e.g.
+                # `h7h8` — ILLEGAL (29 void games in pawn-ending starts; M11.2.bin holds endgame positions). The caller
+                # rebuilds the suffix as chr(promotion + 96), so store the letter's offset ('q' -> 17).
+                if len(cur) == 5:
+                    best_move.promotion = ord(cur[4]) - 96
                 
                 
             return best_move

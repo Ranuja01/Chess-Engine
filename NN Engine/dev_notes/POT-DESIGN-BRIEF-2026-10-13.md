@@ -216,6 +216,10 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   engine returns the move WITHOUT the promotion piece (`h7h8` in `8/7P/6K1/8/8/8/pk6/8 w`, `g7g8`, `f2f1`) ⇒ illegal move.
   0 voids in UHO matches (rarely reached). Can hit owner UI games in pawn endings. Symmetric here (same starts) ⇒ no bias in the
   A/B, but FIX IT before the next pawn-ending venue.
+  ⇒ ROOT CAUSE (23:40): NOT the search — the OPENING BOOK path (`ChessAI.opening_book` never set the promotion piece). Fix in
+  ChessAI.pyx (source; build after #75). ☠️ BIGGER: games from FEN starts consult the book for 30 plies and M11.2.bin holds
+  endgame positions ⇒ in the balanced match 5.3% of moves (23% of games, plies 1-12) were BOOK moves, not either eval's ⇒ the
+  +8.3 is DILUTED toward 0. Re-run with USE_OPENING_BOOK=0 (#75 v3, `q75v3_pot_timed.log`); every FEN-start venue: book OFF.
 
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with

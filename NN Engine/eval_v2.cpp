@@ -83,6 +83,7 @@ struct ShipCells { int n; const int *k; const int *leg; const int *v; };
 #include "cpp_bitboard.h"
 #include "move_gen.h"
 #include "search_engine.h"
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -3743,6 +3744,53 @@ static inline int race_dist(int a, int b) noexcept
 }
 static inline int race_clip(int v) noexcept { return v < -3 ? -3 : (v > 3 ? 3 : v); }
 
+// ── SPEED (2026-10-17; result-identical, closure-checked): compile-time tables replace the per-pawn key-square loops ────────
+// RACE_RING[sq][d] = squares at Chebyshev distance exactly d from sq; the nearest square of a set from a king is then the first
+// d with RACE_RING & set ≠ 0. RACE_KEYSQ[white][sq] = the Averbakh key squares of a pawn on sq (the same rules as race_side's
+// former loop). constexpr ⇒ no runtime initialisation (memory runtime-tables-are-empty-outside-an-engine-instance).
+static constexpr std::array<std::array<uint64_t, 8>, 64> RACE_RING = []{
+	std::array<std::array<uint64_t, 8>, 64> r{};
+	for (int s = 0; s < 64; ++s)
+		for (int t = 0; t < 64; ++t){
+			int df = (s & 7) - (t & 7), dr = (s >> 3) - (t >> 3);
+			if (df < 0) df = -df;
+			if (dr < 0) dr = -dr;
+			r[s][df > dr ? df : dr] |= 1ULL << t;
+		}
+	return r;
+}();
+static constexpr std::array<std::array<uint64_t, 64>, 2> RACE_KEYSQ = []{
+	std::array<std::array<uint64_t, 64>, 2> k{};
+	for (int w = 0; w < 2; ++w)
+		for (int s = 0; s < 64; ++s){
+			const bool white = w == 1;
+			const int f = s & 7, r = s >> 3, rr = white ? r : 7 - r;
+			if (rr == 0 || rr == 7) continue;                         // no pawn can stand there
+			uint64_t m = 0;
+			auto add = [&](int ff, int rel){
+				if (ff < 0 || ff > 7 || rel < 0 || rel > 7) return;
+				m |= 1ULL << ((white ? rel : 7 - rel) * 8 + ff);
+			};
+			if (f == 0 || f == 7){
+				const int ff = f == 0 ? 1 : 6;
+				add(ff, 6); add(ff, 7);
+			} else {
+				const int r0 = rr <= 3 ? rr + 2 : (rr <= 5 ? rr + 1 : 6), r1 = rr <= 3 ? rr + 2 : (rr <= 5 ? rr + 2 : 7);
+				for (int rel = r0; rel <= r1; ++rel)
+					for (int ff = f - 1; ff <= f + 1; ++ff)
+						if (!(rel == rr && ff == f)) add(ff, rel);
+			}
+			k[w][s] = m;
+		}
+	return k;
+}();
+static inline int race_nearest(int k, uint64_t set) noexcept
+{
+	for (int d = 0; d < 8; ++d)
+		if (RACE_RING[k][d] & set) return d;
+	return 99;
+}
+
 struct RaceSide { int best, second, promo, brk, cnt, over; };
 
 static RaceSide race_side(const V2Context &c, bool white) noexcept
@@ -3768,26 +3816,10 @@ static RaceSide race_side(const V2Context &c, bool white) noexcept
 			if (sentries && helpers >= sentries)
 				add(race_dist(dk, q) - (steps + sentries) + stm, f, 0);               // break
 		}
-		// Averbakh key squares (relative rank rr; rook pawn: the two squares on the adjacent file at ranks 7-8).
-		int best_a = 99, best_d = 99;
-		auto key = [&](int ff, int rel){
-			if (ff < 0 || ff > 7 || rel < 0 || rel > 7) return;
-			const int k = (white ? rel : 7 - rel) * 8 + ff;
-			if ((c.occupied >> k) & 1ULL) return;
-			const int a = race_dist(ak, k), d = race_dist(dk, k);
-			if (a < best_a) best_a = a;
-			if (d < best_d) best_d = d;
-		};
-		if (f == 0 || f == 7){
-			const int ff = f == 0 ? 1 : 6;
-			key(ff, 6); key(ff, 7);
-		} else {
-			const int r0 = rr <= 3 ? rr + 2 : (rr <= 5 ? rr + 1 : 6), r1 = rr <= 3 ? rr + 2 : (rr <= 5 ? rr + 2 : 7);
-			for (int rel = r0; rel <= r1; ++rel)
-				for (int ff = f - 1; ff <= f + 1; ++ff)
-					if (!(rel == rr && ff == f)) key(ff, rel);
-		}
-		if (best_a < 99) add(best_d - best_a + stm, f, 1);                           // key
+		// Averbakh key squares (relative rank rr; rook pawn: the two squares on the adjacent file at ranks 7-8) — the EMPTY ones,
+		// nearest to each king by distance rings (RACE_KEYSQ / RACE_RING above; identical to the former per-square loop).
+		const uint64_t keys = RACE_KEYSQ[white ? 1 : 0][s] & ~c.occupied;
+		if (keys) add(race_nearest(dk, keys) - race_nearest(ak, keys) + stm, f, 1);   // key
 	}
 	for (uint64_t b = ep; b; b &= b - 1){                                            // targets: undefended enemy pawns
 		const int s = __builtin_ctzll(b);

@@ -204,6 +204,19 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
 - Prototype: `KPATH=1` = real king routes (no own pawns, no enemy-pawn-attacked squares, not next to the enemy king) for the
   race distances — ready to test (pawn fit + move test) in a gap.
 
+### 5e. FIRST GAMES 2026-10-16 night (set A vs gen 3, node-limited @50k) — judged under the NARROW-ITEM rule (owner, 10-16)
+- #74 targeted on random pawn-dominated starts (kp_all): +1.2 ± 23.1 — ☠️ UNREADABLE: 513/600 opening pairs split 1-1 by
+  colour (170 resigned on ply 1), only 87 discriminated (POT 51.1%). Prediction +20…+60 not testable there.
+- #74 standard UHO 2,000 g: −3.3 ± 17.9 (≈ −0.4σ) ⇒ "not harmful" ✅. SF18 skipped (old trigger) — still OWED under the narrow rule.
+- #75 targeted on BALANCED endgame starts (`selfplay/eg_balanced_fens.txt`, |SF18| ≤ 80 cp, 300 pawn + 300 one-minor):
+  **+8.3 ± 23.4** (+150 −122 =899), 534/600 pairs discriminated (POT 51.2% on them). Prediction +10…+40: just under. NOT ≥ +2σ.
+  ⇒ positive where it fires, NOT PROVEN. Next: a sharper venue (starts a few moves before critical points, owner's refinement),
+  or ~2,400 more balanced games (±13), or a better item (KPATH).
+- ☠️ ENGINE BUG (pre-existing, BOTH engines, 29 void games: POT 16 / gen 3 13): with an immediate promotion at the root the
+  engine returns the move WITHOUT the promotion piece (`h7h8` in `8/7P/6K1/8/8/8/pk6/8 w`, `g7g8`, `f2f1`) ⇒ illegal move.
+  0 voids in UHO matches (rarely reached). Can hit owner UI games in pawn endings. Symmetric here (same starts) ⇒ no bias in the
+  A/B, but FIX IT before the next pawn-ending venue.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

@@ -224,6 +224,21 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   discriminate, POT 51.4%. Prediction (slightly above +8.3, 0 voids) held. Still < +2σ ⇒ not proven under the narrow rule.
   Timed run (600 LIGHTNING, book off) started 00:11.
 
+### 5f. 2026-10-17 — C64 (class cells only) + direction (owner)
+- #76 depth 12 (own rows): base 141.3 / −6.30 · A 63.9 / +0.67 · **C64 61.1 / −0.71** · C99 75.4 / +0.68 ⇒ the race's edge
+  vanishes at d12 (search finds it) while its cost remains; C99 (static refit 99) overshoots at depth.
+- Race speed work (result-identical): race NPS cost inside pure pawn endings −22% → −9%.
+- C64 games (narrow rule): balanced node-limited **+11.9 ± 23.1**, balanced TIMED **+13.3 ± 32.7** (set A timed was −12.7) ⇒
+  ≈ +12 at ~1.3σ combined (same starts). Standard + SF18 "not harmful" running (#77).
+- Owner: POT is his own idea and may be low-yield ⇒ pre-registered keep/park per piece + time box (memory
+  pot-may-not-work-use-stopping-points). Aim (owner): close the gap to SF18 SEARCH and change deep-search decisions in mg AND eg
+  with potential signals ⇒ static accuracy against DEEPER truth: the depth component at PLAY depth (12+), trajectory outcomes
+  (16-24 plies under SF18 play) as labels for potential, and search move agreement on critical positions as the decision check.
+- **BENCH CHECKPOINT #2 (after a POT checkpoint with gains; owner 10-17):** static (_reference_ceiling, _gap_strata,
+  _endgame_types, _eg_signatures vs SF11 / SF15.1c / SF18) · search (depth ladder d6-14 ours vs SF11 on the bench corpora;
+  critical-position move test at play depth vs SF11 / SF18 choices; WAC/STS fingerprint) · strength (v1 vs v2 at equal nodes and
+  equal time; SF18 at the current anchor; Mediocre ≥ 200 g for an approximate CCRL).
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

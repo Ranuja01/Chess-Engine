@@ -396,6 +396,7 @@ def main_moves():
     print("weights, fold 0 (static first):", " ".join("%s %+.2f" % (n, w) for n, w in zip(["static"] + FEAT, models[0][2])))
     stats = {k: {"n": 0, "top_a": 0, "top_b": 0, "pairs": 0, "pa": 0, "pb": 0} for k in ("all", "critical", "break")}
     spread_static, spread_race, race_right, race_pairs = [], [], 0, 0
+    fixed, broke = 0, 0
     for fen, mv in mpv:
         pa, pb, _ = models[gfold(games.get(fen, fen))]
         b = chess.Board(fen)
@@ -435,6 +436,9 @@ def main_moves():
                 if u != best_u and sfd[best_u] - sfd[u] >= 10:
                     race_pairs += 1
                     race_right += race[best_u] > race[u]
+                    ra, rb = sa[best_u] > sa[u], sb[best_u] > sb[u]
+                    fixed += (rb and not ra)                   # paired (McNemar): the race FIXES the static ordering
+                    broke += (ra and not rb)                   # … or BREAKS it
         for key in ("all", "critical", "break"):
             if (key == "critical" and not critical) or (key == "break" and not has_break):
                 continue
@@ -459,6 +463,9 @@ def main_moves():
                                                                           np.median(sr) / max(1e-9, np.median(ss)), 100 * np.mean(sr > 1)))
         print("  race term ALONE orders SF's best above a ≥10-pt loser on CRITICAL positions: %.1f%% of %d pairs (50%% = blind)"
               % (100 * race_right / max(1, race_pairs), race_pairs))
+        z = (fixed - broke) / max(1.0, (fixed + broke) ** 0.5)
+        print("  KEEP TEST (paired, critical pairs): race FIXES the static ordering %d · BREAKS it %d · z = %+.2f  (keep needs z ≥ +2)"
+              % (fixed, broke, z))
 
 
 def main_split():

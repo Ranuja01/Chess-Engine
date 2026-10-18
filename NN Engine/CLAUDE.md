@@ -49,6 +49,16 @@ python main.py                            # isolated single-position test
 (marginal EBF 1.914) · depth@1s **12** · STS d8 **1676**. NPS 450,201 is the **LIGHTNING** mean
 (LONG_FORMAT ~386k). Canonical byte-identity command: `MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`
 — without `LONG_FORMAT` hard positions time-abort and node counts become machine-load dependent.
+(That line is the frozen **v1** control, `EVAL_ARM=0`.)
+
+🚨 **v2 — two presets, know which one you are on** (`EVAL_ARM=1` alone is a skeleton — always use a preset):
+- `V2_PRESET=shipped` = the **OFFICIAL ship** (gen 3, 2026-10-12): **`259 / 47,869,841 / 3.927`**. The UI default; the baseline any
+  ship is judged against.
+- `V2_PRESET=candidate` = the **DEVELOPMENT BASE** ("lazy ship", owner 2026-10-18): gen 3 + the narrow-item pool (now C64 —
+  winnability class cells `POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16`): **`258 / 47,689,413 / 3.926`**. Test NEW items on top of
+  `candidate`; bundles carry the pool; it becomes the official ship only when a bundle passes. Revoke a pool item on any sign of harm.
+  Pool + evidence: `dev_notes/EVAL-V2-CURRENT-CONFIG.md` §0. UI on the candidate: `V2_PRESET=candidate PRESET=LIGHTNING python ChessUI/chess_ui_v2.py`.
+- Game venues that start from FEN endgame positions need `USE_OPENING_BOOK=0` (the book holds endgame positions).
 
 ### The ONLY prompt-free invocation form
 

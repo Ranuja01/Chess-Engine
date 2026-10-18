@@ -229,7 +229,10 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   vanishes at d12 (search finds it) while its cost remains; C99 (static refit 99) overshoots at depth.
 - Race speed work (result-identical): race NPS cost inside pure pawn endings −22% → −9%.
 - C64 games (narrow rule): balanced node-limited **+11.9 ± 23.1**, balanced TIMED **+13.3 ± 32.7** (set A timed was −12.7) ⇒
-  ≈ +12 at ~1.3σ combined (same starts). Standard + SF18 "not harmful" running (#77).
+  ≈ +12 at ~1.3σ combined (same starts). #77 DONE 10-18 02:05: standard UHO 2,000 g **−0.3 ± 17.9** ✅ · SF18 @1100 seeds
+  273 / 274: gen 3 49.2 / 49.1% (anchor ≈ 50% ✓) vs C64 48.4 / 49.4% ⇒ pooled −0.25 pts (≈ −2 Elo, ~−0.1σ) ✅ not harmful.
+  ⇒ C64: NOT HARMFUL everywhere, positive where it fires, targeted gain NOT yet ≥ +2σ ⇒ not passed yet (resolution, not harm).
+  Next: sharper venue (a few moves before critical points) or ~3,600 more balanced games (combined ±11.5); Mediocre ≥ 200 g.
 - Owner: POT is his own idea and may be low-yield ⇒ pre-registered keep/park per piece + time box (memory
   pot-may-not-work-use-stopping-points). Aim (owner): close the gap to SF18 SEARCH and change deep-search decisions in mg AND eg
   with potential signals ⇒ static accuracy against DEEPER truth: the depth component at PLAY depth (12+), trajectory outcomes

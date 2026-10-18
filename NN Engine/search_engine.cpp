@@ -2081,7 +2081,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // update all three together when a v2 ship changes.
         if (const char *preset = std::getenv("V2_PRESET"); preset && *preset)
         {
-            if (std::strcmp(preset, "shipped") == 0)
+            const bool cand = std::strcmp(preset, "candidate") == 0;
+            if (std::strcmp(preset, "shipped") == 0 || cand)
             {
                 Config::EVAL_ARM = 1;
                 Config::KS_V2_ZONE_SF = 1;   Config::KS_V2_XRAY = 1;     Config::KS_V2_COORD = 256;
@@ -2152,9 +2153,20 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     Config::V2_VAL_EG[1] = -70;  Config::V2_VAL_EG[2] = -64;  Config::V2_VAL_EG[3] = 127;  Config::V2_VAL_EG[4] = -68;
                     Config::EVAL_V2_PAWN_MG = 999;
                 }
+                // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
+                // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on
+                // top of it and every bundle contains it; the official `shipped` (gen 3) is unchanged until a bundle passes.
+                // ☠️ REVOKE an item the moment any test shows it harmful (bundle leave-one-out, Mediocre, timed).
+                //   C64 — winnability class cells: pure pawn endings PAWNEND 64, one-minor endings ONEMINOR 16. Depth (own pawn
+                //   rows) d10 169.9 → 75.6, d12 141.3 → 61.1, bias fixed; games: critical venue +15.4 ± 26.3, balanced +11.9 /
+                //   timed +13.3, standard −0.3 ± 17.9, SF18 @1100 −0.25 pts. No cycle cost.
+                if (cand){
+                    Config::POT_V2_WIN_PAWNEND = 64;
+                    Config::POT_V2_WIN_ONEMINOR = 16;
+                }
             }
             else
-                std::cerr << "☠️ V2_PRESET=" << preset << " is unknown (expected: shipped) -- ignored." << std::endl;
+                std::cerr << "☠️ V2_PRESET=" << preset << " is unknown (expected: shipped | candidate) -- ignored." << std::endl;
         }
         Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", Config::V2_SHIP_GEN);
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);

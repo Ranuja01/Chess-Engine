@@ -21,6 +21,12 @@
 r1bq1rk1/1ppp1ppp/p1n3n1/5N1Q/2BbP3/8/PPP2PPP/RNB2RK1 w - - 5 10  # g6a move 10: SF Rd1 (+0.7..+1.6); ours BLITZ c3 (+2.55), d17 Rd1 (+2.03) ⇒ depth finds the move, eval ~1 pawn optimistic
 r3r1k1/1ppqnppp/p2p2n1/3P3Q/8/2P1B1N1/P1P2PPP/3RR1K1 w - - 3 18  # g6b move 18: SF f4 (+0.1); ours BLITZ Rd4 (+0.39), d18 Rb1 (+0.50, the game's −0.8 move) ⇒ EVAL
 6r1/2p1B1kp/p2p4/3n2P1/4R3/2p5/P1P2P2/7K w - - 0 33  # g6c move 33: SF Bf6+ (−2.1); ours BLITZ Kh2 (−1.24, the game's move), d20 Bf6+ (−1.21) ⇒ DEPTH (eval ~1 pawn optimistic)
+# Game 7 (2026-10-18, CANDIDATE as White vs chess.com "Hikaru" bot 2820 at STANDARD, LOST). ★ The owner's MIDDLEGAME POT example
+# in a real game: closed centre (15.d5), White's pieces aimed at Black's king, while Black prepares …Rg7/…Rg8 and …gxh5 to open the
+# g-file against WHITE's king. Our static +1.4..+2.1 for 8 moves (25-31) while SF18 went 0.0 → −3.2. Search check: STANDARD (d13)
+# AND d18 both miss SF's move and read +1.1..+1.2 ⇒ EVAL (an unresolved, structurally pending break the KS term cannot see yet).
+4r1rk/1b1n1p1p/pq1p2pQ/1p1Pp2P/1P2P3/2P2PN1/5NP1/R1R3K1 w - - 1 25  # g7a move 25: SF c4 (Rd1 played → 0.0); ours d13 Re1 (+1.07), d18 Rc2 (+1.14)
+3qr1rk/1b3p1p/p2p1npQ/1p1Pp2P/1P2P3/2P2PN1/5NP1/R3R1K1 w - - 5 27  # g7b move 27: SF Ng4 (Nh3 played → −1.4); ours d13 Red1 (+1.17), d18 Ra2 (+1.21)
 # Game 3 (2026-10-16, gen 3 as White vs Chessiverse "Morphy" 3231, lost). The blunders 17.f3? / 37.Rdf1?? are NOT found by our
 # LONG_FORMAT search (it plays SF's Nac3 / Rc1 at d20-21) ⇒ the UI game was faster or nondeterministic. STATIC over-optimism:
 # doubled e-pawns + a4 knight read as assets; to SF they are targets / a bad piece (Black later wins e5, e4). Structural, not a race.

@@ -270,6 +270,20 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   signals (deeper truth at play depth: deep residual d12+, trajectory outcomes) is the remaining substantive test.
 - ☠️ Ops: numpy fits ran at ~700% CPU (BLAS threads) beside the owner's UI game ⇒ pin OMP/OPENBLAS/MKL_NUM_THREADS=1.
 
+### 5j. OWNER GAMES 5-7 + EVAL / DEPTH / PRUNING TRIAGE (10-18; `diagnostics/_case_triage.py`, cases in ks_sets/pot_owner_cases.txt)
+- Game 5 (LIGHTNING vs SF18, lost): rook ending — Black's connected c-pawns + bishop vs far rooks under-priced; our d18 search
+  still +1.6..+2.1 where SF +0.2..+0.8. Game 6 (BLITZ vs SF18, lost): early-middlegame attack over-optimism (+3 pawns), structure
+  under-priced, opponent passers. Game 7 (STANDARD vs chess.com Hikaru bot, lost): ★ the owner's MIDDLEGAME-POT example — closed
+  centre, our attack credited while Black's pending …gxh5 / g-file break against our king is unseen; d18 still +1.1 where SF −1.4.
+- Recurring eval themes (7 owner games): (1) opponent passers / races, esp. WITH PIECES (POT territory); (2) own-attack
+  over-optimism + blindness to the opponent's pending break in closed / attacking middlegames (mg POT + KS); (3) structural
+  weaknesses (doubled / isolated) under-priced (retune).
+- Depth@~1 s (60 quiet, LIGHTNING): median 12 for v1 / gen 1 / gen 3 / candidate; gen 3 NPS ~20% above gen 1 — BUT v2's
+  shallowest positions reach d8 vs v1's d10 ⇒ some positions blow up v2's tree (search-arc item: find them).
+- TRIAGE (17 positions, d10, candidate): EVAL 6 · DEPTH 7 (our static AGREES with SF at the end of SF's line; neither search finds
+  it) · PRUNING 2 (pruning off finds SF's move; + g2a where pruning off also finds it) · ok 2 ⇒ 9 of 15 misses are SEARCH-side —
+  the owner's "eval has outgrown the search" point holds; concrete starting cases for the search arc. (d10, 10-pt threshold: a pointer.)
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

@@ -242,6 +242,16 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   critical-position move test at play depth vs SF11 / SF18 choices; WAC/STS fingerprint) · strength (v1 vs v2 at equal nodes and
   equal time; SF18 at the current anchor; Mediocre ≥ 200 g for an approximate CCRL).
 
+### 5g. DECISIONS (owner, 10-18)
+- **Narrow-item POOL — bundle later, no rush:** keep evidence per item, test bundles in standard games. Pool: **C64**.
+- **The race is PARKED at 0, not refuted** — owner's counter-argument: absolute static accuracy feeds the SEARCH (RFP / futility /
+  razoring margins, qsearch stand-pat, ordering), so a truer static may buy pruning headroom with less risk of pruning the
+  important line. Evidence it is doing so: at d10 set A cut pawn-ending nodes −22% vs cells-only −11%. It did not become Elo
+  because the margins are tuned to the old eval ⇒ SEARCH-TRANSITION TEST (pre-registered then): race + tightened margins vs each
+  alone, at equal TIME (memory eval-accuracy-payoff-is-pruning: gate eval fix + margin re-sweep COMBINED; the crank result).
+- "Accurate" split explicitly: CALIBRATION (score right on average — what margins / stand-pat use; the race improved it) vs
+  DISCRIMINATION (sibling-move ordering; the race did not: 52.5%) — POT's next signals are judged on BOTH.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

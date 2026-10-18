@@ -252,6 +252,15 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
 - "Accurate" split explicitly: CALIBRATION (score right on average — what margins / stand-pat use; the race improved it) vs
   DISCRIMINATION (sibling-move ordering; the race did not: 52.5%) — POT's next signals are judged on BOTH.
 
+### 5h. CRITICAL-POINT VENUE (10-18; `diagnostics/_make_critical_starts.py`, `selfplay/eg_critical_fens.txt`)
+- 400 SF18 only-move positions (best beats second by ≥ 10 win% pts, light endgames) traced to their source games, stepped back
+  2 / 4 moves, kept if |SF18 d14| ≤ 200 cp ⇒ 464 starts. Book OFF.
+- C64 there (#78): **+15.4 ± 26.3** (+247 −206 =475, 928 g). Prediction +15…+40 (just in).
+- ☠️ `_pair_discrimination.py` definition fixed: a pair summing to 1.0 is uninformative whether a colour split OR two draws. Corrected:
+  critical venue **202/464 pairs informative (44%)**, C64 55.1% on them · balanced venue 151/600 (25%), C64 56.8% ⇒ the critical
+  venue carries ~1.75× the information per game (same per-pair effect). Use it as the narrow-item targeted venue from now on.
+- C64 across venues: +11.9 (balanced) · +13.3 (balanced timed) · +15.4 (critical) — consistent, none ≥ 2σ alone. In the pool.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

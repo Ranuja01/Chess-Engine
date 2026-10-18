@@ -261,6 +261,15 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
   venue carries ~1.75× the information per game (same per-pair effect). Use it as the narrow-item targeted venue from now on.
 - C64 across venues: +11.9 (balanced) · +13.3 (balanced timed) · +15.4 (critical) — consistent, none ≥ 2σ alone. In the pool.
 
+### 5i. KING-PATH RACE — PARKED (10-18, #79; candidate base; pre-registered keep: paired z ≥ +2 on critical pairs)
+- Move test, 5,974 SF18 multi-PV light endgames, 1,733 critical pairs: straight-line race FIXES 53 / BREAKS 38 (z = +1.57);
+  **KPATH king routes 48 / 42 (z = +0.63)** — real routes did not improve discrimination (prediction +1…+3 FAILED) ⇒ PARK (prototype
+  only; the engine race stays at 0). A relaxed race — even with realistic king movement — does not capture what decides critical
+  endgame moves (exact order / tempo = search's job), consistent with the race fading at d12.
+- Time box status: king-path MISSED; complexity scaler still untested ⇒ POT not stopped. Owner's route for real potential
+  signals (deeper truth at play depth: deep residual d12+, trajectory outcomes) is the remaining substantive test.
+- ☠️ Ops: numpy fits ran at ~700% CPU (BLAS threads) beside the owner's UI game ⇒ pin OMP/OPENBLAS/MKL_NUM_THREADS=1.
+
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).

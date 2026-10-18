@@ -15,6 +15,12 @@
 3R4/1kp3Rp/p1p5/b7/4KP2/1r6/8/8 w - - 0 33  # g5a White to move: SF best 33.f5 (+1.8); ours Rxh7 at d11 (+1.90) AND d18 (+1.68); after Rxh7 SF +0.8
 3R4/1kp4R/p1p5/b7/1r2KP2/8/8/8 w - - 1 34  # g5b White to move: SF best 34.Rd4; ours Ke5 (d12, +2.11) / Kf5 (d18, +1.63); after Ke5 SF +0.2
 3R4/1kp5/p7/b3K3/5P2/2p5/7R/1r6 w - - 0 38  # g5c White to move: SF best 38.Rd3 (≈ 0); ours Ra2 (d11, +0.43) / f5 (d18, +0.74); after Ke4 SF −1.3
+# Game 6 (2026-10-18, CANDIDATE as White vs SF18 0.005 s at BLITZ, LOST — a slow drift, MIXED eval + depth). Our static +2.9..+3.8
+# in the early middlegame attack (SF +0.7…−0.2: KS over-firing without follow-through); structure (doubled / isolated c- and
+# d-pawns) under-priced; Black's queenside passers under-priced in the ending. Search check (BLITZ vs LONG_FORMAT d17-20):
+r1bq1rk1/1ppp1ppp/p1n3n1/5N1Q/2BbP3/8/PPP2PPP/RNB2RK1 w - - 5 10  # g6a move 10: SF Rd1 (+0.7..+1.6); ours BLITZ c3 (+2.55), d17 Rd1 (+2.03) ⇒ depth finds the move, eval ~1 pawn optimistic
+r3r1k1/1ppqnppp/p2p2n1/3P3Q/8/2P1B1N1/P1P2PPP/3RR1K1 w - - 3 18  # g6b move 18: SF f4 (+0.1); ours BLITZ Rd4 (+0.39), d18 Rb1 (+0.50, the game's −0.8 move) ⇒ EVAL
+6r1/2p1B1kp/p2p4/3n2P1/4R3/2p5/P1P2P2/7K w - - 0 33  # g6c move 33: SF Bf6+ (−2.1); ours BLITZ Kh2 (−1.24, the game's move), d20 Bf6+ (−1.21) ⇒ DEPTH (eval ~1 pawn optimistic)
 # Game 3 (2026-10-16, gen 3 as White vs Chessiverse "Morphy" 3231, lost). The blunders 17.f3? / 37.Rdf1?? are NOT found by our
 # LONG_FORMAT search (it plays SF's Nac3 / Rc1 at d20-21) ⇒ the UI game was faster or nondeterministic. STATIC over-optimism:
 # doubled e-pawns + a4 knight read as assets; to SF they are targets / a bad piece (Black later wins e5, e4). Structural, not a race.

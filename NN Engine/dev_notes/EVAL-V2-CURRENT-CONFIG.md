@@ -24,17 +24,20 @@ is the `RFP_MARGIN=1000` row.
 
 ## 0. DEVELOPMENT BASE — `V2_PRESET=candidate` ("lazy ship", owner 2026-10-18)
 
-`candidate` = the official ship below (gen 3) **+ the narrow-item pool**, assumed to belong until a test says otherwise; every
-new item is tested on top of it and every bundle contains it. The OFFICIAL ship (`V2_PRESET=shipped`, gen 3) does not change
-until a bundle containing the pool passes the ship rule. ☠️ Revoke a pool item the moment any test shows it harmful.
+`candidate` = the official ship below **+ the narrow-item pool**, assumed to belong until a test says otherwise; every new item is
+tested on top of it and every bundle contains it. ☠️ Revoke a pool item the moment any test shows it harmful.
 
-| pool item | knobs | evidence (POT brief §5c-§5h) |
+**Pool: EMPTY (2026-10-19).** C64 left the pool and SHIPPED as **gen 4** (owner: lazy pass stands — not harmful anywhere, positive
+where it fires) ⇒ `candidate == shipped` = **258 / 47,689,413 / 3.926**; `V2_SHIP_GEN=3` = gen 3, 259 / 47,869,841 / 3.927.
+
+| shipped from the pool | knobs | evidence (POT brief §5c-§5o) |
 |---|---|---|
-| C64 — winnability class cells | `POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16` | depth (own pawn rows) d10 169.9 → 75.6, d12 141.3 → 61.1, bias fixed · critical venue +15.4 ± 26.3 · balanced +11.9 / timed +13.3 · standard −0.3 ± 17.9 · SF18 @1100 −0.25 pts · no cycle cost |
-
-Fingerprint: **`candidate` 258 / 47,689,413 / 3.926** (== `shipped` + the two knobs by env); `shipped` stays 259 / 47,869,841 / 3.927.
+| C64 → gen 4 (10-19) — winnability class cells | `POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16` | depth (own pawn rows) d10 169.9 → 75.6, d12 141.3 → 61.1, bias fixed · critical venue +15.4 ± 26.3 · balanced +11.9 / timed +13.3 · standard −0.3 ± 17.9 · SF18 @1100 −0.25 pts · games by start type: pawn-only and one-minor starts each pooled z ≈ +2.9 · no cycle cost. ⚠️ ONEMINOR is static-MIS-calibrated on SF18 WDL (+14% where it fires) though positive in games ⇒ re-read at the final retune (parked register) |
 
 ## 1. THE SHIPPED CONFIGURATION
+
+> **Gen 4 (2026-10-19) = everything below (gen 3) + C64** (`POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16`, §0) — set by
+> `V2_SHIP_GEN >= 4` in the `V2_PRESET=shipped` block (`search_engine.cpp`); `V2_SHIP_GEN=3` restores gen 3.
 
 ```
 EVAL_ARM=1

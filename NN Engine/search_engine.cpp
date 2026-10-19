@@ -2143,7 +2143,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // per-phase PIECE VALUES (V2_VAL_*, PST means pinned) — material moved out of the Kaufman products. Tables in
                 // ship_tables_v4.h. vs gen 2: self-play +22.8 ± 17.9 (2,000 g) · SF18 @1000 pooled 53.85% vs 52.5% (≈ +9 ± 14)
                 // · Mediocre @1 s 51.8% vs 44.5% (200 g). V2_SHIP_GEN=2 restores gen 2 exactly (256 / 47,473,313).
-                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 3);
+                // ── SHIP GEN 4 — gen 3 + C64 (shipped 2026-10-19, owner's lazy-ship rule: not harmful anywhere, positive where it
+                // fires): winnability class cells, pure pawn endings PAWNEND 64, one-minor endings ONEMINOR 16. Depth (own pawn
+                // rows) d10 169.9 → 75.6, d12 141.3 → 61.1; games: critical +15.4 ± 26.3, balanced +11.9 / timed +13.3, standard
+                // −0.3 ± 17.9, SF18 @1100 −0.25 pts; split by start type both cells pooled z ≈ +2.9 (POT brief §5o). No cycle cost.
+                // V2_SHIP_GEN=3 restores gen 3 exactly (259 / 47,869,841).
+                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 4);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
                 }
@@ -2153,16 +2158,15 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     Config::V2_VAL_EG[1] = -70;  Config::V2_VAL_EG[2] = -64;  Config::V2_VAL_EG[3] = 127;  Config::V2_VAL_EG[4] = -68;
                     Config::EVAL_V2_PAWN_MG = 999;
                 }
-                // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
-                // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on
-                // top of it and every bundle contains it; the official `shipped` (gen 3) is unchanged until a bundle passes.
-                // ☠️ REVOKE an item the moment any test shows it harmful (bundle leave-one-out, Mediocre, timed).
-                //   C64 — winnability class cells: pure pawn endings PAWNEND 64, one-minor endings ONEMINOR 16. Depth (own pawn
-                //   rows) d10 169.9 → 75.6, d12 141.3 → 61.1, bias fixed; games: critical venue +15.4 ± 26.3, balanced +11.9 /
-                //   timed +13.3, standard −0.3 ± 17.9, SF18 @1100 −0.25 pts. No cycle cost.
-                if (cand){
+                if (Config::V2_SHIP_GEN >= 4){
                     Config::POT_V2_WIN_PAWNEND = 64;
                     Config::POT_V2_WIN_ONEMINOR = 16;
+                }
+                // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
+                // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on
+                // top of it and every bundle contains it. ☠️ REVOKE an item the moment any test shows it harmful.
+                // Pool EMPTY since 2026-10-19 (C64 moved into gen 4) ⇒ candidate == shipped until the next item enters.
+                if (cand){
                 }
             }
             else

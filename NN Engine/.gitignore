@@ -55,3 +55,6 @@ selfplay/tune_data/collapse_smoke.csv
 # result measured on it is reproducible on another machine.
 diagnostics/ks_sets/*.csv
 diagnostics/*.csv
+
+# native UCI binary build output (selfplay/build_uci.sh)
+build_uci/

@@ -318,3 +318,18 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
   Game 7's position is the qualitative check (reported, not gating). Miss ⇒ PARK mg POT (features kept as a prototype).
 - **PREDICTION:** miss on (1) (≈ −0.5 to −1%) — the 10-01 pilot and the 10-13 direction probe were null; most of the −2.0 bias is
   expected to be scale (the control), not structure. B may show more than A (potential that search cannot reach at d12).
+
+### 5m. MIDDLEGAME POT — PARKED (10-19; registered in §5l; `diagnostics/_pot_mg_fit.py`)
+- Part (1), target A (SF18 t0 vs our candidate d12, 26,244 starts, 5-fold by game): full vs CONTROL **−0.46%** (needs ≤ −2%);
+  base 42.30 → control 41.79 → full 41.60; shuffled-feature null ≈ control. Most of the gain over raw d12 is CALIBRATION (the
+  control's scale/offset, −1.2%), not potential. Late middlegame (mgl) best: −1.26%. Worst class +0.00% (no harm).
+- Target B (realised potential under SF18 play): t+16 −0.50%, t+24 −0.55% vs control — no more signal for the future than for
+  the present ⇒ these structural features do not capture potential our d12 search cannot reach.
+- Part (2), move test (SF18 d14 multi-PV K=6 on 3,977 starts; 232 critical, 1,066 pairs vs ≥ 10-pt losers): POT FIXES 6 ·
+  BREAKS 9 · **z = −0.77** (needs ≥ +2); top-1 on critical 71.6% → 71.6%. The POT term alone orders SF's best above the loser
+  61.1% of pairs (not blind) — but the static eval already carries that ordering, so it adds nothing.
+- Weights: the pending-break features (v2-valued levers now / after a push, by who can act) ≈ 0 (non-zero on only 3-7% of
+  starts); the small gain comes from storm levers (+6), half-open pressure (+2), majority (−3), space (−2).
+- Predictions held (part 1 miss ≈ −0.5…−1%). ☠️ Caught before reading: the U flag held the option VALUE (U=1 read 302.9%).
+- ⇒ PARK (prototype kept). With §5i / §5k, every registered POT piece beyond the winnability cells has missed. Game 7's unseen
+  g-file break now reads as a DEPTH / pruning case (consistent with the triage: 9 / 15 misses search-side).

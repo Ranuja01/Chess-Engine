@@ -185,6 +185,18 @@ at all**) · `PawnDoubled2` (1/4, no record hit) · rook/bishop-on-king-ring · 
 | heat map | v1-only — never built for v2 | unbuilt |
 | tempo | = the STM nuisance (~+8 cp) — not separable here | search phase / final retune |
 
+## ★ POT PHASE (2026-10-13 → 10-19) — parked items and their RE-READ TRIGGERS (POT brief §5-§5o)
+
+| item | state | evidence | re-read trigger |
+|---|---|---|---|
+| **Minor-ending over-confidence / ONEMINOR cell** (owner 10-19: "keep in mind, may return one day") | SHIPPED in C64 (games +); static WDL says mis-calibrated | WDL: minors-only need scale 1.91 vs 2.82 global (we over-state edges ~1.5×); ONEMINOR=16 raises WDL MSE +14% where it fires; games by start type: one-minor starts pooled z ≈ +2.9 | **the final retune** (fit on SF18 WDL labels, not fixed-formula cp) — and any SF11 minor-ending port (KNPKB / KBPKN) |
+| POT race (straight-line), king-path race | PARKED at 0 (code + closure kept) | d10 −60% pawn rows with cells, d12 nothing beyond cells; move test z +1.57 / +0.63 | **search transition**: race + tightened RFP / futility / razoring margins at equal TIME (−22% pawn-ending nodes at d10) |
+| Complexity scaler | PARKED (prototype) | d12 −0.41% vs ≥ 2% keep | if a search-side use of "how unresolved" is designed (LMR / time) |
+| Middlegame POT (levers by who acts, storm, half-open, majority, space) | PARKED (prototype `_pot_mg_fit.py`) | A −0.46% vs control, t+16/24 ≈ −0.5%, move z −0.77; break features ≈ 0 weight | POT-as-search in the transition (game 7: a pending break pruned / not reached) |
+| Preplan E1 (leader cannot create a passer → winnability), M2 (closed-file openability correction, −5.0σ target), M1 in FEEDER form on `transform_critical` / `transform_trap`, M3 (majority → passer mg feeder) | **NEVER-MEASURED** | — | narrow items, judged WHERE THEY FIRE (critical venue) on WDL labels; any time an eval slot opens |
+| Learned correction (boosted trees, `_pot_gbm_ceiling.py`) | diagnostic only (owner: a model ⇒ NNUE, not trees) | −10% on fixed-formula cp label (no leakage) → gone on SF18 WDL at small n | queue #82 full-size WDL check; the NN phase (trajectory sets as data) |
+| ☠️ Fixed-formula cp → win% labels | INSTRUMENT DEFECT (memory sf-cp-labels-are-material-scaled-use-wdl) | mean 15–16 win% pts from SF18's own WDL | every cross-class accuracy claim, the retune objective |
+
 ## PROVENANCE
 Built by a full sweep of `dev_notes/` + memory on 2026-09-20. Companion docs:
 `EVAL-V2-CURRENT-CONFIG.md` (shipped config + decision register) · `EVAL-V2-REBUILD-LOG.md` (the narrative) ·

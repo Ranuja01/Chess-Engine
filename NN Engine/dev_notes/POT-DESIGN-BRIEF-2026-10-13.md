@@ -348,3 +348,18 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
   to move + phase).
 - **SIGNAL criterion:** T2 beats T0 by ≥ 2% held-out win% MSE on target A, in ≥ 4 of 5 folds. Targets B (t+16, t+24) reported.
 - **PREDICTION:** T1 ≈ T0 (|Δ| < 0.5%); T2 −0.5…−1.5% ⇒ MISS (most residual = search horizon, not static information).
+- **RESULT (10-19): SIGNAL by the registered criterion — prediction FAILED (said miss).** Target A held-out win% MSE: raw d12
+  42.30 · T0 (trees on d12 alone) 33.56 · T1 (+ §5m features) 33.40 (−0.48%) · **T2 (rich) 30.22 (−9.96%), 5 / 5 folds**
+  (−9.5…−10.4%); mgl −12.6%, mg −8.9%. Targets B: t+16 −6.8%, t+24 −5.7% (5 / 5 folds each).
+- Decomposition (diagnostic, after the verdict): **the POT features add nothing** (T2 without them −10.17%). Gain is spread over
+  overlapping position-type descriptions — eval terms + static −7.6%, material / phase −5.8%, pawn layout + kings −5.0% —
+  and barely moves the DIRECTION (side-ahead bias −1.51 → −1.39); the largest gain is on the 10% of rows where d12 and SF18
+  disagree on who is ahead (110 → 96). ⇒ the trees found SYSTEMATIC, LEARNABLE errors of our d12 score by position type (an
+  interaction-rich eval correction), not "potential" as the owner defines it. T0's own gain over raw d12 (−21%) is calibration
+  (conditional mean in win%), which a linear-logistic control cannot represent.
+- Move test (static-based trees, children have no d12; 229 critical / 1,056 pairs): static trees Ts → rich Tr: FIX 32 · BREAK 22 ·
+  **z = +1.36**, top-1 70.7% → 70.7%. Static held-out MSE 225 → 183 (−16%; trajectory starts are tactical, static is poor).
+  Leaning positive, below the +2 bar (vs the linear POT term's −0.77).
+- Reading: our eval has interaction errors a LINEAR retune cannot fix and a small learned model can — evidence for the owner's
+  NN route (or a learned correction as a mid-step). ☠️ Accuracy is not Elo (memory real-d10-accuracy-gains-did-not-become-elo):
+  discrimination is the gate; it is not yet proven.

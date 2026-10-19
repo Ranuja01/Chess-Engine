@@ -222,5 +222,65 @@ def moves():
     print("  rich inputs FIX %d · BREAK %d · z = %+.2f" % (fixed, broke, zz))
 
 
+def leak():
+    """MODE=leak (owner 10-19: "is validation leaking into training?"). Splits by GAME let the SAME / near-same position
+    (shared openings across self-play games) sit in train and test. Checks: (1) duplicate placements across games; (2) CV
+    grouped by MATCH TAG; (3) CV after DEDUP by board placement; (4) the trajectory set's own train/val split as a holdout."""
+    import csv, glob, collections
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    z = np.load(NPZ, allow_pickle=False)
+    fens, games = z["fens"], z["game"]
+    place = np.array([f.split(" ")[0] for f in fens])
+    tag = np.array([g.split("/")[0] for g in games])
+    split = {}
+    for p in sorted(glob.glob(P.TRAJ)):
+        for r in csv.DictReader(open(p, newline="")):
+            if r["k"] == "0":
+                split[r["start_fen"]] = r["split"]
+    sp = np.array([split.get(f, "?") for f in fens])
+    cnt = collections.Counter(place)
+    dup = np.array([cnt[x] > 1 for x in place])
+    pg = collections.defaultdict(set)
+    for x, g in zip(place, games): pg[x].add(g)
+    print("rows %d · unique placements %d · rows whose placement repeats %d (%.1f%%) · in >1 game %d"
+          % (len(fens), len(cnt), dup.sum(), 100 * dup.mean(), sum(1 for x in place if len(pg[x]) > 1)))
+    print("match tags %d · trajectory split train %d / val %d / ? %d" % (len(set(tag)), (sp == "train").sum(), (sp == "val").sum(), (sp == "?").sum()))
+    print("full moves at start: median %d, share ≤ move 12: %.1f%%" % (np.median([int(f.split()[-1]) for f in fens]),
+          100 * np.mean([int(f.split()[-1]) <= 12 for f in fens])))
+    y = P.wp(z["t0"])
+    X0 = P.wp(np.clip(z["d12"], -1500, 1500))[:, None]
+    X2 = np.hstack([X0, z["F"], np.clip(z["static"], -1500, 1500)[:, None], z["E"], z["R"]])
+    model = lambda: HistGradientBoostingRegressor(learning_rate=0.05, max_iter=500, max_leaf_nodes=31, min_samples_leaf=50,
+                                                  l2_regularization=1.0, early_stopping=True, validation_fraction=0.1,
+                                                  n_iter_no_change=20, random_state=7)
+
+    def run(name, mask, fold):
+        p0, p2 = np.zeros(mask.sum()), np.zeros(mask.sum())
+        yy, a, b, fo = y[mask], X0[mask], X2[mask], fold[mask]
+        for k in np.unique(fo):
+            tr_, te = fo != k, fo == k
+            p0[te] = model().fit(a[tr_], yy[tr_]).predict(a[te])
+            p2[te] = model().fit(b[tr_], yy[tr_]).predict(b[te])
+        m0, m2 = np.mean((p0 - yy) ** 2), np.mean((p2 - yy) ** 2)
+        print("  %-44s n %6d  raw d12 %.2f · T0 %.2f · T2 %.2f  ⇒ T2 vs T0 %+.2f%%"
+              % (name, mask.sum(), np.mean((X0[mask][:, 0] - yy) ** 2), m0, m2, 100 * (m2 / m0 - 1)), flush=True)
+    allm = np.ones(len(y), bool)
+    run("A  5-fold by GAME (the registered run)", allm, np.array([zlib.crc32(g.encode()) % 5 for g in games]))
+    run("B  5-fold by MATCH TAG", allm, np.array([zlib.crc32(t.encode()) % 5 for t in tag]))
+    first = np.zeros(len(y), bool); seen = set()
+    for i, x in enumerate(place):
+        if x not in seen: first[i] = True; seen.add(x)
+    nodup = first & np.array([cnt[x] == 1 for x in place])
+    run("C  by GAME, placements that occur ONCE only", nodup, np.array([zlib.crc32(g.encode()) % 5 for g in games]))
+    run("D  by MATCH TAG, placements that occur once", nodup, np.array([zlib.crc32(t.encode()) % 5 for t in tag]))
+    # E: the trajectory set's own split — train on 'train', score 'val' once (no tuning on val)
+    trm, vam = sp == "train", sp == "val"
+    m0, m2 = model().fit(X0[trm], y[trm]), model().fit(X2[trm], y[trm])
+    e0, e2 = np.mean((m0.predict(X0[vam]) - y[vam]) ** 2), np.mean((m2.predict(X2[vam]) - y[vam]) ** 2)
+    shared = len(set(place[vam]) & set(place[trm]))
+    print("  %-44s n %6d  raw d12 %.2f · T0 %.2f · T2 %.2f  ⇒ T2 vs T0 %+.2f%%  (val placements also in train: %d)"
+          % ("E  trajectory train → val holdout", vam.sum(), np.mean((X0[vam][:, 0] - y[vam]) ** 2), e0, e2, 100 * (e2 / e0 - 1), shared))
+
+
 if __name__ == "__main__":
-    {"dump": dump, "decomp": decomp, "moves": moves}.get(MODE, fit)()
+    {"dump": dump, "decomp": decomp, "moves": moves, "leak": leak}.get(MODE, fit)()

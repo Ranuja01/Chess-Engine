@@ -91,7 +91,12 @@ M4 clock rule + book + options · M5 UI hook + cutechess/fastchess + first timed
    for node-limited, analysis-heavy tests (per-move logs feed ~a dozen tools). Glue: a fastchess PGN → `summary.csv` converter so
    the pair / venue tools read both.
 5. Quirks (repetition hash without castling / ep, resign return, redundant Cython_Chess init): kept for parity now, fixed in the
-   correctness step.
+   correctness step. + found in M1: ☠️ `make_move` (search_engine.cpp:3237) tests the pawn bit AFTER `update_state` moved the
+   pawn ⇒ inside search only CAPTURES reset the halfmove clock (pawn moves do not) ⇒ the in-search 50-move bookkeeping is wrong.
+   The binary's game history uses the FIDE rule (= python-chess, what the Cython path hands the engine at the root).
+
+**M1 DONE (2026-10-19, 4ed2490):** perft of the SEARCH's generator (`generateLegalMovesReordered`) == python-chess on 361
+positions at depth 3 (300 held-out game positions + 60 random-play positions with castling / ep) and the standard CPW positions.
 
 ## 7. Questions for the owner (answered in §7a)
 1. **UI hook**: `ChessUI/` is your friend's project (a git submodule). Add a small `UciEngine` class there (like its `Stockfish`

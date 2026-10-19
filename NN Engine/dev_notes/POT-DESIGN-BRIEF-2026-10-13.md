@@ -386,3 +386,10 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
 - C64's games gains (balanced +11.9 / timed +13.3 / critical +15.4) mixed both cells (balanced venue = 300 pawn + 300 one-minor
   starts) ⇒ proposal: ship **PAWNEND only** (C64p); park ONEMINOR at 0 (or refit on WDL — possibly negative); games C64 vs C64p
   on the critical (light-endgame) venue to confirm.
+- **GAMES SPLIT BY START TYPE (existing C64 games, zero cost) — reverses the C64p proposal.** Pair-based, per venue:
+  one-minor starts: balanced +12.7 ± 14.1 (z +1.78) · timed +20.3 ± 16.5 (z +2.42) · critical +7.8 ± 17.3 (z +0.88) ⇒ pooled
+  z ≈ +2.9 · pawn-only starts: +11.0 ± 8.5 (z +2.54) · +6.8 ± 12.1 (z +1.10) · +19.3 ± 26.7 (z +1.43) ⇒ pooled z ≈ +2.9.
+  One-minor starts carry most information (112 / 42 / 118 informative pairs vs 39 / 27 / 12). Caveat: one-minor starts trade
+  down into pawn endings (PAWNEND fires) ⇒ not a clean split. No sign of harm from ONEMINOR in play.
+- ⇒ Static WDL says ONEMINOR mis-calibrates, games say it helps — two fair instruments disagree; GAMES decide (owner 10-19):
+  **C64 stays as lazily passed, both cells**; ONEMINOR's static/game split = an open item for the final retune (refit on WDL).

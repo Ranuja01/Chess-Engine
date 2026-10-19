@@ -333,3 +333,22 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `_build_game_regret_set.py EG_SIG_QUOTA=N` | (extended) endgame enrichment: keep only positions with an SF endgame signature, ≤ N per signature; writes a `game` column (by-game splits) |
 | `selfplay/_queue_*.sh` #59-#67 | gen-3 base refresh · round-3 data + fits + gate · endgame-signature ladder · R3A split + confirm · judge re-anchor + SPSA · endgame enrichment (EGX) · trajectories |
 | ★ `_pot_probe.py FEAT= D10_GLOB=` | POT GROUNDWORK: residual map (static / depth MSE + side-ahead bias by endgame type) and candidate POT inputs fitted alone on the frozen ship (direction vs magnitude/complexity). 10-13: magnitude −5.9% static EG, direction null → `POT-DESIGN-BRIEF-2026-10-13.md` |
+
+## Added 2026-10-15/18 (POT phase: race + class cells, pawn-ending search rules, venues, owner-game triage, archive)
+| Tool | What it does |
+|---|---|
+| `_pot_race_proto.py MODE=fit\|moves\|cases\|split [SET=pawn\|light] [KPATH=1]` | POT RACE prototype (Python): relaxed tempo race (promotion / rule of the square, Kmoch breakthrough, Averbakh key squares, undefended targets); fits race features on the depth target, sibling move ordering, owner cases, material-class split. ☠️ the light-ending gain was CONFOUNDED by material class — always run `split` |
+| `_pot_race_closure.py [N] [IN]` | C++ race features (`ev_breakdown` `pot_race_*`, bit EB_V2_POTRACE) must EQUAL the prototype's — exact integers |
+| ★ `_pot_knob_fit.py MODE=dump\|fit\|verify` | class cells + race weights by EXACT emulation of the engine's winnability scale. ☠️ emulate the clamp order exactly — the first version recovered f after its clamp (2,000 mp tail); `verify` caught it |
+| `_pe_arms.py MODE=prep\|read` | SF11 pawn-ending SEARCH rules (NULL_NPM_GUARD / PE_PRUNE_GATE / PE_PASSER_EXT) on own pawn-only rows (#69) — refuted (bias −7.3 → −7.0) |
+| `_pot_speed.py IN= N= TAG=` | fixed-depth nodes + wall time ⇒ NPS of one knob setting on a position set. SOLO only (load makes wall time meaningless) |
+| `_eval_profile_v2.py [REPS] [CAP]` | per-block v2 eval cycles by phase (needs `build_profile`, then `build` to restore). 10-16: KS-A ~30% everywhere; 26% of late-eg unscoped |
+| `_eval_stability.py [N] [IN]` | eval drift along SF best play (a perfect eval is a martingale) — the gate for POT tempo rules |
+| `_make_balanced_eg_starts.py` | balanced endgame starts (`selfplay/eg_balanced_fens.txt`). ☠️ random pawn-dominated starts were decided before move 1 — check informative pairs |
+| ★ `_make_critical_starts.py [GAP] [KS] [CP]` | CRITICAL-POINT venue: starts 2-4 moves BEFORE SF18 only-move positions (`selfplay/eg_critical_fens.txt`) — the targeted venue of the narrow-item rule |
+| ★ `_pair_discrimination.py <summary.csv …>` | how many colour-swapped pairs are INFORMATIVE (not split by colour, not double draws) — run before trusting a venue's null |
+| `_case_triage.py MODE=sf\|search\|report` | EVAL vs DEPTH vs PRUNING per saved owner-game position (`ks_sets/pot_owner_cases.txt`): SF18 d18 + PV, our normal vs no-pruning search (`selfplay/_queue_triage.sh`). 10-18: EVAL 6 · DEPTH 7 · PRUNING 2 · ok 2 |
+| `_build_trajectories.py MODE=eg` | (extended) endgame trajectory set, `E:\chess_data\traj\traj_eg_s*of3.csv` (12,000) |
+| `selfplay/_queue_*.sh` #68-#79 | race/cells fits, pawn-ending arms, C64 gates (balanced / timed / critical / SF18), pool, king-path, triage |
+| ⚠️ venue hygiene | endgame FEN starts need `USE_OPENING_BOOK=0` (the book played 5.3% of moves and dropped promotions); amplified evals cross `RESIGN_THRESHOLD` (−15000) ⇒ audit dropped rows in depth passes |
+| 📦 `selfplay/archive_games.ps1 -Before <date>` + `selfplay/build_games_index.py` | ROUTINE: archive old match folders to verified `.tar.zst` on `E:\chess_data\archive\games\` (summaries stay); `GAMES-INDEX.csv` = every match (configs, W/L/D, Elo, archive path) |

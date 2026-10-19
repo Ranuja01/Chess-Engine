@@ -91,6 +91,13 @@ not**, and machine suspend corrupts fixed-time games.
 **background task** and wait for the harness's completion notification. For a mid-run read, `Read` the
 task's output file.
 
+📦 **ROUTINE — keep `selfplay/games/` small** (it lives inside OneDrive on a near-full C:). At each session handoff, or
+whenever C: free space is under ~40 GB, check `df -h /mnt/c` and the folder's size. If it has grown past ~10 GB, archive
+match folders older than ~2 weeks with `selfplay/archive_games.ps1 -Before <date>` (one verified `.tar.zst` per tag on
+`E:\chess_data\archive\games\`, `manifest.csv` alongside; summaries stay in place; idle priority; never while a queue
+writes into `selfplay/games/`). Restore one tag: `tar.exe -xf E:\chess_data\archive\games\<tag>.tar.zst -C selfplay\games`.
+Index of every match: `selfplay/GAMES-INDEX.csv`. First run 2026-10-18 (1,391 tags, ~22 GB).
+
 ---
 
 ## 🚨 NEVER USE A SHELL TO READ — it prompts, and a prompt BLOCKS THE QUEUE

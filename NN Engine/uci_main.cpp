@@ -6,7 +6,9 @@
 #include <atomic>
 #include <chrono>
 #include <climits>
+#include <cctype>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -240,6 +242,64 @@ namespace
         g_have_pos = true;
     }
 
+    // `bench [file] [depth]` — the WAC fingerprint, reproducing diagnostics/tactical_test.py run_one per position: a fresh
+    // history holding only the root, side_to_play = side to move, clearSearchTables() (NOT clearAllCaches — the Python run
+    // keeps the eval / move-gen caches across positions), LONG_FORMAT preset, fixed depth, the default resign threshold,
+    // positions in file order. Parity target (design §5.2): shipped 258 / 47,689,413 · EvalArm 0: 250 / 35,310,778.
+    void cmd_bench(std::istringstream &in)
+    {
+        stop_search();
+        ensure_init();
+        std::string path = "diagnostics/suites/wac_uci.txt";
+        int depth = 10;
+        std::string a;
+        if (in >> a) { if (std::isdigit((unsigned char)a[0])) depth = std::stoi(a); else { path = a; in >> depth; } }
+        std::ifstream f(path);
+        if (!f) { say("info string bench: cannot open " + path); return; }
+        const ConfigData *saved = Config::ACTIVE;
+        Config::ACTIVE = &Configs::LONG_FORMAT;
+        Config::MAX_ITERATIVE_DEPTH = depth;
+        Config::NODE_LIMIT = 0;
+        Config::RESIGN_THRESHOLD = -15000;
+        g_iter_callback = nullptr;
+        g_uci_stop.store(false);
+        long long nodes = 0;
+        int n = 0, solved = 0;
+        const auto t0 = std::chrono::steady_clock::now();
+        std::string line;
+        while (std::getline(f, line))
+        {
+            if (line.empty() || line[0] == '#') continue;
+            const size_t bar = line.find('|');
+            if (bar == std::string::npos) continue;
+            BoardState root(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, true, 0, -1, 0, 1);
+            std::string err;
+            if (!pos::parse_fen(line.substr(0, bar), root, err)) { say("info string bench: bad FEN " + err); continue; }
+            std::istringstream bm(line.substr(bar + 1));
+            std::vector<std::string> best;
+            for (std::string m; bm >> m;) best.push_back(m);
+            pos::Game g;
+            pos::reset(g, root);
+            Config::side_to_play = root.turn;
+            clearSearchTables();
+            const MoveData md = get_engine_move(g.history, g.counts);
+            nodes += md.num_iterations;
+            ++n;
+            if (md.a >= 1)
+            {
+                std::string u;
+                u += char('a' + md.a - 1); u += char('0' + md.b); u += char('a' + md.c - 1); u += char('0' + md.d);
+                if (md.promotion >= 2 && md.promotion <= 5) u += "pnbrqk"[md.promotion - 1];
+                for (const std::string &b : best) if (b == u) { ++solved; break; }
+            }
+        }
+        const double sec = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        Config::ACTIVE = saved;
+        g_last_side = -1;
+        say("bench: solved " + std::to_string(solved) + "/" + std::to_string(n) + " nodes " + std::to_string(nodes) +
+            " time " + std::to_string((int)(sec * 1000)) + " ms nps " + std::to_string(sec > 0 ? (long long)(nodes / sec) : 0));
+    }
+
     void cmd_perft(std::istringstream &in, bool divide)
     {
         int depth = 0;
@@ -298,6 +358,7 @@ int main()
         else if (cmd == "d") say(g_have_pos ? pos::to_fen(g_game.history.back()) : std::string("(no position)"));
         else if (cmd == "perft") cmd_perft(in, false);
         else if (cmd == "divide") cmd_perft(in, true);
+        else if (cmd == "bench") cmd_bench(in);
         else if (!cmd.empty()) say("info string unknown command: " + cmd);
     }
     wait_search();

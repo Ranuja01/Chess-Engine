@@ -104,6 +104,12 @@ first illegal move — the engine's pv_table holds stale tail entries), bestmove
 (fingerprints 258 / 47,689,413 and 250 / 35,310,778 unchanged). python-chess as GUI: all limits, stop during infinite (1.00 s),
 a 12-ply game, mate-in-1 = `Mate(+1)`. ⚠️ movetime 500 took 0.66-0.73 s = the 200k-node clock check (fix in M4).
 
+**M3 DONE (2026-10-19): `bench` == the WAC fingerprint EXACTLY** — shipped 258 / 47,689,413, `EvalArm 0` 250 / 35,310,778 (same
+per-position setup as tactical_test.run_one; suite `diagnostics/suites/wac_uci.txt` = wac.epd with UCI best moves, raw ep field).
+⇒ the native binary searches node-for-node like the Cython path. Run: `printf 'bench
+quit
+' | build_uci/chess_engine_uci`.
+
 ## 7. Questions for the owner (answered in §7a)
 1. **UI hook**: `ChessUI/` is your friend's project (a git submodule). Add a small `UciEngine` class there (like its `Stockfish`
    class), or keep a wrapper on our side?

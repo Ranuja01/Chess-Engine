@@ -282,5 +282,41 @@ def leak():
           % ("E  trajectory train → val holdout", vam.sum(), np.mean((X0[vam][:, 0] - y[vam]) ** 2), e0, e2, 100 * (e2 / e0 - 1), shared))
 
 
+def wdl():
+    """MODE=wdl (owner 10-19: "how true are these results?"). SF ≥ 15.1 scales cp BY MATERIAL; our fixed cp → win% formula
+    ignores that, so part of the trees' gain may be SF's scoring convention, not a chess error. Re-score on SF18's own WDL
+    expected score (w + d/2), on the UNSEEN val split (_sf18_wdl_pass.py), 5-fold by game within it. Same arms + material-only."""
+    import csv
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    z = np.load(NPZ, allow_pickle=False)
+    idx = {f: i for i, f in enumerate(z["fens"])}
+    rows = [r for r in csv.DictReader(open(KV.get("WDL", "/mnt/e/chess_data/deep/mg_wdl_val.csv"), newline="")) if r["fen"] in idx]
+    I = np.array([idx[r["fen"]] for r in rows])
+    yw = np.array([(float(r["w"]) + 0.5 * float(r["d"])) / 10.0 for r in rows])        # SF18 expected score, White POV, 0-100
+    ycp = P.wp(np.array([float(r["sf_cp_white"]) for r in rows]))                       # the old label, same SF run
+    d12 = np.clip(z["d12"][I], -1500, 1500)
+    X0 = P.wp(d12)[:, None]
+    R, E = z["R"][I], z["E"][I]
+    mat = np.hstack([R[:, [34, 35, 36, 37, 38, 41, 42, 43, 44, 45]], E[:, [EB.index("material"), EB.index("v2_phase256")]]])
+    X2 = np.hstack([X0, z["F"][I], np.clip(z["static"][I], -1500, 1500)[:, None], E, R])
+    fold = np.array([zlib.crc32(g.encode()) % 5 for g in z["game"][I]])
+    model = lambda: HistGradientBoostingRegressor(learning_rate=0.05, max_iter=500, max_leaf_nodes=31, min_samples_leaf=50,
+                                                  l2_regularization=1.0, early_stopping=True, validation_fraction=0.1,
+                                                  n_iter_no_change=20, random_state=7)
+    print("unseen val rows with WDL: %d · corr(old cp label, WDL score) %.3f · mean |old − WDL| %.1f win%% pts"
+          % (len(rows), np.corrcoef(ycp, yw)[0, 1], np.mean(np.abs(ycp - yw))))
+    for lname, y in (("old label (SF cp → fixed win%)", ycp), ("SF18 WDL expected score", yw)):
+        res = {}
+        for name, X in (("T0 d12", X0), ("T0 + material/phase", np.hstack([X0, mat])), ("T2 rich", X2)):
+            p = np.zeros(len(y))
+            for k in range(5):
+                tr_, te = fold != k, fold == k
+                p[te] = model().fit(X[tr_], y[tr_]).predict(X[te])
+            res[name] = float(np.mean((p - y) ** 2))
+        b = res["T0 d12"]
+        print("  %-32s raw d12 %.2f · " % (lname, np.mean((X0[:, 0] - y) ** 2)) + " · ".join(
+            "%s %.2f (%+.2f%%)" % (n, v, 100 * (v / b - 1)) for n, v in res.items()), flush=True)
+
+
 if __name__ == "__main__":
-    {"dump": dump, "decomp": decomp, "moves": moves, "leak": leak}.get(MODE, fit)()
+    {"dump": dump, "decomp": decomp, "moves": moves, "leak": leak, "wdl": wdl}.get(MODE, fit)()

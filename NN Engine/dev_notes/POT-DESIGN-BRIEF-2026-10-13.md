@@ -363,3 +363,12 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
 - Reading: our eval has interaction errors a LINEAR retune cannot fix and a small learned model can — evidence for the owner's
   NN route (or a learned correction as a mid-step). ☠️ Accuracy is not Elo (memory real-d10-accuracy-gains-did-not-become-elo):
   discrimination is the gate; it is not yet proven.
+- **Owner challenge 10-19 ("a simple model beat months of eval work? leakage?") — checks:** no leakage: 26,244 unique placements
+  (0 repeats), CV by MATCH TAG −10.0%, trajectory train → unseen val holdout −12.3% (0 shared placements) (`MODE=leak`).
+  ☠️ But a LABEL ARTEFACT: SF ≥ 15.1 scales cp BY MATERIAL; our fixed cp → win% formula ignores it. SF18 WDL on the 3,931 val
+  rows (`_sf18_wdl_pass.py`, `MODE=wdl`): old label vs SF's own expected score differ by 15.9 win% pts on average (−295 cp =
+  certain loss to SF, 25% to the formula). Same rows, 5-fold within val (~3.1k train/fold): old label T0 35.55 → +material
+  −2.32% → rich −1.17% · **WDL label T0 205.61 → +material −0.57% → rich +2.76% (worse)** ⇒ the gain does NOT survive SF's
+  own win model at this size; most of "the systematic error" looks like converting SF's material-dependent cp. Claim WITHDRAWN
+  pending the full-size check (WDL on the 22k train split, train → val). ☠️ Lesson: every fit scored on SF cp via the fixed
+  formula carries this distortion across material classes — re-check key past results (C64, eg signature table) on WDL.

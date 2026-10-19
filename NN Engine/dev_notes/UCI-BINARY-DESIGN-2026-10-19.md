@@ -121,8 +121,8 @@ that crashed) + the front end applies a stop only after the first completed iter
 
 **M5 (2026-10-19, in progress):** UI class `NNEngineUCI` added to `ChessUI/chess_engine.py` (NOT committed — ChessUI is the
 friend's submodule and holds the owner's own uncommitted edits; swap `AlphaUX(board, True)` → `NNEngineUCI()` in chess_ui_v2.py
-to play it; LIGHTNING move returned at 1.04 s). fastchess v1.8.2-alpha at `E:\chess_data\enginesastchess\`; UHO 1,000 →
-`E:\chess_dataastchess\openings_uho.epd`; option `Debug` (default off) silences engine prints. Smoke: v2 vs v1, 4 + 4 games
+to play it; LIGHTNING move returned at 1.04 s). fastchess v1.8.2-alpha at `E:\chess_data\engines\fastchess\`; UHO 1,000 →
+`E:\chess_data\fastchess\openings_uho.epd`; option `Debug` (default off) silences engine prints. Smoke: v2 vs v1, 4 + 4 games
 at 10+0.1, all normal terminations. Next: the timed v1-vs-v2 baselines (overnight) and a PGN → summary.csv converter.
 
 ## 7. Questions for the owner (answered in §7a)

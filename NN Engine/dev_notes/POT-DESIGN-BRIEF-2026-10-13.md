@@ -333,3 +333,18 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
 - Predictions held (part 1 miss ≈ −0.5…−1%). ☠️ Caught before reading: the U flag held the option VALUE (U=1 read 302.9%).
 - ⇒ PARK (prototype kept). With §5i / §5k, every registered POT piece beyond the winnability cells has missed. Game 7's unseen
   g-file break now reads as a DEPTH / pruning case (consistent with the triage: 9 / 15 misses search-side).
+
+### 5n. CEILING TEST — boosted trees (owner idea 10-19: "a mini ML model, e.g. XGBoost, to predict transformations") — PRE-REGISTERED
+- Correction first (owner re-read): POT is NOT done — the preplan's E1 (passer-creation potential → winnability, ★ highest
+  evidence), M1 in FEEDER form on `transform_critical` / `transform_trap`, M2 (closed-file openability correction, −5.0σ on
+  record), M3 (majority → passer mg feeder) were never tested. §5m closed one form of one item.
+- Question: is there PREDICTABLE signal beyond our d12 at all on these labels? A flexible model learns the interactions a linear
+  hand term cannot ("this break works only if …"). If it finds none, no hand POT form will on this label; if it does, its
+  importances say which interactions to hand-code (or keep a model, pawn-hash cached — owner's call: hybrid vs NN phase).
+- Model: sklearn HistGradientBoostingRegressor (XGBoost family; installed), FIXED hyper-parameters (lr 0.05, ≤ 500 iters with
+  early stopping on an inner 10% split, 31 leaves, min leaf 50, L2 1.0), target = SF18 win%, squared loss, 5-fold by GAME.
+- Arms: **T0** trees on d12 alone (the fair control: non-linear calibration) · **T1** d12 + the §5m features · **T2** d12 + RICH
+  inputs (§5m features + candidate eval breakdown terms + our static + per-file pawn layout + king squares + piece counts + side
+  to move + phase).
+- **SIGNAL criterion:** T2 beats T0 by ≥ 2% held-out win% MSE on target A, in ≥ 4 of 5 folds. Targets B (t+16, t+24) reported.
+- **PREDICTION:** T1 ≈ T0 (|Δ| < 0.5%); T2 −0.5…−1.5% ⇒ MISS (most residual = search horizon, not static information).

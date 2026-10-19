@@ -147,6 +147,10 @@ namespace Oracle
 } // namespace Oracle
 
 std::atomic<bool> time_up;
+// UCI front end hooks (2026-10-19; dev_notes/UCI-BINARY-DESIGN-2026-10-19.md §3). Both inert in the Cython path:
+// g_uci_stop stays false, g_iter_callback stays null.
+std::atomic<bool> g_uci_stop{false};
+IterCallback g_iter_callback = nullptr;
 std::atomic<bool> use_q_precautions;
 std::atomic<bool> is_draw;
 
@@ -3422,6 +3426,16 @@ void clearSearchTables()
 	std::fill(g_ttMoveTable.begin(),    g_ttMoveTable.end(),    Move{});
 }
 
+// clearSearchTables + the caches it leaves alone (eval cache, move-gen cache). Used by the UCI front end on `ucinewgame`
+// and whenever the side it searches for changes: evalCacheNew and the TT hold side_to_play-relative values (2026-10-19
+// audit). clearSearchTables itself is unchanged because diagnostics rely on its current behaviour.
+void clearAllCaches()
+{
+	clearSearchTables();
+	std::fill(evalCacheNew.begin(), evalCacheNew.end(), EvalEntry{});
+	std::fill(moveGenCache.begin(), moveGenCache.end(), MoveEntry{});
+}
+
 MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count)
 {
 #ifdef EVAL_PROFILE
@@ -3448,6 +3462,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     std::fill(pv_length, pv_length + MAX_PLY, 0); */
 
     time_up = false;
+    if (g_uci_stop.load(std::memory_order_relaxed)) // a UCI `stop` that arrived before this reset is not lost
+        time_up = true;
     use_q_precautions = false;
     is_draw = false;
 
@@ -3523,6 +3539,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // changed its mind. Refreshed only on a completed iteration below.
     Move completed_move = move;
     int completed_score = score;
+    if (g_iter_callback && !time_up.load(std::memory_order_relaxed)) // UCI `info` for the initial search too (a mate found
+        g_iter_callback(depth_limit, score, static_cast<long long>(num_iterations), pv_table[0], pv_length[0], // here ends the loop
+                        static_cast<int>(state_history.size()));                                              // before it runs)
 
     // The depth-cap guard is checked first so it short-circuits before the MOVE_TIMES[depth_limit]
     // read: the cap is now literal (search up to depth_limit == MAX_ITERATIVE_DEPTH), and at the
@@ -3620,6 +3639,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         {
             completed_move = move;
             completed_score = score;
+            if (g_iter_callback) // UCI `info` line per completed iteration (null in the Cython path)
+                g_iter_callback(depth_limit, score, static_cast<long long>(num_iterations), pv_table[0], pv_length[0],
+                                static_cast<int>(state_history.size()));
         }
 
         bool side = current.turn;

@@ -98,6 +98,12 @@ M4 clock rule + book + options · M5 UI hook + cutechess/fastchess + first timed
 **M1 DONE (2026-10-19, 4ed2490):** perft of the SEARCH's generator (`generateLegalMovesReordered`) == python-chess on 361
 positions at depth 3 (300 held-out game positions + 60 random-play positions with castling / ep) and the standard CPW positions.
 
+**M2 DONE (2026-10-19):** UCI loop (uci / isready / ucinewgame / setoption / position / go depth|nodes|movetime|wtime..|infinite /
+stop / quit), search on a worker thread, `info depth … score cp|mate … nodes … nps … pv` (PV replayed from the root and cut at the
+first illegal move — the engine's pv_table holds stale tail entries), bestmove always legal. Engine hooks inert in the Cython path
+(fingerprints 258 / 47,689,413 and 250 / 35,310,778 unchanged). python-chess as GUI: all limits, stop during infinite (1.00 s),
+a 12-ply game, mate-in-1 = `Mate(+1)`. ⚠️ movetime 500 took 0.66-0.73 s = the 200k-node clock check (fix in M4).
+
 ## 7. Questions for the owner (answered in §7a)
 1. **UI hook**: `ChessUI/` is your friend's project (a git submodule). Add a small `UciEngine` class there (like its `Stockfish`
    class), or keep a wrapper on our side?

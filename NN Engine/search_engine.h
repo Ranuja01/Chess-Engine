@@ -3492,6 +3492,14 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 // only DECAYS it, so it shifts LMR/LMP and silently changes the chosen move (worst at low material). NEVER
 // called from the game path: real games correctly accumulate within-game history.
 void clearSearchTables();
+// UCI front end hooks (2026-10-19, uci_main.cpp; inert in the Cython path). g_uci_stop: a `stop` that cannot be lost by the
+// time_up reset at the start of get_engine_move. g_iter_callback: called once per COMPLETED iteration with depth, root score
+// (millipawns, side to move's view; mate = ±(9999999 − history size at the mated node)), cumulative nodes, the PV and the
+// root history size. clearAllCaches: clearSearchTables + eval cache + move-gen cache.
+using IterCallback = void (*)(int depth, int score, long long nodes, const Move *pv, int pv_len, int root_history_size);
+extern std::atomic<bool> g_uci_stop;
+extern IterCallback g_iter_callback;
+void clearAllCaches();
 int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, SearchData &previous_search_data, Move &best_move, int &num_iterations);
 int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<int> second_level_preliminary_scores, std::vector<Move> second_level_moves_list, RootScore &out_entry, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
 int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previousMove, int &num_iterations, bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);

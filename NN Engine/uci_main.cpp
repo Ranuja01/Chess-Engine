@@ -26,6 +26,11 @@ extern std::atomic<bool> time_up;   // search_engine.cpp
 namespace
 {
     std::ostream *g_out = nullptr;
+    // Debug=false (default): the engine's diagnostic prints (std::cout and std::cerr) go nowhere, so match logs stay clean;
+    // Debug=true: both go to stderr, as the Cython path shows them.
+    struct NullBuf : std::streambuf { int overflow(int c) override { return c; } } g_null;
+    std::streambuf *g_err_buf = nullptr;
+    void set_debug(bool on) { std::cout.rdbuf(on ? g_err_buf : &g_null); std::cerr.rdbuf(on ? g_err_buf : &g_null); }
     std::mutex g_out_mx;
     void say(const std::string &s)
     {
@@ -244,6 +249,7 @@ namespace
         }
         else if (name == "Resign") g_resign = (value == "true");
         else if (name == "OwnBook") g_own_book = (value == "true");
+        else if (name == "Debug") set_debug(value == "true");
         else if (name == "BookFile") g_book_file = value;
         else if (name == "BookMaxPly") g_book_max_ply = std::stoi(value);
         else say("info string unknown option " + name);
@@ -365,7 +371,8 @@ int main()
 {
     static std::ostream real_out(std::cout.rdbuf());   // the real stdout, for UCI only
     g_out = &real_out;
-    std::cout.rdbuf(std::cerr.rdbuf());                 // engine debug prints → stderr
+    g_err_buf = std::cerr.rdbuf();
+    set_debug(false);                                   // engine debug prints off (option Debug)
     initialize_attack_tables();
     initializeZobrist();
     std::string line;
@@ -383,6 +390,7 @@ int main()
             say("option name V2Preset type string default shipped");
             say("option name Resign type check default false");
             say("option name OwnBook type check default true");
+            say("option name Debug type check default false");
             say("option name BookFile type string default M11.2.bin");
             say("option name BookMaxPly type spin default 30 min 0 max 200");
             say("uciok");

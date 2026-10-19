@@ -301,3 +301,20 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
   pot-may-not-work-use-stopping-points): ship what passed (C64, as winnability, via a bundle), parked pieces kept at 0 with code +
   closure, move to the search transition. Owner to confirm (his route for real potential — deep residual d12+, trajectory
   outcomes — would be a NEW piece needing its own registered keep criterion).
+
+### 5l. MIDDLEGAME POT — PRE-REGISTRATION (10-19, written BEFORE any fit; owner 10-19: mg POT first, then cleanup)
+- Owner correction: the 10-18 time box closes the ENDGAME race / complexity line only; mg POT in its refined form (potential while
+  a system is unresolved, FOR and AGAINST the side to move; the opponent's pending break — game 7) was never tested (the 10-01 pilot
+  used lever/tension vs d6 outcomes, null at depth). C64 passes under the lazy-ship rule even without a bundle.
+- DATA (#81, done 08:21): candidate d12 score + best move on all 26,362 mg / mgl trajectory starts (`E:\chess_data\deep\
+  mg_cand_d12_s*of3.csv`; 92 early mates). Baseline: d12 win% MSE vs SF18 d14 = 42.3, side-ahead bias −2.0 (under-confident).
+- FEATURES (fixed now; Black − White, python-chess, no engine): pending breaks (pawn moves that create pawn contact now / after one
+  push), pawn tension count, half-open file pressure (rooks/queens on files with an enemy pawn), mobile majority without a passer,
+  storm levers against the enemy king's shelter, space behind the chain; each also × "unresolved" (tension or a lever on board).
+- TARGETS (5-fold by GAME): (A) deep residual — SF18 d14(t=0) vs ours d12(t=0); (B) realised potential — SF18 at t+16 / t+24.
+  Control arm: a constant + scale on d12 (calibration only), so a confidence gain is not counted as potential.
+- **KEEP (either):** (1) A improves held-out win% MSE by ≥ 2% beyond the control, no material class worse by > 2%, and the move test
+  not negative (z > −1); OR (2) critical-pair move test z ≥ +2 (SF18 multi-PV subset, same definition as §5i) with A not worse.
+  Game 7's position is the qualitative check (reported, not gating). Miss ⇒ PARK mg POT (features kept as a prototype).
+- **PREDICTION:** miss on (1) (≈ −0.5 to −1%) — the 10-01 pilot and the 10-13 direction probe were null; most of the −2.0 bias is
+  expected to be scale (the control), not structure. B may show more than A (potential that search cannot reach at d12).

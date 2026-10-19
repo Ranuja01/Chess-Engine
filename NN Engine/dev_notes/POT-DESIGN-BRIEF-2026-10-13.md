@@ -287,3 +287,17 @@ Win% MSE, bias in brackets (negative = side ahead under-rated); "share" = of all
 ## 4. Next steps once you've decided
 Build the chosen POT inputs as engine detectors (byte-identical at 0, symmetry-gated), fit them nested on the round-3 ship with
 everything else frozen, light joint refit, then the usual gate (self-play → SF18 → Mediocre) and the bench checkpoint (#2 of 3).
+
+### 5k. COMPLEXITY SCALER — PARKED (10-18, #80; candidate base; pre-registered keep: ≥ 2% d12 endgame error gain beyond the cells)
+- Data: candidate (gen 3 + C64) d12 search on 6,000 EGX endgame rows sampled by game (3,218 games; 5,697 with non-mate SF18
+  labels), resign disabled. Fit `diagnostics/_pot_complexity_fit.py`: SF12+'s bounded edge leg on the d12 score,
+  `d12 + egw·sign(d12)·max(w·x + b, −|d12|)`, x = SF winnable() inputs; 5-fold by game; control = constant b only (calibration).
+- Held-out win% MSE: base **54.5** · const 54.5 · full **54.3** ⇒ **−0.41%** (vs const −0.34%) ⇒ **PARK**. Prediction ≈ −0.5% held.
+  By class: pawn +2.6% (worse — the cells already own it) · minor −1.9% · rook −0.2% · queen −0.8%.
+- At d12 the candidate is already slightly OVER-confident on the side ahead (bias +0.9; minor +1.7, queen +3.8; rook −1.0):
+  the under-confidence complexity was meant to fix (10-13 probe: depth bias −14.6 in pawn endings) is gone at play depth
+  after C64. Weights: both flanks −34 · almost-unwinnable −24 · pure pawn +15 · passed +9.
+- **TIME BOX: king-path race MISSED (§5i) + complexity MISSED ⇒ by the owner's stopping rule POT stops** (memory
+  pot-may-not-work-use-stopping-points): ship what passed (C64, as winnability, via a bundle), parked pieces kept at 0 with code +
+  closure, move to the search transition. Owner to confirm (his route for real potential — deep residual d12+, trajectory
+  outcomes — would be a NEW piece needing its own registered keep criterion).

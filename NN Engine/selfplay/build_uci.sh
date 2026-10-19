@@ -6,7 +6,7 @@ ND="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/
 cd "$ND" || exit 1
 mkdir -p build_uci
 FLAGS="-Ofast -march=native -flto -fopenmp -fno-rtti -std=c++20 -mpopcnt -mbmi2 -I. -I/usr/include/eigen3"
-SRC="cpp_bitboard.cpp eval_v2.cpp ThreadPool.cpp search_engine.cpp position.cpp uci_main.cpp"
+SRC="cpp_bitboard.cpp eval_v2.cpp ThreadPool.cpp search_engine.cpp position.cpp book.cpp uci_main.cpp"
 nice -n 19 g++ $FLAGS $SRC -o build_uci/chess_engine_uci -pthread -flto=1 2> build_uci/build.log
 rc=$?
 grep -E "error" build_uci/build.log | head -20

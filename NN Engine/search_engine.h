@@ -3186,6 +3186,10 @@ namespace Config
     // move from the deepest fully-completed iteration. Checked per node (num_iterations is a
     // plain int), so it is exact at any budget, unlike the 200k-node TIME_CHECK_INTERVAL.
     inline int NODE_LIMIT = 0;
+    // Nodes between wall-clock checks (2026-10-19). 200000 = the historical TIME_CHECK_INTERVAL (≈ 0.44 s at ~450k NPS ⇒ a
+    // "1 s" LIGHTNING move could run ~1.5 s — owner observation); the Cython path keeps it so old timed behaviour stays
+    // reproducible. The UCI binary sets a few thousand (clock-accurate). Timing only — fixed-depth / node results unchanged.
+    inline int TIME_CHECK_NODES = TIME_CHECK_INTERVAL;
 
     // Occurrence count at which an in-search repeated position is scored as a draw.
     // Default 2 treats the first repetition on the search path as a draw — the standard,

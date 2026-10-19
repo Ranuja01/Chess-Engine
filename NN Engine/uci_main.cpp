@@ -7,6 +7,7 @@
 #include <chrono>
 #include <climits>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -15,6 +16,8 @@
 #include <string>
 #include <thread>
 #include "position.h"
+#include "book.h"
+#include <unistd.h>
 #include "cpp_bitboard.h"
 #include "cache_management.h"
 
@@ -32,6 +35,23 @@ namespace
 
     pos::Game g_game;
     bool g_have_pos = false;
+    bool g_from_startpos = false;                      // the book is used only for games from the start position
+    bool g_own_book = true;
+    std::string g_book_file = "M11.2.bin";
+    int g_book_max_ply = 30;                          // as ChessAI.pyx: len(move_stack) < 30
+
+    // A relative BookFile is looked up in the working directory, then next to the engine sources (the binary lives in
+    // NN Engine/build_uci/, the books in NN Engine/) — so a GUI may start the binary from any directory.
+    std::string book_path()
+    {
+        if (g_book_file.empty() || g_book_file[0] == '/' || std::ifstream(g_book_file)) return g_book_file;
+        char buf[4096];
+        const ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+        if (n <= 0) return g_book_file;
+        std::string exe(buf, n);
+        const std::string dir = exe.substr(0, exe.rfind('/'));
+        return dir + "/../" + g_book_file;
+    }
 
     // ── engine initialisation (lazy: env knobs latch at the first initialize_engine) ─────────────────────────────────────
     bool g_inited = false;
@@ -54,6 +74,7 @@ namespace
                           s.occupied_colour[0], s.promoted, s.castling_rights, s.ep_square, s.halfmove_clock, s.fullmove_number,
                           s.turn, true);
         if (!g_base) g_base = Config::ACTIVE;
+        Config::TIME_CHECK_NODES = 2048;                 // clock-accurate (the Cython path keeps 200000)
         g_def_depth = Config::MAX_ITERATIVE_DEPTH;
         g_def_nodes = Config::NODE_LIMIT;
         g_inited = true;
@@ -62,6 +83,8 @@ namespace
     // ── search thread ────────────────────────────────────────────────────────────────────────────────────────────────────
     std::thread g_worker;
     std::atomic<bool> g_searching{false};
+    std::atomic<bool> g_iter_done{false};   // a stop interrupts only AFTER the first completed iteration (alpha_beta's first
+                                            // pass cannot be cut safely — it has no move list yet)
     ConfigData g_cfg;
     std::chrono::steady_clock::time_point g_go_t0;
 
@@ -78,6 +101,8 @@ namespace
 
     void on_iter(int depth, int score, long long nodes, const Move *pv, int pv_len, int root_size)
     {
+        g_iter_done.store(true);
+        if (g_uci_stop.load()) time_up.store(true);   // a stop that arrived during the first pass takes effect now
         const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - g_go_t0).count();
         std::string line = "info depth " + std::to_string(depth) + " score " + score_str(score, root_size) + " nodes " +
                            std::to_string(nodes) + " time " + std::to_string(ms) + " nps " +
@@ -110,7 +135,7 @@ namespace
         if (g_searching.load())
         {
             g_uci_stop.store(true);
-            time_up.store(true);
+            if (g_iter_done.load()) time_up.store(true);
         }
         wait_search();
     }
@@ -120,7 +145,7 @@ namespace
     {
         stop_search();
         ensure_init();
-        if (!g_have_pos) { std::string e; BoardState r(0,0,0,0,0,0,0,0,0,0,true,0,-1,0,1); pos::parse_fen(pos::START_FEN, r, e); pos::reset(g_game, r); g_have_pos = true; }
+        if (!g_have_pos) { std::string e; BoardState r(0,0,0,0,0,0,0,0,0,0,true,0,-1,0,1); pos::parse_fen(pos::START_FEN, r, e); pos::reset(g_game, r); g_have_pos = true; g_from_startpos = true; }
         long long wtime = -1, btime = -1, winc = 0, binc = 0, movetime = -1;
         int mtg = 0, depth = 0;
         long long nodes = 0;
@@ -135,6 +160,11 @@ namespace
             else if (t == "infinite") infinite = true;
         }
         const BoardState &root = g_game.history.back();
+        if (g_own_book && g_from_startpos && (int)g_game.history.size() - 1 < g_book_max_ply && !infinite)
+        {
+            const std::string bm = book::probe(book_path(), root);
+            if (!bm.empty()) { say("info string book move"); say("bestmove " + bm); return; }
+        }
         g_cfg = *g_base;
         Config::MAX_ITERATIVE_DEPTH = depth > 0 ? depth : g_def_depth;
         Config::NODE_LIMIT = nodes > 0 ? (int)std::min<long long>(nodes, INT_MAX) : g_def_nodes;
@@ -167,6 +197,7 @@ namespace
         if (g_last_side != (int)root.turn) { if (g_last_side != -1) clearAllCaches(); g_last_side = root.turn; }
 
         g_uci_stop.store(false);
+        g_iter_done.store(false);
         g_iter_callback = &on_iter;
         g_searching.store(true);
         g_go_t0 = std::chrono::steady_clock::now();
@@ -212,6 +243,9 @@ namespace
             else say("info string unknown Preset " + value);
         }
         else if (name == "Resign") g_resign = (value == "true");
+        else if (name == "OwnBook") g_own_book = (value == "true");
+        else if (name == "BookFile") g_book_file = value;
+        else if (name == "BookMaxPly") g_book_max_ply = std::stoi(value);
         else say("info string unknown option " + name);
     }
 
@@ -219,6 +253,7 @@ namespace
     {
         std::string tok, fen;
         in >> tok;
+        const bool from_start = tok == "startpos";
         if (tok == "startpos") { fen = pos::START_FEN; in >> tok; }
         else if (tok == "fen") { while (in >> tok && tok != "moves") fen += (fen.empty() ? "" : " ") + tok; }
         else { say("info string position: expected startpos or fen"); return; }
@@ -240,6 +275,7 @@ namespace
             }
         g_game = std::move(g);
         g_have_pos = true;
+        g_from_startpos = from_start;
     }
 
     // `bench [file] [depth]` — the WAC fingerprint, reproducing diagnostics/tactical_test.py run_one per position: a fresh
@@ -346,6 +382,9 @@ int main()
             say("option name EvalArm type spin default 1 min 0 max 1");
             say("option name V2Preset type string default shipped");
             say("option name Resign type check default false");
+            say("option name OwnBook type check default true");
+            say("option name BookFile type string default M11.2.bin");
+            say("option name BookMaxPly type spin default 30 min 0 max 200");
             say("uciok");
         }
         else if (cmd == "isready") { ensure_init(); say("readyok"); }
@@ -359,6 +398,7 @@ int main()
         else if (cmd == "perft") cmd_perft(in, false);
         else if (cmd == "divide") cmd_perft(in, true);
         else if (cmd == "bench") cmd_bench(in);
+        else if (cmd == "key") { char k[17]; snprintf(k, sizeof k, "%016llx", g_have_pos ? (unsigned long long)book::key(g_game.history.back()) : 0ULL); say(std::string("polyglot key ") + k); }
         else if (!cmd.empty()) say("info string unknown command: " + cmd);
     }
     wait_search();

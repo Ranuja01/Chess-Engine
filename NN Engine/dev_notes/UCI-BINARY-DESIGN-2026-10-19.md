@@ -110,6 +110,15 @@ per-position setup as tactical_test.run_one; suite `diagnostics/suites/wac_uci.t
 quit
 ' | build_uci/chess_engine_uci`.
 
+**M4 DONE (2026-10-19):** (1) `Config::TIME_CHECK_NODES` (Cython path keeps 200000; binary 2048) ⇒ `movetime 500` returns at
+0.497-0.500 s (was 0.66-0.85). The remaining overshoot in a naive test was clearAllCaches() on a COLOUR CHANGE inside `go`
+(0.13-0.38 s) — in real matches the clear runs on `ucinewgame`, outside the clock. (2) native polyglot book (`book.cpp`,
+keys generated from python-chess into `book_keys.h`): keys == python-chess, book choice == python-chess on 69/69 in-book
+positions; startpos games only, < BookMaxPly. Options OwnBook / BookFile / BookMaxPly / Resign / Preset / EvalArm / V2Preset.
+(3) ☠️ BUG FOUND + FIXED: a stop (or an expired clock) during alpha_beta's FIRST pass crashed it (moves_list[0] on an empty
+list, search_engine.cpp ~3956) — the M2 hook made a pre-start stop hit it. Engine guard (empty list ⇒ return, only on the path
+that crashed) + the front end applies a stop only after the first completed iteration. Fingerprints unchanged.
+
 ## 7. Questions for the owner (answered in §7a)
 1. **UI hook**: `ChessUI/` is your friend's project (a git submodule). Add a small `UciEngine` class there (like its `Stockfish`
    class), or keep a wrapper on our side?

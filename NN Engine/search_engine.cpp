@@ -3461,9 +3461,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     /* std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0); */
 
-    time_up = false;
-    if (g_uci_stop.load(std::memory_order_relaxed)) // a UCI `stop` that arrived before this reset is not lost
-        time_up = true;
+    time_up = false;   // a UCI `stop` is applied by the front end after the FIRST completed iteration (g_iter_callback), never
+                       // here: alpha_beta's first pass cannot be interrupted safely (it has no move list yet)
     use_q_precautions = false;
     is_draw = false;
 
@@ -3954,6 +3953,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     if (time_up.load(std::memory_order_relaxed))
     {
         std::cout << "TIME LIMIT EXCEEDED" << std::endl;
+        if (current_search_data.moves_list.empty()) // first pass interrupted before any move list exists (2026-10-19:
+            return 0;                               // a UCI stop / tiny clock crashed here on moves_list[0]); best_move untouched
         best_move = current_search_data.moves_list[0];
         best_score = current_search_data.scores[0].top_score;
         return best_score;
@@ -5382,7 +5383,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
-    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL)
+    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= Config::TIME_CHECK_NODES)
     {
         nodes_since_time_check.store(0, std::memory_order_relaxed);
 
@@ -6365,7 +6366,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
-    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL)
+    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= Config::TIME_CHECK_NODES)
     {
         nodes_since_time_check.store(0, std::memory_order_relaxed);
 
@@ -7909,7 +7910,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
-    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= TIME_CHECK_INTERVAL)
+    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= Config::TIME_CHECK_NODES)
     {
         nodes_since_time_check.store(0, std::memory_order_relaxed);
 

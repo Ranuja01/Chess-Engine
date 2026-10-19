@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """SF18 WDL labels (2026-10-19; POT brief §5n follow-up). SF ≥ 15.1 scales its centipawns BY MATERIAL, so one fixed
 cp → win% formula mis-reads its scores by material class; its WDL output (UCI_ShowWDL) is the win model SF itself uses.
-  pyrun diagnostics/_sf18_wdl_pass.py [SPLIT=val] [DEPTH=14] [OUT=/mnt/e/chess_data/deep/mg_wdl_val.csv]
+  pyrun diagnostics/_sf18_wdl_pass.py [SPLIT=val] [DEPTH=14] [OUT=/mnt/e/chess_data/deep/mg_wdl_val.csv] [SHARD=k/n] [IN=<csv>]
 Rows = trajectory mg / mgl starts of the chosen split (as in gbm_inputs.npz). Output (resumable by FEN): fen, sf_cp_white,
 w, d, l (per mille, WHITE POV), depth. One process, Threads 1.
 """
@@ -23,11 +23,19 @@ NPZ = os.environ.get("NPZ", "/mnt/e/chess_data/deep/gbm_inputs.npz")
 TRAJ = os.environ.get("TRAJ", "/mnt/e/chess_data/traj/traj_s*of4.csv")
 
 split = {}
-for p in sorted(glob.glob(TRAJ)):
+for p in ([] if os.environ.get("IN") else sorted(glob.glob(TRAJ))):
     for r in csv.DictReader(open(p, newline="")):
         if r["k"] == "0":
             split[r["start_fen"]] = r["split"]
-fens = [f for f in np.load(NPZ, allow_pickle=False)["fens"] if split.get(f) == SPLIT]
+IN = os.environ.get("IN", "")                  # any CSV with a `fen` column instead of the trajectory split
+if IN:
+    fens = [r["fen"] for r in csv.DictReader(open(IN, newline=""))]
+else:
+    fens = [f for f in np.load(NPZ, allow_pickle=False)["fens"] if split.get(f) == SPLIT]
+_k, _n = (int(x) for x in os.environ.get("SHARD", "0/1").split("/"))
+if _n > 1:
+    fens = [f for i, f in enumerate(fens) if i % _n == _k]
+    OUT = OUT.replace(".csv", "_s%dof%d.csv" % (_k, _n))
 done = set()
 if os.path.exists(OUT):
     done = {r["fen"] for r in csv.DictReader(open(OUT, newline=""))}

@@ -372,3 +372,17 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
   own win model at this size; most of "the systematic error" looks like converting SF's material-dependent cp. Claim WITHDRAWN
   pending the full-size check (WDL on the 22k train split, train → val). ☠️ Lesson: every fit scored on SF cp via the fixed
   formula carries this distortion across material classes — re-check key past results (C64, eg signature table) on WDL.
+
+### 5o. WDL CALIBRATION of the eval by class + C64 split (10-19; `diagnostics/_wdl_calibration.py`, 5,988 held-out quiet rows)
+- 6,000 held-out quiet own-play rows of corpus_v2 (val; A/A2/V1/GAUNT; 1,500 per stage), SF18 d14 WDL. Best multiplier s on our
+  candidate STATIC per class, old label vs WDL. Per-material-class rescale vs one global scale: **−1.1% under BOTH labels** ⇒ the
+  eval is NOT substantially mis-scaled by class; SF18's WDL is ~2.8× sharper than the fixed formula (one global scale, move-neutral).
+- Outlier: minor-only endings need s 1.91 vs 2.82 global under WDL (we over-state edges ~1.5×; class rescale −7% there).
+- **C64 split (shipped vs candidate, same rows):** pawn only (144): WDL MSE 290.9 → **252.3 (−13%)**, s 4.91 → 2.44 ⇒ PAWNEND=64 is
+  RIGHT on SF's own win model. Minors only (631; ONEMINOR fires when no R/Q and ≤ 1 minor each): WDL 354.5 → **403.7 (+14%)**,
+  old label 146.1 → 157.1 (+7.5%) ⇒ **ONEMINOR=16 is WRONG** — more over-confidence where we already over-state. All rows WDL
+  386.3 → 390.8 (+1.2%, net worse: minors-only rows are ~4× pawn-only). Its 10-16 fit gain (one-minor 160 → 148) was on EGX
+  rows with the fixed-formula cp label (memory sf-cp-labels-are-material-scaled-use-wdl).
+- C64's games gains (balanced +11.9 / timed +13.3 / critical +15.4) mixed both cells (balanced venue = 300 pawn + 300 one-minor
+  starts) ⇒ proposal: ship **PAWNEND only** (C64p); park ONEMINOR at 0 (or refit on WDL — possibly negative); games C64 vs C64p
+  on the critical (light-endgame) venue to confirm.

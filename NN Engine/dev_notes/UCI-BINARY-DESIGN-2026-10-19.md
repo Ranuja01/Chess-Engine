@@ -78,7 +78,22 @@ the three new files + `cpp_bitboard.cpp eval_v2.cpp search_engine.cpp` (+ `nnue.
 M1 position + FEN + moves + perft · M2 UCI loop + go depth/nodes/movetime/infinite + stop + info/bestmove · M3 bench parity ·
 M4 clock rule + book + options · M5 UI hook + cutechess/fastchess + first timed v1 vs v2 baseline. Each milestone = its own commit.
 
-## 7. Questions for the owner
+## 7a. OWNER DECISIONS (2026-10-19)
+1. UI: add a small `UciEngine` class to `ChessUI/chess_engine.py` (like its `Stockfish` class); keep `AlphaUX` (the Cython path,
+   incl. v1) as the legacy route.
+2. Clock rule placeholder: fine. ★ Owner observation: LIGHTNING "1 s" can take ~1.5 s — CAUSE: the wall clock is checked only every
+   200,000 nodes (≈ 0.44 s at ~450k NPS) ⇒ add a finer check interval (a few thousand nodes) when standardising time — it changes
+   timing only, never fixed-depth / node-limited results. ☠️ Old-vs-new timed comparisons must equalise the ACTUAL average time per
+   move (old LIGHTNING ≈ 1.0-1.5 s), so the binary logs real time per move.
+3. Book: ON for official / UI games only; OFF in all engine-vs-engine tests (opening sets supply the starts: UHO 1,000, UHO-ext
+   14,784, variant 2,376, endgame venues 600 / 464). Future: a custom book (memory `custom-opening-book-future`).
+4. Runner: **fastchess as a SECOND runner** (real clocks, low overhead, pentanomial SPRT, any UCI opponent) — `tournament.py` stays
+   for node-limited, analysis-heavy tests (per-move logs feed ~a dozen tools). Glue: a fastchess PGN → `summary.csv` converter so
+   the pair / venue tools read both.
+5. Quirks (repetition hash without castling / ep, resign return, redundant Cython_Chess init): kept for parity now, fixed in the
+   correctness step.
+
+## 7. Questions for the owner (answered in §7a)
 1. **UI hook**: `ChessUI/` is your friend's project (a git submodule). Add a small `UciEngine` class there (like its `Stockfish`
    class), or keep a wrapper on our side?
 2. **Clock rule**: OK as a placeholder until the time-manager upgrade?

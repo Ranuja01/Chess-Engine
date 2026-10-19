@@ -31,6 +31,7 @@ k, n = (int(x) for x in KV.get("SHARD", "0/1").split("/"))
 if n > 1:
     OUT = OUT.replace(".csv", "_s%dof%d.csv" % (k, n))
 MATE_CP = 5000
+MOVE = KV.get("MOVE", "0") == "1"   # 2026-10-19: also write our search's best move (uci) — for move-agreement tests
 
 rows = [r for r in csv.DictReader(open(IN, newline="")) if r.get("best_cp")]
 rows = [r for i, r in enumerate(rows) if i % n == k]
@@ -43,7 +44,7 @@ new = not os.path.exists(OUT)
 f = open(OUT, "a", newline="")
 w = csv.writer(f)
 if new:
-    w.writerow(["fen", "ours_cp_white", "depth", "nodes"])
+    w.writerow(["fen", "ours_cp_white", "depth", "nodes"] + (["move"] if MOVE else []))
 t0, cnt = time.time(), 0
 for r in rows:
     if r["fen"] in done:
@@ -54,7 +55,7 @@ for r in rows:
     if ev is None:
         continue
     cp = max(-MATE_CP, min(MATE_CP, ev / 10.0)) if abs(ev) < 9_000_000 else (MATE_CP if ev > 0 else -MATE_CP)
-    w.writerow([r["fen"], "%.1f" % (cp if b.turn == chess.WHITE else -cp), o["depth"], o["nodes"]])
+    w.writerow([r["fen"], "%.1f" % (cp if b.turn == chess.WHITE else -cp), o["depth"], o["nodes"]] + ([o["uci"]] if MOVE else []))
     cnt += 1
     if int(KV.get("CHUNK", 0)) and cnt >= int(KV["CHUNK"]):
         f.close()

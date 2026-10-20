@@ -34,3 +34,24 @@
    in SEARCH · triage DEPTH / PRUNING cases (`_case_triage.py`) · POT-as-search (race + margins, an "unresolved" signal for
    LMR / time, pending-break protection — game 7).
 5. Margin re-sweep LAST at equal time; then bench checkpoint #3 → search v2. Final retune (WDL labels) after the transition.
+
+## ADDENDUM (10-19 evening) — search transition step 1: the native UCI BINARY (design `UCI-BINARY-DESIGN-2026-10-19.md`)
+- **Built + verified, M1-M5:** `uci_main.cpp`, `position.h/.cpp`, `book.h/.cpp`, `book_keys.h`; build `selfplay/build_uci.sh` →
+  `build_uci/chess_engine_uci`. perft == python-chess (361 positions) · **`bench` == the WAC fingerprint exactly** (258 / 47,689,413;
+  `EvalArm 0` 250 / 35,310,778) · native book == python-chess choice (69/69) · `movetime 500` → 0.50 s (`TIME_CHECK_NODES` 2048 in
+  the binary; the Cython path keeps 200000 so old LIGHTNING stays reproducible) · `Debug` option (engine prints off by default).
+- **Engine changes (all inert / byte-identical in the Cython path):** `g_uci_stop`, `g_iter_callback`, `clearAllCaches()`,
+  `Config::TIME_CHECK_NODES`; ☠️ BUG FIXED: interrupting alpha_beta's FIRST pass crashed it (moves_list[0] on an empty list).
+- **UI:** `ChessUI/chess_engine.py` gained `NNEngineUCI` (preset / movetime / clock=(base, inc), per-move summary, debug,
+  resign at ≤ −15 pawns like AlphaUX) + `GameClock`; `Stockfish(movetime=, clock=)`. NOT committed (friend's submodule; owner
+  has own edits there). Owner wired `NNEngineUCI()` into chess_ui_v2.py and works.
+- **Owner games:** ★ first WIN over SF18 @ 5 ms (LIGHTNING, binary) + the loss after (25.Rxe5 tactic, search-side) —
+  `dev_notes/owner_games/2026-10-19_vs_SF18_5ms.pgn`.
+- **fastchess** v1.8.2 at `E:\chess_data\engines\fastchess\`; UHO → `E:\chess_data\fastchess\openings_uho.epd`;
+  `selfplay/fastchess_report.py` (results + pentanomial Elo + ACTUAL time per move per engine + summary.csv conversion).
+- **Running tonight:** #82 (full WDL ceiling check, started 19:59) → #83 (`selfplay/_queue_fc_baseline.sh`): v2 gen 4 vs v1,
+  300 games at st=1 then 300 at 60+0.6 (first time-pressure test), concurrency 3, hard stop 09:00. Logs
+  `E:\chess_data\q82_wdl_full.log`, `q83_fc_baseline.log`; PGNs `E:\chess_data\fastchess\v2_v1_*.pgn`. Read with
+  `python selfplay/fastchess_report.py E:/chess_data/fastchess/v2_v1_st1.pgn --p1 v2_gen4`.
+- Quirks for the correctness step: halfmove clock reset only on captures inside search (make_move), repetition hash without
+  castling / ep, resign return, redundant Cython_Chess init — plus the search-asymmetry audit (in progress).

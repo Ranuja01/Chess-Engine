@@ -393,3 +393,10 @@ everything else frozen, light joint refit, then the usual gate (self-play → SF
   down into pawn endings (PAWNEND fires) ⇒ not a clean split. No sign of harm from ONEMINOR in play.
 - ⇒ Static WDL says ONEMINOR mis-calibrates, games say it helps — two fair instruments disagree; GAMES decide (owner 10-19):
   **C64 stays as lazily passed, both cells**; ONEMINOR's static/game split = an open item for the final retune (refit on WDL).
+- **FULL-SIZE WDL CHECK (#82, 10-19 20:11) — the small-n withdrawal was OVERSTATED.** SF18 d14 WDL on all 22,313 train starts,
+  trees trained on train, scored once on the unseen 3,931 val: old label T0 34.75 → +material/phase −6.79% → rich **−13.03%** ·
+  **SF18 WDL label T0 200.82 → +material/phase −4.01% → rich −7.26%.** ⇒ about HALF of the gain was SF's material-scaled cp; the
+  other half SURVIVES on SF's own win model. The 3.1k-row in-val check (+2.76%) was underpowered (trees need data). Corrected
+  reading: a learnable correction worth ~7% of WDL error beyond our d12 exists, ~half of it material / phase (position-type
+  calibration); still mostly MAGNITUDE (side-ahead bias barely moved), and the move test (z +1.36, cp label) is not decisive.
+  POT's hand features still add nothing to it. Owner: a model ⇒ NNUE; the trees remain a microscope (what position types).

@@ -4602,7 +4602,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
         {
             // A3 (FIX_MIN_RD1): the `rd == 1` clause exists on the minimizer side only (the maximizer helper tests i == 0),
             // so at the frontier the opponent searched every move full-window while ours were LMP / SEE pruned.
-            if (i == 0 || (!Config::FIX_MIN_RD1 && (depth_limit - cur_depth) == 1))
+            // FIX_MIN_RD1 = 1: drop it here · = 2: the OTHER direction, keep it here AND add it to the maximizer helper
+            if (i == 0 || (Config::FIX_MIN_RD1 != 1 && (depth_limit - cur_depth) == 1))
             {
                 // Full window search for first move
                 if (!using_tt)
@@ -5028,7 +5029,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
 
         if (!using_tt)
         {
-            if (i == 0)
+            // A3 other direction (FIX_MIN_RD1 = 2): full window at remaining depth 1 on the maximizer side too
+            if (i == 0 || (Config::FIX_MIN_RD1 == 2 && (depth_limit - cur_depth) == 1))
             {
                 // Full window search for first move
                 if (!using_tt)

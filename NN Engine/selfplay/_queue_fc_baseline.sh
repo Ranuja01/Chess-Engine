@@ -15,6 +15,7 @@ if [ "${NO_WAIT:-0}" != "1" ]; then
   until grep -q "QUEUE 82 DONE" "$Q82" 2>/dev/null; do sleep 60; done
 fi
 echo "[q83] $(date) start; fingerprint check via bench"
+cd "$ND" || exit 1   # bench reads diagnostics/suites/wac_uci.txt relative to the working directory
 FP=$(printf 'bench\nquit\n' | "$B" 2>/dev/null | grep "^bench")
 echo "[q83] $FP"
 echo "$FP" | grep -q "solved 258/300 nodes 47689413" || { echo "[q83] ☠️ BENCH MISMATCH (expected 258 / 47689413) — aborting"; exit 1; }

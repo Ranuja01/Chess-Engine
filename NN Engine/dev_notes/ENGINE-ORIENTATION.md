@@ -13,13 +13,19 @@ already exists, or "adding" a technique the search already has.
 
 | File | Role | Key contents |
 | --- | --- | --- |
-| `ChessAI.pyx` | Cython entry point / Python↔C++ bridge | `ChessAI` class; `alphaBetaWrapper()` is called from the pygame UI to get a move; opening-book lookup; `extern` declarations into the three C++ headers; converts results back to `chess.Move` (UCI) |
+| `ChessAI.pyx` | Cython entry point / Python↔C++ bridge (every diagnostic uses it; the UI's legacy `AlphaUX` route) | `ChessAI` class; `alphaBetaWrapper()` gets a move; opening-book lookup (python-chess polyglot, `M11.2.bin`); `ev_breakdown()` for diagnostics; `extern` declarations into the C++ headers; converts results back to `chess.Move` (UCI) |
 | `setupAI.py` | Build script | Compiles `cpp_bitboard.cpp`, `threadpool.cpp`, `search_engine.cpp`, `ChessAI.pyx` into the `ChessAI` extension; OpenMP + C++20 + native-arch flags |
 | `search_engine.cpp` / `search_engine.h` | Search entry point & core algorithm | `get_engine_move()` (C++ entry from Cython); iterative deepening; `alpha_beta()`, `minimizer()` / `maximizer()`, `qSearch()`; PVS, null-move pruning, LMR, futility, razoring; structs `BoardState`, `MoveData`, `SearchData`, `TTEntry`; search constants (`MAX_QDEPTH`, `MIN_MATERIAL_FOR_NULL_MOVE`, futility margins, time-check interval). **`namespace Config` holds every knob.** |
 | `move_gen.h` | Legal move generation + ordering | `generateLegalMoves()`, `generatePseudoLegalMoves()`, `generateEvasions()`, castling / en-passant / pawn move gen; `generateLegalMovesReordered()` — scores captures by MVV-LVA + SEE and quiets by history / killer / counter-move / move-frequency heuristics; precomputed attack masks |
 | `cache_management.h` | Hashing, caches, heuristics | Zobrist hashing (`generateZobristHash`, incremental update); transposition table (`searchEvalCache` + `TTEntry`, depth-preferred replacement); eval / quiescence / move-gen caches; killer / counter-move / history / move-frequency tables and their decay functions |
-| `cpp_bitboard.cpp` / `cpp_bitboard.h` | Evaluation function (+ bitboard ops & move-gen impl) | `placement_and_piece_eval()` — main static eval; per-piece midgame/endgame evaluators (pawns, knights, bishops, rooks, queens, kings); placement / attacking layers; passed pawns, king safety, bishop colour complexity, rook open files; `advanced_endgame_eval()`, `get_latent_threat_score()`; piece values and most engine constants |
+| `cpp_bitboard.cpp` / `cpp_bitboard.h` | **v1** evaluation (`EVAL_ARM=0`, the legacy CONTROL since 2026-10-19) + bitboard ops & move-gen impl | `placement_and_piece_eval()` — v1 static eval; per-piece midgame/endgame evaluators; placement / attacking layers; `advanced_endgame_eval()`, `get_latent_threat_score()`; `update_state()` (apply a move); attack tables (`initialize_attack_tables`) |
+| ★ `eval_v2.cpp` / `eval_v2.h` | **v2 evaluation — THE ENGINE's eval** (2026-10-19: official; `V2_PRESET=shipped` = gen 4) | the rebuilt eval: PST, mobility, pawn structure, passers (PX), KS / KS-B / KFL / KPROT, connected pawns, Kaufman cells, threats (at 0), winnability scale (`win_scale_adjust` incl. the C64 class cells), POT race (parked at 0), draw classes. Config doc: `EVAL-V2-CURRENT-CONFIG.md`; history: `EVAL-V2-REBUILD-LOG.md` |
+| `ship_tables_v2.h` / `_v3.h` / `_v4.h`, `pst_v2_fitted.h` | Compiled-in fitted v2 tables | gen 1 / gen 2 / gen 3-4 tables selected by `V2_SHIP_GEN` (the `V2_PRESET=shipped` block in `search_engine.cpp`) — no files needed at runtime |
+| ★ `uci_main.cpp`, `position.h/.cpp`, `book.h/.cpp`, `book_keys.h` | **Native UCI binary** (2026-10-19; built by `selfplay/build_uci.sh`, NOT by setupAI.py) | UCI loop + worker-thread search + `info`/`bestmove` + `bench` (== WAC fingerprint) · FEN / UCI moves / perft over the search's generator · native polyglot book. Design: `UCI-BINARY-DESIGN-2026-10-19.md`; memory `uci-binary-and-fastchess` |
+| `Cython_Chess.pyx` / `.cpp` (+ `setupChess.py`) | Legacy Cython helper | still imported by `ChessAI.pyx` for one start-up call (`inititalize()`, initialises its own copy of the tables — redundant for the search) |
+| `nnue.cpp` / `nnue.h` | Old NNUE inference hooks | compiled into the module, calls commented out (the owner's NN phase comes later) |
 | `ThreadPool.cpp` / `ThreadPool.h` | Worker thread pool | `enqueue()` / `wait()` work-stealing pool. Compiled in (`setupAI.py` lists it as `threadpool.cpp`, which resolves on the case-insensitive `/mnt/c` mount), but **not currently wired into the active search** — treat as latent / future SMP. |
+| `legacy/` | Inactive history (2026-10-19 tidy) | the owner's earlier Python / NN engine, trained models, old modules, old tests — see `legacy/README.md` |
 
 ⚠️ The engine is **non-negamax**: separate `minimizer()` / `maximizer()` / `pre_minimizer()` / `qSearch()`,
 an **absolute Black-positive** eval flipped once at the root, and **millipawn** units.
@@ -34,8 +40,13 @@ pygame UI (ChessUI/chess_ui_v2.py)
   → alpha_beta()  →  minimizer()/maximizer()   (+ transposition table, LMR,
                                                   null-move/futility/razoring,
                                                   qSearch at the horizon)
-  → placement_and_piece_eval()           [cpp_bitboard.cpp — static eval]
+  → v2 eval (eval_v2.cpp, V2_PRESET=shipped) / v1 placement_and_piece_eval() (cpp_bitboard.cpp, EVAL_ARM=0)
   → best MoveData  →  UCI  →  chess.Move back to Python
+
+Native UCI binary (2026-10-19) — any UCI GUI / fastchess / ChessUI NNEngineUCI:
+  stdin UCI → uci_main.cpp (position.cpp: FEN + moves → BoardState history; book.cpp: polyglot)
+  → worker thread: get_engine_move()  → same search + eval as above (node-for-node: `bench` == WAC fingerprint)
+  → g_iter_callback → `info …` lines → `bestmove`
 ```
 
 Move ordering at each node comes from `generateLegalMovesReordered()` (`move_gen.h`), backed by the

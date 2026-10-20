@@ -4,6 +4,35 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🏆★★★★ 2026-10-19 — v2 GEN 4 SHIPPED · v2 IS THE OFFICIAL ENGINE (≈ +170-200 Elo over v1 at EQUAL TIME) · native UCI binary
+**v2 is now the engine; v1 (`EVAL_ARM=0`) is the frozen legacy CONTROL** (it stays the Cython path's no-env default so every
+fingerprint script keeps working: v1 250 / 35,310,778). Official = `V2_PRESET=shipped` = **gen 4** = gen 3 + C64 (winnability
+class cells `POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16`, lazy-ship rule: not harmful anywhere, positive where it fires;
+by start type both cells pooled z ≈ +2.9) — fingerprint **258 / 47,689,413 / 3.926**; `V2_SHIP_GEN=3` restores gen 3.
+
+**First TIMED v1-vs-v2 measurement ever** — through the new native UCI binary + fastchess (book off, 1,000 UHO openings, pairs):
+
+    match                     games   v2 score            Elo (95%)            time / move (v2 · v1)      forfeits
+    st = 1 s / move            155    +108 −38 =9  72.6%   +170 (+112 … +240)   0.98 · 0.99 s (equal)      9 *
+    60+0.6 clock (first ever)  300    +220 −65 =15 75.8%   +199 (+159 … +243)   0.95 · 1.00 s              0
+
+\* the st=1 run stopped at 155 / 300 ("v1 not responsive" — under investigation, not reproducible from the position) and had 9
+time forfeits (v1 6, v2 3; excluding them 72.9%) — cause FOUND: `update_cache()` walks all ~8.4M move-gen entries every move
+just to print stats, before the search clock starts (spikes ~0.3 s; also wastes time on every UI move). Fixed by
+`PRINT_CACHE_STATS=0` in the binary (committed, rebuild pending). Time-pressure verdict: v2 holds up — slightly LESS time, more score.
+For scale: v2 measured +65 over v1 at equal NODES on 10-01 (skeleton era); the retunes + gen 2-4 since then show strongly at real
+time controls. ⚠️ This is v2 RELATIVE to v1, not an absolute rating — absolute strength = bench checkpoint #2 (SF18 anchor, Mediocre).
+
+**Infrastructure (search transition step 1 DONE):** native UCI binary `build_uci/chess_engine_uci` (`selfplay/build_uci.sh`):
+perft == python-chess (361 positions) · `bench` == the WAC fingerprint EXACTLY (node-for-node with the Cython path) · native
+polyglot book == python-chess choice · clock-accurate timing (`TIME_CHECK_NODES` 2048; Cython path keeps 200000) · fixed a
+crash when alpha_beta's first pass is interrupted. fastchess + `selfplay/fastchess_report.py` (pentanomial Elo, actual time per
+move). Owner's UI: `NNEngineUCI` (preset / movetime / clock, per-move summary, resign). ★ Owner's first win over SF18 @ 5 ms
+(`dev_notes/owner_games/2026-10-19_vs_SF18_5ms.pgn`).
+**Eval phase closed:** POT parked with re-read triggers (brief §5k-§5o, `EVAL-V2-PARKED-REGISTER.md`); WDL label lesson
+(memory `sf-cp-labels-are-material-scaled-use-wdl`). Next: search correctness (`SEARCH-CORRECTNESS-PLAN-2026-10-19.md` — 4
+verified max/min asymmetries + halfmove / repetition bugs). Docs: `UCI-BINARY-DESIGN-2026-10-19.md`, `SESSION-HANDOFF-2026-10-19.md`.
+
 ## 🏆 2026-10-12 — SHIPPED: retune round 2 + explicit piece values, v2 ship gen 3 (self-play +22.8 / SF18 +9 / Mediocre +7.3 pts)
 - Hybrid λ 0.03 on the gen-2 base with `V2_VAL_*` piece values free and PST means pinned: material lives in per-phase values,
   Kaufman back to interactions. All three legs passed (2,000 g self-play · 2 × 500 SF18 @1000 · 200 g Mediocre); the no-values

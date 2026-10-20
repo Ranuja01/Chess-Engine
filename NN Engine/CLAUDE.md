@@ -51,6 +51,12 @@ python main.py                            # isolated single-position test
 — without `LONG_FORMAT` hard positions time-abort and node counts become machine-load dependent.
 (That line is the frozen **v1** control, `EVAL_ARM=0`.)
 
+🏆 **v2 IS THE ENGINE; v1 IS THE LEGACY CONTROL (2026-10-19).** At equal time v2 gen 4 beats v1 by ≈ +170-200 Elo (fastchess,
+st=1 +170 / 155 g, 60+0.6 +199 / 300 g — OPTIMIZATION_LOG 10-19). v1 stays the Cython path's no-env default ONLY so the
+fingerprint scripts keep working; every new measurement, the UI and the UCI binary (default `V2_PRESET=shipped`) use v2.
+**Native UCI binary:** `selfplay/build_uci.sh` → `build_uci/chess_engine_uci`; verify with `bench` (== 258 / 47,689,413) —
+memory `uci-binary-and-fastchess`.
+
 🚨 **v2 — two presets, know which one you are on** (`EVAL_ARM=1` alone is a skeleton — always use a preset):
 - `V2_PRESET=shipped` = the **OFFICIAL ship** (**gen 4**, 2026-10-19 = gen 3 + C64, the winnability class cells
   `POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16`): **`258 / 47,689,413 / 3.926`**. The UI default; the baseline any ship is judged

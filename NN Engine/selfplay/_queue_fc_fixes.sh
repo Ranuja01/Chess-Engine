@@ -16,7 +16,7 @@ echo "[q85] $(date) start"
 FP=$(printf 'bench\nquit\n' | "$B" 2>/dev/null | grep "^bench")
 echo "[q85] off-identity: $FP"
 echo "$FP" | grep -q "solved 258/300 nodes 47689413" || { echo "[q85] ☠️ BENCH MISMATCH — aborting"; exit 1; }
-COMMON="-openings file=$O/openings_uho.epd format=epd order=random -srand 85 -repeat -concurrency 3 -resign movecount=3 score=1000 -draw movenumber=40 movecount=8 score=10 -each st=1 timemargin=250"
+COMMON="-openings file=$O/openings_uho.epd format=epd order=random -srand 85 -repeat -concurrency 3 -resign movecount=3 score=1000 -draw movenumber=40 movecount=8 score=10 -each st=1 timemargin=250 restart=on"
 run() {   # $1 tag, $2 knob
   local secs=$(( $(date -d "$EXIT_AT" +%s) - $(date +%s) )); [ $secs -lt 0 ] && secs=$(( secs + 86400 ))
   [ $secs -lt 600 ] && { echo "[q85] $(date) skip $1: past EXIT_AT"; return; }

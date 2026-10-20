@@ -23,7 +23,7 @@ run() {   # $1 tag, $2 time control args
   local secs=$(( $(date -d "$EXIT_AT" +%s) - $(date +%s) )); [ $secs -lt 0 ] && secs=$(( secs + 86400 ))
   echo "[q83] $(date) $1 ($2), up to ${secs}s"
   timeout $secs nice -n 5 $FC -engine cmd="$B" name=v2_gen4 option.OwnBook=false -engine cmd="$B" name=v1 option.EvalArm=0 option.OwnBook=false \
-    -each $2 timemargin=250 -openings file=$O/openings_uho.epd format=epd order=random -srand 83 \
+    -each $2 timemargin=250 restart=on -openings file=$O/openings_uho.epd format=epd order=random -srand 83 \
     -rounds 150 -games 2 -repeat -concurrency 3 -resign movecount=3 score=1000 -draw movenumber=40 movecount=8 score=10 \
     -pgnout file=$O/$1.pgn notation=san nodes=true append=false > $O/$1.log 2>&1
   echo "[q83] $(date) $1 done (rc $?): $(grep -E '^Games:|^Elo:|^Ptnml' $O/$1.log | tail -3 | tr '\n' ' ')"

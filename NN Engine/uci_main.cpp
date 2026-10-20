@@ -18,6 +18,7 @@
 #include "position.h"
 #include "book.h"
 #include <unistd.h>
+#include <malloc.h>
 #include "cpp_bitboard.h"
 #include "cache_management.h"
 
@@ -398,7 +399,9 @@ int main()
             say("uciok");
         }
         else if (cmd == "isready") { ensure_init(); say("readyok"); }
-        else if (cmd == "ucinewgame") { stop_search(); ensure_init(); clearAllCaches(); g_last_side = -1; }
+        // ucinewgame: clear, then hand the freed cache memory back to the OS (2026-10-20: RSS grew ~80 MB/game at 1 s/move;
+        // fastchess reuses engine processes ⇒ ~9 GB/process over a 300-game match ⇒ swapping ⇒ 8-s isready stalls)
+        else if (cmd == "ucinewgame") { stop_search(); ensure_init(); clearAllCaches(); malloc_trim(0); g_last_side = -1; }
         else if (cmd == "setoption") cmd_setoption(in);
         else if (cmd == "position") { stop_search(); cmd_position(in); }
         else if (cmd == "go") cmd_go(in);

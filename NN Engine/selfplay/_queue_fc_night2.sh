@@ -26,9 +26,9 @@ run() {   # $1 tag, $2 rounds, $3... engine args
   echo "[q84] $(date) $tag done (rc $?): $(grep -E '^Games:|^Elo:' $O/$tag.log | tail -2 | tr '\n' ' ') $(grep -c 'not responsive' $O/$tag.log) unresponsive"
 }
 run v2_v1_st1_full 150 -engine cmd="$B" name=v2_gen4 option.OwnBook=false -engine cmd="$B" name=v1 option.EvalArm=0 option.OwnBook=false \
-    -each st=1 timemargin=250 -log file=$O/v2_v1_st1_full.trace level=trace
-run v2_vs_sf18_5ms 100 -engine cmd="$B" name=v2_gen4 option.OwnBook=false st=1 timemargin=250 \
-    -engine cmd="$SF" name=sf18_5ms option.Threads=1 option.Hash=16 st=0.005 timemargin=250
-run v2_vs_sf18_20ms 100 -engine cmd="$B" name=v2_gen4 option.OwnBook=false st=1 timemargin=250 \
-    -engine cmd="$SF" name=sf18_20ms option.Threads=1 option.Hash=16 st=0.02 timemargin=250
+    -each st=1 timemargin=250 restart=on -log file=$O/v2_v1_st1_full.trace level=trace
+run v2_vs_sf18_5ms 100 -engine cmd="$B" name=v2_gen4 option.OwnBook=false st=1 timemargin=250 restart=on \
+    -engine cmd="$SF" name=sf18_5ms option.Threads=1 option.Hash=16 st=0.005 timemargin=250 restart=on
+run v2_vs_sf18_20ms 100 -engine cmd="$B" name=v2_gen4 option.OwnBook=false st=1 timemargin=250 restart=on \
+    -engine cmd="$SF" name=sf18_20ms option.Threads=1 option.Hash=16 st=0.02 timemargin=250 restart=on
 echo "[q84] $(date) QUEUE 84 DONE"

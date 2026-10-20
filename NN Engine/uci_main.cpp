@@ -249,6 +249,7 @@ namespace
             else say("info string unknown Preset " + value);
         }
         else if (name == "Resign") g_resign = (value == "true");
+        else if (name.rfind("Knob_", 0) == 0) latch(name.substr(5).c_str(), value);   // any env knob, e.g. Knob_FIX_RESEARCH
         else if (name == "OwnBook") g_own_book = (value == "true");
         else if (name == "Debug") set_debug(value == "true");
         else if (name == "BookFile") g_book_file = value;

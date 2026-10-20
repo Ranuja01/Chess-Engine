@@ -2597,6 +2597,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // built-in value is the single source of truth; an env var still overrides it
         // (e.g. VERIFY_MARGIN=0 to recover the old search for the d10 control).
         Config::VERIFY_MARGIN = env_int("VERIFY_MARGIN", Config::VERIFY_MARGIN);
+        // Search correctness fixes (2026-10-19), all default 0 = today's behaviour
+        Config::FIX_HALFMOVE = env_int("FIX_HALFMOVE", Config::FIX_HALFMOVE);
+        Config::FIX_REP_KEY = env_int("FIX_REP_KEY", Config::FIX_REP_KEY);
+        Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);
+        Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
+        Config::FIX_MIN_SCOUT = env_int("FIX_MIN_SCOUT", Config::FIX_MIN_SCOUT);
+        Config::FIX_RESEARCH = env_int("FIX_RESEARCH", Config::FIX_RESEARCH);
         Config::VERIFY_RESEARCH_REDUCTION = env_int("VERIFY_RESEARCH_REDUCTION", Config::VERIFY_RESEARCH_REDUCTION);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
@@ -3180,6 +3187,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_HISTORY_DECAY=" << Config::ENABLE_HISTORY_DECAY
                   << " MALUS_DIV=" << Config::MALUS_DIV
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
+                  << " FIX_HALFMOVE=" << Config::FIX_HALFMOVE << " FIX_REP_KEY=" << Config::FIX_REP_KEY
+                  << " FIX_MAX_NULL=" << Config::FIX_MAX_NULL << " FIX_MIN_RD1=" << Config::FIX_MIN_RD1
+                  << " FIX_MIN_SCOUT=" << Config::FIX_MIN_SCOUT << " FIX_RESEARCH=" << Config::FIX_RESEARCH
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " ENABLE_OTV=" << Config::ENABLE_OTV
                   << " OTV_MARGIN=" << Config::OTV_MARGIN
@@ -3288,7 +3298,9 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
     std::cout << "AFTER: "<< std::endl; */
     // halfmove_clock += 1
     //  Reset the halfmove clock if the move is a pawn move or capture
-    if (capture_move || (BB_SQUARES[move.from_square] & pawns))
+    // B1 (FIX_HALFMOVE): `pawns` is POST-move here (update_state above moved the pawn off from_square), so the legacy test
+    // never sees a pawn move; current.pawns is the pre-move board (state_history is untouched until the emplace below).
+    if (capture_move || (BB_SQUARES[move.from_square] & (Config::FIX_HALFMOVE ? current.pawns : pawns)))
     {
         halfmove_clock = 0;
     }
@@ -4588,7 +4600,9 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
 
         if (!using_tt)
         {
-            if (i == 0 || (depth_limit - cur_depth) == 1)
+            // A3 (FIX_MIN_RD1): the `rd == 1` clause exists on the minimizer side only (the maximizer helper tests i == 0),
+            // so at the frontier the opponent searched every move full-window while ours were LMP / SEE pruned.
+            if (i == 0 || (!Config::FIX_MIN_RD1 && (depth_limit - cur_depth) == 1))
             {
                 // Full window search for first move
                 if (!using_tt)
@@ -4736,6 +4750,10 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 }
 
                 // Null window search with LMR applied inside
+                // A1/A2 (2026-10-19 correctness fixes, default off): scout bounds + whether the scout was really reduced
+                const int sa = Config::FIX_MIN_SCOUT ? beta - 1 : alpha;   // A2: a MIN node scouts at its bound, beta
+                const int sb = sa + 1;
+                bool was_reduced = false;
                 if (do_lmr)
                 {
                     bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
@@ -4802,6 +4820,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 reduced_depth = std::min(floor_depth, depth_limit);
                         }
                     }
+                    was_reduced = reduced_depth < depth_limit;
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -4814,26 +4833,26 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false);
+                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false);
                         }
                     }
                     if (!using_tt)
                     {
-                        score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                        score = maximizer(cur_depth + 1, reduced_depth, sa, sb, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (Config::LMR_PROFILE)
                             lmr_profile_event(depth_limit, cur_depth, i, alpha, beta, score, reduced_depth, move, current_state, previousMove, true);
                         if (cur_depth < reduced_depth - 1)
                         {
                             TTFlag flag;
-                            if (score <= alpha)
+                            if (score <= sa)
                             {
                                 flag = TTFlag::UPPERBOUND;
-                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, alpha, alpha + 1, updated_state.castling_rights, updated_state.ep_square);
+                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, sa, sb, updated_state.castling_rights, updated_state.ep_square);
                             }
-                            else if (score >= alpha + 1)
+                            else if (score >= sb)
                             {
                                 flag = TTFlag::LOWERBOUND;
-                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, alpha, alpha + 1, updated_state.castling_rights, updated_state.ep_square);
+                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, sa, sb, updated_state.castling_rights, updated_state.ep_square);
                             }
                         }
                     }
@@ -4857,24 +4876,24 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false);
+                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false);
                         }
                     }
                     if (!using_tt)
                     {
-                        score = maximizer(cur_depth + 1, depth_limit, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+                        score = maximizer(cur_depth + 1, depth_limit, sa, sb, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (cur_depth < depth_limit - 1)
                         {
                             TTFlag flag;
-                            if (score <= alpha)
+                            if (score <= sa)
                             {
                                 flag = TTFlag::UPPERBOUND;
-                                addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, alpha, alpha + 1, updated_state.castling_rights, updated_state.ep_square);
+                                addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, sa, sb, updated_state.castling_rights, updated_state.ep_square);
                             }
-                            else if (score >= alpha + 1)
+                            else if (score >= sb)
                             {
                                 flag = TTFlag::LOWERBOUND;
-                                addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, alpha, alpha + 1, updated_state.castling_rights, updated_state.ep_square);
+                                addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, sa, sb, updated_state.castling_rights, updated_state.ep_square);
                             }
                         }
                     }
@@ -4887,8 +4906,12 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // If score is promising, re-search full window without reduction.
                 // VERIFY_MARGIN also re-searches a reduced move that fails low by only
                 // a small margin (a near-miss the reduction may have wrongly buried).
+                // A1 (FIX_RESEARCH): MIN mirror — a REDUCED move that beats the min bound (score <= alpha) is re-searched at
+                // full depth; VERIFY near-misses are the PESSIMISTIC side for min (score >= beta). Legacy text below when off.
                 if ((score > alpha && score < beta) ||
-                    (Config::VERIFY_MARGIN > 0 && do_lmr && score <= alpha && (alpha - score) < Config::VERIFY_MARGIN))
+                    (Config::FIX_RESEARCH ? ((was_reduced && score <= alpha) ||
+                                             (Config::VERIFY_MARGIN > 0 && do_lmr && score >= beta && (score - beta) < Config::VERIFY_MARGIN))
+                                          : (Config::VERIFY_MARGIN > 0 && do_lmr && score <= alpha && (alpha - score) < Config::VERIFY_MARGIN)))
                 {
                     // Only a re-search that FOLLOWS a reduction is a lost bet; a PVS re-search at an
                     // unreduced node would have happened regardless and is not the guard's business.
@@ -4901,7 +4924,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         // Graduated verification: a near-miss (verify) re-search runs at a
                         // shallow depth_limit - VERIFY_RESEARCH_REDUCTION; the normal PVS
                         // re-search stays at full depth.
-                        int research_depth = (score > alpha && score < beta) ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
+                        int research_depth = (Config::FIX_RESEARCH ? (score < beta) : (score > alpha && score < beta)) ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
                         score = maximizer(cur_depth + 1, research_depth, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (cur_depth < research_depth - 1)
                         {
@@ -5153,6 +5176,10 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 }
 
                 // Null window search with LMR applied inside
+                // A1/A2 (2026-10-19 correctness fixes, default off): scout bounds + whether the scout was really reduced
+                const int sa = alpha;                                       // max node: (alpha, alpha+1) is already right
+                const int sb = sa + 1;
+                bool was_reduced = false;
                 if (do_lmr)
                 {
                     bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
@@ -5218,6 +5245,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 reduced_depth = std::min(floor_depth, depth_limit);
                         }
                     }
+                    was_reduced = reduced_depth < depth_limit;
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -5304,7 +5332,10 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // If score is promising, re-search full window without reduction.
                 // VERIFY_MARGIN also re-searches a reduced move that fails low by only
                 // a small margin (a near-miss the reduction may have wrongly buried).
+                // A1 (FIX_RESEARCH): a REDUCED move that beats the max bound (score >= beta) is re-searched at full depth
+                // instead of being accepted as a cutoff unverified. Legacy text below when off.
                 if ((score > alpha && score < beta) ||
+                    (Config::FIX_RESEARCH && was_reduced && score >= beta) ||
                     (Config::VERIFY_MARGIN > 0 && do_lmr && score <= alpha && (alpha - score) < Config::VERIFY_MARGIN))
                 {
                     // Only a re-search that FOLLOWS a reduction is a lost bet; a PVS re-search at an
@@ -5318,7 +5349,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         // Graduated verification: a near-miss (verify) re-search runs at a
                         // shallow depth_limit - VERIFY_RESEARCH_REDUCTION; the normal PVS
                         // re-search stays at full depth.
-                        int research_depth = (score > alpha && score < beta) ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
+                        int research_depth = (Config::FIX_RESEARCH ? (score > alpha) : (score > alpha && score < beta)) ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
                         score = minimizer(cur_depth + 1, research_depth, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                         if (cur_depth < research_depth - 1)
                         {
@@ -6568,7 +6599,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             Move dummyMove;
             if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
                 g_searchStack[cur_depth] = dummyMove; // null move breaks the 2-ply continuation chain
-            null_move_score = minimizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true);
+            // A4 (FIX_MAX_NULL): the cut below tests >= beta, so the null search must probe (beta-1, beta); legacy probed
+            // (alpha, alpha+1) — identical at non-PV nodes (beta = alpha+1), the wrong bound at PV max nodes.
+            null_move_score = minimizer(cur_depth + 1, reduced_depth, Config::FIX_MAX_NULL ? beta - 1 : alpha, Config::FIX_MAX_NULL ? beta : alpha + 1, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true);
         }
 
         state_history.back().turn = !state_history.back().turn;

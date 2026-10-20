@@ -46,3 +46,16 @@ search-value-bugs-and-the-productive-bug-pattern, search-changes-are-antagonisti
 1. Order OK (cheap three first, then A1-A3 with a 2×2)?
 2. Equal-TIME games through the binary as the main instrument for A2 / A3 (speed effects), node-limited only as a secondary?
 3. Keep the old behaviour behind knobs (reproducible) — yes by default, unless you prefer plain replacement once a fix ships.
+
+## E. IMPLEMENTED 2026-10-20 00:40 (knobs, all default 0 ⇒ byte-identical: Cython 258 / 47,689,413 · 250 / 35,310,778 ✓)
+`FIX_HALFMOVE` (B1) · `FIX_MAX_NULL` (A4) · `FIX_MIN_RD1` (A3) · `FIX_MIN_SCOUT` (A2) · `FIX_RESEARCH` (A1) · `FIX_REP_KEY` (B2, knob
+declared, NOT implemented yet — 10 count sites with different state variables; needs its own unit test). Binary option
+`Knob_<NAME>` sets any env knob; fix binary `build_uci/chess_engine_uci_fix` (`OUT=` in build_uci.sh).
+WAC d10 bench, each alone (fingerprint + tactical veto only — memory wac-at-d10-does-not-discriminate-strength):
+
+    none        258  47.69M        A3 FIX_MIN_RD1     243 (−15)  −20.1%   ☠️ tactical veto — likely a PRODUCTIVE asymmetry:
+    B1          258  identical                                             try the OTHER direction (full window at rd 1 BOTH sides)
+    A4          254 (−4)  +0.2%    A2 FIX_MIN_SCOUT   250 (−8)   −12.6%   (pred −5…−20 ✓)
+    ALL five    254 (−4)  +1.6%    A1 FIX_RESEARCH    259 (+1)   +33.6%   (pred +5…+25 nodes, WAC +1…+4)
+
+Queue #85 (chained after #84): equal-time screens st=1, knob on vs off in the same binary, 200 g each — A2 then A1.

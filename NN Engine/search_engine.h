@@ -3148,6 +3148,15 @@ namespace Config
     // +3.7 +/-31 (no regression). Set 6000 for the old blitz default, or 0 to disable
     // and recover the old byte-identical search (e.g. for a d10 isolation control).
     inline int VERIFY_MARGIN = 16000;
+    // ── SEARCH CORRECTNESS fixes (2026-10-19; dev_notes/SEARCH-CORRECTNESS-PLAN-2026-10-19.md). All default 0 = today's
+    // behaviour (byte-identical). The search is max/min, not negamax; these repair asymmetries between the two halves.
+    inline int FIX_HALFMOVE = 0;   // B1: make_move resets the halfmove clock on PAWN moves too (tested pre-move)
+    inline int FIX_REP_KEY = 0;    // B2: repetition counts keyed with castling rights + ep square, not placement alone
+    inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
+    inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
+    inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound
+    inline int FIX_RESEARCH = 0;   // A1: LMR re-search mirrored — a REDUCED move that beats the node's bound (max: >= beta,
+                                   //     min: <= alpha) is re-searched at full depth; VERIFY near-misses mirrored for min
 
     // Graduated verification: re-search the near-miss at depth_limit - this (a
     // shallow re-look) instead of full depth, to cut the cost of a wide VERIFY_MARGIN.

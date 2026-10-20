@@ -1,5 +1,12 @@
 # Eval v2 — rebuild log
 
+> **🏆 CLOSED 2026-10-20 — v2 WON and is THE ENGINE.** As planned in this log's preamble, v2 merged into `OPTIMIZATION_LOG.md`
+> as a single entry with this log as its provenance (entries 2026-10-19 + the 2026-10-20 official-engine record): v2 gen 4
+> beats v1 by ≈ +180-200 Elo at EQUAL TIME (fastchess, st=1 and 60+0.6). v1 (`EVAL_ARM=0`) is the frozen legacy control.
+> After 09-26 the rebuild's record moved to: `EVAL-V2-CURRENT-CONFIG.md` (what ships, §0-§1) · `POT-DESIGN-BRIEF-2026-10-13.md`
+> (POT phase) · `EVAL-V2-PARKED-REGISTER.md` (parked items + re-read triggers) · `SESSION-HANDOFF-2026-10-*.md`. This file stays
+> the history and the Register of omissions.
+
 **What this file is.** The running record of the ground-up eval rebuild. `OPTIMIZATION_LOG.md` remains the
 record of the SHIPPED engine and is not touched by this lane; if v2 eventually wins it merges there as a
 single entry with this log as its provenance.

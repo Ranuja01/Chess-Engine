@@ -80,6 +80,7 @@ namespace
                           s.turn, true);
         if (!g_base) g_base = Config::ACTIVE;
         Config::TIME_CHECK_NODES = 2048;                 // clock-accurate (the Cython path keeps 200000)
+        Config::PRINT_CACHE_STATS = 0;                   // skip the untimed per-move walk of the move-gen cache
         g_def_depth = Config::MAX_ITERATIVE_DEPTH;
         g_def_nodes = Config::NODE_LIMIT;
         g_inited = true;

@@ -3190,6 +3190,9 @@ namespace Config
     // "1 s" LIGHTNING move could run ~1.5 s — owner observation); the Cython path keeps it so old timed behaviour stays
     // reproducible. The UCI binary sets a few thousand (clock-accurate). Timing only — fixed-depth / node results unchanged.
     inline int TIME_CHECK_NODES = TIME_CHECK_INTERVAL;
+    // Per-move cache-stat printing in update_cache (2026-10-19): walks all move-gen entries, untimed. 1 = historical
+    // (Cython path); the UCI binary sets 0. Timing only.
+    inline int PRINT_CACHE_STATS = 1;
 
     // Occurrence count at which an in-search repeated position is scored as a draw.
     // Default 2 treats the first repetition on the search path as a draw — the standard,

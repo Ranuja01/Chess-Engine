@@ -3345,6 +3345,12 @@ inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_m
 
 inline void update_cache(int num_plies)
 {
+    // 2026-10-19: this only PRINTS cache stats (eviction is commented out below), yet printMoveGenCacheStats walks all
+    // ~8.4M move-gen entries every move — tens of ms, occasionally ~0.3 s, spent BEFORE search_start_time, i.e. outside the
+    // time budget (9 time forfeits in the first fastchess st=1 match). PRINT_CACHE_STATS=0 skips it (the UCI binary does);
+    // default 1 keeps the Cython path's behaviour. Timing only — search results unchanged.
+    if (!Config::PRINT_CACHE_STATS)
+        return;
 
     printCacheStats();
 

@@ -767,6 +767,16 @@ inline uint64_t make_move_cache_key(uint64_t zobrist_base, uint64_t castling_rig
     return key;
 }
 
+/*
+	Key under which a position is counted for repetition detection.
+	FIX_REP_KEY bit 1 off: placement + side to move only, so positions differing only in castling rights or ep square
+	collide (Ke1-f1-e1 after giving up the rights reads as a repeat). Bit 1 on: both are mixed in, as for the move-gen
+	cache key. Every count site (root history, make/unmake, the repetition test) must use this same key.
+*/
+inline uint64_t repetition_key(uint64_t zobrist, uint64_t castling_rights, int ep_square) {
+    return (Config::FIX_REP_KEY & 1) ? make_move_cache_key(zobrist, castling_rights, ep_square) : zobrist;
+}
+
 
 inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
 	

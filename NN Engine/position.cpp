@@ -153,8 +153,8 @@ namespace pos
 
     uint64_t rep_key(const BoardState &s)
     {
-        return generateZobristHash(s.pawns, s.knights, s.bishops, s.rooks, s.queens, s.kings, s.occupied_colour[1],
-                                   s.occupied_colour[0], s.turn);
+        return repetition_key(generateZobristHash(s.pawns, s.knights, s.bishops, s.rooks, s.queens, s.kings, s.occupied_colour[1],
+                                                  s.occupied_colour[0], s.turn), s.castling_rights, s.ep_square);
     }
 
     void reset(Game &g, const BoardState &root)

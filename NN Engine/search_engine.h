@@ -3151,7 +3151,11 @@ namespace Config
     // ── SEARCH CORRECTNESS fixes (2026-10-19; dev_notes/SEARCH-CORRECTNESS-PLAN-2026-10-19.md). All default 0 = today's
     // behaviour (byte-identical). The search is max/min, not negamax; these repair asymmetries between the two halves.
     inline int FIX_HALFMOVE = 0;   // B1: make_move resets the halfmove clock on PAWN moves too (tested pre-move)
-    inline int FIX_REP_KEY = 0;    // B2: repetition counts keyed with castling rights + ep square, not placement alone
+    inline int FIX_REP_KEY = 0;    // B2, bit flags: 1 = repetition counts keyed with castling rights + ep square, not placement
+                                   //     alone; 2 = a position whose earlier occurrence is before the root needs a 3-fold (SF's
+                                   //     rule) — a 2-fold is a draw only when both occurrences are inside the search. 3 = both
+    inline int FIX_DRAW_EXIT = 0;  // B3: iterative deepening no longer stops when an iteration scores 0 with a repetition seen at a
+                                   //     root child — that exit abandoned a won position at depth 3 for a draw (_test_rep_key.sh)
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound
@@ -3534,7 +3538,7 @@ inline bool relevant_pin_exists(std::vector<BoardState> &state_history, bool pro
 inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool using_extra_precautions);
 inline void increment_node_count_with_decay(int &num_iterations);
 inline bool isUnsafeForNullMovePruning(BoardState current_state);
-inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count);
+inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count, const BoardState &state);
 inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relavent_pin, int move_number, BoardState current_state);
 inline void updatePV(Move move, int cur_depth);
 

@@ -1549,7 +1549,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
     state_history.push_back(initialState);
 
     uint64_t zobrist = generateZobristHash(initialState.pawns, initialState.knights, initialState.bishops, initialState.rooks, initialState.queens, initialState.kings, initialState.occupied_colour[true], initialState.occupied_colour[false], initialState.turn);
-    position_count[zobrist]++;
+    position_count[repetition_key(zobrist, castling_rights, ep_square)]++;
 
     Config::side_to_play = side_to_play;
 
@@ -2600,6 +2600,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // Search correctness fixes (2026-10-19), all default 0 = today's behaviour
         Config::FIX_HALFMOVE = env_int("FIX_HALFMOVE", Config::FIX_HALFMOVE);
         Config::FIX_REP_KEY = env_int("FIX_REP_KEY", Config::FIX_REP_KEY);
+        Config::FIX_DRAW_EXIT = env_int("FIX_DRAW_EXIT", Config::FIX_DRAW_EXIT);
         Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);
         Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
         Config::FIX_MIN_SCOUT = env_int("FIX_MIN_SCOUT", Config::FIX_MIN_SCOUT);
@@ -3188,6 +3189,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " MALUS_DIV=" << Config::MALUS_DIV
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " FIX_HALFMOVE=" << Config::FIX_HALFMOVE << " FIX_REP_KEY=" << Config::FIX_REP_KEY
+                  << " FIX_DRAW_EXIT=" << Config::FIX_DRAW_EXIT
                   << " FIX_MAX_NULL=" << Config::FIX_MAX_NULL << " FIX_MIN_RD1=" << Config::FIX_MIN_RD1
                   << " FIX_MIN_SCOUT=" << Config::FIX_MIN_SCOUT << " FIX_RESEARCH=" << Config::FIX_RESEARCH
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
@@ -3245,7 +3247,7 @@ void set_current_state(std::vector<BoardState> &state_history, std::unordered_ma
     state_history.push_back(initialState);
 
     uint64_t zobrist = generateZobristHash(initialState.pawns, initialState.knights, initialState.bishops, initialState.rooks, initialState.queens, initialState.kings, initialState.occupied_colour[true], initialState.occupied_colour[false], initialState.turn);
-    position_count[zobrist]++;
+    position_count[repetition_key(zobrist, castling_rights, ep_square)]++;
 }
 
 inline void make_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, Move move, uint64_t zobrist, bool capture_move)
@@ -3315,7 +3317,7 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
     // ep_square = -1;
     turn = !turn;
 
-    position_count[zobrist]++;
+    position_count[repetition_key(zobrist, castling_rights, ep_square)]++;   // child's rights / ep (post-move)
     // Construct the new state directly in the history vector; a named temporary + push_back would
     // copy the ~100-byte BoardState an extra time (lvalue push_back cannot elide the copy).
     state_history.emplace_back(
@@ -3347,11 +3349,13 @@ inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_m
     PROF_BLOCK(PROF_MAKEUNMAKE);
     ++g_see_gen; // restored position -> invalidate the per-position SEE cache (O(1))
 
+    // Uncount the position being left under the key make_move counted it with (the child's rights / ep)
+    const uint64_t rep_key = repetition_key(zobrist_key, state_history.back().castling_rights, state_history.back().ep_square);
     state_history.pop_back();
 
-    if (--position_count[zobrist_key] == 0)
+    if (--position_count[rep_key] == 0)
     {
-        position_count.erase(zobrist_key); // Clean up to save space
+        position_count.erase(rep_key); // Clean up to save space
     }
 }
 
@@ -3454,6 +3458,9 @@ void clearAllCaches()
 	std::fill(moveGenCache.begin(), moveGenCache.end(), MoveEntry{});
 }
 
+// Repetition counts as of the root of the current search (FIX_REP_KEY bit 2 only): the game history before the root.
+static std::unordered_map<uint64_t, int> g_pre_root_counts;
+
 MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count)
 {
 #ifdef EVAL_PROFILE
@@ -3503,6 +3510,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     tt_hits = 0;
 
     qsearchVisits = 0;
+
+    if (Config::FIX_REP_KEY & 2)
+        g_pre_root_counts = position_count;   // the game's counts at the root, root included
 
     BoardState current = state_history.back();
 
@@ -3566,7 +3576,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     while (depth_limit < Config::MAX_ITERATIVE_DEPTH && elapsed <= Config::ACTIVE->MOVE_TIMES[depth_limit] && score < 9000000 && !time_up)
     {
 
-        if (is_draw && score == 0)
+        if (is_draw && score == 0 && !Config::FIX_DRAW_EXIT)
             break;
         is_draw = false;
         int x1 = (move.from_square & 7) + 1;
@@ -4548,7 +4558,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
     bool using_tt = false;
     int score = 0;
     BoardState updated_state = state_history.back();
-    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || updated_state.halfmove_clock >= 100)
+    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || updated_state.halfmove_clock >= 100)
     {
         score = 0;
     }
@@ -4977,7 +4987,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
     std::vector<Move> dummy_moves;
     RootScore dummy_entry;
     BoardState updated_state = state_history.back();
-    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || updated_state.halfmove_clock >= 100)
+    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || updated_state.halfmove_clock >= 100)
     {
         score = 0;
     }
@@ -5576,7 +5586,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
     if (cur_depth == 1)
     {
-        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || current_state.halfmove_clock >= 100)
+        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state) || current_state.halfmove_clock >= 100)
         {
             ++g_draw_empty_ply1_min;
             // alpha_beta indexes scores[i].second_moves for every root move with no bounds or emptiness
@@ -7566,7 +7576,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
     // The preliminary pass has no incoming capture context; start its capture-chain density fresh.
     g_captureChain[cur_depth] = 0;
 
-    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || current_state.halfmove_clock >= 100)
+    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state) || current_state.halfmove_clock >= 100)
     {
         if (cur_depth == 1)
         {
@@ -7687,7 +7697,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
         make_move(state_history, position_count, move, zobrist, capture_move);
 
         BoardState updated_state = state_history.back();
-        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD) || updated_state.halfmove_clock >= 100)
+        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || updated_state.halfmove_clock >= 100)
         {
             score = 0;
         }
@@ -7938,7 +7948,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prevMove, int &num_iterations, bool is_maximizing)
 {
     qsearchVisits++;
-    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD))
+    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, state_history.back()))
     {
         return 0;
     }
@@ -8698,10 +8708,18 @@ inline void increment_node_count_with_decay(int &num_iterations)
     }
 }
 
-inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count)
+inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count, const BoardState &state)
 {
-    auto it = position_count.find(zobrist_key);
-    return it != position_count.end() && it->second >= repetition_count;
+    const uint64_t key = repetition_key(zobrist_key, state.castling_rights, state.ep_square);
+    auto it = position_count.find(key);
+    if (it == position_count.end() || it->second < repetition_count)
+        return false;
+    if (!(Config::FIX_REP_KEY & 2) || it->second > repetition_count)
+        return true;
+    // Exactly repetition_count occurrences: a draw only if all of them lie inside the search. An occurrence from the game
+    // before the root can still be avoided by the opponent, so it needs one more repeat (SF's 3-fold rule for pre-root).
+    auto pre = g_pre_root_counts.find(key);
+    return pre == g_pre_root_counts.end() || pre->second == 0;
 }
 
 inline bool isUnsafeForNullMovePruning(BoardState current_state)
@@ -9513,7 +9531,7 @@ inline int get_q_search_eval(int alpha, int beta, int cur_depth, const TimePoint
     // position (see QCACHE_SOUND_STORE). qSearch returns a bare 0 on every path this guards, so a
     // non-zero result cannot be one of them -- testing that first keeps is_repetition, a hash lookup,
     // off the per-qsearch-entry hot path.
-    bool unsound_store = Config::QCACHE_SOUND_STORE && (time_up.load(std::memory_order_relaxed) || (result == 0 && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD)));
+    bool unsound_store = Config::QCACHE_SOUND_STORE && (time_up.load(std::memory_order_relaxed) || (result == 0 && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state)));
 
     if (!Config::DISABLE_QCACHE && !unsound_store)
         addToQCache(zobrist, result, flag, current_state.castling_rights, current_state.ep_square);

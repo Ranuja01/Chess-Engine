@@ -58,6 +58,55 @@ WAC d10 bench, each alone (fingerprint + tactical veto only — memory wac-at-d1
     A4          254 (−4)  +0.2%    A2 FIX_MIN_SCOUT   250 (−8)   −12.6%   (pred −5…−20 ✓)
     ALL five    254 (−4)  +1.6%    A1 FIX_RESEARCH    259 (+1)   +33.6%   (pred +5…+25 nodes, WAC +1…+4)
 
+**B2 `FIX_REP_KEY` IMPLEMENTED 2026-10-20 (code only; not yet built — queue #88 held the box).** Bit flags: `1` = every count
+site keys with `repetition_key()` (cache_management.h: placement ⊕ castling ⊕ ep, the move-gen cache mixer) — root history
+(initialize_engine / set_current_state / UCI `pos::rep_key`), make_move (child's rights), unmake_move (uncounts with the child's
+rights before the pop), `is_repetition` (now takes the node's state; 7 call sites); `2` = SF's pre-root rule: at exactly
+REPETITION_THRESHOLD occurrences a draw only if none is from the game before the root (`g_pre_root_counts`, snapshotted in
+get_engine_move); `3` = both. Unit test + registered predictions: `selfplay/_test_rep_key.sh` (false draw Q vs R with lost
+rights; true-repeat control; bench at 0 / 3).
+
+**B2 BUILT + TESTED; B3 FOUND (2026-10-21, `build_uci/chess_engine_uci_b2`, `selfplay/_test_rep_key.sh`).** Test position: Q vs R
+with Black's rights lost by Ke8-f8 / Qa1-b1-a1. ⚠️ My registered "Black is losing" was WRONG — ...Rh1+ skewers K and wins Qa1, Black
+is WINNING (+2.6); the draw / no-draw predictions all held.
+- **B3 (new) `FIX_DRAW_EXIT`:** the iterative-deepening loop `break`s on `is_draw && score == 0` (get_engine_move). At all-knobs-0
+  the engine stopped at **depth 3 after 45 nodes** and played the "draw" Ke8, never seeing ...Rh1+ winning the queen — with a FALSE
+  repetition (B2) AND with a genuine single repetition (control). `FIX_DRAW_EXIT=1`: Rh1+ (+259) in both; **bench byte-identical
+  258 / 47,689,413** (no WAC position hits the exit). Cleanest fix of the set.
+- **B2 `FIX_REP_KEY`:** bit 1 fixes the false draw, keeps the genuine one (as registered); bit 2 (SF pre-root 3-fold) also
+  un-draws the genuine single repeat. WAC d10 (veto only): =1 **257** / 47,596,347 · =2 **253** / 47,525,587 · =3 **251** /
+  47,905,411 ⇒ bit 2 costs WAC; judge it in games separately from bit 1.
+- All knobs 0 on the new binary: 258 / 47,689,413 ✓.
+
+**QUEUE #88 RESULTS (2026-10-20/21 night, fresh seeds 881-885, st = 1 s, concurrency 3, restart=on, 0 unresponsive):**
+- **A2 confirmation: −10 ± 32 / 400 g** (48.5%). Pooled with #86 (+49 / 200) ≈ **+10 ± 25 / 600 — NOT confirmed**; the first screen
+  inflated. Knob verified LIVE (QGD d9 435k → 257k nodes). ⇒ A2 stays OFF; base for the bundle = plain gen 4. The fix × reductions
+  2×2 is a search-v2 question (owner 10-20).
+- **A2+A1 vs A2: −26 ± 42 / 200 g** — A1 shows nothing on top of A2 either (A1 alone vs base: +31 ± 39, one seed, unconfirmed).
+- **SF11 time ladder (v2 gen 4 @ 1 s):** SF11 @ 10 ms **−171 ± 49** (27.3%) · @ 30 ms **−512** (5.0%) · @ 100 ms **−727** (1.5%) ⇒
+  today's break-even is BELOW 10 ms of SF11 time against our 1 s (≥ 100× time). This is the "playable with SF11" yardstick.
+- **SF18 @ 5 ms loss autopsy** (`_loss_autopsy.py`, 174 lost games, SF18 d14 WDL, re-search 10 s; `E:\chess_data\autopsy\`): 172 single
+  decisive blunders (median drop 0.34 expected score from a median 0.45, i.e. from a level game), 2 drifts, 0 lost from the start;
+  decisive move median **10 moves into the UHO start** (quartiles 6 / 16) ⇒ early middlegame. Phase: middlegame 136 · late mg 27 ·
+  endgame 10 · pawn ending 1. Kind: **positional 154** / tactical 20. Cause: **eval 108 / search 66** (10 s still plays a losing move
+  vs finds an SF-acceptable one); on the 64 games whose 1 s replay reproduces the game move: eval 40 / search 24 — same split.
+  `saw_it`: our own score fell ≥ 1 pawn only AFTER the move in 60; in 114 our score never showed the drop within 3 moves.
+  ⚠️ 110 / 174 replays at 1 s did not reproduce the game move (timing + cold TT) ⇒ per-game cause labels are noisy; the split is stable.
+
+**PLAN FOR 2026-10-21 (owner-agreed 10-20 evening; queue #88 = A2 confirm 400 g · A2+A1 vs A2 · SF11 ladder 10/30/100 ms ·
+SF18 loss autopsy, logs `E:\chess_data\q88_fc_night3.log`, `E:\chess_data\autopsy_sf18_5ms.log`):**
+1. Read #88. Build B2 to `build_uci/chess_engine_uci_fix` + rebuild Cython; `_test_rep_key.sh`; both fingerprints at knobs 0.
+2. Add the missed defect as a knob: **qsearch horizon return precedes the in-check test** (`qDepth >= MAX_QDEPTH` returns before
+   `currently_in_check`; preplan "VERIFIED 2026-10-09" item 2 — dropped from §A/§B by mistake). Then the cheap bundle
+   B1 + A4 + B2 + this, equal time ~400 g, on base gen 4 + A2 (if A2 confirms) else gen 4.
+3. Re-read `NULL_NPM_GUARD` / `PE_PRUNE_GATE` / `PE_PASSER_EXT` at EQUAL TIME on the fixed base, K+P-heavy openings. Their 10-15
+   reads (#69 bias, #71 −1.4 ± 17.9 node-limited) ran with B1 (false 50-move draws in pawn endings) + B2 live ⇒ unresolved.
+4. Background, no timed games: corrhist Phase-0 offline on v2's residual; STS at a second equal-node budget (100k).
+5. IIR on the fixed base (v1-era +7.7 ± 17.7, never resolved). Then the other v1-era / pre-A2 closures (null eval gate + R,
+   improving, singular).
+Open owner questions (preplan §7, unanswered): threats T1 @250k · SPSA nightly budget · negamax parity vs redesign · root
+architecture · Ethereal/Weiss as judges.
+
 Queue #85 (chained after #84): equal-time screens st=1, knob on vs off in the same binary, 200 g each — A2 then A1.
 A3 both directions (WAC d10): baseline asymmetric 258 / 47.69M · `FIX_MIN_RD1=1` (drop min's rd-1 full window) 243 / −20.1% ·
 `FIX_MIN_RD1=2` (full window at rd 1 on BOTH sides) 254 / +28.0% ⇒ the asymmetric baseline is best at fixed depth — a PRODUCTIVE

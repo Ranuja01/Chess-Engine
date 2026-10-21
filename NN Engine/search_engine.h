@@ -3156,6 +3156,8 @@ namespace Config
                                    //     rule) — a 2-fold is a draw only when both occurrences are inside the search. 3 = both
     inline int FIX_DRAW_EXIT = 0;  // B3: iterative deepening no longer stops when an iteration scores 0 with a repetition seen at a
                                    //     root child — that exit abandoned a won position at depth 3 for a draw (_test_rep_key.sh)
+    inline int FIX_QS_CHECK = 0;   // C1: qSearch's MAX_QDEPTH horizon return detects checkmate first (it returned a static eval
+                                   //     before the in-check test; preplan 2026-10-08 "VERIFIED" item 2)
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound

@@ -2601,6 +2601,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_HALFMOVE = env_int("FIX_HALFMOVE", Config::FIX_HALFMOVE);
         Config::FIX_REP_KEY = env_int("FIX_REP_KEY", Config::FIX_REP_KEY);
         Config::FIX_DRAW_EXIT = env_int("FIX_DRAW_EXIT", Config::FIX_DRAW_EXIT);
+        Config::FIX_QS_CHECK = env_int("FIX_QS_CHECK", Config::FIX_QS_CHECK);
         Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);
         Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
         Config::FIX_MIN_SCOUT = env_int("FIX_MIN_SCOUT", Config::FIX_MIN_SCOUT);
@@ -3189,7 +3190,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " MALUS_DIV=" << Config::MALUS_DIV
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " FIX_HALFMOVE=" << Config::FIX_HALFMOVE << " FIX_REP_KEY=" << Config::FIX_REP_KEY
-                  << " FIX_DRAW_EXIT=" << Config::FIX_DRAW_EXIT
+                  << " FIX_DRAW_EXIT=" << Config::FIX_DRAW_EXIT << " FIX_QS_CHECK=" << Config::FIX_QS_CHECK
                   << " FIX_MAX_NULL=" << Config::FIX_MAX_NULL << " FIX_MIN_RD1=" << Config::FIX_MIN_RD1
                   << " FIX_MIN_SCOUT=" << Config::FIX_MIN_SCOUT << " FIX_RESEARCH=" << Config::FIX_RESEARCH
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
@@ -7973,6 +7974,21 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
     if (qDepth >= Config::MAX_QDEPTH)
     {
+        // A checkmated position at the q-depth cap must score as mate, not as a static eval (the in-check test below is
+        // never reached from here). Same mate convention as the in-check branch.
+        if (Config::FIX_QS_CHECK)
+        {
+            const BoardState &hs = state_history.back();
+            if (is_check(hs.turn, hs.occupied, hs.queens | hs.rooks, hs.queens | hs.bishops, hs.kings, hs.knights, hs.pawns, hs.occupied_colour[!hs.turn]) &&
+                buildMoveListFromReordered(state_history, zobrist, cur_depth + qDepth, prevMove).empty())
+            {
+                const int plies = static_cast<int>(state_history.size());
+                int eval = hs.turn ? 9999999 - plies : -9999999 + plies;
+                if (Config::side_to_play)
+                    eval = -eval;
+                return eval;
+            }
+        }
         int horizon_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
         if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
             horizon_eval += corrhist_correction(state_history.back(), is_maximizing ? 1 : 0);

@@ -4,6 +4,58 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 📏★★★★ 2026-10-20 — THE v2 OFFICIAL-ENGINE RECORD: baselines at the start of the search transition
+**The current point.** v2 gen 4 (`V2_PRESET=shipped`, fingerprint 258 / 47,689,413 / 3.926) is the engine; v1 (`EVAL_ARM=0`,
+250 / 35,310,778 / 3.784) the legacy control. Everything below was measured 10-19/20 (queues #83-#87; native UCI binary +
+fastchess for games, the Cython harness for benches). This entry is the baseline every search-transition step is judged against.
+
+**1. Games at EQUAL TIME (fastchess, book off, UHO openings, colour-swapped pairs, `restart=on`):**
+
+    match                                games   score                    Elo (95%)            time / move (actual)
+    v2 vs v1, st = 1 s                    274    +188 −58 =28  73.7%       +178 (+138 … +221)   0.96 · 0.97 s
+    v2 vs v1, 60+0.6 clock                300    +220 −65 =15  75.8%       +199 (+159 … +243)   0.95 · 1.00 s
+    v2 @ 1 s vs SF18 @ 5 ms (~3.6k n/mv)  200    +19 −174 =7   11.3%       −359 (−440 … −299)
+    v2 @ 1 s vs SF18 @ 20 ms              200    0 / 200
+    search-fix screens (knob on vs off, same binary, st = 1, 200 g each — SEARCH-CORRECTNESS-PLAN):
+      A2 FIX_MIN_SCOUT                    200    +95 −67 =38   57.0%       +49 (+12 … +87)      equal time, depth 12.2 / 12.3
+      A1 FIX_RESEARCH                     200    +87 −69 =44   54.5%       +31 (−8 … +71)       equal time, depth 11.9 / 11.9
+(v2 measured +65 over v1 at equal NODES on 10-01.) A2 / A1 are first screens — confirmation on fresh seeds is next.
+
+**2. Benches (Cython harness, PRESET=LONG_FORMAT, book off):**
+
+    bench                              v2 gen 4                       v1 (legacy)
+    WAC d10                            258 / 300 · 47,689,413 · 3.926  250 / 300 · 35,310,778 · 3.784
+    STS300 d10                         2115 / 3000 (70.5%)             1796 (59.9%)
+    STS full (15 themes, 1,500) d10    9727 / 15000 (64.8%)            8746 (58.3%)
+    WAC at LIGHTNING (~1 s)            254 solved · mean depth 13.8    257 solved · mean depth 14.5   (non-mate)
+    speed (WAC, pinned core, max/3)    397k nps                        354k nps
+    native binary `bench`              == WAC fingerprint, ~500k nps (no per-move cache-stat walk)
+STS full, v2's weakest themes: a/b/c-pawn advancement 52% · AKPC 55% · offer of simplification 56% · AT 56% · king activity
+59%; v2 trails v1 only on simplification (−39) and offer of simplification (−15). ⚠️ per-theme deltas do not replicate (memory
+sts-per-theme-deltas-do-not-replicate) — a weakness MAP; the totals are the tracked number.
+
+**3. Against the reference ladder (`REFERENCE-BENCH-LADDER.md`, STS300, same harness, 09-21):** at EQUAL DEPTH 10 v2 **2115**
+is above SF11 1983 and SF1.1 2104, level with SF15.1-classical 2134 (SF18 2414 · SF19 2486); full STS 64.8% vs SF11 65.5%
+(07-28). ☠️ Equal depth flatters the engine that prunes least (us: ~250k nodes/pos to d10 vs SF11 21k). At EQUAL NODES
+(249k) SF11 scores **2374** ⇒ v2 −259 (was −520 on 09-21): the eval caught up; **search efficiency is the remaining gap**.
+
+**4. Win% accuracy vs SF18 d14** (5,988 held-out quiet own-play rows, 1,500 / stage; `_v1_v2_accuracy.py`), each evaluator at
+ITS OWN best global scale (calibrated — raw WDL MSE ranks by magnitude, not accuracy: v1's best scale is 0.63, too large):
+
+    win% MSE (calibrated)     v1 static   v2 static   SF11 static   v1 d10   v2 d10
+    historical cp label         174.0       106.2        112.1        99.0     56.3
+    SF18 WDL expected score     566.2       390.8        334.9       320.8    212.4
+⇒ v2 −31…−39% static and −34…−43% at d10 vs v1 on both labels. v2 static ≈ SF11 on the historical label, but SF11 is ~15%
+better on SF18's own win model — most in ENDGAMES (eg 209 vs 292; consistent with the endgame-signature table: KRPKR /
+KNPKB / KBPKN / fortresses).
+
+**Process lessons (10-19/20):** fastchess REUSES engine processes and our engine's move-gen cache grows ~80 MB/game ⇒ two
+matches aborted on swapping stalls ⇒ always `restart=on`. `update_cache()` walked 8.4M entries per move, untimed ⇒ time
+forfeits ⇒ `PRINT_CACHE_STATS=0` in the binary (bench −12% wall time). Raw-WDL MSE must be scale-calibrated before ranking.
+Docs: `UCI-BINARY-DESIGN-2026-10-19.md` · `SEARCH-CORRECTNESS-PLAN-2026-10-19.md` · `REFERENCE-BENCH-LADDER.md` ·
+`EVAL-V2-CURRENT-CONFIG.md` · `EVAL-V2-REBUILD-LOG.md` (provenance) · `BASELINE_PERF.md` (v2 control). Raw logs:
+`E:\chess_data\q83-q87_*.log`, PGNs `E:\chess_data\fastchess\`.
+
 ## 🏆★★★★ 2026-10-19 — v2 GEN 4 SHIPPED · v2 IS THE OFFICIAL ENGINE (≈ +170-200 Elo over v1 at EQUAL TIME) · native UCI binary
 **v2 is now the engine; v1 (`EVAL_ARM=0`) is the frozen legacy CONTROL** (it stays the Cython path's no-env default so every
 fingerprint script keeps working: v1 250 / 35,310,778). Official = `V2_PRESET=shipped` = **gen 4** = gen 3 + C64 (winnability

@@ -1,6 +1,23 @@
 # Baseline performance reference
 
-## ⭐ CURRENT control (2026-06-15, post eval-speed bundle: rook surrogate + lossless attack-layer caches, commit `535513f`)
+## ⭐⭐ CURRENT ENGINE: v2 gen 4 (2026-10-20) — the search-transition baseline
+v2 is the engine since 2026-10-19 (OPTIMIZATION_LOG 10-19 / 10-20); the sections below this one are the **v1 legacy control**
+history. Run v2 as `V2_PRESET=shipped`; v1 = no env (`EVAL_ARM=0`). Canonical byte-identity command unchanged:
+`MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`.
+
+| Gate | **v2 gen 4** | v1 (legacy control) | notes |
+| --- | --- | --- | --- |
+| WAC d10 | **258/300 · 47,689,413 nodes · EBF 3.926** | 250/300 · 35,310,778 · 3.784 | fingerprint; `V2_SHIP_GEN=3` = 259 / 47,869,841 |
+| STS300 d10 | **2115/3000 (70.5%)** | 1796 (59.9%) | reference ladder: SF11 1983 · SF15.1c 2134 · SF18 2414 (d10); SF11 @ 249k nodes 2374 |
+| STS full 15 themes d10 | **9727/15000 (64.8%)** | 8746 (58.3%) | per-theme map in OPTIMIZATION_LOG 10-20 (themes do not replicate; totals do) |
+| WAC at LIGHTNING | 254 solved · mean depth **13.8** | 257 · **14.5** | non-mate positions; v1 ~½ ply deeper at equal time |
+| speed (WAC, pinned, max of 3) | **397k nps** | 354k nps | Cython path; the native binary's `bench` ≈ 500k nps (no cache-stat walk) |
+| equal-time games | **+178 (st=1, 274 g) · +199 (60+0.6, 300 g) vs v1** | — | vs SF18 @ 5 ms 11.3% (200 g), @ 20 ms 0/200 |
+| win% MSE vs SF18 d14 (calibrated) | static 106.2 / WDL 390.8 · d10 56.3 / 212.4 | 174.0 / 566.2 · 99.0 / 320.8 | SF11 static 112.1 / 334.9 — 5,988 held-out quiet rows |
+
+Native binary check (every build): `printf 'bench\nquit\n' | build_uci/chess_engine_uci` ⇒ `solved 258/300 nodes 47689413`.
+
+## ⭐ v1 LEGACY control (2026-06-15, post eval-speed bundle: rook surrogate + lossless attack-layer caches, commit `535513f`)
 
 Shipped since the 2026-06-07 control: color-symmetry, **SEE fix**, A1 leaf-exit, A2a eval-cache 0-sentinel,
 **cheap-bishop**, history-LMR (reduce-more), CH-A@2000, **capgain** (`621e251`), **TT-depth-honesty** (`c596f44`),

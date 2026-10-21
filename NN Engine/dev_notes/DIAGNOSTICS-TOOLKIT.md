@@ -352,3 +352,17 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `selfplay/_queue_*.sh` #68-#79 | race/cells fits, pawn-ending arms, C64 gates (balanced / timed / critical / SF18), pool, king-path, triage |
 | ⚠️ venue hygiene | endgame FEN starts need `USE_OPENING_BOOK=0` (the book played 5.3% of moves and dropped promotions); amplified evals cross `RESIGN_THRESHOLD` (−15000) ⇒ audit dropped rows in depth passes |
 | 📦 `selfplay/archive_games.ps1 -Before <date>` + `selfplay/build_games_index.py` | ROUTINE: archive old match folders to verified `.tar.zst` on `E:\chess_data\archive\games\` (summaries stay); `GAMES-INDEX.csv` = every match (configs, W/L/D, Elo, archive path) |
+
+## Added 2026-10-19/20 (POT close-out, WDL labels, the native UCI binary + fastchess, v2 record, search fixes)
+| Tool | What it does |
+|---|---|
+| `_pot_complexity_fit.py` · `_pot_mg_fit.py MODE=fit\|moves` | POT complexity scaler on d12 (parked −0.41%) · middlegame POT features vs deep residual + realised potential + critical-pair move test (parked) |
+| `_pot_gbm_ceiling.py MODE=dump\|fit\|decomp\|moves\|leak\|wdl\|wdlfull` | boosted-tree ceiling test (d12 + position description → SF18): leakage checks, WDL re-scoring. ☠️ read on WDL labels — half the cp-label gain is SF's material scale |
+| `_sf18_wdl_pass.py [SPLIT=] [IN=] [SHARD=]` | SF18 WDL (UCI_ShowWDL) labels for any FEN set — the label for cross-class accuracy claims |
+| `_wdl_calibration.py` | best global scale per material class / stage on both labels — is an eval mis-scaled by class? (10-19: no, −1.1%) |
+| ★ `_v1_v2_accuracy.py MODE=static\|sf11\|prep\|read` | static / d10 win% MSE for v1, v2, SF11 on the 5,988 held-out quiet rows, both labels. ☠️ compare CALIBRATED (per-evaluator scale) — raw WDL MSE ranks by magnitude |
+| `_depth_residual_pass.py MOVE=1` | (extended) also writes our search's best move |
+| ★ `selfplay/build_uci.sh [OUT=name]` → `build_uci/chess_engine_uci` | native UCI binary; `bench` == WAC fingerprint; `perft`, `divide`, `d`, `key`; options `Knob_<NAME>`, `Debug`, `OwnBook`, `Preset`, `EvalArm` |
+| ★ `selfplay/fastchess_report.py <pgn> --p1 NAME [--summary-out]` | fastchess results: pentanomial Elo ± from pairs, ACTUAL time / depth / nps per engine, summary.csv for `_pair_discrimination.py` |
+| `selfplay/_queue_fc_*.sh` (#83-#86) | fastchess match templates — ☠️ always `restart=on` (engine RSS grows ~80 MB/game), `timemargin=250`, bench guard first |
+| `selfplay/_queue_v2_record.sh` (#87) | the full v2 / v1 bench + accuracy record (WAC, STS300, STS full, LIGHTNING depth, speed, MSE) — re-run at each transition checkpoint |

@@ -364,5 +364,6 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | `_depth_residual_pass.py MOVE=1` | (extended) also writes our search's best move |
 | ★ `selfplay/build_uci.sh [OUT=name]` → `build_uci/chess_engine_uci` | native UCI binary; `bench` == WAC fingerprint; `perft`, `divide`, `d`, `key`; options `Knob_<NAME>`, `Debug`, `OwnBook`, `Preset`, `EvalArm` |
 | ★ `selfplay/fastchess_report.py <pgn> --p1 NAME [--summary-out]` | fastchess results: pentanomial Elo ± from pairs, ACTUAL time / depth / nps per engine, summary.csv for `_pair_discrimination.py` |
-| `selfplay/_queue_fc_*.sh` (#83-#86) | fastchess match templates — ☠️ always `restart=on` (engine RSS grows ~80 MB/game), `timemargin=250`, bench guard first |
+| ★ `_loss_autopsy.py PGN= OURS= BIN= [SF=] [DEPTH=14] [LONG=10]` | batch autopsy of every game we LOST in a fastchess PGN: SF WDL along each game → decisive move (largest drop while alive; `drift` / `lost_from_start` otherwise) → phase · tactical/positional (SF PV wins ≥ 2 pawns) · cause (our binary at LONG s finds an SF-acceptable move = `search`, else `eval`) · `saw_it` from our PGN scores. Pre-registered rules in its docstring. CSV + summary tables |
+| `selfplay/_queue_fc_*.sh` (#83-#88) | fastchess match templates — ☠️ always `restart=on` (engine RSS grows ~80 MB/game), `timemargin=250`, bench guard first |
 | `selfplay/_queue_v2_record.sh` (#87) | the full v2 / v1 bench + accuracy record (WAC, STS300, STS full, LIGHTNING depth, speed, MSE) — re-run at each transition checkpoint |

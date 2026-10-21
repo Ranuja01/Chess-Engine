@@ -45,7 +45,8 @@ python main.py                            # isolated single-position test
   all can move NPS by tens of percent through layout alone.
 - `main.py` loads two keras models at startup only because the `ChessAI` constructor requires them.
 
-🚨 **BASELINE — reverify every build:** `250 / 35,310,778 / EBF 3.784 / STS 1796` · quiet **249,014**
+🚨 **BASELINE — reverify every build (2026-10-20):** **v2 gen 4 `258 / 47,689,413 / EBF 3.926 / STS 2115`** (full STS 9727)
+and the v1 control below; full table `dev_notes/BASELINE_PERF.md` §v2. v1 control: `250 / 35,310,778 / EBF 3.784 / STS 1796` · quiet **249,014**
 (marginal EBF 1.914) · depth@1s **12** · STS d8 **1676**. NPS 450,201 is the **LIGHTNING** mean
 (LONG_FORMAT ~386k). Canonical byte-identity command: `MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`
 — without `LONG_FORMAT` hard positions time-abort and node counts become machine-load dependent.

@@ -62,3 +62,11 @@ Queue #85 (chained after #84): equal-time screens st=1, knob on vs off in the sa
 A3 both directions (WAC d10): baseline asymmetric 258 / 47.69M · `FIX_MIN_RD1=1` (drop min's rd-1 full window) 243 / −20.1% ·
 `FIX_MIN_RD1=2` (full window at rd 1 on BOTH sides) 254 / +28.0% ⇒ the asymmetric baseline is best at fixed depth — a PRODUCTIVE
 asymmetry. Only equal-time games can say whether =1's node saving buys back its tactical loss.
+
+## F. FIRST EQUAL-TIME SCREENS (2026-10-20, queue #86; fix knob ON vs OFF in the same binary, st = 1 s, 200 games, UHO pairs)
+- **A2 `FIX_MIN_SCOUT`: +49 Elo (95% +12 … +87)**, +95 −67 =38 (57.0%), equal time (0.957 / 0.961 s), equal depth (12.2 / 12.3)
+  ⇒ the gain is search CORRECTNESS at the opponent's PV nodes, not extra depth. Strongest candidate.
+- **A1 `FIX_RESEARCH`: +31 Elo (95% −8 … +71)**, +87 −69 =44 (54.5%), equal time, depth 11.9 / 11.9 — positive, not yet resolved.
+- Both are FIRST screens (one seed, 200 g; big early numbers shrink — memory sprt-point-estimates-inflate-at-the-bound-they-stop-on,
+  gate-new-candidates-on-fresh-seeds-not-ship-seeds). NEXT: confirmation on fresh seeds (A2 ≥ 400 g), then A2 × A1 (2×2 — search
+  changes are antagonistic, not additive), then the cheap three (B1, A4) as a bundle; A3 both directions only at equal time.

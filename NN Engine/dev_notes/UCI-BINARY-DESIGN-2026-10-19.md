@@ -133,3 +133,10 @@ at 10+0.1, all normal terminations. Next: the timed v1-vs-v2 baselines (overnigh
 4. **Test harness**: fastchess (modern, fast) or cutechess-cli for engine-vs-engine matches — any preference?
 5. Known engine behaviours kept for PARITY now and listed for the correctness step instead of fixed here: the repetition hash
    ignores castling / ep; `get_engine_move`'s resign return; the redundant `Cython_Chess` init.
+
+**M5 follow-ups (2026-10-20):** (1) `update_cache()` walked all ~8.4M move-gen entries every move just to print stats, untimed
+⇒ time forfeits in the first match ⇒ `Config::PRINT_CACHE_STATS` (binary 0; Cython path keeps 1). (2) Two matches aborted on
+"engine not responsive": engine RSS starts 1.2 GB and grows ~80 MB/game at 1 s/move (move-gen cache fills its slots; clearing
+keeps the vectors) and fastchess reuses engine processes ⇒ swapping ⇒ 8-s isready stalls ⇒ **every queue uses `restart=on`**
+(a fresh process per game, as the Python harness always did); `ucinewgame` also calls `malloc_trim`. Capping that cache = a
+speed-programme item. (3) `Knob_<NAME>` UCI option sets any env knob before the first search; `OUT=` names the build output.

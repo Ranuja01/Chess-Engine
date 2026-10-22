@@ -66,6 +66,38 @@ REPETITION_THRESHOLD occurrences a draw only if none is from the game before the
 get_engine_move); `3` = both. Unit test + registered predictions: `selfplay/_test_rep_key.sh` (false draw Q vs R with lost
 rights; true-repeat control; bench at 0 / 3).
 
+**QUEUE #89 + FIRE COUNTS (2026-10-21).** Bundle B1 + A4 + B3 + B2 bit 1 + C1 (`FIX_QS_CHECK`, new) vs gen 4, st=1, 400 g: **−3 ± 31**.
+FIX_REP_KEY=3 vs that bundle, 200 g: −12 ± 42 (bit 2 stays OFF). ⚠️ A4 is a GENERAL change, wrongly bundled with the narrow ones.
+Fire counts (`_fix_firecount.py`, counter binary `build_uci/chess_engine_uci_cnt`, FIX_COUNT_LOG; self-play at 30k nodes, fixes
+B1 + B2b1 + B3 + C1 OFF vs ON, 30 starts per set):
+
+    set              diverge  median ply  result changed   B3 drawexit games   C1 qsmate games   B1 fifty games
+    eg_critical      10/30        11           4                 16                  0                 4
+    kp_dense          3/30        22           2                  4                  8                 1
+    UHO (general)    11/30        43           3                 11                  9                 0
+
+⇒ NOT narrow: they change ~1/3 of general games (late) and ~10% of results everywhere, so the 400-g general match resolves only
+~40 changed results. Next instrument: the MOVE TEST at the divergence points (SF18 d16 judges the off vs on move;
+`_fix_firecount.py SF=… OUT=E:\chess_data\fix_divergences.csv`), registered: fixed move better more often than worse, mean Δ > 0.
+
+**CRASH BUG (pre-existing, all knobs 0):** the search makes a null move (0→0) and `update_state` throws ("push() expects move to
+be pseudo-legal") → SIGABRT. Repro: start `8/3p3P/5pPK/2p3pp/1P1P1p1P/3P1k2/pP2pP2/8 w - - 0 1`, moves `h7h8q a2a1q g6g7 a1b2`,
+self-play 30k nodes/move (`_fix_firecount.py`). Two queens, promotion race — suspect a stale/empty Move from a killer / TT /
+root second_moves slot. Not seen in any fastchess match since restart=on (no illegal / forfeit terminations).
+**ROOT CAUSE + FIX (2026-10-21, gdb on a -O1 -g build):** the throw is get_engine_move's FINAL make_move of `move`, still the
+empty `Move(0,0,0)`. A node limit (qSearch sets time_up at NODE_LIMIT) or the clock landing INSIDE the first depth-3 pass makes
+alpha_beta return before any root move list exists (the 10-19 guard covered a UCI stop there, not this). These multi-queen races
+cost ~50k nodes for depth 3 (30k crashes, 100k searches to d5). Fix: if `move` is empty after the search, play the first ordered
+legal move. Unconditional (changes only would-be crashes); bench 258 / 47,689,413 identical; both repros return a legal move.
+Real-play risk it removes: a very low clock in a multi-queen endgame (60+0.6 near the end). Second repro: start
+`8/p3P3/PP3PP1/2p5/3P2K1/ppp2PP1/2pp2p1/6k1 b - - 0 1` + `d2d1q b6a7 g1f2 a7a8q g2g1q g4f5 g1g3 g6g7 g3h3 f5g6 a3a2`.
+**MOVE TEST (150 starts per set, 112 first-divergence points, SF18 d16):** fixed move better 13 / worse 14 / ~equal 85, mean Δ
+−0.020 ± 0.014 — registered prediction FAILED; no broad benefit. ⚠️ first divergence ≠ where a fix acted (later moves diverge
+from a changed TT/history — butterfly; fits 76% ~equal). Exact-trigger judging (log the FENs where B3 / C1 fire) not done.
+Owner decision pending: ship B3 + C1 as pure correctness (demonstrated failures, no harm shown); B1, B2 bit 1, A4 stay off.
+**CRASH WATCH:**
+every harness must survive an engine death and report its position (the fire-count harness now does); more may exist.
+
 **B2 BUILT + TESTED; B3 FOUND (2026-10-21, `build_uci/chess_engine_uci_b2`, `selfplay/_test_rep_key.sh`).** Test position: Q vs R
 with Black's rights lost by Ke8-f8 / Qa1-b1-a1. ⚠️ My registered "Black is losing" was WRONG — ...Rh1+ skewers K and wins Qa1, Black
 is WINNING (+2.6); the draw / no-draw predictions all held.

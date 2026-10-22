@@ -66,6 +66,40 @@ REPETITION_THRESHOLD occurrences a draw only if none is from the game before the
 get_engine_move); `3` = both. Unit test + registered predictions: `selfplay/_test_rep_key.sh` (false draw Q vs R with lost
 rights; true-repeat control; bench at 0 / 3).
 
+## ☠️☠️ 2026-10-22 — EVERY FASTCHESS `Knob_` MATCH WAS GEN-vs-GEN (VOID)
+fastchess drops options the engine does not ADVERTISE in its `uci` list ("Warning; X doesn't have option Knob_…", printed every
+game, 5,897 times). The binary never advertised `Knob_<NAME>` ⇒ the knob was NEVER SENT; both sides ran the identical engine.
+Proven with a stdin-logging wrapper: fastchess sent `setoption name OwnBook` only. (My 10-21 "knob verified LIVE" test typed
+`setoption` by hand — it proved the engine, not the channel.)
+**VOID (identical engines):** fix_A2 +49 ± 37 · fix_A1 +31 ± 39 · fix_A2_confirm −10 ± 32 · fix_A2A1_vs_A2 −26 ± 42 · fix_bundle_c1
+−3 ± 31 · fix_repb2 −12 ± 42 · pxext_eg +12 ± 19 (280 g, stopped on a stall) · pxext_uho +28 ± 41.
+⇒ A2 / A1 / the bundle / FIX_REP_KEY bit 2 / PE_PASSER_EXT have NO game evidence at all. The "A2 first screen inflated, fresh seeds
+pulled it back" story was wrong — both were nulls. Gen 5 (B3 + C1) was shipped on correctness; its "no harm shown (−3 ± 31)" line is
+void ⇒ gen 5 still needs a real harm check.
+**VALID:** v2 vs v1 (`option.EvalArm=0`, advertised), all SF matches, the SF11 ladder, the SF18 autopsy, and every `_fix_firecount.py`
+fire count / move test (env knobs, and the divergence proves they were live).
+★ **Free instrument:** the eight void matches = ~2,080 games of IDENTICAL engines: weighted mean ≈ +5.8 Elo (memory: harness null
++4.6), and one 200-game null read **+49 ± 37**. ⇒ a 200-game fastchess screen cannot separate a real ±40 from nothing.
+**FIX (2026-10-22):** declared option `Knobs` (comma-separated NAME=VALUE, e.g. `option.Knobs=FIX_MIN_SCOUT=1,FIX_RESEARCH=1`); the
+engine echoes `info string knobs …` at init so every match log records what each side ran. ☠️ Every knob queue must check (a) zero
+"doesn't have option" warnings and (b) the echo, before reading a result.
+
+**QUEUE #90 — SF11 PAWN-ENDING RULES RE-READ ON GEN 5 (2026-10-21, `_queue_pe_rules.sh`):** each rule alone vs gen 5, self-play
+30k nodes, 150 eg_critical + 150 kp_dense starts, SF18 d16 move test at the first divergence (logs `E:\chess_data\pe_rules_*.log`):
+
+    rule              diverge eg / kp   median ply   better / worse   mean Δ (all)        kp mean Δ
+    PE_PASSER_EXT      131 / 97            4           21 / 14       +0.012 ± 0.011      +0.002
+    NULL_NPM_GUARD     137 / 68            1-10        24 / 31       −0.014 ± 0.012      −0.015
+    PE_PRUNE_GATE      139 / 105           3-6         15 / 26       −0.016 ± 0.010      −0.029 ± 0.014
+
+All fire in most endgame games within a few plies (so this read is close to each rule's own effect, little butterfly). 0 crashes in
+~1,800 games. Registered predictions: PASSER_EXT "kp better > worse" — direction held only on eg (kp 4 / 3, ≈ 0); "NULL_NPM / PRUNE_GATE
+rarely diverge" — WRONG (they act deep in the tree wherever exchanges leave pawn-only nodes). Verdicts: PE_PRUNE_GATE CLOSED for now
+(−2σ on kp); NULL_NPM_GUARD PARKED (leans −; untested guess: our null-move verification already covers zugzwang) — ⚠️ CORRECTION
+(pruning audit 10-22): queue #90 ran MODE 1, which REPLACES the legacy count rule (newly allowing null in some low-material endings);
+the pure SF ADDITION is MODE 2 (legacy OR npm==0) and was never run ⇒ the park covers mode 1 only; PE_PASSER_EXT the
+candidate ⇒ equal-time venue match from eg_critical starts. ⚠️ fixed-node move test ≈ equal work, not equal time.
+
 **QUEUE #89 + FIRE COUNTS (2026-10-21).** Bundle B1 + A4 + B3 + B2 bit 1 + C1 (`FIX_QS_CHECK`, new) vs gen 4, st=1, 400 g: **−3 ± 31**.
 FIX_REP_KEY=3 vs that bundle, 200 g: −12 ± 42 (bit 2 stays OFF). ⚠️ A4 is a GENERAL change, wrongly bundled with the narrow ones.
 Fire counts (`_fix_firecount.py`, counter binary `build_uci/chess_engine_uci_cnt`, FIX_COUNT_LOG; self-play at 30k nodes, fixes
@@ -140,6 +174,14 @@ SF18 loss autopsy, logs `E:\chess_data\q88_fc_night3.log`, `E:\chess_data\autops
 4. Background, no timed games: corrhist Phase-0 offline on v2's residual; STS at a second equal-node budget (100k).
 5. IIR on the fixed base (v1-era +7.7 ± 17.7, never resolved). Then the other v1-era / pre-A2 closures (null eval gate + R,
    improving, singular).
+6. **TABLE FOOTPRINT (owner 10-22: "reduce not just the move-order/score caches but also tables like history" — a transition-phase
+   step, part of the speed programme).** Engineering, judged on RAM + NPS + equal-time "not harmful", never on byte-identity:
+   (a) move-gen cache (~384 MB + a heap list per slot; the fastchess memory-growth source; move-ordering audit 10-22 §4: its one
+   real asset is "own last cutoff move first", which a node-entry TT move replaces in the negamax port); (b) TT density — fold
+   `g_ttMoveTable` (16.7M × Move, separate array) into `TTEntry` if padding allows (memory tt-footprint-is-a-throughput-tax-we-pay-now;
+   resizing instead CHANGES RESULTS — re-baseline); (c) HISTORY tables — piece×to keys `CONT_HIST_PIECE_KEY` (114× smaller, games
+   −0.6 ± 23.1 / 1,200 = Elo-neutral ⇒ adopt on engineering merit, preplan §1 #15, ordering audit §8) and `CAPTURE_HIST_VICTIM`.
+   ⚠️ any re-key/resize moves the fingerprint ⇒ a ship with a new gen + register row.
 Open owner questions (preplan §7, unanswered): threats T1 @250k · SPSA nightly budget · negamax parity vs redesign · root
 architecture · Ethereal/Weiss as judges.
 

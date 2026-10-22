@@ -62,6 +62,7 @@ namespace
     // ── engine initialisation (lazy: env knobs latch at the first initialize_engine) ─────────────────────────────────────
     bool g_inited = false;
     bool g_resign = false;
+    std::string g_knobs;   // knobs latched through the Knobs option, echoed at init so a match log records what each side ran
     const ConfigData *g_base = nullptr;   // the preset `go` without limits plays exactly (parity with the UI / harness)
     int g_def_depth = 64, g_def_nodes = 0;
     int g_last_side = -1;
@@ -85,6 +86,7 @@ namespace
         g_def_depth = Config::MAX_ITERATIVE_DEPTH;
         g_def_nodes = Config::NODE_LIMIT;
         g_inited = true;
+        say("info string knobs " + (g_knobs.empty() ? std::string("(none)") : g_knobs));
     }
 
     // ── search thread ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -251,6 +253,21 @@ namespace
         }
         else if (name == "Resign") g_resign = (value == "true");
         else if (name.rfind("Knob_", 0) == 0) latch(name.substr(5).c_str(), value);   // any env knob, e.g. Knob_FIX_RESEARCH
+        else if (name == "Knobs")
+        {
+            // Comma-separated NAME=VALUE env knobs, e.g. FIX_MIN_SCOUT=1,FIX_RESEARCH=1. This is the DECLARED knob channel:
+            // GUIs and fastchess drop options the engine does not advertise, and Knob_<NAME> cannot be advertised (2026-10-22:
+            // every fastchess Knob_ match since 10-19 silently ran the same engine on both sides).
+            std::istringstream kv(value);
+            std::string item;
+            while (std::getline(kv, item, ','))
+            {
+                const size_t eq = item.find('=');
+                if (eq == std::string::npos || eq == 0) { say("info string bad knob '" + item + "' (expected NAME=VALUE)"); continue; }
+                latch(item.substr(0, eq).c_str(), item.substr(eq + 1));
+                if (!g_inited) g_knobs += (g_knobs.empty() ? "" : ",") + item;
+            }
+        }
         else if (name == "OwnBook") g_own_book = (value == "true");
         else if (name == "Debug") set_debug(value == "true");
         else if (name == "BookFile") g_book_file = value;
@@ -386,7 +403,7 @@ int main()
         in >> cmd;
         if (cmd == "uci")
         {
-            say("id name NN Engine (v2 gen 4)");
+            say("id name NN Engine (v2 gen 5)");
             say("id author Ranuja");
             say("option name Preset type combo default STANDARD var LIGHTNING var BLITZ var STANDARD var LONG_FORMAT");
             say("option name EvalArm type spin default 1 min 0 max 1");
@@ -396,6 +413,7 @@ int main()
             say("option name Debug type check default false");
             say("option name BookFile type string default M11.2.bin");
             say("option name BookMaxPly type spin default 30 min 0 max 200");
+            say("option name Knobs type string default <empty>");
             say("uciok");
         }
         else if (cmd == "isready") { ensure_init(); say("readyok"); }

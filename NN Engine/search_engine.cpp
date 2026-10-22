@@ -154,6 +154,10 @@ IterCallback g_iter_callback = nullptr;
 std::atomic<bool> use_q_precautions;
 std::atomic<bool> is_draw;
 
+// How often each correctness-fix site is reached (printed with FIX_COUNT_LOG): nodes created at halfmove clock 100,
+// repetition hits, iterations meeting the draw-exit condition, checkmates caught at the q-depth cap.
+long g_fixcnt_fifty = 0, g_fixcnt_rep = 0, g_fixcnt_drawexit = 0, g_fixcnt_qsmate = 0;
+
 std::atomic<int> nodes_since_time_check;
 
 std::atomic<int> eval_visits;
@@ -3312,6 +3316,9 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
         halfmove_clock += 1;
     }
 
+    if (halfmove_clock == 100)
+        ++g_fixcnt_fifty;
+
     if (!turn)
         fullmove_number += 1;
 
@@ -3577,8 +3584,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     while (depth_limit < Config::MAX_ITERATIVE_DEPTH && elapsed <= Config::ACTIVE->MOVE_TIMES[depth_limit] && score < 9000000 && !time_up)
     {
 
-        if (is_draw && score == 0 && !Config::FIX_DRAW_EXIT)
-            break;
+        if (is_draw && score == 0)
+        {
+            ++g_fixcnt_drawexit;
+            if (!Config::FIX_DRAW_EXIT)
+                break;
+        }
         is_draw = false;
         int x1 = (move.from_square & 7) + 1;
         int y1 = (move.from_square >> 3) + 1;
@@ -3859,6 +3870,16 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << " fire=" << g_sing_fire
                   << " fire_per_eligible=" << (g_sing_eligible > 0 ? (100.0 * g_sing_fire / g_sing_eligible) : 0.0) << "%" << std::endl;
 
+    // A node or time limit that lands inside the first (depth-3) pass leaves no searched move: alpha_beta returns before
+    // any root move list exists and `move` keeps its empty initial value, which make_move below rejects (SIGABRT). Seen
+    // at 30k nodes in multi-queen pawn races where the first pass costs ~50k. Play the first ordered legal move instead.
+    if (move.from_square == move.to_square)
+    {
+        std::vector<Move> &fallback = buildMoveListFromReordered(state_history, zobrist, 0, Move{});
+        if (!fallback.empty())
+            move = fallback[0];
+    }
+
     int x1 = (move.from_square & 7) + 1;
     int y1 = (move.from_square >> 3) + 1;
 
@@ -3933,6 +3954,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cout << "CORRHIST EVALS: reused=" << g_corrhist_eval_reused
                   << " computed=" << g_corrhist_eval_computed
                   << " total=" << (g_corrhist_eval_reused + g_corrhist_eval_computed) << std::endl;
+
+    // Fire counts of the correctness-fix sites, cumulative per process (diagnostic; stderr keeps UCI stdout clean)
+    static const bool fix_count_log = std::getenv("FIX_COUNT_LOG") != nullptr;
+    if (fix_count_log)
+        std::cerr << "FIXCNT fifty=" << g_fixcnt_fifty << " rep=" << g_fixcnt_rep << " drawexit=" << g_fixcnt_drawexit
+                  << " qsmate=" << g_fixcnt_qsmate << std::endl;
 
 #ifdef EVAL_PROFILE
     g_prof_cycles[PROF_SEARCH_ROOT] += __rdtsc() - _prof_root_start;
@@ -7982,6 +8009,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
             if (is_check(hs.turn, hs.occupied, hs.queens | hs.rooks, hs.queens | hs.bishops, hs.kings, hs.knights, hs.pawns, hs.occupied_colour[!hs.turn]) &&
                 buildMoveListFromReordered(state_history, zobrist, cur_depth + qDepth, prevMove).empty())
             {
+                ++g_fixcnt_qsmate;
                 const int plies = static_cast<int>(state_history.size());
                 int eval = hs.turn ? 9999999 - plies : -9999999 + plies;
                 if (Config::side_to_play)
@@ -8731,11 +8759,13 @@ inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_coun
     if (it == position_count.end() || it->second < repetition_count)
         return false;
     if (!(Config::FIX_REP_KEY & 2) || it->second > repetition_count)
-        return true;
+        return ++g_fixcnt_rep, true;
     // Exactly repetition_count occurrences: a draw only if all of them lie inside the search. An occurrence from the game
     // before the root can still be avoided by the opponent, so it needs one more repeat (SF's 3-fold rule for pre-root).
     auto pre = g_pre_root_counts.find(key);
-    return pre == g_pre_root_counts.end() || pre->second == 0;
+    const bool rep = pre == g_pre_root_counts.end() || pre->second == 0;
+    g_fixcnt_rep += rep;
+    return rep;
 }
 
 inline bool isUnsafeForNullMovePruning(BoardState current_state)

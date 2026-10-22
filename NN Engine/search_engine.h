@@ -3158,6 +3158,11 @@ namespace Config
                                    //     root child — that exit abandoned a won position at depth 3 for a draw (_test_rep_key.sh)
     inline int FIX_QS_CHECK = 0;   // C1: qSearch's MAX_QDEPTH horizon return detects checkmate first (it returned a static eval
                                    //     before the in-check test; preplan 2026-10-08 "VERIFIED" item 2)
+    // QGEN_NOISY_ONLY: on a move-gen-cache miss, qsearch generates only captures, promotions and en passant instead of every
+    // legal move (same list, same order, less work). QGEN_VERIFY: build both lists at every qsearch miss, search with the full
+    // one, and count any difference between the noisy-only list and the full list's noisy subset; the first is printed with its FEN.
+    inline int QGEN_NOISY_ONLY = 1;
+    inline int QGEN_VERIFY = 0;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound

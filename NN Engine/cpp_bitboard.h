@@ -687,6 +687,10 @@ enum ProfTerm {
 	// Finer v2 scopes, added 2026-10-16 (the terms shipped since 09-20 were never timed individually): material + PST,
 	// Kaufman, pawn structure + passers + rook files, the C3 blocks (KS-B / KFL / KPROT), PX, winnability + POT race.
 	PROF_V2_RUNG0, PROF_V2_KAUF, PROF_V2_STRUCT, PROF_V2_C3, PROF_V2_PX, PROF_V2_WIN,
+	// Search-side scopes added 2026-10-22 to name the ~38% of v2 search cycles no scope covered: the main-search move-list build
+	// (move-gen cache probe + copy; MOVEGEN is nested inside on a miss), the qsearch move-list build (generation nested), and the
+	// repetition test. Nested over MOVEGEN, so not additive with it — cache-only cost = MG_CACHE minus the MOVEGEN it contains.
+	PROF_MG_CACHE, PROF_QGEN, PROF_REPETITION,
 	// ★ THE DENOMINATOR. One scope at the NON-RECURSIVE root (get_engine_move), so eval share of node
 	// cost = V2_EVAL / SEARCH_ROOT -- the quantity the 2026-09-20 arithmetic rests on, which until now
 	// rested on a remembered "skeleton NPS was ~1.5x" figure. ⚠️ Must NEVER be placed on minimizer /

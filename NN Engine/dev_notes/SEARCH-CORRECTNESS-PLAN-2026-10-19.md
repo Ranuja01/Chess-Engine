@@ -66,6 +66,53 @@ REPETITION_THRESHOLD occurrences a draw only if none is from the game before the
 get_engine_move); `3` = both. Unit test + registered predictions: `selfplay/_test_rep_key.sh` (false draw Q vs R with lost
 rights; true-repeat control; bench at 0 / 3).
 
+## 🧭 TRANSITION SCOPE (owner-agreed 2026-10-22, after the five search audits in `research-2026-10-22/`)
+Filter: an item belongs to the TRANSITION only if it is a correctness bug, a result-identical speed gain, the time manager, or
+eval-coupled. Everything else is SEARCH V2. Each new correctness item starts with a COUNTER (fire rate), then is judged where it fires.
+- DONE: infra (binary, fastchess, baselines; 10-22 Knobs fix) · correctness gen 5 (B3, C1) + the empty-move crash fix · pawn-ending
+  rules re-read (#90).
+- LEFT: speed programme (profile on v2 → move-gen cache size, KS-A, unscoped late-eg eval, pawn hash, pin-aware movegen) · step 6 table
+  footprint · features (corrhist — consensus form per CORRHIST-REFERENCE-AUDIT, threats eval+search, TIME MANAGER, POT-as-search) ·
+  margins re-sweep LAST → bench checkpoint #3. Odds and ends: NULL_NPM_GUARD mode 2, v2 tree blow-ups, owner-game triage cases.
+- ADDED BY THE AUDITS: mate-loss gate on move-loop pruning · VERIFY downgrade defect · endgame LMR bypass (`reduced_search_depth`
+  phase ≥ 117 → `DEPTH_REDUCTION[depth_limit]`; pawn-ending suspect) · killer-splice swap + half-applied gravity · mate-distance pruning,
+  mate-beats-50-move, TT never stores mates/draws · qsearch generates all moves keeps captures (speed, result-identical) · WASTED
+  UNFINISHED ITERATIONS (est. 30-55% of move time, unmeasured) + depth-1 ID start (time manager).
+- SEARCH V2 (not now): null reform, improving, LMR v2 with A1/A2, IIR, singular/multicut, ProbCut, new history features, staged picker
+  + node-entry TT (then delete the move-gen cache), TT buckets, negamax port.
+- STRUCTURE (owner 2026-10-22): the transition works in the CURRENT search (`search_engine.cpp`), preferring SHARED components
+  (movegen, eval, caches, time manager, corrhist tables) — they carry over; fixes inside the max/min halves only for real bugs (they
+  carry over only as knowledge). SEARCH V2 = likely a NEW file (`search_v2.cpp`, runtime-selected, sharing movegen/eval/caches) — a
+  negamax parity port then consensus-form features; the old search becomes the frozen control. Details (parity vs redesign, root
+  architecture) are discussed when the arc starts. Result-identical speed work applies to v1 too (fp_v1 = a free second identity
+  check); tree-changing items go in the v2 `shipped` block so v1 stays frozen.
+- Re-runs after the void-match discovery: gen 5 vs gen 4 harm check (#92) and, optionally, the PE_PASSER_EXT venue. Not A2/A1/B1/A4/B2.
+
+**SPEED PROGRAMME STEP 0 — FIRST NODE-LEVEL PROFILE ON v2 (gen 5, 2026-10-22; `E:\chess_data\profile_v2_g5*.log`).** Midgame 40 FENs
+d12, shares of SEARCH_ROOT cycles (rdtsc scopes inflate what they wrap ⇒ upper bounds):
+QGEN (qsearch move-list build) **32.4%** (6.87M calls, ~17.9k cyc) · MOVEGEN 35.1% (9.80M; nested inside the two builders; of it ISSAFE
+11.9%, PSEUDO 5.8%, SCORE 4.9%, SORT 4.9%) · MG_CACHE (main-search list build) 10.8% (4.30M) · V2_EVAL 21.1% (KS 7.2%) · MAKEUNMAKE 3.9%
+· TT_PROBE 1.3% · REPETITION 0.5% · unscoped ~30%. WAC d10: same shape (MOVEGEN 32.9%, eval 17.9%).
+⇒ (1) qsearch generates + legality-checks + scores + sorts EVERY legal move to keep the noisy ones (buildNoisyMoveList) — a third of
+all search time: a captures/promotions-only generator, result-identical (same list, same order), is the first speed change (est.
+~1.25-1.3× NPS). (2) inferred: 11.2M list builds vs 9.8M generations ⇒ the move-gen cache serves only ~12% of builds, for ~8%
+probe/copy overhead + ~384 MB (step 6). (3) eval is ~21% now (memory said 11.5% — the shipped gens grew it). (4) repetition: no target.
+
+**⚡ SPEED TALLY (result-identical changes, batched; games once the total nears ~+30%):**
+| # | change | identity proof | speed (v2) |
+|---|---|---|---|
+| S1 | qsearch skips quiet moves at defaults (the default quiet-check test asked about the mover's own king — never true) | quiet_checks_added 0 over both benches; bench v2 47,689,586 / v1 35,310,778 identical | ≈ +4.6% (2 alternating UCI benches) |
+| S2 | `QGEN_NOISY_ONLY` (default 1): on a cache miss qsearch generates only captures + promotion pushes + en passant (`generateLegalMovesReordered(..., noisy_only)`) | `QGEN_VERIFY`: 0 mismatches in 5,398,832 (v2) + 2,514,985 (v1) lists; benches identical both arms | +3.7% / +18.6% by pair (box not idle) ⇒ ≈ +10%, imprecise |
+⏭️ Owed: ONE combined idle-box measurement (baseline vs S1+S2, several alternations, overnight). Next candidates: pin-aware legal
+generation (ISSAFE ~12%), the main-search move-gen cache path (~8% overhead, ~12% of builds served — overlaps step 6), KS (~7%),
+more profiler scopes for the ~30% unscoped. Logged defect: `isNearGameEnd` read uninitialised in `generateLegalMovesReordered`'s
+normal-endgame branch (quiet-pass order) — a tree change to fix, so it waits.
+
+**QUEUE #92 — THE REAL GEN 5 HARM CHECK (2026-10-22, `_queue_gen5_check.sh`):** gen 5 vs gen 4 (`option.Knobs=V2_SHIP_GEN=4`), same
+binary, st=1, 400 g UHO, seed 921. Guards: gen 5 bench 258 / 47,689,586, gen 4 via Knobs 258 / 47,689,413, knob-channel pre-flight 0
+warnings + echo. **Result +2.6 ± 29.4 (50.4%), 0 unresponsive, 0 option warnings** — registered ≈ 0 (harm < −20): HELD. Gen 5 stands
+on correctness with no harm shown. (Partial reads swung +37 @162 g → −8 @306 g → +2.6 @400: the noise the void matches measured.)
+
 ## ☠️☠️ 2026-10-22 — EVERY FASTCHESS `Knob_` MATCH WAS GEN-vs-GEN (VOID)
 fastchess drops options the engine does not ADVERTISE in its `uci` list ("Warning; X doesn't have option Knob_…", printed every
 game, 5,897 times). The binary never advertised `Knob_<NAME>` ⇒ the knob was NEVER SENT; both sides ran the identical engine.

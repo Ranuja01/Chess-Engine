@@ -657,7 +657,8 @@ void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<
 
 inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
-								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove) {
+								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove,
+								 bool noisy_only = false) {
 	PROF_BLOCK(PROF_MOVEGEN);
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
@@ -741,7 +742,17 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	 					  occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, 
 						  bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn); */
 
-	if (!isEndGame){
+	if (noisy_only){
+		// Noisy-only list for qsearch: the attack passes above already hold every capture (incl. capture-promotions). The only
+		// other noisy moves come from the pawn QUIET pass: pushes onto the promotion rank and en passant (its target square is
+		// empty, so no attack pass sees it). Restricting that one pass to those squares yields exactly the noisy subset of the
+		// full list in the same relative build order; scores are per-move and the sort below is stable, so the final order of
+		// the noisy moves is identical to their order in the full list.
+		uint64_t noisy_quiet_to = (turn ? 0xFF00000000000000ULL : 0x00000000000000FFULL) | (ep_square >= 0 ? BB_SQUARES[ep_square] : 0ULL);
+		std::array<MaskPair, 1> promo_ep_pair = { MaskPair(pawnsMask, ~opposingPieces & noisy_quiet_to) };
+		processMaskPairs(promo_ep_pair, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+						 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
+	} else if (!isEndGame){
 		std::array<MaskPair, 4> quiet_pairs = {
 			MaskPair(knightsMask | bishopsMask, ~opposingPieces),
 			MaskPair(pawnsMask, ~opposingPieces),

@@ -27,7 +27,12 @@ import chess, chess.engine
 BIN, N, NODES, PLIES, JOBS = OPTS['BIN'], int(OPTS['N']), int(OPTS['NODES']), int(OPTS['PLIES']), int(OPTS['JOBS'])
 ON_ENV = dict(kv.split('=', 1) for kv in OPTS['ON'].split(';') if kv)
 CNT_RE = re.compile(r'FIXCNT fifty=(\d+) rep=(\d+) drawexit=(\d+) qsmate=(\d+)')
+TM_RE = re.compile(r'TMCNT moves=(\d+) total_s=([\d.e+-]+) wasted_s=([\d.e+-]+) cut=(\d+) cut_differs=(\d+)')
 KEYS = ('fifty', 'rep', 'drawexit', 'qsmate')
+# MOVETIME=<s> plays at a fixed time per move instead of NODES (needs a quiet box); OFF_ONLY=1 skips the ON pass (accounting only)
+MOVETIME = float(OPTS.get('MOVETIME', 0))
+OFF_ONLY = OPTS.get('OFF_ONLY', '0') == '1'
+tm_totals = [0, 0.0, 0.0, 0, 0]
 
 
 def load(path):
@@ -58,7 +63,7 @@ def play(board, env_extra, tag):
         try:
             eng.configure({'OwnBook': False, 'Debug': True})   # Debug=false routes the engine's std::cerr to nowhere
             while not b.is_game_over(claim_draw=True) and len(moves) < PLIES:
-                mv = eng.play(b, chess.engine.Limit(nodes=NODES)).move
+                mv = eng.play(b, chess.engine.Limit(time=MOVETIME) if MOVETIME > 0 else chess.engine.Limit(nodes=NODES)).move
                 moves.append(mv.uci()); b.push(mv)
             result = b.result(claim_draw=True) if b.is_game_over(claim_draw=True) else '*'
         except chess.engine.EngineTerminatedError as e:
@@ -73,11 +78,18 @@ def play(board, env_extra, tag):
     if result == 'CRASH':
         tail = [l.rstrip() for l in open(errpath, errors='replace')][-6:]
         print('  !! stderr tail:\n     ' + '\n     '.join(tail), flush=True)
-    last = None
+    last, tm = None, None
     for line in open(errpath, errors='replace'):
         m = CNT_RE.search(line)
         if m:
             last = m
+        t = TM_RE.search(line)
+        if t:
+            tm = t
+    if tm and tag.startswith('off'):
+        g = tm.groups()
+        for i, v in enumerate((int(g[0]), float(g[1]), float(g[2]), int(g[3]), int(g[4]))):
+            tm_totals[i] += v
     os.remove(errpath)
     return moves, result, dict(zip(KEYS, (int(x) for x in last.groups()))) if last else dict.fromkeys(KEYS, 0)
 
@@ -90,7 +102,7 @@ for spec in OPTS['SETS'].split(','):
     sample = rng.sample(boards, min(N, len(boards)))
     with ThreadPoolExecutor(JOBS) as ex:
         offs = list(ex.map(lambda ib: play(ib[1], {}, 'off%d' % ib[0]), enumerate(sample)))
-        ons = list(ex.map(lambda ib: play(ib[1], ON_ENV, 'on%d' % ib[0]), enumerate(sample)))
+        ons = offs if OFF_ONLY else list(ex.map(lambda ib: play(ib[1], ON_ENV, 'on%d' % ib[0]), enumerate(sample)))
     div_plies, fired_games = [], dict.fromkeys(KEYS, 0)
     tot_off, tot_on = dict.fromkeys(KEYS, 0), dict.fromkeys(KEYS, 0)
     res_change = 0
@@ -118,6 +130,13 @@ for spec in OPTS['SETS'].split(','):
     for key in KEYS:
         print('  %-9s OFF %8d   ON %8d   games where it fired (either mode): %d' % (key, tot_off[key], tot_on[key], fired_games[key]))
     sys.stdout.flush()
+
+if tm_totals[0]:
+    n, tot, wasted, cut, differs = tm_totals
+    print('\n=== TIME ACCOUNTING (OFF pass, %s): %d moves, %.1f s total, %.1f s in cut iterations = %.1f%% of move time; '
+          'cut on %d moves (%.0f%%); cut iteration had a DIFFERENT best-so-far move on %d (%.0f%% of cuts)' % (
+              'movetime %.2f s' % MOVETIME if MOVETIME else '%d nodes' % NODES, n, tot, wasted, 100.0 * wasted / max(tot, 1e-9),
+              cut, 100.0 * cut / n, differs, 100.0 * differs / max(cut, 1)))
 
 # Move test at the divergence points: which move — without or with the fixes — does SF prefer? Expected score (WDL) of each
 # move for the side to move, searched as the only root move at JUDGE_DEPTH. Registered 2026-10-21: the fixed move is better

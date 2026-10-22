@@ -157,6 +157,12 @@ std::atomic<bool> is_draw;
 // How often each correctness-fix site is reached (printed with FIX_COUNT_LOG): nodes created at halfmove clock 100,
 // repetition hits, iterations meeting the draw-exit condition, checkmates caught at the q-depth cap.
 long g_fixcnt_fifty = 0, g_fixcnt_rep = 0, g_fixcnt_drawexit = 0, g_fixcnt_qsmate = 0;
+// Time-manager accounting (printed with FIX_COUNT_LOG): seconds per move in total and in an iteration the clock cut short (its
+// result is discarded), moves with a cut iteration, and cut iterations whose best-so-far move differs from the move played.
+// QGEN_VERIFY: qsearch move lists compared, and those whose noisy-only build differed from the full list's noisy subset.
+long g_qgen_verify_lists = 0, g_qgen_verify_mismatch = 0;
+double g_tm_total_s = 0, g_tm_wasted_s = 0;
+long g_tm_moves = 0, g_tm_cut = 0, g_tm_cut_differs = 0;
 
 std::atomic<int> nodes_since_time_check;
 
@@ -2616,6 +2622,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_REP_KEY = env_int("FIX_REP_KEY", Config::FIX_REP_KEY);
         Config::FIX_DRAW_EXIT = env_int("FIX_DRAW_EXIT", Config::FIX_DRAW_EXIT);
         Config::FIX_QS_CHECK = env_int("FIX_QS_CHECK", Config::FIX_QS_CHECK);
+        Config::QGEN_NOISY_ONLY = env_int("QGEN_NOISY_ONLY", Config::QGEN_NOISY_ONLY);
+        Config::QGEN_VERIFY = env_int("QGEN_VERIFY", Config::QGEN_VERIFY);
         Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);
         Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
         Config::FIX_MIN_SCOUT = env_int("FIX_MIN_SCOUT", Config::FIX_MIN_SCOUT);
@@ -3682,6 +3690,14 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
             score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
         }
 
+        if (time_up.load(std::memory_order_relaxed))
+        {
+            g_tm_wasted_s += std::chrono::duration<double>(Clock::now() - t0).count();
+            ++g_tm_cut;
+            g_tm_cut_differs += (move.from_square != completed_move.from_square || move.to_square != completed_move.to_square ||
+                                 move.promotion != completed_move.promotion);
+        }
+
         // Only adopt this iteration's result if it ran to completion; a timed-out
         // iteration's move/score are unreliable (see completed_move above).
         if (!time_up.load(std::memory_order_relaxed))
@@ -3733,6 +3749,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // the clock cut short mid-reorder.
     move = completed_move;
     score = completed_score;
+    g_tm_total_s += std::chrono::duration<double>(Clock::now() - search_start_time).count();
+    ++g_tm_moves;
 
     // Cumulative aspiration diagnostics; the last line of a single-process suite run = suite totals.
     // Oracle accounting. The fallback rate is part of every oracle result, not a footnote: a run where 7%
@@ -3822,6 +3840,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " discovered=" << g_q_discovered_checks
               << " missed=" << g_q_checks_missed
               << " d0_quiets_skipped=" << g_qcheck_d0_skipped << std::endl;
+    if (Config::QGEN_VERIFY)
+        std::cerr << "[qgen_verify] lists=" << g_qgen_verify_lists << " mismatches=" << g_qgen_verify_mismatch << std::endl;
     std::cerr << "[node_split] total=" << num_iterations
               << " qnodes=" << qsearchVisits
               << " presearch=" << g_presearch_nodes << std::endl;
@@ -3969,7 +3989,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     static const bool fix_count_log = std::getenv("FIX_COUNT_LOG") != nullptr;
     if (fix_count_log)
         std::cerr << "FIXCNT fifty=" << g_fixcnt_fifty << " rep=" << g_fixcnt_rep << " drawexit=" << g_fixcnt_drawexit
-                  << " qsmate=" << g_fixcnt_qsmate << std::endl;
+                  << " qsmate=" << g_fixcnt_qsmate << std::endl
+                  << "TMCNT moves=" << g_tm_moves << " total_s=" << g_tm_total_s << " wasted_s=" << g_tm_wasted_s
+                  << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs << std::endl;
 
 #ifdef EVAL_PROFILE
     g_prof_cycles[PROF_SEARCH_ROOT] += __rdtsc() - _prof_root_start;
@@ -8764,6 +8786,7 @@ inline void increment_node_count_with_decay(int &num_iterations)
 
 inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count, const BoardState &state)
 {
+    PROF_BLOCK(PROF_REPETITION);
     const uint64_t key = repetition_key(zobrist_key, state.castling_rights, state.ep_square);
     auto it = position_count.find(key);
     if (it == position_count.end() || it->second < repetition_count)
@@ -8997,6 +9020,7 @@ inline bool promoteMoveWithinQuiets(std::vector<Move> &moves, const Move &move, 
 
 inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove)
 {
+    PROF_BLOCK(PROF_MG_CACHE); // whole main-search move-list build; MOVEGEN (a cache miss) is nested inside
 
     move_gen_visits++;
     BoardState current_state = state_history.back();
@@ -9363,6 +9387,7 @@ inline bool moveGivesCheckFast(const BoardState &current_state, const Move &m)
 
 inline std::vector<Move> &buildNoisyMoveList(uint64_t zobrist, std::vector<BoardState> &state_history, int cur_ply, int qDepth, Move prevMove)
 {
+    PROF_BLOCK(PROF_QGEN); // whole qsearch move-list build (any generation it calls is nested inside)
 
     // Per-ply buffers (see g_moveBuf/g_noisyBuf): the returned noisy list lives in g_noisyBuf[ply]
     // for the caller's qsearch loop; the full list is snapshotted into g_moveBuf[ply] transiently to
@@ -9382,10 +9407,36 @@ inline std::vector<Move> &buildNoisyMoveList(uint64_t zobrist, std::vector<Board
     fillMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square, moves_list);
     if (moves_list.size() == 0)
     {
-        generateLegalMovesReordered(moves_list, current_state.castling_rights, ~0ULL, ~0ULL,
-                                    current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns, current_state.knights,
-                                    current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn, cur_ply, prevMove);
+        auto gen = [&](std::vector<Move> &out, bool noisy_only) {
+            generateLegalMovesReordered(out, current_state.castling_rights, ~0ULL, ~0ULL,
+                                        current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns, current_state.knights,
+                                        current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn, cur_ply, prevMove, noisy_only);
+        };
+        gen(moves_list, Config::QGEN_NOISY_ONLY && !Config::QGEN_VERIFY);
         moves_list.reserve(64);
+        if (Config::QGEN_VERIFY)
+        {
+            // The full list's noisy subset, in order, must equal the noisy-only list exactly.
+            thread_local std::vector<Move> noisy_gen;
+            noisy_gen.clear();
+            gen(noisy_gen, true);
+            std::vector<Move> expected;
+            for (const Move &m : moves_list)
+            {
+                const bool ep = is_en_passant(m.from_square, m.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
+                if (m.promotion != 1 || is_capture(m.from_square, m.to_square, current_state.occupied_colour[!current_state.turn], ep))
+                    expected.push_back(m);
+            }
+            bool same = expected.size() == noisy_gen.size();
+            for (size_t k = 0; same && k < expected.size(); ++k)
+                same = expected[k] == noisy_gen[k];
+            ++g_qgen_verify_lists;
+            if (!same && g_qgen_verify_mismatch++ == 0)
+                std::cerr << "[qgen_verify] FIRST MISMATCH at " << create_fen(current_state.pawns, current_state.knights, current_state.bishops,
+                             current_state.rooks, current_state.queens, current_state.kings, current_state.occupied, current_state.occupied_colour[true],
+                             current_state.occupied_colour[false], current_state.promoted, current_state.castling_rights, current_state.ep_square,
+                             current_state.turn) << " expected " << expected.size() << " moves, noisy-only " << noisy_gen.size() << std::endl;
+        }
     }
 
     for (size_t i = 0; i < moves_list.size(); ++i)
@@ -9427,6 +9478,11 @@ inline std::vector<Move> &buildNoisyMoveList(uint64_t zobrist, std::vector<Board
         }
         else
         {
+            // Default (neither detector knob): quiet moves never enter qsearch. The former simulate-and-test path asked whether the
+            // mover's own king was in check after a legal move, which is never true, so it admitted nothing while costing a board
+            // update and an attack test per quiet move. Skipping quiets here gives the same result without that work.
+            if (!Config::ENABLE_QCHECK_FULL && !Config::ENABLE_QCHECK_MASK)
+                continue;
             // Quiet move: include it only if it gives check. ENABLE_QCHECK_DEPTH0 (the guard above)
             // drops quiet checks past the first q-ply. ENABLE_QCHECK_MASK detects a DIRECT check with a
             // bitboard attack test from the destination square (the moving piece's attacks from `to`
@@ -9464,7 +9520,7 @@ inline std::vector<Move> &buildNoisyMoveList(uint64_t zobrist, std::vector<Board
                         ++g_q_checks_missed;
                 }
             }
-            else if (Config::ENABLE_QCHECK_MASK)
+            else // ENABLE_QCHECK_MASK (the only other way past the guard above)
             {
                 uint64_t fromBB = BB_SQUARES[moves_list[i].from_square];
                 uint8_t to = moves_list[i].to_square;
@@ -9482,47 +9538,6 @@ inline std::vector<Move> &buildNoisyMoveList(uint64_t zobrist, std::vector<Board
                 else if (current_state.queens & fromBB)
                     atk = BB_DIAG_ATTACKS[to][BB_DIAG_MASKS[to] & occ] | BB_RANK_ATTACKS[to][BB_RANK_MASKS[to] & occ] | BB_FILE_ATTACKS[to][BB_FILE_MASKS[to] & occ];
                 move_is_check = (atk & BB_SQUARES[enemy_king]) != 0;
-            }
-            else
-            {
-                uint64_t pawns = current_state.pawns;
-                uint64_t knights = current_state.knights;
-                uint64_t bishops = current_state.bishops;
-                uint64_t rooks = current_state.rooks;
-                uint64_t queens = current_state.queens;
-                uint64_t kings = current_state.kings;
-
-                uint64_t occupied_white = current_state.occupied_colour[true];
-                uint64_t occupied_black = current_state.occupied_colour[false];
-                uint64_t occupied = current_state.occupied;
-
-                uint64_t promoted = current_state.promoted;
-
-                bool turn = current_state.turn;
-                uint64_t castling_rights = current_state.castling_rights;
-
-                int ep_square = current_state.ep_square;
-
-                update_state(
-                    moves_list[i].to_square,
-                    moves_list[i].from_square,
-                    pawns,
-                    knights,
-                    bishops,
-                    rooks,
-                    queens,
-                    kings,
-                    occupied,
-                    occupied_white,
-                    occupied_black,
-                    promoted,
-                    castling_rights,
-                    ep_square,
-                    moves_list[i].promotion,
-                    turn);
-                uint64_t opposingPieces = turn ? occupied_black : occupied_white;
-
-                move_is_check = is_check(turn, occupied, queens | rooks, queens | bishops, kings, knights, pawns, opposingPieces);
             }
 
             if (move_is_check && Config::ENABLE_QCHECK_SAFE && !quietCheckIsSafe(current_state, moves_list[i]))

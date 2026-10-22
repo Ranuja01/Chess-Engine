@@ -45,7 +45,8 @@ python main.py                            # isolated single-position test
   all can move NPS by tens of percent through layout alone.
 - `main.py` loads two keras models at startup only because the `ChessAI` constructor requires them.
 
-🚨 **BASELINE — reverify every build (2026-10-20):** **v2 gen 4 `258 / 47,689,413 / EBF 3.926 / STS 2115`** (full STS 9727)
+🚨 **BASELINE — reverify every build (2026-10-21):** **v2 gen 5 `258 / 47,689,586 / EBF 3.926`** (gen 4 + two search correctness
+fixes; gen 4 = `258 / 47,689,413 / STS 2115`, full STS 9727 — the 10-20 bench record, not yet re-run on gen 5)
 and the v1 control below; full table `dev_notes/BASELINE_PERF.md` §v2. v1 control: `250 / 35,310,778 / EBF 3.784 / STS 1796` · quiet **249,014**
 (marginal EBF 1.914) · depth@1s **12** · STS d8 **1676**. NPS 450,201 is the **LIGHTNING** mean
 (LONG_FORMAT ~386k). Canonical byte-identity command: `MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`
@@ -55,13 +56,14 @@ and the v1 control below; full table `dev_notes/BASELINE_PERF.md` §v2. v1 contr
 🏆 **v2 IS THE ENGINE; v1 IS THE LEGACY CONTROL (2026-10-19).** At equal time v2 gen 4 beats v1 by ≈ +170-200 Elo (fastchess,
 st=1 +170 / 155 g, 60+0.6 +199 / 300 g — OPTIMIZATION_LOG 10-19). v1 stays the Cython path's no-env default ONLY so the
 fingerprint scripts keep working; every new measurement, the UI and the UCI binary (default `V2_PRESET=shipped`) use v2.
-**Native UCI binary:** `selfplay/build_uci.sh` → `build_uci/chess_engine_uci`; verify with `bench` (== 258 / 47,689,413) —
+**Native UCI binary:** `selfplay/build_uci.sh` → `build_uci/chess_engine_uci`; verify with `bench` (== 258 / 47,689,586, gen 5) —
 memory `uci-binary-and-fastchess`.
 
 🚨 **v2 — two presets, know which one you are on** (`EVAL_ARM=1` alone is a skeleton — always use a preset):
-- `V2_PRESET=shipped` = the **OFFICIAL ship** (**gen 4**, 2026-10-19 = gen 3 + C64, the winnability class cells
-  `POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16`): **`258 / 47,689,413 / 3.926`**. The UI default; the baseline any ship is judged
-  against. `V2_SHIP_GEN=3` restores gen 3 exactly (`259 / 47,869,841 / 3.927`); `=2` / `=1` the older gens.
+- `V2_PRESET=shipped` = the **OFFICIAL ship** (**gen 5**, 2026-10-21 = gen 4 + search correctness `FIX_DRAW_EXIT=1 FIX_QS_CHECK=1`,
+  set only in the v2 block; gen 4 = gen 3 + C64 `POT_V2_WIN_PAWNEND=64 POT_V2_WIN_ONEMINOR=16`): **`258 / 47,689,586 / 3.926`**. The UI
+  default; the baseline any ship is judged against. `V2_SHIP_GEN=4` restores gen 4 exactly (`258 / 47,689,413`); `=3` gen 3
+  (`259 / 47,869,841 / 3.927`); `=2` / `=1` the older gens.
 - `V2_PRESET=candidate` = the **DEVELOPMENT BASE** ("lazy ship", owner 2026-10-18): the ship + the narrow-item pool. **Pool EMPTY**
   since C64 moved into gen 4 ⇒ `candidate == shipped` (same fingerprint) until the next item enters. Test NEW items on top of
   `candidate`; bundles carry the pool; revoke a pool item on any sign of harm. Pool + evidence: `dev_notes/EVAL-V2-CURRENT-CONFIG.md` §0.

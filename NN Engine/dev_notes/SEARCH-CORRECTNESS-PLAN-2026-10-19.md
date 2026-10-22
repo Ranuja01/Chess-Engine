@@ -89,7 +89,11 @@ empty `Move(0,0,0)`. A node limit (qSearch sets time_up at NODE_LIMIT) or the cl
 alpha_beta return before any root move list exists (the 10-19 guard covered a UCI stop there, not this). These multi-queen races
 cost ~50k nodes for depth 3 (30k crashes, 100k searches to d5). Fix: if `move` is empty after the search, play the first ordered
 legal move. Unconditional (changes only would-be crashes); bench 258 / 47,689,413 identical; both repros return a legal move.
-Real-play risk it removes: a very low clock in a multi-queen endgame (60+0.6 near the end). Second repro: start
+Real-play risk it removes: a very low clock in a multi-queen endgame (60+0.6 near the end).
+⏭️ FOR THE TIME-MANAGER UPGRADE (owner 10-21: "we'd need to provide a move in those low time cases"): iterative deepening
+starts at DEPTH 3 (`depth_limit = 3` in get_engine_move); SF and most engines start at 1, so a SEARCHED move exists within
+microseconds. Starting at 1-2 would make low-clock moves come from a real (shallow) search instead of the unsearched ordering
+fallback. Changes every node count (fingerprint) and interacts with time allocation ⇒ judge with the time manager, equal time. Second repro: start
 `8/p3P3/PP3PP1/2p5/3P2K1/ppp2PP1/2pp2p1/6k1 b - - 0 1` + `d2d1q b6a7 g1f2 a7a8q g2g1q g4f5 g1g3 g6g7 g3h3 f5g6 a3a2`.
 **MOVE TEST (150 starts per set, 112 first-divergence points, SF18 d16):** fixed move better 13 / worse 14 / ~equal 85, mean Δ
 −0.020 ± 0.014 — registered prediction FAILED; no broad benefit. ⚠️ first divergence ≠ where a fix acted (later moves diverge

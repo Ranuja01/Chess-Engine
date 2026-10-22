@@ -2156,7 +2156,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // rows) d10 169.9 → 75.6, d12 141.3 → 61.1; games: critical +15.4 ± 26.3, balanced +11.9 / timed +13.3, standard
                 // −0.3 ± 17.9, SF18 @1100 −0.25 pts; split by start type both cells pooled z ≈ +2.9 (POT brief §5o). No cycle cost.
                 // V2_SHIP_GEN=3 restores gen 3 exactly (259 / 47,869,841).
-                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 4);
+                // ── SHIP GEN 5 — gen 4 + two search CORRECTNESS fixes (shipped 2026-10-21, owner: ship on pure correctness):
+                // B3 FIX_DRAW_EXIT (iterative deepening no longer quits on a 0 score with a repetition in view — at depth 3 it
+                // abandoned a won queen) and C1 FIX_QS_CHECK (a checkmate at the q-depth cap scores as mate, not a static eval).
+                // No harm shown: the bundle containing both −3 ± 31 (400 g, st=1). Fire counts: B3 in ~1/2 of endgame-critical and
+                // ~1/6 of general games, C1 in ~1/4-1/3 (SEARCH-CORRECTNESS-PLAN). Search knobs, so set ONLY here — v1 stays frozen.
+                // V2_SHIP_GEN=4 restores gen 4 exactly (258 / 47,689,413).
+                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 5);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
                 }
@@ -2169,6 +2175,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 if (Config::V2_SHIP_GEN >= 4){
                     Config::POT_V2_WIN_PAWNEND = 64;
                     Config::POT_V2_WIN_ONEMINOR = 16;
+                }
+                if (Config::V2_SHIP_GEN >= 5){
+                    Config::FIX_DRAW_EXIT = 1;
+                    Config::FIX_QS_CHECK = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

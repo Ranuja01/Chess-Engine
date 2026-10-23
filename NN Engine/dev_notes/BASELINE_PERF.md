@@ -1,6 +1,20 @@
 # Baseline performance reference
 
-## ⭐⭐ CURRENT ENGINE: v2 gen 4 (2026-10-20) — the search-transition baseline
+## ⭐⭐⭐ CURRENT ENGINE: v2 gen 5 + speed batch S1-S4 (2026-10-22)
+Gen 5 = gen 4 + search correctness `FIX_DRAW_EXIT` + `FIX_QS_CHECK` (v2 block only). S1-S4 are result-identical speed changes (qsearch
+quiet skip, noisy-only qsearch generation, huge-page tables, search-path repetition stack), applied to both arms.
+
+| Gate | **v2 gen 5 (S1-S4)** | v1 (legacy control) | notes |
+| --- | --- | --- | --- |
+| WAC d10 | **258/300 · 47,689,586 · EBF 3.926** | 250/300 · 35,310,778 · 3.784 (unchanged) | `V2_SHIP_GEN=4` = 258 / 47,689,413 |
+| STS300 / full d10 | 2068 / 9571 (gen 5, before S1-S4; results identical after) | 1796 / 8746 | gen 4 2115 / 9727 |
+| WAC at LIGHTNING | 256 solved · mean depth 13.9 (gen 5, before S1-S4) | — | re-take after the speed batch |
+| speed, UCI `bench` (v2, pinned) | **≈ 600-635k nps** (this morning ≈ 500k) | ≈ 450-460k | ⚠️ the bench clears all tables per position (~19% of its time): real play is faster than it says |
+| equal-time games | gen 5 vs gen 4 +2.6 ± 29.4 (400 g) | — | speed batch vs this morning: queue #93 |
+
+Native binary check (every build): `printf 'bench\nquit\n' | build_uci/chess_engine_uci` ⇒ `solved 258/300 nodes 47689586`.
+
+## ⭐⭐ v2 gen 4 (2026-10-20) — the search-transition starting point
 v2 is the engine since 2026-10-19 (OPTIMIZATION_LOG 10-19 / 10-20); the sections below this one are the **v1 legacy control**
 history. Run v2 as `V2_PRESET=shipped`; v1 = no env (`EVAL_ARM=0`). Canonical byte-identity command unchanged:
 `MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`.

@@ -4,6 +4,37 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚡★★★★ 2026-10-21/22 — GEN 5 (search correctness), THE VOID KNOB MATCHES, AND THE SPEED BATCH S1-S4
+Details and every number: `SEARCH-CORRECTNESS-PLAN-2026-10-19.md` (queue #88-#93 sections, speed tally, transition scope).
+
+**1. Gen 5 shipped (10-21): gen 4 + B3 `FIX_DRAW_EXIT` + C1 `FIX_QS_CHECK`, v2 `shipped` block only (v1 frozen).** B3: iterative
+deepening quit on a 0 score with a repetition in view — at depth 3 it abandoned a won queen (`selfplay/_test_rep_key.sh`); C1: a mate
+at the q-depth cap scored as a static eval. Fingerprint **258 / 47,689,586** (`V2_SHIP_GEN=4` → 258 / 47,689,413). Real harm check
+(#92, gen 5 vs gen 4 through the fixed knob channel, st=1, 400 g): **+2.6 ± 29.4** — no harm. Gen 5 benches (#91): STS300 2068 (−47),
+STS full 9571 (−156), WAC LIGHTNING 256 @ 13.9 — STS shifts of this size have not predicted Elo before.
+Also: B2 `FIX_REP_KEY` (bit 1 key, bit 2 pre-root 3-fold — both OFF), a pre-existing empty-move SIGABRT when a node/time limit cut the
+first depth-3 pass (fixed unconditionally), and an engine-crash watch in `_fix_firecount.py`.
+
+**2. ☠️ Every fastchess `Knob_` match 10-19…10-22 was gen-vs-gen (VOID).** fastchess drops undeclared options; the binary never
+advertised `Knob_<NAME>`. Void: A2 (+49), A1 (+31), A2 confirm (−10), A2×A1 (−26), the bundle (−3), bit 2 (−12), PE_PASSER_EXT
+(+12, +28). Fix: the declared `Knobs` option (`option.Knobs=A=1,B=1`) with an `info string knobs …` echo; every knob queue asserts
+0 "doesn't have option" warnings. Byproduct: ~2,080 identical-engine games, weighted mean ≈ +5.8, one 200-g null read +49 ± 37.
+
+**3. Speed batch (result-identical; benches byte-identical on both arms after each step; v1 identical too):**
+
+    step  change                                                       identity proof                         bench nps
+    S1    qsearch skips quiets at defaults (dead quiet-check test)     quiet_checks_added 0, benches          ≈ +4.6%
+    S2    QGEN_NOISY_ONLY: qsearch generates only noisy moves          QGEN_VERIFY 0 / 7.9M lists, benches    QGEN cycles −66%
+    S3    HugeVector: 2 MB pages for TT / q / eval / move-gen caches   benches; 1.2 GB AnonHugePages          ≈ +5%
+    S4    REP_STACK: search-path repetition stack, map = pre-root      benches; 120 self-play games 0 diverge ≈ +3.5%
+    S1-S3 vs gen 5 morning, 3 pinned pairs: 500k → 610k (≈ +22%); with S4 ≈ +26%. The bench spends ~19% CLEARING tables per position
+    (real play does not) ⇒ real-play gain ≈ +30%. Equal-time games for the batch: queue #93 (today vs this morning's binary).
+
+**4. Profiles.** rdtsc (profiler build, new scopes MG_CACHE / QGEN / REPETITION): before S1/S2 the qsearch list build was 32% of all
+search cycles. perf (sampling, real play, symbolised with `diagnostics/_perf_symbolise.py`): TT access ~17%, eval ~27% (KS ~10%),
+pseudo-legal gen ~10%. ⚠️ `is_safe` is already pin-aware — "pin-aware movegen" is not a lever; the 16-pass structure is (~5-8%).
+Wasted time: ~26-31% of each move's time is spent in a cut (discarded) iteration — a time-manager item.
+
 ## 📏★★★★ 2026-10-20 — THE v2 OFFICIAL-ENGINE RECORD: baselines at the start of the search transition
 **The current point.** v2 gen 4 (`V2_PRESET=shipped`, fingerprint 258 / 47,689,413 / 3.926) is the engine; v1 (`EVAL_ARM=0`,
 250 / 35,310,778 / 3.784) the legacy control. Everything below was measured 10-19/20 (queues #83-#87; native UCI binary +
@@ -19,7 +50,8 @@ fastchess for games, the Cython harness for benches). This entry is the baseline
     search-fix screens (knob on vs off, same binary, st = 1, 200 g each — SEARCH-CORRECTNESS-PLAN):
       A2 FIX_MIN_SCOUT                    200    +95 −67 =38   57.0%       +49 (+12 … +87)      equal time, depth 12.2 / 12.3
       A1 FIX_RESEARCH                     200    +87 −69 =44   54.5%       +31 (−8 … +71)       equal time, depth 11.9 / 11.9
-(v2 measured +65 over v1 at equal NODES on 10-01.) A2 / A1 are first screens — confirmation on fresh seeds is next.
+(v2 measured +65 over v1 at equal NODES on 10-01.) ☠️ **The A2 / A1 rows are VOID (found 10-22):** the `Knob_` option never reached the
+engine, so both sides were the same gen 4 — see the 10-21/22 entry. The v2-vs-v1 and SF rows are valid (advertised options only).
 
 **2. Benches (Cython harness, PRESET=LONG_FORMAT, book off):**
 

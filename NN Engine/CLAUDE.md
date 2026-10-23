@@ -9,7 +9,7 @@ on demand rather than loaded every session.
 | which probe exists (~200 of them) | [`dev_notes/DIAGNOSTICS-TOOLKIT.md`](dev_notes/DIAGNOSTICS-TOOLKIT.md) |
 | **what a probe can RESOLVE and how it LIES** | [`dev_notes/INSTRUMENT-MAP.md`](dev_notes/INSTRUMENT-MAP.md) |
 | has this been tried, and was it RESOLVED or just UNREADABLE | memory `KNOWLEDGE-MAP.md` (all 274) — or the `record-check` agent |
-| where the program stands today | memory `eval-v2-rebuild-state` → [`dev_notes/SESSION-HANDOFF-2026-09-25.md`](dev_notes/SESSION-HANDOFF-2026-09-25.md) |
+| where the program stands today | memory `eval-v2-rebuild-state` → [`dev_notes/SESSION-HANDOFF-2026-10-22.md`](dev_notes/SESSION-HANDOFF-2026-10-22.md) |
 | the ship record | [`dev_notes/OPTIMIZATION_LOG.md`](dev_notes/OPTIMIZATION_LOG.md) |
 
 ## Scope
@@ -57,7 +57,9 @@ and the v1 control below; full table `dev_notes/BASELINE_PERF.md` §v2. v1 contr
 st=1 +170 / 155 g, 60+0.6 +199 / 300 g — OPTIMIZATION_LOG 10-19). v1 stays the Cython path's no-env default ONLY so the
 fingerprint scripts keep working; every new measurement, the UI and the UCI binary (default `V2_PRESET=shipped`) use v2.
 **Native UCI binary:** `selfplay/build_uci.sh` → `build_uci/chess_engine_uci`; verify with `bench` (== 258 / 47,689,586, gen 5) —
-memory `uci-binary-and-fastchess`.
+memory `uci-binary-and-fastchess`. ☠️ Knobs in fastchess ONLY via `option.Knobs=NAME=V,NAME=V` (undeclared `Knob_*` are silently
+dropped — every 10-19…10-22 `Knob_` match was void); assert 0 "doesn't have option" warnings. Anything TIMED (vs other engines,
+time-sensitive A/Bs) goes through the binary; the Cython path is for fixed-depth / node-limited diagnostics.
 
 🚨 **v2 — two presets, know which one you are on** (`EVAL_ARM=1` alone is a skeleton — always use a preset):
 - `V2_PRESET=shipped` = the **OFFICIAL ship** (**gen 5**, 2026-10-21 = gen 4 + search correctness `FIX_DRAW_EXIT=1 FIX_QS_CHECK=1`,

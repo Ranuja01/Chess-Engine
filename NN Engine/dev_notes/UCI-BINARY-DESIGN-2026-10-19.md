@@ -140,3 +140,6 @@ at 10+0.1, all normal terminations. Next: the timed v1-vs-v2 baselines (overnigh
 keeps the vectors) and fastchess reuses engine processes ⇒ swapping ⇒ 8-s isready stalls ⇒ **every queue uses `restart=on`**
 (a fresh process per game, as the Python harness always did); `ucinewgame` also calls `malloc_trim`. Capping that cache = a
 speed-programme item. (3) `Knob_<NAME>` UCI option sets any env knob before the first search; `OUT=` names the build output.
+☠️ **2026-10-22:** `Knob_<NAME>` is NOT advertised in the `uci` option list, so fastchess (and GUIs) silently DROP it — every
+fastchess `Knob_` match 10-19…10-22 ran the same engine on both sides. Replaced for harness use by the declared string option
+**`Knobs`** (`option.Knobs=NAME=V,NAME=V`), echoed at init as `info string knobs …`. `Knob_` still works when typed by hand.

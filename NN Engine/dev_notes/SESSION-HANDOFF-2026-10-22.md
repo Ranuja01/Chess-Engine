@@ -9,6 +9,13 @@
 - **Running at handoff:** queue #93 — speed batch vs this morning's binary, st=1, 400 g (`E:\chess_data\q93_speed_batch.log`,
   `fastchess\speed_batch.log`). Registered +10 … +30 Elo. Elo here is pure speed (identical search).
 - Commits through `830c247` + the docs commit of this handoff; pushed at the owner's request (10-22).
+- **Overnight 10-22→23, queue #94** (`selfplay/_queue_footprint_94.sh`, log `E:\chess_data\q94_footprint.log`) — waits for #93, then:
+  builds S5 (dead `g_ttMoveTable` deleted) + runtime table sizing (`initTableSizes`, knobs TT_LOG2 / EVAL_LOG2 / QCACHE_LOG2 /
+  MGCACHE_LOG2; defaults identical) to `chess_engine_uci_s6`, requires identical benches, installs it as production (old kept as
+  `chess_engine_uci_pre_s6`) + Cython rebuild + fingerprints; eval-cache identity test (EVAL_LOG2=20); TT-size speed sweep; then
+  small-footprint (`TT_LOG2=21,EVAL_LOG2=20,QCACHE_LOG2=20,MGCACHE_LOG2=20`) vs current at st=1 (400 g) and 60+0.6 (200 g) —
+  measurement only. **Uncommitted at handoff:** cache_management.h, cpp_bitboard.cpp, search_engine.cpp (S5 + sizing), plan doc —
+  commit after reading #94 (identity passed ⇒ commit). Footprint plan + ordering principle: SEARCH-CORRECTNESS-PLAN step 6.
 
 ## ☠️ HONESTY — errors this phase (all caught; read before relying on any 10-19…10-22 game number)
 1. **Every fastchess `Knob_` match was gen-vs-gen (void).** fastchess drops undeclared options; my "knob is live" check typed
@@ -34,6 +41,26 @@ Pattern again: every correction came from a control — a stdin-logging wrapper,
 - Release-readiness sweep when v2 is frozen: plain code comments + a Windows binary near Linux speed (memory `release-readiness-sweep`).
 - SIMD: not for the HCE; design it into the NNUE inference later.
 - dev_notes cleanup: inventory → owner approval → `git mv` to `archive/` with link fixes → `INDEX.md`.
+
+**#93 RESULT (00:15 10-23): speed batch S1-S4 vs this morning's binary, st=1, 400 g: +71.3 ± 30.2 Elo (60.1%), 0 unresponsive.**
+Registered +10 … +30 — EXCEEDED. Identical search decisions (benches equal), so it is pure speed; check the real-play nps / depth
+gap from `E:\chess_data\fastchess\speed_batch.pgn` (`fastchess_report.py … --p1 speed_s1s4`) before quoting — the bench (+26%)
+likely understates real play (qsearch-heavy positions, TT latency). Not yet in OPTIMIZATION_LOG.
+
+**#94 RESULT (05:21 10-23):** s6 (S5 + runtime sizing) passed identity (v2 47,689,586 / v1 35,310,778, Cython too) and IS PRODUCTION
+(bench 705.7k nps; old binary kept as `chess_engine_uci_pre_s6`); committed. ☠️ The eval-cache test and the TT sweep printed NOTHING —
+a QUOTING BUG in the queue script (`b ... $B` with an unquoted path containing spaces), NOT an engine fault: a direct re-run with
+`TT_LOG2=21` gives 256 / 47,868,471 in 59.7 s = 801k nps. Strength, small footprint (`TT_LOG2=21,EVAL_LOG2=20,QCACHE_LOG2=20,
+MGCACHE_LOG2=20`) vs current: st=1 **−34.9 ± 35.8** (300 g; stopped when **`cur`** — the 1.2 GB engine — went unresponsive) ·
+60+0.6 **−24.4 ± 44.9** (200 g) ⇒ ≈ −30 pooled although ~13% faster: some table's size carries search value. NEXT: separate arms
+(TT only small · move-gen cache only small · q-cache only · eval only — EVAL_LOG2 should be result-identical if v2's eval is pure;
+re-run that bench) and the TT speed sweep, with the quoting fixed.
+
+## FIRST IN THE NEXT SESSION
+1. Read `E:\chess_data\q93_speed_batch.log` + `q94_footprint.log`; add the batch row (real-play nps + depth from the PGNs via
+   `selfplay/fastchess_report.py`, Elo) to OPTIMIZATION_LOG 10-21/22; commit S5 + table sizing if #94's identity check passed.
+2. **The owner has researched C++ speed ideas to discuss** (maybe in `dev_notes/owner-cpp-ideas.md`) — judge each against the 10-22
+   perf profile (TT access ~17%, eval ~27% incl. KS ~10%, movegen ~10%; the bench's ~19% clearing is not real play).
 
 ## NEXT (in order)
 1. Read #93. If positive, the speed batch is confirmed in games.

@@ -80,6 +80,12 @@ eval-coupled. Everything else is SEARCH V2. Each new correctness item starts wit
   UNFINISHED ITERATIONS (est. 30-55% of move time, unmeasured) + depth-1 ID start (time manager).
 - SEARCH V2 (not now): null reform, improving, LMR v2 with A1/A2, IIR, singular/multicut, ProbCut, new history features, staged picker
   + node-entry TT (then delete the move-gen cache), TT buckets, negamax port.
+- ORDERING PRINCIPLE (discussed with the owner 2026-10-22): (1) result-identical changes ship immediately — they cannot disturb the
+  tuned optimum; (2) FOUNDATION changes that move the regime everything is tuned to (time use, TT / table sizes, depth reached,
+  correctness fixes) go EARLY, each with an equal-time harm check against the current optimum — deferring them would mean tuning
+  twice; one that loses only because surrounding constants were fitted without it is bundled with the retune (the A2 pattern), not
+  shipped alone; (3) additive features (corrhist, threats-in-search) in the middle, on the settled foundation; (4) the margins /
+  constants retune LAST. The current optimum is the comparison point, not something to protect.
 - STRUCTURE (owner 2026-10-22): the transition works in the CURRENT search (`search_engine.cpp`), preferring SHARED components
   (movegen, eval, caches, time manager, corrhist tables) — they carry over; fixes inside the max/min halves only for real bugs (they
   carry over only as knowledge). SEARCH V2 = likely a NEW file (`search_v2.cpp`, runtime-selected, sharing movegen/eval/caches) — a
@@ -238,6 +244,24 @@ SF18 loss autopsy, logs `E:\chess_data\q88_fc_night3.log`, `E:\chess_data\autops
    resizing instead CHANGES RESULTS — re-baseline); (c) HISTORY tables — piece×to keys `CONT_HIST_PIECE_KEY` (114× smaller, games
    −0.6 ± 23.1 / 1,200 = Elo-neutral ⇒ adopt on engineering merit, preplan §1 #15, ordering audit §8) and `CAPTURE_HIST_VICTIM`.
    ⚠️ any re-key/resize moves the fingerprint ⇒ a ship with a new gen + register row.
+   **Owner 10-22 — (c) MOVES TO SEARCH V2:** re-keying history changes what it learns (samples per slot, fill rate), and the bonus /
+   malus / gravity limits, statScore divisor and ordering thresholds were fitted to the current layout — a re-key alone may raise
+   nodes / EBF without being bad. So history layout + update formulas + move ordering are refit TOGETHER in search v2 (ordering
+   audit stage C 2×2s), judged by equal-time games after the refit, never by nodes alone. The transition keeps only
+   result-identical footprint work: huge pages (S3), the dead `g_ttMoveTable` deleted (S5, 10-22: no write or read site anywhere;
+   ~64 MB + one 16.7M-entry fill per clear), TT density if `TTEntry` allows. Note: `counterMoveHeuristics[2][4096][4096]` = 134 MB
+   and is most of each clear's cost — the search-v2 re-key target.
+   **FOOTPRINT PLAN (owner 10-22: "reduce to that of a regular engine"; machine = Ryzen 7 5700X3D, 8C/16T, 96 MB L3, WSL 31 GB):**
+   one process = **1.23 GB resident** at startup (+~1 MB per search, +134 MB once counterMoveHeuristics is written) vs ~30-60 MB for a
+   regular engine. Timed matches are CORE-bound (~3 games); the payoff is wider node-limited runs, safer timed runs, and SPEED (an
+   L3-sized TT on a 96 MB-L3 chip). **Phase A (result-identical, coded 10-22, unbuilt):** S5 delete dead `g_ttMoveTable`; runtime
+   table sizing — masks `g_tt_mask / g_eval_mask / g_q_mask / g_mg_mask` + `initTableSizes()` (knobs TT_LOG2, EVAL_LOG2, QCACHE_LOG2,
+   MGCACHE_LOG2; unset = today's sizes ⇒ byte-identical; v1 runs never set them ⇒ frozen). First test: v2 bench at EVAL_LOG2=20 —
+   identical nodes would prove v2's eval cache has no side-effect coupling (v1's does: memory
+   eval-global-side-effects-are-skipped-by-a-cache-hit). **Phase B (results change ⇒ games, owner go):** a UCI `Hash` option; TT
+   16/32/64/128 MB with caches scaled, measured for speed AND equal-time strength (st=1 and 60+0.6); target ~100-200 MB/process.
+   Logged caveat: initialize_engine counts the first root position BEFORE the knob environment is parsed ⇒ with FIX_REP_KEY bit 1 the
+   Cython path's first root key is unmixed (bit 1 is off by default — no current effect).
 Open owner questions (preplan §7, unanswered): threats T1 @250k · SPSA nightly budget · negamax parity vs redesign · root
 architecture · Ethereal/Weiss as judges.
 

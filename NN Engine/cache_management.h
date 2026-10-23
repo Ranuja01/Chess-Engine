@@ -181,9 +181,12 @@ extern HugeVector<QTTEntry> quiesceEvalCache;
 
 extern HugeVector<TTEntry> searchEvalCache;
 extern bool g_no_tt_store;   // when true, addToSearchEvalCache is a no-op (ProbCut store-off diagnostic)
-// Hash-move table (TT-move ordering): one remembered beta-cutoff move per TT slot, same size/index as
-// searchEvalCache. Read/written only under Config::ENABLE_TT_MOVE. Default {0,0,0} = "no move".
-extern HugeVector<Move> g_ttMoveTable;
+
+// Index masks of the large tables, fixed once at startup by initTableSizes(). The defaults equal the compile-time sizes, so a
+// search is unchanged unless a size knob (TT_LOG2, EVAL_LOG2, QCACHE_LOG2, MGCACHE_LOG2 = log2 of the entry count) is set.
+extern uint64_t g_tt_mask, g_eval_mask, g_q_mask, g_mg_mask;
+extern size_t g_tt_size;
+void initTableSizes();
 
 //extern std::vector<TTEntry> searchEvalCache;
 
@@ -685,7 +688,7 @@ inline int accessCache(uint64_t key) {
 }
 
 inline bool accessCacheNew(uint64_t key, int& out) {
-    size_t idx = key & CACHE_MASK;
+    size_t idx = key & g_eval_mask;
     /* assert(idx < CACHE_SIZE);
     assert(idx >= 0); */
     EvalEntry &entry = evalCacheNew[idx];
@@ -698,7 +701,7 @@ inline bool accessCacheNew(uint64_t key, int& out) {
 }
 
 inline void addToCacheNew(uint64_t key, int value) {
-    size_t idx = key & CACHE_MASK;
+    size_t idx = key & g_eval_mask;
     /* assert(idx < CACHE_SIZE);
     assert(idx >= 0); */
     EvalEntry& entry = evalCacheNew[idx];
@@ -831,7 +834,7 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 	*/
 
 	uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-	size_t idx = updatedKey & CACHE_MASK;
+	size_t idx = updatedKey & g_mg_mask;
     /* assert(idx < CACHE_SIZE);
     assert(idx >= 0); */
 
@@ -851,7 +854,7 @@ inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_righ
 // cached vector out of the slot, avoiding the by-value alloc+memcpy+free on the hot path.
 inline bool moveGenCacheHasMoves(uint64_t key, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-    size_t idx = updatedKey & CACHE_MASK;
+    size_t idx = updatedKey & g_mg_mask;
     MoveEntry &entry = moveGenCache[idx];
     return entry.valid && entry.key == updatedKey && !entry.moves.empty();
 }
@@ -862,7 +865,7 @@ inline bool moveGenCacheHasMoves(uint64_t key, uint64_t castling_rights, int ep_
 // instead of heap-allocating a fresh vector per node, while keeping the defensive snapshot semantics.
 inline void fillMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square, std::vector<Move>& out) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-    size_t idx = updatedKey & CACHE_MASK;
+    size_t idx = updatedKey & g_mg_mask;
     MoveEntry &entry = moveGenCache[idx];
     if (entry.valid && entry.key == updatedKey) {
         out = entry.moves;   // snapshot copy (reuses out's capacity)
@@ -886,7 +889,7 @@ inline void fillMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_squa
 /* inline std::vector<Move>& accessMutableMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     //return moveGenCache[updatedKey];  // If not present, creates empty vector by default
-    size_t idx = updatedKey & CACHE_MASK;
+    size_t idx = updatedKey & g_mg_mask;
     
     MoveEntry &entry = moveGenCache[idx];
     // If the entry is valid and belongs to the current position, return it
@@ -904,7 +907,7 @@ inline void fillMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_squa
 inline MoveEntry& accessMutableMoveGenCache(uint64_t updatedKey, uint64_t castling_rights, int ep_square) {
     
     //return moveGenCache[updatedKey];  // If not present, creates empty vector by default
-    size_t idx = updatedKey & CACHE_MASK;
+    size_t idx = updatedKey & g_mg_mask;
     /* assert(idx < CACHE_SIZE);
     assert(idx >= 0); */
     MoveEntry& entry = moveGenCache[idx];
@@ -969,7 +972,7 @@ inline bool probeQCache(uint64_t key, uint64_t castling_rights, int ep_square, i
 	*/
 
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-	size_t idx = updatedKey & CACHE_MASK;
+	size_t idx = updatedKey & g_q_mask;
     QTTEntry &entry = quiesceEvalCache[idx];
 
 	if (!entry.valid || entry.key != updatedKey)
@@ -997,7 +1000,7 @@ inline void addToQCache(uint64_t key, int score, TTFlag flag, uint64_t castling_
     if (score >= 9000000 || score <= -9000000)
 		return;
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
-	size_t idx = updatedKey & CACHE_MASK;
+	size_t idx = updatedKey & g_q_mask;
     QTTEntry& entry = quiesceEvalCache[idx];
     entry.key = updatedKey;
     entry.score = score;
@@ -1010,7 +1013,7 @@ inline void addToQCache(uint64_t key, int score, TTFlag flag, uint64_t castling_
    
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     //return moveGenCache[updatedKey];  // If not present, creates empty vector by default
-    size_t idx = updatedKey & TT_CACHE_MASK;
+    size_t idx = updatedKey & g_tt_mask;
     
     TTEntry &entry = searchEvalCache[idx];
     // If the entry is valid and belongs to the current position, return it
@@ -1030,7 +1033,7 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
 		return;
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     
-    size_t idx = updatedKey & TT_CACHE_MASK;
+    size_t idx = updatedKey & g_tt_mask;
     
     TTEntry& entry = searchEvalCache[idx];
     if((updatedKey != entry.key) || (entry.depth <= depth_used)){
@@ -1050,7 +1053,7 @@ inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, in
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 
     if (Config::TT_WAYS <= 1) {
-        size_t idx = updatedKey & TT_CACHE_MASK;
+        size_t idx = updatedKey & g_tt_mask;
         TTEntry& entry = searchEvalCache[idx];
         if (entry.valid && entry.key == updatedKey)
             return &entry;
@@ -1058,7 +1061,7 @@ inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, in
     }
 
     // N-way set-associative: the index selects a bucket of TT_WAYS contiguous entries.
-    size_t base = (updatedKey & (TT_CACHE_SIZE / Config::TT_WAYS - 1)) * Config::TT_WAYS;
+    size_t base = (updatedKey & (g_tt_size / Config::TT_WAYS - 1)) * Config::TT_WAYS;
     for (int i = 0; i < Config::TT_WAYS; ++i) {
         TTEntry& entry = searchEvalCache[base + i];
         if (entry.valid && entry.key == updatedKey)
@@ -1073,8 +1076,8 @@ inline TTEntry* accessSearchEvalCache(uint64_t key, uint64_t castling_rights, in
 inline void prefetchSearchEvalCache(uint64_t key, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     size_t idx = (Config::TT_WAYS <= 1)
-        ? (updatedKey & TT_CACHE_MASK)
-        : (updatedKey & (TT_CACHE_SIZE / Config::TT_WAYS - 1)) * Config::TT_WAYS;
+        ? (updatedKey & g_tt_mask)
+        : (updatedKey & (g_tt_size / Config::TT_WAYS - 1)) * Config::TT_WAYS;
     __builtin_prefetch(&searchEvalCache[idx], 0, 1);
 }
 
@@ -1097,7 +1100,7 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
     bool real_move = (move.from_square != move.to_square);
 
     if (Config::TT_WAYS <= 1) {
-        size_t idx = updatedKey & TT_CACHE_MASK;
+        size_t idx = updatedKey & g_tt_mask;
         TTEntry& entry = searchEvalCache[idx];
 
         if (real_move || (updatedKey != entry.key))
@@ -1120,7 +1123,7 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
     // N-way set-associative: pick the target slot (empty, same-position, or shallowest victim), then apply
     // the same move + depth-preferred score rules. Non-same-position victims are always taken (cross-position
     // eviction); same-position score is kept when the existing entry is deeper.
-    size_t base = (updatedKey & (TT_CACHE_SIZE / Config::TT_WAYS - 1)) * Config::TT_WAYS;
+    size_t base = (updatedKey & (g_tt_size / Config::TT_WAYS - 1)) * Config::TT_WAYS;
     TTEntry* victim = nullptr;
     for (int i = 0; i < Config::TT_WAYS; ++i) {
         TTEntry& e = searchEvalCache[base + i];
@@ -1175,7 +1178,7 @@ inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, ui
     uint64_t updatedKey = make_move_cache_key(zobrist, castling, ep_square);
     // Read the slot directly: accessMutableMoveGenCache would stamp the key first,
     // making the miss below undetectable and silently discarding the move list
-    size_t idx = updatedKey & CACHE_MASK;
+    size_t idx = updatedKey & g_mg_mask;
     MoveEntry& moveEntry = moveGenCache[idx];
 
     if (!moveEntry.valid || moveEntry.key != updatedKey){

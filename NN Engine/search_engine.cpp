@@ -1569,6 +1569,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         fullmove_number);
 
     state_history.push_back(initialState);
+    initTableSizes();   // once per process; table-size knobs are read from the environment here
 
     uint64_t zobrist = generateZobristHash(initialState.pawns, initialState.knights, initialState.bishops, initialState.rooks, initialState.queens, initialState.kings, initialState.occupied_colour[true], initialState.occupied_colour[false], initialState.turn);
     position_count[repetition_key(zobrist, castling_rights, ep_square)]++;
@@ -3495,7 +3496,6 @@ void clearSearchTables()
 		std::fill(&pawnCorrHist[0][0], &pawnCorrHist[0][0] + 2LL * CORR_SIZE, 0);
 	std::fill(searchEvalCache.begin(),  searchEvalCache.end(),  TTEntry{});
 	std::fill(quiesceEvalCache.begin(), quiesceEvalCache.end(), QTTEntry{});
-	std::fill(g_ttMoveTable.begin(),    g_ttMoveTable.end(),    Move{});
 }
 
 // clearSearchTables + the caches it leaves alone (eval cache, move-gen cache). Used by the UCI front end on `ucinewgame`

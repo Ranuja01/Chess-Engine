@@ -153,7 +153,58 @@ HugeVector<QTTEntry> quiesceEvalCache(CACHE_SIZE);
 std::deque<uint64_t> moveGenInsertionOrder; */
 
 HugeVector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
-HugeVector<Move> g_ttMoveTable(TT_CACHE_SIZE);
+
+uint64_t g_tt_mask = TT_CACHE_MASK, g_eval_mask = CACHE_MASK, g_q_mask = CACHE_MASK, g_mg_mask = CACHE_MASK;
+size_t g_tt_size = TT_CACHE_SIZE;
+
+/*
+	Resize the large tables once, from optional log2 entry-count knobs (TT_LOG2, EVAL_LOG2, QCACHE_LOG2, MGCACHE_LOG2, each
+	clamped to 10..26). Unset knobs keep the compile-time size, so the default engine is unchanged. A changed size changes
+	collisions and therefore the search tree. Reallocation uses a swap so a smaller table really releases its memory.
+*/
+void initTableSizes()
+{
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+	auto log2_knob = [](const char *name) -> int {
+		const char *v = std::getenv(name);
+		if (!v || !*v)
+			return -1;
+		return std::clamp(std::atoi(v), 10, 26);
+	};
+	bool changed = false;
+	const int tt = log2_knob("TT_LOG2"), ev = log2_knob("EVAL_LOG2"), q = log2_knob("QCACHE_LOG2"), mg = log2_knob("MGCACHE_LOG2");
+	if (tt >= 0 && (size_t(1) << tt) != g_tt_size)
+	{
+		g_tt_size = size_t(1) << tt;
+		g_tt_mask = g_tt_size - 1;
+		HugeVector<TTEntry>(g_tt_size).swap(searchEvalCache);
+		changed = true;
+	}
+	if (ev >= 0 && (uint64_t(1) << ev) - 1 != g_eval_mask)
+	{
+		g_eval_mask = (uint64_t(1) << ev) - 1;
+		HugeVector<EvalEntry>(size_t(1) << ev).swap(evalCacheNew);
+		changed = true;
+	}
+	if (q >= 0 && (uint64_t(1) << q) - 1 != g_q_mask)
+	{
+		g_q_mask = (uint64_t(1) << q) - 1;
+		HugeVector<QTTEntry>(size_t(1) << q).swap(quiesceEvalCache);
+		changed = true;
+	}
+	if (mg >= 0 && (uint64_t(1) << mg) - 1 != g_mg_mask)
+	{
+		g_mg_mask = (uint64_t(1) << mg) - 1;
+		HugeVector<MoveEntry>(size_t(1) << mg).swap(moveGenCache);
+		changed = true;
+	}
+	if (changed)
+		std::cerr << "[tables] tt=" << searchEvalCache.size() << " eval=" << evalCacheNew.size() << " q=" << quiesceEvalCache.size()
+		          << " movegen=" << moveGenCache.size() << " entries" << std::endl;
+}
 
 // When true, addToSearchEvalCache is a no-op: used to run a ProbCut verification subtree WITHOUT
 // polluting the shared TT (diagnostic for the +17.5-node / -83-lightning split). Default false.

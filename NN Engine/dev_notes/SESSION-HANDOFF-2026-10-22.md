@@ -76,6 +76,10 @@ sizes. Planning number: 400 g at st=1, concurrency 3 ≈ 3.9 h.
 ## FIRST IN THE NEXT SESSION
 1. Read `E:\chess_data\q93_speed_batch.log` + `q94_footprint.log`; add the batch row (real-play nps + depth from the PGNs via
    `selfplay/fastchess_report.py`, Elo) to OPTIMIZATION_LOG 10-21/22; commit S5 + table sizing if #94's identity check passed.
+1b. Footprint: q-cache-only and eval-only arms + the candidate (TT 2^22, MGCACHE 2^20) at st=1 and 60+0.6 → choose sizes → UCI `Hash`.
+1c. **Investigate why the EVAL-cache size changes the search** (it should only change speed): test (a) eval-cache hit vs miss
+    changing `num_iterations` → DECAY_INTERVAL history-decay timing, and (b) v1 board globals republished by the eval entry.
+    A decision-neutral eval cache makes its size a free speed/memory choice.
 2. **The owner has researched C++ speed ideas to discuss** (maybe in `dev_notes/owner-cpp-ideas.md`) — judge each against the 10-22
    perf profile (TT access ~17%, eval ~27% incl. KS ~10%, movegen ~10%; the bench's ~19% clearing is not real play).
 

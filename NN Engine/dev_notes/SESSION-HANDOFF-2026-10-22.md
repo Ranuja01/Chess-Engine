@@ -56,6 +56,23 @@ MGCACHE_LOG2=20`) vs current: st=1 **−34.9 ± 35.8** (300 g; stopped when **`c
 (TT only small · move-gen cache only small · q-cache only · eval only — EVAL_LOG2 should be result-identical if v2's eval is pure;
 re-run that bench) and the TT speed sweep, with the quoting fixed.
 
+**#95 (running 10-23, `E:\chess_data\q95_footprint.log`):** quoting fixed. ☠️ EVAL_LOG2=20 v2 bench = **257 / 47,692,575** (default
+258 / 47,689,586) — v2's eval-cache size CHANGES the search (registered "identical": FAILED). Hypotheses, unverified: (a) eval-cache
+hits vs misses update `num_iterations` differently, and that counter drives the periodic history decay (DECAY_INTERVAL) ⇒ decay
+timing ⇒ ordering ⇒ tree; (b) the eval entry still republishes v1 board globals before dispatching to v2 (memory
+eval-global-side-effects-are-skipped-by-a-cache-hit). ⚠️ Corrected with the owner: TT, q-cache and move-gen cache sizes are tree
+changes BY NATURE (they hold search results / ordering — SF's bench is reproducible only because Hash is fixed) and are tuned with
+games. Only the EVAL cache (a memo of a fixed function, like SF's pawn/material tables, whose size never changes SF's search) should
+be decision-neutral — ours is not; a smaller, specific fix (pure eval-cache hit; decay keyed off something hit-independent).
+
+**#95 TT RESULTS (10-23):** fixed-depth bench by TT size — 2^24 (current) 258 / 47.69M / ~75.9 s · 2^23 258 / 47.98M / ~70.5 s ·
+**2^22 258 / 47.70M / ~60.4 s (−20% time, same solves)** · 2^21 256 / 47.87M / ~59.7 s · 2^20 255 / 48.03M / ~58.3 s — the 96 MB-L3
+effect. Strength **TT_LOG2=21 alone vs current, st=1, 400 g: +28.7 ± 29.5** ⇒ the TT is NOT the #94 small-footprint loss; shrinking
+it gains via speed. **`fp_mg20` (MGCACHE_LOG2=20 alone): −2.6 ± 32.5 (400 g) — neutral** (registered "move-gen carries the loss":
+FAILED). ⇒ #94's −30 sits in the q-cache or eval cache (both 2^20 there) or an interaction. NEXT: q-cache-only and eval-only arms;
+the candidate TT 2^22 + MGCACHE 2^20 (q / eval default) at st=1 AND 60+0.6; then a UCI `Hash` option + a new gen with the chosen
+sizes. Planning number: 400 g at st=1, concurrency 3 ≈ 3.9 h.
+
 ## FIRST IN THE NEXT SESSION
 1. Read `E:\chess_data\q93_speed_batch.log` + `q94_footprint.log`; add the batch row (real-play nps + depth from the PGNs via
    `selfplay/fastchess_report.py`, Elo) to OPTIMIZATION_LOG 10-21/22; commit S5 + table sizing if #94's identity check passed.

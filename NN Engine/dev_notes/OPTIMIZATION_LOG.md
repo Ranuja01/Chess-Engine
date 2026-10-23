@@ -30,6 +30,16 @@ advertised `Knob_<NAME>`. Void: A2 (+49), A1 (+31), A2 confirm (−10), A2×A1 (
     S1-S3 vs gen 5 morning, 3 pinned pairs: 500k → 610k (≈ +22%); with S4 ≈ +26%. The bench spends ~19% CLEARING tables per position
     (real play does not) ⇒ real-play gain ≈ +30%. Equal-time games for the batch: queue #93 (today vs this morning's binary).
 
+**3b. Speed batch in games (#93, 10-23):** S1-S4 binary vs gen 5 morning (identical search decisions), st=1, 400 g: **+71.3 ± 30.2 Elo**
+(60.1%) — registered +10 … +30, exceeded; the bench (+26%) likely understates the real-play speedup (confirm nps / depth from
+`fastchess\speed_batch.pgn`). Then S5 (dead `g_ttMoveTable` deleted) + runtime table sizing (`initTableSizes`, knobs TT_LOG2 /
+EVAL_LOG2 / QCACHE_LOG2 / MGCACHE_LOG2) shipped result-identical; production bench ≈ 706k nps (was ≈ 500k on 10-22 morning).
+**3c. Footprint (#94/#95, 10-23):** one process held 1.23 GB. TT size, fixed-depth bench: 2^24 258 / 75.9 s · **2^22 258 / 60.4 s
+(−20% time, same solves — the 96 MB L3)** · 2^21 256 / 59.7 s · 2^20 255 / 58.3 s. Equal time st=1 vs current: everything small
+(TT 2^21, eval / q / move-gen 2^20) **−34.9 ± 35.8** (300 g), 60+0.6 −24.4 ± 44.9 · **TT 2^21 alone +28.7 ± 29.5** · move-gen 2^20
+alone −2.6 ± 32.5 ⇒ the loss sits in the q-cache or eval cache (or an interaction). ☠️ The EVAL-cache size changes the search
+(EVAL_LOG2=20: 257 / 47,692,575) — a memo of a fixed function should not; under investigation (decay timing vs v1 globals).
+
 **4. Profiles.** rdtsc (profiler build, new scopes MG_CACHE / QGEN / REPETITION): before S1/S2 the qsearch list build was 32% of all
 search cycles. perf (sampling, real play, symbolised with `diagnostics/_perf_symbolise.py`): TT access ~17%, eval ~27% (KS ~10%),
 pseudo-legal gen ~10%. ⚠️ `is_safe` is already pin-aware — "pin-aware movegen" is not a lever; the 16-pass structure is (~5-8%).

@@ -45,7 +45,7 @@ Pattern again: every correction came from a control — a stdin-logging wrapper,
 **#93 RESULT (00:15 10-23): speed batch S1-S4 vs this morning's binary, st=1, 400 g: +71.3 ± 30.2 Elo (60.1%), 0 unresponsive.**
 Registered +10 … +30 — EXCEEDED. Identical search decisions (benches equal), so it is pure speed; check the real-play nps / depth
 gap from `E:\chess_data\fastchess\speed_batch.pgn` (`fastchess_report.py … --p1 speed_s1s4`) before quoting — the bench (+26%)
-likely understates real play (qsearch-heavy positions, TT latency). Not yet in OPTIMIZATION_LOG.
+likely understates real play (qsearch-heavy positions, TT latency). Recorded in OPTIMIZATION_LOG 10-21/22 §3b-§3c.
 
 **#94 RESULT (05:21 10-23):** s6 (S5 + runtime sizing) passed identity (v2 47,689,586 / v1 35,310,778, Cython too) and IS PRODUCTION
 (bench 705.7k nps; old binary kept as `chess_engine_uci_pre_s6`); committed. ☠️ The eval-cache test and the TT sweep printed NOTHING —

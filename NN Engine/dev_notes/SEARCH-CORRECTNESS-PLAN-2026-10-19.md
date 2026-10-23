@@ -260,6 +260,10 @@ SF18 loss autopsy, logs `E:\chess_data\q88_fc_night3.log`, `E:\chess_data\autops
    identical nodes would prove v2's eval cache has no side-effect coupling (v1's does: memory
    eval-global-side-effects-are-skipped-by-a-cache-hit). **Phase B (results change ⇒ games, owner go):** a UCI `Hash` option; TT
    16/32/64/128 MB with caches scaled, measured for speed AND equal-time strength (st=1 and 60+0.6); target ~100-200 MB/process.
+   **RESULTS 10-23 (#94/#95):** Phase A shipped (S5 + runtime sizing, identical). TT 2^22 = same solves, −20% bench time; TT 2^21
+   alone +28.7 ± 29.5 at st=1; move-gen 2^20 alone −2.6 ± 32.5; all small −35 / −24 ⇒ the q-cache or eval cache carries value.
+   The eval-cache size is NOT decision-neutral (EVAL_LOG2=20 → 257 / 47,692,575) — investigate before tuning it. Next: q-only and
+   eval-only arms, candidate TT 2^22 + MG 2^20 at st=1 + 60+0.6, then UCI `Hash` + a new gen.
    Logged caveat: initialize_engine counts the first root position BEFORE the knob environment is parsed ⇒ with FIX_REP_KEY bit 1 the
    Cython path's first root key is unmixed (bit 1 is off by default — no current effect).
 Open owner questions (preplan §7, unanswered): threats T1 @250k · SPSA nightly budget · negamax parity vs redesign · root

@@ -103,9 +103,18 @@ probe/copy overhead + ~384 MB (step 6). (3) eval is ~21% now (memory said 11.5% 
 |---|---|---|---|
 | S1 | qsearch skips quiet moves at defaults (the default quiet-check test asked about the mover's own king — never true) | quiet_checks_added 0 over both benches; bench v2 47,689,586 / v1 35,310,778 identical | ≈ +4.6% (2 alternating UCI benches) |
 | S2 | `QGEN_NOISY_ONLY` (default 1): on a cache miss qsearch generates only captures + promotion pushes + en passant (`generateLegalMovesReordered(..., noisy_only)`) | `QGEN_VERIFY`: 0 mismatches in 5,398,832 (v2) + 2,514,985 (v1) lists; benches identical both arms | +3.7% / +18.6% by pair (box not idle) ⇒ ≈ +10%, imprecise |
-⏭️ Owed: ONE combined idle-box measurement (baseline vs S1+S2, several alternations, overnight). Next candidates: pin-aware legal
-generation (ISSAFE ~12%), the main-search move-gen cache path (~8% overhead, ~12% of builds served — overlaps step 6), KS (~7%),
-more profiler scopes for the ~30% unscoped. Logged defect: `isNearGameEnd` read uninitialised in `generateLegalMovesReordered`'s
+| S3 | `HugeVector` (HugePageAllocator): TT, TT-move table, q-cache, eval cache, move-gen cache slots 2 MB-aligned + MADV_HUGEPAGE (Linux; plain allocation elsewhere) | benches identical both arms; AnonHugePages 1.2 GB in use | +5.6% / +4.5% (2 consistent pairs) |
+| S4 | `REP_STACK` (default 1): search-path positions on a fixed key stack (push/pop) instead of position_count insert/erase; map = pre-root history; count = map + path, scan stops at the last capture/pawn move | benches identical (v2, v1, FIX_REP_KEY=3 map vs stack); self-play 120 games stack on/off, 0 divergences | +4.2% / +2.7% |
+**Combined S1-S3 vs gen 5 this morning (3 alternating pinned pairs): 500k → 610k bench nps ≈ +22% (bench time 95.3 → 78.2 s)**; with
+S4 ≈ +26% on the bench. The bench spends ~19% clearing tables per position (`clearSearchTables`), which real play does not ⇒ the
+real-play gain is likely ≈ +30%. ⏭️ The batch's equal-time games: new binary vs this morning's (`build_uci/chess_engine_uci_cnt` =
+gen 5 + inert counters), st=1, ~400 g — Elo here is pure speed (identical search).
+**perf (sampling, real play, 10-22):** with the clear-on-side-change artifact removed (the harness plays both sides in one process,
+so `clearAllCaches` + `clearSearchTables` ran every move — fastchess engines play one side), real-play shares: TT access
+`accessSearchEvalCache` ~17% · eval ~27% (`ks_units` ~10%) · pseudo-legal gen ~10% · repetition map ~5.6% (now S4) · qsearch body
+~6.5%. ⚠️ This perf build cannot resolve symbols itself — symbolise with addr2line (scratchpad `perf_sym.py`). The rdtsc ISSAFE
+"12%" was mostly scope overhead (141M scope entries): is_safe is ALREADY pin-aware (python-chess form), so "pin-aware movegen" is
+not a lever; the 16-pass structure is (~5-8%). Next candidates: KS cost in eval, 16-pass collapse, TT density (fold g_ttMoveTable). Logged defect: `isNearGameEnd` read uninitialised in `generateLegalMovesReordered`'s
 normal-endgame branch (quiet-pass order) — a tree change to fix, so it waits.
 
 **QUEUE #92 — THE REAL GEN 5 HARM CHECK (2026-10-22, `_queue_gen5_check.sh`):** gen 5 vs gen 4 (`option.Knobs=V2_SHIP_GEN=4`), same

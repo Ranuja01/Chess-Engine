@@ -3162,6 +3162,10 @@ namespace Config
     // legal move (same list, same order, less work). QGEN_VERIFY: build both lists at every qsearch miss, search with the full
     // one, and count any difference between the noisy-only list and the full list's noisy subset; the first is printed with its FEN.
     inline int QGEN_NOISY_ONLY = 1;
+    // REP_STACK: inside a search, positions on the current path are tracked on a fixed key stack (push in make_move, pop in
+    // unmake_move) instead of inserting into and erasing from the position_count map, which then holds only the game history
+    // before the root. A repetition count is map count + path occurrences, the same number the map held before.
+    inline int REP_STACK = 1;
     inline int QGEN_VERIFY = 0;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1

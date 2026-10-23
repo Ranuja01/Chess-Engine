@@ -23,6 +23,12 @@
 #include <cstring>
 #include <optional>
 #include <sstream>
+#include <cstdlib>
+#include <new>
+#include <memory>
+#if defined(__linux__)
+#include <sys/mman.h>
+#endif
 
 // Define zobrist table, cache and insertion order for efficient hashing
 extern uint64_t zobristTable[12][64];
@@ -33,6 +39,40 @@ extern uint64_t ep_hash[65];
 
 /* extern size_t CACHE_SIZE;  // example: 1M entries
 extern uint64_t CACHE_MASK; */
+
+/*
+	Allocator for the large, randomly accessed tables (TT, q-cache, eval cache, move-gen cache). On Linux, memory is 2 MB
+	aligned and marked MADV_HUGEPAGE before the vector first writes to it, so the kernel can back it with 2 MB pages: a random
+	probe then needs far fewer TLB entries than with 4 KB pages. Elsewhere it is a plain allocation. Layout and contents are the
+	same either way, so search results are identical on every platform.
+*/
+template <class T>
+struct HugePageAllocator {
+    using value_type = T;
+    HugePageAllocator() noexcept = default;
+    template <class U> HugePageAllocator(const HugePageAllocator<U> &) noexcept {}
+#if defined(__linux__)
+    T *allocate(std::size_t n) {
+        constexpr std::size_t HUGE_PAGE = std::size_t(2) << 20;
+        const std::size_t bytes = (n * sizeof(T) + HUGE_PAGE - 1) / HUGE_PAGE * HUGE_PAGE;
+        void *p = std::aligned_alloc(HUGE_PAGE, bytes);
+        if (!p)
+            throw std::bad_alloc();
+#ifdef MADV_HUGEPAGE
+        madvise(p, bytes, MADV_HUGEPAGE);
+#endif
+        return static_cast<T *>(p);
+    }
+    void deallocate(T *p, std::size_t) noexcept { std::free(p); }
+#else
+    T *allocate(std::size_t n) { return std::allocator<T>{}.allocate(n); }
+    void deallocate(T *p, std::size_t n) noexcept { std::allocator<T>{}.deallocate(p, n); }
+#endif
+    template <class U> bool operator==(const HugePageAllocator<U> &) const noexcept { return true; }
+    template <class U> bool operator!=(const HugePageAllocator<U> &) const noexcept { return false; }
+};
+template <class T>
+using HugeVector = std::vector<T, HugePageAllocator<T>>;
 
 struct EvalEntry {
     uint64_t key = 0;
@@ -48,8 +88,8 @@ struct MoveEntry {
     bool valid = false;
 };
 
-extern std::vector<EvalEntry> evalCacheNew;
-extern std::vector<MoveEntry> moveGenCache;
+extern HugeVector<EvalEntry> evalCacheNew;
+extern HugeVector<MoveEntry> moveGenCache;
 
 extern std::unordered_map<uint64_t, int> evalCache;
 extern std::deque<uint64_t> insertionOrder;
@@ -137,13 +177,13 @@ struct QTTEntry {
     bool valid = false;
 };
 
-extern std::vector<QTTEntry> quiesceEvalCache;
+extern HugeVector<QTTEntry> quiesceEvalCache;
 
-extern std::vector<TTEntry> searchEvalCache;
+extern HugeVector<TTEntry> searchEvalCache;
 extern bool g_no_tt_store;   // when true, addToSearchEvalCache is a no-op (ProbCut store-off diagnostic)
 // Hash-move table (TT-move ordering): one remembered beta-cutoff move per TT slot, same size/index as
 // searchEvalCache. Read/written only under Config::ENABLE_TT_MOVE. Default {0,0,0} = "no move".
-extern std::vector<Move> g_ttMoveTable;
+extern HugeVector<Move> g_ttMoveTable;
 
 //extern std::vector<TTEntry> searchEvalCache;
 

@@ -138,7 +138,7 @@ uint64_t castling_hash[4];
 uint64_t ep_hash[65];
 
 
-std::vector<EvalEntry> evalCacheNew(CACHE_SIZE);
+HugeVector<EvalEntry> evalCacheNew(CACHE_SIZE);
 
 std::unordered_map<uint64_t, int> evalCache;
 std::deque<uint64_t> insertionOrder;
@@ -147,13 +147,13 @@ std::deque<uint64_t> insertionOrder;
 std::deque<uint64_t> quiesceinsertionOrder; */
 
 
-std::vector<MoveEntry> moveGenCache(CACHE_SIZE);
-std::vector<QTTEntry> quiesceEvalCache(CACHE_SIZE);
+HugeVector<MoveEntry> moveGenCache(CACHE_SIZE);
+HugeVector<QTTEntry> quiesceEvalCache(CACHE_SIZE);
 /* std::unordered_map<uint64_t, std::vector<Move>> moveGenCache;
 std::deque<uint64_t> moveGenInsertionOrder; */
 
-std::vector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
-std::vector<Move> g_ttMoveTable(TT_CACHE_SIZE);
+HugeVector<TTEntry> searchEvalCache(TT_CACHE_SIZE);
+HugeVector<Move> g_ttMoveTable(TT_CACHE_SIZE);
 
 // When true, addToSearchEvalCache is a no-op: used to run a ProbCut verification subtree WITHOUT
 // polluting the shared TT (diagnostic for the +17.5-node / -83-lightning split). Default false.

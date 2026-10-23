@@ -159,6 +159,18 @@ std::atomic<bool> is_draw;
 long g_fixcnt_fifty = 0, g_fixcnt_rep = 0, g_fixcnt_drawexit = 0, g_fixcnt_qsmate = 0;
 // Time-manager accounting (printed with FIX_COUNT_LOG): seconds per move in total and in an iteration the clock cut short (its
 // result is discarded), moves with a cut iteration, and cut iterations whose best-so-far move differs from the move played.
+// Search-path repetition stack (Config::REP_STACK). Each entry is a position reached inside the current search and whether the
+// move into it was a capture or pawn move: no position before such a move can equal one after it, so a scan stops there.
+struct RepPathEntry
+{
+    uint64_t key;
+    bool irreversible;
+};
+static constexpr int REP_PATH_MAX = 1024;
+static RepPathEntry g_rep_path[REP_PATH_MAX];
+static int g_rep_len = 0;
+static bool g_rep_in_search = false;   // true between the start of get_engine_move's search and its final make_move
+
 // QGEN_VERIFY: qsearch move lists compared, and those whose noisy-only build differed from the full list's noisy subset.
 long g_qgen_verify_lists = 0, g_qgen_verify_mismatch = 0;
 double g_tm_total_s = 0, g_tm_wasted_s = 0;
@@ -2624,6 +2636,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_QS_CHECK = env_int("FIX_QS_CHECK", Config::FIX_QS_CHECK);
         Config::QGEN_NOISY_ONLY = env_int("QGEN_NOISY_ONLY", Config::QGEN_NOISY_ONLY);
         Config::QGEN_VERIFY = env_int("QGEN_VERIFY", Config::QGEN_VERIFY);
+        Config::REP_STACK = env_int("REP_STACK", Config::REP_STACK);
         Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);
         Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
         Config::FIX_MIN_SCOUT = env_int("FIX_MIN_SCOUT", Config::FIX_MIN_SCOUT);
@@ -3343,7 +3356,11 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
     // ep_square = -1;
     turn = !turn;
 
-    position_count[repetition_key(zobrist, castling_rights, ep_square)]++;   // child's rights / ep (post-move)
+    const uint64_t rep_key = repetition_key(zobrist, castling_rights, ep_square);   // child's rights / ep (post-move)
+    if (Config::REP_STACK && g_rep_in_search)   // path depth is far below REP_PATH_MAX (search depth and qsearch are capped)
+        g_rep_path[g_rep_len++] = RepPathEntry{rep_key, capture_move || (BB_SQUARES[move.from_square] & current.pawns) != 0};
+    else
+        position_count[rep_key]++;
     // Construct the new state directly in the history vector; a named temporary + push_back would
     // copy the ~100-byte BoardState an extra time (lvalue push_back cannot elide the copy).
     state_history.emplace_back(
@@ -3374,6 +3391,13 @@ inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_m
 {
     PROF_BLOCK(PROF_MAKEUNMAKE);
     ++g_see_gen; // restored position -> invalidate the per-position SEE cache (O(1))
+
+    if (Config::REP_STACK && g_rep_in_search)
+    {
+        state_history.pop_back();
+        --g_rep_len;
+        return;
+    }
 
     // Uncount the position being left under the key make_move counted it with (the child's rights / ep)
     const uint64_t rep_key = repetition_key(zobrist_key, state_history.back().castling_rights, state_history.back().ep_square);
@@ -3539,6 +3563,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
     if (Config::FIX_REP_KEY & 2)
         g_pre_root_counts = position_count;   // the game's counts at the root, root included
+    g_rep_len = 0;
+    g_rep_in_search = true;   // until the final make_move: search-path positions go on the stack, not into position_count
 
     BoardState current = state_history.back();
 
@@ -3618,6 +3644,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         // Resigns
         if (score <= Config::RESIGN_THRESHOLD)
         {
+            g_rep_in_search = false;
             MoveData defaultMove(-1, -1, -1, -1, -1, score, 0);
             return defaultMove;
         }
@@ -3944,6 +3971,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         current_state.occupied_colour[false],
         move.promotion);
 
+    g_rep_in_search = false;   // the move actually played is game history: it goes into position_count
     make_move(state_history, position_count, move, zobrist, capture_move);
 
     std::cout << "EVAL CACHE VISITS: " << eval_visits << std::endl;
@@ -8789,14 +8817,31 @@ inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_coun
     PROF_BLOCK(PROF_REPETITION);
     const uint64_t key = repetition_key(zobrist_key, state.castling_rights, state.ep_square);
     auto it = position_count.find(key);
-    if (it == position_count.end() || it->second < repetition_count)
+    int count = (it == position_count.end()) ? 0 : it->second;
+    int pre_root = -1;   // occurrences before the root; resolved lazily below in map mode
+    if (Config::REP_STACK && g_rep_in_search)
+    {
+        // The map holds only the game before the root; add this position's occurrences on the current search path.
+        pre_root = count;
+        for (int i = g_rep_len - 1; i >= 0; --i)
+        {
+            count += (g_rep_path[i].key == key);
+            if (g_rep_path[i].irreversible)
+                break;
+        }
+    }
+    if (count < repetition_count)
         return false;
-    if (!(Config::FIX_REP_KEY & 2) || it->second > repetition_count)
+    if (!(Config::FIX_REP_KEY & 2) || count > repetition_count)
         return ++g_fixcnt_rep, true;
     // Exactly repetition_count occurrences: a draw only if all of them lie inside the search. An occurrence from the game
-    // before the root can still be avoided by the opponent, so it needs one more repeat (SF's 3-fold rule for pre-root).
-    auto pre = g_pre_root_counts.find(key);
-    const bool rep = pre == g_pre_root_counts.end() || pre->second == 0;
+    // before the root can still be avoided by the opponent, so it needs one more repeat.
+    if (pre_root < 0)
+    {
+        auto pre = g_pre_root_counts.find(key);
+        pre_root = (pre == g_pre_root_counts.end()) ? 0 : pre->second;
+    }
+    const bool rep = pre_root == 0;
     g_fixcnt_rep += rep;
     return rep;
 }

@@ -12,6 +12,8 @@ per game) and reports, per start set:
 Run (WSL): bash <runner> pyrun diagnostics/_fix_firecount.py BIN=<uci binary> [N=30] [NODES=30000] [PLIES=200]
            [SETS=eg:selfplay/eg_critical_fens.txt,kp:selfplay/kp_dense_fens.txt,uho:/mnt/e/chess_data/fastchess/openings_uho.epd]
            [ON=FIX_HALFMOVE=1;FIX_REP_KEY=1;FIX_DRAW_EXIT=1;FIX_QS_CHECK=1] [SEED=7] [JOBS=2]
+Build identity (two binaries that must decide identically): BIN=<old> BIN_ON=<new> ON= ; every set must report
+"diverged: 0" and 0 crashes.
 """
 import os, sys, random, re, statistics
 from concurrent.futures import ThreadPoolExecutor
@@ -25,6 +27,7 @@ for a in sys.argv[1:]:
 import chess, chess.engine
 
 BIN, N, NODES, PLIES, JOBS = OPTS['BIN'], int(OPTS['N']), int(OPTS['NODES']), int(OPTS['PLIES']), int(OPTS['JOBS'])
+BIN_ON = OPTS.get('BIN_ON', BIN)   # the ON pass's binary; differs from BIN only for a build-identity run
 ON_ENV = dict(kv.split('=', 1) for kv in OPTS['ON'].split(';') if kv)
 CNT_RE = re.compile(r'FIXCNT fifty=(\d+) rep=(\d+) drawexit=(\d+) qsmate=(\d+)')
 TM_RE = re.compile(r'TMCNT moves=(\d+) total_s=([\d.e+-]+) wasted_s=([\d.e+-]+) cut=(\d+) cut_differs=(\d+)')
@@ -52,14 +55,14 @@ def load(path):
     return boards
 
 
-def play(board, env_extra, tag):
+def play(board, env_extra, tag, binary=BIN):
     """One self-play game; returns (moves, result, counters)."""
     env = dict(os.environ, FIX_COUNT_LOG='1', **env_extra)
     errpath = '/tmp/fixcnt_%d_%s.err' % (os.getpid(), tag)
     b = board.copy()
     moves = []
     with open(errpath, 'w') as err:
-        eng = chess.engine.SimpleEngine.popen_uci(BIN, env=env, stderr=err)
+        eng = chess.engine.SimpleEngine.popen_uci(binary, env=env, stderr=err)
         try:
             eng.configure({'OwnBook': False, 'Debug': True})   # Debug=false routes the engine's std::cerr to nowhere
             while not b.is_game_over(claim_draw=True) and len(moves) < PLIES:
@@ -102,7 +105,7 @@ for spec in OPTS['SETS'].split(','):
     sample = rng.sample(boards, min(N, len(boards)))
     with ThreadPoolExecutor(JOBS) as ex:
         offs = list(ex.map(lambda ib: play(ib[1], {}, 'off%d' % ib[0]), enumerate(sample)))
-        ons = offs if OFF_ONLY else list(ex.map(lambda ib: play(ib[1], ON_ENV, 'on%d' % ib[0]), enumerate(sample)))
+        ons = offs if OFF_ONLY else list(ex.map(lambda ib: play(ib[1], ON_ENV, 'on%d' % ib[0], BIN_ON), enumerate(sample)))
     div_plies, fired_games = [], dict.fromkeys(KEYS, 0)
     tot_off, tot_on = dict.fromkeys(KEYS, 0), dict.fromkeys(KEYS, 0)
     res_change = 0

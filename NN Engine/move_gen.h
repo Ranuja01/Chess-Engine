@@ -666,7 +666,11 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
 	bool isEndGame;
-	bool isNearGameEnd;
+	// isNearGameEnd was left uninitialised for phase_score 63..96 and only ever assigned true. The compiled code has
+	// always behaved as if it were true there: the bench reproduces with true and not with false. Initialised to true,
+	// so every endgame uses the king-first quiet order below, as it always has; the "normal endgame" order (minors
+	// first, king last) is unreachable. Giving 63..96 that order is a search change, to be tested on its own.
+	bool isNearGameEnd = true;
 
 	int phase = 0;
 	phase += 4 * __builtin_popcountll(queensMask);
@@ -681,7 +685,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	} else if (phase_score <= 96) {
 		// Normal endgame
 		isEndGame = true;
-	} else {		
+	} else {
 		isEndGame = true;
 		isNearGameEnd = true;
 	}

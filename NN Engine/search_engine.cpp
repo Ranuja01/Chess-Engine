@@ -2684,6 +2684,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         if (Config::TT_WAYS != 1 && Config::TT_WAYS != 2 && Config::TT_WAYS != 4 && Config::TT_WAYS != 8)
             Config::TT_WAYS = 1;
         Config::ENABLE_TT_PREFETCH = env_flag("ENABLE_TT_PREFETCH", Config::ENABLE_TT_PREFETCH);
+        Config::PREFETCH_TABLES = env_int("PREFETCH_TABLES", Config::PREFETCH_TABLES);
         // Debug-only: validate the SearchData parallel-array invariant + move legality and LOG (not
         // crash) on violation. Default off = byte-identical; used only to hunt the move-ordering
         // corruption (see dev_notes/CRASH_INVESTIGATION_PLAYBOOK.md).
@@ -3290,6 +3291,27 @@ void set_current_state(std::vector<BoardState> &state_history, std::unordered_ma
     position_count[repetition_key(zobrist, castling_rights, ep_square)]++;
 }
 
+// Software prefetch of the child position's slots in the tables its search may read, issued together so their memory
+// latencies overlap (Config::PREFETCH_TABLES bits: 1 TT, 2 q-cache, 4 eval cache, 8 move-gen cache). Each index mirrors
+// its probe (accessSearchEvalCache, probeQCache, accessCacheNew via eval_cache_key, the move-gen cache). A hint only,
+// so results are unchanged.
+static inline void prefetch_child_tables(uint64_t zobrist, uint64_t castling_rights, int ep_square)
+{
+    const int t = Config::PREFETCH_TABLES;
+    const uint64_t key = make_move_cache_key(zobrist, castling_rights, ep_square);
+    if (t & 1)
+    {
+        const size_t idx = (Config::TT_WAYS <= 1) ? (key & g_tt_mask) : (key & (g_tt_size / Config::TT_WAYS - 1)) * Config::TT_WAYS;
+        __builtin_prefetch(&searchEvalCache[idx], 0, 3);
+    }
+    if (t & 2)
+        __builtin_prefetch(&quiesceEvalCache[key & g_q_mask], 0, 3);
+    if (t & 4)
+        __builtin_prefetch(&evalCacheNew[eval_cache_key(zobrist, castling_rights, ep_square) & g_eval_mask], 0, 3);
+    if (t & 8)
+        __builtin_prefetch(&moveGenCache[key & g_mg_mask], 0, 3);
+}
+
 inline void make_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, Move move, uint64_t zobrist, bool capture_move)
 {
     PROF_BLOCK(PROF_MAKEUNMAKE);
@@ -3389,6 +3411,8 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
     // behind the make/return work before get_score_*() reads it. Pure hint -> byte-identical.
     if (Config::ENABLE_TT_PREFETCH)
         prefetchSearchEvalCache(zobrist, castling_rights, ep_square);
+    if (Config::PREFETCH_TABLES)
+        prefetch_child_tables(zobrist, castling_rights, ep_square);
 }
 
 inline void unmake_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key)

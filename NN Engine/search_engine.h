@@ -3339,6 +3339,10 @@ namespace Config
     // NPS A/B was +0.26% (within noise) on the cold-TT depth bench; revisit under a hot-TT / timed-game
     // instrument where the end-of-make_move prefetch has more latency to hide.
     inline bool ENABLE_TT_PREFETCH = false;
+    // PREFETCH_TABLES: at the end of make_move, prefetch the child's slots in several tables at once so the misses overlap
+    // (bits: 1 TT, 2 q-cache, 4 eval cache, 8 move-gen cache; 0 = off). A hint only: results are unchanged.
+    // Bench time ratio against off, same binary and load: 1 → 0.98, 7 → 0.95, 15 → 0.935.
+    inline int PREFETCH_TABLES = 15;
     // Debug-only (default off = byte-identical): validate the SearchData parallel-array invariant and
     // move legality in the search, logging violations to stderr instead of crashing. Enabled with
     // CHESS_DEBUG_INVARIANTS=1 to hunt the move-ordering corruption.

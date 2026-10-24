@@ -4,6 +4,27 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🐛★★★★ 2026-10-24 — THE NIGHTLY SEGFAULT, GEN 6 (speed batches + crash fix + eval-cache form + normal footprint)
+**Queue #96 (overnight):** footprint A (QCACHE_LOG2=20) **+9.6 ± 30.6**, nps +1.2% · B (TT 2^22, MG/EVAL 2^20) **−7.0 ± 31.8**, nps
+−2.8% ⇒ both no harm · fixed-node identity: production→sb2 and sb2→sb2pgo 0/120 diverged each · **batch 2 vs production +30.5 ±
+28.3 (54.4%), real-play nps 810k vs 692k = +17.1%** (bench said +12%; at st=1 the old 134 MB decay walk fired about once per move)
+· PGO vs batch 2: nps +4.4%, but the match DIED at game 104 (−28 ± 63 on 102 g, meaningless).
+**The crash:** dmesg segfault in sb2pgo; WSL keeps core dumps in `%LOCALAPPDATA%\Temp\wsl-crashes` (10 dumps, ~16 GB — the missing
+C: space). gdb on the dump: fault in `get_score_for_maximizer` at `mov 0x210(%r11,%r9,4)` = `Config::ACTIVE->DEPTH_REDUCTION[
+depth_limit]` (ConfigData offset 0x210) with **depth_limit = 272,797,021**. The 64-entry table is indexed unchecked by null move
+(×2) and LMR; iterative deepening could search depth 64 (cap 64) and the per-ply tables (killers, PV, stacks) hold MAX_PLY = 64,
+so depth 64 read/wrote past them; the garbage read became a child's depth. **Production segfaulted the same way 10-22 03:46 and
+10-23 03:28, unnoticed** (the 10-23 one ended #94's "all small" arm at 308 games). Fix: ID stops at MAX_PLY − 4; `depth_reduction()`
+continues the table's last step past its end; FIXCNT `depthcap=` counts searches reaching the bound (bench-neutral). Sanitizer
+self-play #98a: 160 g, st=1, ASan + UBSan + `_GLIBCXX_ASSERTIONS`, positive controls verified (an array assert aborts → disconnect +
+dump; a C-array overflow writes a report file): **0 reports, 0 disconnects, 0 dumps.** Open: whether gen 5's FIX_DRAW_EXIT is what
+lets ID race to 64 (the crashes began the night after it shipped) — `depthcap` will tell.
+**Gen 6 (5a0a2d1):** batch 6 code + crash fix + EVAL_CACHE_FORM 2 + v2 table sizes TT 2^22 / eval, q, move-gen 2^20 (env defaults
+after the presets; Knobs and UCI `Hash` override; v1 keeps the old sizes) ⇒ **257 / 46,196,950 / 3.922** (UCI == Cython);
+V2_SHIP_GEN=5 = 258 / 47,689,586; v1 = 250 / 35,310,778. PGO build identical. Per process ≈ 1.23 GB → ≈ 0.25 GB. Queue #98b: gen
+6 + PGO vs production, st=1 400 g + 60+0.6 200 g, -recover (registered +40…+70 / +30…+60, 0 crashes). #97 was stopped by hand
+before any stage (a PGO match with the crash live would have been confounded).
+
 ## ⚡★★★ 2026-10-23 evening — SPEED BATCHES 2-6 (result-identical), PGO, THE EVAL-CACHE FIX, `Hash`
 Source: the owner's `owner-cpp-ideas.md` (its results table has every item's detail). All items: bench v2 258 / 47,689,586 and
 v1 250 / 35,310,778 unchanged; speed = SIDE-BY-SIDE benches of two binaries run concurrently (queue #96 loading the box), 2-6

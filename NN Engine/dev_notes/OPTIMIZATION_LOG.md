@@ -31,14 +31,20 @@ advertised `Knob_<NAME>`. Void: A2 (+49), A1 (+31), A2 confirm (−10), A2×A1 (
     (real play does not) ⇒ real-play gain ≈ +30%. Equal-time games for the batch: queue #93 (today vs this morning's binary).
 
 **3b. Speed batch in games (#93, 10-23):** S1-S4 binary vs gen 5 morning (identical search decisions), st=1, 400 g: **+71.3 ± 30.2 Elo**
-(60.1%) — registered +10 … +30, exceeded; the bench (+26%) likely understates the real-play speedup (confirm nps / depth from
-`fastchess\speed_batch.pgn`). Then S5 (dead `g_ttMoveTable` deleted) + runtime table sizing (`initTableSizes`, knobs TT_LOG2 /
+(60.1%) — registered +10 … +30, exceeded. **Real play (`fastchess_report.py`, 10-23): 644k vs 490k nps (+31.6%) at equal time
+(0.963 / 0.966 s per move), mean completed depth 12.5 vs 12.3 (+0.2 ply)** — the bench's +26% understated it, as expected from the
+clearing artifact. ⚠️ +0.2 ply bought +71 ± 30 (lower bound +42): games resolve what the timed benches could not (the 08-26
+"half a ply is Elo-neutral" rate was a bench reading of cheaper plies from a search knob, not a pure speed-up). Then S5 (dead `g_ttMoveTable` deleted) + runtime table sizing (`initTableSizes`, knobs TT_LOG2 /
 EVAL_LOG2 / QCACHE_LOG2 / MGCACHE_LOG2) shipped result-identical; production bench ≈ 706k nps (was ≈ 500k on 10-22 morning).
 **3c. Footprint (#94/#95, 10-23):** one process held 1.23 GB. TT size, fixed-depth bench: 2^24 258 / 75.9 s · **2^22 258 / 60.4 s
 (−20% time, same solves — the 96 MB L3)** · 2^21 256 / 59.7 s · 2^20 255 / 58.3 s. Equal time st=1 vs current: everything small
 (TT 2^21, eval / q / move-gen 2^20) **−34.9 ± 35.8** (300 g), 60+0.6 −24.4 ± 44.9 · **TT 2^21 alone +28.7 ± 29.5** · move-gen 2^20
 alone −2.6 ± 32.5 ⇒ the loss sits in the q-cache or eval cache (or an interaction). ☠️ The EVAL-cache size changes the search
 (EVAL_LOG2=20: 257 / 47,692,575) — a memo of a fixed function should not; under investigation (decay timing vs v1 globals).
+**RESOLVED (10-23 evening):** a bench artifact, not an engine one. The bench keeps the eval cache across positions while flipping
+`side_to_play` per position (side-relative values ⇒ wrong-sign hits); split by root side, EVAL_LOG2=20 is node-identical (W 190:
+167 / 30,133,528; B 110: 90 / 18,443,382). Real-play nps from the PGNs: TT 2^21 +0.9%, MG 2^20 −3.1%, all small −3.6% ⇒ the
+bench's TT "−20%" was the clearing artifact, not the L3. Detail: SEARCH-CORRECTNESS-PLAN step 6.
 
 **4. Profiles.** rdtsc (profiler build, new scopes MG_CACHE / QGEN / REPETITION): before S1/S2 the qsearch list build was 32% of all
 search cycles. perf (sampling, real play, symbolised with `diagnostics/_perf_symbolise.py`): TT access ~17%, eval ~27% (KS ~10%),

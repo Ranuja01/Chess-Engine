@@ -264,6 +264,17 @@ SF18 loss autopsy, logs `E:\chess_data\q88_fc_night3.log`, `E:\chess_data\autops
    alone +28.7 ± 29.5 at st=1; move-gen 2^20 alone −2.6 ± 32.5; all small −35 / −24 ⇒ the q-cache or eval cache carries value.
    The eval-cache size is NOT decision-neutral (EVAL_LOG2=20 → 257 / 47,692,575) — investigate before tuning it. Next: q-only and
    eval-only arms, candidate TT 2^22 + MG 2^20 at st=1 + 60+0.6, then UCI `Hash` + a new gen.
+   **RESOLVED 10-23 evening:** (1) the eval-cache size effect is a BENCH artifact. The bench (and the Python WAC runner it mirrors)
+   keeps the eval cache across positions while setting `side_to_play` per position, and the cache stores side_to_play-relative
+   values ⇒ wrong-sign hits across roots of opposite colour. Split test (binary bench, Knobs echo seen): White-to-move 190 →
+   167 / 30,133,528 at both EVAL_LOG2 default and 20; Black-to-move 110 → 90 / 18,443,382 at both ⇒ with one root side the v2
+   eval cache is decision-neutral. Real UCI play clears all caches on a side change. Hypothesis (a) refuted by reading
+   (`get_board_evaluation` bumps the node counter before the cache lookup). Still a latent defect: a mate is cached as
+   9999999 − ply and returned at another ply (did not show here). (2) Real-play nps from the PGNs: TT 2^21 +0.9%, MG 2^20 −3.1%,
+   all small −3.6% ⇒ the bench's "−20% at TT 2^22" was mostly the per-position clearing, NOT the L3. ⇒ The eval-only games arm is
+   unnecessary (its size is a speed choice: pick by nps); the TT gain is not speed, so TT 2^21's +28.7 (CI −0.7 … +58.6) is a tree
+   effect or noise. Bench fix (clear the eval cache when the root side changes, in bench AND tactical_test.py) moves both
+   fingerprints ⇒ owner call; natural home = the Phase B gen, whose TT change moves the fingerprint anyway.
    Logged caveat: initialize_engine counts the first root position BEFORE the knob environment is parsed ⇒ with FIX_REP_KEY bit 1 the
    Cython path's first root key is unmixed (bit 1 is off by default — no current effect).
 Open owner questions (preplan §7, unanswered): threats T1 @250k · SPSA nightly budget · negamax parity vs redesign · root

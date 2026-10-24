@@ -414,7 +414,7 @@ int main()
         in >> cmd;
         if (cmd == "uci")
         {
-            say("id name NN Engine (v2 gen 5)");
+            say("id name NN Engine (v2 gen 6)");
             say("id author Ranuja");
             say("option name Preset type combo default STANDARD var LIGHTNING var BLITZ var STANDARD var LONG_FORMAT");
             say("option name EvalArm type spin default 1 min 0 max 1");

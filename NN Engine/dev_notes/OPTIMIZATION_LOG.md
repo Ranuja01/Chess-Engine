@@ -24,6 +24,11 @@ after the presets; Knobs and UCI `Hash` override; v1 keeps the old sizes) ⇒ **
 V2_SHIP_GEN=5 = 258 / 47,689,586; v1 = 250 / 35,310,778. PGO build identical. Per process ≈ 1.23 GB → ≈ 0.25 GB. Queue #98b: gen
 6 + PGO vs production, st=1 400 g + 60+0.6 200 g, -recover (registered +40…+70 / +30…+60, 0 crashes). #97 was stopped by hand
 before any stage (a PGO match with the crash live would have been confounded).
+**#98b RESULT — GEN 6 + PGO SHIPPED (production binary, 10-24 19:10):** st=1 **+41.0 ± 30.8** (55.9%, 400 g), real-play nps 900k
+vs 656k (+37%), depth 13.0 vs 12.8 · 60+0.6 **+79.5 ± 41.2** (61.3%, 200 g), nps 1.28M vs 926k (+38%), depth 13.0 vs 12.7 · **0
+disconnects, 0 new crash dumps** in 600 games (production had crashed ~once a night). `build_uci/chess_engine_uci` = the PGO build
+(id "v2 gen 6"); backups `chess_engine_uci_gen5` (old production) and `chess_engine_uci_g6pgo_q98b` (the exact match binary).
+The 10-23 production dump was the same family: the PV copy loop read `pv_length[ply+1]` = 315,705,776 at ply 64.
 
 ## ⚡★★★ 2026-10-23 evening — SPEED BATCHES 2-6 (result-identical), PGO, THE EVAL-CACHE FIX, `Hash`
 Source: the owner's `owner-cpp-ideas.md` (its results table has every item's detail). All items: bench v2 258 / 47,689,586 and

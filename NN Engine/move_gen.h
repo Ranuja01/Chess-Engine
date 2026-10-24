@@ -17,11 +17,11 @@ extern std::array<uint64_t, NUM_SQUARES> BB_KNIGHT_ATTACKS;
 extern std::array<uint64_t, NUM_SQUARES> BB_KING_ATTACKS;
 extern std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 extern std::vector<uint64_t> BB_DIAG_MASKS;
-extern std::vector<SlidingRow> BB_DIAG_ATTACKS;
+extern SlidingTable BB_DIAG_ATTACKS;
 extern std::vector<uint64_t> BB_FILE_MASKS;
-extern std::vector<SlidingRow> BB_FILE_ATTACKS;
+extern SlidingTable BB_FILE_ATTACKS;
 extern std::vector<uint64_t> BB_RANK_MASKS;
-extern std::vector<SlidingRow> BB_RANK_ATTACKS;
+extern SlidingTable BB_RANK_ATTACKS;
 extern std::vector<std::vector<uint64_t>> BB_RAYS;
 
 // Static-ordering instrumentation: how often the placement tiebreaker was CONSULTED for a quiet (the

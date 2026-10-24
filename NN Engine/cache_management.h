@@ -936,10 +936,11 @@ inline MoveEntry& accessMutableMoveGenCache(uint64_t updatedKey, uint64_t castli
     return entry;
 }
 
-inline void addToMoveGenCache(uint64_t key, std::vector<Move> reorderedMoves, uint64_t castling_rights, int ep_square) {
+// Copies into the slot's own vector, reusing its capacity: no allocation once the slot has held a list this long.
+inline void addToMoveGenCache(uint64_t key, const std::vector<Move> &reorderedMoves, uint64_t castling_rights, int ep_square) {
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     MoveEntry& moveEntry = accessMutableMoveGenCache(updatedKey, castling_rights, ep_square);
-    moveEntry.moves = std::move(reorderedMoves);  // Move for speed    
+    moveEntry.moves.assign(reorderedMoves.begin(), reorderedMoves.end());
 }
 
 

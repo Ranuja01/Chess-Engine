@@ -67,11 +67,11 @@ std::array<std::array<uint64_t, NUM_SQUARES>, 2> latent_support_left_table;
 std::array<std::array<uint64_t, NUM_SQUARES>, 2> latent_support_right_table;
 std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 std::vector<uint64_t> BB_DIAG_MASKS;
-std::vector<SlidingRow> BB_DIAG_ATTACKS;
+SlidingTable BB_DIAG_ATTACKS;
 std::vector<uint64_t> BB_FILE_MASKS;
-std::vector<SlidingRow> BB_FILE_ATTACKS;
+SlidingTable BB_FILE_ATTACKS;
 std::vector<uint64_t> BB_RANK_MASKS;
-std::vector<SlidingRow> BB_RANK_ATTACKS;
+SlidingTable BB_RANK_ATTACKS;
 std::vector<std::vector<uint64_t>> BB_RAYS;
 
 
@@ -781,7 +781,7 @@ void initialize_attack_tables() {
 	rays(BB_RAYS);
 }
 
-void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<SlidingRow> &attack_table) {
+void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, SlidingTable &attack_table) {
 
 	/*
 		Function to initialize attack mask tables for diagonal, file and rank attacks
@@ -789,12 +789,13 @@ void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask
 		Parameters:
 		- deltas: A vector of position delta values, passed by reference
 		- mask_table: An empty vector to hold the sliding attacks masks, passed by reference
-		- attack_table: An empty vector to hold the attack subsets of the mask, passed by reference
+		- attack_table: The table to fill, passed by reference
 
-		Each square's attacks are stored in a PEXT (Parallel Bits Extract) row:
-		the masked occupancy subset is compressed with _pext_u64 into a dense
-		index into a flat array, replacing the prior unordered_map lookup.
+		Each square's attacks fill one block of the table's flat array: the masked occupancy subset is compressed
+		with _pext_u64 into a dense index within the block (see SlidingTable).
 	*/
+
+	uint32_t next = 0;
 
 	// Loop through all squares
     for (int square = 0; square < 64; ++square) {
@@ -802,21 +803,24 @@ void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask
 		// Acquire sliding attacks mask for the given deltas
         uint64_t mask = sliding_attacks(square, 0ULL, deltas) & ~edges(square);
 
-		// Build the dense PEXT-indexed attack array for this square
-		SlidingRow row;
-		row.mask = mask;
-		row.data.assign(1ULL << __builtin_popcountll(mask), 0ULL);
+		const uint32_t size = 1u << __builtin_popcountll(mask);
+		if (next + size > SlidingTable::CAPACITY) {
+			std::cerr << "attack_table: SlidingTable::CAPACITY " << SlidingTable::CAPACITY << " too small" << std::endl;
+			std::abort();
+		}
+		attack_table.mask[square] = mask;
+		attack_table.offset[square] = next;
 
 		// Acquire subsets of attacks mask and loop through them to form the attack table
 		std::vector<uint64_t> subsets;
 		carry_rippler(mask,subsets);
         for (uint64_t subset : subsets) {
-            row.data[_pext_u64(subset, mask)] = sliding_attacks(square, subset, deltas);
+            attack_table.data[next + _pext_u64(subset, mask)] = sliding_attacks(square, subset, deltas);
         }
+		next += size;
 
-		// Push the current mask and attack tables to the full set
+		// Push the current mask to the full set
         mask_table.push_back(mask);
-        attack_table.push_back(std::move(row));
     }
 }
 

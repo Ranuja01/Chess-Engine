@@ -28,22 +28,29 @@ constexpr size_t TT_CACHE_SIZE = 1 << 24;  // example: 1M entries
 constexpr uint64_t TT_CACHE_MASK = TT_CACHE_SIZE - 1;
 
 /*
-	PEXT (Parallel Bits Extract, BMI2 _pext_u64) sliding-attack row.
+	PEXT (Parallel Bits Extract, BMI2 _pext_u64) sliding-attack table for one slider direction set (diagonals, files
+	or ranks), looked up as TABLE[square][occupancy].
 
-	A per-square attack table for one slider direction set. The masked
-	occupancy is compressed with _pext_u64 into a dense index, so a lookup is a
-	single array read instead of an unordered_map hash + pointer chase. Because
-	_pext_u64(mask & occupied, mask) == _pext_u64(occupied, mask) and
-	_pext_u64(0, mask) == 0, every existing call site works unchanged whether it
-	passes (BB_X_MASKS[sq] & occupied) or a literal 0 (empty-board rays).
+	Each square owns a block of the flat data array: the masked occupancy is compressed with _pext_u64 into a dense
+	index within that block. The masks, offsets and data are fixed-size arrays in one static object, so a lookup is
+	two loads at fixed addresses, one PEXT and the data read (no pointer chain through per-square heap vectors).
+	Because _pext_u64(mask & occupied, mask) == _pext_u64(occupied, mask) and _pext_u64(0, mask) == 0, call sites
+	may pass (BB_X_MASKS[sq] & occupied) or a literal 0 (empty-board rays).
 
-	Note: _pext_u64 is fast on Intel and on AMD Zen3+, but microcoded/slow on
-	AMD Zen1/Zen2 — fine on this -march=native build.
+	Note: _pext_u64 is fast on Intel and on AMD Zen3+, but microcoded/slow on AMD Zen1/Zen2 — fine on this
+	-march=native build. A non-PEXT index would only replace Row::operator[].
 */
-struct SlidingRow {
-	uint64_t mask = 0;
-	std::vector<uint64_t> data;  // size 1 << popcount(mask), indexed by pext(occ, mask)
-	uint64_t operator[](uint64_t occ) const { return data[_pext_u64(occ, mask)]; }
+struct SlidingTable {
+	static constexpr uint32_t CAPACITY = 5248;   // diagonals need 5248 entries in all; files and ranks 2560 each
+	uint64_t mask[64] = {};                      // relevant blockers per square (board edges excluded)
+	uint32_t offset[64] = {};                    // start of the square's block in data
+	uint64_t data[CAPACITY] = {};                // attacks, at offset[sq] + pext(occupancy, mask[sq])
+	struct Row {
+		const SlidingTable &t;
+		const unsigned sq;
+		uint64_t operator[](uint64_t occ) const { return t.data[t.offset[sq] + _pext_u64(occ, t.mask[sq])]; }
+	};
+	Row operator[](unsigned sq) const { return Row{*this, sq}; }
 };
 
 // Define masks for move generation
@@ -54,11 +61,11 @@ extern std::array<uint64_t, NUM_SQUARES> passed_span_white;
 extern std::array<uint64_t, NUM_SQUARES> passed_span_black;
 extern std::array<std::array<uint64_t, NUM_SQUARES>, 2> BB_PAWN_ATTACKS;
 extern std::vector<uint64_t> BB_DIAG_MASKS;
-extern std::vector<SlidingRow> BB_DIAG_ATTACKS;
+extern SlidingTable BB_DIAG_ATTACKS;
 extern std::vector<uint64_t> BB_FILE_MASKS;
-extern std::vector<SlidingRow> BB_FILE_ATTACKS;
+extern SlidingTable BB_FILE_ATTACKS;
 extern std::vector<uint64_t> BB_RANK_MASKS;
-extern std::vector<SlidingRow> BB_RANK_ATTACKS;
+extern SlidingTable BB_RANK_ATTACKS;
 extern std::vector<std::vector<uint64_t>> BB_RAYS;
 
 // Define global masks for piece placement
@@ -362,7 +369,7 @@ void initialize_attack_tables();
 void rebuild_scaled_placement();
 void rebuild_scaled_pawn_tables();
 void rebuild_ks_tables();
-void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, std::vector<SlidingRow> &attack_table);
+void attack_table(const std::vector<int8_t>& deltas, std::vector<uint64_t> &mask_table, SlidingTable &attack_table);
 uint64_t sliding_attacks(uint8_t square, uint64_t occupied, const std::vector<int8_t>& deltas);
 void carry_rippler(uint64_t mask, std::vector<uint64_t> &subsets);
 void rays(std::vector<std::vector<uint64_t>> &rays);

@@ -12,6 +12,8 @@ SRC="cpp_bitboard.cpp eval_v2.cpp ThreadPool.cpp search_engine.cpp position.cpp 
 # never reached keeps normal optimisation (-fprofile-partial-training). FLAGS is expanded unquoted, so PGO_DIR must not
 # contain spaces (the repo path does: put the profile elsewhere, e.g. /mnt/e/chess_data/pgo_<tag>).
 case "$PGO_DIR" in *" "*) echo "BUILD FAILED: PGO_DIR contains a space: $PGO_DIR"; exit 1 ;; esac
+# EXTRA_FLAGS: appended as given, e.g. "-g -fno-omit-frame-pointer" for a copy perf can symbolise.
+FLAGS="$FLAGS $EXTRA_FLAGS"
 case "$PGO" in
   gen) FLAGS="$FLAGS -fprofile-generate=${PGO_DIR:?PGO_DIR needed}" ;;
   use) FLAGS="$FLAGS -fprofile-use=${PGO_DIR:?PGO_DIR needed} -fprofile-partial-training -Wno-missing-profile" ;;

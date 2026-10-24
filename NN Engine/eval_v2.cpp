@@ -561,6 +561,13 @@ inline int rung0_material_and_placement(const V2Context &c,
 struct SideAttacks {
 	uint64_t all, dbl;
 	uint64_t by[7];      // indexed PAWN..KING (1..6); [0] unused
+	// Each piece's attack mask exactly as build_side_attacks made it (x-ray occupancy for B/R under KS_V2_XRAY), in build
+	// order, so king safety reads them instead of recomputing them. Sized for any position a FEN can describe (one man
+	// per square); only the n entries written are touched.
+	int      n;
+	uint8_t  piece_sq[64];
+	uint8_t  piece_type[64];
+	uint64_t piece_att[64];
 };
 
 /*
@@ -679,6 +686,7 @@ inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, 
 	// pin line, as SF restricts its defender maps. 0 = the shared maps every other consumer reads, unchanged.
 	sa.all = sa.dbl = 0;
 	for (int t = 0; t < 7; ++t) sa.by[t] = 0;
+	sa.n = 0;
 
 	const uint64_t own = white ? c.white : c.black;
 	const uint64_t typeMasks[6] = {c.pawns, c.knights, c.bishops, c.rooks, c.queens, c.kings};
@@ -700,6 +708,10 @@ inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, 
 			sa.dbl |= sa.all & a;
 			sa.all |= a;
 			sa.by[pt] |= a;
+			sa.piece_sq[sa.n] = sq;
+			sa.piece_type[sa.n] = pt;
+			sa.piece_att[sa.n] = a;
+			++sa.n;
 			if (mob && pt >= KNIGHT && pt <= QUEEN){
 				// MOB_V2_PIN (SF11:273-274): a pinned piece of ours counts only its pin line; a pinned knight's targets are
 				// never on it. The KS maps above keep the full mask -- the knob changes mobility only.
@@ -861,29 +873,21 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	uint64_t contested = 0;
 	if (want_contest){
 		int na[64] = {0}, nd[64] = {0};
-		const uint64_t typeAll[5] = {c.pawns, c.knights, c.bishops, c.rooks, c.queens};
+		// Every man but the kings, with the attack masks build_side_attacks stored (the same occupancy, x-ray included).
 		for (int side = 0; side < 2; ++side){
-			const bool     w     = side == 0;
-			const uint64_t men   = w ? c.white : c.black;
-			const bool     is_att = (men == enemy);
-			for (int t = 0; t < 5; ++t){
-				const uint8_t pt = (uint8_t)(t + 1);
-				uint64_t bb = typeAll[t] & men;
-				while (bb){
-					const uint8_t sq = (uint8_t)__builtin_ctzll(bb);
-					bb &= bb - 1;
-					uint64_t occ_for = c.occupied;
-					if (Config::KS_V2_XRAY){
-						if (pt == BISHOP)    occ_for = c.occupied ^ c.queens;
-						else if (pt == ROOK) occ_for = c.occupied ^ c.queens ^ (c.rooks & men);
-					}
-					uint64_t a = attacks_mask(w, occ_for, sq, pt) & zone;
-					if (!is_att && Config::KS_V2_PIN_DEF && ((blk & own) >> sq & 1) && pt != PAWN) a &= ray(ksq, sq);
-					const int mult = (!is_att && pt == PAWN) ? 2 : 1;   // a pawn defender is the strongest guard
-					while (a){
-						const int z = __builtin_ctzll(a); a &= a - 1;
-						if (is_att) ++na[z]; else nd[z] += mult;
-					}
+			const bool         w      = side == 0;
+			const SideAttacks &sa     = w ? wa : ba;
+			const bool         is_att = ((w ? c.white : c.black) == enemy);
+			for (int k = 0; k < sa.n; ++k){
+				const uint8_t pt = sa.piece_type[k];
+				if (pt == KING) continue;
+				const uint8_t sq = sa.piece_sq[k];
+				uint64_t a = sa.piece_att[k] & zone;
+				if (!is_att && Config::KS_V2_PIN_DEF && ((blk & own) >> sq & 1) && pt != PAWN) a &= ray(ksq, sq);
+				const int mult = (!is_att && pt == PAWN) ? 2 : 1;   // a pawn defender is the strongest guard
+				while (a){
+					const int z = __builtin_ctzll(a); a &= a - 1;
+					if (is_att) ++na[z]; else nd[z] += mult;
 				}
 			}
 		}
@@ -899,27 +903,25 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	}
 
 	// ── attacker count and weight: plain occupancy (shipped), x-ray (KS_V2_ATT_XRAY), contest-scaled (DEFAWARE) ─────
-	const uint64_t typeMasks[4] = {c.knights, c.bishops, c.rooks, c.queens};
 	const uint64_t ring = BB_KING_ATTACKS[ksq];
 	long long w_contest256 = 0;
-	for (int i = 0; i < 4; ++i){
-		const uint8_t pt = (uint8_t)(i + 2);              // KNIGHT..QUEEN
-		uint64_t bb = typeMasks[i] & enemy;
-		while (bb){
-			const uint8_t sq = __builtin_ctzll(bb);
-			bb &= bb - 1;
-			const uint64_t a = attacks_mask(!white_king, c.occupied, sq, pt);
+	// The attacking side's N, B, R, Q in build order (by type, then square). Their stored masks use the x-ray occupancy
+	// for B/R under KS_V2_XRAY; the attacker count itself uses plain occupancy, so B/R recompute that one.
+	for (int k = 0; k < att.n; ++k){
+		const uint8_t pt = att.piece_type[k];
+		if (pt < KNIGHT || pt > QUEEN) continue;
+		const int     i  = pt - KNIGHT;
+		const uint8_t sq = att.piece_sq[k];
+		const bool    xray_stored = Config::KS_V2_XRAY && (pt == BISHOP || pt == ROOK);
+		{
+			const uint64_t a = xray_stored ? attacks_mask(!white_king, c.occupied, sq, pt) : att.piece_att[k];
 			if (a & zone){
 				++ch.n_att;
 				ch.w_att += W[pt];
 				++ch.att_t[i];
 			}
 			if (full || Config::KS_V2_ATT_XRAY || Config::KS_V2_ADJ_INST || Config::KS_V2_DEFAWARE){
-				uint64_t ax = a;
-				if (Config::KS_V2_XRAY){
-					if (pt == BISHOP)    ax = attacks_mask(!white_king, c.occupied ^ c.queens, sq, pt);
-					else if (pt == ROOK) ax = attacks_mask(!white_king, c.occupied ^ c.queens ^ (c.rooks & enemy), sq, pt);
-				}
+				const uint64_t ax = att.piece_att[k];
 				const uint64_t cnt_mask = Config::KS_V2_ATT_XRAY ? ax : a;
 				if (ax & zone){ ++ch.n_att_x; ch.w_att_x += W[pt]; ++ch.att_x_t[i]; }
 				if (cnt_mask & zone){

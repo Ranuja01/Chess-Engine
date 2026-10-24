@@ -4,6 +4,39 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚡★★★ 2026-10-23 evening — SPEED BATCHES 2-6 (result-identical), PGO, THE EVAL-CACHE FIX, `Hash`
+Source: the owner's `owner-cpp-ideas.md` (its results table has every item's detail). All items: bench v2 258 / 47,689,586 and
+v1 250 / 35,310,778 unchanged; speed = SIDE-BY-SIDE benches of two binaries run concurrently (queue #96 loading the box), 2-6
+rounds with the start order swapped (a single loaded bench reading moved ±30% and misled twice tonight).
+
+    batch / item                                                    bench time ratio          commit
+    2  F3 ten per-node atomics → plain · F14 branch-free castling key  vs production: 0.894 / 0.866   e499e3a
+       F13 dirty-chunk bitmap: decay + clear walk touched chunks only (≈ −12%; part is the bench's 134 MB clear per position)
+       F2 quick legal-move test before the move-gen probe; mate_state (MATE_TEST_VERIFY 14.07M answers, 0 wrong)
+    PGO on batch 2 (build_uci.sh PGO=gen|use; bench + 8 games training) vs batch 2: 0.977 / 0.964 (≈ −3%)
+    3  F5 flat SlidingTable · F4 move-gen insert by const& (perft ok)   vs batch 2: 0.9955 (4 rounds) = neutral   1b6eb3f
+       isNearGameEnd initialised to TRUE: the compiled code always behaved so (only =true reproduces both
+       fingerprints); UB gone, result-identical; the "normal endgame" quiet order has NEVER run   706adfc
+    F7 16-pass collapse: partial (precomputed attacks) −1.5%; full (one generation + pass index, 7.13M lists equal)
+       0.9975 over 6 rounds ⇒ PARKED, patches in E:\chess_data\patches\
+    5  F6 king safety reuses build_side_attacks' per-piece masks (≈ 60 of ~114 attack computations per eval)
+                                                                      vs batch 3: 0.973 (4/4 rounds)   2872272
+    6  F1 PREFETCH_TABLES=15: child's TT / q / eval / move-gen slots at the end of make_move
+                                                                      knob vs off: 0.930 / 0.940 (TT only 0.98)   8661bfa
+    F12 (huge pages, history table) set aside: a 2 MB page commits whole → the 134 MB becomes resident (footprint goal).
+    F15 (compiler hardening off) BLOCKED by the session's permission check (security-weakening edit): owner decision pending.
+
+Real-play perf (10-23, `E:\chess_data\perf_play2.log`, fastchess, 2 processes): ks_units ≈ 11% of engine time (before F6), TT
+probe ≈ 16%, the four table probes ≈ a third. ⚠️ The PROF_* scope profiler inflates fine-grained scopes (123M MG_PSEUDO entries):
+judge speed targets on perf sampling. ⇒ What paid: removing real work (allocations, locked ops, 134 MB walks, recomputed
+masks) and overlapping memory waits; what did not: layout tidying (F5) and pass restructuring (F7).
+**Eval-cache fix (UNCOMMITTED, for the Phase B gen):** EVAL_CACHE_FORM (v2 only; v1 frozen at form 0): 2 = the cache holds the
+fixed Black-positive value, side flip + noise after reading, and checkmate scores are not cached (ply-dependent). Form 0 =
+258 / 47,689,586 (old); forms 1 and 2 = **257 / 47,675,623**, and at EVAL_LOG2=20 the same 47,675,623 ⇒ the eval cache is
+decision-neutral on the mixed-colour bench. UCI `Hash` (MB → largest power-of-two TT; default 512 = 2^24): Hash 128 ≡
+TT_LOG2=22 (257 / 47,685,244). Queues: #96 (footprint arms, batch-2 identity + games, PGO games), #97 chained (batch 6 + PGO
+vs production, st=1, 400 g; registered nps +15…+25%, Elo +30…+60).
+
 ## ⚡★★★★ 2026-10-21/22 — GEN 5 (search correctness), THE VOID KNOB MATCHES, AND THE SPEED BATCH S1-S4
 Details and every number: `SEARCH-CORRECTNESS-PLAN-2026-10-19.md` (queue #88-#93 sections, speed tally, transition scope).
 

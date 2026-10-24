@@ -1259,10 +1259,67 @@ inline bool is_check(bool colour, uint64_t occupied, uint64_t queens_and_rooks, 
 inline std::vector<Move> accessMoveGenCache(uint64_t key, uint64_t castling_rights, int ep_square);
 inline bool moveGenCacheHasMoves(uint64_t key, uint64_t castling_rights, int ep_square);
 
+// Shortcut for "does the side to move have a legal move?". True only when it finds one; false means "not settled" and
+// the caller runs the full test. Not in check, a piece off every queen line through our king cannot be pinned, so any
+// move it has is legal (castling and en passant are left to the full test). In or out of check, a king step is legal
+// when no enemy piece attacks the target with our king lifted off the board.
+inline bool quick_has_legal_move(bool in_check, uint64_t occupiedMask, uint64_t opposingPieces, uint64_t ourPieces,
+								 uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+								 uint64_t queensMask, uint64_t kingsMask, bool turn){
+
+	const uint64_t king_bb = kingsMask & ourPieces;
+	const uint8_t king = 63 - __builtin_clzll(king_bb);
+	if (!in_check){
+		const uint64_t lines = BB_RANK_ATTACKS[king][0] | BB_FILE_ATTACKS[king][0] | BB_DIAG_ATTACKS[king][0];
+		const uint64_t free_pieces = ourPieces & ~lines & ~king_bb;
+		for (uint64_t bb = free_pieces & knightsMask; bb; bb &= bb - 1)
+			if (BB_KNIGHT_ATTACKS[__builtin_ctzll(bb)] & ~ourPieces)
+				return true;
+		const uint64_t pawns = free_pieces & pawnsMask;
+		if ((turn ? pawns << 8 : pawns >> 8) & ~occupiedMask)
+			return true;
+		for (uint64_t bb = free_pieces & (bishopsMask | rooksMask | queensMask); bb; bb &= bb - 1){
+			const uint8_t sq = __builtin_ctzll(bb);
+			const uint8_t type = ((queensMask >> sq) & 1) ? 5 : ((rooksMask >> sq) & 1) ? 4 : 3;
+			if (attacks_mask(turn, occupiedMask, sq, type) & ~ourPieces)
+				return true;
+		}
+	}
+	const uint64_t without_king = occupiedMask & ~king_bb;
+	for (uint64_t bb = BB_KING_ATTACKS[king] & ~ourPieces; bb; bb &= bb - 1)
+		if (!attackersMask(!turn, __builtin_ctzll(bb), without_king, queensMask | rooksMask, queensMask | bishopsMask,
+						   kingsMask, knightsMask, pawnsMask, opposingPieces))
+			return true;
+	return false;
+}
+
+// MATE_TEST_VERIFY: every "has a move" answer of the shortcut is checked against the full generator and counted.
+inline bool g_mate_quick_verify = false;
+inline long g_mate_quick_checked = 0, g_mate_quick_wrong = 0;
+
+inline bool quick_legal_move_found(bool in_check, uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+								   uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
+
+	if (!quick_has_legal_move(in_check, occupiedMask, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask,
+							  queensMask, kingsMask, turn))
+		return false;
+	if (g_mate_quick_verify){
+		++g_mate_quick_checked;
+		if (!has_any_legal_move(preliminary_castling_mask, ~0ULL, ~0ULL, occupiedMask, occupiedWhite, opposingPieces, ourPieces,
+								pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn))
+			++g_mate_quick_wrong;
+	}
+	return true;
+}
+
 inline bool is_checkmate(uint64_t zobrist, uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 	  			  uint64_t bishopsMask,	uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask,  int ep_square, bool turn){
 
 	if (!is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
+		return false;
+
+	if (quick_legal_move_found(true, preliminary_castling_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
+							   knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn))
 		return false;
 
 	if (moveGenCacheHasMoves(zobrist, preliminary_castling_mask, ep_square))
@@ -1280,6 +1337,10 @@ inline bool is_stalemate(uint64_t zobrist, uint64_t preliminary_castling_mask, u
 	if (is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces))
 		return false;
 
+	if (quick_legal_move_found(false, preliminary_castling_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
+							   knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn))
+		return false;
+
 	if (moveGenCacheHasMoves(zobrist, preliminary_castling_mask, ep_square))
 		return false;
 
@@ -1287,6 +1348,23 @@ inline bool is_stalemate(uint64_t zobrist, uint64_t preliminary_castling_mask, u
 	 				   occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask,
 					   rooksMask, queensMask, kingsMask, ep_square, turn);
 
+}
+
+// Checkmate / stalemate status in one pass: 0 = a legal move exists, 1 = checkmated, 2 = stalemated. The same answers
+// as is_checkmate followed by is_stalemate, with the check test done once.
+inline int mate_state(uint64_t zobrist, uint64_t preliminary_castling_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
+					  uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
+
+	const bool in_check = is_check(turn, occupiedMask, (queensMask | rooksMask), (queensMask | bishopsMask), kingsMask, knightsMask, pawnsMask, opposingPieces);
+	if (quick_legal_move_found(in_check, preliminary_castling_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
+							   knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn))
+		return 0;
+	if (moveGenCacheHasMoves(zobrist, preliminary_castling_mask, ep_square))
+		return 0;
+	if (has_any_legal_move(preliminary_castling_mask, ~0ULL, ~0ULL, occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask,
+						   knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn))
+		return 0;
+	return in_check ? 1 : 2;
 }
 
 inline void scan_forward(uint64_t bb, std::vector<uint8_t> &result) {

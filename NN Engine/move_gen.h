@@ -249,9 +249,12 @@ inline bool has_any_legal_move(uint64_t preliminary_castling_mask, uint64_t from
 	 					uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 						uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn){
 
-	std::vector<uint8_t> startPos;
-	std::vector<uint8_t> endPos;
-	std::vector<uint8_t> promotions;
+	// Reused scratch (cleared, capacity kept): this runs on eval-cache misses, and fresh vectors allocated every time.
+	// Not re-entrant, which is fine: nothing below calls back into has_any_legal_move.
+	static thread_local std::vector<uint8_t> startPos, endPos, promotions;
+	startPos.clear();
+	endPos.clear();
+	promotions.clear();
 
 	uint64_t king_mask = kingsMask & ourPieces;
 	uint8_t king = 63 - __builtin_clzll(king_mask);

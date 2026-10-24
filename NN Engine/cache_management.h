@@ -294,7 +294,21 @@ extern int contHist2P[2][PCONT_DIM][PCONT_DIM];
 // SEPARATE piece x to term alongside them (measured neutral twice, closed).
 // Both tables are kept and every access funnels through these refs so the keyings cannot drift.
 // Default 0 => the from x to tables are used verbatim => byte-identical.
+//
+// Chunks of the from x to counterMoveHeuristics that may hold a non-zero value: bit (entry >> 6) of word
+// [side * 4096 + context] covers the 64 consecutive ints of that context row. Every write goes through cmh_ref,
+// which sets the bit, so an unmarked chunk is all zero and the periodic decay and the clear can skip it (a search
+// touches a small part of the 134 MB table). Reads use cmh_get, which does not mark. Cleared with the table.
+extern uint64_t g_cmh_dirty[2 * 4096];
 inline int &cmh_ref(int side, const Move &ctx, const Move &ent, const BoardState &st)
+{
+    if (Config::CONT_HIST_PIECE_KEY)
+        return counterMoveHeuristicsP[side][pcont_ctx_key(ctx, st)][pcont_ent_key(ent, st)];
+    const int c = cont_ctx_key(ctx, st), e = cont_ent_key(ent, st);
+    g_cmh_dirty[side * 4096 + c] |= 1ULL << (e >> 6);
+    return counterMoveHeuristics[side][c][e];
+}
+inline int cmh_get(int side, const Move &ctx, const Move &ent, const BoardState &st)
 {
     if (Config::CONT_HIST_PIECE_KEY)
         return counterMoveHeuristicsP[side][pcont_ctx_key(ctx, st)][pcont_ent_key(ent, st)];
@@ -788,14 +802,13 @@ inline int printQCacheStats() {
 }
 
 
+// XOR of castling_hash[i] over the rook squares whose right is set. Branch-free: (0 - bit) is all ones when the
+// right is set and zero otherwise, so each term is either the key or nothing. Called several times per node.
 inline uint64_t hash_castling(uint64_t castling_rights) {
-    uint64_t result = 0;
-    for (int i = 0; i < 4; ++i) {
-        if (castling_rights & (1ULL << rook_squares[i])) {
-            result ^= castling_hash[i];
-        }
-    }
-    return result;
+    return (castling_hash[0] & (0 - ((castling_rights >> rook_squares[0]) & 1)))
+         ^ (castling_hash[1] & (0 - ((castling_rights >> rook_squares[1]) & 1)))
+         ^ (castling_hash[2] & (0 - ((castling_rights >> rook_squares[2]) & 1)))
+         ^ (castling_hash[3] & (0 - ((castling_rights >> rook_squares[3]) & 1)));
 }
 
 inline uint64_t make_move_cache_key(uint64_t zobrist_base, uint64_t castling_rights, int ep_square) {
@@ -1285,12 +1298,25 @@ inline void decayCounterMoveHeuristics() {
                     counterMoveHeuristicsP[side][c][e] >>= DECAY_FACTOR;
         return;
     }
-    for (int side = 0; side < 2; ++side) {
-        for (int from = 0; from < 4096; ++from) {
-            for (int to = 0; to < 4096; ++to) {
-                counterMoveHeuristics[side][from][to] >>= DECAY_FACTOR;
-            }
+    // Only chunks marked in g_cmh_dirty can be non-zero; the rest stay 0 under the shift.
+    int *base = &counterMoveHeuristics[0][0][0];
+    for (int w = 0; w < 2 * 4096; ++w) {
+        for (uint64_t bits = g_cmh_dirty[w]; bits; bits &= bits - 1) {
+            int *p = base + (size_t)w * 4096 + 64 * __builtin_ctzll(bits);
+            for (int k = 0; k < 64; ++k)
+                p[k] >>= DECAY_FACTOR;
         }
+    }
+}
+
+// Zero the from x to counterMoveHeuristics: the marked chunks, then the marks.
+inline void clearCounterMoveHeuristics() {
+    int *base = &counterMoveHeuristics[0][0][0];
+    for (int w = 0; w < 2 * 4096; ++w) {
+        for (uint64_t bits = g_cmh_dirty[w]; bits; bits &= bits - 1)
+            std::fill(base + (size_t)w * 4096 + 64 * __builtin_ctzll(bits),
+                      base + (size_t)w * 4096 + 64 * __builtin_ctzll(bits) + 64, 0);
+        g_cmh_dirty[w] = 0;
     }
 }
 

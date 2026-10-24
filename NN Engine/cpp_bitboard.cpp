@@ -215,6 +215,7 @@ alignas(64) Move killerMoves[MAX_PLY][2];
 alignas(64) Move counterMoves[64][64];
 
 alignas(64) int counterMoveHeuristics[2][4096][4096] = {};
+uint64_t g_cmh_dirty[2 * 4096] = {};   // non-zero chunks of counterMoveHeuristics (see cmh_ref)
 
 alignas(64) int historyHeuristics[2][64][64] = {};
 

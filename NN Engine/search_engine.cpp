@@ -176,21 +176,23 @@ long g_qgen_verify_lists = 0, g_qgen_verify_mismatch = 0;
 double g_tm_total_s = 0, g_tm_wasted_s = 0;
 long g_tm_moves = 0, g_tm_cut = 0, g_tm_cut_differs = 0;
 
-std::atomic<int> nodes_since_time_check;
+// Per-node counters, written and read only by the search thread. Plain integers on purpose: an increment of a
+// std::atomic is a locked instruction on x86 even with relaxed ordering, and these run several times per node.
+int nodes_since_time_check;
 
-std::atomic<int> eval_visits;
-std::atomic<int> eval_cache_hits;
+long long eval_visits;
+long long eval_cache_hits;
 
-std::atomic<int> move_gen_visits;
-std::atomic<int> move_gen_cache_hits;
+long long move_gen_visits;
+long long move_gen_cache_hits;
 
-std::atomic<int> tt_visits;
-std::atomic<int> tt_probes;
-std::atomic<int> tt_hits;
+long long tt_visits;
+long long tt_probes;
+long long tt_hits;
 
 std::atomic<int> nodes;
 
-std::atomic<int> qsearchVisits;
+long long qsearchVisits;
 
 Move pv_table[MAX_PLY][MAX_PLY];
 int pv_length[MAX_PLY];
@@ -920,7 +922,7 @@ namespace
     {
         long ss = (long)Config::STATSCORE_MAIN_W * historyHeuristics[cs.turn][move.from_square][move.to_square];
         if (previousMove.from_square != previousMove.to_square)
-            ss += (long)Config::STATSCORE_CONT1_W * cmh_ref(cs.turn, previousMove, move, cs);
+            ss += (long)Config::STATSCORE_CONT1_W * cmh_get(cs.turn, previousMove, move, cs);
         if (ply >= 2)
         {
             Move p2 = g_searchStack[ply - 2];
@@ -937,7 +939,7 @@ namespace
     {
         long ss  = shadow_statscore(move, previousMove, cs, ply);
         int  cmh = (previousMove.from_square != previousMove.to_square)
-                       ? cmh_ref(cs.turn, previousMove, move, cs) : 0;
+                       ? cmh_get(cs.turn, previousMove, move, cs) : 0;
         int  ch2 = 0;
         if (ply >= 2)
         {
@@ -1074,7 +1076,7 @@ namespace
     {
         long s = historyHeuristics[turn][m.from_square][m.to_square];
         if (pm.from_square != pm.to_square)
-            s += cmh_ref(turn, pm, m, st);
+            s += cmh_get(turn, pm, m, st);
         if (p2.from_square != p2.to_square)
             s += ch2_ref(turn, p2, m, st);
         return s;
@@ -1303,7 +1305,7 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
         long statScore = (long)Config::STATSCORE_MAIN_W * historyHeuristics[cs.turn][move.from_square][move.to_square];
         if (previousMove.from_square != previousMove.to_square)
             statScore += (long)Config::STATSCORE_CONT1_W *
-                         cmh_ref(cs.turn, previousMove, move, cs);
+                         cmh_get(cs.turn, previousMove, move, cs);
         if (ply >= 2)
         {
             Move p2 = g_searchStack[ply - 2];
@@ -1345,7 +1347,7 @@ inline int history_lmr_delta(const Move &move, const Move &previousMove, const B
     if (tier == 0)
     {
         if (Config::ENABLE_CONT_HIST && previousMove.from_square != previousMove.to_square &&
-            cmh_ref(cs.turn, previousMove, move, cs) >= Config::CONT_HIST_LMR_THRESH)
+            cmh_get(cs.turn, previousMove, move, cs) >= Config::CONT_HIST_LMR_THRESH)
             return 0;
         // A strong 2-ply continuation (move 2 plies back x this move) also rescues a tier-0 quiet
         // from reduce-more. Gated; reuses the 1-ply threshold.
@@ -2637,6 +2639,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_QS_CHECK = env_int("FIX_QS_CHECK", Config::FIX_QS_CHECK);
         Config::QGEN_NOISY_ONLY = env_int("QGEN_NOISY_ONLY", Config::QGEN_NOISY_ONLY);
         Config::QGEN_VERIFY = env_int("QGEN_VERIFY", Config::QGEN_VERIFY);
+        g_mate_quick_verify = env_int("MATE_TEST_VERIFY", 0) != 0;
         Config::REP_STACK = env_int("REP_STACK", Config::REP_STACK);
         Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);
         Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
@@ -3480,7 +3483,7 @@ void clearSearchTables()
 	if (Config::CONT_HIST_PIECE_KEY)
 		std::fill(&counterMoveHeuristicsP[0][0][0], &counterMoveHeuristicsP[0][0][0] + 2LL * PCONT_DIM * PCONT_DIM, 0);
 	else
-		std::fill(&counterMoveHeuristics[0][0][0], &counterMoveHeuristics[0][0][0] + 2LL * 4096 * 4096, 0);
+		clearCounterMoveHeuristics();
 	std::fill(&killerMoves[0][0],  &killerMoves[0][0]  + 64 * 2,  Move{});
 	std::fill(&counterMoves[0][0], &counterMoves[0][0] + 64 * 64, Move{});
 	if (Config::ENABLE_CONT_HIST_2PLY)
@@ -3869,6 +3872,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " d0_quiets_skipped=" << g_qcheck_d0_skipped << std::endl;
     if (Config::QGEN_VERIFY)
         std::cerr << "[qgen_verify] lists=" << g_qgen_verify_lists << " mismatches=" << g_qgen_verify_mismatch << std::endl;
+    if (g_mate_quick_verify)
+        std::cerr << "[mate_verify] quick_yes=" << g_mate_quick_checked << " wrong=" << g_mate_quick_wrong << std::endl;
     std::cerr << "[node_split] total=" << num_iterations
               << " qnodes=" << qsearchVisits
               << " presearch=" << g_presearch_nodes << std::endl;
@@ -5520,9 +5525,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
-    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= Config::TIME_CHECK_NODES)
+    else if (nodes_since_time_check++ >= Config::TIME_CHECK_NODES)
     {
-        nodes_since_time_check.store(0, std::memory_order_relaxed);
+        nodes_since_time_check = 0;
 
         if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
         {
@@ -6503,9 +6508,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
-    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= Config::TIME_CHECK_NODES)
+    else if (nodes_since_time_check++ >= Config::TIME_CHECK_NODES)
     {
-        nodes_since_time_check.store(0, std::memory_order_relaxed);
+        nodes_since_time_check = 0;
 
         if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
         {
@@ -8049,9 +8054,9 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         time_up.store(true, std::memory_order_relaxed);
         return 0;
     }
-    else if (nodes_since_time_check.fetch_add(1, std::memory_order_relaxed) >= Config::TIME_CHECK_NODES)
+    else if (nodes_since_time_check++ >= Config::TIME_CHECK_NODES)
     {
-        nodes_since_time_check.store(0, std::memory_order_relaxed);
+        nodes_since_time_check = 0;
 
         if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
         {
@@ -8793,13 +8798,13 @@ inline void increment_node_count_with_decay(int &num_iterations)
     num_iterations++;
     if (!Config::ENABLE_HISTORY_DECAY)
         return;
-    if (num_iterations % Config::DECAY_INTERVAL == 0)
-    {
-        decayHistoryHeuristics();
-        if (Config::ENABLE_CAPTURE_HIST)
-            decayCaptureHistory();
-    }
+    if (num_iterations % Config::DECAY_INTERVAL != 0)
+        return;
+    decayHistoryHeuristics();
+    if (Config::ENABLE_CAPTURE_HIST)
+        decayCaptureHistory();
 
+    // A multiple of DECAY_INTERVAL * 16 is also a multiple of DECAY_INTERVAL, so this test only needs to run here.
     if ((num_iterations % (Config::DECAY_INTERVAL * 16)) == 0)
     {
         decayCounterMoveHeuristics();
@@ -9683,8 +9688,9 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
     int total = 0;
     int moveNum = static_cast<int>(state_history.size());
 
-    if (is_checkmate(zobrist, current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
-                     current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
+    const int mate = mate_state(zobrist, current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
+                                current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn);
+    if (mate == 1)
     {
         if (current_state.turn)
         {
@@ -9695,8 +9701,7 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
             total = -9999999 + moveNum;
         }
     }
-    else if (is_stalemate(zobrist, current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
-                          current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
+    else if (mate == 2)
     {
         return 0;
     }

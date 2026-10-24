@@ -268,6 +268,17 @@ namespace
                 if (!g_inited) g_knobs += (g_knobs.empty() ? "" : ",") + item;
             }
         }
+        else if (name == "Hash")
+        {
+            // The transposition table: the largest power-of-two entry count that fits in Hash MB (128 = the v2 gen-6 default,
+            // 512 = the old fixed size).
+            // Latched like the other table knobs, so it must be set before the first search.
+            const long long mb = std::max(1LL, std::atoll(value.c_str()));
+            const unsigned long long entries = (unsigned long long)(mb << 20) / sizeof(TTEntry);
+            const int lg = std::clamp(63 - __builtin_clzll(entries), 10, 26);
+            latch("TT_LOG2", std::to_string(lg));
+            if (!g_inited) g_knobs += (g_knobs.empty() ? "" : ",") + std::string("TT_LOG2=") + std::to_string(lg);
+        }
         else if (name == "OwnBook") g_own_book = (value == "true");
         else if (name == "Debug") set_debug(value == "true");
         else if (name == "BookFile") g_book_file = value;
@@ -414,6 +425,7 @@ int main()
             say("option name BookFile type string default M11.2.bin");
             say("option name BookMaxPly type spin default 30 min 0 max 200");
             say("option name Knobs type string default <empty>");
+            say("option name Hash type spin default 128 min 1 max 4096");   // the v2 gen-6 TT (2^22 entries); v1 keeps 512
             say("uciok");
         }
         else if (cmd == "isready") { ensure_init(); say("readyok"); }

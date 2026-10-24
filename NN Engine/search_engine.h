@@ -3343,6 +3343,10 @@ namespace Config
     // (bits: 1 TT, 2 q-cache, 4 eval cache, 8 move-gen cache; 0 = off). A hint only: results are unchanged.
     // Bench time ratio against off, same binary and load: 1 → 0.98, 7 → 0.95, 15 → 0.935.
     inline int PREFETCH_TABLES = 15;
+    // EVAL_CACHE_FORM (v2 only): 0 = the eval cache holds side_to_play-relative values (wrong sign for a search for the
+    // other side), 1 = it holds the fixed Black-positive value, flipped on read, 2 = 1 and checkmate scores (ply-dependent)
+    // are not cached. See get_board_evaluation.
+    inline int EVAL_CACHE_FORM = 0;   // the v2 ship sets 2 from gen 6
     // Debug-only (default off = byte-identical): validate the SearchData parallel-array invariant and
     // move legality in the search, logging violations to stderr instead of crashing. Enabled with
     // CHESS_DEBUG_INVARIANTS=1 to hunt the move-ordering corruption.

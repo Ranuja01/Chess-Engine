@@ -157,6 +157,7 @@ std::atomic<bool> is_draw;
 // How often each correctness-fix site is reached (printed with FIX_COUNT_LOG): nodes created at halfmove clock 100,
 // repetition hits, iterations meeting the draw-exit condition, checkmates caught at the q-depth cap.
 long g_fixcnt_fifty = 0, g_fixcnt_rep = 0, g_fixcnt_drawexit = 0, g_fixcnt_qsmate = 0;
+long g_fixcnt_depthcap = 0;   // iterative deepening stopped by the per-ply table bound (MAX_PLY - 4), not by time
 // Time-manager accounting (printed with FIX_COUNT_LOG): seconds per move in total and in an iteration the clock cut short (its
 // result is discarded), moves with a cut iteration, and cut iterations whose best-so-far move differs from the move played.
 // Search-path repetition stack (Config::REP_STACK). Each entry is a position reached inside the current search and whether the
@@ -378,6 +379,19 @@ int FUTILITY_MARGINS_EFF[4] = {200, 450, 650, 950};
 // log(remaining) x log(move number). Built once at init because both logs are position-independent;
 // only read when Config::LMR_SHAPE == 1, so mode 0 stays byte-identical.
 int LMR_PRODUCT_RED[64][64] = {};
+
+// The active preset's DEPTH_REDUCTION entry for a depth. The table has 64 entries; past its end the reduction continues
+// its last step (reduced depth = depth - (63 - table[63])), so an index of 64 or more can never read past the array.
+// Searches deeper than the table were reading whatever memory followed it (a segfault in 10-22..10-24 games).
+static inline int depth_reduction(int depth)
+{
+    const auto &t = Config::ACTIVE->DEPTH_REDUCTION;
+    if (depth < 0)
+        return t[0];
+    if (depth < (int)t.size())
+        return t[depth];
+    return t.back() + (depth - ((int)t.size() - 1));
+}
 
 // Correction-history index for a position: pawn-structure key folded into the table (power-of-two mask).
 static inline int corrhist_idx(const BoardState &st)
@@ -1260,7 +1274,12 @@ inline int static_eval_for_improving(std::vector<BoardState> &state_history, uin
     }
     int cached;
     if (accessCacheNew(eval_cache_key(zobrist, cs.castling_rights, cs.ep_square), cached))
+    {
+        // EVAL_CACHE_FORM 1/2 (v2): the cache holds the fixed Black-positive value (see get_board_evaluation).
+        if (Config::EVAL_ARM == 1 && Config::EVAL_CACHE_FORM != 0 && Config::side_to_play)
+            return -cached;
         return cached;
+    }
     int moveNum = static_cast<int>(state_history.size());
     int total = placement_and_piece_eval(moveNum, cs.turn, cs.pawns, cs.knights, cs.bishops, cs.rooks,
                                          cs.queens, cs.kings, cs.occupied_colour[true], cs.occupied_colour[false], cs.occupied,
@@ -1571,7 +1590,6 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         fullmove_number);
 
     state_history.push_back(initialState);
-    initTableSizes();   // once per process; table-size knobs are read from the environment here
 
     uint64_t zobrist = generateZobristHash(initialState.pawns, initialState.knights, initialState.bishops, initialState.rooks, initialState.queens, initialState.kings, initialState.occupied_colour[true], initialState.occupied_colour[false], initialState.turn);
     position_count[repetition_key(zobrist, castling_rights, ep_square)]++;
@@ -2183,7 +2201,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // No harm shown: the bundle containing both −3 ± 31 (400 g, st=1). Fire counts: B3 in ~1/2 of endgame-critical and
                 // ~1/6 of general games, C1 in ~1/4-1/3 (SEARCH-CORRECTNESS-PLAN). Search knobs, so set ONLY here — v1 stays frozen.
                 // V2_SHIP_GEN=4 restores gen 4 exactly (258 / 47,689,413).
-                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 5);
+                // ── GEN 6 (2026-10-24): normal-engine table sizes (set with the table sizing below: TT 2^22, eval / q / move-gen
+                // 2^20) and EVAL_CACHE_FORM 2 (the eval cache holds the fixed Black-positive value, so a cached value is right for
+                // either side; checkmate scores are not cached). Bench 257 / 47,675,623 at the old sizes; see the register.
+                // V2_SHIP_GEN=5 restores gen 5 exactly (258 / 47,689,586).
+                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 6);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
                 }
@@ -2200,6 +2222,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 if (Config::V2_SHIP_GEN >= 5){
                     Config::FIX_DRAW_EXIT = 1;
                     Config::FIX_QS_CHECK = 1;
+                }
+                if (Config::V2_SHIP_GEN >= 6){
+                    Config::EVAL_CACHE_FORM = 2;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on
@@ -2685,6 +2710,19 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             Config::TT_WAYS = 1;
         Config::ENABLE_TT_PREFETCH = env_flag("ENABLE_TT_PREFETCH", Config::ENABLE_TT_PREFETCH);
         Config::PREFETCH_TABLES = env_int("PREFETCH_TABLES", Config::PREFETCH_TABLES);
+        Config::EVAL_CACHE_FORM = env_int("EVAL_CACHE_FORM", Config::EVAL_CACHE_FORM);
+        // Table sizes, once per process, after the presets: v2 gen 6 sizes its tables for a normal engine footprint (TT 2^22 =
+        // 128 MB, eval / q / move-gen caches 2^20; ≈ 1.23 GB → ≈ 0.25 GB per process; queue #96 arms A/B no harm). Set as
+        // environment defaults that never overwrite a value already given (Knobs, UCI Hash), which initTableSizes then reads.
+        // v1 and earlier v2 gens keep the old sizes.
+        if (Config::EVAL_ARM == 1 && Config::V2_SHIP_GEN >= 6)
+        {
+            setenv("TT_LOG2", "22", 0);
+            setenv("EVAL_LOG2", "20", 0);
+            setenv("QCACHE_LOG2", "20", 0);
+            setenv("MGCACHE_LOG2", "20", 0);
+        }
+        initTableSizes();
         // Debug-only: validate the SearchData parallel-array invariant + move legality and LOG (not
         // crash) on violation. Default off = byte-identical; used only to hunt the move-ordering
         // corruption (see dev_notes/CRASH_INVESTIGATION_PLAYBOOK.md).
@@ -3652,7 +3690,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // The depth-cap guard is checked first so it short-circuits before the MOVE_TIMES[depth_limit]
     // read: the cap is now literal (search up to depth_limit == MAX_ITERATIVE_DEPTH), and at the
     // boundary depth_limit can equal the cap, where reading MOVE_TIMES[cap] would be out of bounds.
-    while (depth_limit < Config::MAX_ITERATIVE_DEPTH && elapsed <= Config::ACTIVE->MOVE_TIMES[depth_limit] && score < 9000000 && !time_up)
+    // The per-ply tables (killers, PV, search and eval stacks) hold MAX_PLY entries and a search at depth d reaches ply d
+    // and beyond, so iterative deepening also stops at MAX_PLY - 4 (extensions are capped at MAX_PLY - 2).
+    const int id_depth_cap = std::min(Config::MAX_ITERATIVE_DEPTH, MAX_PLY - 4);
+    while (depth_limit < id_depth_cap && elapsed <= Config::ACTIVE->MOVE_TIMES[depth_limit] && score < 9000000 && !time_up)
     {
 
         if (is_draw && score == 0)
@@ -3677,6 +3718,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         }
 
         depth_limit++;
+        if (depth_limit == id_depth_cap && id_depth_cap < Config::MAX_ITERATIVE_DEPTH)
+            ++g_fixcnt_depthcap;   // this search reached the table bound and would have gone deeper before
 
         std::cout << x1 << " " << y1 << " " << x2 << " " << y2 << std::endl;
         std::cout << std::endl;
@@ -4046,7 +4089,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     static const bool fix_count_log = std::getenv("FIX_COUNT_LOG") != nullptr;
     if (fix_count_log)
         std::cerr << "FIXCNT fifty=" << g_fixcnt_fifty << " rep=" << g_fixcnt_rep << " drawexit=" << g_fixcnt_drawexit
-                  << " qsmate=" << g_fixcnt_qsmate << std::endl
+                  << " qsmate=" << g_fixcnt_qsmate << " depthcap=" << g_fixcnt_depthcap << std::endl
                   << "TMCNT moves=" << g_tm_moves << " total_s=" << g_tm_total_s << " wasted_s=" << g_tm_wasted_s
                   << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs << std::endl;
 
@@ -5992,7 +6035,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             state_history.back().ep_square = -1;
             updateZobristHashForNullMove(zobrist);
 
-            int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+            int reduced_depth = depth_reduction(depth_limit);
             reduced_depth -= Config::NULLMOVE_EXTRA;
 
             if (depth_limit >= 10)
@@ -6677,7 +6720,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         state_history.back().ep_square = -1;
         updateZobristHashForNullMove(zobrist);
 
-        int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+        int reduced_depth = depth_reduction(depth_limit);
         reduced_depth -= Config::NULLMOVE_EXTRA;
 
         if (depth_limit >= 10)
@@ -7887,7 +7930,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                 {
                     bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
                     int reduced_depth = reduced_search_depth(depth_limit, cur_depth, is_in_relavent_pin, i, current_state);
-                    // int reduced_depth = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+                    // int reduced_depth = depth_reduction(depth_limit);
 
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
 
@@ -8950,7 +8993,7 @@ inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relav
 
     // Adjust move number so 1 and 2 map to no reduction
     int adjusted_move = std::max(move_number - 2, 1);
-    int base = Config::ACTIVE->DEPTH_REDUCTION[depth_limit];
+    int base = depth_reduction(depth_limit);
 
     // Re-derive the base from the node's own remaining depth (see ENABLE_LMR_REMDEPTH). The same tuned
     // curve supplies the reduction in plies, scaled, and is never allowed to consume the child's last ply.
@@ -9702,11 +9745,23 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
     } */
 
     eval_visits++;
+    // EVAL_CACHE_FORM (v2 only; v1 and its shadow arm keep form 0 as the frozen control):
+    //   0 = the cache holds the value as returned (side_to_play flip and noise applied), so a value cached while searching
+    //       for one side comes back with the wrong sign for the other (a bench that keeps the cache across positions of
+    //       both colours sees it);
+    //   1 = the cache holds the fixed Black-positive value; the flip and noise are applied after reading it;
+    //   2 = 1, and a checkmate score is not cached (it holds the ply it was found at, wrong at any other ply).
+    const int cache_form = (Config::EVAL_ARM == 1) ? Config::EVAL_CACHE_FORM : 0;
     // cache_result = accessCache(zobrist);
     if (!g_eval_light && accessCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), cache_result))
     {
         eval_cache_hits++;
-        return cache_result;
+        if (cache_form == 0)
+            return cache_result;
+        int r = Config::side_to_play ? -cache_result : cache_result;
+        if (Config::EVAL_NOISE_SIGMA > 0 && r < 9000000 && r > -9000000)
+            r += eval_noise(zobrist, Config::EVAL_NOISE_SIGMA);
+        return r;
     }
 
     int total = 0;
@@ -9776,6 +9831,7 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
                                              current_state.castling_rights);
     }
 
+    const int fixed_total = total;   // Black-positive, before the side flip and noise (what forms 1 and 2 cache)
     if (Config::side_to_play)
         total = -total;
 
@@ -9814,6 +9870,11 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 
     // addToCache(zobrist, max_cache_size * Config::ACTIVE->cache_size_multiplier, total);
     if (!g_eval_light)
-        addToCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), total);
+    {
+        if (cache_form == 0)
+            addToCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), total);
+        else if (!(cache_form == 2 && mate == 1))
+            addToCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), fixed_total);
+    }
     return total;
 }

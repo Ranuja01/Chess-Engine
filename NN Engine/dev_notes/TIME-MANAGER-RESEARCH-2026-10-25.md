@@ -198,4 +198,8 @@ Step 1 is built as `build_uci/chess_engine_uci_tm1` (plain build, commit 28b0e97
 - **Hypothesis (untested):** Stockfish's rule is safe because its root searches the previous best FIRST, so any move that beats it in the cut iteration has been compared with it at the deeper depth. Our root list is ordered by the pre-search, so the "best so far" can be the best of a few early moves that never met the previous best at that depth.
 - **Mode 2** therefore also requires the previous iteration's best (`g_rp_incumbent` = the ID loop's `completed_move`) to have completed in the cut pass. It is to be judged the same way, on fresh positions (SEED changed).
 
+**PARKED (owner, 2026-10-25: "reassess when we become stronger").**
+- Mode 2 was not built. Its diff is saved at `E:\chess_data\patches\tm_partial_mode2.patch`. Mode 1 stays in the code, default off.
+- **Trigger: search v2.** Once the root searches the previous best first (negamax plus a per-node TT best move), Stockfish's rule applies as designed. Re-judge then with `_partial_iter_judge.py` (env `MODE`).
+
 **Known gap, left for step 4:** with no increment and 1–2 s left, the 30 ms × 52 overhead reserve leaves almost nothing, so the move is played at once at depth 3. That is no worse than today. With any increment the gap is gone: 1 s + 0.1 → optimum 0.11 s.

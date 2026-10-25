@@ -53,7 +53,7 @@ def probe_worker(fens, out, lock):
                          stderr=subprocess.STDOUT, text=True, bufsize=1)
     def send(s): p.stdin.write(s + "\n"); p.stdin.flush()
     send("setoption name OwnBook value false"); send("setoption name Debug value true")
-    send("setoption name Knobs value TM_PARTIAL=1"); send("isready")
+    send("setoption name Knobs value TM_PARTIAL=" + os.environ.get("MODE", "1")); send("isready")
     for l in p.stdout:
         if "readyok" in l: break
     for fen in fens:

@@ -163,8 +163,12 @@ The internal A/B tests use plain builds, and the production PGO build comes only
 - 0 time forfeits;
 - st=1: node-identical.
 
-## 4. Open points for the owner
+## 4. Owner decisions (2026-10-25)
 
-- **K_OPT: start at 0.025, or bracket it** (0.02 / 0.03 / 0.04) in one queue?
-- **Step 3:** adopt Stockfish's rule (the cut iteration's completed best that beats alpha), or the more conservative Ethereal/Berserk rule (the last completed aspiration pass only)?
-- **Under `go movetime`:** keep searching to the end, as Stockfish, Ethereal and Berserk do (best together with step 3), or stop early, as Weiss does?
+- **K_OPT stays at the standard 0.025, with no bracket and no fine-tuning now.** The optimum moves as our branching factor falls, so constants are retuned once the engine is stronger.
+- **Step 3: Stockfish's rule.** Plus our extra guard: a fail-low pass's move 0 never replaces the completed move.
+- **Under `go movetime`: search to the end,** as Stockfish does.
+
+Step 1 is built as `build_uci/chess_engine_uci_tm1` (plain build, commit 28b0e97). All four fingerprints are identical. The opening move at 60+0.6 went from 0.78 s to 3.61 s; movetime 1000 is unchanged (0.97 s).
+
+**Known gap, left for step 4:** with no increment and 1–2 s left, the 30 ms × 52 overhead reserve leaves almost nothing, so the move is played at once at depth 3. That is no worse than today. With any increment the gap is gone: 1 s + 0.1 → optimum 0.11 s.

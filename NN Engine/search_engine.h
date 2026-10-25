@@ -3351,6 +3351,10 @@ namespace Config
     // Soft time limit (seconds since the search started) for the current search, set per `go` by the UCI front end under
     // TM_MODE >= 1. Negative = off: the preset's per-depth MOVE_TIMES rule decides whether another iteration starts.
     inline double TM_SOFT_LIMIT = -1.0;
+    // TM_PARTIAL: 1 = when the clock cuts an iteration, play its best move if that move's search completed in the cut
+    // pass and scored above the pass's alpha (a real result at the deeper depth); otherwise, and at 0, the last completed
+    // iteration's move is played. A move whose own search was cut is never used.
+    inline int TM_PARTIAL = 0;
     // EVAL_CACHE_FORM (v2 only): 0 = the eval cache holds side_to_play-relative values (wrong sign for a search for the
     // other side), 1 = it holds the fixed Black-positive value, flipped on read, 2 = 1 and checkmate scores (ply-dependent)
     // are not cached. See get_board_evaluation.

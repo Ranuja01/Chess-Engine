@@ -176,6 +176,13 @@ static bool g_rep_in_search = false;   // true between the start of get_engine_m
 long g_qgen_verify_lists = 0, g_qgen_verify_mismatch = 0;
 double g_tm_total_s = 0, g_tm_wasted_s = 0;
 long g_tm_moves = 0, g_tm_cut = 0, g_tm_cut_differs = 0;
+long g_tm_partial_used = 0, g_tm_partial_differs = 0;   // cut iterations whose result was played (TM_PARTIAL), and how
+                                                        // many of those changed the move
+// The last root pass (one alpha_beta call): whether any root move's search completed in it, the best completed move and
+// its score, and the alpha the pass started with.
+bool g_rp_valid = false;
+Move g_rp_move;
+int g_rp_score = 0, g_rp_alpha_entry = 0;
 
 // Per-node counters, written and read only by the search thread. Plain integers on purpose: an increment of a
 // std::atomic is a locked instruction on x86 even with relaxed ordering, and these run several times per node.
@@ -2711,6 +2718,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_TT_PREFETCH = env_flag("ENABLE_TT_PREFETCH", Config::ENABLE_TT_PREFETCH);
         Config::PREFETCH_TABLES = env_int("PREFETCH_TABLES", Config::PREFETCH_TABLES);
         Config::TM_MODE = env_int("TM_MODE", Config::TM_MODE);
+        Config::TM_PARTIAL = env_int("TM_PARTIAL", Config::TM_PARTIAL);
         Config::EVAL_CACHE_FORM = env_int("EVAL_CACHE_FORM", Config::EVAL_CACHE_FORM);
         // Table sizes, once per process, after the presets: v2 gen 6 sizes its tables for a normal engine footprint (TT 2^22 =
         // 128 MB, eval / q / move-gen caches 2^20; ≈ 1.23 GB → ≈ 0.25 GB per process; queue #96 arms A/B no harm). Set as
@@ -3801,6 +3809,16 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
             ++g_tm_cut;
             g_tm_cut_differs += (move.from_square != completed_move.from_square || move.to_square != completed_move.to_square ||
                                  move.promotion != completed_move.promotion);
+            // The cut pass's best completed move counts as this depth's result when it scored above the pass's alpha: a
+            // fail-low pass (nothing above alpha) or a pass cut before move 0 finished keeps the completed iteration's move.
+            if (Config::TM_PARTIAL && g_rp_valid && g_rp_score > g_rp_alpha_entry)
+            {
+                ++g_tm_partial_used;
+                g_tm_partial_differs += (g_rp_move.from_square != completed_move.from_square || g_rp_move.to_square != completed_move.to_square ||
+                                         g_rp_move.promotion != completed_move.promotion);
+                completed_move = g_rp_move;
+                completed_score = g_rp_score;
+            }
         }
 
         // Only adopt this iteration's result if it ran to completion; a timed-out
@@ -4099,7 +4117,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cerr << "FIXCNT fifty=" << g_fixcnt_fifty << " rep=" << g_fixcnt_rep << " drawexit=" << g_fixcnt_drawexit
                   << " qsmate=" << g_fixcnt_qsmate << " depthcap=" << g_fixcnt_depthcap << std::endl
                   << "TMCNT moves=" << g_tm_moves << " total_s=" << g_tm_total_s << " wasted_s=" << g_tm_wasted_s
-                  << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs << std::endl;
+                  << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs
+                  << " partial_used=" << g_tm_partial_used << " partial_differs=" << g_tm_partial_differs << std::endl;
 
 #ifdef EVAL_PROFILE
     g_prof_cycles[PROF_SEARCH_ROOT] += __rdtsc() - _prof_root_start;
@@ -4142,6 +4161,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     // but the loop below overwrites it, hence the snapshot here. Approximates SF's
     // `best_move_count(move) == 0` term, which exempts a recently-best root move from reduction.
     const Move root_prev_best = best_move;
+    g_rp_valid = false;
+    g_rp_alpha_entry = alpha;
 
     std::fill(&pv_table[0][0], &pv_table[0][0] + MAX_PLY * MAX_PLY, Move{});
     std::fill(pv_length, pv_length + MAX_PLY, 0);
@@ -4281,6 +4302,10 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         best_score = current_search_data.scores[0].top_score;
         return best_score;
     }
+    // Move 0's search completed uncut.
+    g_rp_valid = true;
+    g_rp_move = best_move;
+    g_rp_score = best_score;
 
     if (alpha - current_search_data.scores[0].top_score > razor_threshold)
         razor_threshold += alpha - current_search_data.scores[0].top_score;
@@ -4595,6 +4620,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             best_score = score;
             best_move_index = i;
             best_is_simpl = move_is_simpl;
+            g_rp_move = move;   // reached only after this move's search completed uncut (the time check above)
+            g_rp_score = score;
 
             if (score > alpha)
             {

@@ -3346,8 +3346,8 @@ namespace Config
     // TM_MODE (UCI clock games only; `go movetime`, fixed depth / nodes and the Cython path are unaffected): 0 = the
     // placeholder clock rule (a new iteration starts while the last one took at most the preset's MOVE_TIMES share of the
     // budget), 1 = an optimum / maximum allocation with a soft stop between iterations once the total elapsed time passes
-    // the optimum, independent of the preset.
-    inline int TM_MODE = 0;
+    // the optimum, independent of the preset. Default 1 since gen 6.1 (60+0.6: +85 self-play, +96 vs Mediocre over mode 0).
+    inline int TM_MODE = 1;
     // Soft time limit (seconds since the search started) for the current search, set per `go` by the UCI front end under
     // TM_MODE >= 1. Negative = off: the preset's per-depth MOVE_TIMES rule decides whether another iteration starts.
     inline double TM_SOFT_LIMIT = -1.0;

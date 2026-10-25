@@ -29,9 +29,12 @@ import chess, chess.engine
 BIN, N, NODES, PLIES, JOBS = OPTS['BIN'], int(OPTS['N']), int(OPTS['NODES']), int(OPTS['PLIES']), int(OPTS['JOBS'])
 BIN_ON = OPTS.get('BIN_ON', BIN)   # the ON pass's binary; differs from BIN only for a build-identity run
 ON_ENV = dict(kv.split('=', 1) for kv in OPTS['ON'].split(';') if kv)
-CNT_RE = re.compile(r'FIXCNT fifty=(\d+) rep=(\d+) drawexit=(\d+) qsmate=(\d+)')
+CNT_RE = re.compile(r'FIXCNT fifty=(\d+) rep=(\d+) drawexit=(\d+) qsmate=(\d+)(?: depthcap=(\d+))?')
 TM_RE = re.compile(r'TMCNT moves=(\d+) total_s=([\d.e+-]+) wasted_s=([\d.e+-]+) cut=(\d+) cut_differs=(\d+)')
-KEYS = ('fifty', 'rep', 'drawexit', 'qsmate')
+KEYS = ('fifty', 'rep', 'drawexit', 'qsmate', 'depthcap')
+# SIDES=2: one engine process per side, as in real play. With one process for both sides the UCI front end clears every
+# cache at each side change, so each move starts cold (the default, kept for the earlier runs' comparability).
+SIDES = int(OPTS.get('SIDES', '1'))
 # MOVETIME=<s> plays at a fixed time per move instead of NODES (needs a quiet box); OFF_ONLY=1 skips the ON pass (accounting only)
 MOVETIME = float(OPTS.get('MOVETIME', 0))
 OFF_ONLY = OPTS.get('OFF_ONLY', '0') == '1'
@@ -58,43 +61,55 @@ def load(path):
 def play(board, env_extra, tag, binary=BIN):
     """One self-play game; returns (moves, result, counters)."""
     env = dict(os.environ, FIX_COUNT_LOG='1', **env_extra)
-    errpath = '/tmp/fixcnt_%d_%s.err' % (os.getpid(), tag)
+    errpaths = ['/tmp/fixcnt_%d_%s_%d.err' % (os.getpid(), tag, s) for s in range(SIDES)]
     b = board.copy()
     moves = []
-    with open(errpath, 'w') as err:
-        eng = chess.engine.SimpleEngine.popen_uci(binary, env=env, stderr=err)
-        try:
+    errs = [open(p, 'w') for p in errpaths]
+    engs = []
+    try:
+        for err in errs:
+            eng = chess.engine.SimpleEngine.popen_uci(binary, env=env, stderr=err)
             eng.configure({'OwnBook': False, 'Debug': True})   # Debug=false routes the engine's std::cerr to nowhere
-            while not b.is_game_over(claim_draw=True) and len(moves) < PLIES:
-                mv = eng.play(b, chess.engine.Limit(time=MOVETIME) if MOVETIME > 0 else chess.engine.Limit(nodes=NODES)).move
-                moves.append(mv.uci()); b.push(mv)
-            result = b.result(claim_draw=True) if b.is_game_over(claim_draw=True) else '*'
-        except chess.engine.EngineTerminatedError as e:
-            # a crashed engine is a finding, not a harness failure: record how to reproduce it and keep going
-            result = 'CRASH'
-            print('  !! CRASH (%s) mode=%s start=%s moves=%s' % (e, tag, board.fen(), ' '.join(moves)), flush=True)
-        finally:
+            engs.append(eng)
+        while not b.is_game_over(claim_draw=True) and len(moves) < PLIES:
+            eng = engs[0] if SIDES == 1 or b.turn == board.turn else engs[1]
+            mv = eng.play(b, chess.engine.Limit(time=MOVETIME) if MOVETIME > 0 else chess.engine.Limit(nodes=NODES)).move
+            moves.append(mv.uci()); b.push(mv)
+        result = b.result(claim_draw=True) if b.is_game_over(claim_draw=True) else '*'
+    except chess.engine.EngineTerminatedError as e:
+        # a crashed engine is a finding, not a harness failure: record how to reproduce it and keep going
+        result = 'CRASH'
+        print('  !! CRASH (%s) mode=%s start=%s moves=%s' % (e, tag, board.fen(), ' '.join(moves)), flush=True)
+    finally:
+        for eng in engs:
             try:
                 eng.quit()
             except chess.engine.EngineTerminatedError:
                 pass
-    if result == 'CRASH':
-        tail = [l.rstrip() for l in open(errpath, errors='replace')][-6:]
-        print('  !! stderr tail:\n     ' + '\n     '.join(tail), flush=True)
-    last, tm = None, None
-    for line in open(errpath, errors='replace'):
-        m = CNT_RE.search(line)
-        if m:
-            last = m
-        t = TM_RE.search(line)
-        if t:
-            tm = t
-    if tm and tag.startswith('off'):
-        g = tm.groups()
-        for i, v in enumerate((int(g[0]), float(g[1]), float(g[2]), int(g[3]), int(g[4]))):
-            tm_totals[i] += v
-    os.remove(errpath)
-    return moves, result, dict(zip(KEYS, (int(x) for x in last.groups()))) if last else dict.fromkeys(KEYS, 0)
+        for err in errs:
+            err.close()
+    totals = dict.fromkeys(KEYS, 0)
+    for errpath in errpaths:
+        if result == 'CRASH':
+            tail = [l.rstrip() for l in open(errpath, errors='replace')][-6:]
+            print('  !! stderr tail:\n     ' + '\n     '.join(tail), flush=True)
+        last, tm = None, None
+        for line in open(errpath, errors='replace'):
+            m = CNT_RE.search(line)
+            if m:
+                last = m
+            t = TM_RE.search(line)
+            if t:
+                tm = t
+        if tm and tag.startswith('off'):
+            g = tm.groups()
+            for i, v in enumerate((int(g[0]), float(g[1]), float(g[2]), int(g[3]), int(g[4]))):
+                tm_totals[i] += v
+        if last:
+            for k, x in zip(KEYS, last.groups()):
+                totals[k] += int(x) if x else 0
+        os.remove(errpath)
+    return moves, result, totals
 
 
 rng = random.Random(int(OPTS['SEED']))

@@ -4,6 +4,49 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⏱️★★★★ 2026-10-25 — TIME MANAGER STEP 1: +85 self-play, +96 vs Mediocre at 60+0.6
+Research and design: [TIME-MANAGER-RESEARCH-2026-10-25.md](TIME-MANAGER-RESEARCH-2026-10-25.md). The cause of the clock gap is our start
+rule. It compares the last iteration's own duration with budget × the preset's MOVE_TIMES ratio (STANDARD 6/45 = 0.133), so we used
+about 0.3–0.55 of the budget. Measured cumulative iteration growth is 1.93 per iteration (30 positions, 8 s).
+
+**Step 1 (`TM_MODE=1`, 28b0e97):**
+- Allocation: optimum = min(0.025, 0.214·T/left)·left, with left = T + 49·inc − 52·MO; maximum = min(5·opt, 0.8·T − MO).
+- Stop after the iteration that ends past the optimum, independent of the preset. UCI `Move Overhead` (default 30).
+- Bench, movetime and fixed depth are node-identical.
+
+**Queue #102** (plain `chess_engine_uci_tm1`; the control is the same binary without knobs; -recover):
+
+| match | result | registered |
+|---|---|---|
+| self-play, 60+0.6, 200 g | **+85.0 (95% +40.7 … +132.3)**, 62.0%; pentanomial 11/5/37/19/28 | +25 … +70 |
+| vs Mediocre 0.5, 60+0.6, 200 g | **+96.2 (95% +51.9 … +143.8)**, 63.5% | +35 … +75 |
+
+- Mediocre baseline: gen 6 +7.4 (−39 … +54), 200 g pooled. Both point estimates are above their ranges; both ranges lie inside the CIs.
+- 0 disconnects, 0 new crash dumps.
+- **All 3 time forfeits are Mediocre's** (645–907 ms overruns). Its baseline rate was 4 / 200, so the forfeits do not explain the gain.
+
+**Time per move**, mean s, at 60+0.6:
+
+| moves | tm1 | gen 6 | Mediocre |
+|---|---|---|---|
+| 1–20 | 2.83 | 1.03 | 1.80 |
+| 21–40 | 1.36 | 0.94 | 1.34 |
+| 41–60 | 0.60 | 0.91 | 1.05 |
+| 61+ | 0.58 | 0.75 | 0.80 |
+
+- Moves 1–40 average ≈ 2.1 s (registered 2–3 s). Depth is 13.4 vs gen 6's 12.9, and 13.8 vs Mediocre's 13.8.
+- ⚠️ **The flat 1/40 budget front-loads.** After move 40 it plays at about the increment, below both opponents. SF's optimum grows with ply, which is the candidate for step 4; the owner keeps the standard form for now.
+
+**Step 2 (ID from depth 1): dropped for now.**
+- The depth-3 first pass takes median 1 ms, p99 5 ms, max 10 ms (1,000 UHO positions). Depth 1 would save at most a few milliseconds.
+- Doing it needs the pre-search hard-off path at depth ≤ 2 (a pre-search of depth ≤ 1 leaves empty second-level lists).
+- Revisit inside step 4's low-time policy: a hyper-fast TC test with overrun and forfeit counts.
+
+**Step 3 (`TM_PARTIAL=1`, 616a7a5 / d1807e9):**
+- A cut iteration's best completed move is played if it scored above the cut pass's alpha. Bench identical.
+- Probe, 40 positions at movetime 1000: 40 cuts, 9 usable, 3 changed the move (≈ 7.5% of fixed-time moves).
+- `PARTIAL_DIFF` (Debug stderr) logs each change, for judging the two moves with SF18. The test plan is to be discussed with the owner.
+
 ## 🐛★★★★ 2026-10-24 — THE NIGHTLY SEGFAULT, GEN 6 (speed batches + crash fix + eval-cache form + normal footprint)
 **Queue #96 (overnight):** footprint A (QCACHE_LOG2=20) **+9.6 ± 30.6**, nps +1.2% · B (TT 2^22, MG/EVAL 2^20) **−7.0 ± 31.8**, nps
 −2.8% ⇒ both no harm · fixed-node identity: production→sb2 and sb2→sb2pgo 0/120 diverged each · **batch 2 vs production +30.5 ±

@@ -171,4 +171,16 @@ The internal A/B tests use plain builds, and the production PGO build comes only
 
 Step 1 is built as `build_uci/chess_engine_uci_tm1` (plain build, commit 28b0e97). All four fingerprints are identical. The opening move at 60+0.6 went from 0.78 s to 3.61 s; movetime 1000 is unchanged (0.97 s).
 
+**Queue #102 result (step 1):**
+
+| match | result | registered |
+|---|---|---|
+| self-play 60+0.6, 200 g | **+85.0** (95% +40.7 … +132.3) | +25 … +70 |
+| Mediocre 60+0.6, 200 g | **+96.2** (95% +51.9 … +143.8) | +35 … +75 |
+
+- The Mediocre baseline was +7.4.
+- 0 disconnects. The only 3 time forfeits were Mediocre's.
+- Time per move in moves 1–20 / 21–40 / 41+: 2.83 / 1.36 / about 0.6 s. That is front-loaded; see OPTIMIZATION_LOG 2026-10-25.
+- Step 2 is dropped for now (the depth-3 first pass takes at most 10 ms). Step 3 is built as `TM_PARTIAL`.
+
 **Known gap, left for step 4:** with no increment and 1–2 s left, the 30 ms × 52 overhead reserve leaves almost nothing, so the move is played at once at depth 3. That is no worse than today. With any increment the gap is gone: 1 s + 0.1 → optimum 0.11 s.

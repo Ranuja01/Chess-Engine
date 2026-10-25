@@ -275,6 +275,10 @@ SF18 loss autopsy, logs `E:\chess_data\q88_fc_night3.log`, `E:\chess_data\autops
    unnecessary (its size is a speed choice: pick by nps); the TT gain is not speed, so TT 2^21's +28.7 (CI −0.7 … +58.6) is a tree
    effect or noise. Bench fix (clear the eval cache when the root side changes, in bench AND tactical_test.py) moves both
    fingerprints ⇒ owner call; natural home = the Phase B gen, whose TT change moves the fingerprint anyway.
+   **DONE 10-24 — GEN 6 SHIPPED (5a0a2d1 / 64b4169, production = PGO build):** TT 2^22, eval / q / move-gen 2^20 for v2 (v1 keeps
+   the old sizes), EVAL_CACHE_FORM 2 (fixed-form values, mates not cached), UCI `Hash`, plus the depth-cap crash fix and speed
+   batches 2-6 ⇒ 257 / 46,196,950 / 3.922; vs gen 5 st=1 +41.0 ± 30.8, 60+0.6 +79.5 ± 41.2, 0 crashes. Step 6 closed. Next
+   transition item: the TIME MANAGER (clock under-spend vs Mediocre; 36% of move time in cut iterations) — OPTIMIZATION_LOG 2026-10-24.
    Logged caveat: initialize_engine counts the first root position BEFORE the knob environment is parsed ⇒ with FIX_REP_KEY bit 1 the
    Cython path's first root key is unmixed (bit 1 is off by default — no current effect).
 Open owner questions (preplan §7, unanswered): threats T1 @250k · SPSA nightly budget · negamax parity vs redesign · root

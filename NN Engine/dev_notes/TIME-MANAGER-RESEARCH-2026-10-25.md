@@ -183,4 +183,11 @@ Step 1 is built as `build_uci/chess_engine_uci_tm1` (plain build, commit 28b0e97
 - Time per move in moves 1–20 / 21–40 / 41+: 2.83 / 1.36 / about 0.6 s. That is front-loaded; see OPTIMIZATION_LOG 2026-10-25.
 - Step 2 is dropped for now (the depth-3 first pass takes at most 10 ms). Step 3 is built as `TM_PARTIAL`.
 
+**Step 3 test, registered before running (2026-10-25 evening):**
+1. **Where it fires** (`diagnostics/_partial_iter_judge.py`): 6,000 middlegame positions from the #102 PGNs (moves 10–60, |score| ≤ 3), at movetime 1000 with TM_PARTIAL=1. SF18 scores both moves at 2M nodes each.
+   - The smoke test changed 2.5% of moves (3 of 120), so expect about 150 changed moves.
+   - Predicted: the adopted move is better in ≥ 55% of the non-tied cases (|Δ| > 0.5 pp); mean Δwin% (adopted − completed) **+0.3 … +1.5 pp**.
+2. **st=1 self-play, 400 g, TM_PARTIAL=1 vs 0** (plain `chess_engine_uci_g61`): predicted **−10 … +25**. This is a no-harm check only: with about 2.5% of moves touched, 400 g cannot resolve the expected effect.
+- **Ship rule:** ship if (1) is positive and (2) is above −1σ.
+
 **Known gap, left for step 4:** with no increment and 1–2 s left, the 30 ms × 52 overhead reserve leaves almost nothing, so the move is played at once at depth 3. That is no worse than today. With any increment the gap is gone: 1 s + 0.1 → optimum 0.11 s.

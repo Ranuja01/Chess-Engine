@@ -62,6 +62,7 @@ namespace
     // ── engine initialisation (lazy: env knobs latch at the first initialize_engine) ─────────────────────────────────────
     bool g_inited = false;
     bool g_resign = false;
+    int g_move_overhead_ms = 30;   // per-move allowance for GUI / transport latency, charged by the TM_MODE >= 1 clock rule
     std::string g_knobs;   // knobs latched through the Knobs option, echoed at init so a match log records what each side ran
     const ConfigData *g_base = nullptr;   // the preset `go` without limits plays exactly (parity with the UI / harness)
     int g_def_depth = 64, g_def_nodes = 0;
@@ -179,11 +180,27 @@ namespace
         Config::NODE_LIMIT = nodes > 0 ? (int)std::min<long long>(nodes, INT_MAX) : g_def_nodes;
         const long long mine = root.turn ? wtime : btime, inc = root.turn ? winc : binc;
         const double overhead = 0.03;
+        Config::TM_SOFT_LIMIT = -1.0;
         if (movetime >= 0)
         {
             const double s = std::max(0.01, movetime / 1000.0 - overhead);
             g_cfg.TIME_LIMIT = s;
             g_cfg.MOVE_TIMES.fill(s);
+        }
+        else if (mine >= 0 && Config::TM_MODE >= 1)
+        {
+            // Optimum / maximum allocation. The horizon is 50 moves (movestogo, when given, clamped to 50); the optimum is
+            // 1/40 of the remaining time plus the increments of that horizon less the overhead, at most ~21% of the clock.
+            // The search stops after any iteration that ends past the optimum; the maximum (5x the optimum, at most 80% of
+            // the clock) is the hard stop inside an iteration.
+            const double rem = mine / 1000.0, incs = inc / 1000.0, mo = g_move_overhead_ms / 1000.0;
+            const int h = mtg > 0 ? std::min(mtg, 50) : 50;
+            const double left = std::max(0.001, rem + incs * (h - 1) - mo * (2 + h));
+            const double opt = (mtg > 0 ? std::min(0.95 / h, 0.88 * rem / left) : std::min(0.025, 0.214 * rem / left)) * left;
+            const double hard = std::max(0.01, std::min(5.0 * opt, 0.8 * rem - mo));
+            g_cfg.TIME_LIMIT = hard;
+            g_cfg.MOVE_TIMES.fill(hard);
+            Config::TM_SOFT_LIMIT = std::min(opt, hard);
         }
         else if (mine >= 0)
         {
@@ -252,6 +269,11 @@ namespace
             else say("info string unknown Preset " + value);
         }
         else if (name == "Resign") g_resign = (value == "true");
+        else if (name == "Move Overhead")
+        {
+            try { g_move_overhead_ms = std::max(0, std::min(5000, std::stoi(value))); }
+            catch (...) { say("info string bad Move Overhead " + value); }
+        }
         else if (name.rfind("Knob_", 0) == 0) latch(name.substr(5).c_str(), value);   // any env knob, e.g. Knob_FIX_RESEARCH
         else if (name == "Knobs")
         {
@@ -420,6 +442,7 @@ int main()
             say("option name EvalArm type spin default 1 min 0 max 1");
             say("option name V2Preset type string default shipped");
             say("option name Resign type check default false");
+            say("option name Move Overhead type spin default 30 min 0 max 5000");
             say("option name OwnBook type check default true");
             say("option name Debug type check default false");
             say("option name BookFile type string default M11.2.bin");

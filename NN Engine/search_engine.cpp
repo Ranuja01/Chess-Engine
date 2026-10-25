@@ -2710,6 +2710,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             Config::TT_WAYS = 1;
         Config::ENABLE_TT_PREFETCH = env_flag("ENABLE_TT_PREFETCH", Config::ENABLE_TT_PREFETCH);
         Config::PREFETCH_TABLES = env_int("PREFETCH_TABLES", Config::PREFETCH_TABLES);
+        Config::TM_MODE = env_int("TM_MODE", Config::TM_MODE);
         Config::EVAL_CACHE_FORM = env_int("EVAL_CACHE_FORM", Config::EVAL_CACHE_FORM);
         // Table sizes, once per process, after the presets: v2 gen 6 sizes its tables for a normal engine footprint (TT 2^22 =
         // 128 MB, eval / q / move-gen caches 2^20; ≈ 1.23 GB → ≈ 0.25 GB per process; queue #96 arms A/B no harm). Set as
@@ -3693,7 +3694,14 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // The per-ply tables (killers, PV, search and eval stacks) hold MAX_PLY entries and a search at depth d reaches ply d
     // and beyond, so iterative deepening also stops at MAX_PLY - 4 (extensions are capped at MAX_PLY - 2).
     const int id_depth_cap = std::min(Config::MAX_ITERATIVE_DEPTH, MAX_PLY - 4);
-    while (depth_limit < id_depth_cap && elapsed <= Config::ACTIVE->MOVE_TIMES[depth_limit] && score < 9000000 && !time_up)
+    // Whether another iteration may start: under a soft limit, while the total time since the search started is within
+    // it; otherwise while the last iteration alone took at most the preset's share for this depth.
+    auto may_start_iteration = [&](double last_iteration_s) {
+        if (Config::TM_SOFT_LIMIT >= 0)
+            return std::chrono::duration<double>(Clock::now() - search_start_time).count() <= Config::TM_SOFT_LIMIT;
+        return last_iteration_s <= Config::ACTIVE->MOVE_TIMES[depth_limit];
+    };
+    while (depth_limit < id_depth_cap && may_start_iteration(elapsed) && score < 9000000 && !time_up)
     {
 
         if (is_draw && score == 0)

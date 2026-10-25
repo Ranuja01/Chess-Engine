@@ -29,6 +29,15 @@ vs 656k (+37%), depth 13.0 vs 12.8 · 60+0.6 **+79.5 ± 41.2** (61.3%, 200 g), n
 disconnects, 0 new crash dumps** in 600 games (production had crashed ~once a night). `build_uci/chess_engine_uci` = the PGO build
 (id "v2 gen 6"); backups `chess_engine_uci_gen5` (old production) and `chess_engine_uci_g6pgo_q98b` (the exact match binary).
 The 10-23 production dump was the same family: the PV copy loop read `pv_length[ply+1]` = 315,705,776 at ply 64.
+**After the ship (queues #99-#101, 10-24/25, gen 6 + PGO):** vs Mediocre 0.5 (fastchess handles it fine), 200 g pooled each: st=1
+**+76.8** (95% +28 … +129) · 60+0.6 **+7.4** (−39 … +54) · 10+0.1 +10 ± 50 (100 g) · 180+1.8 +61 ± 96 (40 g). The clock gap is OUR
+TIME MANAGER: at 60+0.6 we spend 0.94 s/move vs Mediocre's 1.38 (the uci_main clock rule is a placeholder: budget = rem/30 +
+0.8·inc, new iterations only below the preset's MOVE_TIMES fraction) ⇒ the time manager is the next transition item, judged by this
+baseline. Mediocre is also more node-efficient (st=1, ~the same nps: depth 13.8 vs our 13.2). Warm depthcap probe (150 g, one
+process per side): the depth cap was reached 7× in 5 games (≈3%) ⇒ the pre-fix depth-64 path was live in real play. 36.1% of move
+time sits in cut iterations (10,913 moves). Concurrency (median per-move nps at 1 / 3 / 4 games): gen-6 tables 821k / 803k /
+739k, old 1.23 GB tables 864k / 622k / 742k ⇒ the small tables remove most contention at 3 games; 4 costs ~10% per engine.
+UI: gen 6 beat the chess.com Magnus bot for the first time (STANDARD preset).
 
 ## ⚡★★★ 2026-10-23 evening — SPEED BATCHES 2-6 (result-identical), PGO, THE EVAL-CACHE FIX, `Hash`
 Source: the owner's `owner-cpp-ideas.md` (its results table has every item's detail). All items: bench v2 258 / 47,689,586 and

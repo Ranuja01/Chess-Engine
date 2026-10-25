@@ -353,6 +353,17 @@ EXPLAINING a measurement — a persuasive picture makes a wrong story more convi
 | ⚠️ venue hygiene | endgame FEN starts need `USE_OPENING_BOOK=0` (the book played 5.3% of moves and dropped promotions); amplified evals cross `RESIGN_THRESHOLD` (−15000) ⇒ audit dropped rows in depth passes |
 | 📦 `selfplay/archive_games.ps1 -Before <date>` + `selfplay/build_games_index.py` | ROUTINE: archive old match folders to verified `.tar.zst` on `E:\chess_data\archive\games\` (summaries stay); `GAMES-INDEX.csv` = every match (configs, W/L/D, Elo, archive path) |
 
+## Added 2026-10-23/25 (speed batches, PGO, the crash hunt)
+| tool / recipe | what it is for |
+|---|---|
+| `selfplay/build_uci.sh` `OUT=` `PGO=gen\|use PGO_DIR=` `EXTRA_FLAGS=` | PGO: both passes must use the SAME `OUT` (profile names derive from it), `PGO_DIR` without spaces; train = bench + 8 games st=0.25; require the three fingerprints (v2, `EvalArm 0`, `V2_SHIP_GEN=5`). `EXTRA_FLAGS="-g -fno-omit-frame-pointer"` = a perf copy; `"-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS"` = the sanitizer build (an array assert aborts → disconnect + dump; a C-array overflow writes a report file under `log_path`) |
+| WSL crash dumps `%LOCALAPPDATA%\Temp\wsl-crashes\*.dmp` + `dmesg` | every engine segfault leaves a ~1.6 GB core dump (they silently filled C: on 10-22/23). `gdb -batch -ex 'info registers' -ex 'x/i $pc' -ex bt <binary> <dump>` with the EXACT binary; dmesg's `[off,…]` = offset from the image base. Keep `-recover` + a disconnect count in every match |
+| `_fix_firecount.py BIN_ON=<new> ON=` | build identity at fixed nodes: every set must report `diverged: 0` and 0 crashes |
+| `_fix_firecount.py SIDES=2` | one engine process per side (warm tables, as real play); FIXCNT now includes `depthcap` (searches reaching the MAX_PLY − 4 cap) |
+| knobs `MATE_TEST_VERIFY`, `PREFETCH_TABLES`, `EVAL_CACHE_FORM`, UCI `Hash` | quick legal-move test checker · four-table prefetch (default 15) · eval cache form (gen 6 = 2) · TT size in MB |
+| side-by-side speed (two binaries benched concurrently, start order swapped) | the only bench speed reading that held up under load; a single loaded bench moved ±30% |
+| per-move nps from fastchess PGNs (`n=` / `s` comments, moves > 0.3 s) | engine speed and spread at a concurrency (median: positions differ per run) |
+
 ## Added 2026-10-19/20 (POT close-out, WDL labels, the native UCI binary + fastchess, v2 record, search fixes)
 | Tool | What it does |
 |---|---|

@@ -1,6 +1,17 @@
 # Baseline performance reference
 
-## ⭐⭐⭐ CURRENT ENGINE: v2 gen 5 + speed batch S1-S4 (2026-10-22)
+## ⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6 + PGO (2026-10-24, production binary)
+- WAC d10 fingerprint **257 / 46,196,950 / EBF 3.922** (UCI == Cython); `V2_SHIP_GEN=5` = 258 / 47,689,586; v1 = 250 / 35,310,778.
+- = gen 5 + speed batches 2-6 (atomics, sparse history decay, quick legal-move test, king-safety mask reuse, four-table prefetch,
+  flat slider tables) + the depth-cap crash fix + EVAL_CACHE_FORM 2 + tables TT 2^22 / eval, q, move-gen 2^20 (≈ 0.25 GB per
+  process, was 1.23 GB) + UCI `Hash` (default 128) + PGO.
+- Real play (fastchess, 3 games at once): **st=1 900k nps vs gen 5's 656k (+37%), depth 13.0 vs 12.8; 60+0.6 1.28M vs 926k**.
+  UCI bench ≈ 1.05-1.10M nps (the smaller tables clear faster per position).
+- Games vs gen 5 production: st=1 **+41.0 ± 30.8** (400 g), 60+0.6 **+79.5 ± 41.2** (200 g), 0 crashes. vs Mediocre 0.5 (200 g each):
+  st=1 +76.8, 60+0.6 +7.4 (our clock use under-spends: 0.94 vs 1.38 s/move).
+- Concurrency (10-25, median per-move nps): gen-6 tables 821k / 803k / 739k at 1 / 3 / 4 games; old tables 864k / 622k / 742k.
+
+## ⭐⭐⭐ v2 gen 5 + speed batch S1-S4 (2026-10-22)
 Gen 5 = gen 4 + search correctness `FIX_DRAW_EXIT` + `FIX_QS_CHECK` (v2 block only). S1-S4 are result-identical speed changes (qsearch
 quiet skip, noisy-only qsearch generation, huge-page tables, search-path repetition stack), applied to both arms.
 

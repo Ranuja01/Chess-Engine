@@ -3814,8 +3814,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
             if (Config::TM_PARTIAL && g_rp_valid && g_rp_score > g_rp_alpha_entry)
             {
                 ++g_tm_partial_used;
-                g_tm_partial_differs += (g_rp_move.from_square != completed_move.from_square || g_rp_move.to_square != completed_move.to_square ||
-                                         g_rp_move.promotion != completed_move.promotion);
+                const bool differs = g_rp_move.from_square != completed_move.from_square || g_rp_move.to_square != completed_move.to_square ||
+                                     g_rp_move.promotion != completed_move.promotion;
+                g_tm_partial_differs += differs;
+                if (differs)   // squares 0-63 (a1 = 0); for judging the two moves offline
+                    std::cerr << "PARTIAL_DIFF depth=" << depth_limit << " completed=" << completed_move.from_square << "-"
+                              << completed_move.to_square << "-" << completed_move.promotion << " adopted=" << g_rp_move.from_square
+                              << "-" << g_rp_move.to_square << "-" << g_rp_move.promotion << std::endl;
                 completed_move = g_rp_move;
                 completed_score = g_rp_score;
             }

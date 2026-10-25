@@ -3,7 +3,7 @@
 #  1 fingerprints: production gen 6.1 (PGO) and the plain gen 6.1 A/B binary
 #  2 gen 6.1 production vs Stockfish 1.1 (2008; native build of the owner's copy, -fno-aggressive-loop-optimizations), 60+0.6,
 #    100 g — a first reading of a new external opponent
-#  3 time manager step 3: st=1 self-play, Knobs TM_PARTIAL=1 vs none on the plain binary, 400 g (no-harm check)
+#  3 (dropped before launch: step 3 failed its judge)
 # -recover; disconnects and time forfeits counted; new WSL crash dumps listed.
 # Registered: SF 1.1 -100 ... -350 (no prior; wide); step 3 st=1 -10 ... +25 (ship needs > -1 sigma and a positive judge).
 ND="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine"
@@ -44,20 +44,8 @@ if [ "$W" = "0" ] && [ "$G" = "2" ]; then
   report g61_sf11_60p6
 else echo "[q103] ☠️ sf1.1 PREFLIGHT FAILED — skipped (see /tmp/q103_pre.log)"; fi
 
-# 3: step 3 no-harm check. Preflight: the arm echoes "knobs TM_PARTIAL=1", the control "knobs (none)", 0 warnings.
-timeout 120 "$FC" -engine cmd="$AB" name=tm3 option.OwnBook=false option.Knobs=TM_PARTIAL=1 st=0.05 \
-  -engine cmd="$AB" name=g61 option.OwnBook=false st=0.05 \
-  -openings file=$O/openings_uho.epd format=epd order=random -rounds 1 -games 2 -concurrency 1 \
-  -log file=/tmp/q103_pre.engine.log level=info engine=true > /tmp/q103_pre2.log 2>&1
-W=$(grep -c "have option" /tmp/q103_pre2.log); K=$(grep -cF "knobs TM_PARTIAL=1" /tmp/q103_pre.engine.log); N=$(grep -cF "knobs (none)" /tmp/q103_pre.engine.log)
-echo "[q103] tm3 preflight: warnings $W, 'knobs TM_PARTIAL=1' echoes $K, 'knobs (none)' echoes $N"
-if [ "$W" = "0" ] && [ "$K" -ge 1 ] && [ "$N" -ge 1 ]; then
-  echo "[q103] $(date) tm3_st1 (400 games)"
-  nice -n 5 "$FC" -engine cmd="$AB" name=tm3 option.OwnBook=false option.Knobs=TM_PARTIAL=1 st=1 timemargin=250 restart=on \
-    -engine cmd="$AB" name=g61 option.OwnBook=false st=1 timemargin=250 restart=on $COMMON -srand 1032 -rounds 200 -games 2 \
-    -pgnout file=$O/tm3_st1.pgn notation=san nodes=true append=false > $O/tm3_st1.log 2>&1
-  report tm3_st1
-else echo "[q103] ☠️ tm3 PREFLIGHT FAILED — skipped"; fi
+# 3 (dropped before launch): step 3 failed its judge (-0.61 pp, adopted better in 42% of non-tied cases), so its no-harm
+# match was not run.
 
 echo "[q103] new WSL crash dumps since $START:"
 find "$DUMPS" -newermt "$START" -name '*.dmp' 2>/dev/null | sed 's/^/[q103]   /'

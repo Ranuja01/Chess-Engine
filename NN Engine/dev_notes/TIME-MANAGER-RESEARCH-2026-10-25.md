@@ -190,4 +190,12 @@ Step 1 is built as `build_uci/chess_engine_uci_tm1` (plain build, commit 28b0e97
 2. **st=1 self-play, 400 g, TM_PARTIAL=1 vs 0** (plain `chess_engine_uci_g61`): predicted **−10 … +25**. This is a no-harm check only: with about 2.5% of moves touched, 400 g cannot resolve the expected effect.
 - **Ship rule:** ship if (1) is positive and (2) is above −1σ.
 
+**Result of (1), TM_PARTIAL=1: FAILED.**
+- 6,000 positions, 211 changed moves (3.5%). The logged lines equal the engine's counter (211).
+- Mean Δwin% (adopted − completed) **−0.61 pp** (se 0.51); median −0.25.
+- The adopted move was better in **73 of 173 non-tied cases (42.2%)**, about 2σ below even, against a predicted ≥ 55%.
+- Not shipped; (2) was dropped from queue #103.
+- **Hypothesis (untested):** Stockfish's rule is safe because its root searches the previous best FIRST, so any move that beats it in the cut iteration has been compared with it at the deeper depth. Our root list is ordered by the pre-search, so the "best so far" can be the best of a few early moves that never met the previous best at that depth.
+- **Mode 2** therefore also requires the previous iteration's best (`g_rp_incumbent` = the ID loop's `completed_move`) to have completed in the cut pass. It is to be judged the same way, on fresh positions (SEED changed).
+
 **Known gap, left for step 4:** with no increment and 1–2 s left, the 30 ms × 52 overhead reserve leaves almost nothing, so the move is played at once at depth 3. That is no worse than today. With any increment the gap is gone: 1 s + 0.1 → optimum 0.11 s.

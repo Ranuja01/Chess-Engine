@@ -23,6 +23,25 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 - Each arm took about 3.4 h, not 2.6.
 - Next: the combined arm (queue #105 stage 1, TM_NORM 95). A +15 … +30 effect needs about 600–800 g to resolve.
 
+**Queue #105 (0 disconnects, 0 dumps):**
+
+| match | result | registered |
+|---|---|---|
+| all three step 4 features (TM_SCALE=7, TM_NORM=95, TM_OPT_PLY=1), 200 g | **+22.6 ± 43.9** | +0 … +35 |
+| gen 6.1 vs Mediocre at **40/60 repeating**, 100 g | **+56 ± 64**, depth 14.1 vs 13.4, 1.64 vs 1.12 s/move, longest move 7.0 s | +0 … +150 |
+| gen 6.1 (60+0.6) vs SF 1.1 at **3× time odds** (20+0.2), 100 g | **−215 ± 70** (22.5%) | −150 … −350 |
+
+- **40/60:** the movestogo path works. The 2 forfeits there are both Mediocre's; we had 0.
+- **SF 1.1:** 0 forfeits.
+- **Root cause of the front-loading, found while re-reading the research:** both sides spent about 84 s (60 s + 40 increments) on moves
+  1–40 in every arm. The soft stop acts only after the iteration that crosses the optimum, so a move spends about 1.3–1.5× the optimum.
+  The references prevent this with a rule on when to start the next iteration:
+  - SF stops going deeper past 50% of its target;
+  - Weiss "don't start an iteration you can't use" (+57 Elo at its introduction);
+  - Velvet starts an iteration only if 1.75× the last one fits.
+- Ours, measured: the next iteration costs about 1.8× the last one.
+- **`TM_START=175` and `TM_SINGLE`** (forced move → stop after the first iteration) were built in 8e420ca and go to queue #106.
+
 ## ⏱️★★★★ 2026-10-25 — TIME MANAGER STEP 1: +85 self-play, +96 vs Mediocre at 60+0.6
 Research and design: [TIME-MANAGER-RESEARCH-2026-10-25.md](TIME-MANAGER-RESEARCH-2026-10-25.md). The cause of the clock gap is our start
 rule. It compares the last iteration's own duration with budget × the preset's MOVE_TIMES ratio (STANDARD 6/45 = 0.133), so we used

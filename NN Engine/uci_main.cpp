@@ -206,6 +206,12 @@ namespace
             g_cfg.TIME_LIMIT = hard;
             g_cfg.MOVE_TIMES.fill(hard);
             Config::TM_SOFT_LIMIT = std::min(opt, hard);
+            if (Config::TM_SINGLE)
+            {
+                std::vector<Move> legal;
+                pos::legal_moves(root, legal);
+                if (legal.size() == 1) Config::TM_SOFT_LIMIT = 0.0;   // a forced move: stop after the first iteration
+            }
         }
         else if (mine >= 0)
         {

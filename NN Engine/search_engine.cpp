@@ -431,6 +431,72 @@ static inline void corrhist_update(const BoardState &st, int maxbit, int static_
         e = -Config::CORR_MAX;
 }
 
+// Correction history, consensus form (Config::CORR2). Entries are relative to the side to move and indexed by its real
+// colour, so they mean the same thing whichever colour the root is; the search's root frame is applied only on the way in
+// and out (maxbit = 1 when the side to move is the root side).
+constexpr int CORR2_SIZE = 16384;
+constexpr int CORR2_LIMIT = 1024;
+static int16_t g_corr2_pawn[2][CORR2_SIZE], g_corr2_npw[2][CORR2_SIZE], g_corr2_npb[2][CORR2_SIZE];
+// Diagnostics (cumulative per process; printed with the FIXCNT line): reads, reads whose pawn slot is non-zero, updates,
+// updates refused by the bound guard, and reverse-futility / stand-pat decisions the correction changed.
+static long g_corr2_reads = 0, g_corr2_reads_set = 0, g_corr2_updates = 0, g_corr2_rejected = 0;
+static long g_corr2_rfp_seen = 0, g_corr2_rfp_flips = 0, g_corr2_sp_seen = 0, g_corr2_sp_flips = 0;
+
+struct Corr2Slots
+{
+    int pawn, white, black;
+};
+static inline Corr2Slots corr2_slots(const BoardState &st)
+{
+    if (Config::CORR2_GLOBAL)
+        return {0, 0, 0};
+    const uint64_t mask = CORR2_SIZE - 1;
+    return {(int)(generatePawnKey(st.pawns, st.occupied_colour[true], st.occupied_colour[false]) & mask),
+            (int)(generateNonPawnKey(st.knights, st.bishops, st.rooks, st.queens, st.kings, st.occupied_colour[true], true) & mask),
+            (int)(generateNonPawnKey(st.knights, st.bishops, st.rooks, st.queens, st.kings, st.occupied_colour[false], false) & mask)};
+}
+// The correction in millipawns, relative to the side to move.
+static inline int corr2_stm(const BoardState &st, const Corr2Slots &s)
+{
+    const int t = st.turn;
+    return (Config::CORR2_WP * g_corr2_pawn[t][s.pawn] + Config::CORR2_WN * (g_corr2_npw[t][s.white] + g_corr2_npb[t][s.black])) /
+           CORR2_LIMIT;
+}
+// The correction to add to a static eval in the search's root frame (counted as a read).
+static inline int corr2_root(const BoardState &st, int maxbit)
+{
+    const Corr2Slots s = corr2_slots(st);
+    ++g_corr2_reads;
+    g_corr2_reads_set += g_corr2_pawn[st.turn][s.pawn] != 0;
+    const int v = corr2_stm(st, s);
+    return maxbit ? v : -v;
+}
+static inline void corr2_gravity(int16_t &e, int bonus)
+{
+    e = (int16_t)(e + bonus - e * std::abs(bonus) / CORR2_LIMIT);
+}
+// Learn from a node's result. raw_eval: the uncorrected static eval, best: the node's score, both in the root frame;
+// rd: remaining depth. A lower bound (best >= beta) may only raise the correction, an upper bound (best <= alpha) only
+// lower it.
+static inline void corr2_update(const BoardState &st, int maxbit, int raw_eval, int best, int rd, int alpha_orig, int beta_orig)
+{
+    const Corr2Slots s = corr2_slots(st);
+    const int corr_root = maxbit ? corr2_stm(st, s) : -corr2_stm(st, s);
+    const int se_corr = raw_eval + corr_root;
+    if ((best >= beta_orig && best <= se_corr) || (best <= alpha_orig && best >= se_corr))
+    {
+        ++g_corr2_rejected;
+        return;
+    }
+    const int resid_stm = maxbit ? best - se_corr : se_corr - best;
+    const int bonus = std::max(-CORR2_LIMIT / 4, std::min(CORR2_LIMIT / 4, resid_stm * std::max(1, rd) / Config::CORR2_BDIV));
+    const int t = st.turn;
+    corr2_gravity(g_corr2_pawn[t][s.pawn], bonus);
+    corr2_gravity(g_corr2_npw[t][s.white], bonus);
+    corr2_gravity(g_corr2_npb[t][s.black], bonus);
+    ++g_corr2_updates;
+}
+
 // Bound flag for the root / preliminary-ordering TT stores. A fail-soft score is only EXACT when
 // it lands strictly inside the search window; at or past a bound it is an UPPER/LOWER bound. The
 // root stores historically hardcoded EXACT (sound only under the infinite window); this computes
@@ -2732,6 +2798,14 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
         Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
         Config::TM_OPT_PLY = env_int("TM_OPT_PLY", Config::TM_OPT_PLY);
+        Config::TM_START = env_int("TM_START", Config::TM_START);
+        Config::CORR2 = env_int("CORR2", Config::CORR2);
+        Config::CORR2_QS = env_int("CORR2_QS", Config::CORR2_QS);
+        Config::CORR2_WP = env_int("CORR2_WP", Config::CORR2_WP);
+        Config::CORR2_WN = env_int("CORR2_WN", Config::CORR2_WN);
+        Config::CORR2_BDIV = std::max(1, env_int("CORR2_BDIV", Config::CORR2_BDIV));
+        Config::CORR2_GLOBAL = env_int("CORR2_GLOBAL", Config::CORR2_GLOBAL);
+        Config::TM_SINGLE = env_int("TM_SINGLE", Config::TM_SINGLE);
         Config::EVAL_CACHE_FORM = env_int("EVAL_CACHE_FORM", Config::EVAL_CACHE_FORM);
         // Table sizes, once per process, after the presets: v2 gen 6 sizes its tables for a normal engine footprint (TT 2^22 =
         // 128 MB, eval / q / move-gen caches 2^20; ≈ 1.23 GB → ≈ 0.25 GB per process; queue #96 arms A/B no harm). Set as
@@ -3581,6 +3655,12 @@ void clearSearchTables()
 		std::fill(&threatHist[0][0][0][0][0], &threatHist[0][0][0][0][0] + 2LL * 2 * 2 * 64 * 64, 0);
 	if (Config::ENABLE_CORR_HIST)
 		std::fill(&pawnCorrHist[0][0], &pawnCorrHist[0][0] + 2LL * CORR_SIZE, 0);
+	if (Config::CORR2)
+	{
+		std::fill(&g_corr2_pawn[0][0], &g_corr2_pawn[0][0] + 2LL * CORR2_SIZE, (int16_t)0);
+		std::fill(&g_corr2_npw[0][0], &g_corr2_npw[0][0] + 2LL * CORR2_SIZE, (int16_t)0);
+		std::fill(&g_corr2_npb[0][0], &g_corr2_npb[0][0] + 2LL * CORR2_SIZE, (int16_t)0);
+	}
 	std::fill(searchEvalCache.begin(),  searchEvalCache.end(),  TTEntry{});
 	std::fill(quiesceEvalCache.begin(), quiesceEvalCache.end(), QTTEntry{});
 }
@@ -3727,7 +3807,11 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // it; otherwise while the last iteration alone took at most the preset's share for this depth.
     auto may_start_iteration = [&](double last_iteration_s) {
         if (Config::TM_SOFT_LIMIT >= 0)
-            return std::chrono::duration<double>(Clock::now() - search_start_time).count() <= Config::TM_SOFT_LIMIT * g_tm_scale;
+        {
+            const double spent = std::chrono::duration<double>(Clock::now() - search_start_time).count();
+            const double predicted_next = Config::TM_START * last_iteration_s / 100.0;
+            return spent + predicted_next <= Config::TM_SOFT_LIMIT * g_tm_scale;
+        }
         return last_iteration_s <= Config::ACTIVE->MOVE_TIMES[depth_limit];
     };
     while (depth_limit < id_depth_cap && may_start_iteration(elapsed) && score < 9000000 && !time_up)
@@ -4175,6 +4259,11 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << "TMCNT moves=" << g_tm_moves << " total_s=" << g_tm_total_s << " wasted_s=" << g_tm_wasted_s
                   << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs
                   << " partial_used=" << g_tm_partial_used << " partial_differs=" << g_tm_partial_differs << std::endl;
+    if (fix_count_log && Config::CORR2)
+        std::cerr << "CORR2CNT reads=" << g_corr2_reads << " reads_set=" << g_corr2_reads_set << " updates=" << g_corr2_updates
+                  << " rejected=" << g_corr2_rejected << " rfp_seen=" << g_corr2_rfp_seen << " rfp_flips=" << g_corr2_rfp_flips
+                  << " sp_seen=" << g_corr2_sp_seen << " sp_flips=" << g_corr2_sp_flips
+                  << " evals_reused=" << g_corrhist_eval_reused << " evals_computed=" << g_corrhist_eval_computed << std::endl;
 
 #ifdef EVAL_PROFILE
     g_prof_cycles[PROF_SEARCH_ROOT] += __rdtsc() - _prof_root_start;
@@ -6102,6 +6191,13 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             rfp_raw_eval = rfp_static_eval;
             if (Config::ENABLE_CORR_HIST)
                 rfp_static_eval += corrhist_correction(current_state, 0);
+            if (Config::CORR2)
+            {
+                rfp_static_eval += corr2_root(current_state, 0);
+                const int rfp_bound = alpha - Config::RFP_MARGIN * (depth_limit - cur_depth);
+                ++g_corr2_rfp_seen;
+                g_corr2_rfp_flips += (rfp_raw_eval <= rfp_bound) != (rfp_static_eval <= rfp_bound);
+            }
         }
 
         // Reverse futility (static null): so far below alpha a quiet move is assumed to hold.
@@ -6620,7 +6716,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     if (!capture_move)
     {
         historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
-        if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG) && std::abs(lowest_score) < 9000000 &&
+        if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG || Config::CORR2) && std::abs(lowest_score) < 9000000 &&
             !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
         {
             // Reuse the RAW node-entry eval when this node already computed one (same position, and
@@ -6639,6 +6735,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             }
             if (Config::ENABLE_CORR_HIST)
                 corrhist_update(current_state, 0, se, lowest_score);
+            if (Config::CORR2)
+                corr2_update(current_state, 0, se, lowest_score, depth_limit - cur_depth, alpha_orig, beta_orig);
             if (Config::ENABLE_CORRHIST_LOG)
                 corrhist_log(current_state, 0, se, lowest_score, depth_limit - cur_depth, alpha_orig, beta_orig);
         }
@@ -6787,6 +6885,13 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         rfp_raw_eval = rfp_static_eval;
         if (Config::ENABLE_CORR_HIST)
             rfp_static_eval += corrhist_correction(current_state, 1);
+        if (Config::CORR2)
+        {
+            rfp_static_eval += corr2_root(current_state, 1);
+            const int rfp_bound = beta + Config::RFP_MARGIN * (depth_limit - cur_depth);
+            ++g_corr2_rfp_seen;
+            g_corr2_rfp_flips += (rfp_raw_eval >= rfp_bound) != (rfp_static_eval >= rfp_bound);
+        }
     }
 
     // Reverse futility (static null): so far above beta a quiet move is assumed to hold.
@@ -7323,7 +7428,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     if (!capture_move)
     {
         historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
-        if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG) && std::abs(highest_score) < 9000000 &&
+        if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG || Config::CORR2) && std::abs(highest_score) < 9000000 &&
             !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
         {
             // Reuse the RAW node-entry eval when this node already computed one (see the minimizer site).
@@ -7340,6 +7445,8 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             }
             if (Config::ENABLE_CORR_HIST)
                 corrhist_update(current_state, 1, se, highest_score);
+            if (Config::CORR2)
+                corr2_update(current_state, 1, se, highest_score, depth_limit - cur_depth, alpha_orig, beta_orig);
             if (Config::ENABLE_CORRHIST_LOG)
                 corrhist_log(current_state, 1, se, highest_score, depth_limit - cur_depth, alpha_orig, beta_orig);
         }
@@ -8247,6 +8354,8 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         int horizon_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
         if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
             horizon_eval += corrhist_correction(state_history.back(), is_maximizing ? 1 : 0);
+        if (Config::CORR2 && Config::CORR2_QS)
+            horizon_eval += corr2_root(state_history.back(), is_maximizing ? 1 : 0);
         if (Config::ENABLE_QUIET_PROBE) {
             ++g_qterm_horizon; g_qterm_horizon_tsum += g_capg_tension;
             if (g_capg_tension > 0) ++g_qterm_horizon_active;
@@ -8353,6 +8462,13 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     int static_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
     if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
         static_eval += corrhist_correction(current_state, is_maximizing ? 1 : 0);
+    if (Config::CORR2 && Config::CORR2_QS)
+    {
+        const int raw = static_eval;
+        static_eval += corr2_root(current_state, is_maximizing ? 1 : 0);
+        ++g_corr2_sp_seen;
+        g_corr2_sp_flips += is_maximizing ? ((raw >= beta) != (static_eval >= beta)) : ((raw <= alpha) != (static_eval <= alpha));
+    }
     // Quietness probe: capture THIS node's tension before the move loop recurses and overwrites the global.
     int qprobe_tension = Config::ENABLE_QUIET_PROBE ? g_capg_tension : 0;
     if (is_maximizing)

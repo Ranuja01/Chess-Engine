@@ -2971,6 +2971,20 @@ namespace Config
     inline int  CORR_MAX   = 2000;  // clamp on the stored EMA residual (millipawns)
     inline int  CORR_W     = 192;   // applied correction = entry * CORR_W / CORR_DIV (192/256 = 0.75x)
     inline int  CORR_DIV   = 256;
+
+    // Correction history, consensus form (CORR2; default off = byte-identical). Three tables summed -- pawn structure,
+    // white non-pawn pieces, black non-pawn pieces -- of int16 entries in [-1024, 1024], indexed by the real side to move
+    // and holding values relative to it. Read: (CORR2_WP * pawn + CORR2_WN * (white + black)) / 1024 millipawns, added
+    // where the node's static eval is set (reverse futility, the null-move eval gate) and, with CORR2_QS, to qsearch
+    // stand-pat and the horizon eval. Learned at node exit (quiet or no best move, not in check, not a mate score) from
+    // the residual best - corrected eval, scaled by remaining depth / CORR2_BDIV, clamped to +-256, by the gravity update
+    // e += bonus - e * |bonus| / 1024; a fail-high only teaches "eval too low", a fail-low only "eval too high".
+    inline int CORR2 = 0;
+    inline int CORR2_QS = 1;      // also correct qsearch stand-pat and the horizon eval
+    inline int CORR2_WP = 350;    // pawn table weight, millipawns at saturation
+    inline int CORR2_WN = 400;    // weight of each non-pawn table, millipawns at saturation
+    inline int CORR2_BDIV = 38;   // bonus = residual (mp) * remaining depth / CORR2_BDIV
+    inline int CORR2_GLOBAL = 0;  // 1 = one slot per table and colour (a control: no position keying)
     inline bool ENABLE_CUTOFF_CLASS = false; // diagnostic: tally beta-cutoff moves by class(cap/promo/killer/counter/quiet)×rank
 
     // Piece-type×to continuation history as a SEPARATE additive ordering term (SF-style coexistence), NOT a
@@ -3366,6 +3380,13 @@ namespace Config
     // TM_OPT_PLY (TM_MODE >= 1, no movestogo): 1 = the optimum's share of the remaining time grows with the game ply,
     // min(0.012 + (ply + 3)^0.45 * 0.0039, 0.2 * T / left), instead of the flat min(0.025, 0.214 * T / left).
     inline int TM_OPT_PLY = 0;
+    // TM_START (clock games under TM_MODE >= 1): another iteration starts only if the time spent so far plus TM_START percent
+    // of the last iteration's duration (the predicted cost of the next one) fits within the soft limit, so a move does not
+    // overshoot its budget by finishing an iteration that started too late. 0 = off (start whenever the soft limit has not
+    // yet passed). Measured: the next iteration costs about 1.8x the last one.
+    inline int TM_START = 0;
+    // TM_SINGLE (clock games): 1 = with exactly one legal move, stop after the first iteration.
+    inline int TM_SINGLE = 0;
     // EVAL_CACHE_FORM (v2 only): 0 = the eval cache holds side_to_play-relative values (wrong sign for a search for the
     // other side), 1 = it holds the fixed Black-positive value, flipped on read, 2 = 1 and checkmate scores (ply-dependent)
     // are not cached. See get_board_evaluation.

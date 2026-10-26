@@ -4,6 +4,25 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⏱️★★ 2026-10-26 — TIME MANAGER STEP 4, ARMS ALONE (queue #104): all positive, none resolved
+- Knobs (6f0affc): `TM_SCALE` (1 node share, 2 stability, 4 score drop; Berserk's shapes), `TM_NORM`, `TM_OPT_PLY`.
+- Probe (`diagnostics/_tm_factor_probe.py`, 600 middlegame positions at 2.5 s): the best move's share of root-move nodes has median
+  **0.40** (p10 0.14, p90 0.81), so our root search spreads effort widely. That sets f_nodes median 1.81 → TM_NORM 55, and
+  stability × drop median 0.606 → TM_NORM 165.
+- **Results** (60+0.6, 200 g each vs the no-knob binary = gen 6.1, `chess_engine_uci_tm4`; 0 disconnects, 0 forfeits, 0 dumps):
+
+| arm | result | registered | mean s/move, arm vs control |
+|---|---|---|---|
+| **A** node share (NORM 55) | **+7.0 ± 41.3** | 0 … +25 | 1.63 vs 1.66 |
+| **B** stability × drop (NORM 165) | **+24.4 ± 40.7** | −10 … +15 | 1.72 vs 1.73 |
+| **C** ply growth (SF 15.1 curve) | **+12.2 ± 40.9** | −10 … +20 | |
+
+- The normalisation held (A and B within 1–3% of the control's time), so A and B measure redistribution, not extra time.
+- ⚠️ **C did not fix the front-loading.** Moves 1–20: 2.97 vs 2.81 s; moves 21–40: 1.21 vs 1.38 s. The SF 15.1 ply growth is too
+  gentle against a shrinking clock.
+- Each arm took about 3.4 h, not 2.6.
+- Next: the combined arm (queue #105 stage 1, TM_NORM 95). A +15 … +30 effect needs about 600–800 g to resolve.
+
 ## ⏱️★★★★ 2026-10-25 — TIME MANAGER STEP 1: +85 self-play, +96 vs Mediocre at 60+0.6
 Research and design: [TIME-MANAGER-RESEARCH-2026-10-25.md](TIME-MANAGER-RESEARCH-2026-10-25.md). The cause of the clock gap is our start
 rule. It compares the last iteration's own duration with budget × the preset's MOVE_TIMES ratio (STANDARD 6/45 = 0.133), so we used

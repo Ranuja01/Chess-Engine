@@ -3355,6 +3355,17 @@ namespace Config
     // pass and scored above the pass's alpha (a real result at the deeper depth); otherwise, and at 0, the last completed
     // iteration's move is played. A move whose own search was cut is never used.
     inline int TM_PARTIAL = 0;
+    // TM_SCALE (clock games under TM_MODE >= 1): bits that scale the soft limit after each completed iteration from depth 5.
+    // 1 = the best move's share of the nodes spent under root moves this search, max(0.563, 0.4499 + 2.2669 * (1 - share));
+    // 2 = best-move stability, 1.311 - 0.0533 * (consecutive iterations with the same best move, at most 10);
+    // 4 = score drop over the last three iterations, clamp(0.1127 + 0.00262 * drop in millipawns, 0.5028, 1.6561).
+    // 0 = off (the soft limit is the optimum).
+    inline int TM_SCALE = 0;
+    // TM_NORM: percent applied to the product of the TM_SCALE factors, so an arm can keep the average time per move level.
+    inline int TM_NORM = 100;
+    // TM_OPT_PLY (TM_MODE >= 1, no movestogo): 1 = the optimum's share of the remaining time grows with the game ply,
+    // min(0.012 + (ply + 3)^0.45 * 0.0039, 0.2 * T / left), instead of the flat min(0.025, 0.214 * T / left).
+    inline int TM_OPT_PLY = 0;
     // EVAL_CACHE_FORM (v2 only): 0 = the eval cache holds side_to_play-relative values (wrong sign for a search for the
     // other side), 1 = it holds the fixed Black-positive value, flipped on read, 2 = 1 and checkmate scores (ply-dependent)
     // are not cached. See get_board_evaluation.

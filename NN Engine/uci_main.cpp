@@ -7,6 +7,7 @@
 #include <chrono>
 #include <climits>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -196,7 +197,11 @@ namespace
             const double rem = mine / 1000.0, incs = inc / 1000.0, mo = g_move_overhead_ms / 1000.0;
             const int h = mtg > 0 ? std::min(mtg, 50) : 50;
             const double left = std::max(0.001, rem + incs * (h - 1) - mo * (2 + h));
-            const double opt = (mtg > 0 ? std::min(0.95 / h, 0.88 * rem / left) : std::min(0.025, 0.214 * rem / left)) * left;
+            // TM_OPT_PLY: the sudden-death share grows with the game ply (later moves get more of what is left).
+            const int ply = 2 * (std::max(1, (int)root.fullmove_number) - 1) + (root.turn ? 0 : 1);
+            const double sd_share = Config::TM_OPT_PLY ? std::min(0.012 + std::pow(ply + 3.0, 0.45) * 0.0039, 0.2 * rem / left)
+                                                       : std::min(0.025, 0.214 * rem / left);
+            const double opt = (mtg > 0 ? std::min(0.95 / h, 0.88 * rem / left) : sd_share) * left;
             const double hard = std::max(0.01, std::min(5.0 * opt, 0.8 * rem - mo));
             g_cfg.TIME_LIMIT = hard;
             g_cfg.MOVE_TIMES.fill(hard);

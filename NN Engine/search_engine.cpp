@@ -183,6 +183,16 @@ long g_tm_partial_used = 0, g_tm_partial_differs = 0;   // cut iterations whose 
 bool g_rp_valid = false;
 Move g_rp_move;
 int g_rp_score = 0, g_rp_alpha_entry = 0;
+// Nodes spent under each root move's main search during the current search (all iterations; the pre-search excluded), and
+// their sum: the inputs of the TM_SCALE node-share factor. g_tm_scale multiplies the soft limit (1 = unscaled).
+long long g_root_move_nodes[64][64];
+long long g_root_main_nodes = 0;
+double g_tm_scale = 1.0;
+static inline void root_nodes_add(const Move &m, long long n)
+{
+    g_root_move_nodes[m.from_square][m.to_square] += n;
+    g_root_main_nodes += n;
+}
 
 // Per-node counters, written and read only by the search thread. Plain integers on purpose: an increment of a
 // std::atomic is a locked instruction on x86 even with relaxed ordering, and these run several times per node.
@@ -2719,6 +2729,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PREFETCH_TABLES = env_int("PREFETCH_TABLES", Config::PREFETCH_TABLES);
         Config::TM_MODE = env_int("TM_MODE", Config::TM_MODE);
         Config::TM_PARTIAL = env_int("TM_PARTIAL", Config::TM_PARTIAL);
+        Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
+        Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
+        Config::TM_OPT_PLY = env_int("TM_OPT_PLY", Config::TM_OPT_PLY);
         Config::EVAL_CACHE_FORM = env_int("EVAL_CACHE_FORM", Config::EVAL_CACHE_FORM);
         // Table sizes, once per process, after the presets: v2 gen 6 sizes its tables for a normal engine footprint (TT 2^22 =
         // 128 MB, eval / q / move-gen caches 2^20; ≈ 1.23 GB → ≈ 0.25 GB per process; queue #96 arms A/B no harm). Set as
@@ -3614,6 +3627,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                        // here: alpha_beta's first pass cannot be interrupted safely (it has no move list yet)
     use_q_precautions = false;
     is_draw = false;
+    std::fill(&g_root_move_nodes[0][0], &g_root_move_nodes[0][0] + 64 * 64, 0LL);
+    g_root_main_nodes = 0;
+    g_tm_scale = 1.0;
 
     nodes_since_time_check = 0;
 
@@ -3692,6 +3708,11 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // changed its mind. Refreshed only on a completed iteration below.
     Move completed_move = move;
     int completed_score = score;
+    // Inputs of the TM_SCALE factors: consecutive completed iterations with the same best move, and each completed
+    // iteration's score (side to move's view, millipawns).
+    int tm_stability = 0;
+    std::vector<int> tm_iter_scores{completed_score};
+    static const bool tm_log = std::getenv("FIX_COUNT_LOG") != nullptr;
     if (g_iter_callback && !time_up.load(std::memory_order_relaxed)) // UCI `info` for the initial search too (a mate found
         g_iter_callback(depth_limit, score, static_cast<long long>(num_iterations), pv_table[0], pv_length[0], // here ends the loop
                         static_cast<int>(state_history.size()));                                              // before it runs)
@@ -3706,7 +3727,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // it; otherwise while the last iteration alone took at most the preset's share for this depth.
     auto may_start_iteration = [&](double last_iteration_s) {
         if (Config::TM_SOFT_LIMIT >= 0)
-            return std::chrono::duration<double>(Clock::now() - search_start_time).count() <= Config::TM_SOFT_LIMIT;
+            return std::chrono::duration<double>(Clock::now() - search_start_time).count() <= Config::TM_SOFT_LIMIT * g_tm_scale;
         return last_iteration_s <= Config::ACTIVE->MOVE_TIMES[depth_limit];
     };
     while (depth_limit < id_depth_cap && may_start_iteration(elapsed) && score < 9000000 && !time_up)
@@ -3831,8 +3852,37 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         // iteration's move/score are unreliable (see completed_move above).
         if (!time_up.load(std::memory_order_relaxed))
         {
+            const bool same_best = move.from_square == completed_move.from_square && move.to_square == completed_move.to_square &&
+                                   move.promotion == completed_move.promotion;
             completed_move = move;
             completed_score = score;
+            tm_stability = same_best ? std::min(10, tm_stability + 1) : 0;
+            tm_iter_scores.push_back(score);
+            if ((Config::TM_SCALE || tm_log) && depth_limit >= 5)
+            {
+                const size_t k = tm_iter_scores.size() - 1;
+                const bool scores_real = k >= 3 && std::abs(tm_iter_scores[k - 3]) < 9000000 && std::abs(score) < 9000000;
+                const int drop3 = scores_real ? tm_iter_scores[k - 3] - score : 0;
+                const long long best_nodes = g_root_move_nodes[move.from_square][move.to_square];
+                const double share = g_root_main_nodes > 0 ? (double)best_nodes / g_root_main_nodes : 1.0;
+                const double f_nodes = std::max(0.563, 0.4499 + 2.2669 * (1.0 - share));
+                const double f_stab = 1.311 - 0.0533 * tm_stability;
+                const double f_drop = std::min(1.6561, std::max(0.5028, 0.1127 + 0.00262 * std::max(0, drop3)));
+                if (Config::TM_SCALE)
+                {
+                    double s = 1.0;
+                    if (Config::TM_SCALE & 1) s *= f_nodes;
+                    if (Config::TM_SCALE & 2) s *= f_stab;
+                    if (Config::TM_SCALE & 4) s *= f_drop;
+                    g_tm_scale = s * Config::TM_NORM / 100.0;
+                }
+                if (tm_log)
+                    std::cerr << "TMITER d=" << depth_limit
+                              << " t=" << std::chrono::duration<double>(Clock::now() - search_start_time).count()
+                              << " share=" << share << " share_all=" << (num_iterations > 0 ? (double)best_nodes / num_iterations : 1.0)
+                              << " stab=" << tm_stability << " drop3=" << drop3 << " fn=" << f_nodes << " fs=" << f_stab
+                              << " fd=" << f_drop << std::endl;
+            }
             if (g_iter_callback) // UCI `info` line per completed iteration (null in the Cython path)
                 g_iter_callback(depth_limit, score, static_cast<long long>(num_iterations), pv_table[0], pv_length[0],
                                 static_cast<int>(state_history.size()));
@@ -4246,7 +4296,9 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     } */
     // std::cout <<"CCC"<< std::endl;
     RootScore entry;
+    const int root_nodes_before0 = num_iterations;
     score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, current_search_data.scores[0].second_scores, current_search_data.scores[0].second_moves, entry, state_history, position_count, zobrist, current_search_data.moves_list[0], num_iterations, capture_move, false, false);
+    root_nodes_add(current_search_data.moves_list[0], num_iterations - root_nodes_before0);
 
     // std::cout <<"DDDD"<< std::endl;
     /* if(is_repetition(position_count, zobrist, 2)){
@@ -4499,6 +4551,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         dbg_bad_move("alpha_beta_parent", (int)i, move, current_state);
         make_move(state_history, position_count, move, zobrist, capture_move);
         // std::cout <<"EEE" << std::endl;
+        const int root_nodes_before = num_iterations;
         RootScore entry;
         // Root LMR: reduce the null-window scout for late root moves instead of abandoning them. Eligibility
         // starts one move later while nothing has beaten the entry alpha, mirroring SF's
@@ -4575,6 +4628,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
         addToSearchEvalCache(zobrist, state_history.size(), score, searched_depth, root_tt_flag(score, alpha, beta), alpha, beta /* , line */, updated_state.castling_rights, updated_state.ep_square);
         unmake_move(state_history, position_count, zobrist);
+        root_nodes_add(move, num_iterations - root_nodes_before);
 
         if (time_up.load(std::memory_order_relaxed))
         {

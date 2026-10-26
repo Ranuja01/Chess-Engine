@@ -42,6 +42,15 @@ about 0.3–0.55 of the budget. Measured cumulative iteration growth is 1.93 per
 - Doing it needs the pre-search hard-off path at depth ≤ 2 (a pre-search of depth ≤ 1 leaves empty second-level lists).
 - Revisit inside step 4's low-time policy: a hyper-fast TC test with overrun and forfeit counts.
 
+**Queue #103: gen 6.1 vs Stockfish 1.1 (2008), 60+0.6, 100 g: −463 (95% −685 … −361), 6.5%** (+4 −91 =5); pentanomial 42/4/3/1/0.
+- The build is native: `/mnt/e/chess_data/engines/sf1.1/stockfish-1.1`. Its `init_safety()` reads `SafetyTable[100]`, which at `-O2`
+  makes GCC derive wrong loop bounds and crash, so it is built with `-fno-aggressive-loop-optimizations`; the source is untouched.
+- The match was fair: SF 1.1 ran single-thread at 1.5M nps against our 1.04M, used less time (1.43 vs 1.67 s/move), and reached
+  depth 14.8 against our 13.4.
+- Registered −100 … −350, so it is far stronger than expected. At equal time it cannot resolve our progress; to rotate it in, give it
+  a time handicap.
+- Step 3's st=1 stage was dropped before launch (below).
+
 **Step 3 (`TM_PARTIAL=1`, 616a7a5 / d1807e9):**
 - A cut iteration's best completed move is played if it scored above the cut pass's alpha. Bench identical.
 - Probe, 40 positions at movetime 1000: 40 cuts, 9 usable, 3 changed the move (≈ 7.5% of fixed-time moves).

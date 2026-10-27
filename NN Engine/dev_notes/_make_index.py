@@ -5,6 +5,7 @@ the date its content last changed (both from git, following renames). Commits wh
 Usage (from anywhere, Windows or WSL python): python dev_notes/_make_index.py
 """
 import os
+import re
 import subprocess
 
 DN = os.path.dirname(os.path.abspath(__file__))
@@ -31,16 +32,18 @@ NOTES = {
 def git_dates(path):
     out = subprocess.run(["git", "log", "--follow", "--date=short", "--format=%ad%x09%s", "--", path], cwd=DN,
                          capture_output=True, text=True, encoding="utf-8").stdout
-    dates = [line.split("\t", 1)[0] for line in out.splitlines()
-             if line.strip() and not line.split("\t", 1)[-1].startswith(SKIP_SUBJECT)]
+    commits = [line.split("\t", 1) for line in out.splitlines() if line.strip()]
+    dates = [c[0] for c in commits if not c[-1].startswith(SKIP_SUBJECT)]
+    if not dates:                      # first committed by a reorganisation (it existed earlier, untracked)
+        dates = [c[0] for c in commits]
     return (dates[-1], dates[0]) if dates else ("not committed", "not committed")
 
 
 def title(path):
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
-            if line.startswith("# "):
-                return line[2:].strip().replace("|", "/")
+            if line.startswith("# "):     # links in a title would be relative to that doc, not to the README: keep the text
+                return re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line[2:].strip()).replace("|", "/")
     return ""
 
 

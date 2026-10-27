@@ -32,6 +32,11 @@ calibrated = each arm at its own best global scale (grid now 0.3–6; at 2.5 eve
 - Where it helps: the `egl` stage at d10 on both labels — WDL calibrated 175.2 → 157.3 (−10%), cp label 51.4 → 43.0 (−16%);
   `both` shows the same (155.6). Paired, game-clustered: WDL −17.8 ± 8.0 (2.2σ), cp −8.6 ± 4.9 (1.8σ); `both` −19.6 ± 7.6.
   Other stages are within one sigma. It is the best of four stages, picked after looking, so treat it as a lead, not a result.
+- Against the reachable yardstick, SF11 static (WDL, calibrated, paired vs gen 6.2 per stage): SF11 is better by mg −44 ± 19,
+  mgl −38 ± 13, egl −58 ± 11, eg −84 ± 16 (8%, 9%, 20%, 29% of our error) — the static gap is largest in endgames. Static
+  threats: egl −11.8 ± 5.4 (closes about a fifth of that stage's gap) but mg +30.9 ± 16.4 (worse); the cp label agrees on
+  both signs (egl −3.8 ± 1.6, mg +7.3 ± 3.5). The term carries SF11's mg/eg ratios under one PCT (`eval_v2.cpp:2011`), so a
+  separate eg weight is the obvious tuning axis.
 - Ordering costs a little accuracy at equal depth (+1.5%, 1σ), as expected from a search that visits 8.5% fewer nodes;
   its case rests on time-to-depth, which the games measure.
 - Cython fingerprint matched gen 6.2 (257 / 46,196,950); W100 256 / 42,263,170; first-move cutoff rate 90.0% → 89.7%.

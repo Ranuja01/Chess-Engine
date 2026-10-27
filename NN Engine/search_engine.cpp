@@ -2727,6 +2727,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_TT_MOVE = env_flag("ENABLE_TT_MOVE", Config::ENABLE_TT_MOVE);
         Config::TT_MOVE_POLICY = env_int("TT_MOVE_POLICY", Config::TT_MOVE_POLICY);
         Config::CHECK_ORDER_BONUS = env_int("CHECK_ORDER_BONUS", Config::CHECK_ORDER_BONUS);
+        Config::THREAT_ORDER_W = env_int("THREAT_ORDER_W", Config::THREAT_ORDER_W);
+        if (Config::THREAT_ORDER_W < 0){
+            std::cerr << "☠️ THREAT_ORDER_W must be >= 0 -- restoring 0.\n";
+            Config::THREAT_ORDER_W = 0;
+        }
         Config::ENABLE_HISTORY_SATURATION = env_flag("ENABLE_HISTORY_SATURATION", Config::ENABLE_HISTORY_SATURATION);
         Config::ENABLE_HISTORY_MALUS = env_flag("ENABLE_HISTORY_MALUS", Config::ENABLE_HISTORY_MALUS);
         Config::ENABLE_IMPROVING = env_flag("ENABLE_IMPROVING", Config::ENABLE_IMPROVING);
@@ -3357,6 +3362,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " CAPTURE_HIST_VICTIM=" << Config::CAPTURE_HIST_VICTIM
                   << " CONT_HIST_PIECE_KEY=" << Config::CONT_HIST_PIECE_KEY
                   << " ENABLE_CHECK_ORDER=" << Config::ENABLE_CHECK_ORDER
+                  << " THREAT_ORDER_W=" << Config::THREAT_ORDER_W
                   << " ENABLE_HISTORY_SATURATION=" << Config::ENABLE_HISTORY_SATURATION
                   << " ENABLE_HISTORY_MALUS=" << Config::ENABLE_HISTORY_MALUS
                   << " ENABLE_IMPROVING=" << Config::ENABLE_IMPROVING

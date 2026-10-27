@@ -845,6 +845,20 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			bishopsMask & opposingPieces, rooksMask & opposingPieces, queensMask & opposingPieces,
 			kingsMask & opposingPieces, occupiedMask);
 
+	// Squares the opponent attacks with a pawn; with a pawn or minor; with a pawn, minor or rook. These are the
+	// "cheaper attacker" sets for a minor, a rook and a queen in the threat-aware quiet ordering below.
+	uint64_t threat_by_pawn = 0, threat_by_minor = 0, threat_by_rook = 0;
+	if (Config::THREAT_ORDER_W > 0)
+	{
+		uint64_t b;
+		for (b = pawnsMask & opposingPieces; b; b &= b - 1) threat_by_pawn |= BB_PAWN_ATTACKS[!turn][__builtin_ctzll(b)];
+		threat_by_minor = threat_by_pawn;
+		for (b = knightsMask & opposingPieces; b; b &= b - 1) threat_by_minor |= BB_KNIGHT_ATTACKS[__builtin_ctzll(b)];
+		for (b = bishopsMask & opposingPieces; b; b &= b - 1) { int s = __builtin_ctzll(b); threat_by_minor |= BB_DIAG_ATTACKS[s][BB_DIAG_MASKS[s] & occupiedMask]; }
+		threat_by_rook = threat_by_minor;
+		for (b = rooksMask & opposingPieces; b; b &= b - 1) { int s = __builtin_ctzll(b); threat_by_rook |= BB_RANK_ATTACKS[s][BB_RANK_MASKS[s] & occupiedMask] | BB_FILE_ATTACKS[s][BB_FILE_MASKS[s] & occupiedMask]; }
+	}
+
 	auto score_move = [&](size_t i) -> int {
 		uint8_t from = startPos[i];
 		uint8_t to = endPos[i];
@@ -909,6 +923,22 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			if (atk & BB_SQUARES[enemy_king_sq])
 				check_bonus = Config::CHECK_ORDER_BONUS;
 		}
+		// Escape from / step onto a square attacked by a cheaper enemy piece (pawns and the king are never scored).
+		int threat_order = 0;
+		if (Config::THREAT_ORDER_W > 0)
+		{
+			uint64_t fromBB = BB_SQUARES[from];
+			uint64_t lesser = 0;
+			int value = 0;
+			if (knightsMask & fromBB)      { lesser = threat_by_pawn;  value = values[KNIGHT]; }
+			else if (bishopsMask & fromBB) { lesser = threat_by_pawn;  value = values[BISHOP]; }
+			else if (rooksMask & fromBB)   { lesser = threat_by_minor; value = values[ROOK]; }
+			else if (queensMask & fromBB)  { lesser = threat_by_rook;  value = values[QUEEN]; }
+			if (lesser & BB_SQUARES[to])
+				threat_order = -value * Config::THREAT_ORDER_W * 19 / 200;
+			else if (lesser & fromBB)
+				threat_order = value * Config::THREAT_ORDER_W / 10;
+		}
 		int pcont = 0;
 		if (Config::ENABLE_PIECE_CONTHIST)
 			pcont = pieceContHist[turn][pcont_ctx_key_bb(prevMove, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)][pcont_ent_key_bb(from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)] >> Config::PIECE_CONTHIST_SHIFT;
@@ -922,7 +952,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		}
 		return bh + static_tb + killerBonus(ply, cur)
 			   + counterMoveBonus + cmh_ref_bb(turn, prevMove, from, to, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask)
-			   + cont2 + check_bonus + pcont
+			   + cont2 + check_bonus + threat_order + pcont
 			   + promo_bonus + moveFrequency[turn][from][to];
 	};
 
@@ -954,7 +984,8 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 /* Live ordering score for a QUIET move, mirroring the quiet branch of generateLegalMovesReordered's
    score_move lambda above (history + killer + counter + 2-ply continuation + check + promo + freq).
    Used by the lazy cached-tail re-sort in buildMoveListFromReordered to re-rank stale quiets against
-   the CURRENT history tables. Keep the term list in sync with that lambda. Captures are never passed
+   the CURRENT history tables. Keep the term list in sync with that lambda (except the threat-aware term,
+   THREAT_ORDER_W, which needs the node's attack sets and is static per position). Captures are never passed
    here (the re-sort only touches the quiet tail). enemy_king_sq is precomputed by the caller (-1 when
    the check-ordering feature is off). */
 inline int score_quiet(uint8_t from, uint8_t to, uint8_t promo, bool turn, int ply, Move prevMove,

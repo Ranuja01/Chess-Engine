@@ -1589,6 +1589,12 @@ namespace Config
                                                // malus exists. Best single component on bench under gravity (254 WAC).
     inline bool ENABLE_CHECK_ORDER = false;    // direct-check bonus -- on the SCALE-OFF baseline it's -6 WAC for -9.8% nodes (accuracy traded for speed; bad at fixed depth). BONUS=6000 too hot -> recalibrate lower before re-enabling
     inline int CHECK_ORDER_BONUS = 6000;       // the flat quiet-check ordering bonus
+    // Threat-aware quiet ordering in score form (SF15+ / SF19 movepick, Obsidian, Berserk): a quiet move that takes a
+    // knight, bishop, rook or queen off a square attacked by a cheaper enemy piece is ordered up by value*W/10; one that
+    // steps onto such a square is ordered down by 19/20 of that. W = 100 puts a knight's escape at about twice the
+    // history limit, the same relation SF19 uses. Needs no learned table, unlike ENABLE_THREAT_HIST (the Ethereal
+    // index form, closed on v1). 0 = off = byte-identical.
+    inline int THREAT_ORDER_W = 0;
     // TT best-move ordering: promote the transposition table's remembered cutoff move (TTEntry::move) when a
     // position is revisited. It formerly read g_ttMoveTable, which has no write site anywhere in the engine --
     // every lookup returned the default {0,0,0}, so the flag was byte-identical rather than tested.

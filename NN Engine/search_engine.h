@@ -3373,20 +3373,21 @@ namespace Config
     // 1 = the best move's share of the nodes spent under root moves this search, max(0.563, 0.4499 + 2.2669 * (1 - share));
     // 2 = best-move stability, 1.311 - 0.0533 * (consecutive iterations with the same best move, at most 10);
     // 4 = score drop over the last three iterations, clamp(0.1127 + 0.00262 * drop in millipawns, 0.5028, 1.6561).
-    // 0 = off (the soft limit is the optimum).
-    inline int TM_SCALE = 0;
+    // 0 = off (the soft limit is the optimum). Default 7 since gen 6.2, together with TM_NORM 95, TM_OPT_PLY 1, TM_START 175
+    // and TM_SINGLE 1 (60+0.6: +59.6 self-play over gen 6.1, +119 vs Mediocre; the factors alone were flat).
+    inline int TM_SCALE = 7;
     // TM_NORM: percent applied to the product of the TM_SCALE factors, so an arm can keep the average time per move level.
-    inline int TM_NORM = 100;
+    inline int TM_NORM = 95;
     // TM_OPT_PLY (TM_MODE >= 1, no movestogo): 1 = the optimum's share of the remaining time grows with the game ply,
     // min(0.012 + (ply + 3)^0.45 * 0.0039, 0.2 * T / left), instead of the flat min(0.025, 0.214 * T / left).
-    inline int TM_OPT_PLY = 0;
+    inline int TM_OPT_PLY = 1;
     // TM_START (clock games under TM_MODE >= 1): another iteration starts only if the time spent so far plus TM_START percent
     // of the last iteration's duration (the predicted cost of the next one) fits within the soft limit, so a move does not
     // overshoot its budget by finishing an iteration that started too late. 0 = off (start whenever the soft limit has not
-    // yet passed). Measured: the next iteration costs about 1.8x the last one.
-    inline int TM_START = 0;
-    // TM_SINGLE (clock games): 1 = with exactly one legal move, stop after the first iteration.
-    inline int TM_SINGLE = 0;
+    // yet passed). Measured: the next iteration costs about 1.8x the last one. Default 175 since gen 6.2.
+    inline int TM_START = 175;
+    // TM_SINGLE (clock games): 1 = with exactly one legal move, stop after the first iteration. Default 1 since gen 6.2.
+    inline int TM_SINGLE = 1;
     // EVAL_CACHE_FORM (v2 only): 0 = the eval cache holds side_to_play-relative values (wrong sign for a search for the
     // other side), 1 = it holds the fixed Black-positive value, flipped on read, 2 = 1 and checkmate scores (ply-dependent)
     // are not cached. See get_board_evaluation.

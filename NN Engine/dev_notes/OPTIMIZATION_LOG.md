@@ -4,6 +4,13 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-10-26 night — GEN 6.2 = gen 6.1 + time manager arm E as the defaults (owner-confirmed)
+Defaults now `TM_START=175 TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`; id "AlphaUX (v2 gen 6.2)". **Scope: UCI clock games
+only** — presets, `go movetime`, fixed depth / nodes and the Cython path are untouched, so `bench` stays 257 / 46,196,950.
+Evidence (60+0.6, 200 g each): +59.6 ± 46 self-play vs gen 6.1 (#106 arm E); **vs Mediocre 0.5 +119.1 ± 48.2** (122-56-22,
+66.5%; gen 6.1 +96.2 in #102) in #107, 4 time forfeits all Mediocre's (dead-drawn king shuffles at 0.00; as draws ≈ +112),
+0 by us. Source defaults committed at once; the PGO production build + install waits until queues #107/#108 free the box.
+
 ## ⏱️★★★★ 2026-10-26 evening — THE START RULE (queue #106): everything together +59.6 ± 46 vs gen 6.1
 60+0.6, 200 g each vs the no-knob binary (= gen 6.1), `chess_engine_uci_tm4b`; 0 disconnects, 0 forfeits, 0 dumps.
 

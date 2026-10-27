@@ -201,7 +201,7 @@ at all**) · `PawnDoubled2` (1/4, no record hit) · rook/bishop-on-king-ring · 
 
 | item | state | evidence | re-read trigger |
 |---|---|---|---|
-| **Corrhist** (`CORR2`, SF-consensus form, 4-way keying; owner 10-27: "it could be a tuning problem if we are just using the tunings of other engines") | PARKED, default off, code kept | 10+0.1 vs gen 6.2 TM, 1,000 g each: full weights −8.7 ± 18.4 · half −2.4 ± 19.6 · quarter +7.6 ± 20.0, fresh-seed re-run in queue #110 (OPTIMIZATION_LOG 10-27). Smaller corrections score better; none is shown to beat off. Our pruning margins were tuned without it; the references tuned theirs with it on | **the full retune**: `CORR2_WP` / `CORR2_WN` (and `CORR2_LIMIT`) tuned jointly with the RFP / futility / razoring margins, starting from the quarter or half weights, whichever #110 favours |
+| **Corrhist** (`CORR2`, SF-consensus form, 4-way keying; owner 10-27: "it could be a tuning problem if we are just using the tunings of other engines") | PARKED, default off, code kept | 10+0.1 vs gen 6.2 TM, 1,000 g each: full weights −8.7 ± 18.4 · half −2.4 ± 19.6 · quarter +7.6 ± 20.0, re-run +3.5 ± 19.2 (#110), pooled ≈ +5.5 ± 14 over 2,000 g (OPTIMIZATION_LOG 10-27). Smaller corrections score better; none is shown to beat off. Our pruning margins were tuned without it; the references tuned theirs with it on | **the full retune**: `CORR2_WP` / `CORR2_WN` (and `CORR2_LIMIT`) tuned jointly with the RFP / futility / razoring margins, starting from the quarter weights `CORR2_WP=88,CORR2_WN=100` (#110 kept them positive) |
 
 ## PROVENANCE
 Built by a full sweep of `dev_notes/` + memory on 2026-09-20. Companion docs:

@@ -64,6 +64,8 @@ Binary `chess_engine_uci_c2h`; every arm vs the same binary with the gen 6.2 TM 
   1092). Full → half → quarter reads −8.7 → −2.4 → +7.6: smaller corrections score better, but every step is inside one sigma
   and zero weight is the control itself, so no level is shown to beat it. The quarter arm was positive, so by the stop rule it
   is re-run on a fresh seed (queue #110, seed 1093, registered −10 … +10; ≤ 0 parks corrhist).
+- #110: quarter weights again +3.5 ± 19.2 (Ptnml 77-82-173-90-78; 0 disconnects, forfeits, dumps), in the band. Pooled with
+  #109, +5.5 ± 14 over 2,000 games: positive, not resolved. Corrhist stays parked; the quarter weights are the retune start.
 
 ## ⏱️★★★★ 2026-10-26 evening — THE START RULE (queue #106): everything together +59.6 ± 46 vs gen 6.1
 60+0.6, 200 g each vs the no-knob binary (= gen 6.1), `chess_engine_uci_tm4b`; 0 disconnects, 0 forfeits, 0 dumps.

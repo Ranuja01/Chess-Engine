@@ -13,6 +13,29 @@ Evidence (60+0.6, 200 g each): +59.6 ± 46 self-play vs gen 6.1 (#106 arm E); **
 v1 250 / 35,310,778, `V2_SHIP_GEN=5` 258 / 47,689,586, gen 6.1 TM knobs 257 / 46,196,950. Gen 6.1 backup: `chess_engine_uci_g61pgo`.
 Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/200; gen 6.1 22.5% in 100 g) — unchanged within noise.
 
+## 🧪 2026-10-27 evening — THREATS: win% accuracy on SF18 labels (before the #111 games)
+`_v1_v2_accuracy.py`, 5,988 held-out quiet own-play rows (`E:\chess_data\wdlcal`), SF18 d14 labels; arms on gen 6.2 code
+(`V2_PRESET=shipped`). TH = `THREAT_V2_PCT=100,THREAT_V2_HANGING=1,THREAT_V2_KING=1,THREAT_V2_PAWN_TARGETS=1`; ord =
+`THREAT_ORDER_W=100`. Paired vs gen 6.2 on common rows, ± = 1 s.e. from a bootstrap that resamples whole games (3,222 games);
+calibrated = each arm at its own best global scale (grid now 0.3–6; at 2.5 every WDL arm was pinned at the ceiling).
+
+| arm | WDL raw | WDL calibrated | cp-label raw |
+|---|---|---|---|
+| static TH | −1.5% (−9.5 ± 2.5) | **+1.3% (+4.9 ± 4.9)** | −0.3% (−0.3 ± 1.0) |
+| d10 TH | −1.9% (−8.9 ± 3.0) | **−2.0% (−4.2 ± 4.0)** | −3.8% (−2.1 ± 1.9) |
+| d10 ord | +0.8% (+3.9 ± 2.8) | +1.5% (+3.2 ± 3.3) | +3.7% (+2.1 ± 1.8) |
+| d10 TH + ord | −1.0% (−4.5 ± 3.7) | −0.4% (−0.8 ± 4.4) | +0.7% (+0.4 ± 2.4) |
+
+- The 10-08 "d10 −7.8%" (cp label) does not survive: on the WDL label the d10 gain is about 2%, one sigma once scale is
+  removed. The raw WDL gain is mostly scale: every arm is under-confident against SF18's WDL (best d10 scale ≈ 3.2) and the
+  threats term makes evals slightly larger. Statically, threats are no better once scaled (+1.3%, worse, 1σ).
+- Where it helps: the `egl` stage at d10 on both labels — WDL calibrated 175.2 → 157.3 (−10%), cp label 51.4 → 43.0 (−16%);
+  `both` shows the same (155.6). Paired, game-clustered: WDL −17.8 ± 8.0 (2.2σ), cp −8.6 ± 4.9 (1.8σ); `both` −19.6 ± 7.6.
+  Other stages are within one sigma. It is the best of four stages, picked after looking, so treat it as a lead, not a result.
+- Ordering costs a little accuracy at equal depth (+1.5%, 1σ), as expected from a search that visits 8.5% fewer nodes;
+  its case rests on time-to-depth, which the games measure.
+- Cython fingerprint matched gen 6.2 (257 / 46,196,950); W100 256 / 42,263,170; first-move cutoff rate 90.0% → 89.7%.
+
 ## 🧪 2026-10-27 — CORRHIST (CORR2 consensus form), QUEUES #107/#108: no gain at 10+0.1, unresolved at 60+0.6
 Binary `chess_engine_uci_c2h`; every arm vs the same binary with the gen 6.2 TM knobs only; 0 disconnects, 0 forfeits, 0 dumps.
 

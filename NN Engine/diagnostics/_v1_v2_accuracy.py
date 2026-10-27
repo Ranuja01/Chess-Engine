@@ -5,7 +5,7 @@ SF18 run: the historical fixed-formula cp label and SF18's own WDL expected scor
   MODE=static TAG=v2 V2_PRESET=shipped pyrun diagnostics/_v1_v2_accuracy.py    → static_v2.csv     (v1: TAG=v1, no V2_PRESET)
   MODE=sf11 pyrun diagnostics/_v1_v2_accuracy.py                                → static_sf11.csv
   MODE=prep pyrun …                                                             → cal_d10_in.csv for _depth_residual_pass.py
-  MODE=read pyrun …   reads every static_*.csv and d10_*.csv present
+  MODE=read pyrun …   reads every static_*.csv and d10_*.csv present; REF=d10_g62 adds a paired table against that arm
 """
 import os, sys, csv, glob
 import numpy as np
@@ -63,9 +63,12 @@ def read():
     stage = np.array([m["stage"] for _, m in R])
     ycp = wp([float(r["sf_cp_white"]) for r, _ in R])
     yw = np.array([(float(r["w"]) + 0.5 * float(r["d"])) / 10.0 for r, _ in R])
+    group = np.array([m["group"].split("#")[0] for _, m in R])
     arms = []
     for p in sorted(glob.glob(os.path.join(D, "static_*.csv"))) + sorted(glob.glob(os.path.join(D, "d10_*.csv"))):
         name = os.path.basename(p)[:-4]
+        if "_s" in name and "of" in name.rsplit("_s", 1)[1]:   # d10 shard files, already concatenated into the arm
+            continue
         col = "cp_white" if name.startswith("static_") else "ours_cp_white"
         m = {r["fen"]: float(r[col]) for r in csv.DictReader(open(p, newline="")) if r.get(col)}
         arms.append((name, m))
@@ -84,18 +87,39 @@ def read():
             print("  %-14s %s  " % (name, cell(np.ones(len(fen), bool))) + "  ".join(cell(stage == s) for s in ("mg", "mgl", "egl", "eg")))
         # Raw MSE rewards a larger eval scale as much as a better one; this table re-scales each arm's cp by the single
         # factor that minimises its own MSE on ALL rows, so arms are compared on discrimination alone.
+        # The grid reaches 6: against the WDL label every arm is under-confident enough to pin a 2.5 ceiling.
         print("  calibrated (each arm at its own best global scale s):")
+        grid = np.arange(0.30, 6.005, 0.01)
+        sq = {}   # per-row squared error at the arm's own scale, for the paired table
         for name, m in arms:
             ok = np.array([f in m for f in fen])
             cp = np.array([m.get(f, 0.0) for f in fen])
-            grid = np.arange(0.30, 2.51, 0.01)
             s = grid[int(np.argmin([np.mean((wp(g * cp[ok]) - y[ok]) ** 2) for g in grid]))]
             x = wp(s * cp)
+            sq[name] = (ok, (wp(cp) - y) ** 2, (x - y) ** 2)
             def ccell(mask):
                 mk = mask & ok
                 return "%6.1f        " % np.mean((x[mk] - y[mk]) ** 2) if mk.any() else "      -       "
             print("  %-14s %s  " % (name, ccell(np.ones(len(fen), bool))) + "  ".join(ccell(stage == st) for st in ("mg", "mgl", "egl", "eg"))
                   + "  s=%.2f" % s)
+        # Paired against REF on the rows both arms have; the standard error resamples whole games (rows of one game are
+        # correlated), 1,000 draws. The scale s is held at its full-sample value inside the resampling.
+        ref = KV.get("REF")
+        if ref in sq:
+            print("  paired vs %s (arm − ref, common rows; ± = 1 s.e., game-clustered bootstrap):" % ref)
+            rng = np.random.default_rng(1)
+            for name in sq:
+                if name == ref or name.startswith("static_") != ref.startswith("static_"):
+                    continue
+                ok = sq[name][0] & sq[ref][0]
+                g = group[ok]; ug, gi = np.unique(g, return_inverse=True)
+                cells = []
+                for k in (1, 2):
+                    d = sq[name][k][ok] - sq[ref][k][ok]
+                    gs = np.bincount(gi, d); gn = np.bincount(gi)
+                    bs = [gs[b].sum() / gn[b].sum() for b in (rng.integers(0, len(ug), len(ug)) for _ in range(1000))]
+                    cells.append("%+6.1f ± %4.1f (%+5.1f%%)" % (d.mean(), np.std(bs), 100 * d.mean() / sq[ref][k][ok].mean()))
+                print("  %-14s raw %s   calibrated %s   rows %d games %d" % (name, cells[0], cells[1], ok.sum(), len(ug)))
 
 
 if __name__ == "__main__":

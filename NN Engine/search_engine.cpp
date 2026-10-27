@@ -441,6 +441,9 @@ static int16_t g_corr2_pawn[2][CORR2_SIZE], g_corr2_npw[2][CORR2_SIZE], g_corr2_
 // updates refused by the bound guard, and reverse-futility / stand-pat decisions the correction changed.
 static long g_corr2_reads = 0, g_corr2_reads_set = 0, g_corr2_updates = 0, g_corr2_rejected = 0;
 static long g_corr2_rfp_seen = 0, g_corr2_rfp_flips = 0, g_corr2_sp_seen = 0, g_corr2_sp_flips = 0;
+// Size of the correction at each read, |mp|: sum for the mean, and counts below 50 / 100 / 200 / 400 / 800 / above.
+static long long g_corr2_abs_sum = 0;
+static long g_corr2_size_hist[6] = {};
 
 struct Corr2Slots
 {
@@ -469,6 +472,9 @@ static inline int corr2_root(const BoardState &st, int maxbit)
     ++g_corr2_reads;
     g_corr2_reads_set += g_corr2_pawn[st.turn][s.pawn] != 0;
     const int v = corr2_stm(st, s);
+    const int a = std::abs(v);
+    g_corr2_abs_sum += a;
+    ++g_corr2_size_hist[a < 50 ? 0 : a < 100 ? 1 : a < 200 ? 2 : a < 400 ? 3 : a < 800 ? 4 : 5];
     return maxbit ? v : -v;
 }
 static inline void corr2_gravity(int16_t &e, int bonus)
@@ -4263,7 +4269,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cerr << "CORR2CNT reads=" << g_corr2_reads << " reads_set=" << g_corr2_reads_set << " updates=" << g_corr2_updates
                   << " rejected=" << g_corr2_rejected << " rfp_seen=" << g_corr2_rfp_seen << " rfp_flips=" << g_corr2_rfp_flips
                   << " sp_seen=" << g_corr2_sp_seen << " sp_flips=" << g_corr2_sp_flips
-                  << " evals_reused=" << g_corrhist_eval_reused << " evals_computed=" << g_corrhist_eval_computed << std::endl;
+                  << " evals_reused=" << g_corrhist_eval_reused << " evals_computed=" << g_corrhist_eval_computed
+                  << " abs_sum=" << g_corr2_abs_sum << " size_hist=" << g_corr2_size_hist[0] << "/" << g_corr2_size_hist[1] << "/"
+                  << g_corr2_size_hist[2] << "/" << g_corr2_size_hist[3] << "/" << g_corr2_size_hist[4] << "/" << g_corr2_size_hist[5]
+                  << std::endl;
 
 #ifdef EVAL_PROFILE
     g_prof_cycles[PROF_SEARCH_ROOT] += __rdtsc() - _prof_root_start;

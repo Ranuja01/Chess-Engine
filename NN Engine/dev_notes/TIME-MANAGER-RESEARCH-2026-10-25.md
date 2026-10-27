@@ -202,4 +202,13 @@ Step 1 is built as `build_uci/chess_engine_uci_tm1` (plain build, commit 28b0e97
 - Mode 2 was not built. Its diff is saved at `E:\chess_data\patches\tm_partial_mode2.patch`. Mode 1 stays in the code, default off.
 - **Trigger: search v2.** Once the root searches the previous best first (negamax plus a per-node TT best move), Stockfish's rule applies as designed. Re-judge then with `_partial_iter_judge.py` (env `MODE`).
 
+**Step 4 results (2026-10-26, details in OPTIMIZATION_LOG):**
+- Arms alone (queue #104): node share +7.0, stability × drop +24.4, ply growth +12.2 (±41 each). All three together (#105): +22.6 ± 43.9.
+- Root cause of the front-loading: the soft stop only acts after the iteration that crosses the optimum. Fixed by the start rule
+  `TM_START=175` (start an iteration only if 1.75× the last one fits; Velvet's predictor) and `TM_SINGLE` (one legal move → stop after the
+  first iteration).
+- Queue #106: start rule alone **+3.5 ± 44.1**; start rule + all of step 4 (**E**) **+59.6 ± 46.1** (2.5σ). Moves 1–20 now take about 35%
+  less time and moves past 40 nearly double.
+- **E is the gen 6.2 candidate**, pending the Mediocre confirmation (queue #107).
+
 **Known gap, left for step 4:** with no increment and 1–2 s left, the 30 ms × 52 overhead reserve leaves almost nothing, so the move is played at once at depth 3. That is no worse than today. With any increment the gap is gone: 1 s + 0.1 → optimum 0.11 s.

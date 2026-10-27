@@ -4,6 +4,30 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⏱️★★★★ 2026-10-26 evening — THE START RULE (queue #106): everything together +59.6 ± 46 vs gen 6.1
+60+0.6, 200 g each vs the no-knob binary (= gen 6.1), `chess_engine_uci_tm4b`; 0 disconnects, 0 forfeits, 0 dumps.
+
+| arm | result | registered |
+|---|---|---|
+| **D** TM_START=175, TM_SINGLE=1 | **+3.5 ± 44.1** (84-82-34) | −10 … +30 |
+| **E** D + TM_SCALE=7, TM_NORM=95, TM_OPT_PLY=1 | **+59.6 ± 46.1** (101-67-32), 2.5σ | +5 … +45 |
+
+Mean s/move by move number (`time_by_phase.py`), arm vs control:
+
+| | 1–20 | 21–40 | 41–60 | 61+ |
+|---|---|---|---|---|
+| D | 1.70 vs 2.81 | 1.35 vs 1.35 | 1.09 vs 0.61 | 0.81 vs 0.59 |
+| E | 1.85 vs 2.84 | 1.63 vs 1.35 | 1.17 vs 0.61 | 0.65 vs 0.58 |
+
+- The front-loading is fixed in both arms: about 35% less time in moves 1–20 and nearly double after move 40.
+- The start rule alone is flat, and the step 4 factors alone were +7 … +24 (#104/#105). Together they are +60. The point estimate sits above the
+  registered band; picking the larger of two arms inflates it a little. Not explained yet: a guess is that the factors' "spend more here"
+  decisions were wasted while every move overshot.
+- E's games are shorter (636 vs 1,477 moves past move 60 in D's match).
+- **Candidate gen 6.2 = E.** Mediocre confirmation in queue #107 (gen 6.1 was +96.2 there).
+- Corrhist stage 1, correction size over 4 game sequences (1 s/move, `chess_engine_uci_c2h`): mean |correction| 161–234 mp per read;
+  25–32% of reads under 50 mp, 13–19% over 400 mp, 1–2% over 800 mp. Bench NPS with CORR2 on: −2.3% (3 alternating pairs).
+
 ## ⏱️★★ 2026-10-26 — TIME MANAGER STEP 4, ARMS ALONE (queue #104): all positive, none resolved
 - Knobs (6f0affc): `TM_SCALE` (1 node share, 2 stability, 4 score drop; Berserk's shapes), `TM_NORM`, `TM_OPT_PLY`.
 - Probe (`diagnostics/_tm_factor_probe.py`, 600 middlegame positions at 2.5 s): the best move's share of root-move nodes has median

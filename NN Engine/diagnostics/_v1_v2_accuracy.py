@@ -82,6 +82,20 @@ def read():
                 e = (x[mk] - y[mk]); sgn = np.sign(y[mk] - 50)
                 return "%6.1f (%+5.2f)" % (np.mean(e ** 2), np.mean(e * sgn))
             print("  %-14s %s  " % (name, cell(np.ones(len(fen), bool))) + "  ".join(cell(stage == s) for s in ("mg", "mgl", "egl", "eg")))
+        # Raw MSE rewards a larger eval scale as much as a better one; this table re-scales each arm's cp by the single
+        # factor that minimises its own MSE on ALL rows, so arms are compared on discrimination alone.
+        print("  calibrated (each arm at its own best global scale s):")
+        for name, m in arms:
+            ok = np.array([f in m for f in fen])
+            cp = np.array([m.get(f, 0.0) for f in fen])
+            grid = np.arange(0.30, 2.51, 0.01)
+            s = grid[int(np.argmin([np.mean((wp(g * cp[ok]) - y[ok]) ** 2) for g in grid]))]
+            x = wp(s * cp)
+            def ccell(mask):
+                mk = mask & ok
+                return "%6.1f        " % np.mean((x[mk] - y[mk]) ** 2) if mk.any() else "      -       "
+            print("  %-14s %s  " % (name, ccell(np.ones(len(fen), bool))) + "  ".join(ccell(stage == st) for st in ("mg", "mgl", "egl", "eg"))
+                  + "  s=%.2f" % s)
 
 
 if __name__ == "__main__":

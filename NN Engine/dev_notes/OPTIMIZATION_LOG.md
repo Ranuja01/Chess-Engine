@@ -9,7 +9,27 @@ Defaults now `TM_START=175 TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`; id "
 only** — presets, `go movetime`, fixed depth / nodes and the Cython path are untouched, so `bench` stays 257 / 46,196,950.
 Evidence (60+0.6, 200 g each): +59.6 ± 46 self-play vs gen 6.1 (#106 arm E); **vs Mediocre 0.5 +119.1 ± 48.2** (122-56-22,
 66.5%; gen 6.1 +96.2 in #102) in #107, 4 time forfeits all Mediocre's (dead-drawn king shuffles at 0.00; as draws ≈ +112),
-0 by us. Source defaults committed at once; the PGO production build + install waits until queues #107/#108 free the box.
+0 by us. **Installed 2026-10-27** as the PGO build `chess_engine_uci` (= `chess_engine_uci_g62pgo`): bench 257 / 46,196,950,
+v1 250 / 35,310,778, `V2_SHIP_GEN=5` 258 / 47,689,586, gen 6.1 TM knobs 257 / 46,196,950. Gen 6.1 backup: `chess_engine_uci_g61pgo`.
+Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/200; gen 6.1 22.5% in 100 g) — unchanged within noise.
+
+## 🧪 2026-10-27 — CORRHIST (CORR2 consensus form), QUEUES #107/#108: no gain at 10+0.1, unresolved at 60+0.6
+Binary `chess_engine_uci_c2h`; every arm vs the same binary with the gen 6.2 TM knobs only; 0 disconnects, 0 forfeits, 0 dumps.
+
+| arm | TC | games | result | registered |
+|---|---|---|---|---|
+| **A** `CORR2=1` | 10+0.1 | 1,000 (400 + 600, seeds 1072 / 1081) | **−8.7 ± 18.4** (+18.3 then −26.7) | +0 … +20 ✗ |
+| **A** `CORR2=1` | 60+0.6 | 200 | −26.1 ± 44.7 | +5 … +25 ✗ (unresolved) |
+| **C** `CORR2=1,CORR2_GLOBAL=1` | 10+0.1 | 400 | **−199 ± 38** | −10 … +5 ✗✗ |
+| **D** `CORR2=1,CORR2_QS=0` | 10+0.1 | 400 | −16.5 ± 28.7 | ≤ A ✓ (≈ A) |
+
+- A's pooled interval excludes the +20 top of the prior; the point is negative. As built, corrhist does not pay.
+- C was a mis-designed control, not a sign bug: one shared slot per colour under gravity with bonuses up to ±256/1024 follows the
+  last few updates, so every read applies a near-random correction of up to ~1 pawn. Read: corrections of this size move play a
+  lot, and position keying is what keeps them from being noise. Unverified: the size histogram under GLOBAL=1 (expected: a far
+  heavier > 400 mp tail than A's 13-19%).
+- D ≈ A: removing the qsearch application neither rescues nor sinks it.
+- Open hypothesis (not tested): A's corrections are too large / too noisy (mean |corr| 0.16-0.23 pawn, 1-2% above 0.8 pawn).
 
 ## ⏱️★★★★ 2026-10-26 evening — THE START RULE (queue #106): everything together +59.6 ± 46 vs gen 6.1
 60+0.6, 200 g each vs the no-knob binary (= gen 6.1), `chess_engine_uci_tm4b`; 0 disconnects, 0 forfeits, 0 dumps.

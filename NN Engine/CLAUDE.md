@@ -58,10 +58,10 @@ and the v1 control below; full table `dev_notes/BASELINE_PERF.md` §v2. v1 contr
 st=1 +170 / 155 g, 60+0.6 +199 / 300 g — OPTIMIZATION_LOG 10-19). v1 stays the Cython path's no-env default ONLY so the
 fingerprint scripts keep working; every new measurement, the UI and the UCI binary (default `V2_PRESET=shipped`) use v2.
 **The engine is AlphaUX** ("NN Engine" is only this folder's name). **Native UCI binary:** `selfplay/build_uci.sh` →
-`build_uci/chess_engine_uci` = **gen 6.1** (2026-10-25: gen 6 + the time manager's `TM_MODE=1` clock rule, PGO; id "AlphaUX (v2
-gen 6.1)"; `Knobs TM_MODE=0` = the old clock rule). **Source = gen 6.2 since 2026-10-26** (TM arm E as defaults: `TM_START=175
-TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`, clock games only) — the installed binary stays gen 6.1 until its PGO rebuild
-(gen 6.1 behaviour from a gen 6.2 build: `Knobs TM_START=0,TM_SINGLE=0,TM_SCALE=0,TM_NORM=100,TM_OPT_PLY=0`); verify with `bench` (== 257 / 46,196,950, unchanged from gen 6) —
+`build_uci/chess_engine_uci` = **gen 6.2** (2026-10-27, PGO; id "AlphaUX (v2 gen 6.2)"): gen 6.1 (2026-10-25: gen 6 + the time
+manager's `TM_MODE=1` clock rule) + TM arm E as defaults (`TM_START=175 TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`, clock
+games only). Gen 6.1 behaviour: `Knobs TM_START=0,TM_SINGLE=0,TM_SCALE=0,TM_NORM=100,TM_OPT_PLY=0` (backup binary
+`chess_engine_uci_g61pgo`); `Knobs TM_MODE=0` = the pre-6.1 clock rule. Verify with `bench` (== 257 / 46,196,950, unchanged from gen 6) —
 memory `uci-binary-and-fastchess`. ☠️ Knobs in fastchess ONLY via `option.Knobs=NAME=V,NAME=V` (undeclared `Knob_*` are silently
 dropped — every 10-19…10-22 `Knob_` match was void); assert 0 "doesn't have option" warnings. Anything TIMED (vs other engines,
 time-sensitive A/Bs) goes through the binary; the Cython path is for fixed-depth / node-limited diagnostics.

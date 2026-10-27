@@ -31,6 +31,11 @@ Binary `chess_engine_uci_c2h`; every arm vs the same binary with the gen 6.2 TM 
   stand-pat 1.8% vs C 3.7% / 7.3%.
 - D ≈ A: removing the qsearch application neither rescues nor sinks it.
 - Open hypothesis (not tested): A's corrections are too large / too noisy (mean |corr| 0.16-0.23 pawn, 1-2% above 0.8 pawn).
+- Magnitude screen (queue #109, 10+0.1, 1,000 g each, same opponent): half weights `CORR2_WP=175,CORR2_WN=200` −2.4 ± 19.6
+  (registered −5 … +15 ✓, seed 1091); quarter weights `CORR2_WP=88,CORR2_WN=100` +7.6 ± 20.0 (registered −5 … +10 ✓, seed
+  1092). Full → half → quarter reads −8.7 → −2.4 → +7.6: smaller corrections score better, but every step is inside one sigma
+  and zero weight is the control itself, so no level is shown to beat it. The quarter arm was positive, so by the stop rule it
+  is re-run on a fresh seed (queue #110, seed 1093, registered −10 … +10; ≤ 0 parks corrhist).
 
 ## ⏱️★★★★ 2026-10-26 evening — THE START RULE (queue #106): everything together +59.6 ± 46 vs gen 6.1
 60+0.6, 200 g each vs the no-knob binary (= gen 6.1), `chess_engine_uci_tm4b`; 0 disconnects, 0 forfeits, 0 dumps.

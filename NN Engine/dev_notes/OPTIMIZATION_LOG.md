@@ -26,8 +26,9 @@ Binary `chess_engine_uci_c2h`; every arm vs the same binary with the gen 6.2 TM 
 - A's pooled interval excludes the +20 top of the prior; the point is negative. As built, corrhist does not pay.
 - C was a mis-designed control, not a sign bug: one shared slot per colour under gravity with bonuses up to ±256/1024 follows the
   last few updates, so every read applies a near-random correction of up to ~1 pawn. Read: corrections of this size move play a
-  lot, and position keying is what keeps them from being noise. Unverified: the size histogram under GLOBAL=1 (expected: a far
-  heavier > 400 mp tail than A's 13-19%).
+  lot, and position keying is what keeps them from being noise. Verified (`corr2_seq.py`, 3 games, movetime 300, ~7M reads each):
+  mean |corr| A 127 mp vs C 520 mp; reads > 400 mp A 5.2% vs C 57.9% (> 800 mp: 0.06% vs 24%); decisions flipped A RFP 1.1% /
+  stand-pat 1.8% vs C 3.7% / 7.3%.
 - D ≈ A: removing the qsearch application neither rescues nor sinks it.
 - Open hypothesis (not tested): A's corrections are too large / too noisy (mean |corr| 0.16-0.23 pawn, 1-2% above 0.8 pawn).
 

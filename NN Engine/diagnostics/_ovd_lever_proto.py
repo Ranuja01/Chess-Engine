@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """OvD PROTOTYPE, feature 1 -- LEVER OUTCOME: does the pawn TRANSFORMATION a side can force predict the game BEYOND the eval?
 
-Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8 (the owner's concept: long-term pressure = which side can
+Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8 (the owner's concept: long-term pressure = which side can
 force a favourable positional transformation, e.g. a break that leaves the opponent two isolanis and us a majority).
 Pure Python, no engine: a FEASIBILITY pilot for the outcome channel, not a verdict (the outcome screen has a resolution
 floor -- C3 §6b), run before any C++ exists.

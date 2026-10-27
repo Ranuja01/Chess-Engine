@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """TEXEL FIT K2: king-safety STRUCTURE arms, each gated against Fit K1p on held-out loss.
 
-Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §10. K1p re-priced every CONTINUOUS KS number; what is left
+Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §10. K1p re-priced every CONTINUOUS KS number; what is left
 is structure: the attacker weight per type (N/B/R/Q, compile-time until 2026-09-28), the coordination multiplier, and
 the MODES a fit cannot choose between (x-ray attackers, the defence-aware attacker weight, the two-attacker gate).
 Each mode is its own ARM; every arm starts from K1p's values, so the start loss IS K1p and an arm's held-out change is

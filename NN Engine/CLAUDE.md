@@ -3,14 +3,18 @@
 **This file holds only what must be known BEFORE acting.** Everything else is a pointer, so it is read
 on demand rather than loaded every session.
 
+📂 **Before reading or writing any doc in `dev_notes/`, read [`dev_notes/README.md`](dev_notes/README.md) first.** It explains
+the layout (`current/` = how the engine is now, `active/` = the arc in progress, `reference/` = other engines, `archive/` =
+history only), indexes every file with its created / last-updated dates, and says where new docs go.
+
 | you need | read |
 | --- | --- |
-| file map · data flow · what the search already has · symmetry defect shapes · triangulation | [`dev_notes/ENGINE-ORIENTATION.md`](dev_notes/ENGINE-ORIENTATION.md) |
-| which probe exists (~200 of them) | [`dev_notes/DIAGNOSTICS-TOOLKIT.md`](dev_notes/DIAGNOSTICS-TOOLKIT.md) |
-| **what a probe can RESOLVE and how it LIES** | [`dev_notes/INSTRUMENT-MAP.md`](dev_notes/INSTRUMENT-MAP.md) |
+| file map · data flow · what the search already has · symmetry defect shapes · triangulation | [`dev_notes/current/ENGINE-ORIENTATION.md`](dev_notes/current/ENGINE-ORIENTATION.md) |
+| which probe exists (~200 of them) | [`dev_notes/current/DIAGNOSTICS-TOOLKIT.md`](dev_notes/current/DIAGNOSTICS-TOOLKIT.md) |
+| **what a probe can RESOLVE and how it LIES** | [`dev_notes/current/INSTRUMENT-MAP.md`](dev_notes/current/INSTRUMENT-MAP.md) |
 | has this been tried, and was it RESOLVED or just UNREADABLE | memory `KNOWLEDGE-MAP.md` (all 274) — or the `record-check` agent |
-| where the program stands today | memory `eval-v2-rebuild-state` → [`dev_notes/SESSION-HANDOFF-2026-10-22.md`](dev_notes/SESSION-HANDOFF-2026-10-22.md) |
-| the ship record | [`dev_notes/OPTIMIZATION_LOG.md`](dev_notes/OPTIMIZATION_LOG.md) |
+| where the program stands today | memory `eval-v2-rebuild-state` → [`dev_notes/active/SESSION-HANDOFF-2026-10-22.md`](dev_notes/active/SESSION-HANDOFF-2026-10-22.md) |
+| the ship record | [`dev_notes/current/OPTIMIZATION_LOG.md`](dev_notes/current/OPTIMIZATION_LOG.md) |
 
 ## Scope
 
@@ -48,7 +52,7 @@ python main.py                            # isolated single-position test
 🚨 **BASELINE — reverify every build (2026-10-24):** **v2 gen 6 `257 / 46,196,950 / EBF 3.922`** (gen 5 + speed batches 2-6, the
 depth-cap crash fix, EVAL_CACHE_FORM 2, TT 2^22 / eval-q-movegen 2^20; `V2_SHIP_GEN=5` → gen 5 `258 / 47,689,586 / 3.926`; gen 4 =
 `258 / 47,689,413 / STS 2115`). The production UCI binary is the **PGO build** (OPTIMIZATION_LOG 2026-10-24).
-and the v1 control below; full table `dev_notes/BASELINE_PERF.md` §v2. v1 control: `250 / 35,310,778 / EBF 3.784 / STS 1796` · quiet **249,014**
+and the v1 control below; full table `dev_notes/current/BASELINE_PERF.md` §v2. v1 control: `250 / 35,310,778 / EBF 3.784 / STS 1796` · quiet **249,014**
 (marginal EBF 1.914) · depth@1s **12** · STS d8 **1676**. NPS 450,201 is the **LIGHTNING** mean
 (LONG_FORMAT ~386k). Canonical byte-identity command: `MAX_DEPTH=10 USE_OPENING_BOOK=0 PRESET=LONG_FORMAT`
 — without `LONG_FORMAT` hard positions time-abort and node counts become machine-load dependent.
@@ -73,7 +77,7 @@ time-sensitive A/Bs) goes through the binary; the Cython path is for fixed-depth
   (`259 / 47,869,841 / 3.927`); `=2` / `=1` the older gens.
 - `V2_PRESET=candidate` = the **DEVELOPMENT BASE** ("lazy ship", owner 2026-10-18): the ship + the narrow-item pool. **Pool EMPTY**
   since C64 moved into gen 4 ⇒ `candidate == shipped` (same fingerprint) until the next item enters. Test NEW items on top of
-  `candidate`; bundles carry the pool; revoke a pool item on any sign of harm. Pool + evidence: `dev_notes/EVAL-V2-CURRENT-CONFIG.md` §0.
+  `candidate`; bundles carry the pool; revoke a pool item on any sign of harm. Pool + evidence: `dev_notes/current/EVAL-V2-CURRENT-CONFIG.md` §0.
 - Game venues that start from FEN endgame positions need `USE_OPENING_BOOK=0` (the book holds endgame positions).
 
 ### The ONLY prompt-free invocation form
@@ -172,7 +176,7 @@ pyrun diagnostics/_eval_symmetry.py N=800 [TERMS=1] [<your knobs>]
 Zero Stockfish, seconds, exact. A 2026-08-08 sweep found **eleven** defects and cut violations 74.5% → 1.4%;
 **two rode in with game-validated ships**, so winning Elo is no protection, and every constant fitted
 afterwards silently absorbs the breakage. Defect shapes and the mirrored-bench rule:
-[`dev_notes/ENGINE-ORIENTATION.md`](dev_notes/ENGINE-ORIENTATION.md).
+[`dev_notes/current/ENGINE-ORIENTATION.md`](dev_notes/current/ENGINE-ORIENTATION.md).
 
 ## 🚨 Diagnostic-harness contamination
 
@@ -206,14 +210,14 @@ Each records the measured system, the evidence, and **what would falsify each cl
 change the system — a stale model doc is worse than none, because it reads as authoritative. Superseded
 claims are struck through and kept, never deleted.
 
-- **Pawns → [`dev_notes/PAWN_MODEL.md`](dev_notes/PAWN_MODEL.md)** — rank/file tables, chain & wall,
+- **Pawns → [`dev_notes/current/PAWN_MODEL.md`](dev_notes/current/PAWN_MODEL.md)** — rank/file tables, chain & wall,
   isolated/backward, passer detection and realizability, the per-pawn clamp, plus a **refutation record**
   (§8a). Check it before re-proposing a killed idea.
-- **King safety → [`dev_notes/KING_SAFETY_MODEL.md`](dev_notes/KING_SAFETY_MODEL.md)** (§4a refutation
+- **King safety → [`dev_notes/current/KING_SAFETY_MODEL.md`](dev_notes/current/KING_SAFETY_MODEL.md)** (§4a refutation
   record) and memory `ks-twelve-attempt-history-and-the-channel-law`. ☠️ Additive KS changes are **0-for-11**;
   only subtractive ones have won.
 - **Before ANY eval RETUNE →
-  [`collinearity-why-the-eval-cannot-be-tuned.md`](dev_notes/collinearity-why-the-eval-cannot-be-tuned.md)**
+  [`collinearity-why-the-eval-cannot-be-tuned.md`](dev_notes/current/collinearity-why-the-eval-cannot-be-tuned.md)**
   (code map: `eval-architecture-degeneracy-map.md`). The eval is DEGENERATE (~30 terms, ~2 signals) — that,
   not the corpus, is why every retune flattens (the −85.6-Elo fit). ★ The fix is STRUCTURAL re-shaping,
   **never ridge** (it resolves collinearity *by* shrinking) and **never removal** (that sheds load-bearing

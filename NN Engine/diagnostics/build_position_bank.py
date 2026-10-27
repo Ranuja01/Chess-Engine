@@ -5,7 +5,7 @@ our eval + king_safety term, SF11-static total + KS term, geometry class, king-z
 truth is added to a curated subset by a separate pass (add_sf18_labels.py). Append-only + deterministic (seeded
 stride) so it accumulates across sessions and feeds every future eval-fit (KS now, pawn lever next).
 
-Writes ks_sets/position_bank.csv (schema in dev_notes/position-bank-schema-2026-07-21.md).
+Writes ks_sets/position_bank.csv (schema in dev_notes/current/position-bank-schema-2026-07-21.md).
 Run: pyrun diagnostics/build_position_bank.py [N=3000] [SEED=7] [PER_GAME=3]
 """
 import os, sys, json, glob, csv

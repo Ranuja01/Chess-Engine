@@ -3,7 +3,7 @@
 
 	Provenance: diagnostics/_texel_pst_fit.py on 3.69M quiet positions from 48k own v2 self-play games; Texel fit A lambda2=3e-12 lambdaS=1.2e-11 K=0.000631 boot=5 stable=220; val_run -2.748%.
 	Validation: +111 +/- 13 Elo self-play (2,356 games), +38 [+10, +67] vs SF18 at fixed nodes (1,000 paired games),
-	+18 on variant starts; record in dev_notes/EVAL-V2-INVENTORY-2026-09-25.md sections 8-11.
+	+18 on variant starts; record in dev_notes/archive/eval/EVAL-V2-INVENTORY-2026-09-25.md sections 8-11.
 
 	Layout: [piece][leg][square], piece = pawn..king, leg 0 = mg / 1 = eg, square = rank*8 + file (a1 = 0), millipawns,
 	White's point of view; Black reads the rank-mirrored square. Files are mirror-symmetric by construction.

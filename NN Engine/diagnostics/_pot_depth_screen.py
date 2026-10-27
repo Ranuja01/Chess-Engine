@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """POT DEPTH SCREEN — do POT's type gates explain what our SEARCH still misjudges?
 
-POT = "OvD reworked" (the owner's v1 invention); types: dev_notes/POT-TYPE-DEFINITIONS-2026-09-30.md. Every earlier POT
+POT = "OvD reworked" (the owner's v1 invention); types: dev_notes/archive/eval/POT-TYPE-DEFINITIONS-2026-09-30.md. Every earlier POT
 screen used the STATIC residual, which is mostly short-horizon noise our search fixes (side-to-move +2.4 → +0.8 at depth,
 C3 doc §18d). POT claims what search cannot see, so this is its first fair test:
   y = win%(SF18 d14) − win%(our d10 SEARCH), White-POV (`_depth_residual_pass.py`)

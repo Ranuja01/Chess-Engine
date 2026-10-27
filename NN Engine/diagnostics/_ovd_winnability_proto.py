@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """OvD PROTOTYPE, endgame half -- WINNABILITY: do SF's complexity inputs predict whether an EDGE converts, beyond the eval?
 
-Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8 (OvD's eg leg = winnability; universal shape SF11 `initiative`
+Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8 (OvD's eg leg = winnability; universal shape SF11 `initiative`
 / SF12+ `winnable` / Ethereal `evaluateComplexity`: it can grow or shrink an advantage but never flips the sign). v2 has
 no such term: its endgame can only say "draw" (the classifier) or full value.
 

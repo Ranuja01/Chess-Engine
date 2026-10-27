@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """TEXEL FIT K, engine side: every king-safety CHANNEL per king, plus the engine's own KS score, per stage-1 row.
 
-WHY (2026-09-28). The joint KS fit (dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §7, §8b) re-prices king safety
+WHY (2026-09-28). The joint KS fit (dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §7, §8b) re-prices king safety
 TOGETHER with the PSTs and the C3 detectors. KS is not linear -- units -> onset clamp -> saturating curve -- so the
 fitter reproduces it in Python from the channel counts instead of treating it as a fixed block. That only works if
 the Python model is EXACTLY the engine's, so this pass also runs the gate: rebuild shipped KS from the counts and

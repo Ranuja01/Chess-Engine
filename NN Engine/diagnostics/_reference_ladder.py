@@ -20,7 +20,7 @@ The `--nodes` regime is the equal-WORK reading and it is the harsher, more hones
 flaky ("Exec format error, whole runs void"), so their rows are marked UNTRUSTED and may simply fail.
 
   pyrun diagnostics/_reference_ladder.py [--depth 10] [--nodes N] [--limit N]
-        [--engines sf11,sf18] [--suites sts300.epd,wac.epd] [--out ../dev_notes/REFERENCE-BENCH-LADDER.md]
+        [--engines sf11,sf18] [--suites sts300.epd,wac.epd] [--out ../dev_notes/current/REFERENCE-BENCH-LADDER.md]
 """
 import os, sys, re, subprocess, argparse, datetime
 

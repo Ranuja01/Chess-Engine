@@ -18,7 +18,7 @@ rook files were folded into `total` and three of SF's rows had no counterpart at
   => This tool therefore reports SILENCE, not mean gap: how often does SF see something substantial where
      we read ~nothing? Means cancel; zeros do not.
 
-Term pairing is dev_notes/our_eval_reference.md's v2 map. ⚠️ `material + pieces` <-> SF `Material` (SF folds
+Term pairing is dev_notes/archive/eval/our_eval_reference.md's v2 map. ⚠️ `material + pieces` <-> SF `Material` (SF folds
 PSQT into Material; v2 splits them, and v1's material-inclusive `pieces` bug does NOT apply to v2).
 ⚠️ Our placement is ONE aggregate against SF's FOUR piece rows -- compare sum-to-sum only.
 ⚠️ ABSENT != ZERO: a parked term is missing from ev_breakdown entirely. Those pairs are reported as PARKED

@@ -147,7 +147,7 @@ namespace Oracle
 } // namespace Oracle
 
 std::atomic<bool> time_up;
-// UCI front end hooks (2026-10-19; dev_notes/UCI-BINARY-DESIGN-2026-10-19.md §3). Both inert in the Cython path:
+// UCI front end hooks (2026-10-19; dev_notes/current/UCI-BINARY-DESIGN-2026-10-19.md §3). Both inert in the Cython path:
 // g_uci_stop stays false, g_iter_callback stays null.
 std::atomic<bool> g_uci_stop{false};
 IterCallback g_iter_callback = nullptr;
@@ -277,7 +277,7 @@ static int env_int(const char *name, int dflt)
 // --- Debug instrumentation (gated by Config::DEBUG_INVARIANTS; default off = byte-identical) --------
 // These hunt the move-ordering corruption: SearchData's four parallel arrays must stay equal-length and
 // index-corresponding, and every Move handed to make_move must be pseudo-legal. When the flag is off
-// both are no-ops. See dev_notes/CRASH_INVESTIGATION_PLAYBOOK.md.
+// both are no-ops. See dev_notes/archive/search/CRASH_INVESTIGATION_PLAYBOOK.md.
 
 // Log a SearchData length invariant violation. The grouped scores vector makes the old three-way drift
 // structurally impossible; the only remaining rule is that the searched-score list never outruns the
@@ -2213,7 +2213,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // explicit KEY=VAL still overrides (V2_PRESET=shipped PASSER_V2_MAG=80 works as expected).
         // ⚠️ Opt-in, never a default: RFP_MARGIN=1000 is part of v2's ship and must NOT reach the frozen v1 control,
         // whose default stays untouched. Absent / empty V2_PRESET = today's behaviour, byte-identical.
-        // ⚠️ Mirror of `V2=` in selfplay/overnight_runner.sh and §1 of dev_notes/EVAL-V2-CURRENT-CONFIG.md --
+        // ⚠️ Mirror of `V2=` in selfplay/overnight_runner.sh and §1 of dev_notes/current/EVAL-V2-CURRENT-CONFIG.md --
         // update all three together when a v2 ship changes.
         if (const char *preset = std::getenv("V2_PRESET"); preset && *preset)
         {
@@ -2827,7 +2827,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         initTableSizes();
         // Debug-only: validate the SearchData parallel-array invariant + move legality and LOG (not
         // crash) on violation. Default off = byte-identical; used only to hunt the move-ordering
-        // corruption (see dev_notes/CRASH_INVESTIGATION_PLAYBOOK.md).
+        // corruption (see dev_notes/archive/search/CRASH_INVESTIGATION_PLAYBOOK.md).
         Config::DEBUG_INVARIANTS = env_flag("CHESS_DEBUG_INVARIANTS", Config::DEBUG_INVARIANTS);
         // Select the time-control preset at runtime; absent ⇒ keep the compile-time
         // default (LONG_FORMAT), so the default build is unchanged.

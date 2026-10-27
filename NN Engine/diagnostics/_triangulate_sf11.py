@@ -8,7 +8,7 @@ SF11 phase (evaluate.cpp / material.cpp): npm (mg values N 781, B 825, R 1276, Q
 [EndgameLimit 3915, MidgameLimit 15258] → ph ∈ [0, 128]; blended = (mg·ph + eg·(128 − ph))/128 (the scale factor and
 initiative are already inside SF11's Total; per-term blends ignore the scale factor).
 
-  pyrun diagnostics/_triangulate_sf11.py [NOTE=dev_notes/TRIANGULATION-2026-10-02.md]   (run with V2_PRESET=shipped)
+  pyrun diagnostics/_triangulate_sf11.py [NOTE=dev_notes/archive/eval/TRIANGULATION-2026-10-02.md]   (run with V2_PRESET=shipped)
 """
 import os, sys, re, csv, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -22,7 +22,7 @@ os.environ.setdefault("PRESET", "LONG_FORMAT"); os.environ.setdefault("USE_OPENI
 import ChessAI
 SF11 = os.environ.get("SF11_BIN", "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_11_linux/"
                                   "stockfish-11-linux/Linux/stockfish_20011801_x64_bmi2")
-NOTE = os.path.join(ENGINE, KV.get("NOTE", "dev_notes/TRIANGULATION-2026-10-02.md"))
+NOTE = os.path.join(ENGINE, KV.get("NOTE", "dev_notes/archive/eval/TRIANGULATION-2026-10-02.md"))
 OURS = ["pieces", "king_safety", "mobility", "pawn_struct", "v2_passers", "v2_placement", "v2_winnab"]
 
 

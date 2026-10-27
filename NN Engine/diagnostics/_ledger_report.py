@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Summarise the collapse-reduction-ledger runs: score + collapse counts per arm/seed.
 
-Verdict rule (dev_notes/collapse-reduction-ledger.md): two-sided -- (a) the target collapse class shrinks
+Verdict rule (dev_notes/archive/collapse/collapse-reduction-ledger.md): two-sided -- (a) the target collapse class shrinks
 AND (b) prior-fix classes do not resurface. Seed variance ~13% >> 3.5% SE, so the collapse COUNT trend
 across seeds is the leading indicator, not one seed's score.
 

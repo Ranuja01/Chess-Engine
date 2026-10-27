@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """POT COVERAGE — how often is each transformation type's gate ON, and how often does its result arrive?
 
-POT = "OvD reworked" (the owner's v1 invention); type definitions: dev_notes/POT-TYPE-DEFINITIONS-2026-09-30.md.
+POT = "OvD reworked" (the owner's v1 invention); type definitions: dev_notes/archive/eval/POT-TYPE-DEFINITIONS-2026-09-30.md.
 Answers the owner's "is the concept narrow?" (09-30) before any fitting. Pure Python on stage-1 game sequences.
 Structure only; every gate = PRECURSORS present ∧ RESULT absent, per attacker side A (the side holding the option).
 

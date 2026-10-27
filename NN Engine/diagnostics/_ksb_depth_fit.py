@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """KS-B (shelter + storm, C3-a) cells fitted on the DEPTH target — the first step of the full KS tune (owner, 10-02).
 
-Why: the triangulation aggregate (111 quiet equal-material cases, dev_notes/TRIANGULATION-2026-10-02.md) found
+Why: the triangulation aggregate (111 quiet equal-material cases, dev_notes/archive/eval/TRIANGULATION-2026-10-02.md) found
 STRUCTURAL king safety the consistent statically-expressible miss (SF11's KS helps 48 vs 17, +24 cp mean; ours reads 0
 where a king is exposed by STRUCTURE). KS-B is built (eval_v2.cpp ksb_side, cells 106-161 of v2_features) but its d6
 OUTCOME-fitted values lost at depth (−22, C3 doc §14). Here the target is depth-independent and search-aware:

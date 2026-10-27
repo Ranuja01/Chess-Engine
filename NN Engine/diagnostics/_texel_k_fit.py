@@ -2,7 +2,7 @@
 """TEXEL FIT K: the king-safety block -- tapered PSTs + KS (re-priced, non-linear) + the C3 king detectors -- fitted
 JOINTLY on our own game results, as NESTED arms from one data load.
 
-Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §7 (the joint KS fit) and §8b (owner call 2026-09-27: OvD
+Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §7 (the joint KS fit) and §8b (owner call 2026-09-27: OvD
 is new and the KS items are known, so they are fitted NESTED -- Fit K here, Fit K+O later gated against Fit K).
 
 MODEL (Black-positive millipawns, like the engine):

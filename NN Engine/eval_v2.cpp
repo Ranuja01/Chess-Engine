@@ -60,7 +60,7 @@ WHAT IS DELIBERATELY ABSENT, and why (the inverse of an optimization log is the 
     attacking pieces -- so it returns as a late rung designed to be harmonious with KS, not as a port.
     ★ It returned (2026-09-29) as **POT (Potential) -- OvD reworked**: the owner's long-term-pressure concept, redesigned
     king-free as transformation potential (mg) + winning potential (eg winnability, `win_inputs` / `win_adjust`).
-    Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8, §11-13.
+    Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8, §11-13.
 
 THE LADDER. Config::EVAL_V2_RUNG selects how far up to evaluate; each rung is read against the PREVIOUS
 rung, which is a candidate-vs-candidate comparison and therefore null-independent -- the one comparison our
@@ -331,7 +331,7 @@ static constexpr int KFL_CELLS = 10;                // nearest own pawn d 2/3/4/
 static constexpr int KPROT_CELLS = 12;              // knight d 1..6+ · bishop d 1..6+ (Chebyshev to our king)
 static bool   g_kfl_on = false, g_kprot_on = false;
 static int    kfl_w[2][KFL_CELLS], kprot_w[2][KPROT_CELLS];
-// PX: the PASSER SYSTEM cells (2026-10-03, dev_notes/PASSER-SYSTEM-DESIGN-2026-10-03.md; layout at px_counts). Loaded
+// PX: the PASSER SYSTEM cells (2026-10-03, dev_notes/archive/pawns/PASSER-SYSTEM-DESIGN-2026-10-03.md; layout at px_counts). Loaded
 // from PX_V2_FILE under PX_V2=1 (c3_load_table contract: a missing/malformed file leaves the block OFF).
 static constexpr int PX_CELLS = 51;
 static int    px_w[2][PX_CELLS];
@@ -990,8 +990,8 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	Attack units borne against ONE king. Returns SF-scale units (0 .. ~2000), NOT millipawns.
 
 	`white_king` selects whose king is examined; the ATTACKER is the other side. See
-	dev_notes/EVAL-V2-RUNG1-KS-DESIGN.md for the full 14-item audit of SF's kingDanger, and
-	dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md for the 2026-09-27 balance channels (every one 0 by default).
+	dev_notes/archive/eval/EVAL-V2-RUNG1-KS-DESIGN.md for the full 14-item audit of SF's kingDanger, and
+	dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md for the 2026-09-27 balance channels (every one 0 by default).
 */
 inline int ks_units(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, bool white_king)
 {
@@ -3382,7 +3382,7 @@ static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
 	are cumulative, so a rung adds to everything below it rather than replacing it.
 */
 /* ═══ C3-a: KING SHELTER + PAWN STORM (KS-B) ═══════════════════════════════════════════════════════════════════════
- * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3 (cells) and §8 (ownership: storm-against-a-king lives
+ * Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3 (cells) and §8 (ownership: storm-against-a-king lives
  * HERE, never in OvD, which is king-free).
  *
  * WHAT: for one king, the pawns of a 3-file window in front of it, as one-hot CELLS -- a direct score, separate from
@@ -3499,7 +3499,7 @@ static constexpr uint64_t C3_FLANK[8] = {
 	C3_FILE_A * 0x3C, C3_FILE_A * 0xF0, C3_FILE_A * 0xF0, C3_FILE_A * 0xE0};
 
 /* ═══ C3-b: PAWNLESS FLANK + KING-TO-PAWN DISTANCE ══════════════════════════════════════════════════════════════════
- * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3.
+ * Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3.
  * WHAT: for one king, one-hot cells (value to the king's own side):
  *   0-3  Chebyshev distance to the NEAREST OWN pawn: 2 · 3 · 4 · >= 5   (1 is the reference; no own pawn = no cell)
  *   4-7  the same to the nearest ENEMY pawn
@@ -3536,7 +3536,7 @@ static constexpr uint64_t C3_FLANK[8] = {
 }
 
 /* ═══ C3-c: KINGPROTECTOR (minors only) ═════════════════════════════════════════════════════════════════════════════
- * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3; owner call: MINORS ONLY (rooks and queens defend from
+ * Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3; owner call: MINORS ONLY (rooks and queens defend from
  * range, so their defence belongs to the KS defender channels).
  * WHAT: per own knight and bishop, its Chebyshev distance to OUR king, one-hot 1..6+ (cells 0-5 knight, 6-11 bishop),
  * value to the minor's own side. Counts are per piece, so two knights at distance 2 put 2 in one cell.
@@ -3579,7 +3579,7 @@ static inline void kprot_side(const V2Context &c, bool white, int &mg, int &eg) 
 
 /* Black-positive blended value of a per-side (mg, eg) scorer, plus its raw legs for pair mode. Blended PER SIDE, as
  * KS-A and C3-a are, so the colour mirror sees the same truncation on both sides. */
-/* ═══ PX: THE PASSER SYSTEM (2026-10-03; dev_notes/PASSER-SYSTEM-DESIGN-2026-10-03.md) ════════════════════════════
+/* ═══ PX: THE PASSER SYSTEM (2026-10-03; dev_notes/archive/pawns/PASSER-SYSTEM-DESIGN-2026-10-03.md) ════════════════════════════
  * The passer DYNAMICS every reference prices and v2 did not (11 engines / 7 lineages): stop-square state, path, support,
  * king escort, pieces behind, file, square rule. Counts only — every cell is a Texel-fitted (mg, eg) pair, so the fit
  * decides sign and size (owner: "find what works for OUR engine"); all start at 0. Applies to TRUE passers (candidates
@@ -3673,7 +3673,7 @@ static inline int c3_block_mp(const V2Context &c, SideFn fn, int &dmg, int &deg)
 }
 
 /* ═══ OvD eg leg: WINNABILITY inputs ════════════════════════════════════════════════════════════════════════════════
- * Design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8 + the pilot in §11 (low-complexity endgames: the leader
+ * Design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §8 + the pilot in §11 (low-complexity endgames: the leader
  * scores 72.6% where the eval predicts ~80%; v2 had no term for it -- the endgame could only say "draw" or full value).
  * WHAT: SF11's complexity inputs, in its colour-SYMMETRIC form (SF15.1's signed outflanking would fail our mirror gate):
  *   in[0] passed pawns (both sides, v2's own passer masks) · in[1] pawns · in[2] outflanking = file distance − rank
@@ -4752,7 +4752,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// ⚠️ Phased on purpose. SF11/Ethereal/Weiss write one FLAT constant but their pawn is dearer in the
 	// endgame, so their tempo is ~1.7-2.0x more pawns in the midgame without them choosing it; our pawn is
 	// flat at 1000, so we have to state the taper explicitly. SF1.1 -- the only reference that chose it --
-	// used an explicit 50/20 pair. See dev_notes/EVAL-V2-SLICE1-TEMPO-DESIGN.md §1.
+	// used an explicit 50/20 pair. See dev_notes/archive/eval/EVAL-V2-SLICE1-TEMPO-DESIGN.md §1.
 	if (Config::TEMPO_V2_MG != 0 || Config::TEMPO_V2_EG != 0){
 		const int t = (Config::TEMPO_V2_MG * c.phase256
 		             + Config::TEMPO_V2_EG * (256 - c.phase256)) >> 8;

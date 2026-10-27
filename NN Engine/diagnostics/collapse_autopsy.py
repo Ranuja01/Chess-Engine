@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Collapse autopsy — label each collapse blunder by MECHANISM via toggle-recovery.
-Design: dev_notes/collapse-autopsy-design-2026-07-15.md.
+Design: dev_notes/archive/collapse/collapse-autopsy-design-2026-07-15.md.
 
 For each collapse (from a vs_sf/Mediocre run's collapses.csv), localize the actual BLUNDER move
 (max SF-eval swing across one of our moves in the peak->drop window, NOT the calm peak), get SF's

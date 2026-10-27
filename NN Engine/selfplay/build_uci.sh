@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the native UCI binary (2026-10-19; dev_notes/UCI-BINARY-DESIGN-2026-10-19.md). Same compile flags as setupAI.py so the
+# Build the native UCI binary (2026-10-19; dev_notes/current/UCI-BINARY-DESIGN-2026-10-19.md). Same compile flags as setupAI.py so the
 # engine code generates the same results as the Cython module (the `bench` parity gate proves it from M3 on).
 # Low priority, one compile job at a time. Output: NN Engine/build_uci/chess_engine_uci
 ND="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine"

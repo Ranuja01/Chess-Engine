@@ -382,7 +382,7 @@ namespace Config
     // COUPLING CAVEAT: OFFSET/DIVISOR are fit to the CURRENT history-table distribution. Any change to the
     // history scoring (bonus formula, the 4x continuation multiplier, decay cadence, ENABLE_HISTORY_SATURATION,
     // ENABLE_HISTORY_MALUS) shifts that distribution and INVALIDATES these constants -- re-derive them via the
-    // ENABLE_STATSCORE_PROFILE sweep + node_ab. See dev_notes/history-scoring-calibration-2026-07-07.md.
+    // ENABLE_STATSCORE_PROFILE sweep + node_ab. See dev_notes/archive/search/history-scoring-calibration-2026-07-07.md.
     // Measured node_ab: peak at OFFSET=512, DIVISOR=768-1024 (~+30 Elo); KILLER_BONUS added nothing.
     inline bool ENABLE_STATSCORE_LMR = true;  // SHIPPED 2026-07-08: +23 Elo lightning SPRT (906g) / +33 node_ab;
                                               // replaces the tiered HISTORY_LMR_CAP path (off = tiered, byte-id 245).
@@ -661,7 +661,7 @@ namespace Config
     // RUNG 2a -- PAWN STRUCTURE (eval v2).  Every knob 0/off => the rung is ABSENT and v2 is
     // byte-identical to the rung-1 result that passed games at ~+101 Elo.
     // Full derivation, the four-engine mapping and the E1-E7 experiment list:
-    // dev_notes/EVAL-V2-RUNG2-PAWN-DESIGN.md.
+    // dev_notes/archive/eval/EVAL-V2-RUNG2-PAWN-DESIGN.md.
     // ===============================================================================================
 
     // Master percent scale on the whole structure score. 0 = rung absent (byte-identical). 100 = identity.
@@ -699,7 +699,7 @@ namespace Config
     // -- so per the ladder protocol this is "detector accurate, transformation wrong": REDESIGN the
     // transformation, do not park the feature. The likely cause is that a rank-keyed connected bonus
     // duplicates what our PST already prices; the untried form is a RANK-FLAT connected bonus that lets
-    // the PST own rank entirely. See dev_notes/EVAL-V2-RUNG2-PAWN-DESIGN.md.
+    // the PST own rank entirely. See dev_notes/archive/eval/EVAL-V2-RUNG2-PAWN-DESIGN.md.
     inline int PS_V2_CONN_MAG = 0;
 
     // ☠️ TERM EXCLUSIVITY. 0 = ADDITIVE (ours today: a pawn can collect isolated AND backward AND doubled
@@ -779,7 +779,7 @@ namespace Config
 
     // ===============================================================================================
     // RUNG 2b -- PASSED PAWNS (eval v2). PASSER_V2_MAG = 0 => the rung is ABSENT and byte-identical.
-    // Design, five-engine comparison and the experiment list: dev_notes/EVAL-V2-RUNG2B-PASSER-DESIGN.md.
+    // Design, five-engine comparison and the experiment list: dev_notes/archive/eval/EVAL-V2-RUNG2B-PASSER-DESIGN.md.
     // ===============================================================================================
 
     // Master percent scale. ☠️ 0 = absent. ⚠️ SWEEP THIS FROM THE FIRST RUN rather than trusting 100:
@@ -854,7 +854,7 @@ namespace Config
     // ── gap-audit L2/A3: v2's OWN TAPERED PIECE-SQUARE TABLES ─────────────────────────────────────
     // 1 = rung 0 reads v2PstMg / v2PstEg (eval_v2.cpp, one (mg,eg) pair per piece per square, blended per
     // side) instead of the shared phase-flat placement layer. All four references taper their PSTs; v2 had one
-    // untapered table borrowed from v1 (design: dev_notes/EVAL-V2-TAPERED-PST-DESIGN-2026-09-25.md).
+    // untapered table borrowed from v1 (design: dev_notes/archive/eval/EVAL-V2-TAPERED-PST-DESIGN-2026-09-25.md).
     // ★ With no file loaded the tables are initialised to reproduce the SHIPPED eval exactly: every piece gets
     // mg == eg == today's value, and the king gets mg = 0 (what PST_V2_KING_EG_ONLY=1 does). In this mode the
     // tables define the king, so PST_V2_KING_EG_ONLY is not consulted.
@@ -875,7 +875,7 @@ namespace Config
     // leaves the fit OFF with a message. 0 = the constant path, byte-identical.
     inline int C1_V2_FIT = 0;
 
-    // ── KS ATTACK/DEFENCE BALANCE channels (2026-09-27; design: dev_notes/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md) ──
+    // ── KS ATTACK/DEFENCE BALANCE channels (2026-09-27; design: dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md) ──
     // Every one defaults to 0 = the shipped KS units, byte-identical. Weights are in KS units (the same scale as
     // KS_V2_WEAK / ADJ), meant to be priced by the joint KS fit rather than hand-set.
     // Modes (0/1):
@@ -908,7 +908,7 @@ namespace Config
     inline int KFL_V2 = 0;
     inline int KPROT_V2 = 0;
     // PX — the passer system (51 cells: stop state incl. blocker type, path, support, king escort, pieces behind, file,
-    // square rule; dev_notes/PASSER-SYSTEM-DESIGN-2026-10-03.md). 1 = on with cells from env PX_V2_FILE; 0 = absent.
+    // square rule; dev_notes/archive/pawns/PASSER-SYSTEM-DESIGN-2026-10-03.md). 1 = on with cells from env PX_V2_FILE; 0 = absent.
     inline int PX_V2 = 0;
     // KS attacker weight per type for the "ours" profile (KS_V2_ATT_PROFILE = 0), in KS units per attacker. Defaults are
     // the compiled KS_W_OURS {N 31, B 31, R 47, Q 78} = byte-identical; Fit K2 prices them (2026-09-28).
@@ -1036,7 +1036,7 @@ namespace Config
     inline int PASSER_V2_PATH_PCT = 0;
 
     // Slice 1 / component 1 -- TEMPO: a bonus for simply being the side to move, phase-blended and added
-    // to v2's Black-positive total. Design + the five-engine table: dev_notes/EVAL-V2-SLICE1-TEMPO-DESIGN.md.
+    // to v2's Black-positive total. Design + the five-engine table: dev_notes/archive/eval/EVAL-V2-SLICE1-TEMPO-DESIGN.md.
     // 4 of our 5 references carry one (SF1.1 50/20 phased, SF11 flat 28, Ethereal 20, Weiss 18); SF15.1
     // REMOVED it from eval and search together, in the generation where NNUE -- natively side-to-move-aware
     // -- became the real eval. So this is a CANDIDATE under the "adopt only what all references do" rule,
@@ -1069,7 +1069,7 @@ namespace Config
     inline int TEMPO_V2_EG = 0;
 
     // Slice 1 -- BINARY DRAW CLASSIFIER. Returns 0 for the whole eval on positions that are dead draws.
-    // Design + the oracle measurement: dev_notes/EVAL-V2-SLICE1-DRAW-DESIGN.md.
+    // Design + the oracle measurement: dev_notes/archive/eval/EVAL-V2-SLICE1-DRAW-DESIGN.md.
     // ☠️ Membership is MEASURED, not reasoned. v1's is_practically_drawn carries ten cases and FIVE of them
     // flag forced WINS -- R+B-vs-R 28%, R+N-vs-R 22%, bare-R-vs-bare-minor 24/28%, wrong-coloured-bishop
     // rook pawn 10% (🧰 diagnostics/_draw_oracle.py vs the Lichess 7-piece tablebase, two seeds). v2 keeps
@@ -1111,7 +1111,7 @@ namespace Config
     // this into DRAW_V2_CLASS. 0 = off == byte-identical.
     inline bool DRAW_V2_KPK_EXACT = false;
 
-    // Slice 2 -- PER-PIECE MOBILITY. Design + the five-engine table: dev_notes/EVAL-V2-SLICE2-MOBILITY-DESIGN.md.
+    // Slice 2 -- PER-PIECE MOBILITY. Design + the five-engine table: dev_notes/archive/eval/EVAL-V2-SLICE2-MOBILITY-DESIGN.md.
     // ★ SHAPE from SF11's MobilityBonus tables (5/5 references use a per-piece concave count table, 4/5 with a
     // negative floor), each leg converted by ITS OWN pawn (mg /128, eg /213) so the mg:eg relationship survives in
     // pawn terms. SCALE is this knob: the KNIGHT MIDGAME table range in millipawns (SF11's is 95 SF units), and the
@@ -1153,7 +1153,7 @@ namespace Config
     inline int ROOKFILE_V2_OPEN = 0;
     inline int ROOKFILE_V2_SEMI = 0;
 
-    // Slice 2 -- PER-PIECE PLACEMENT sub-terms. Design + specs: dev_notes/EVAL-V2-SLICE2-MOBILITY-DESIGN.md §2.3.1.
+    // Slice 2 -- PER-PIECE PLACEMENT sub-terms. Design + specs: dev_notes/archive/eval/EVAL-V2-SLICE2-MOBILITY-DESIGN.md §2.3.1.
     // Each is a PERCENT of SF11's value converted by the pawn (mg /128, eg /213 -> x1000): 100 = the plain pawn
     // conversion. ★ A percent knob is deliberate: mobility's §I optimum sat near the PAWN conversion while tempo's sat
     // near the POSITIONAL spread, so each term must be laddered across both anchors, never committed to one.
@@ -1183,7 +1183,7 @@ namespace Config
     // increments (15 mp per bishop latent square attacking an enemy pawn, 10 for a rook), midgame only. 0 = off.
     inline int LATENT_V2_PCT = 0;
 
-    // Slice 3 -- BISHOP PAIR. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §2.3. v2 has had NO pair term at all.
+    // Slice 3 -- BISHOP PAIR. Design: dev_notes/archive/eval/EVAL-V2-SLICE3-DESIGN.md §2.3. v2 has had NO pair term at all.
     // ★ 5/5 references pay it, and at ~1-2x THAT engine's own knight PST rim-vs-centre mg spread (SF1.1 1.59x ·
     // SF11 1.07x · SF15.1 1.06x · Weiss 1.27x · Ethereal 2.0x) -- the one cross-engine ratio that transfers.
     // MAG = the MIDGAME value in millipawns (v2's knight PST spread is ~30 mp, so the reference ratios put this
@@ -1197,7 +1197,7 @@ namespace Config
     // own-pawn coupling (+2.8% of the pair per own pawn, POSITIVE -- SF11 material.cpp pair x own-pawn +40/16).
     inline int BPAIR_V2_FORM = 0;
 
-    // Slice 3 -- KAUFMAN / POLYNOMIAL MATERIAL IMBALANCE. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §3.
+    // Slice 3 -- KAUFMAN / POLYNOMIAL MATERIAL IMBALANCE. Design: dev_notes/archive/eval/EVAL-V2-SLICE3-DESIGN.md §3.
     // The last named slice-3 item, and the ONLY reference mechanism that prices piece REDUNDANCY (SF's two
     // largest cells are R x R -208 and Q x enemy-R +268 -- v2 expresses neither anywhere).
     // MAG is a scale on SF11's VERBATIM tables (material.cpp:33-53), where **1000 == exactly SF's own scale
@@ -1246,7 +1246,7 @@ namespace Config
     // not a consensus adoption, and its gate is the tablebase oracle, not §I (which is blind to this family).
     inline int TIER2_V2_MAG = 0;
 
-    // Slice 3 -- SPACE. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §1.1 + §2.1. ★ 3/5 references have it (SF11,
+    // Slice 3 -- SPACE. Design: dev_notes/archive/eval/EVAL-V2-SLICE3-DESIGN.md §1.1 + §2.1. ★ 3/5 references have it (SF11,
     // SF15.1, Ethereal; SF1.1 and Weiss have NONE) and all three give it a ZERO endgame leg, so this is applied
     // mg-only (tapered by phase256). ☠️ v1's flat `SPACE_MAG` form died on the pre-08-14 contaminated harness =
     // UNREADABLE, not refuted; SF's GATED form was never built here.
@@ -1268,7 +1268,7 @@ namespace Config
     // Material gate as a PERCENT of the start position's total non-pawn material (SF11 74%, SF15.1 70%); 0 = no gate.
     inline int SPACE_V2_GATE_PCT = 74;
 
-    // Slice 3 -- THREATS. Design: dev_notes/EVAL-V2-SLICE3-DESIGN.md §1.3 + §2.2. ★ 4/5 references carry a threat family
+    // Slice 3 -- THREATS. Design: dev_notes/archive/eval/EVAL-V2-SLICE3-DESIGN.md §1.3 + §2.2. ★ 4/5 references carry a threat family
     // (not SF1.1), and in ALL FOUR the largest single constant is "a pawn attacks a piece" -- that shape transfers, the
     // scales do not. ☠️ v1's threats shipped at +45.0 ±40.6 Elo but on `gate`'s FIXED openings, never attributed; and its
     // HANGING leg was measured ~87% a subset of capture_gains. ⚠️ THAT OWNERSHIP ARGUMENT DOES NOT TRANSFER: v2 has no
@@ -1301,7 +1301,7 @@ namespace Config
     // beta-cutoff, log the cutting move as CUT and the tried-and-failed quiets as FAILED, bucketed by their
     // statScore -> reliability curve P(cut|statScore) + 0-bucket composition. Populates the searched_quiets
     // list (like malus) so it costs a little when on; no effect on search decisions. Off = default. See
-    // dev_notes/history-scoring-calibration-2026-07-07.md.
+    // dev_notes/archive/search/history-scoring-calibration-2026-07-07.md.
     inline bool ENABLE_CUTCAL_LOG = false;
 
     // Decoupled cut-rate table (Qcut): a SEPARATE gravity-bounded signed history (+bonus on the cutting quiet,
@@ -2649,7 +2649,7 @@ namespace Config
     // computed in placement_and_piece_eval) onto a 256 base, clamped to [MOD_FLOOR, MOD_CEIL]; the term is
     // then scaled (term*gain)>>8. Integer/bitwise. Generalizes realizability_factor to all universal terms.
     // Active (first build): contextual material (pawn count + opposite bishops), latent-threat backing,
-    // bishop-pair openness. Phase enters as a signal where used. See dev_notes/dynamic-conditional-eval.md.
+    // bishop-pair openness. Phase enters as a signal where used. See dev_notes/archive/eval/dynamic-conditional-eval.md.
     inline int MOD_FLOOR    = 128;   // min gain over 256 (0.5x); caps how far a term can be damped
     inline int MOD_CEIL     = 512;   // max gain over 256 (2.0x); caps how far a term can be boosted
     inline int MOD_MAT_PAWNS = 0;    // material boost x pawn-count (convertibility: fewer pawns -> ...)
@@ -2847,7 +2847,7 @@ namespace Config
     inline int RFP_EVAL_MODE = 0;       // eval_by_mode arg for the RFP/gate eval: 0=full, 1=cheap
     // What RFP RETURNS when it fires. We return the raw static eval; SF stopped doing that after SF15 and
     // now returns a value pulled toward the bound it cut against -- SF16 `(eval+beta)/2`, SF17
-    // `beta + (eval-beta)/3`, SF18 `(2*beta+eval)/3` (doc: dev_notes/sf-pruning-schedules-comparison.md §1.5).
+    // `beta + (eval-beta)/3`, SF18 `(2*beta+eval)/3` (doc: dev_notes/reference/sf-pruning-schedules-comparison.md §1.5).
     // The rationale is to not fully trust a static eval that was never verified by search, which applies at
     // least as strongly to our slower/less accurate eval as to SF's.
     // Percent of the BOUND (alpha on the min side, beta on the max side) mixed into the returned score:
@@ -3162,7 +3162,7 @@ namespace Config
     // +3.7 +/-31 (no regression). Set 6000 for the old blitz default, or 0 to disable
     // and recover the old byte-identical search (e.g. for a d10 isolation control).
     inline int VERIFY_MARGIN = 16000;
-    // ── SEARCH CORRECTNESS fixes (2026-10-19; dev_notes/SEARCH-CORRECTNESS-PLAN-2026-10-19.md). All default 0 = today's
+    // ── SEARCH CORRECTNESS fixes (2026-10-19; dev_notes/active/SEARCH-CORRECTNESS-PLAN-2026-10-19.md). All default 0 = today's
     // behaviour (byte-identical). The search is max/min, not negamax; these repair asymmetries between the two halves.
     inline int FIX_HALFMOVE = 0;   // B1: make_move resets the halfmove clock on PAWN moves too (tested pre-move)
     inline int FIX_REP_KEY = 0;    // B2, bit flags: 1 = repetition counts keyed with castling rights + ep square, not placement
@@ -3333,7 +3333,7 @@ namespace Config
     // HONEST_ROOT_TT (a narrow window is unsound without it). Default DELTA 500 is the sweep-picked
     // value (efficiency sweet spot, +0.32 LIGHTNING depth at equal clock, STS +2.2pp); set 0 to
     // disable (full window every iteration = the byte-identical control). An overnight LIGHTNING
-    // confirm of 800/1200 may yet bump this — see dev_notes/OPTIMIZATION_LOG.md.
+    // confirm of 800/1200 may yet bump this — see dev_notes/current/OPTIMIZATION_LOG.md.
     inline int ASPIRATION_DELTA = 500;
     inline int ASPIRATION_MIN_DEPTH = 5;
     inline int ASPIRATION_MAX_WIDENINGS = 3;

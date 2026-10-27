@@ -206,7 +206,7 @@ extern int contHist2[2][4096][4096];
 // the maxbit distinguishes the two). Each entry holds an EMA of the residual (searchBestScore - staticEval) in
 // the same root-relative frame; the correction is added to the node-entry static eval before RFP/null gates.
 // Gated by Config::ENABLE_CORR_HIST (off = never read or written = byte-identical). Phase-0 signal-verified
-// (pawn x maxbit, NET +3-4% held-out on quiet positions). See dev_notes/corrhist-feasibility-plan-2026-07-15.md.
+// (pawn x maxbit, NET +3-4% held-out on quiet positions). See dev_notes/archive/search/corrhist-feasibility-plan-2026-07-15.md.
 constexpr int CORR_SIZE = 16384;   // power of two -> index by & (CORR_SIZE-1)
 extern int pawnCorrHist[2][CORR_SIZE];
 
@@ -216,7 +216,7 @@ extern int pawnCorrHist[2][CORR_SIZE];
 // while the from×to tables retain the origin-square specificity that strategic maneuvering needs. Indexed
 // [side][ctx][ent] where ctx = piece_at(prevMove.to)*64 + prevMove.to and ent = piece_at(move.from)*64 +
 // move.to (piece index 1..6, so both fit in [512]). Gated by Config::ENABLE_PIECE_CONTHIST (off = never read
-// or written = byte-identical). See dev_notes/search-ordering-pruning-map-2026-07-14.md (Step 2).
+// or written = byte-identical). See dev_notes/archive/search/search-ordering-pruning-map-2026-07-14.md (Step 2).
 constexpr int PCONT_DIM = 512;
 extern int pieceContHist[2][PCONT_DIM][PCONT_DIM];
 

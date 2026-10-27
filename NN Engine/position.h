@@ -1,4 +1,4 @@
-// position.h — game-state plumbing for the native UCI binary (2026-10-19; dev_notes/UCI-BINARY-DESIGN-2026-10-19.md §2).
+// position.h — game-state plumbing for the native UCI binary (2026-10-19; dev_notes/current/UCI-BINARY-DESIGN-2026-10-19.md §2).
 // FEN in/out, UCI move strings, applying the game's moves to the engine's BoardState history exactly as the search's
 // make_move does, and perft over the SEARCH's own move generator (generateLegalMovesReordered). Not used by the Cython path.
 #pragma once

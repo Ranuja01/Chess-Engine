@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PASSER SYSTEM fit on the DEPTH target (dev_notes/PASSER-SYSTEM-DESIGN-2026-10-03.md; owner: passers FIRST, pawn
+"""PASSER SYSTEM fit on the DEPTH target (dev_notes/archive/pawns/PASSER-SYSTEM-DESIGN-2026-10-03.md; owner: passers FIRST, pawn
 structure held fixed).
 
 Columns (v2_features index; `_px_export.py` npz): existing passer columns 77-96 (passed / candidate by rank, the 4 king

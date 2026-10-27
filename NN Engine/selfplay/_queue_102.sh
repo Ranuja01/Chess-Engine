@@ -1,6 +1,6 @@
 #!/bin/bash
 # 2026-10-25, queue #102: time manager step 1 (TM_MODE=1: optimum / maximum allocation, soft stop between iterations once the
-# total elapsed time passes the optimum; dev_notes/TIME-MANAGER-RESEARCH-2026-10-25.md). Never edit this file while it runs.
+# total elapsed time passes the optimum; dev_notes/active/TIME-MANAGER-RESEARCH-2026-10-25.md). Never edit this file while it runs.
 #  1 fingerprints of the plain step-1 binary (TM_MODE=1 must leave the bench identical)
 #  2 self-play 60+0.6, TM_MODE=1 vs the same binary with no knobs (= gen 6's clock rule), 200 g
 #  3 TM_MODE=1 vs Mediocre 0.5 at 60+0.6, 200 g (baseline: gen 6 +7.4, 95% -39 ... +54, 200 g pooled)

@@ -1,5 +1,5 @@
 """
-Search probe for the 2026-07-29 SF18 loss (see dev_notes/observed-loss-2026-07-29-sf18-pin.md).
+Search probe for the 2026-07-29 SF18 loss (see dev_notes/archive/games/observed-loss-2026-07-29-sf18-pin.md).
 
 Position after 41. Ra6: Ra6/Be6/Kf6 share the sixth rank, so the bishop is ABSOLUTELY PINNED and falls
 to 42. Rbb6. The engine played 41...Rf4 (neither unpins nor defends) and lost the piece by force.

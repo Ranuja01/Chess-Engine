@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Generate section 4 (the case book) of dev_notes/PAWN_MODEL.md directly from the truth CSVs.
+"""Generate section 4 (the case book) of dev_notes/current/PAWN_MODEL.md directly from the truth CSVs.
 
 The case book is the part of the model doc that answers "is a weak pawn on the 6th better than a strong one
 on the 5th?" and its many siblings. Written by hand it would drift from the data the first time anything is

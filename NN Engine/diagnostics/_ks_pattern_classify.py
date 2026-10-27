@@ -7,7 +7,7 @@ WIN%-error / points-forfeited PER PATTERN. This file only detects the geometry; 
 evaluate — the over-read/under-read DIRECTION and the eval-loss magnitude are joined downstream by the
 engine tools tonight. Keeping detection engine-free is what makes it runnable while the box is single-core.
 
-Taxonomy (see dev_notes/KS-CAPABILITY-GAP-INDEX-2026-08-14.md). Flags are per-KING (the king under
+Taxonomy (see dev_notes/archive/king-safety/KS-CAPABILITY-GAP-INDEX-2026-08-14.md). Flags are per-KING (the king under
 examination); the CLI emits them for OUR king and THEIR king separately (POV from `our_color`), because a
 KS eval-loss can come from under-reading our own king's danger OR over-reading our attack on theirs.
 

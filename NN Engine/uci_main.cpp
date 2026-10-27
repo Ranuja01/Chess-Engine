@@ -1,4 +1,4 @@
-// uci_main.cpp — native UCI front end (2026-10-19; dev_notes/UCI-BINARY-DESIGN-2026-10-19.md). Built only by
+// uci_main.cpp — native UCI front end (2026-10-19; dev_notes/current/UCI-BINARY-DESIGN-2026-10-19.md). Built only by
 // selfplay/build_uci.sh; the Cython module does not include it.
 // M1: position / d / perft / divide.  M2: uci / isready / ucinewgame / setoption / go / stop / quit, info + bestmove.
 // Debug prints of the engine go to stdout (std::cout) — at start-up std::cout is re-pointed at stderr, and UCI is written

@@ -197,6 +197,12 @@ at all**) · `PawnDoubled2` (1/4, no record hit) · rook/bishop-on-king-ring · 
 | Learned correction (boosted trees, `_pot_gbm_ceiling.py`) | diagnostic only (owner: a model ⇒ NNUE, not trees) | −10% on fixed-formula cp label (no leakage) → gone on SF18 WDL at small n | queue #82 full-size WDL check; the NN phase (trajectory sets as data) |
 | ☠️ Fixed-formula cp → win% labels | INSTRUMENT DEFECT (memory sf-cp-labels-are-material-scaled-use-wdl) | mean 15–16 win% pts from SF18's own WDL | every cross-class accuracy claim, the retune objective |
 
+## ★ SEARCH PHASE (2026-10-27) — parked items and their RE-READ TRIGGERS
+
+| item | state | evidence | re-read trigger |
+|---|---|---|---|
+| **Corrhist** (`CORR2`, SF-consensus form, 4-way keying; owner 10-27: "it could be a tuning problem if we are just using the tunings of other engines") | PARKED, default off, code kept | 10+0.1 vs gen 6.2 TM, 1,000 g each: full weights −8.7 ± 18.4 · half −2.4 ± 19.6 · quarter +7.6 ± 20.0, fresh-seed re-run in queue #110 (OPTIMIZATION_LOG 10-27). Smaller corrections score better; none is shown to beat off. Our pruning margins were tuned without it; the references tuned theirs with it on | **the full retune**: `CORR2_WP` / `CORR2_WN` (and `CORR2_LIMIT`) tuned jointly with the RFP / futility / razoring margins, starting from the quarter or half weights, whichever #110 favours |
+
 ## PROVENANCE
 Built by a full sweep of `dev_notes/` + memory on 2026-09-20. Companion docs:
 `EVAL-V2-CURRENT-CONFIG.md` (shipped config + decision register) · `EVAL-V2-REBUILD-LOG.md` (the narrative) ·

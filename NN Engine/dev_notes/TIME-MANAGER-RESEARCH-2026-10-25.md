@@ -1,5 +1,6 @@
 # Time manager: what the reference engines do, what we do, and the design (2026-10-25)
-n> **The system as shipped is described in [TIME-MANAGER.md](TIME-MANAGER.md).** This file is the research and test record.
+
+> **The system as shipped is described in [TIME-MANAGER.md](TIME-MANAGER.md).** This file is the research and test record.
 
 Scope: time management only (the transition plan's item #1 after gen 6). This was asked for because gen 6 is +77 against
 Mediocre 0.5 at a fixed 1 s per move but only +7 at 60+0.6. Sources: Stockfish 11 / 15.1 / 16.1 / 18 read from the local

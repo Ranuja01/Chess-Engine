@@ -39,6 +39,28 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   Every ship-rule leg passes, the external two as non-harm reads (neither resolves +20). Plateau check before the ship:
   queue #113, W50 and W200 vs W100 at 10+0.1, 1,000 g each.
 
+## 🧪 2026-10-28 — THREATS IN EVAL re-test, step 1 (static): the middlegame half is the problem, not a weak endgame half
+New knobs `THREAT_V2_MG_PCT` / `THREAT_V2_EG_PCT` (852057b), TH legs as before, static win% on the 5,988 rows, paired vs gen 6.2
+static (WDL label, calibrated, ± 1 s.e. game-clustered):
+
+| mg / eg | WDL calibrated | cp label calibrated |
+|---|---|---|
+| 100 / 100 (the old form) | +4.9 ± 4.9 (+1.3%) | +0.5 ± 1.1 |
+| **0 / 100** | **−7.1 ± 2.1 (−1.8%)** | **−2.3 ± 0.5 (−2.2%)** |
+| 0 / 150 | −5.0 ± 3.0 | −1.6 ± 0.8 |
+| 0 / 200 | +0.5 ± 3.9 | +0.4 ± 1.0 |
+| 50 / 100 | −6.6 ± 3.1 | −2.4 ± 0.8 |
+| 50 / 150 | −3.0 ± 3.8 | −1.2 ± 1.0 |
+| 100 / 150 | +9.8 ± 5.6 | +2.1 ± 1.3 |
+| 100 / 200 | +17.8 ± 6.0 | +5.0 ± 1.4 |
+
+- Removing the middlegame half turns the term from net 0 into a clear static gain on both labels (3.4σ WDL, 4.6σ cp). Raising
+  the endgame half makes it worse, so my "endgame half too weak" guess was wrong: the endgame half is about right as is.
+- On the SF11 yardstick: SF11 static leads gen 6.2 by 55.9 on this table, so 0/100 closes about an eighth of it.
+- Fits the 10-05/07 verdict "tactical ⇒ search's" for the middlegame (search resolves those threats; ordering now does it
+  faster), while in the endgame the threats are structural enough to belong in the eval.
+- Next: d10 for 0/100 and 50/100 with ordering on (base `d10_g62ord`), then games.
+
 ## 🧪 2026-10-27 evening — THREATS: win% accuracy on SF18 labels (before the #111 games)
 `_v1_v2_accuracy.py`, 5,988 held-out quiet own-play rows (`E:\chess_data\wdlcal`), SF18 d14 labels; arms on gen 6.2 code
 (`V2_PRESET=shipped`). TH = `THREAT_V2_PCT=100,THREAT_V2_HANGING=1,THREAT_V2_KING=1,THREAT_V2_PAWN_TARGETS=1`; ord =

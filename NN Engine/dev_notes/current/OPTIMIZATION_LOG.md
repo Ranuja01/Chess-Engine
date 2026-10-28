@@ -13,6 +13,24 @@ Evidence (60+0.6, 200 g each): +59.6 ± 46 self-play vs gen 6.1 (#106 arm E); **
 v1 250 / 35,310,778, `V2_SHIP_GEN=5` 258 / 47,689,586, gen 6.1 TM knobs 257 / 46,196,950. Gen 6.1 backup: `chess_engine_uci_g61pgo`.
 Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/200; gen 6.1 22.5% in 100 g) — unchanged within noise.
 
+## ✅ 2026-10-28 — THREATS 2×2 (queue #111): threat ordering +21 twice; threats in eval adds nothing on top
+10+0.1, 1,000 g each vs gen 6.2 (same binary `chess_engine_uci_thr`, TM knobs both sides); 0 disconnects, 0 forfeits, 0 dumps.
+
+| arm | result | Ptnml | registered |
+|---|---|---|---|
+| ord `THREAT_ORDER_W=100` (seed 1111) | **+20.9 ± 18.8** | 62-77-187-87-87 | −5 … +10 ✗ (above) |
+| eval TH (seed 1112) | +7.3 ± 19.9 | 80-83-166-78-93 | −10 … +25 ✓ |
+| both (seed 1113) | +19.5 ± 19.9 | 80-59-184-79-98 | > eval ✓ (≈ ord alone) |
+| ord re-run (seed 1114) | **+21.9 ± 19.3** | 73-59-192-84-92 | > 0 ✓ |
+
+- Ordering replicated on a fresh seed: pooled ≈ +21.4 ± 13.5 (95%) over 2,000 games, about 3σ. Its predicted band (SF's
+  annotation of ~3 Elo) was too low: in our tree the escape moves had nowhere else to come from, as the bench's −8.5% nodes
+  at equal depth showed.
+- Threats in eval: +7.3 alone, and "both" ≈ ordering alone, so the eval term adds about nothing on top. Consistent with the
+  accuracy result below (−2%, 1σ; mg worse, egl better). Next arm for it: separate mg / eg weights.
+- Ship checks for ordering in queue #112: Mediocre 60+0.6 (paired openings with #107's gen 6.2 run), self-play 60+0.6,
+  SF18 @1100 gauntlet (gen 6.2 and W100 on one seed).
+
 ## 🧪 2026-10-27 evening — THREATS: win% accuracy on SF18 labels (before the #111 games)
 `_v1_v2_accuracy.py`, 5,988 held-out quiet own-play rows (`E:\chess_data\wdlcal`), SF18 d14 labels; arms on gen 6.2 code
 (`V2_PRESET=shipped`). TH = `THREAT_V2_PCT=100,THREAT_V2_HANGING=1,THREAT_V2_KING=1,THREAT_V2_PAWN_TARGETS=1`; ord =

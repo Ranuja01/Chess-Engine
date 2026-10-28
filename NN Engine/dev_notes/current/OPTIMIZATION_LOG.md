@@ -28,8 +28,16 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   at equal depth showed.
 - Threats in eval: +7.3 alone, and "both" ≈ ordering alone, so the eval term adds about nothing on top. Consistent with the
   accuracy result below (−2%, 1σ; mg worse, egl better). Next arm for it: separate mg / eg weights.
-- Ship checks for ordering in queue #112: Mediocre 60+0.6 (paired openings with #107's gen 6.2 run), self-play 60+0.6,
-  SF18 @1100 gauntlet (gen 6.2 and W100 on one seed).
+- Ship checks for ordering, queue #112 (0 disconnects, 0 dumps; 5 time forfeits, all Mediocre's):
+
+  | check | result | registered |
+  |---|---|---|
+  | vs Mediocre 0.5, 60+0.6, 200 g (seed 1071 = #107's openings) | +113.3 ± 45.9 vs gen 6.2's +119.1; paired by opening and colour −0.75 ± 4.6 points (≈ −6 ± 37 Elo, 1 s.e.) | not below gen 6.2 ✓ (flat) |
+  | self-play vs gen 6.2, 60+0.6, 200 g (seed 1121) | **+41.9 ± 45.6** (Ptnml 13-13-36-13-25) | +5 … +35 ✓ (above) |
+  | SF18 @1100 nodes, ours 250k, 500 g each, seed 1122 | gen 6.2 50.4% · W100 **53.8%** (+3.4 points ≈ +24 Elo, ≈ 1.2σ unpaired) | > −1σ ✓ |
+
+  Every ship-rule leg passes, the external two as non-harm reads (neither resolves +20). Plateau check before the ship:
+  queue #113, W50 and W200 vs W100 at 10+0.1, 1,000 g each.
 
 ## 🧪 2026-10-27 evening — THREATS: win% accuracy on SF18 labels (before the #111 games)
 `_v1_v2_accuracy.py`, 5,988 held-out quiet own-play rows (`E:\chess_data\wdlcal`), SF18 d14 labels; arms on gen 6.2 code

@@ -59,7 +59,11 @@ static (WDL label, calibrated, ± 1 s.e. game-clustered):
 - On the SF11 yardstick: SF11 static leads gen 6.2 by 55.9 on this table, so 0/100 closes about an eighth of it.
 - Fits the 10-05/07 verdict "tactical ⇒ search's" for the middlegame (search resolves those threats; ordering now does it
   faster), while in the endgame the threats are structural enough to belong in the eval.
-- Next: d10 for 0/100 and 50/100 with ordering on (base `d10_g62ord`), then games.
+- d10 with ordering on, paired vs `d10_g62ord` (WDL calibrated): 0/100 −1.3 ± 4.3 (−0.6%) · 50/100 −5.5 ± 4.4 (−2.6%) · old
+  100/100 −4.0 ± 4.8 (−1.9%): all within noise; the static edge of 0/100 does not carry to depth. Per stage, every form keeps
+  the `egl` gain (0/100 −15.2 ± 7.6, 50/100 −13.6 ± 8.0, 100/100 −21.7 ± 8.1) and none is significantly worse in `mg`
+  (0/100 +15.7 ± 10.5, 50/100 +6.8 ± 11.2). Stop rule (step 1) passed narrowly; d10 is the depth-matched read, so 50/100
+  goes to games first, with 0/100 alongside.
 
 ## 🧪 2026-10-27 evening — THREATS: win% accuracy on SF18 labels (before the #111 games)
 `_v1_v2_accuracy.py`, 5,988 held-out quiet own-play rows (`E:\chess_data\wdlcal`), SF18 d14 labels; arms on gen 6.2 code

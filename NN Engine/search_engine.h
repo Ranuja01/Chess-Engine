@@ -1276,6 +1276,11 @@ namespace Config
     // PCT = percent of SF11's pawn-converted value (100 = the plain pawn conversion), the same anchor the placement
     // sub-terms use, so it can be laddered against BOTH anchors. 0 = off == byte-identical.
     inline int THREAT_V2_PCT = 0;
+    // Separate middlegame / endgame percentages, replacing PCT in that phase when >= 0 (-1 = use PCT). The term carries
+    // SF11's mg/eg ratios; on our eval its mg half reads worse than off and its eg half better, so the two are tuned apart.
+    // PCT > 0 still switches the term on.
+    inline int THREAT_V2_MG_PCT = -1;
+    inline int THREAT_V2_EG_PCT = -1;
     // Defence GATE form, where the references split most sharply:
     //   0 = SF (evaluate.cpp:494-495): `stronglyProtected = their pawn attacks | (their double-attacks & ~our
     //       double-attacks)`; minors are paid on `defended | weak`, everything else on `weak` only.

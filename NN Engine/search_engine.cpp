@@ -2524,6 +2524,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         }
         // ── slice 3: threats ──────────────────────────────────────────────────────────────────
         Config::THREAT_V2_PCT = env_int("THREAT_V2_PCT", Config::THREAT_V2_PCT);
+        Config::THREAT_V2_MG_PCT = env_int("THREAT_V2_MG_PCT", Config::THREAT_V2_MG_PCT);
+        Config::THREAT_V2_EG_PCT = env_int("THREAT_V2_EG_PCT", Config::THREAT_V2_EG_PCT);
         Config::THREAT_V2_GATE = env_int("THREAT_V2_GATE", Config::THREAT_V2_GATE);
         Config::THREAT_V2_HANGING = env_flag("THREAT_V2_HANGING", Config::THREAT_V2_HANGING);
         Config::THREAT_V2_RESTRICT = env_flag("THREAT_V2_RESTRICT", Config::THREAT_V2_RESTRICT);
@@ -2948,6 +2950,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " SPACE_V2_BEHIND=" << Config::SPACE_V2_BEHIND
                   << " SPACE_V2_GATE_PCT=" << Config::SPACE_V2_GATE_PCT
                   << " THREAT_V2_PCT=" << Config::THREAT_V2_PCT
+                  << " THREAT_V2_MG_PCT=" << Config::THREAT_V2_MG_PCT
+                  << " THREAT_V2_EG_PCT=" << Config::THREAT_V2_EG_PCT
                   << " THREAT_V2_GATE=" << Config::THREAT_V2_GATE
                   << " THREAT_V2_HANGING=" << Config::THREAT_V2_HANGING
                   << " THREAT_V2_RESTRICT=" << Config::THREAT_V2_RESTRICT

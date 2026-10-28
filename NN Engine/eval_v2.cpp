@@ -2008,7 +2008,9 @@ static inline int threats_mp(const V2Context &c, const SideAttacks &wa, const Si
 			const int n = __builtin_popcountll(hit);
 			mg += (long long)n * TH_PUSH_MG; eg += (long long)n * TH_PUSH_EG;
 		}
-		const int m = (int)(mg * pct / 100), g = (int)(eg * pct / 100);
+		const int pm = Config::THREAT_V2_MG_PCT >= 0 ? Config::THREAT_V2_MG_PCT : pct;
+		const int pe = Config::THREAT_V2_EG_PCT >= 0 ? Config::THREAT_V2_EG_PCT : pct;
+		const int m = (int)(mg * pm / 100), g = (int)(eg * pe / 100);
 		lg_mg[s] = m; lg_eg[s] = g;
 		side[s] = (m * c.phase256 + g * (256 - c.phase256)) >> 8;
 	}

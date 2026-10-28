@@ -63,7 +63,22 @@ static (WDL label, calibrated, ± 1 s.e. game-clustered):
   100/100 −4.0 ± 4.8 (−1.9%): all within noise; the static edge of 0/100 does not carry to depth. Per stage, every form keeps
   the `egl` gain (0/100 −15.2 ± 7.6, 50/100 −13.6 ± 8.0, 100/100 −21.7 ± 8.1) and none is significantly worse in `mg`
   (0/100 +15.7 ± 10.5, 50/100 +6.8 ± 11.2). Stop rule (step 1) passed narrowly; d10 is the depth-matched read, so 50/100
-  goes to games first, with 0/100 alongside.
+  goes to games first, with 0/100 alongside (queue #114, at the shipped RFP 1000).
+- ★ The crank (owner 10-28: "static correctness should at least translate as we improve on the static read parts of the
+  search"; memory a-truer-eval-buys-pruning-headroom). d10, ordering on, `RFP_MARGIN` 1000 (shipped v2) → 600, WDL calibrated:
+
+  | arm | vs base @1000 | vs base @600 | median nodes |
+  |---|---|---|---|
+  | base @600 | +4.0 ± 3.0 (+1.9%) | — | 169,123 (−14%) |
+  | 0/100 @1000 | −1.3 ± 4.3 (−0.6%) | | 196,667 |
+  | 0/100 @600 | **−4.1 ± 4.0 (−1.9%)** | **−8.1 ± 3.8 (−3.7%)** | 170,806 |
+  | 50/100 @1000 | −5.5 ± 4.5 (−2.6%) | | 197,066 |
+  | 50/100 @600 | −4.1 ± 3.8 (−1.9%) | **−8.1 ± 3.3 (−3.7%)** | 171,617 |
+
+  The tighter margin costs the base accuracy but costs the threats arms none: 0/100 at 600 is more accurate than the base
+  at 1000 on 13% fewer nodes, and its lead over the base at the same margin grows from 0.3σ to 2.1σ. The crank signature, as
+  in 09-06. One crank point; the interaction itself has no error bar. ⚠️ WAC at RFP 600: 245/300 (base 256) — a tactical
+  cost to watch in games. Queue #115: the 2×2 in games (base @600, 0/100 @600, 50/100 @600, each vs the base @1000).
 
 ## 🧪 2026-10-27 evening — THREATS: win% accuracy on SF18 labels (before the #111 games)
 `_v1_v2_accuracy.py`, 5,988 held-out quiet own-play rows (`E:\chess_data\wdlcal`), SF18 d14 labels; arms on gen 6.2 code

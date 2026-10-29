@@ -93,6 +93,24 @@ eval-coupled. Everything else is SEARCH V2. Each new correctness item starts wit
   architecture) are discussed when the arc starts. Result-identical speed work applies to v1 too (fp_v1 = a free second identity
   check); tree-changing items go in the v2 `shipped` block so v1 stays frozen.
 - Re-runs after the void-match discovery: gen 5 vs gen 4 harm check (#92) and, optionally, the PE_PASSER_EXT venue. Not A2/A1/B1/A4/B2.
+- PROPOSED ADDITIONS (2026-10-29, owner asked for the list; order not yet agreed). Lesson behind them: threats in eval was
+  closed 10-05/07 on the material-scaled cp label and a d10 target, and the d10 win% read had it within noise, yet it is
+  +38 in games and +73 with a tighter RFP margin. Items closed the same way may be open.
+  - EVAL, measure first: re-run the SF11 pair counterfactual (`_triangulate_sf11.py MODE=egshare`, REFERENCE-BENCH-LADDER §3a)
+    on the SF18 WDL label. On cp it ranked threats −75%, king −18%, initiative −16%, placement −15%, passed −12%, and said
+    SF11's scaling would HURT (+85%); the late-endgame gap is SF11's largest (eg −84, 29% of our error). Picks the next term.
+  - EVAL, games re-screens on the current engine: the 10-07 "gated, NOT shipped" items (Kaufman depth re-fit, mobility cells,
+    king protector C3-c, KFL+PST pair), each 1,000 g at 10+0.1 and, if positive, with a tighter RFP margin (the crank form).
+  - EVAL, live defects: queen-vs-minor compensation over-valued (memory v2-overvalues-queen-vs-minor-compensation); KR vs K+minor
+    74% drawn but read as +1.5 pawns; minor endings over-stated ~1.5x on WDL (the ONEMINOR cell, POT register row).
+  - EVAL x SEARCH (register triggers that name this transition): POT race + tightened RFP / futility / razoring at equal time;
+    middlegame POT as a search feature; the complexity scaler as an LMR / time input.
+  - CRANK: the margins re-sweep is now a known lever (#115) — futility, razoring, qsearch stand-pat / delta, null-move eval gate,
+    each re-tightened on the final eval at equal time.
+  - SPEED: re-profile on the final eval (the threats term adds eval cost); then the speed items still open above (move-gen cache
+    size, KS-A, unscoped late-eg eval, pawn hash).
+  - CLEAN: the no-increment TM weakness (sudden-death clocks); the odds and ends above (NULL_NPM_GUARD mode 2, v2 tree blow-ups,
+    owner-game triage); INSTRUMENT-MAP entry: the d10 win% read did not predict the threats games result.
 
 **SPEED PROGRAMME STEP 0 — FIRST NODE-LEVEL PROFILE ON v2 (gen 5, 2026-10-22; `E:\chess_data\profile_v2_g5*.log`).** Midgame 40 FENs
 d12, shares of SEARCH_ROOT cycles (rdtsc scopes inflate what they wrap ⇒ upper bounds):

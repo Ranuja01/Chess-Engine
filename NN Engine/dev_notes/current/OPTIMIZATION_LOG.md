@@ -50,6 +50,24 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ✅ 2026-10-29 — THREATS IN EVAL re-test, step 3 (games, queue #114): both reduced-mg forms clearly positive on gen 6.3
+Binary `chess_engine_uci_thr2`, both sides `TM,THREAT_ORDER_W=100` (= gen 6.3); arm adds the TH legs with the phase weights
+below. 0 disconnects, 0 forfeits, 0 dumps.
+
+| arm vs gen 6.3 | result | Ptnml | registered |
+|---|---|---|---|
+| mg 50 / eg 100, 10+0.1, 1,000 g (seed 1141) | **+38.4 ± 19.7** | 57-81-170-79-113 | −10 … +15 ✗ (above) |
+| mg 0 / eg 100, 10+0.1, 1,000 g (seed 1142) | **+31.0 ± 19.1** | 64-63-188-90-95 | −10 … +10 ✗ (above) |
+| mg 50 / eg 100, 60+0.6, 200 g (seed 1143) | **+61.4 ± 42.8** | 10-9-40-18-23 | (best arm's long-clock check) |
+
+- Both forms are about 3σ positive on separate seeds, and the term's gain grows at the longer clock. At #111 the full-strength
+  form (100/100) on top of ordering added ≈ −2, so the change is the middlegame weight, as the static screen pointed to (mg half
+  worse than off, eg half better).
+- Neither 10+0.1 result was predicted: the d10 win% reads had all forms within noise. The game result is the deciding
+  instrument here; the d10 accuracy read did not foresee it.
+- mg 50 taken forward (higher point estimate, the 60+0.6 leg). Ship checks: queue #116 (fresh-seed 10+0.1 re-run, SF18 @1100
+  paired with #112's gen 6.3 run, Mediocre 60+0.6 on #112's openings), chained after the crank queue #115.
+
 ## 🧪 2026-10-28 — THREATS IN EVAL re-test, step 1 (static): the middlegame half is the problem, not a weak endgame half
 New knobs `THREAT_V2_MG_PCT` / `THREAT_V2_EG_PCT` (852057b), TH legs as before, static win% on the 5,988 rows, paired vs gen 6.2
 static (WDL label, calibrated, ± 1 s.e. game-clustered):

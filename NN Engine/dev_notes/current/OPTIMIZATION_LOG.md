@@ -50,6 +50,29 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 🗺️ 2026-10-29 — WDL GAP MAP vs SF11 (static, existing dumps; `diagnostics/_wdl_gap_map.py`)
+Reproduces the record (calibrated WDL MSE ours 390.8 · SF11 334.9 · v1 566.2; excess 55.9 per row). Our static = gen 4..6.3.
+
+| class (by ending / imbalance) | n | ours − SF11 per row (± 1 s.e.) | share of excess | left after a per-class own-scale refit | threats mg 50 change |
+|---|---|---|---|---|---|
+| minor-piece-only endings | 631 | **+177 ± 29** | **33%** (on 11% of rows) | +148 | −7 |
+| equal pieces, one side a pawn up | 1,116 | **+122 ± 22** | **41%** | +121 | −18 |
+| minor vs pawns | 1,155 | +64 ± 15 | 22% | +69 | −1 |
+| rook-only endings | 566 | +62 ± 22 | 10% | +63 | +2 |
+| pawn endings | 144 | −67 ± 47 (we are better) | −3% | −62 | +7 |
+
+By stage: eg +84 (37%) · egl +58 (26%) · mg +44 (20%) · mgl +37 (17%). Rows SF18 calls level (< 10 win% points from 50):
++103 ± 17, 41% of the excess. ⚠️ ending-type and imbalance classes overlap; shares within one dimension sum to 100%.
+- ★ **The gap is SHAPE, not magnitude:** refitting each class at its own constant scale recovers almost nothing (minor
+  endings 404 → 374, pawn-up 606 → 604). A uniform "scale down in class X" will not close it; SF11 knows WHICH of these
+  positions are won. Its candidates: the specialised endgame functions and scale factors (KBPKB / KBPKN / KNPKB / KBPPKB,
+  opposite bishops, pawns on one flank) and the initiative / complexity term that shrinks an endgame edge.
+- The 10-07 cp-label counterfactual said SF11's scaling would HURT (+85%) — that label is material-scaled, the one most
+  likely to reward over-confidence in drawish endings. Next measurement: that counterfactual on the WDL label.
+- Threats mg 50 helps most in pawn-up (−18), rook + minor and queen-vs-pieces (−14 / −16); not in minor endings.
+- ⚠️ Memory eval-payoff-is-opening-midgame-not-endgame: an eval gain has paid ~3x less Elo in deep endgames than in the
+  opening / middlegame. The biggest static gap is in the cheapest-paying phase; judge any fix in games, where it fires.
+
 ## ⭐ 2026-10-29 — THE CRANK IN GAMES (queue #115): with threats in eval, RFP 600 turns from −27 into +35 on top of the term
 Same binary and control as #114 (gen 6.3, RFP 1000); 10+0.1, 1,000 g each, 0 disconnects, 0 forfeits, 0 dumps.
 

@@ -50,6 +50,24 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ⭐ 2026-10-29 — THE CRANK IN GAMES (queue #115): with threats in eval, RFP 600 turns from −27 into +35 on top of the term
+Same binary and control as #114 (gen 6.3, RFP 1000); 10+0.1, 1,000 g each, 0 disconnects, 0 forfeits, 0 dumps.
+
+| vs gen 6.3 | RFP 1000 | RFP 600 | gain from 600 |
+|---|---|---|---|
+| no threats term | 0 | **−27.5 ± 19.1** (seed 1151) | −27.5 |
+| threats mg 0 / eg 100 | +31.0 ± 19.1 (#114) | **+39.1 ± 19.1** (seed 1152) | +8 ± 27 |
+| threats mg 50 / eg 100 | +38.4 ± 19.7 (#114) | **+73.0 ± 19.3** (seed 1153) | **+35 ± 28** |
+
+- Registered: RFP 600 alone −20 … +10 (just below ✗); both crank arms above it ✓ and above their RFP 1000 forms ✓.
+- The memory a-truer-eval-buys-pruning-headroom, now in games: the tighter margin loses on the gen 6.3 eval and wins with
+  the term. Interaction (mg 50): +35 − (−27.5) ≈ +62 ± 39 (95%), about 3σ. The d10 crank screen (10-28) pointed the same way:
+  the threats arms kept their accuracy at RFP 600 while the base lost 1.9%.
+- Every cell is a separate seed against the same control, so the differences are unpaired.
+- ▶️ Candidate C = mg 50 / eg 100 + RFP_MARGIN 600 (bench 36,991,901 with ordering). Queue #116 (restarted 12:35, before
+  any game of its first form ran): fresh-seed 10+0.1, WAC at 250k nodes (tactical veto), SF18 @1100 on two seeds (1122 paired
+  with gen 6.3's 53.8%, fresh 1162 for both), 60+0.6, Mediocre, then the RFP 800 / 400 plateau around 600.
+
 ## ✅ 2026-10-29 — THREATS IN EVAL re-test, step 3 (games, queue #114): both reduced-mg forms clearly positive on gen 6.3
 Binary `chess_engine_uci_thr2`, both sides `TM,THREAT_ORDER_W=100` (= gen 6.3); arm adds the TH legs with the phase weights
 below. 0 disconnects, 0 forfeits, 0 dumps.

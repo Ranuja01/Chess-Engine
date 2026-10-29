@@ -2294,6 +2294,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // 2^20) and EVAL_CACHE_FORM 2 (the eval cache holds the fixed Black-positive value, so a cached value is right for
                 // either side; checkmate scores are not cached). Bench 257 / 47,675,623 at the old sizes; see the register.
                 // V2_SHIP_GEN=5 restores gen 5 exactly (258 / 47,689,586).
+                // ── GEN 6.3 (2026-10-28): threat-aware quiet ordering THREAT_ORDER_W 100 (10+0.1 +21 twice / 60+0.6 +41.9 self-play,
+                // SF18 @1100 53.8% vs 50.4%, Mediocre flat; W 50 and W 200 both below W 100). A search knob, so set only here.
+                // THREAT_ORDER_W=0 restores gen 6.2 exactly (257 / 46,196,950).
                 Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 6);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
@@ -2314,6 +2317,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 }
                 if (Config::V2_SHIP_GEN >= 6){
                     Config::EVAL_CACHE_FORM = 2;
+                    Config::THREAT_ORDER_W = 100;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

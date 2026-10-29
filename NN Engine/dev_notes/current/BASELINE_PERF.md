@@ -1,6 +1,15 @@
 # Baseline performance reference
 
-## ⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6 + PGO (2026-10-24, production binary)
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.3 + PGO (2026-10-28, production binary)
+- WAC d10 fingerprint **256 / 42,263,170 / EBF 3.938** (UCI `bench` == Cython `V2_PRESET=shipped`); `Knobs THREAT_ORDER_W=0` = gen 6.2 = 257 / 46,196,950; v1
+  (`EvalArm 0`) = 250 / 35,310,778. Id "AlphaUX (v2 gen 6.3)". Backup of gen 6.2 production: `chess_engine_uci_g62pgo`.
+- = gen 6 + the TM_MODE 1 clock rule (6.1) + the TM factors TM_START 175 / TM_SINGLE 1 / TM_SCALE 7 / TM_NORM 95 /
+  TM_OPT_PLY 1 (6.2; clock games only, bench-identical) + threat-aware quiet ordering THREAT_ORDER_W 100 (6.3, −8.5% bench nodes).
+- 6.3 games vs gen 6.2: 10+0.1 +21.4 ± 13.5 (2,000 g, 2 seeds), 60+0.6 +41.9 ± 45.6 (200 g); SF18 @1100 nodes 53.8% vs 50.4%
+  (500 g each); Mediocre 0.5 at 60+0.6 +113 vs 6.2's +119 on the same openings (flat).
+- Bench speed with a games queue running beside it: 898k nps (6.2 config on the same binary 911k); clean figure still to take.
+
+## ⭐⭐⭐⭐ v2 gen 6 + PGO (2026-10-24)
 - WAC d10 fingerprint **257 / 46,196,950 / EBF 3.922** (UCI == Cython); `V2_SHIP_GEN=5` = 258 / 47,689,586; v1 = 250 / 35,310,778.
 - = gen 5 + speed batches 2-6 (atomics, sparse history decay, quick legal-move test, king-safety mask reuse, four-table prefetch,
   flat slider tables) + the depth-cap crash fix + EVAL_CACHE_FORM 2 + tables TT 2^22 / eval, q, move-gen 2^20 (≈ 0.25 GB per

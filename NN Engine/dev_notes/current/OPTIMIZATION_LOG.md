@@ -38,6 +38,17 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
 
   Every ship-rule leg passes, the external two as non-harm reads (neither resolves +20). Plateau check before the ship:
   queue #113, W50 and W200 vs W100 at 10+0.1, 1,000 g each.
+- Plateau check, queue #113 (0 disconnects, 0 forfeits, 0 dumps):
+
+  | arm vs W100 | result | Ptnml | registered |
+  |---|---|---|---|
+  | W50 (seed 1131) | −15.3 ± 19.4 | 93-77-184-73-73 | −15 … +10 ✓ (edge) |
+  | W200 (seed 1132) | −11.5 ± 18.8 | 77-94-184-75-70 | −15 … +10 ✓ |
+
+  Both sides are below W100, neither resolves alone, so W100 stays and there is no fresh-seed re-run.
+- **SHIPPED as gen 6.3 (10-28 evening):** `THREAT_ORDER_W = 100` set in the `V2_PRESET=shipped` gen-6 block (v1 frozen),
+  id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
+  `chess_engine_uci_g62pgo`.
 
 ## 🧪 2026-10-28 — THREATS IN EVAL re-test, step 1 (static): the middlegame half is the problem, not a weak endgame half
 New knobs `THREAT_V2_MG_PCT` / `THREAT_V2_EG_PCT` (852057b), TH legs as before, static win% on the 5,988 rows, paired vs gen 6.2

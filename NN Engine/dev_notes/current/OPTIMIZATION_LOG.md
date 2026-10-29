@@ -67,6 +67,9 @@ By stage: eg +84 (37%) · egl +58 (26%) · mg +44 (20%) · mgl +37 (17%). Rows S
   endings 404 → 374, pawn-up 606 → 604). A uniform "scale down in class X" will not close it; SF11 knows WHICH of these
   positions are won. Its candidates: the specialised endgame functions and scale factors (KBPKB / KBPKN / KNPKB / KBPPKB,
   opposite bishops, pawns on one flank) and the initiative / complexity term that shrinks an endgame edge.
+- ★ **It is DRAW RECOGNITION.** On rows SF18 calls won (> 30 points from level) we and SF11 err alike (bias toward drawish
+  −6.6 / −7.7 in minor endings, −18.5 / −16.7 pawn-up). On rows SF18 calls drawn (< 10) we sit about twice as far from 50:
+  minor endings 26.7 vs 13.5 win% points, minor vs pawns 27.3 vs 16.5, rook endings 19.8 vs 14.5, pawn-up 22.4 vs 17.5.
 - The 10-07 cp-label counterfactual said SF11's scaling would HURT (+85%) — that label is material-scaled, the one most
   likely to reward over-confidence in drawish endings. Next measurement: that counterfactual on the WDL label.
 - Threats mg 50 helps most in pawn-up (−18), rook + minor and queen-vs-pieces (−14 / −16); not in minor endings.

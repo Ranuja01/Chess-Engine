@@ -309,13 +309,33 @@ def egshare_mode():
     our win% MSE vs SF11's vs SF18 d14, and each type's SHARE of our total excess over SF11; per type × pair, the
     counterfactual MSE change if that pair took SF11's value (☠️ upper bound — assumes SF11 right), as a share of the excess;
     and inside 'mixed / imbalanced pieces', the imbalance classes ranked by their excess.
-      pyrun diagnostics/_triangulate_sf11.py MODE=egshare [TOP=15]   (run with V2_PRESET=shipped)"""
+      pyrun diagnostics/_triangulate_sf11.py MODE=egshare [TOP=15]   (run with V2_PRESET=shipped)
+    WDL=<dir> (the _v1_v2_accuracy.py rows, e.g. /mnt/e/chess_data/wdlcal) uses SF18's expected score (w + d/2) as the label
+    instead of the d14 cp target, which is material-scaled; each evaluator is then read at its calibrated scale (SCALE_US,
+    SCALE_SF; defaults = the accuracy tool's best scales for gen 6.3 and SF11). N= limits the rows (smoke tests)."""
     import numpy as np
     from collections import defaultdict
     import _revival_screen as RS
     from _endgame_types import classify
     wpf = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * np.clip(cp, -1500, 1500)))
-    if KV.get("DUMP"):
+    wdl = KV.get("WDL")
+    if wdl:
+        s_us, s_sf = float(KV.get("SCALE_US", "2.82")), float(KV.get("SCALE_SF", "2.76"))
+        pu = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * s_us * cp))
+        ps = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * s_sf * cp))
+        yv = lambda t: t                                     # the label is already a win%
+        mid = 50.0                                           # level point of the label
+        bands = (10.0, 30.0)                                 # win% points from level: level / edge / decisive
+    else:
+        pu = ps = yv = wpf
+        mid, bands = 0.0, (100.0, 300.0)                     # cp: level < 1 pawn, 1-3 pawns, decisive > 3
+    if wdl:
+        ph_of = {r["fen"]: float(r["phase256"]) for r in csv.DictReader(open(os.path.join(wdl, "cal_in.csv"), newline=""))}
+        lab = {r["fen"]: 100.0 * (int(r["w"]) + 0.5 * int(r["d"])) / 1000.0
+               for r in csv.DictReader(open(os.path.join(wdl, "cal_wdl.csv"), newline=""))}
+        fens = [f for f in ph_of if f in lab][:int(KV.get("N", "1000000"))]
+        ph, sfl = [ph_of[f] for f in fens], [lab[f] for f in fens]
+    elif KV.get("DUMP"):
         # DUMP=<_reference_ceiling.py DUMP csv> (fen,split,evaluator,pred,target in PAWNS): the BENCH's own rows and labels
         # (SF18 d14), so the decomposition explains the 10-07 bench ratios directly. Phase is v2's (classify returns None ≥ 128).
         tg = {}
@@ -350,11 +370,12 @@ def egshare_mode():
         sph = sf11_phase(b)
         bl = lambda mgeg: (mgeg[0] * sph + mgeg[1] * (128 - sph)) / 128 * 100
         sf11_cp = 100 * total - (SF11_TEMPO_PAWNS if b.turn == chess.WHITE else -SF11_TEMPO_PAWNS) * 100
-        e_us, e_sf = (wpf(stat) - wpf(tgt)) ** 2, (wpf(sf11_cp) - wpf(tgt)) ** 2
+        e_us, e_sf = (pu(stat) - yv(tgt)) ** 2, (ps(sf11_cp) - yv(tgt)) ** 2
         N += 1
         A = acc[c[0]]
         A["n"] += 1; A["us"] += e_us; A["sf"] += e_sf
-        band = "level <1" if abs(tgt) < 100 else ("1-3 pawns" if abs(tgt) < 300 else "decisive >3")
+        dist = abs(tgt - mid)
+        band = "level" if dist < bands[0] else ("edge" if dist < bands[1] else "decisive")
         dec[band][0] += 1; dec[band][1] += e_us - e_sf
         # UNQUIET proxy: the side to move can capture an UNDEFENDED piece/pawn, or a piece worth more than the capturer
         pv = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 100}
@@ -368,23 +389,24 @@ def egshare_mode():
             for name, sfk, uk in EG_PAIRS:
                 sfv = (sf11_cp - unscaled) if sfk is None else sum(bl(terms[k]) for k in sfk if k in terms)
                 usv = sum(-float(bd[k]) / 10.0 for k in uk if bd.get(k) is not None)
-                A["cf_" + name] += (wpf(stat + sfv - usv) - wpf(tgt)) ** 2 - e_us
+                A["cf_" + name] += (pu(stat + sfv - usv) - yv(tgt)) ** 2 - e_us
                 if name == "threats":
-                    dec["threats cf · " + q][1] += (wpf(stat + sfv - usv) - wpf(tgt)) ** 2 - e_us
+                    dec["threats cf · " + q][1] += (pu(stat + sfv - usv) - yv(tgt)) ** 2 - e_us
             # pricing = material + imbalance together (SF folds Kaufman-like pricing into both)
         else:
             A["short"] += 1
         if c[0].startswith("mixed"):
             k, dp = imbalance_class(b)
-            s = 1.0 if abs(tgt) > 25 else 0.0
-            sg = np.sign(tgt)
+            s = 1.0 if abs(tgt - mid) > (5.0 if wdl else 25.0) else 0.0
+            sg = np.sign(tgt - mid)
             C = cls[k]
             C[0] += 1; C[1] += e_us - e_sf
-            C[2] += s * (wpf(stat) - wpf(tgt)) * sg; C[3] += s * (wpf(sf11_cp) - wpf(tgt)) * sg
+            C[2] += s * (pu(stat) - yv(tgt)) * sg; C[3] += s * (ps(sf11_cp) - yv(tgt)) * sg
     p.stdin.write("quit\n"); p.stdin.flush()
 
     tot_ex = sum(A["us"] - A["sf"] for A in acc.values())
-    print("WHERE IS THE ENDGAME GAP — %d endgame depth rows (v2 phase256 < 128), win%% MSE vs SF18 d14" % N)
+    print("WHERE IS THE ENDGAME GAP — %d endgame rows (v2 phase256 < 128), win%% MSE vs %s" % (
+          N, "SF18 WDL expected score (scales us %.2f / SF11 %.2f)" % (s_us, s_sf) if wdl else "SF18 d14"))
     print("  overall: ours %.1f · SF11 %.1f · our EXCESS %.1f (per row, averaged over all endgame rows)"
           % (sum(A["us"] for A in acc.values()) / N, sum(A["sf"] for A in acc.values()) / N, tot_ex / N))
     print("\n  %-26s %6s %7s %8s %8s %8s %13s" % ("type", "rows", "share", "MSE us", "SF11", "ratio", "excess share"))

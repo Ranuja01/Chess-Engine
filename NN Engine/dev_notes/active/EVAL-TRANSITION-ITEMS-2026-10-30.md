@@ -74,6 +74,15 @@ v2; (5) magnitude fitted on the wrong label / depth. Of ~30 reference items on r
 | Mobility cells / eg leg · KPROT / KFL / Kaufman depth re-fit / PST pair | instruments disagreed, shared-baseline artefact | 1, 3, 5 | scheduled (10-29 proposed additions) |
 | v1 pruning forms (quiet SEE prune, RFP depth cap, LMP improving-halving) | v1, harsher than consensus | 1, 2, 4 | margins re-sweep / SEARCH V2 |
 
+Owner (10-30) on the search rows: they are re-done in the search arc (parts of the search may be rewritten), but with the eval
+fresh in mind. `improving`, the null-move eval gate, RFP at the node, futility in its parent-eval form and corrhist all consume a
+NODE-ENTRY static eval, which our search does not compute today (futility evaluates the child after the move; v1's `improving`
+needed extra eval calls, and the cheap material + PST trend was null in games, −7 ± 20 over 1,658). ⇒ for the search arc: one
+node-entry static eval, lazy / staged (cheap terms first, the expensive attack-based terms only when a consumer needs them) and
+reused through the TT or eval cache, is the shared foundation these consumers wait on — the owner's lazy / incremental eval idea.
+Transition-side preparation: the planned re-profile on gen 6.4 should report per-term eval cost, and how well a cheap partial
+eval tracks the full eval's ply-to-ply trend.
+
 Stay closed (clean, none of 2-5): rook files, weak-unopposed, tempo, Kaufman verbatim tables (superseded), KR-vs-minor (tablebase),
 `MOB_V2_SAFE` / `EXCL_QUEEN`, flat bishop pair, quiet checks in qsearch, `FUTILITY_EVAL_MODE` / `QSTANDPAT_EVAL_MODE`, root razor
 margins, `PE_PRUNE_GATE`, `NULLMOVE_PROGRESSIVE`, threats 100/100.

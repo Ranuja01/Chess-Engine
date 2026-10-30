@@ -120,6 +120,20 @@ C@400 33,836,081). 0 disconnects / stalls and 0 time forfeits by us in every leg
 
   600 stays. Not a spike: the loosening side falls off (800 ≈ −2σ), the tightening side is flat to 400, so the optimum
   sits at or slightly below 600. Queue #117 (bench report) runs with RFP 600.
+- vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2), queue #118, 200 g each, seed 1082 = #108's openings (not a ship
+  gate; 0 disconnects, 0 forfeits, no new WSL dumps):
+
+  | engine | score | Elo | Ptnml |
+  |---|---|---|---|
+  | gen 6.2 (#108, binary `_c2h`) | 21.0% | — | — |
+  | gen 6.3 | 29.25% | −153.4 ± 47.4 | 39-20-30-7-4 |
+  | C | **29.5%** | −151.4 ± 49.8 | 40-21-26-7-6 |
+
+  Paired by opening (all 100 openings in common, `scratchpad` script over the three PGNs): **C − gen 6.3 +0.25 points,
+  s.e. 3.9** (registered −3 … +8 ✓, flat: the eval term is neutral against a stronger external engine, as SF18 read it).
+  Gen 6.3 − gen 6.2 +8.25 points, s.e. 3.9 (≈ 2.1 s.e.); a different build and day, so read it as "threat ordering at least
+  did not hurt here", not as a resolved +70 Elo. Pairing by opening barely narrows the error against an external engine
+  (3.9 vs ≈ 4.5 unpaired).
 
 ## 🗺️ 2026-10-29 — WDL GAP MAP vs SF11 (static, existing dumps; `diagnostics/_wdl_gap_map.py`)
 Reproduces the record (calibrated WDL MSE ours 390.8 · SF11 334.9 · v1 566.2; excess 55.9 per row). Our static = gen 4..6.3.

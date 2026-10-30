@@ -69,8 +69,15 @@ C@400 33,836,081). 0 disconnects / stalls and 0 time forfeits by us in every leg
   restarts the engine every game; the one "timeout" in the report is that). First occurrence in our logs. The resume file
   (`config.json` in the fastchess working directory, which is also the untracked `NN Engine/config.json`) is overwritten by
   the next match, so the leg cannot be resumed; 80 games already resolve the gate.
-- Plateau (RFP 800 / 400 vs 600, 1,000 g each, seeds 1164 / 1165): running overnight; queue #117 (bench report) picks the
-  margin from it automatically.
+- Plateau around 600 (10+0.1, 1,000 g each, vs C at 600; 0 disconnects, 0 forfeits, no new WSL dumps):
+
+  | arm vs C | result | Ptnml | registered |
+  |---|---|---|---|
+  | RFP 800 (seed 1164) | **−19.8 ± 19.4** | 92-89-173-76-70 | −30 … +10 ✓ |
+  | RFP 400 (seed 1165) | −5.2 ± 18.9 | 80-80-188-79-73 | −40 … +10 ✓ |
+
+  600 stays. Not a spike: the loosening side falls off (800 ≈ −2σ), the tightening side is flat to 400, so the optimum
+  sits at or slightly below 600. Queue #117 (bench report) runs with RFP 600.
 
 ## 🗺️ 2026-10-29 — WDL GAP MAP vs SF11 (static, existing dumps; `diagnostics/_wdl_gap_map.py`)
 Reproduces the record (calibrated WDL MSE ours 390.8 · SF11 334.9 · v1 566.2; excess 55.9 per row). Our static = gen 4..6.3.

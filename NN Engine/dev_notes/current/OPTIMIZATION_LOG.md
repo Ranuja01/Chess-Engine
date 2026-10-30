@@ -60,6 +60,19 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 🧪 2026-10-30 — ENDGAME CAPS on gen 6.4 (queue #119): +13.9 ± 18.9, leaning positive, replication overnight
+The four material-class caps (built 10-09, never played; round 3's cp-label fit had driven them to ~0) at SF15.1's values:
+`POT_V2_WIN_OCBX −42 / OCBX_PC 3, ROOKE −28, QNOQ −27 / QNOQ_MINOR 3, LONEMINOR −64`. Binary `chess_engine_uci_g64pgo`; bench
+caps 38,998,902 (base 36,991,901); symmetry 0 violations on 4,000 + 3,170.
+- Static WDL by stage (`bench1030/stages_caps.txt`; base in `stages_all.txt`): eg 290.8 → **273.9 (−5.8%)**, egl 275.9 → 274.6,
+  mgl 390.4 → 394.1 (+0.9%), mg 576.7 → 576.0; our excess over SF11 −9.5%; the eg scaling swap falls from −12.7% to −2.4%.
+  (The q119.log static summary printed SF11's column by mistake; the file is right.)
+- Games, 10+0.1, 1,000 g UHO, seed 1191: **+13.9 ± 18.9** (52.0%, Ptnml 67-79-184-87-83), 0 disconnects / forfeits / dumps.
+  Registered −5 … +15 ✓. ≈ 1.5σ ⇒ follow-through (queue #121): fresh-seed replication, a crank arm with RFP 500, then 60+0.6.
+- Material taper dropped from the overnight plan: static WDL on gen 6.4 worsens monotonically with a lower midgame pawn
+  (`EVAL_V2_PAWN_MG` 800 / 650 / 550: mg 583.1 / 595.2 / 606.6 vs 576.7, total 384.5 / 387.7 / 391.1 vs 383.4). The gen 3 retune
+  fitted piece values and PST around the flat pawn ⇒ the taper belongs inside the final retune, not on top of the fitted tables.
+
 ## 🔎 2026-10-30 — WHERE THE EVAL GAP IS, read only where SF11 is right (gen 6.4, SF18 WDL label, all stages)
 Owner's rule: compare term breakdowns with SF11 only on rows where SF11's static read agrees with SF18's searched value.
 `_triangulate_sf11.py MODE=egshare WDL=/mnt/e/chess_data/wdlcal STAGES=1 AGREE=<pts> SCALE_US=2.76` (new options: STAGES =

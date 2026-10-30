@@ -2297,6 +2297,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // ── GEN 6.3 (2026-10-28): threat-aware quiet ordering THREAT_ORDER_W 100 (10+0.1 +21 twice / 60+0.6 +41.9 self-play,
                 // SF18 @1100 53.8% vs 50.4%, Mediocre flat; W 50 and W 200 both below W 100). A search knob, so set only here.
                 // THREAT_ORDER_W=0 restores gen 6.2 exactly (257 / 46,196,950).
+                // ── GEN 6.4: threats in the eval (middlegame half at 50%, endgame half at full weight) with the static-eval
+                // pruning margin tightened to 600; the more accurate eval is what makes the tighter margin safe. Evidence:
+                // OPTIMIZATION_LOG, ship checks for candidate C. THREAT_V2_PCT=0 RFP_MARGIN=1000 restores gen 6.3 exactly
+                // (256 / 42,263,170).
                 Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 6);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
@@ -2318,6 +2322,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 if (Config::V2_SHIP_GEN >= 6){
                     Config::EVAL_CACHE_FORM = 2;
                     Config::THREAT_ORDER_W = 100;
+                    Config::THREAT_V2_PCT = 100;  Config::THREAT_V2_MG_PCT = 50;  Config::THREAT_V2_EG_PCT = 100;
+                    Config::THREAT_V2_HANGING = 1;  Config::THREAT_V2_KING = 1;  Config::THREAT_V2_PAWN_TARGETS = 1;
+                    Config::RFP_MARGIN = 600;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

@@ -4,6 +4,16 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-10-30 — GEN 6.4 = gen 6.3 + threats in eval (mg 50 / eg 100) + RFP_MARGIN 600 (owner-confirmed)
+Set in the `V2_PRESET=shipped` gen-6 block (`THREAT_V2_PCT 100, HANGING 1, KING 1, PAWN_TARGETS 1, MG_PCT 50, EG_PCT 100`,
+`RFP_MARGIN 600`); v1 untouched. Id "AlphaUX (v2 gen 6.4)". Evidence: the ship checks and bench report below (#115-#118).
+**Installed** as the PGO build `chess_engine_uci` (= `chess_engine_uci_g64pgo`; profile `/mnt/e/chess_data/pgo_g64`, bench + 8
+games st=0.25): bench **249 / 36,991,901** (31.5 s); `Knobs THREAT_V2_PCT=0,RFP_MARGIN=1000` = gen 6.3 256 / 42,263,170 (35.4 s);
++ `THREAT_ORDER_W=0` = gen 6.2 257 / 46,196,950; `V2_SHIP_GEN=5` 258 / 47,689,586; `EvalArm 0` 250 / 35,310,778. Cython
+`V2_PRESET=shipped` 249 / 36,991,901 / 3.903, v1 250 / 35,310,778 / 3.784. Gen 6.3 backup: `chess_engine_uci_g63pgo`.
+Binaries built from this source default to gen 6.4 (the older `_thr2` test binary still defaults to gen 6.2); a gen 6.3 arm on a
+new binary must pass `THREAT_V2_PCT=0,RFP_MARGIN=1000`.
+
 ## 🚢 2026-10-26 night — GEN 6.2 = gen 6.1 + time manager arm E as the defaults (owner-confirmed)
 Defaults now `TM_START=175 TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`; id "AlphaUX (v2 gen 6.2)". **Scope: UCI clock games
 only** — presets, `go movetime`, fixed depth / nodes and the Cython path are untouched, so `bench` stays 257 / 46,196,950.

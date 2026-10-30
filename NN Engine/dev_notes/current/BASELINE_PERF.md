@@ -1,6 +1,20 @@
 # Baseline performance reference
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.3 + PGO (2026-10-28, production binary)
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.4 + PGO (2026-10-30, production binary)
+- WAC d10 fingerprint **249 / 36,991,901 / EBF 3.903** (UCI `bench` == Cython `V2_PRESET=shipped`); `Knobs THREAT_V2_PCT=0,RFP_MARGIN=1000`
+  = gen 6.3 = 256 / 42,263,170; adding `THREAT_ORDER_W=0` = gen 6.2 = 257 / 46,196,950; `V2_SHIP_GEN=5` = 258 / 47,689,586; v1
+  (`EvalArm 0`) = 250 / 35,310,778. Id "AlphaUX (v2 gen 6.4)". Backup of gen 6.3 production: `chess_engine_uci_g63pgo`
+  (gen 6.4's own copy: `chess_engine_uci_g64pgo`).
+- = gen 6.3 + threats in the eval (`THREAT_V2_PCT 100`, `HANGING 1`, `KING 1`, `PAWN_TARGETS 1`, `MG_PCT 50`, `EG_PCT 100`) + the
+  pruning margin `RFP_MARGIN 600` (was 1000), all in the `V2_PRESET=shipped` gen-6 block (v1 frozen).
+- vs gen 6.3: 10+0.1 +73.0 ± 19.3 and +60.0 ± 19.9 (two seeds, 1,000 g each), 60+0.6 +61.4 ± 45.1 (200 g); SF18 @1100 55.4% vs
+  53.8% (same openings); Mediocre 0.5 at 60+0.6 +208.7 ± 86.9 on 80 g (6.3 +113.3); Stockfish 1.1 at 3× time odds 29.5% vs 29.25%.
+- Benches (queue #117, OPTIMIZATION_LOG 10-30): STS300 at 249,014 nodes **1,944** (6.3 1,890; gen 4 1,883); full STS d10 **10,063**
+  (9,822; 9,727); WAC LIGHTNING depth 15.32 (14.94); Cython WAC speed 921k nps pinned (6.3 935k); UCI bench (PGO) 31.5 s vs 35.4 s
+  for the gen 6.3 knobs on the same binary. Static: own-play ceiling 147.5 (SF11 151.4), diverse 107.7 (SF11 95.3), SF18 WDL 384.2
+  (SF11 334.9).
+
+## ⭐⭐⭐⭐ v2 gen 6.3 + PGO (2026-10-28)
 - WAC d10 fingerprint **256 / 42,263,170 / EBF 3.938** (UCI `bench` == Cython `V2_PRESET=shipped`); `Knobs THREAT_ORDER_W=0` = gen 6.2 = 257 / 46,196,950; v1
   (`EvalArm 0`) = 250 / 35,310,778. Id "AlphaUX (v2 gen 6.3)". Backup of gen 6.2 production: `chess_engine_uci_g62pgo`.
 - = gen 6 + the TM_MODE 1 clock rule (6.1) + the TM factors TM_START 175 / TM_SINGLE 1 / TM_SCALE 7 / TM_NORM 95 /

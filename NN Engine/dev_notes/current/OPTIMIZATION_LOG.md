@@ -50,6 +50,28 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ✅ 2026-10-29/30 — SHIP CHECKS for candidate C (threats mg 50 / eg 100 + RFP 600; queue #116): every gate passes
+Binary `chess_engine_uci_thr2`, gen 6.3 TM knobs both sides; fingerprints base 42,263,170 · C 36,991,901 (C@800 40,659,007,
+C@400 33,836,081). 0 disconnects / stalls and 0 time forfeits by us in every leg.
+
+| leg | result | registered |
+|---|---|---|
+| self-play vs gen 6.3, 10+0.1, 1,000 g, fresh seed 1161 | **+60.0 ± 19.9** (Ptnml 56-57-166-102-119) | +35 … +75 ✓ |
+| WAC at 250k nodes (tactical veto) | C 247 / 300 vs gen 6.3 250 (d10: 249 vs 256) | ≤ 5 below ✓ |
+| SF18 @1100, 500 g each | C 54.0% (seed 1122; gen 6.3 53.8% in #112) · seed 1162: **C 55.4% vs gen 6.3 53.8%** (+1.6 points, ≈ +11 Elo, ≈ 0.6σ); collapses 65 vs 72 | pooled > −1σ ✓ |
+| self-play vs gen 6.3, 60+0.6, 200 g, seed 1163 | **+61.4 ± 45.1** (Ptnml 12-8-39-15-26) | +20 … +80 ✓ |
+| vs Mediocre 0.5, 60+0.6, seed 1071 | **+208.7 ± 86.9 on 80 g** (gen 6.3 +113.3 ± 45.9 on 200) | not below gen 6.3 by > 1σ ✓ |
+
+- Self-play pooled with #115's +73.0 (seed 1153): ≈ +66 over 2,000 games.
+- The 10-08 record of the term (+32 self-play, −5 ± 9 vs SF18) no longer holds with the margin: SF18 is now level to slightly
+  positive (not resolved).
+- Mediocre stopped at game 94: "mediocre engine startup failure: Engine didn't respond to uciok after startup" (fastchess
+  restarts the engine every game; the one "timeout" in the report is that). First occurrence in our logs. The resume file
+  (`config.json` in the fastchess working directory, which is also the untracked `NN Engine/config.json`) is overwritten by
+  the next match, so the leg cannot be resumed; 80 games already resolve the gate.
+- Plateau (RFP 800 / 400 vs 600, 1,000 g each, seeds 1164 / 1165): running overnight; queue #117 (bench report) picks the
+  margin from it automatically.
+
 ## 🗺️ 2026-10-29 — WDL GAP MAP vs SF11 (static, existing dumps; `diagnostics/_wdl_gap_map.py`)
 Reproduces the record (calibrated WDL MSE ours 390.8 · SF11 334.9 · v1 566.2; excess 55.9 per row). Our static = gen 4..6.3.
 

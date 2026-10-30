@@ -60,6 +60,37 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 🔎 2026-10-30 — WHERE THE EVAL GAP IS, read only where SF11 is right (gen 6.4, SF18 WDL label, all stages)
+Owner's rule: compare term breakdowns with SF11 only on rows where SF11's static read agrees with SF18's searched value.
+`_triangulate_sf11.py MODE=egshare WDL=/mnt/e/chess_data/wdlcal STAGES=1 AGREE=<pts> SCALE_US=2.76` (new options: STAGES =
+all four stages typed by the corpus stage; AGREE = keep rows where SF11 is within <pts> win% of the label and on its side).
+Outputs `/mnt/e/chess_data/bench1030/stages_{all,agree5,agree10,agree15}.txt`. 6,000 rows, 1,500 per stage.
+
+| | no filter | AGREE 15 | **AGREE 10** | AGREE 5 |
+|---|---|---|---|---|
+| rows kept · SF11 agreement mg / mgl / egl / eg | 6,000 | 4,221 · 56 / 68 / 77 / 80% | 3,629 · **45 / 57 / 69 / 71%** | 2,809 · 28 / 43 / 55 / 61% |
+| share of our excess: eg / mg / mgl / egl | 49 / 12 / 13 / 26% | 38 / 26 / 20 / 16% | **41 / 26 / 16 / 16%** | 56 / 19 / 13 / 12% |
+| eg: scaling · initiative swap | −12.7 · −7.7 | −7.1 · −5.2 | **−9.0 · −5.9** | −18.7 · −8.5 |
+| egl: scaling swap | +3.1 | +8.2 | **+6.6** | +7.2 |
+| mg: king safety swap | +3.1 | −10.5 | **−12.4** | −9.4 |
+| mgl: king safety swap | +4.3 | −3.1 | **−2.8** | −3.7 |
+| egl: passed swap | +2.8 | −2.2 | **−2.6** | −2.8 |
+| material swap, ALL | +57.9 | +12.3 | **+19.3** | +23.8 |
+
+(swap = our MSE change if that one pair took SF11's value, % of our total excess on the kept rows; − closes the gap.)
+
+- **Endgame (eg stage) is the largest gap at every threshold**, and SCALING + INITIATIVE close it at every threshold. Scaling
+  HURTS one stage earlier (egl +6.6 … +8.2), so a scale factor must be gated to the light endgame, not applied by phase.
+- **Middlegame is second where SF11 is reliable** (26% of the excess at AGREE 10 vs 12% unfiltered), and KING SAFETY carries
+  about half of it (−12.4% of the total, ≈ 47% of the mg share). Unfiltered, SF11's king safety would hurt (+3.1): the gap
+  sits in the subset of middlegames SF11 reads right, i.e. a signal in some positions, not a mean shift. Prior: king safety's
+  long failure record (memory ks-twelve-attempt-history…, ks-recall-is-structural…) ⇒ diagnose which component differs before
+  any term. Middlegame accuracy has paid ~3× more Elo than endgame accuracy (eval-payoff-is-opening-midgame-not-endgame).
+- The filter does not make every swap look good: material still hurts at every threshold, scaling hurts in egl ⇒ the signs
+  discriminate. But on kept rows SF11's total is near the label by construction, so swap sizes there run large; rank, don't
+  read magnitudes.
+- SF11 agrees with SF18 least in the middlegame (45% at 10 points vs 71% in the endgame).
+
 ## 📊 2026-10-30 — BENCH REPORT (queue #117): gen 4 (10-20 record) vs gen 6.3 vs candidate C (threats mg 50 / eg 100 + RFP 600)
 Box idle (one process at a time). Outputs `E:/chess_data/bench1030/`. Fingerprints: gen 6.3 256 / 42,263,170 / 3.938 · C 249 /
 36,991,901 / 3.903.

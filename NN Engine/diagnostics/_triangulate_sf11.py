@@ -312,13 +312,21 @@ def egshare_mode():
       pyrun diagnostics/_triangulate_sf11.py MODE=egshare [TOP=15]   (run with V2_PRESET=shipped)
     WDL=<dir> (the _v1_v2_accuracy.py rows, e.g. /mnt/e/chess_data/wdlcal) uses SF18's expected score (w + d/2) as the label
     instead of the d14 cp target, which is material-scaled; each evaluator is then read at its calibrated scale (SCALE_US,
-    SCALE_SF; defaults = the accuracy tool's best scales for gen 6.3 and SF11). N= limits the rows (smoke tests)."""
+    SCALE_SF; defaults = the accuracy tool's best scales for gen 6.3 and SF11). N= limits the rows (smoke tests).
+    STAGES=1 (needs WDL=): every row, not only endgames, typed by the corpus stage (mg / mgl / egl / eg) instead of the
+    endgame class. AGREE=<win% points>: keep only rows where SF11's static read agrees with the label — within that many
+    points and on the same side of level (a level label, within 5 points of 50, has no side) — so a pair swap is only read
+    where the comparator is itself right; the per-type agreement rate is printed."""
     import numpy as np
     from collections import defaultdict
     import _revival_screen as RS
     from _endgame_types import classify
     wpf = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * np.clip(cp, -1500, 1500)))
     wdl = KV.get("WDL")
+    stages = KV.get("STAGES") == "1"
+    agree = float(KV["AGREE"]) if KV.get("AGREE") else None
+    if stages and not wdl:
+        sys.exit("STAGES=1 needs WDL=<dir> (the stage column lives in cal_in.csv)")
     if wdl:
         s_us, s_sf = float(KV.get("SCALE_US", "2.82")), float(KV.get("SCALE_SF", "2.76"))
         pu = lambda cp: 100.0 / (1.0 + np.exp(-0.00368208 * s_us * cp))
@@ -330,7 +338,9 @@ def egshare_mode():
         pu = ps = yv = wpf
         mid, bands = 0.0, (100.0, 300.0)                     # cp: level < 1 pawn, 1-3 pawns, decisive > 3
     if wdl:
-        ph_of = {r["fen"]: float(r["phase256"]) for r in csv.DictReader(open(os.path.join(wdl, "cal_in.csv"), newline=""))}
+        cal_in = list(csv.DictReader(open(os.path.join(wdl, "cal_in.csv"), newline="")))
+        ph_of = {r["fen"]: float(r["phase256"]) for r in cal_in}
+        st_of = {r["fen"]: r["stage"] for r in cal_in}
         lab = {r["fen"]: 100.0 * (int(r["w"]) + 0.5 * int(r["d"])) / 1000.0
                for r in csv.DictReader(open(os.path.join(wdl, "cal_wdl.csv"), newline=""))}
         fens = [f for f in ph_of if f in lab][:int(KV.get("N", "1000000"))]
@@ -354,14 +364,16 @@ def egshare_mode():
     acc = defaultdict(lambda: defaultdict(float))            # type -> stat -> sum
     dec = defaultdict(lambda: [0, 0.0])                      # |target| band -> n, excess
     cls = defaultdict(lambda: [0, 0.0, 0.0, 0.0])            # imbalance class -> n, excess, our bias, sf11 bias
+    seen = defaultdict(int)                                  # type -> rows before the AGREE filter
     N = 0
     for f, phase, tgt in zip(fens, ph, sfl):
-        if phase >= 128:
+        if phase >= 128 and not stages:
             continue
         c = classify(f)
         b = chess.Board(f)
-        if c is None or b.is_check():
+        if (c is None and not stages) or b.is_check():
             continue
+        typ = st_of[f] if stages else c[0]
         bd = ai.ev_breakdown(b)
         stat = -float(bd["total"]) / 10.0
         total, terms = sf11_eval(p, f)
@@ -371,8 +383,13 @@ def egshare_mode():
         bl = lambda mgeg: (mgeg[0] * sph + mgeg[1] * (128 - sph)) / 128 * 100
         sf11_cp = 100 * total - (SF11_TEMPO_PAWNS if b.turn == chess.WHITE else -SF11_TEMPO_PAWNS) * 100
         e_us, e_sf = (pu(stat) - yv(tgt)) ** 2, (ps(sf11_cp) - yv(tgt)) ** 2
+        seen[typ] += 1
+        if agree is not None:
+            r_sf, r_y = ps(sf11_cp), yv(tgt)
+            if abs(r_sf - r_y) > agree or ((r_sf - mid) * (r_y - mid) < 0 and abs(r_y - mid) >= 5.0):
+                continue
         N += 1
-        A = acc[c[0]]
+        A = acc[typ]
         A["n"] += 1; A["us"] += e_us; A["sf"] += e_sf
         dist = abs(tgt - mid)
         band = "level" if dist < bands[0] else ("edge" if dist < bands[1] else "decisive")
@@ -395,7 +412,7 @@ def egshare_mode():
             # pricing = material + imbalance together (SF folds Kaufman-like pricing into both)
         else:
             A["short"] += 1
-        if c[0].startswith("mixed"):
+        if c is not None and c[0].startswith("mixed"):
             k, dp = imbalance_class(b)
             s = 1.0 if abs(tgt - mid) > (5.0 if wdl else 25.0) else 0.0
             sg = np.sign(tgt - mid)
@@ -405,14 +422,18 @@ def egshare_mode():
     p.stdin.write("quit\n"); p.stdin.flush()
 
     tot_ex = sum(A["us"] - A["sf"] for A in acc.values())
-    print("WHERE IS THE ENDGAME GAP — %d endgame rows (v2 phase256 < 128), win%% MSE vs %s" % (
-          N, "SF18 WDL expected score (scales us %.2f / SF11 %.2f)" % (s_us, s_sf) if wdl else "SF18 d14"))
-    print("  overall: ours %.1f · SF11 %.1f · our EXCESS %.1f (per row, averaged over all endgame rows)"
+    print("WHERE IS THE %s GAP — %d %s, win%% MSE vs %s" % (
+          "EVAL" if stages else "ENDGAME", N, "rows (all stages)" if stages else "endgame rows (v2 phase256 < 128)",
+          "SF18 WDL expected score (scales us %.2f / SF11 %.2f)" % (s_us, s_sf) if wdl else "SF18 d14"))
+    if agree is not None:
+        print("  AGREE=%g: only rows where SF11's static read is within %g win%% points of the label and on its side "
+              "(%d of %d kept)" % (agree, agree, N, sum(seen.values())))
+    print("  overall: ours %.1f · SF11 %.1f · our EXCESS %.1f (per row, averaged over the kept rows)"
           % (sum(A["us"] for A in acc.values()) / N, sum(A["sf"] for A in acc.values()) / N, tot_ex / N))
-    print("\n  %-26s %6s %7s %8s %8s %8s %13s" % ("type", "rows", "share", "MSE us", "SF11", "ratio", "excess share"))
+    print("\n  %-26s %6s %7s %8s %8s %8s %13s %8s" % ("type", "rows", "share", "MSE us", "SF11", "ratio", "excess share", "agree"))
     for t, A in sorted(acc.items(), key=lambda kv: -(kv[1]["us"] - kv[1]["sf"])):
-        print("  %-26s %6d %6.1f%% %8.1f %8.1f %7.2fx %12.1f%%" % (t, A["n"], 100 * A["n"] / N, A["us"] / A["n"], A["sf"] / A["n"],
-              A["us"] / max(A["sf"], 1e-9), 100 * (A["us"] - A["sf"]) / tot_ex))
+        print("  %-26s %6d %6.1f%% %8.1f %8.1f %7.2fx %12.1f%% %7.0f%%" % (t, A["n"], 100 * A["n"] / N, A["us"] / A["n"], A["sf"] / A["n"],
+              A["us"] / max(A["sf"], 1e-9), 100 * (A["us"] - A["sf"]) / tot_ex, 100 * A["n"] / max(seen[t], 1)))
     print("\n  by |SF18 target|: " + " · ".join("%s %d rows → %.0f%% of excess" % (k, v[0], 100 * v[1] / tot_ex)
                                              for k, v in sorted(dec.items())))
     print("\n  COUNTERFACTUAL — our MSE change if ONE pair took SF11's value, as %% of our total excess (− = closes the gap)")

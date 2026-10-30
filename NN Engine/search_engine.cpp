@@ -2769,6 +2769,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_REP_KEY = env_int("FIX_REP_KEY", Config::FIX_REP_KEY);
         Config::FIX_DRAW_EXIT = env_int("FIX_DRAW_EXIT", Config::FIX_DRAW_EXIT);
         Config::FIX_QS_CHECK = env_int("FIX_QS_CHECK", Config::FIX_QS_CHECK);
+        Config::FIX_LMR_EG = env_int("FIX_LMR_EG", Config::FIX_LMR_EG);
+        if (Config::FIX_LMR_EG < 0){
+            std::cerr << "☠️ FIX_LMR_EG must be >= 0 -- restoring 0.\n";
+            Config::FIX_LMR_EG = 0;
+        }
         Config::QGEN_NOISY_ONLY = env_int("QGEN_NOISY_ONLY", Config::QGEN_NOISY_ONLY);
         Config::QGEN_VERIFY = env_int("QGEN_VERIFY", Config::QGEN_VERIFY);
         g_mate_quick_verify = env_int("MATE_TEST_VERIFY", 0) != 0;
@@ -3392,6 +3397,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " FIX_HALFMOVE=" << Config::FIX_HALFMOVE << " FIX_REP_KEY=" << Config::FIX_REP_KEY
                   << " FIX_DRAW_EXIT=" << Config::FIX_DRAW_EXIT << " FIX_QS_CHECK=" << Config::FIX_QS_CHECK
+                  << " FIX_LMR_EG=" << Config::FIX_LMR_EG
                   << " FIX_MAX_NULL=" << Config::FIX_MAX_NULL << " FIX_MIN_RD1=" << Config::FIX_MIN_RD1
                   << " FIX_MIN_SCOUT=" << Config::FIX_MIN_SCOUT << " FIX_RESEARCH=" << Config::FIX_RESEARCH
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
@@ -9272,7 +9278,9 @@ inline int reduced_search_depth(int depth_limit, int cur_depth, bool is_in_relav
     }
     else
     {
-        return base;
+        if (!Config::FIX_LMR_EG)
+            return base;
+        scale = Config::FIX_LMR_EG / 100.0;
     }
     if (Config::LMR_SHAPE == 1)
     {

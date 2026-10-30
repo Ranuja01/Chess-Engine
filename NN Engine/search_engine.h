@@ -3183,6 +3183,11 @@ namespace Config
                                    //     root child — that exit abandoned a won position at depth 3 for a draw (_test_rep_key.sh)
     inline int FIX_QS_CHECK = 0;   // C1: qSearch's MAX_QDEPTH horizon return detects checkmate first (it returned a static eval
                                    //     before the in-check test; preplan 2026-10-08 "VERIFIED" item 2)
+    inline int FIX_LMR_EG = 0;     // Light endgames (phase_score >= 117: pawn endings, minor endings, a single rook) take the same
+                                   //     move-number / remaining-depth reduction as every other phase, at this phase scale in
+                                   //     hundredths (250 continues the 150 / 175 / 200 / 225 ladder; a larger scale reduces less).
+                                   //     0 = the original: one absolute target from the iteration depth (capped at ply 12), blind
+                                   //     to move number and remaining depth.
     // QGEN_NOISY_ONLY: on a move-gen-cache miss, qsearch generates only captures, promotions and en passant instead of every
     // legal move (same list, same order, less work). QGEN_VERIFY: build both lists at every qsearch miss, search with the full
     // one, and count any difference between the noisy-only list and the full list's noisy subset; the first is printed with its FEN.

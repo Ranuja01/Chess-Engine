@@ -68,7 +68,7 @@ v2; (5) magnitude fitted on the wrong label / depth. Of ~30 reference items on r
 | Corrhist CORR2 | quarter weights +5.5 ± 14 over 2,000 g; margins tuned without it | 3, 4, 5 | final retune |
 | Space (SF11 gated form) | proxies only; never gamed in v2 | 1, 3, 4 | dynamic lane after the transition |
 | KS-B cells re-priced on WDL + shelter → danger | SF18 −13 vs self-play +16 (drifted judge) | 1, 2, 5 | coupling scheduled (§2b) |
-| PX cells (rook / queen behind a passer, stop-square ladder) | d10 screens; games ≈ −1 ± 7 | 1, 3, 4 | unscheduled; judge on eg_critical with FIX_LMR_EG on |
+| PX cells (rook / queen behind a passer, stop-square ladder) | d10 screens; games ≈ −1 ± 7 | 1, 3, 4 | unscheduled; judge on eg_critical (FIX_LMR_EG failed 10-30, so on the shipped search) |
 | Singular extensions · IIR | v1, outside the consensus margins / wrong node population | 1, 2, 4 | SEARCH V2 |
 | Queen-vs-none (was additive MCL, mg-weighted) | −2.4 ± 25 | 1, 2 | queue #119 (QNOQ cap) |
 | Mobility cells / eg leg · KPROT / KFL / Kaufman depth re-fit / PST pair | instruments disagreed, shared-baseline artefact | 1, 3, 5 | scheduled (10-29 proposed additions) |
@@ -89,7 +89,9 @@ Stay closed (clean, none of 2-5): rook files, weak-unopposed, tempo, Kaufman ver
 margins, `PE_PRUNE_GATE`, `NULLMOVE_PROGRESSIVE`, threats 100/100.
 
 ## 3. Order (proposed 10-30; games decide every item)
-1. Caps — queue #119 (running). 2. Search: FIX_LMR_EG — queue #120 (chained). 3. Damp-only drawishness threshold (code).
+1. Caps — #119 +13.9 ± 18.9; replication, crank arm and 60+0.6 leg in queue #122. 2. Search: FIX_LMR_EG — #120 FAILED in
+its venue (−19.8 ± 12.5 on eg_critical; the bypass stays, see OPTIMIZATION_LOG). 3. Damp-only drawishness threshold — built
+(`WIN_V2_DAMP` / `_PHASE_MAX` / `_SKIP_PAWNEND`), static eg −2.9%, games queue #123. Caps replication −2.8 ± 20.1 (pooled ≈ +6 ± 14).
 4. `KS_V2_PIN_DEF=1` + BLOCKERS refit, then shelter → danger. 5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.
 6. Lazy eval exit — a dedicated item once the eval items are done and retuned (owner 10-30), before the margins re-sweep;

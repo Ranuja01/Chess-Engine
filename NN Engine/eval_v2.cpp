@@ -3709,7 +3709,7 @@ static inline int win_adjust(int total, const int *in, int phase256) noexcept
 	const int C = Config::WIN_V2_PASSED * in[0] + Config::WIN_V2_PAWNS * in[1] + Config::WIN_V2_OUTFLANK * in[2]
 	            + Config::WIN_V2_INFILT * in[3] + Config::WIN_V2_FLANKS * in[4] + Config::WIN_V2_PAWN_END * in[5]
 	            + Config::WIN_V2_UNWIN * in[6] + Config::WIN_V2_BASE;
-	const int v = C * (256 - phase256) / 256;
+	const int v = (Config::WIN_V2_DAMP && C > 0 ? 0 : C) * (256 - phase256) / 256;
 	const int mag = total > 0 ? total : -total;
 	int d = v > -mag ? v : -mag;
 	// WIN_V2_CAP (2026-09-30): bound the adjustment to ±CAP mp. The d6-outcome fit (swings to ~1.7 pawns) hurt at depth;
@@ -4774,8 +4774,11 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// ── OvD eg leg: WINNABILITY (see win_inputs). Applied ONCE to the finished total, as SF applies `winnable`, and
 	// sign-preserving: the leader's score moves by max(C·eg, −|total|). Gated on WIN_V2, so 0 = absent = byte-identical.
 	// The pawn entry is reused when the pawn rungs already built it (the shipped config), else built here.
+	// The damp-only form runs before the scale below, as SF applies its initiative before the scale factor; the phase and
+	// pawn-ending gates restrict it to the endgames it is meant for.
 	int win_mp = 0;
-	if (Config::WIN_V2){
+	if (Config::WIN_V2 && c.phase256 <= Config::WIN_V2_PHASE_MAX
+	    && !(Config::WIN_V2_SKIP_PAWNEND && c.npm_white + c.npm_black == 0)){
 		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
 		int in[7];
 		win_inputs(c, pe, in);

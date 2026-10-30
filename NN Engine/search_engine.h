@@ -922,6 +922,11 @@ namespace Config
     inline int WIN_V2_PASSED = 0, WIN_V2_PAWNS = 0, WIN_V2_OUTFLANK = 0, WIN_V2_INFILT = 0, WIN_V2_FLANKS = 0,
                WIN_V2_PAWN_END = 0, WIN_V2_UNWIN = 0, WIN_V2_BASE = 0;
     inline int WIN_V2_CAP = 0;   // |adjustment| bound in mp; 0 = uncapped (2026-09-30)
+    // Damp-only form (the shape SF11 gives its middlegame leg): WIN_V2_DAMP = 1 clamps C to <= 0, so the term can shrink the
+    // leader's edge toward a draw but never add to it, and the result is continuous at a level score. WIN_V2_PHASE_MAX limits it to
+    // positions with phase256 <= the value (0 = light endgames only; 256 = all phases), WIN_V2_SKIP_PAWNEND = 1 leaves pure pawn
+    // endings alone. Defaults reproduce the signed form exactly.
+    inline int WIN_V2_DAMP = 0, WIN_V2_PHASE_MAX = 256, WIN_V2_SKIP_PAWNEND = 0;
     // ── POT winnability, REFERENCE FORM: endgame SCALE FACTOR (2026-09-30; C3 doc §16) ──────────────────────────────
     // The additive form above is discontinuous at a level score (sign(T)·C) and lost ~−24 at depth twice. All four
     // references (SF11/15, Ethereal, Weiss) scale the endgame multiplicatively instead: total' = total·(1 + eg·(f−1)),

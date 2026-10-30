@@ -60,6 +60,51 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 🧪 2026-10-30 — DAMP-ONLY DRAWISHNESS THRESHOLD (static passes; games queue #123) · caps replication flat
+
+**Caps replication (queue #122, seed 1211): −2.8 ± 20.1** (1,000 g, 49.6%, Ptnml 92-79-159-85-85). Pooled with #119: ≈ +6 ± 14
+(≈ 0.8σ). Not a ship; the RFP 500 crank arm and the 60+0.6 leg run overnight. If both are flat, park the caps at SF15.1's values.
+
+**The threshold.** `WIN_V2` (SF11's complexity inputs, unchanged) gets three default-off switches: `WIN_V2_DAMP=1` clamps C ≤ 0
+(SF11's middlegame-leg shape: shrinks the leader's edge toward a draw, never adds, continuous at a level score — the signed port
+lost −24 because it also added), `WIN_V2_PHASE_MAX` (0 = engine phase256 0 only), `WIN_V2_SKIP_PAWNEND=1`. It runs before the POT
+scale, as SF applies initiative before its scale factor. Weights = SF11's ×4.69 (endgame pawn; the term is denominated in endgame
+score): PASSED 42 PAWNS 52 OUTFLANK 42 INFILT 56 FLANKS 98 UNWIN −202 BASE −469. Binary `chess_engine_uci_damp`: defaults
+249 / 36,991,901 (= gen 6.4), damp 249 / 35,917,541, v1 250 / 35,310,778. Static reads used a separate module build
+(`CHESSAI_DIR=/mnt/e/chess_data/so_damp`, new option in `_triangulate_sf11.py` / `_eval_symmetry.py`) so the UI's live module stayed untouched.
+
+Symmetry on the WDL calibration corpus (1,500 light-endgame rows): 0 violations of 6,000 colour / 5,229 file mirrors.
+Static WDL MSE by stage (registered: eg −1 … −6%, other stages identical):
+
+| arm | eg | egl | mgl | mg | eg initiative swap | eg scaling swap |
+|---|---|---|---|---|---|---|
+| gen 6.4 | 290.8 | 275.9 | 390.4 | 576.7 | −7.7% | −12.7% |
+| damp 50% | 285.8 (−1.7%) | 274.3 (−0.6%) | = | = | −6.1% | −9.3% |
+| **damp 100%** | **282.4 (−2.9%)** | 274.0 (−0.7%) | = | = | −3.5% | −6.3% |
+| damp 150% | 281.2 (−3.3%) | 274.8 (−0.4%) | = | = | −0.3% | −4.3% |
+
+Inside the registered range; flattens past 100%, so games run SF11's own weights (no fit). Prediction miss: egl moved too —
+engine phase256 reaches 0 on some rows the corpus labels egl (its stage uses its own npm limits); the move is an improvement.
+⚠️ It closes half of SF11's initiative swap AND half of the scaling swap: the threshold and the caps overlap (both shrink drawish
+edges), and the caps' larger static gain (−5.8%) became ≈ +6 in games. Registered for #123: damp −5 … +15; damp + RFP 500
+−5 … +25 (crank present if it beats damp alone by > 1σ); both ≤ 0 ⇒ park with the caps.
+
+## ❌ 2026-10-30 — FIX_LMR_EG=250 (queue #120): −19.8 ± 12.5 in its own venue — the light-endgame LMR bypass is a productive bug
+
+Light endgames (phase_score ≥ 117) return `base` from `reduced_search_depth`: no move-number term, no pin guard, no LMR_EXTRA.
+FIX_LMR_EG=250 gives them the ladder's move-number reduction at scale 2.5 (continuing 1.5 / 1.75 / 2.0 / 2.25), i.e. reduces late
+moves MORE. Binary `chess_engine_uci_lmreg` (gen 6.4 + the knob, non-PGO, both sides), fingerprints base 36,991,901 / fix 36,739,004,
+preflight 0 warnings. eg_critical.epd starts, 10+0.1, seed 1201:
+
+| leg | games | score | Elo | Ptnml(0-2) | registered |
+|---|---|---|---|---|---|
+| lmreg_eg | 898 of 928 (stopped at 907 by a runner kill; last stats line 898) | 47.2% | **−19.8 ± 12.5** (LOS 0.1%) | 23-86-268-63-9 | −10 … +30 |
+
+Below the registered range by ~3σ where the change fires, so it fails the correctness rule (no harm) without a UHO leg (dropped).
+Reading: in light endgames the bushier tree is worth more than the depth that move-number reductions buy — consistent with the
+eval gap sitting in endgames. The bypass stays (knob kept, default 0). Open question for the search arc: whether reducing even
+LESS there (or less in the 96–116 band) gains. PX passer cells are no longer to be re-judged "with FIX_LMR_EG on".
+
 ## 🧪 2026-10-30 — ENDGAME CAPS on gen 6.4 (queue #119): +13.9 ± 18.9, leaning positive, replication overnight
 The four material-class caps (built 10-09, never played; round 3's cp-label fit had driven them to ~0) at SF15.1's values:
 `POT_V2_WIN_OCBX −42 / OCBX_PC 3, ROOKE −28, QNOQ −27 / QNOQ_MINOR 3, LONEMINOR −64`. Binary `chess_engine_uci_g64pgo`; bench

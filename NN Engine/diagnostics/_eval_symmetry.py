@@ -32,6 +32,8 @@ for _a in sys.argv[1:]:
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 THIS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(THIS)); sys.path.insert(0, THIS)
+if os.environ.get('CHESSAI_DIR'):            # a test build of the engine module, kept apart from the live one the UI loads
+    sys.path.insert(0, os.environ['CHESSAI_DIR'])
 import chess
 from ChessAI import ChessAI
 

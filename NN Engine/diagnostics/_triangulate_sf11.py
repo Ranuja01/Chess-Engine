@@ -18,6 +18,8 @@ KV = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a)
 THIS = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.dirname(THIS)
 sys.path.insert(0, ENGINE)
+if os.environ.get("CHESSAI_DIR"):            # a test build of the engine module, kept apart from the live one the UI loads
+    sys.path.insert(0, os.environ["CHESSAI_DIR"])
 os.environ.setdefault("PRESET", "LONG_FORMAT"); os.environ.setdefault("USE_OPENING_BOOK", "0")
 import ChessAI
 SF11 = os.environ.get("SF11_BIN", "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_11_linux/"

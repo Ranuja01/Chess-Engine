@@ -2628,6 +2628,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::WIN_V2_UNWIN = env_int("WIN_V2_UNWIN", Config::WIN_V2_UNWIN);
         Config::WIN_V2_BASE = env_int("WIN_V2_BASE", Config::WIN_V2_BASE);
         Config::WIN_V2_CAP = env_int("WIN_V2_CAP", Config::WIN_V2_CAP);
+        Config::WIN_V2_DAMP = env_int("WIN_V2_DAMP", Config::WIN_V2_DAMP);
+        Config::WIN_V2_PHASE_MAX = env_int("WIN_V2_PHASE_MAX", Config::WIN_V2_PHASE_MAX);
+        Config::WIN_V2_SKIP_PAWNEND = env_int("WIN_V2_SKIP_PAWNEND", Config::WIN_V2_SKIP_PAWNEND);
         Config::POT_V2_WIN = env_int("POT_V2_WIN", Config::POT_V2_WIN);
         Config::POT_V2_WIN_BASE = env_int("POT_V2_WIN_BASE", Config::POT_V2_WIN_BASE);
         Config::POT_V2_WIN_SP = env_int("POT_V2_WIN_SP", Config::POT_V2_WIN_SP);
@@ -2915,6 +2918,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " WIN_V2_INFILT=" << Config::WIN_V2_INFILT << " WIN_V2_FLANKS=" << Config::WIN_V2_FLANKS
                   << " WIN_V2_PAWN_END=" << Config::WIN_V2_PAWN_END << " WIN_V2_UNWIN=" << Config::WIN_V2_UNWIN
                   << " WIN_V2_BASE=" << Config::WIN_V2_BASE << " WIN_V2_CAP=" << Config::WIN_V2_CAP
+                  << " WIN_V2_DAMP=" << Config::WIN_V2_DAMP << " WIN_V2_PHASE_MAX=" << Config::WIN_V2_PHASE_MAX
+                  << " WIN_V2_SKIP_PAWNEND=" << Config::WIN_V2_SKIP_PAWNEND
                   << " POT_V2_WIN=" << Config::POT_V2_WIN << " POT_V2_WIN_BASE=" << Config::POT_V2_WIN_BASE
                   << " POT_V2_WIN_SP=" << Config::POT_V2_WIN_SP << " POT_V2_WIN_ONEFLANK=" << Config::POT_V2_WIN_ONEFLANK
                   << " POT_V2_WIN_OCB=" << Config::POT_V2_WIN_OCB << " POT_V2_WIN_PASSED=" << Config::POT_V2_WIN_PASSED

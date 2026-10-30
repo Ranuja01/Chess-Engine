@@ -50,6 +50,48 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 📊 2026-10-30 — BENCH REPORT (queue #117): gen 4 (10-20 record) vs gen 6.3 vs candidate C (threats mg 50 / eg 100 + RFP 600)
+Box idle (one process at a time). Outputs `E:/chess_data/bench1030/`. Fingerprints: gen 6.3 256 / 42,263,170 / 3.938 · C 249 /
+36,991,901 / 3.903.
+
+| measure | gen 4 (10-20) | gen 6.3 | C | reference |
+|---|---|---|---|---|
+| STS300 @ 249,014 nodes | 1,883 (10-07 ship 1,838; 09-22 1,689) | 1,890 | **1,944** | SF1.1 1,991 · SF11 2,374 · SF18 2,605 |
+| WAC @ 249,014 nodes | 252 | 249 | 247 | SF11 266 · SF18 269 |
+| STS300 d10 | 2,115 | 2,074 | 2,003 | SF11 d10 1,983 (reproduced) |
+| STS full d10 (15,000) | 9,727 | 9,822 | **10,063** | — |
+| WAC at LIGHTNING: solved · mean depth (non-mate) | 254 · 13.8 | 267 · 14.94 | 264 · **15.32** | — |
+| WAC speed, Cython, pinned, max of 3 | 397k nps | 935k (gen 6.2 923k) | 921k (threats at RFP 1000 923k) | — |
+| UCI `bench` (PGO), 3 alternating reps | — | 1.17M nps · 36.1 s | 1.16M nps · **31.8 s** | — |
+| static win% MSE, own-play val (SF18 d14 cp label) | 171.5 (10-07 ship) | 158.6 | **147.5** | SF11 151.4 · SF15.1c 192.4 · SF15.1n 72.8 · SF18 61.9 |
+| static win% MSE, diverse val | 123.6 (10-07 ship) | 118.1 | **107.7** | SF11 95.3 · SF15.1c 139.2 · SF15.1n 61.6 · SF18 68.9 |
+| static WDL MSE, calibrated (5,988 rows) | 390.8 | 390.8 | 384.2 | SF11 334.9 · v1 566.2 |
+| d10 WDL MSE, calibrated | 212.4 | 214.2 | 209.9 (−1.9%, ≈ 1σ paired) | v1 320.7 |
+
+- The threats term costs ≈ 1% nps (inside the spread); C's RFP 600 cuts bench time 12% at equal depth, so equal-time depth
+  rises +0.4 ply over gen 6.3 (LIGHTNING) and +1.5 ply over gen 4.
+- Fixed-depth STS300 falls with C (a tighter margin prunes more at the same depth); the larger full STS (+241) and equal
+  nodes (+54) both rise. Equal nodes is the honest reading. The gap to SF11 there: 491 at gen 4 → 430.
+- ★ C's static beats SF11 on the own-play ceiling for the first time (147.5 vs 151.4, cp label). On the WDL label SF11 still
+  leads (334.9 vs 384.2): the cp label is material-scaled and kinder to us in drawish endings (memory sf-cp-labels-are-material-scaled-use-wdl).
+- By stage on WDL (calibrated, static, ours vs SF11): mg 577 vs 538 · mgl 391 vs 362 · egl 276 vs 230 · eg 292 vs 209. The
+  endgame half carries most of the gap; gap map unchanged from 10-29 (minor-only endings and pawn-up equal-piece rows).
+- ★★ **SF11 term counterfactual on the WDL label** (`_triangulate_sf11.py MODE=egshare WDL=`, 3,000 endgame rows,
+  phase256 < 128; one SF11 pair swapped in, % of our excess, − closes it): C's excess 60.8 per row (gen 6.3 67.1: the threats
+  term closed 9%). 97% of the excess sits on rows SF18 calls level ⇒ draw recognition again.
+
+  | SF11 pair | ALL | minor only | rook only | rook + minor | mixed / imbalanced | pawn endings |
+  |---|---|---|---|---|---|---|
+  | initiative | **−17.2%** | −4.6 | −4.1 | −3.0 | −6.4 | +0.9 |
+  | scaling | **−12.7%** | **−15.8** | −4.9 | −2.1 | +6.3 | +3.8 |
+  | threats | +7.1% (ours now better; gen 6.3 −2.0) | | | | | |
+  | imbalance / passed / placement / pawns / material | +19.8 / +15.2 / +6.3 / +5.0 / +3.0 (ours better) | | | | | |
+
+  The 10-07 cp-label run said SF11's scaling would HURT (+85%) and threats was the big closer (−75%); on WDL the threats
+  share is taken and scaling HELPS, concentrated in minor-only endings, while hurting in mixed / imbalanced ones ⇒ a
+  class-gated scale factor, not a global one. Initiative helps in every ending type. Upper bounds (a whole SF11 pair
+  swapped in); games decide, and endgame accuracy has paid ~3x less Elo than opening / middlegame accuracy.
+
 ## ✅ 2026-10-29/30 — SHIP CHECKS for candidate C (threats mg 50 / eg 100 + RFP 600; queue #116): every gate passes
 Binary `chess_engine_uci_thr2`, gen 6.3 TM knobs both sides; fingerprints base 42,263,170 · C 36,991,901 (C@800 40,659,007,
 C@400 33,836,081). 0 disconnects / stalls and 0 time forfeits by us in every leg.

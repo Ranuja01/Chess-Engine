@@ -76,8 +76,9 @@ v2; (5) magnitude fitted on the wrong label / depth. Of ~30 reference items on r
 
 Owner (10-30) on the search rows: they are re-done in the search arc (parts of the search may be rewritten), but with the eval
 fresh in mind. `improving`, the null-move eval gate, RFP at the node, futility in its parent-eval form and corrhist all consume a
-NODE-ENTRY static eval, which our search does not compute today (futility evaluates the child after the move; v1's `improving`
-needed extra eval calls, and the cheap material + PST trend was null in games, −7 ± 20 over 1,658). ⇒ for the search arc: one
+NODE-ENTRY static eval. Ours computes one only at null-window nodes with 1-6 plies left, for RFP (`rfp_want_eval`; corrhist
+corrects that value); futility evaluates the child after the move, and v1's `improving` made its own extra eval call (the cheap
+material + PST trend was null in games, −7 ± 20 over 1,658). ⇒ for the search arc: one
 node-entry static eval, lazy / staged (cheap terms first, the expensive attack-based terms only when a consumer needs them) and
 reused through the TT or eval cache, is the shared foundation these consumers wait on — the owner's lazy / incremental eval idea.
 Transition-side preparation: the planned re-profile on gen 6.4 should report per-term eval cost, and how well a cheap partial

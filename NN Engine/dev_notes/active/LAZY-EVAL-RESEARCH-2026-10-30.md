@@ -37,7 +37,32 @@ returns the cheap part itself — there is no separate cheap function:
   big net** — "when higher eval accuracy is worth the time spent". Material says lopsided, the cheap evaluator says close ⇒ that
   is compensation, and the full evaluator is called.
 
-Ethereal / Weiss / others: not read yet (next research step, via `engine-contrast`).
+**The rest of the field (engine-contrast 10-30; read: SF16.0 / 16.1 / 17.0 / 17.1 / 18 / 19, Ethereal, Weiss, Xiphos, Laser,
+Berserk; not read: Obsidian, Stormphrax, Koivisto, Gyatso):**
+- **No other HCE engine read has a lazy exit** — Ethereal, Weiss, Xiphos, Laser evaluate fully (special-endgame early-outs only).
+  They save time by conditional skips instead: Ethereal scores king safety only when `kingAttackersCount > 1 − enemy queens`,
+  and its centre-space term only with enough heavy pieces; Weiss accumulates attack units only when attacks or checks exist.
+- **Material / PST are incremental in every reference read** (updated on make / unmake) — their cheap part is free.
+- **No alpha / beta-aware lazy eval anywhere**; the only search-aware threshold is SF15.1's `bestValue` term.
+- **SF lineage**: SF16.0 classical fallback when |material + PST| > ≈ 9.8 pawns → SF16.1 small net at |material| > ≈ 5 pawns,
+  no re-check → SF17.0 adds the big-net re-check when the small net says near level (or disagrees in sign) → SF17.1 / SF18
+  thresholds 236 / 277 → **SF19 removes the small net entirely** (one network; `stockfish_19_linux/src/evaluate.cpp`).
+- **Correction history × a cheap evaluator** (SF17.1-19): the search calls one `evaluate()` and corrects whatever answered —
+  same tables, same keys, no guard; the TT stores the uncorrected value. The evaluator choice is a pure function of the position,
+  so one position never mixes the two, and the material keys already separate the lopsided regime.
+
+**Our side (verified):** material and PST are recomputed in every eval (`eval_v2.cpp` PST loop, `build_context` census). Code
+order today: material / PST / Kaufman → the attack build (KS units, mobility, threats; unconditional) → pawn entry → passers and
+placement (both read the attack maps). The search already computes a node-entry static eval at null-window nodes with 1-6 plies
+left, for reverse futility and the null eval gate (`search_engine.cpp` `rfp_want_eval`), and that is the value corrhist corrects
+(both corrhist forms are off at defaults).
+
+**Design implications:** (1) make material / PST incremental first — exact and value-neutral, and the precondition for a cheap
+part that is actually cheap; (2) use a position-only threshold (SF11's material term), not SF15.1's `bestValue` term, which would
+break the eval cache; (3) reorder so the pawn entry and pawn structure come before the attack build, and put a second checkpoint
+after king safety (SF15.1's shape) so a king attack is always counted — the HCE answer to compensation; (4) the HCE references'
+alternative or complement is conditional skips, e.g. king-safety units only when attackers exist (result-identical if our units
+are exactly 0 then — to check).
 
 ## 2. Sacrifices and compensation — how they are kept safe
 1. **The threshold is huge.** SF11 ≈ 8-10 pawns of cheap-part imbalance; SF15.1's first checkpoint larger still. Ordinary

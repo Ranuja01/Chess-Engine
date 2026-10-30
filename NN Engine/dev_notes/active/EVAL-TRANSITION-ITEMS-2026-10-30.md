@@ -91,3 +91,5 @@ margins, `PE_PRUNE_GATE`, `NULLMOVE_PROGRESSIVE`, threats 100/100.
 1. Caps — queue #119 (running). 2. Search: FIX_LMR_EG — queue #120 (chained). 3. Damp-only drawishness threshold (code).
 4. `KS_V2_PIN_DEF=1` + BLOCKERS refit, then shelter → danger. 5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.
+6. Lazy eval exit — a dedicated item once the eval items are done and retuned (owner 10-30), before the margins re-sweep;
+   research and measurement plan in `LAZY-EVAL-RESEARCH-2026-10-30.md`.

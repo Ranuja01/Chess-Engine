@@ -52,6 +52,32 @@ SF18 WDL label, 6,000 own-play quiet rows, gen 6.4, `_triangulate_sf11.py MODE=e
   (no code; static only, games decide) · (2) KS two-leg shape (= 2b item 3) · (3) the caps (= queue #119) · (4) `EVAL_V2_PAIR=1`
   with the scale moved onto the eg leg — SF's exact object (small code; the pair accumulator passed non-inferiority 09-25).
 
+## 2d. Closed reference items worth a re-open, by the threats lessons (record check 10-30)
+Owner (10-30): items from the reference engines that failed may deserve a new look now that threats passed. Threats' five
+lessons as a checklist: (1) closed on an instrument we now distrust (cp label, d10 / depth-target screens, STS, void `Knob_`
+matches, v1-only); (2) our port changed the form (continuity, leg, mg/eg split, phase vs class gating); (3) never tested with a
+tighter margin or the search consumer the reference has; (4) tested where a search defect blinded the region, or on a much older
+v2; (5) magnitude fitted on the wrong label / depth. Of ~30 reference items on record, 14 meet ≥ 2 conditions:
+
+| item | closed on | conditions | status |
+|---|---|---|---|
+| WIN_V2 initiative (signed, additive) | −24.9 / −22.9 Elo, SF18 @250k fresh seeds; fits on d6 outcomes and on the cp label grew edges | 2, 3, 5 (+1) | scheduled: damp-only threshold (§3 item 3) |
+| **Material taper `EVAL_V2_PAWN_MG` ≈ 550-650** (Ethereal's ratios) | largest static effect of the rebuild (§I −6.59%), d7 regret / depth target null; **never gamed** | 1, 3, 4, 5 | **unscheduled**; register: games with the margins co-swept |
+| `improving` as a pruning modulator (9/9) | v1, LMR-only, ≈ −7 ± 20 | 1, 2, 3, 4 | SEARCH V2 |
+| Null-move eval gate + eval-R (9/9) | v1 node-adder, sign-unstable | 1, 2, 3, 4 | SEARCH V2 (null reform) |
+| Corrhist CORR2 | quarter weights +5.5 ± 14 over 2,000 g; margins tuned without it | 3, 4, 5 | final retune |
+| Space (SF11 gated form) | proxies only; never gamed in v2 | 1, 3, 4 | dynamic lane after the transition |
+| KS-B cells re-priced on WDL + shelter → danger | SF18 −13 vs self-play +16 (drifted judge) | 1, 2, 5 | coupling scheduled (§2b) |
+| PX cells (rook / queen behind a passer, stop-square ladder) | d10 screens; games ≈ −1 ± 7 | 1, 3, 4 | unscheduled; judge on eg_critical with FIX_LMR_EG on |
+| Singular extensions · IIR | v1, outside the consensus margins / wrong node population | 1, 2, 4 | SEARCH V2 |
+| Queen-vs-none (was additive MCL, mg-weighted) | −2.4 ± 25 | 1, 2 | queue #119 (QNOQ cap) |
+| Mobility cells / eg leg · KPROT / KFL / Kaufman depth re-fit / PST pair | instruments disagreed, shared-baseline artefact | 1, 3, 5 | scheduled (10-29 proposed additions) |
+| v1 pruning forms (quiet SEE prune, RFP depth cap, LMP improving-halving) | v1, harsher than consensus | 1, 2, 4 | margins re-sweep / SEARCH V2 |
+
+Stay closed (clean, none of 2-5): rook files, weak-unopposed, tempo, Kaufman verbatim tables (superseded), KR-vs-minor (tablebase),
+`MOB_V2_SAFE` / `EXCL_QUEEN`, flat bishop pair, quiet checks in qsearch, `FUTILITY_EVAL_MODE` / `QSTANDPAT_EVAL_MODE`, root razor
+margins, `PE_PRUNE_GATE`, `NULLMOVE_PROGRESSIVE`, threats 100/100.
+
 ## 3. Order (proposed 10-30; games decide every item)
 1. Caps — queue #119 (running). 2. Search: FIX_LMR_EG — queue #120 (chained). 3. Damp-only drawishness threshold (code).
 4. `KS_V2_PIN_DEF=1` + BLOCKERS refit, then shelter → danger. 5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.

@@ -91,6 +91,15 @@ Box idle (one process at a time). Outputs `E:/chess_data/bench1030/`. Fingerprin
   share is taken and scaling HELPS, concentrated in minor-only endings, while hurting in mixed / imbalanced ones ⇒ a
   class-gated scale factor, not a global one. Initiative helps in every ending type. Upper bounds (a whole SF11 pair
   swapped in); games decide, and endgame accuracy has paid ~3x less Elo than opening / middlegame accuracy.
+- Record check of the two items this points at (10-30):
+  - **Scaling.** The shipped `POT_V2_WIN` already is SF's scale-factor form (pure OCB only), and gen 4's `ONEMINOR=16` cell
+    pushes minor-only endings the OTHER way (more confident). Static WDL called that cell wrong (+14% on minor-only rows,
+    POT brief 10-19) and games kept it (one-minor starts z ≈ +2.9), so this table is the instrument that already lost that
+    vote. A flat per-class multiplier is pre-refuted by the gap map (a per-class constant recovers almost nothing). What is
+    untested in games: SF's CONDITIONS as the existing caps `POT_V2_WIN_OCBX / ROOKE / LONEMINOR / QNOQ`, all at 0 and
+    screened only on the cp label (10-07, "no harm"). Gaming those needs no code.
+  - **Initiative.** The additive SF11 port `WIN_V2` lost −24.9 / −22.9 Elo on fresh seeds (resolved: the sign(T)·C form is
+    discontinuous at 0). A continuous form is untested; the 10-18 complexity scaler was parked on the cp label. New code.
 
 ## ✅ 2026-10-29/30 — SHIP CHECKS for candidate C (threats mg 50 / eg 100 + RFP 600; queue #116): every gate passes
 Binary `chess_engine_uci_thr2`, gen 6.3 TM knobs both sides; fingerprints base 42,263,170 · C 36,991,901 (C@800 40,659,007,

@@ -60,7 +60,27 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
-## 🧪 2026-10-30 — DAMP-ONLY DRAWISHNESS THRESHOLD (static passes; games queue #123) · caps replication flat
+## 🎮 2026-10-30 evening — owner's UI games (gen 6.4 PGO vs SF18, our side with 3-5× the time): 4 losses from won positions
+
+SF18 WDL (4M nodes / move, 1 thread) graded our moves (scratchpad `ui_grade_side.py`). Each loss came from a small edge in a late
+middlegame / endgame; the one rook-odds game (equal time) was converted cleanly (no move cost ≥ 2 points).
+
+| game | start | decisive errors (SF18 expected score) |
+|---|---|---|
+| 1 pawn ending, 13 v 12 pawns | 100% | 11. a5? (Ke2) 95 → 50 · 24. Kf2?? (Kf4) 50 → 0; eval +2.5…+3.8 throughout the draw (the PAWNEND cell doubles it) |
+| 2 Greek gift → R+N ending | 99% | 5. Rxe6? (Nxe6) 99 → 58 · 11. Rxb7?? (Kf1) 50 → 6: a knight-backed d-pawn runs d4-d3-d2 |
+| 3 same start, 5× time | 99% | 5. Nxe6 found · 10. Re1? (f3) 85 → 52 · 23. Ke4? (h4) 47 → 12 · 24. Rd7?? (h3) 40 → 0 |
+| 4 (we are Black) | 100% | 28… Kb8? (a6) 97 → 63 · 45… h4? (Kc8; our d14 picks Kc8, the longer think switched) 48 → 11 |
+
+**Search or eval** (owner: persistence with depth does not prove eval when the search prunes required nodes; scratchpad
+`ui_prune.py`, 60 s per position, one process per config). Game 2 move 11: shipped plays Rxb7 at every depth to 17;
+`ENABLE_PASSER_PRUNE_EXEMPT=1` finds Kf1 at d13-15; selectivity off (LMR / LMP / futility / RFP / null / razoring) finds it at d11
+and the score falls toward the truth ⇒ **the search prunes a ~5-ply pawn-push line**. Game 1 move 24 Kf4: found only by long
+thinks (d24+). Game 2 move 5 Nxe6: no config to d17, but game 3's 5× clock found it (deep). Game 1 move 11, game 3 moves 10 / 23:
+not found within the ~12 plies full width reaches. ⇒ the passer exemption (span-checked version, never gamed; the rank-only
+version over-fired 825k / +12% nodes in the summer) goes to games on eg_critical in queue #124.
+
+## 🧪 2026-10-30 — DAMP-ONLY DRAWISHNESS THRESHOLD (static passes; games queue #124) · caps replication flat
 
 **Caps replication (queue #122, seed 1211): −2.8 ± 20.1** (1,000 g, 49.6%, Ptnml 92-79-159-85-85). Pooled with #119: ≈ +6 ± 14
 (≈ 0.8σ). Not a ship; the RFP 500 crank arm and the 60+0.6 leg run overnight. If both are flat, park the caps at SF15.1's values.

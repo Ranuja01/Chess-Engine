@@ -89,10 +89,16 @@ Stay closed (clean, none of 2-5): rook files, weak-unopposed, tempo, Kaufman ver
 margins, `PE_PRUNE_GATE`, `NULLMOVE_PROGRESSIVE`, threats 100/100.
 
 ## 3. Order (proposed 10-30; games decide every item)
-1. Caps — #119 +13.9 ± 18.9; replication, crank arm and 60+0.6 leg in queue #122. 2. Search: FIX_LMR_EG — #120 FAILED in
-its venue (−19.8 ± 12.5 on eg_critical; the bypass stays, see OPTIMIZATION_LOG). 3. Damp-only drawishness threshold — built
-(`WIN_V2_DAMP` / `_PHASE_MAX` / `_SKIP_PAWNEND`), static eg −2.9%, games queue #123. Caps replication −2.8 ± 20.1 (pooled ≈ +6 ± 14).
+1. Caps — **PARKED 10-31** (pooled ≈ +6 ± 14; with RFP 500 +7.0; 60+0.6 −8.7; trigger in the parked register). 2. Search:
+FIX_LMR_EG — #120 FAILED in its venue (−19.8 ± 12.5 on eg_critical; the bypass stays, see OPTIMIZATION_LOG). 3. Damp-only
+drawishness threshold — built (`WIN_V2_DAMP` / `_PHASE_MAX` / `_SKIP_PAWNEND`), static eg −2.9%; #124 alone −5.9 ± 19.9, **with
+RFP 500 +15.3 ± 19.1** (crank ≈ 1.5σ) ⇒ next: fresh-seed replication + RFP 500 alone control. Passer exemption (UI game 2) on
+eg_critical +4.5 ± 10.6, not a ship ⇒ search arc.
 4. `KS_V2_PIN_DEF=1` + BLOCKERS refit, then shelter → danger. 5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.
+Forecast registered 10-30 (self-play, vs gen 6.4; check it at the end of each leg): rest of the eval leg incl. the lean retune
+and the lazy eval exit +15 … +40; the search arc +50 … +150, top end raised to +250 after the owner's argument (EBF: each step
+toward SF's tree shape is several plies at equal time, IF the pruning is effective — prune more where safe, less where lines matter)
+(two-thirds of the SF11 gap is node efficiency; STS300 at equal nodes 1,944 vs SF11 2,374). External gains expected at roughly half the self-play figure. Search arc start ≈ 2026-11-07.
 6. Lazy eval exit — a dedicated item once the eval items are done and retuned (owner 10-30), before the margins re-sweep;
    research and measurement plan in `LAZY-EVAL-RESEARCH-2026-10-30.md`.

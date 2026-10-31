@@ -60,6 +60,31 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 🧪 2026-10-31 — QUEUE #124: damp + RFP 500 +15.3 (crank present, 1.6σ) · caps PARKED · passer exemption flat in its venue
+
+Vs gen 6.4 (`THREAT_ORDER_W=100` both sides), 10+0.1 unless noted; 0 disconnects, 0 forfeits, no new WSL dumps. Binaries
+`chess_engine_uci_g64pgo` (caps, passer) and `chess_engine_uci_damp` (damp); every fingerprint passed, preflight 0 warnings.
+Ran 22:22 Fri → 11:06 Sat.
+
+| leg | seed | games | result | Ptnml(0-2) | registered |
+|---|---|---|---|---|---|
+| damp (`WIN_V2_DAMP` set, SF11 ×4.69) | 1231 | 1,000 UHO | −5.9 ± 19.9 (49.2%) | 91-77-174-74-84 | −5 … +15 (just below) |
+| passer exemption `ENABLE_PASSER_PRUNE_EXEMPT=1` | 1241 | 928 eg_critical | +4.5 ± 10.6 (50.6%) | 8-64-310-72-10 | −10 … +25 ✓ |
+| caps + `RFP_MARGIN=500` | 1212 | 1,000 UHO | +7.0 ± 19.1 (51.0%) | 73-82-178-86-81 | −5 … +30 ✓ |
+| **damp + `RFP_MARGIN=500`** | 1232 | 1,000 UHO | **+15.3 ± 19.1 (52.2%)** | 72-67-194-79-88 | −5 … +25 ✓ |
+| caps, 60+0.6 | 1213 | 200 UHO | −8.7 ± 42.9 (48.75%) | 16-18-36-15-15 | −10 … +40 ✓ (bottom) |
+
+- **Damp: the crank is present by the registered rule** — +15.3 with RFP 500 vs −5.9 without, a gap of +21.2 ± 14.1 (1σ),
+  ≈ 1.5σ; the pre-registered park (both legs ≤ 0) does not apply. Against gen 6.4 it is ≈ 1.6σ, not a ship. Confound: RFP 500
+  alone is unmeasured on gen 6.4 (RFP 400 alone was −5.2 ± 18.9 in #116, so 500 alone is expected near 0). Next: damp + RFP 500
+  on a fresh seed, and RFP 500 alone as the control; if both hold, the ship checks (SF18, Mediocre, plateau).
+- **Caps: PARKED** at SF15.1's values (registered: crank flat and 60+0.6 flat ⇒ park). Caps alone pooled ≈ +6 ± 14 (#119 + #122);
+  RFP 500 adds nothing (+7.0); 60+0.6 −8.7. Their static gain (eg −5.8%) did not become Elo. Trigger in the parked register.
+- **Passer exemption: 0.8σ in its own venue**; a narrow item needs ≥ +2σ there ⇒ not a ship, knob stays default 0. No harm, and
+  the span check kept the cost down (bench +2.9% nodes vs the rank-only version's +12%). The venue is draw-heavy (310 of 464
+  pairs level), and game 2's position type (a knight-backed passer run in a rook ending) may be rare in it. Goes to the search arc,
+  where pruning exemptions are judged with the selectivity rework.
+
 ## 🎮 2026-10-30 evening — owner's UI games (gen 6.4 PGO vs SF18, our side with 3-5× the time): 4 losses from won positions
 
 SF18 WDL (4M nodes / move, 1 thread) graded our moves (scratchpad `ui_grade_side.py`). Each loss came from a small edge in a late

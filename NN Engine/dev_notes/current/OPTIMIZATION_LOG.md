@@ -60,6 +60,25 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 🧪 2026-10-31 — QUEUE #125: damp + RFP 500 replicates (+20.2), but RFP 500 ALONE is +13.6 ⇒ the gain is the margin, not the crank
+
+Vs gen 6.4, 10+0.1, 1,000 g UHO each, binary `chess_engine_uci_damp` both sides (fingerprints base 36,991,901 · damp + RFP 500
+37,179,696 · RFP 500 36,670,022 · damp + RFP 400 33,516,985); preflight 0 warnings; 0 disconnects, 0 forfeits.
+
+| leg | seed | result | Ptnml(0-2) | registered |
+|---|---|---|---|---|
+| damp + RFP 500 (replication) | 1251 | **+20.2 ± 18.8** (52.9%) | 66-68-195-84-87 | −5 … +25 ✓ |
+| RFP 500 alone (control) | 1252 | **+13.6 ± 18.3** (52.0%) | 59-84-198-77-82 | −15 … +10 ✗ (above) |
+
+- Damp + RFP 500 pooled with #124: **+17.7 ± 13.4 over 2,000 g (≈ 2.6σ)**.
+- The crank does NOT hold by the registered rule (leg 1 must beat the control by > 1σ): +20.2 vs +13.6 ≈ 0.5σ; pooled damp + 500
+  vs 500 alone ≈ +4 ± 23. The threats crank was real because RFP 600 alone LOST (−27.5); here 500 alone gains by itself.
+- Prediction miss: the #116 plateau (vs 600: 400 −5.2 ± 18.9, 800 −19.8) suggested the margin was flat below 600. 500 alone +13.6
+  sits above both neighbours — a possible spike or noise (≈ 1.5σ from the neighbours' mean). Replication decides.
+- Legs 3 (damp + RFP 500 at 60+0.6) and 4 (damp + RFP 400) asked the wrong question once the control came in: stopped 4 minutes
+  into leg 3 (stop file + runner kill) and replaced by queue #126: RFP 500 replication, damp + 500 vs 500 head to head, RFP 500
+  at 60+0.6.
+
 ## 🧪 2026-10-31 — QUEUE #124: damp + RFP 500 +15.3 (crank present, 1.6σ) · caps PARKED · passer exemption flat in its venue
 
 Vs gen 6.4 (`THREAT_ORDER_W=100` both sides), 10+0.1 unless noted; 0 disconnects, 0 forfeits, no new WSL dumps. Binaries

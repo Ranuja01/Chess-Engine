@@ -2611,6 +2611,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_V2_CONTEST_EXCESS = env_int("KS_V2_CONTEST_EXCESS", Config::KS_V2_CONTEST_EXCESS);
         Config::KS_V2_CONTEST_SQ = env_int("KS_V2_CONTEST_SQ", Config::KS_V2_CONTEST_SQ);
         Config::KS_V2_CONTEST_SQ_Q = env_int("KS_V2_CONTEST_SQ_Q", Config::KS_V2_CONTEST_SQ_Q);
+        Config::KS_V2_SHELTER_K = env_int("KS_V2_SHELTER_K", Config::KS_V2_SHELTER_K);
         Config::C1_V2_FIT = env_int("C1_V2_FIT", Config::C1_V2_FIT);
         v2_c1_init();   // after every v2 knob: the fitted values start from the live constants
         Config::KSB_V2 = env_int("KSB_V2", Config::KSB_V2);
@@ -2911,6 +2912,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KS_V2_KNIGHT_DEF=" << Config::KS_V2_KNIGHT_DEF
                   << " KS_V2_CONTEST_EXCESS=" << Config::KS_V2_CONTEST_EXCESS
                   << " KS_V2_CONTEST_SQ=" << Config::KS_V2_CONTEST_SQ << " KS_V2_CONTEST_SQ_Q=" << Config::KS_V2_CONTEST_SQ_Q
+                  << " KS_V2_SHELTER_K=" << Config::KS_V2_SHELTER_K
                   << " KSB_V2=" << Config::KSB_V2 << " KSB_V2_CASTLE=" << Config::KSB_V2_CASTLE
                   << " KFL_V2=" << Config::KFL_V2 << " KPROT_V2=" << Config::KPROT_V2 << " PX_V2=" << Config::PX_V2
                   << " WIN_V2=" << Config::WIN_V2 << " WIN_V2_PASSED=" << Config::WIN_V2_PASSED

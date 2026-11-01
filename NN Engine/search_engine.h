@@ -894,6 +894,10 @@ namespace Config
     inline int KS_V2_CONTEST_EXCESS = 0; // OURS: sum over zone squares of (enemy attackers - own defenders, pawns x2), positive part
     inline int KS_V2_CONTEST_SQ = 0;     // OURS: zone squares with >= 2 attackers that outnumber the defence
     inline int KS_V2_CONTEST_SQ_Q = 0;   // OURS: the same, only while the enemy queen is on the board
+    // Shelter -> danger coupling, per 256 (SF11 subtracts 6/8 of the mg shelter from kingDanger): the units lose K/256 of
+    // the king side's KS-B mg leg before the onset, so a sound shelter damps an attack and a broken one or a storm feeds
+    // it. Needs KS-B on. 0 = absent.
+    inline int KS_V2_SHELTER_K = 0;
 
     // ── C3-a KING SHELTER + PAWN STORM (KS-B) (2026-09-27; design: TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md §3, §8) ──
     // A direct score per king from 56 one-hot cells (eval_v2.cpp ksb_cells), priced by the joint KS fit. 1 = on with

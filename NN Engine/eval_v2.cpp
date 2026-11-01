@@ -325,6 +325,11 @@ static int    c1_place[2][9];                       // [leg][outpost N, outpost 
 static constexpr int KSB_CELLS = 56;                // shelter 4 file classes x 6 states + storm 4 x 8
 static bool   g_ksb_on = false;
 static int    ksb_w[2][KSB_CELLS];
+} // anonymous namespace
+// Defined at file scope with the KS-B scorer below; king safety reads it for the shelter -> danger coupling
+// (KS_V2_SHELTER_K). Declared outside the anonymous namespace so it names that same function.
+static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) noexcept;
+namespace {
 // C3-b pawnless flank + king-to-pawn distance (Config::KFL_V2) and C3-c KingProtector (Config::KPROT_V2): same
 // contract as the shelter table -- [leg][cell], value to the king's / minor's OWN side, unread while off.
 static constexpr int KFL_CELLS = 10;                // nearest own pawn d 2/3/4/>=5 · nearest enemy pawn d 2/3/4/>=5 · flank empty · flank only enemy
@@ -1048,6 +1053,14 @@ inline int ks_units(const V2Context &c, const SideAttacks &wa, const SideAttacks
 		u += Config::KS_V2_CONTEST_EXCESS * ch.contest_excess;
 		u += Config::KS_V2_CONTEST_SQ * ch.contest_sq;
 		if (ch.enemy_queen) u += Config::KS_V2_CONTEST_SQ_Q * ch.contest_sq;
+	}
+
+	// KS_V2_SHELTER_K: the king side's KS-B mg leg (positive = a sound shelter) damps the units; a broken shelter or a
+	// storm feeds them. It reads the cells KS-B scores, so it needs KS-B on.
+	if (Config::KS_V2_SHELTER_K && g_ksb_on){
+		int smg, seg;
+		ksb_side(c, white_king, smg, seg);
+		u -= Config::KS_V2_SHELTER_K * smg / 256;
 	}
 
 	// ★ ONSET: quiet positions must contribute EXACTLY zero, not a small positive (SF `kingDanger > 100`, Ethereal

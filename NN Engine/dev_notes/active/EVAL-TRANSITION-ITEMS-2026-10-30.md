@@ -97,7 +97,16 @@ eg_critical +4.5 ± 10.6, not a ship ⇒ search arc. **Closed 11-01 (#125-#127):
 500 −20.9 head to head ⇒ damp PARKED; RFP 500 over three runs +2.3 ± 10.9, margin flat 400-600 ⇒ 600 stays. Lesson: the eval
 leg's two endgame items improved static eg accuracy (−5.8%, −2.9%) and neither became Elo — the eval payoff is opening /
 middlegame (memory `eval-payoff-is-opening-midgame-not-endgame`) ⇒ item 4 (middlegame king safety) next.
-4. `KS_V2_PIN_DEF=1` + BLOCKERS refit, then shelter → danger. 5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
+4. `KS_V2_PIN_DEF=1` + BLOCKERS refit, then shelter → danger. **Started 11-01.** Record check: PIN_DEF never measured
+   anywhere (built 09-27, left out of every fit as a mode); BLOCKERS −20 is a bundle coefficient (10-03 joint fit), never isolated;
+   the coupling had no knob. Done: PIN_DEF rebuild only when a non-pawn defender is pinned (result-identical, 250 / 36,176,814
+   both ways; its ~5% bench cost gone) · `KS_V2_SHELTER_K` built, 0 = byte-identical, K 12 live (251 / 38,767,998; SF11's 6/8
+   converts to K ≈ 11, a few % of the units). Games: #129 pin and pin + BLOCKERS 0 vs gen 6.4 (pin binary both sides), #130
+   replicates the better if > 0. **Decision after #129/#130 (owner 11-01):** a positive pin arm ⇒ refresh the depth-fit base
+   (our d10 on the 9,771 mg rows is from 10-01/10-04, four gens stale) and refit BLOCKERS + K lean on it; both flat ⇒ pin
+   defenders and the coupling park, no fit infrastructure built for them. Other subsystems are not re-fitted now (structural
+   retune closed; the full retune is the final one).
+   5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.
 Forecast registered 10-30 (self-play, vs gen 6.4; check it at the end of each leg): rest of the eval leg incl. the lean retune
 and the lazy eval exit +15 … +40; the search arc +50 … +150, top end raised to +250 after the owner's argument (EBF: each step

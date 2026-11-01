@@ -60,6 +60,24 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 🧪 2026-10-31 night — QUEUE #126: RFP 500 replication +10.4 (pooled 1.8σ) · damp on top of RFP 500 −20.9 ⇒ damp PARKED
+
+Binary `chess_engine_uci_damp` both sides (fingerprints base 36,991,901 · RFP 500 36,670,022 · damp + RFP 500 37,179,696),
+preflight 0 warnings; 0 disconnects, 0 forfeits, no new WSL dumps. 16:54 Sat → 01:20 Sun.
+
+| leg | seed | games | result | Ptnml(0-2) | registered |
+|---|---|---|---|---|---|
+| RFP 500 vs gen 6.4 (replication) | 1261 | 1,000, 10+0.1 | +10.4 ± 19.4 (51.5%) | 73-83-173-83-88 | −5 … +20 ✓ |
+| damp + RFP 500 vs RFP 500 (head to head) | 1262 | 1,000, 10+0.1 | **−20.9 ± 17.9** (47.0%) | 76-93-201-75-55 | −10 … +15 ✗ (below) |
+| RFP 500 vs gen 6.4 | 1263 | 200, 60+0.6 | +15.7 ± 38.5 (52.25%) | 10-15-45-16-14 | −10 … +40 ✓ |
+
+- **RFP 500 at 10+0.1, pooled with #125: +12.0 ± 13.4 over 2,000 g (≈ 1.8σ)** — short of the +2σ bar; queue #127 took its
+  branch B (a third run, then RFP 450 / 550 vs gen 6.4). 60+0.6 leans the same way (+15.7), unresolved alone.
+- **Damp PARKED** (parked register): on top of RFP 500 it costs ≈ 2.3σ head to head. The indirect read (damp + 500 pooled
+  +17.7 minus 500 pooled +12.0 ≈ +6 ± 19) disagrees with the direct one by ≈ 2σ; same knob strings and echoes as the earlier
+  runs, so either a tail among ~12 comparisons or non-transitive self-play between close variants. The direct match is the
+  sharper instrument (one variance, not two) and is the one acted on.
+
 ## 🧪 2026-10-31 — QUEUE #125: damp + RFP 500 replicates (+20.2), but RFP 500 ALONE is +13.6 ⇒ the gain is the margin, not the crank
 
 Vs gen 6.4, 10+0.1, 1,000 g UHO each, binary `chess_engine_uci_damp` both sides (fingerprints base 36,991,901 · damp + RFP 500

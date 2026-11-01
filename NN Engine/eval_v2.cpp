@@ -858,7 +858,8 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	const SideAttacks *defs = &def0;
 	uint64_t blk = 0;
 	if (full || Config::KS_V2_BLOCKERS || Config::KS_V2_PIN_DEF) blk = v2_king_blockers(c, white_king);
-	if (Config::KS_V2_PIN_DEF){
+	// Only a pinned knight, bishop, rook or queen changes the map; with none, the rebuild would equal the shared one.
+	if (Config::KS_V2_PIN_DEF && (blk & own & ~(c.pawns | c.kings))){
 		build_side_attacks(defp, c, white_king, nullptr, blk & own, ksq);
 		defs = &defp;
 	}

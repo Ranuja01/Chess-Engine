@@ -42,9 +42,11 @@ pointed at a depth-6-gated knob it is structurally blind to.
 | **games, 5276** | ±9.4 | +4.6 | `PROTECT_KILLERS` shipped at +12.4 ±9.4 here. |
 | `_venue_power.py` | — | — | **Run it BEFORE spending games and before writing any null into a doc.** It says what the venue can resolve; most nulls in the record are unresolved, not refuted. |
 
-☠️ **Across 57 pools / 88k games, no A/A control has ever been run.** Every historical error bar is
-theoretical, not measured. The +4.6 may be selection (we test what we expect to help) or a genuine p1 bias —
-**unseparated**.
+| **fastchess A/A, 2 × 1,000** (10+0.1, UHO, colour-paired; queue #128, 2026-11-01) | ±12.9 pooled | **−5.3 ± 12.9 ≈ 0** | Gen 6.4 vs itself. Runs agree (between-run χ² 0.55 / 1 df); 50-pair blocks spread LESS than claimed (χ² 7.7 / 18 df). One between-run df cannot rule out a modest excess spread. A single run read **−10** with no change at all. |
+
+☠️ **Across 57 pools / 88k games on the old Python harness, no A/A control was ever run.** Its error bars are
+theoretical, not measured, and its +4.6 may be selection (we test what we expect to help) or a genuine p1 bias,
+**unseparated**. The fastchess harness now has one (row above): no bias, and its ± holds up.
 ☠️ **NEVER PEEK.** One 1200-game run read **−31 at 91 games** and **+1.4 at 1200**.
 ⚠️ `gate` hardcodes `--seed 0` → fixed openings inflate reads. **`openings_uho.txt` + a varied seed are
 mandatory.** ⚠️ Fixed-time work is corrupted by machine suspend and by the owner's evening gaming; fixed
@@ -243,7 +245,7 @@ null at its natural magnitude may be readable at 4×; quote **eval + re-cranked 
 | **Is a single eval term worth anything?** | The cross-set bar is ~2–2.5pp and the whole prize is 7pp. A term would have to be worth **a third of an entire eval replacement**. **Term-at-a-time screening is closed by arithmetic.** Bundling disjoint terms is the only route. |
 | **What is our real EBF?** | Unknown. The printed metric is not the literature quantity, and the ~3.0–3.2 estimate rested on a d=10 assumption that is falsified. Needs per-iteration node logging. |
 | **Warm-state failures** | ☠️ **No instrument we own can see them.** A position solved correctly at every cold setting (45.6s / 24.0s / 36.5s) was blundered in-game with 20+ seconds, because history had rewarded the same from/to pair earlier in the game. Benches are key-checked, not cold — but they are *incoherently* warm, which is a different regime from real play. |
-| **Is the games harness biased or are we selecting?** | Unseparated. No A/A control has ever been run. |
+| **Is the games harness biased or are we selecting?** | Old Python harness: unseparated, never had an A/A. fastchess: A/A run 2026-11-01 (queue #128), −5.3 ± 12.9, no bias; so a fastchess candidate's read is not inflated by the harness. |
 | **Speed below ~35% NPS, node savings below ~35%** | Structurally invisible — below the ±0.5-ply measurement floor. |
 | **A term whose REGIME is a few % of positions** (added 2026-09-17) | ☠️ **The CHANGED-MOVE SUBSET is the sample, not the corpus.** Space's only real effect lives on `centre_locked` = **3.2%** of positions; enlarging that class by classifying two MORE corpora (**+13,500 positions**) grew it 1,652 → 1,974 rows and the changed-move count **607 → 644**. A win% on ~600 changed moves carries ≈ **±2pp** of standard error by itself — the size of the whole effect. ⇒ Compute the expected changed-move count (≈ corpus × flip rate) and its SE **before** building the read. Rare regimes need PURPOSE-BUILT corpora, not more of the same material. |
 | **The MAGNITUDE of an SPRT result** (added 2026-09-17) | ☠️ **An SPRT DECIDES; it does not measure.** One arm pair produced **+60.7 / +44.5 / +11.4** Elo across three statistically sound runs, because a sequential test stops on a favourable swing and the estimate is biased away from the bound it crossed. Pooling all 1,178 games of the same pairing gave **≈ +31**. ⇒ Quote the pooled tally across seeds; bracket a size with TWO different bounds (here: H1 at ≥10 and H0 at ≥50 ⇒ 10 < true < 50). |

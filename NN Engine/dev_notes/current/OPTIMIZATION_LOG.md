@@ -60,6 +60,28 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 📏 2026-11-01 — QUEUE #128: THE FIRST A/A CONTROL — fastchess at 10+0.1 is unbiased and its ± is honest
+
+Gen 6.4 against itself: binary `chess_engine_uci_damp` both sides, `Knobs=THREAT_ORDER_W=100` both sides (fingerprint
+36,991,901), names `arm` / `ctl`, UHO, 10+0.1, concurrency 3, 1,000 games per run. 10:48 → 16:05 Sun; 0 disconnects, 0
+forfeits, no new WSL dumps. Registered: each run 0 ± ~19, pooled 0 ± ~13.5.
+
+| run | seed | result | Ptnml(0-2) |
+|---|---|---|---|
+| aa1 | 1281 | −10.1 ± 18.1 | 75-81-203-80-61 |
+| aa2 | 1282 | −0.3 ± 18.4 | 73-78-192-91-66 |
+| **pooled** | | **−5.3 ± 12.9 (z −0.79)** | 148-159-395-171-127 |
+
+`fastchess_report.py aa1.pgn aa2.pgn --p1 arm --blocks 50`: between runs χ² 0.55 on 1 df (p 0.47); within runs (50-pair
+blocks) χ² 7.7 on 18 df (ratio 0.43, p 0.98). Per side: identical depth 10.9, nodes, 1.17 M nps, move time 0.238 / 0.239 s.
+- **No bias:** the pooled null is −5.3 ± 12.9, consistent with 0 (and with the old Python harness's +4.6, which was
+  selection or bias, unseparated; this harness and colour-paired openings show neither).
+- **The ± is not understated:** the two runs agree and the 50-pair blocks spread LESS than their error bars claim. RFP 500's
+  between-run χ² 6.2 on 2 df (#127) is therefore read as a p ≈ 0.04 tail of honest noise, not a harness defect.
+- **What it does NOT show:** two runs give one degree of freedom between runs, so a modest excess spread (say 1.3×) is
+  not ruled out. The rule stays: fastchess ± ≈ 2σ, a single 1,000-game run under ~+30 is unresolved, ship on pooled
+  fresh-seed runs. The A/A also makes the size of noise concrete: the engine against itself read −10 over 1,000 games.
+
 ## ❌ 2026-11-01 — QUEUE #127: RFP 500's third run −17.0 ⇒ pooled +2.3 ± 10.9 — the margin lead was noise; 600 stays
 
 Branch B (RFP 500 pooled 1.76σ after two runs). Binary `chess_engine_uci_damp` both sides (fingerprints base 36,991,901 ·

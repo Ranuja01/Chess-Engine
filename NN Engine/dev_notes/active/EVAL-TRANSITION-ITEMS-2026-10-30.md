@@ -93,7 +93,10 @@ margins, `PE_PRUNE_GATE`, `NULLMOVE_PROGRESSIVE`, threats 100/100.
 FIX_LMR_EG — #120 FAILED in its venue (−19.8 ± 12.5 on eg_critical; the bypass stays, see OPTIMIZATION_LOG). 3. Damp-only
 drawishness threshold — built (`WIN_V2_DAMP` / `_PHASE_MAX` / `_SKIP_PAWNEND`), static eg −2.9%; #124 alone −5.9 ± 19.9, **with
 RFP 500 +15.3 ± 19.1** (crank ≈ 1.5σ) ⇒ next: fresh-seed replication + RFP 500 alone control. Passer exemption (UI game 2) on
-eg_critical +4.5 ± 10.6, not a ship ⇒ search arc.
+eg_critical +4.5 ± 10.6, not a ship ⇒ search arc. **Closed 11-01 (#125-#127):** RFP 500 alone matched the crank, damp on top of
+500 −20.9 head to head ⇒ damp PARKED; RFP 500 over three runs +2.3 ± 10.9, margin flat 400-600 ⇒ 600 stays. Lesson: the eval
+leg's two endgame items improved static eg accuracy (−5.8%, −2.9%) and neither became Elo — the eval payoff is opening /
+middlegame (memory `eval-payoff-is-opening-midgame-not-endgame`) ⇒ item 4 (middlegame king safety) next.
 4. `KS_V2_PIN_DEF=1` + BLOCKERS refit, then shelter → danger. 5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.
 Forecast registered 10-30 (self-play, vs gen 6.4; check it at the end of each leg): rest of the eval leg incl. the lean retune

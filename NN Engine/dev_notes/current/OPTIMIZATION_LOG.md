@@ -60,6 +60,26 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ❌ 2026-11-01 — QUEUE #127: RFP 500's third run −17.0 ⇒ pooled +2.3 ± 10.9 — the margin lead was noise; 600 stays
+
+Branch B (RFP 500 pooled 1.76σ after two runs). Binary `chess_engine_uci_damp` both sides (fingerprints base 36,991,901 ·
+RFP 500 36,670,022 · RFP 450 34,858,130 · RFP 550 36,533,110), preflight 0 warnings; 0 disconnects, 0 forfeits, no new WSL
+dumps. 01:23 → 08:17 Sun. All vs gen 6.4 (RFP 600), 10+0.1, 1,000 g UHO.
+
+| arm | seed | result | Ptnml(0-2) | registered |
+|---|---|---|---|---|
+| RFP 500 (third run) | 1274 | **−17.0 ± 18.8** (47.6%) | 86-81-197-68-68 | −5 … +20 ✗ (below) |
+| RFP 450 | 1275 | −3.5 ± 19.6 (49.5%) | 91-63-192-73-81 | −10 … +20 ✓ |
+| RFP 550 | 1276 | +11.1 ± 18.8 (51.6%) | 76-58-202-86-78 | −10 … +20 ✓ |
+
+**RFP 500 over three runs: +13.6, +10.4, −17.0 ⇒ +2.3 ± 10.9 (z 0.42).** The margin curve vs 600 at 10+0.1 is flat from 400 to
+600 (400 −5.2 · 450 −3.5 · 500 +2.3 · 550 +11.1 · 600 0) and falls at 800 (−19.8): a plateau, so 600 stays and WAC / SF18 were
+not run. 550's +11.1 is the same single-run size RFP 500 started at — not chased.
+- Lesson: the whole damp / RFP 500 thread (#124-#127) rode single 1,000-game reads of +13 … +20 (≈ 1.4-2σ). Memory
+  `games-harness-null-is-plus4.6-elo-and-true-candidate-spread-is-16` already said a single run under ~+30 is UNRESOLVED.
+  The three same-config runs spread more than their error bars predict (χ² ≈ 6.2 on 2 df, p ≈ 0.05) — one more hint that the
+  fastchess ± understates run-to-run spread. No A/A control has ever been run on any harness (INSTRUMENT-MAP).
+
 ## 🧪 2026-10-31 night — QUEUE #126: RFP 500 replication +10.4 (pooled 1.8σ) · damp on top of RFP 500 −20.9 ⇒ damp PARKED
 
 Binary `chess_engine_uci_damp` both sides (fingerprints base 36,991,901 · RFP 500 36,670,022 · damp + RFP 500 37,179,696),

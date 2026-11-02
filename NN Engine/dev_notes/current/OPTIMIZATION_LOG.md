@@ -60,6 +60,27 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 📏 2026-11-02 — QUEUE #135: GEN 6.4 VS STOCKFISH 1.1 AT 4× AND 8× TIME ODDS ≈ 47-49%; the 3× rotation stays
+Not a ship gate: a calibration ladder. Us 60+0.6, SF 1.1 at a quarter / an eighth of that; UHO, 100 g each, 0 disconnects,
+0 time forfeits by either engine, no new WSL dumps. Per-engine time and depth from the PGN comments (scratchpad awk).
+
+  | SF 1.1 time | gen | score (ours) | Elo | SF 1.1 s/move · depth | ours s/move · depth |
+  |---|---|---|---|---|---|
+  | 1× 60+0.6 (#103) | 6.1 | 6.5% | −463 | 1.43 · 14.8 | 1.68 · 13.4 |
+  | 3× 20+0.2 (#118, 200 g, seed 1082) | 6.4 (= C) | 29.5% | −151 ± 50 | 0.46 · 14.5 | 1.47 · 13.7 |
+  | 4× 15+0.15 (seed 1351) | 6.4 | 47.0% | −21 ± 65 | 0.36 · 12.8 | 1.50 · 13.6 |
+  | 8× 7.5+0.075 (seed 1352) | 6.4 | 48.5% | −10 ± 59 | 0.18 · 12.5 | 1.44 · 14.0 |
+
+- Registered 4× 15 … 40% ✗ (above; registered without recalling #118's 29.5% at 3×, which predicts ~35-45%); 8× 25 … 55% ✓;
+  SF 1.1 forfeits ≤ 2 at 8× ✓ (0). The handicap applied as set: SF 1.1 spent 3.2×, 4.2× and 8.2× less time per move.
+- Shape: 3× → 4× +130 ± 82, 4× → 8× +11 ± 87. The gen 6.1 1× → 3× slope (~155 Elo per halving of its time) predicts +65 and
+  +155; each step is about 1σ off in opposite directions, and 3× → 8× overall (+141 ± 77, ~100 per halving) is 1σ below.
+  Read as noise around a flattening curve, not a time-management fault: endings look ordinary (adjudications 38 / 37 of our
+  losses / wins at 4×, 36 / 41 at 8×; no forfeits).
+- **Use:** the 3× rotation (20+0.2, since #108) already lands in the 25-40% band and has the series: gen 6.1 22.5%,
+  6.2 21.0%, 6.3 29.25%, 6.4 29.5%. Keep it for continuity. 4× (~47%) is the more game-efficient point if a series ever
+  restarts.
+
 ## ❌ 2026-11-02 — QUEUE #134: CAPS ON THE CAPPED-ENDING STARTS +9.7, −1.0 ⇒ pooled +4.3 ± 9.7 (z 0.88) ⇒ caps PARKED (owner)
 
 **Owner 11-02: parked**, not the narrow-item pool. Their route back is the final retune or item 5 (the scale on the eg leg),

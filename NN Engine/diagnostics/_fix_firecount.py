@@ -15,7 +15,7 @@ Run (WSL): bash <runner> pyrun diagnostics/_fix_firecount.py BIN=<uci binary> [N
 Build identity (two binaries that must decide identically): BIN=<old> BIN_ON=<new> ON= ; every set must report
 "diverged: 0" and 0 crashes.
 """
-import os, sys, random, re, statistics
+import os, sys, random, re, statistics, collections, threading
 from concurrent.futures import ThreadPoolExecutor
 OPTS = {'N': '30', 'NODES': '30000', 'PLIES': '200', 'SEED': '7', 'JOBS': '2',
         'SETS': 'eg:selfplay/eg_critical_fens.txt,kp:selfplay/kp_dense_fens.txt,uho:/mnt/e/chess_data/fastchess/openings_uho.epd',
@@ -31,6 +31,9 @@ BIN_ON = OPTS.get('BIN_ON', BIN)   # the ON pass's binary; differs from BIN only
 ON_ENV = dict(kv.split('=', 1) for kv in OPTS['ON'].split(';') if kv)
 CNT_RE = re.compile(r'FIXCNT fifty=(\d+) rep=(\d+) drawexit=(\d+) qsmate=(\d+)(?: depthcap=(\d+))?')
 TM_RE = re.compile(r'TMCNT moves=(\d+) total_s=([\d.e+-]+) wasted_s=([\d.e+-]+) cut=(\d+) cut_differs=(\d+)')
+# Open-item counters (a counter build, -DFIXCNT_BUILD; SEARCH-CORRECTNESS-ITEMS-2026-11-02): summed over the OFF pass per set
+ITEM_RE = re.compile(r'ITEMCNT ((?:\w+=\d+ ?)+)')
+item_totals, item_games, item_lock = collections.Counter(), collections.Counter(), threading.Lock()
 KEYS = ('fifty', 'rep', 'drawexit', 'qsmate', 'depthcap')
 # SIDES=2: one engine process per side, as in real play. With one process for both sides the UCI front end clears every
 # cache at each side change, so each move starts cold (the default, kept for the earlier runs' comparability).
@@ -93,7 +96,7 @@ def play(board, env_extra, tag, binary=BIN):
         if result == 'CRASH':
             tail = [l.rstrip() for l in open(errpath, errors='replace')][-6:]
             print('  !! stderr tail:\n     ' + '\n     '.join(tail), flush=True)
-        last, tm = None, None
+        last, tm, item = None, None, None
         for line in open(errpath, errors='replace'):
             m = CNT_RE.search(line)
             if m:
@@ -101,6 +104,14 @@ def play(board, env_extra, tag, binary=BIN):
             t = TM_RE.search(line)
             if t:
                 tm = t
+            it = ITEM_RE.search(line)
+            if it:
+                item = it
+        if item and tag.startswith('off'):
+            counts = {k: int(v) for k, v in (kv.split('=') for kv in item.group(1).split())}
+            with item_lock:
+                item_totals.update(counts)
+                item_games.update(k for k, v in counts.items() if v > 0)
         if tm and tag.startswith('off'):
             g = tm.groups()
             for i, v in enumerate((int(g[0]), float(g[1]), float(g[2]), int(g[3]), int(g[4]))):
@@ -147,6 +158,21 @@ for spec in OPTS['SETS'].split(','):
         crashes))
     for key in KEYS:
         print('  %-9s OFF %8d   ON %8d   games where it fired (either mode): %d' % (key, tot_off[key], tot_on[key], fired_games[key]))
+    if item_totals:
+        t = item_totals
+        rate = lambda a, b: '%.3f%%' % (100.0 * t[a] / t[b]) if t[b] else 'n/a'
+        print('  open items (OFF pass, per game process; games where each fired in brackets):')
+        print('    nodes %d · mdp %d (%s of nodes) [%d]' % (t['nodes'], t['mdp'], rate('mdp', 'nodes'), item_games['mdp']))
+        print('    prunes %d · with the best still mated / unset %d (%s) [%d]' % (
+            t['prunes'], t['prunes_mated'], rate('prunes_mated', 'prunes'), item_games['prunes_mated']))
+        print('    splice hits %d · swaps %d (%s of hits) · swaps displacing a capture %d (%s of hits) [%d]' % (
+            t['splice_hits'], t['splice_swaps'], rate('splice_swaps', 'splice_hits'), t['splice_cap'],
+            rate('splice_cap', 'splice_hits'), item_games['splice_cap']))
+        print('    TT cutoffs %d · with a PV window %d (%s) [%d] · at clock >= 90 %d (%s) [%d]' % (
+            t['tt_cuts'], t['tt_pv'], rate('tt_pv', 'tt_cuts'), item_games['tt_pv'], t['tt_r50'], rate('tt_r50', 'tt_cuts'),
+            item_games['tt_r50']))
+        print('    50-move draws scored on a checkmate %d [%d]' % (t['fifty_mated'], item_games['fifty_mated']))
+        item_totals.clear(); item_games.clear()
     sys.stdout.flush()
 
 if tm_totals[0]:

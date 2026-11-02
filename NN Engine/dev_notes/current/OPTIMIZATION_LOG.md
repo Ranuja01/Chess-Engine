@@ -60,6 +60,13 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ❌ 2026-11-02 — QUEUE #132: SHELTER → DANGER COUPLING flat (−6.3) ⇒ PARKED; item 4 (middlegame KS) closed
+
+`KS_V2_SHELTER_K=12` vs gen 6.4, UHO 10+0.1, 1,000 g, seed 1323, ks4 binary both sides (fingerprint 38,767,998), preflight 0
+warnings; 0 disconnects, 0 forfeits, no new WSL dumps. 03:20 → 05:58 Mon. **−6.3 ± 19.9**, Ptnml 90-82-166-80-82 — inside its
+registered −10 … +15, under the +8 replicate bar, so no replicate. With pinned defenders parked (#129), item 4 of the eval
+leg is closed with nothing shipped: neither middlegame KS refinement moves games at the screen's resolution.
+
 ## ⏳ 2026-11-02 — QUEUES #131-#132: CAPS ON THE TRANSITION STARTS +12.9, +5.2 ⇒ pooled +9.0 ± 10.0 (z 1.77); damp −0.4
 
 **Replicate (#132 caps_tr_r, seed 1321, 01:26 → 03:20):** +5.2 ± 13.9, Ptnml 26-88-265-87-34, 0 disconnects / forfeits —

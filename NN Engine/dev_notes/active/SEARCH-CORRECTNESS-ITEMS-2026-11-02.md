@@ -81,6 +81,11 @@ What it changes (proposed; owner to approve with the rest):
 - A4 alone (general, changes node counts). Registered: −5 … +15.
 - `NULL_NPM_GUARD=2` alone, on the transition starts (it fires in pawn-only-mover endings). Registered: −10 … +10.
 
+*11-02 afternoon (idle box, owner away):* A4 and G5 running in queue #137 (A4 on UHO seed 1361, G5 on transition.epd seed 1362;
+production PGO binary both sides through `option.Knobs`; fingerprints: A4 bench 248 / 37,936,030, G5 leaves the bench unchanged
+but doubles the d14 nodes on a 7-pawn ending, so it is live). Results are measurements only; shipping either is the owner's call.
+B1 + B2 bit 1 waits for a venue choice: B1 fires only in long endgames (4/30 eg_critical, 0/30 UHO), so a UHO match cannot judge it.
+
 **Step 2 — the code items**, each with its counter and move test, then one harm match for the narrow set (MDP + mate-before-50 + mate
 gate + rule-50 guard; registered −10 … +10). The killer splice and TT PV cutoffs change ordering / the tree broadly, so each gets its
 own match (registered −10 … +15 and −10 … +10). TT mates only after MDP ships.

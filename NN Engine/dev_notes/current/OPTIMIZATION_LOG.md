@@ -60,6 +60,23 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ❌ 2026-11-01 — QUEUE #129: PINNED DEFENDERS flat (+2.8, and +0.7 with BLOCKERS 0) ⇒ PARKED, no replicate
+
+Item 4 of the eval leg. Binary `chess_engine_uci_pin` both sides (fingerprints base 36,991,901 · pin 36,176,814 · pin_b0
+38,269,511), preflight 0 warnings; 0 disconnects, 0 forfeits, no new WSL dumps. 16:07 → 21:27 Sun. Vs gen 6.4, UHO 10+0.1.
+
+| arm | seed | result | Ptnml(0-2) | registered |
+|---|---|---|---|---|
+| `pin` = `KS_V2_PIN_DEF=1` | 1291 | +2.8 ± 19.0 | 72-87-185-73-83 | −5 … +15 ✓ |
+| `pin_b0` = PIN_DEF + `KS_V2_BLOCKERS=0` | 1292 | +0.7 ± 18.7 | 73-77-204-67-79 | −10 … +15 ✓ |
+
+- Both in their registered bands and both null. The better arm is under the +8 bar the owner set tonight for spending a
+  replicate (a +3 effect would need ~40,000 games to confirm), so #130 skipped its replicate (stop file set by a guard).
+- BLOCKERS −20 vs 0 also reads flat (pin vs pin_b0 +2.1 ± 26.7), so the 10-03 joint-fit coefficient is not worth a refit now.
+- ⇒ Pinned defenders PARKED (register); the depth-fit refresh and lean refit are not built. Changed from the 10-31 plan: the
+  shelter → danger coupling does not park with them; it gets its own UHO read in #132 (`KS_V2_SHELTER_K=12`), being a
+  separate mechanism (owner 11-01).
+
 ## 📏 2026-11-01 — QUEUE #128: THE FIRST A/A CONTROL — fastchess at 10+0.1 is unbiased and its ± is honest
 
 Gen 6.4 against itself: binary `chess_engine_uci_damp` both sides, `Knobs=THREAT_ORDER_W=100` both sides (fingerprint

@@ -60,6 +60,23 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ⏳ 2026-11-01 night — QUEUE #131: CAPS AND DAMP RE-JUDGED WHERE THEY FIRE — caps +12.9 (first run), damp −0.4
+
+Venue: the transition starts (`transition.epd`, 500 late-middlegame / early-endgame starts with a modest edge). Binary
+`chess_engine_uci_ks4` both sides (fingerprints base 36,991,901 · caps 38,998,902 · damp 35,917,541), preflight 0 warnings;
+0 disconnects, 0 forfeits, no new WSL dumps. 21:31 Sun → 01:24 Mon. Vs gen 6.4 at 10+0.1, 1,000 g each.
+
+| arm | seed | result | Ptnml(0-2) | registered |
+|---|---|---|---|---|
+| caps (SF15.1 values) | 1311 | **+12.9 ± 14.5** | 28-81-260-88-43 | −5 … +20 ✓ |
+| damp-only threshold | 1312 | −0.4 ± 13.9 | 32-85-262-94-27 | −10 … +15 ✓ |
+
+- Caps: ≈ 1.7σ on one run, the first positive read for them in any venue (UHO pooled ≈ +6 ± 14). Above the +8 bar, so #132
+  replicates on fresh seed 1321 (registered: within the first run's ±). If the two pool to ≥ 2σ, #133 runs the ship checks
+  (WAC at 250k, SF18 @1100 on fresh seeds 1331 / 1332 with a fresh gen 6.4 baseline, Mediocre at 60+0.6).
+- Damp: null where it fires as well, so the 11-01 parked verdict (#125-#127) stands; no replicate.
+- The venue as an instrument: ±14 per 1,000 games against ~±19 on UHO, and about 2 h per 1,000 (shorter games).
+
 ## ❌ 2026-11-01 — QUEUE #129: PINNED DEFENDERS flat (+2.8, and +0.7 with BLOCKERS 0) ⇒ PARKED, no replicate
 
 Item 4 of the eval leg. Binary `chess_engine_uci_pin` both sides (fingerprints base 36,991,901 · pin 36,176,814 · pin_b0

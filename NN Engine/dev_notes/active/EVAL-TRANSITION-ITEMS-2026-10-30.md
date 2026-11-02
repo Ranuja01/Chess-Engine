@@ -110,6 +110,8 @@ middlegame (memory `eval-payoff-is-opening-midgame-not-endgame`) ⇒ item 4 (mid
    owner's +8 bar), no depth-fit refresh. The coupling gets its own read instead of parking with them: #132 runs
    `KS_V2_SHELTER_K=12` on UHO (and a replicate at the same bar). Caps and damp are re-judged on the transition starts (#131;
    replicates in #132 at +8).
+   **Read 11-02 (#131, transition starts):** caps +12.9 ± 14.5 (first positive read anywhere; replicate in #132, ship checks
+   in #133 if the two pool to ≥ 2σ) · damp −0.4 ± 13.9 (stays parked).
    5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.
 Forecast registered 10-30 (self-play, vs gen 6.4; check it at the end of each leg): rest of the eval leg incl. the lean retune

@@ -113,6 +113,8 @@ middlegame (memory `eval-payoff-is-opening-midgame-not-endgame`) ⇒ item 4 (mid
    **Read 11-02 (#131 / #132, transition starts):** caps +12.9 ± 14.5 then +5.2 ± 13.9 ⇒ pooled +9.0 ± 10.0 (z 1.77), the
    first positive read anywhere but under 2σ ⇒ targeted capped-ending venue in #134 (ship checks only if that clears 2σ) ·
    damp −0.4 ± 13.9 (stays parked).
+   **Read 11-02 (#134, capped-ending starts):** caps +9.7 ± 13.4 (Ptnml middle 60%, inside −5 … +30) ⇒ replicate on seed 1342;
+   decision on the two runs pooled.
    **Read 11-02 (#132): shelter coupling K 12 −6.3 ± 19.9 ⇒ PARKED.** Item 4 closed with nothing shipped.
    5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.

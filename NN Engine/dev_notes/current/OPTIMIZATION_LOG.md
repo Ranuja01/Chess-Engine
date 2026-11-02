@@ -60,6 +60,23 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ⏳ 2026-11-02 — QUEUE #134: CAPS ON THE CAPPED-ENDING STARTS +9.7 ± 13.4 ⇒ replicate running
+
+Venue: `capped.epd`, 500 starts from 10,000 of our own games (the six transition sources + the A/A and pinned-defender runs),
+each −10 … +6 plies from the first ply where a capped class has been on the board for 6 plies in a row; phase at onset 0-192,
+edge 30-250 cp, quiet, disjoint from `transition.epd`. Onset classes picked: ocbx 247 · qnoq 193 · rooke 53 · loneminor 7;
+338 starts before onset, 162 at or after. Before building it, the generator's default mode rebuilt `transition.epd`
+byte-identically. Binary `chess_engine_uci_ks4` both sides (base 36,991,901 · caps 38,998,902), preflight 0 warnings.
+
+**caps_ca, seed 1341, 06:03 → 07:50:** **+9.7 ± 13.4**, Ptnml 23-71-300-67-39, 0 disconnects / forfeits. Inside its registered
+−5 … +30 (expected +10 … +20, so at the bottom of it); the venue check holds (middle 300 / 500 = 60% ≤ 65%). Above the +8
+bar, so `caps_ca_r` (seed 1342) started 07:50; the registered decision is on those two runs pooled: ≥ 2σ ⇒ propose the ship
+checks to the owner; positive under 2σ ⇒ narrow-item pool (owner decides); ≤ 0 ⇒ stays parked.
+
+Outcome types (descriptive, not roles; see the #131-#132 entry): reversals 13.7% of games when caps were ahead vs 16.6% when
+gen 6.4 was, draws 26.1 vs 25.4% — the same pattern as the transition starts. In all three caps runs where they fire, 2-point
+pairs outnumber 0-point pairs (43 v 28, 34 v 26, 39 v 23).
+
 ## ❌ 2026-11-02 — QUEUE #132: SHELTER → DANGER COUPLING flat (−6.3) ⇒ PARKED; item 4 (middlegame KS) closed
 
 `KS_V2_SHELTER_K=12` vs gen 6.4, UHO 10+0.1, 1,000 g, seed 1323, ks4 binary both sides (fingerprint 38,767,998), preflight 0

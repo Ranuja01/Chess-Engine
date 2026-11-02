@@ -70,6 +70,13 @@ runs that earned them (+12.9 → +5.2, +9.7 → −1.0), and the two replicates,
 runs where they fire pool to +6.7 ± 7.0 (z 1.88), a figure inflated by the two selected first runs. Outcome types over both
 capped runs: reversals 13.9% when caps were ahead vs 15.8% when gen 6.4 was, draws 26.2 vs 24.5%.
 
+**Fresh SF18 baseline (filler, 09:37 → 11:08):** gen 6.4 (Cython, d10 249 / 36,991,901 checked first) vs SF18 @1100 nodes, 500 g
+per seed: **seed 1331 53.9%** (70 collapses), **seed 1332 53.6%** (64) — level with its earlier reads (54.0% seed 1122, 55.4%
+seed 1162). These are the baseline for the next candidate's SF18 check on seeds 1331 / 1332. No new WSL crash dumps; queue
+done 11:08. `fastchess_report.py --roles` now prints the ahead side's W/D/L by engine as one comparison (win / draw / reversal
+deltas) instead of the degenerate conversion / hold pair; the transition runs re-read as win +1.5 ± 4.4 pp, draws +1.4 ± 3.9,
+reversals −2.9 ± 3.1.
+
 Venue: `capped.epd`, 500 starts from 10,000 of our own games (the six transition sources + the A/A and pinned-defender runs),
 each −10 … +6 plies from the first ply where a capped class has been on the board for 6 plies in a row; phase at onset 0-192,
 edge 30-250 cp, quiet, disjoint from `transition.epd`. Onset classes picked: ocbx 247 · qnoq 193 · rooke 53 · loneminor 7;

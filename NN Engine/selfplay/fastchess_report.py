@@ -14,9 +14,11 @@ near 1 means the pentanomial ± describes the real spread; well above 1 means ru
 Pairs are keyed per file: two runs with different seeds share openings from the same book.
 --roles CP splits games by who started ahead, for venues whose starts carry an edge (transition / capped starts). A pair's edge
 is the mean of the two first searched moves' scores (both from the side to move, one per engine); |edge| ≥ CP gives each game an
-ahead and a behind side, otherwise the pair is level. Within a colour-swapped pair the score gain when ahead equals the gain when
-behind by construction, so the split reads OUTCOMES instead: conversion (win% when ahead) and hold (non-loss% when behind),
-each against the other engine in the same role. Descriptive: its ± treats games as independent.
+ahead and a behind side, otherwise the pair is level. It reports the ahead side's outcome (win / draw / reversal) when it was p1
+against when it was the other engine. That is ONE comparison: every game has one engine ahead and the other behind, so "p1
+converts more when ahead" and "p1 holds more when behind" are the same games seen from both sides, and no statistic from the
+match alone separates them. Attributing a gain to either role needs a reference run (the control against itself on the same
+starts). Descriptive: its ± treats games as independent.
 """
 import argparse, collections, csv, math, re, statistics as st
 import chess.pgn
@@ -76,9 +78,10 @@ def dispersion(by_file, names, block):
 
 
 def roles(role_rows, p1, cp):
-    """Outcomes by starting role (see --roles). role_rows: key -> [(p1 score, p1 white, stm white, first score, opponent)]."""
-    ours = {"ahead": collections.Counter(), "behind": collections.Counter()}
-    theirs = {"ahead": collections.Counter(), "behind": collections.Counter()}
+    """The ahead side's outcomes by which engine it was (see --roles).
+    role_rows: key -> [(p1 score, p1 white, stm white, first score, opponent)]."""
+    # result of the side that started ahead, from its own point of view, keyed by which engine was ahead
+    ahead = {"p1": collections.Counter(), "opp": collections.Counter()}
     level, skipped, opp = [], 0, "the other engine"
     for gs in role_rows.values():
         if len(gs) != 2 or any(x[3] is None for x in gs):
@@ -91,9 +94,10 @@ def roles(role_rows, p1, cp):
         ahead_white = gs[0][2] if edge > 0 else not gs[0][2]
         for ps, p1w, _, _, o in gs:
             opp = o
-            r = "ahead" if p1w == ahead_white else "behind"
-            ours[r][ps] += 1
-            theirs["behind" if r == "ahead" else "ahead"][1.0 - ps] += 1
+            if p1w == ahead_white:
+                ahead["p1"][ps] += 1
+            else:
+                ahead["opp"][1.0 - ps] += 1
 
     def wdl(c):
         n = sum(c.values())
@@ -103,14 +107,15 @@ def roles(role_rows, p1, cp):
         e = 1.96 * math.sqrt(pa * (1 - pa) / na + pb * (1 - pb) / nb) if na and nb else float("nan")
         return "%+.1f ± %.1f pp" % (100 * (pa - pb), 100 * e)
 
-    print("  roles by starting edge (|mean first-move score| ≥ %d cp; %d pairs level, %d skipped; descriptive, games "
-          "treated as independent):" % (cp, len(level) // 2, skipped))
-    for r, what, k in (("ahead", "conversion = win%", 0), ("behind", "hold = non-loss%", 2)):
-        na, pa = wdl(ours[r]); nb, pb = wdl(theirs[r])
-        ra, rb = (pa[0], pb[0]) if k == 0 else (1 - pa[2], 1 - pb[2])
-        print("    %-6s %s W %4.1f%% D %4.1f%% L %4.1f%% (%d) · %s W %4.1f%% D %4.1f%% L %4.1f%% (%d) ⇒ %s %s" % (
-            r, p1, 100 * pa[0], 100 * pa[1], 100 * pa[2], na, opp, 100 * pb[0], 100 * pb[1], 100 * pb[2], nb,
-            what, diff(ra, na, rb, nb)))
+    na, pa = wdl(ahead["p1"]); nb, pb = wdl(ahead["opp"])
+    print("  by starting edge (|mean first-move score| ≥ %d cp; %d pairs level, %d skipped; descriptive, games treated as "
+          "independent):" % (cp, len(level) // 2, skipped))
+    print("    ahead side  %s W %4.1f%% D %4.1f%% L %4.1f%% (%d) · %s W %4.1f%% D %4.1f%% L %4.1f%% (%d)" % (
+        p1, 100 * pa[0], 100 * pa[1], 100 * pa[2], na, opp, 100 * pb[0], 100 * pb[1], 100 * pb[2], nb))
+    print("    ⇒ ahead side's win%% %s · draws %s · reversals %s" % (
+        diff(pa[0], na, pb[0], nb), diff(pa[1], na, pb[1], nb), diff(pa[2], na, pb[2], nb)))
+    print("    (one comparison: converting more when ahead and holding more when behind are the same games; "
+          "attributing it needs a reference run)")
     if level:
         print("    level  %s score %.1f%% (%d games)" % (p1, 100 * sum(level) / len(level), len(level)))
 

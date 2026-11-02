@@ -60,7 +60,15 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
-## ⏳ 2026-11-02 — QUEUE #134: CAPS ON THE CAPPED-ENDING STARTS +9.7 ± 13.4 ⇒ replicate running
+## ⏳ 2026-11-02 — QUEUE #134: CAPS ON THE CAPPED-ENDING STARTS +9.7, −1.0 ⇒ pooled +4.3 ± 9.7 (z 0.88); owner decides pool vs park
+
+**Replicate (caps_ca_r, seed 1342, 07:50 → 09:35):** −1.0 ± 14.0, Ptnml 38-65-292-72-33, 0 disconnects / forfeits — within the
+first run's ± as registered. **Pooled over 2,000 games +4.3 ± 9.7 (z 0.88)**: positive, far under 2σ, so by the registered
+table the caps go to the narrow-item pool or stay parked, the owner's call; no ship checks. Both replicates fell back from the
+runs that earned them (+12.9 → +5.2, +9.7 → −1.0), and the two replicates, which were not picked for being high, pool to
++2.1 ± 9.9: whatever the caps are worth where they fire, it is a few Elo at most, below what these venues resolve. All four
+runs where they fire pool to +6.7 ± 7.0 (z 1.88), a figure inflated by the two selected first runs. Outcome types over both
+capped runs: reversals 13.9% when caps were ahead vs 15.8% when gen 6.4 was, draws 26.2 vs 24.5%.
 
 Venue: `capped.epd`, 500 starts from 10,000 of our own games (the six transition sources + the A/A and pinned-defender runs),
 each −10 … +6 plies from the first ply where a capped class has been on the board for 6 plies in a row; phase at onset 0-192,
@@ -74,8 +82,8 @@ bar, so `caps_ca_r` (seed 1342) started 07:50; the registered decision is on tho
 checks to the owner; positive under 2σ ⇒ narrow-item pool (owner decides); ≤ 0 ⇒ stays parked.
 
 Outcome types (descriptive, not roles; see the #131-#132 entry): reversals 13.7% of games when caps were ahead vs 16.6% when
-gen 6.4 was, draws 26.1 vs 25.4% — the same pattern as the transition starts. In all three caps runs where they fire, 2-point
-pairs outnumber 0-point pairs (43 v 28, 34 v 26, 39 v 23).
+gen 6.4 was, draws 26.1 vs 25.4% — the same pattern as the transition starts. (2-point pairs outnumbered 0-point pairs in the
+first three runs, 43 v 28, 34 v 26, 39 v 23; the replicate reversed it, 33 v 38.)
 
 ## ❌ 2026-11-02 — QUEUE #132: SHELTER → DANGER COUPLING flat (−6.3) ⇒ PARKED; item 4 (middlegame KS) closed
 

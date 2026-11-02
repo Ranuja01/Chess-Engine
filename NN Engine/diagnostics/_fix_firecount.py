@@ -11,7 +11,7 @@ per game) and reports, per start set:
 
 Run (WSL): bash <runner> pyrun diagnostics/_fix_firecount.py BIN=<uci binary> [N=30] [NODES=30000] [PLIES=200]
            [SETS=eg:selfplay/eg_critical_fens.txt,kp:selfplay/kp_dense_fens.txt,uho:/mnt/e/chess_data/fastchess/openings_uho.epd]
-           [ON=FIX_HALFMOVE=1;FIX_REP_KEY=1;FIX_DRAW_EXIT=1;FIX_QS_CHECK=1] [SEED=7] [JOBS=2]
+           [ON=FIX_HALFMOVE=1;FIX_REP_KEY=1;FIX_DRAW_EXIT=1;FIX_QS_CHECK=1] [SEED=7] [JOBS=2] [ADJ=<cp>]
 Build identity (two binaries that must decide identically): BIN=<old> BIN_ON=<new> ON= ; every set must report
 "diverged: 0" and 0 crashes.
 """
@@ -41,6 +41,9 @@ SIDES = int(OPTS.get('SIDES', '1'))
 # MOVETIME=<s> plays at a fixed time per move instead of NODES (needs a quiet box); OFF_ONLY=1 skips the ON pass (accounting only)
 MOVETIME = float(OPTS.get('MOVETIME', 0))
 OFF_ONLY = OPTS.get('OFF_ONLY', '0') == '1'
+# ADJ=<cp> ends a game once the mover's reported score is at least that large either way for 6 plies in a row, as a match's
+# resign adjudication would; mate-phase searches then stop counting (0 = play every game out, the default)
+ADJ = int(OPTS.get('ADJ', 0))
 tm_totals = [0, 0.0, 0.0, 0, 0]
 
 
@@ -74,11 +77,17 @@ def play(board, env_extra, tag, binary=BIN):
             eng = chess.engine.SimpleEngine.popen_uci(binary, env=env, stderr=err)
             eng.configure({'OwnBook': False, 'Debug': True})   # Debug=false routes the engine's std::cerr to nowhere
             engs.append(eng)
-        while not b.is_game_over(claim_draw=True) and len(moves) < PLIES:
+        decided = 0
+        while not b.is_game_over(claim_draw=True) and len(moves) < PLIES and decided < 6:
             eng = engs[0] if SIDES == 1 or b.turn == board.turn else engs[1]
-            mv = eng.play(b, chess.engine.Limit(time=MOVETIME) if MOVETIME > 0 else chess.engine.Limit(nodes=NODES)).move
+            res = eng.play(b, chess.engine.Limit(time=MOVETIME) if MOVETIME > 0 else chess.engine.Limit(nodes=NODES),
+                           info=chess.engine.INFO_SCORE if ADJ else chess.engine.INFO_NONE)
+            if ADJ:
+                sc = res.info.get('score')
+                decided = decided + 1 if sc is not None and abs(sc.relative.score(mate_score=100000)) >= ADJ else 0
+            mv = res.move
             moves.append(mv.uci()); b.push(mv)
-        result = b.result(claim_draw=True) if b.is_game_over(claim_draw=True) else '*'
+        result = b.result(claim_draw=True) if b.is_game_over(claim_draw=True) else ('adj' if decided >= 6 else '*')
     except chess.engine.EngineTerminatedError as e:
         # a crashed engine is a finding, not a harness failure: record how to reproduce it and keep going
         result = 'CRASH'
@@ -151,7 +160,9 @@ for spec in OPTS['SETS'].split(','):
         for key in KEYS:
             tot_off[key] += co[key]; tot_on[key] += cn[key]
             fired_games[key] += (co[key] + cn[key]) > 0
-    print('=== %s (%s): %d games/mode, %d nodes/move, <= %d plies' % (name, path, len(sample), NODES, PLIES))
+    print('=== %s (%s): %d games/mode, %d nodes/move, <= %d plies%s' % (
+        name, path, len(sample), NODES, PLIES, ', adjudicated at |score| >= %d cp (%d games)' % (
+            ADJ, sum(r == 'adj' for _, r, _ in offs)) if ADJ else ''))
     print('  diverged: %d / %d games%s; result changed: %d; engine crashes: %d' % (
         len(div_plies), len(sample),
         ' (divergence ply median %d, min %d)' % (statistics.median(div_plies), min(div_plies)) if div_plies else '', res_change,

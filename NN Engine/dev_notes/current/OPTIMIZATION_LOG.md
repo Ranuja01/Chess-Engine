@@ -60,6 +60,16 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## 📏 2026-11-02 — QUEUE #136: STEP 0 FIRE COUNTS of the open correctness items (no behaviour change)
+Counter build `chess_engine_uci_cnt2` (`-DFIXCNT_BUILD`) and the plain build of the same source: bench 36,991,901 both. Self-play
+at 30k nodes/move, 30 starts each from eg_critical / kp_dense / UHO, resign at |score| ≥ 1000 cp (`_fix_firecount.py ADJ=1000`,
+added after #136 played every game out). On UHO: mate-distance cuts on 2.6% of nodes and prunes with the best still mated or unset
+on 0.22% of prunes, both in 30/30 games (registered < 5% of games ✗: general, not narrow); mates scored as 50-move draws and TT
+cutoffs at clock ≥ 90 only in eg_critical (20 in 2 games; 2.4% of TT cutoffs in 7 games) ✓; killer / counter swaps displace a
+capture on 2.7% of cache hits ✓; 22% of TT cutoffs have an open window. Full table and the plan changes it implies (MDP and the
+mate gate judged as general items; TT PV cutoffs to SEARCH V2 because this move loop gives most non-quiet moves the full window):
+`dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md` step 0.
+
 ## 📏 2026-11-02 — QUEUE #135: GEN 6.4 VS STOCKFISH 1.1 AT 4× AND 8× TIME ODDS ≈ 47-49%; the 3× rotation stays
 Not a ship gate: a calibration ladder. Us 60+0.6, SF 1.1 at a quarter / an eighth of that; UHO, 100 g each, 0 disconnects,
 0 time forfeits by either engine, no new WSL dumps. Per-engine time and depth from the PGN comments (scratchpad awk).

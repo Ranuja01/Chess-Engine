@@ -46,6 +46,35 @@ eg_critical, kp_dense and UHO starts (`_fix_firecount.py` pattern), logging the 
 mate gate, mate-before-50, rule-50 guard each fire in < 5% of UHO games; killer splice fires on ≥ 2% of cache hits (audit); TT PV
 cutoffs are a large share of PV-node visits (no prediction on the sign of their effect).
 
+**Step 0 result (queue #136 + an adjudicated re-run, 11-02).** The counter build (`-DFIXCNT_BUILD`, compiled out otherwise) and the
+plain build of the same source both bench 36,991,901. Self-play at 30k nodes/move, 30 starts per set (seed 7), one engine process
+per game (caches cold at each move). Headline numbers resign at |score| ≥ 1000 cp for 6 plies, as the matches do
+(`_fix_firecount.py ADJ=1000`); #136 itself played every game out, in brackets. Trigger FENs were NOT logged; each fix build
+logs its own for the move test.
+
+| item | UHO | kp_dense | eg_critical | prediction |
+|---|---|---|---|---|
+| MDP: nodes where the mate bounds alone cut | 2.6% of nodes, 30/30 games (4.0%) | 7.2% (12.9%) | 2.3% (3.3%) | < 5% of UHO games ✗ |
+| Mate gate: prunes with the best still mated or unset | 0.22% of prunes, 30/30 | 0.35%, 30/30 | 0.07%, 27/30 | < 5% of UHO games ✗ |
+| Mate before 50: 50-move draws scored on a checkmate | 0 | 0 | 20, in 2/30 games | < 5% of UHO games ✓ |
+| Rule-50 guard: TT cutoffs at clock ≥ 90 | 0 | 0 | 2.4% of TT cutoffs, 7/30 | < 5% of UHO games ✓ |
+| Killer splice: swaps that displace a capture | 2.7% of cache hits | 2.8% | 0.8% | ≥ 2% of hits ✓ (UHO, kp) |
+| TT cutoffs with an open window (β − α > 1) | 22% of TT cutoffs | 26% | 20% | a visible share ✓ |
+
+What it changes (proposed; owner to approve with the rest):
+- **MDP and the mate gate are general, not narrow.** Both fire in every game. MDP fires where a mate found in one line bounds the
+  siblings' subtrees (middlegame tactics too: adjudication removed only ~40% of its UHO count). It is a node saver of up to ~2.6%
+  on UHO and ~7% in pawn endings, Elo-neutral alone (memory node-savings-below-35-percent), so it is judged as a harm match plus the
+  bench (nodes down, WAC solved held). The mate gate turns ~0.2% of prunes back into searched moves. The two act in the same
+  mated subtrees, so they are not bundled: MDP first, the mate gate on top of it.
+- **The narrow set is mate-before-50 + the rule-50 guard**: both fire only in long endgames (eg_critical), both are the 50-move
+  rule's handling, as B1 is. Proposed: after B1 is judged, the three as one 50-move item on endgame starts.
+- **TT PV cutoffs move to SEARCH V2.** In this move loop only reducible quiet moves are scouted with a null window; first moves,
+  captures, checks and protected killers inherit the parent's full window (`get_score_for_*`, the `i == 0` / `do_lmr` branches).
+  So open-window nodes are far more common than PV nodes in a PVS engine, and forbidding their TT cutoffs would drop a fifth of
+  all TT cutoffs, which is not what the references do. It belongs with the PVS move-loop design.
+- The killer splice keeps its own match (unchanged).
+
 **Step 1 — the four built knobs**, each 1,000 g vs gen 6.4 at 10+0.1:
 - B1 and B2 bit 1 together (narrow, disjoint, both draw bookkeeping). Registered: −10 … +10; ships if ≥ −1σ and the move test at their
   triggers is not negative.

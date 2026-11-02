@@ -71,7 +71,7 @@ v2; (5) magnitude fitted on the wrong label / depth. Of ~30 reference items on r
 | PX cells (rook / queen behind a passer, stop-square ladder) | d10 screens; games ≈ −1 ± 7 | 1, 3, 4 | unscheduled; judge on eg_critical (FIX_LMR_EG failed 10-30, so on the shipped search) |
 | Singular extensions · IIR | v1, outside the consensus margins / wrong node population | 1, 2, 4 | SEARCH V2 |
 | Queen-vs-none (was additive MCL, mg-weighted) | −2.4 ± 25 | 1, 2 | queue #119 (QNOQ cap) |
-| Mobility cells / eg leg · KPROT / KFL / Kaufman depth re-fit / PST pair | instruments disagreed, shared-baseline artefact | 1, 3, 5 | scheduled (10-29 proposed additions) |
+| Mobility cells / eg leg · KPROT / KFL / Kaufman depth re-fit / PST pair | instruments disagreed, shared-baseline artefact | 1, 3, 5 | ✅ already in the engine: fitted jointly in the 10-11 structural retune (gen 2). Only the mobility eg leg stays open (§2c item 1) |
 | v1 pruning forms (quiet SEE prune, RFP depth cap, LMP improving-halving) | v1, harsher than consensus | 1, 2, 4 | margins re-sweep / SEARCH V2 |
 
 Owner (10-30) on the search rows: they are re-done in the search arc (parts of the search may be rewritten), but with the eval
@@ -114,7 +114,11 @@ middlegame (memory `eval-payoff-is-opening-midgame-not-endgame`) ⇒ item 4 (mid
    first positive read anywhere but under 2σ ⇒ targeted capped-ending venue in #134 (ship checks only if that clears 2σ) ·
    damp −0.4 ± 13.9 (stays parked).
    **Read 11-02 (#134, capped-ending starts):** caps +9.7 ± 13.4 (Ptnml middle 60%, inside −5 … +30), replicate −1.0 ± 14.0 ⇒
-   pooled +4.3 ± 9.7 (z 0.88): no ship checks; narrow-item pool or park is the owner's call.
+   pooled +4.3 ± 9.7 (z 0.88): no ship checks. **Owner 11-02: caps PARKED** (the unselected replicates pool to +2.1 ± 9.9).
+   **11-02 status of the eval leg:** every re-open from §2d with a games verdict has failed (damp, caps, shelter coupling,
+   pinned defenders); the material taper worsens gen 6.4's static WDL (retune); the 10-07 cells are already in gen 2. Left:
+   item 5 (endgame, low prior after caps / damp), the lean retune, item 6 (lazy eval exit), and two live defects with no fix
+   built (queen-vs-minor compensation; KR vs K+minor read +1.5 pawns).
    **Read 11-02 (#132): shelter coupling K 12 −6.3 ± 19.9 ⇒ PARKED.** Item 4 closed with nothing shipped.
    5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.

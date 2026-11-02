@@ -60,7 +60,10 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
-## ⏳ 2026-11-02 — QUEUE #134: CAPS ON THE CAPPED-ENDING STARTS +9.7, −1.0 ⇒ pooled +4.3 ± 9.7 (z 0.88); owner decides pool vs park
+## ❌ 2026-11-02 — QUEUE #134: CAPS ON THE CAPPED-ENDING STARTS +9.7, −1.0 ⇒ pooled +4.3 ± 9.7 (z 0.88) ⇒ caps PARKED (owner)
+
+**Owner 11-02: parked**, not the narrow-item pool. Their route back is the final retune or item 5 (the scale on the eg leg),
+fitted with the scale rather than judged alone.
 
 **Replicate (caps_ca_r, seed 1342, 07:50 → 09:35):** −1.0 ± 14.0, Ptnml 38-65-292-72-33, 0 disconnects / forfeits — within the
 first run's ± as registered. **Pooled over 2,000 games +4.3 ± 9.7 (z 0.88)**: positive, far under 2σ, so by the registered
@@ -99,7 +102,7 @@ warnings; 0 disconnects, 0 forfeits, no new WSL dumps. 03:20 → 05:58 Mon. **�
 registered −10 … +15, under the +8 replicate bar, so no replicate. With pinned defenders parked (#129), item 4 of the eval
 leg is closed with nothing shipped: neither middlegame KS refinement moves games at the screen's resolution.
 
-## ⏳ 2026-11-02 — QUEUES #131-#132: CAPS ON THE TRANSITION STARTS +12.9, +5.2 ⇒ pooled +9.0 ± 10.0 (z 1.77); damp −0.4
+## 🧪 2026-11-02 — QUEUES #131-#132: CAPS ON THE TRANSITION STARTS +12.9, +5.2 ⇒ pooled +9.0 ± 10.0 (z 1.77); damp −0.4
 
 **Replicate (#132 caps_tr_r, seed 1321, 01:26 → 03:20):** +5.2 ± 13.9, Ptnml 26-88-265-87-34, 0 disconnects / forfeits —
 within the first run's ± as registered (regression toward 0, as expected of a first run picked for being high). **Pooled over

@@ -99,8 +99,9 @@ eval-coupled. Everything else is SEARCH V2. Each new correctness item starts wit
   - EVAL, measure first: re-run the SF11 pair counterfactual (`_triangulate_sf11.py MODE=egshare`, REFERENCE-BENCH-LADDER §3a)
     on the SF18 WDL label. On cp it ranked threats −75%, king −18%, initiative −16%, placement −15%, passed −12%, and said
     SF11's scaling would HURT (+85%); the late-endgame gap is SF11's largest (eg −84, 29% of our error). Picks the next term.
-  - EVAL, games re-screens on the current engine: the 10-07 "gated, NOT shipped" items (Kaufman depth re-fit, mobility cells,
-    king protector C3-c, KFL+PST pair), each 1,000 g at 10+0.1 and, if positive, with a tighter RFP margin (the crank form).
+  - ~~EVAL, games re-screens on the current engine: the 10-07 "gated, NOT shipped" items (Kaufman depth re-fit, mobility cells,
+    king protector C3-c, KFL+PST pair), each 1,000 g at 10+0.1 and, if positive, with a tighter RFP margin (the crank form).~~
+    Void (11-02): all four were fitted jointly in the 10-11 structural retune (gen 2) and are live; nothing to re-screen.
   - EVAL, live defects: queen-vs-minor compensation over-valued (memory v2-overvalues-queen-vs-minor-compensation); KR vs K+minor
     74% drawn but read as +1.5 pawns; minor endings over-stated ~1.5x on WDL (the ONEMINOR cell, POT register row).
   - EVAL x SEARCH (register triggers that name this transition): POT race + tightened RFP / futility / razoring at equal time;

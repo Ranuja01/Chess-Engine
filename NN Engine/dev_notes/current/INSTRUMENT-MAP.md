@@ -43,6 +43,7 @@ pointed at a depth-6-gated knob it is structurally blind to.
 | `_venue_power.py` | — | — | **Run it BEFORE spending games and before writing any null into a doc.** It says what the venue can resolve; most nulls in the record are unresolved, not refuted. |
 
 | **fastchess A/A, 2 × 1,000** (10+0.1, UHO, colour-paired; queue #128, 2026-11-01) | ±12.9 pooled | **−5.3 ± 12.9 ≈ 0** | Gen 6.4 vs itself. Runs agree (between-run χ² 0.55 / 1 df); 50-pair blocks spread LESS than claimed (χ² 7.7 / 18 df). One between-run df cannot rule out a modest excess spread. A single run read **−10** with no change at all. |
+| **"Ahead / behind" split of a head-to-head match** (`fastchess_report.py --roles`; caps transition runs, 2026-11-02) | — | — | ☠️ **Degenerate.** Every game has one side ahead and one behind, so the arm's hold rate when behind is 1 − the control's win rate when ahead *in the same games*: "converts more" and "holds more" are one number (it printed +1.5 ± 4.4 pp twice). Splitting them needs a reference run (control vs control on the same starts) — and then each half carries the full match noise. |
 
 ☠️ **Across 57 pools / 88k games on the old Python harness, no A/A control was ever run.** Its error bars are
 theoretical, not measured, and its +4.6 may be selection (we test what we expect to help) or a genuine p1 bias,

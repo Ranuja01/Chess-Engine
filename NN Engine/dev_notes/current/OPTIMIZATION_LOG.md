@@ -76,6 +76,13 @@ within the first run's ± as registered (regression toward 0, as expected of a f
 `_make_transition_starts.py NEAR=caps`), with a roles read (conversion when ahead / hold when behind, `fastchess_report.py
 --roles`) of both transition runs first.
 
+**Roles read (#134 step 0, 2,000 games, |edge| ≥ 30 cp, 62 of 1,000 pairs level):** caps ahead W 62.7 / D 24.7 / L 12.6% vs gen
+6.4 ahead 61.2 / 23.3 / 15.5% ⇒ conversion +1.5 ± 4.4 pp, and hold +1.5 ± 4.4 pp — the same number by construction: in a
+head-to-head match the arm's hold rate when behind is 1 − the control's win rate when ahead in the same games, so the two
+cannot be separated without a control-vs-control reference on the same starts (INSTRUMENT-MAP §A). The caps gain is not
+attributable to either side of the trade-down decision from these games. Descriptively it shows as fewer reversals (the side
+ahead losing: 12.6% when caps were ahead vs 15.5% when gen 6.4 was), not as a different draw rate (24.7 vs 23.3%).
+
 First run (#131):
 
 Venue: the transition starts (`transition.epd`, 500 late-middlegame / early-endgame starts with a modest edge). Binary

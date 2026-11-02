@@ -12,6 +12,11 @@ plies, reason) so diagnostics/_pair_discrimination.py and the venue tools read f
 runs of one configuration should agree within them); within files, consecutive N-pair blocks against the pair variance. A ratio
 near 1 means the pentanomial ± describes the real spread; well above 1 means runs or blocks vary more than it allows.
 Pairs are keyed per file: two runs with different seeds share openings from the same book.
+--roles CP splits games by who started ahead, for venues whose starts carry an edge (transition / capped starts). A pair's edge
+is the mean of the two first searched moves' scores (both from the side to move, one per engine); |edge| ≥ CP gives each game an
+ahead and a behind side, otherwise the pair is level. Within a colour-swapped pair the score gain when ahead equals the gain when
+behind by construction, so the split reads OUTCOMES instead: conversion (win% when ahead) and hold (non-loss% when behind),
+each against the other engine in the same role. Descriptive: its ± treats games as independent.
 """
 import argparse, collections, csv, math, re, statistics as st
 import chess.pgn
@@ -70,12 +75,53 @@ def dispersion(by_file, names, block):
         print("  within runs:  chi2 %.1f on %d df (ratio %.2f, p %.3f)" % (x, df, x / df, chi2_sf(x, df)))
 
 
+def roles(role_rows, p1, cp):
+    """Outcomes by starting role (see --roles). role_rows: key -> [(p1 score, p1 white, stm white, first score, opponent)]."""
+    ours = {"ahead": collections.Counter(), "behind": collections.Counter()}
+    theirs = {"ahead": collections.Counter(), "behind": collections.Counter()}
+    level, skipped, opp = [], 0, "the other engine"
+    for gs in role_rows.values():
+        if len(gs) != 2 or any(x[3] is None for x in gs):
+            skipped += 1
+            continue
+        edge = (gs[0][3] + gs[1][3]) / 2
+        if abs(edge) < cp:
+            level += [x[0] for x in gs]
+            continue
+        ahead_white = gs[0][2] if edge > 0 else not gs[0][2]
+        for ps, p1w, _, _, o in gs:
+            opp = o
+            r = "ahead" if p1w == ahead_white else "behind"
+            ours[r][ps] += 1
+            theirs["behind" if r == "ahead" else "ahead"][1.0 - ps] += 1
+
+    def wdl(c):
+        n = sum(c.values())
+        return n, [c[1.0] / n, c[0.5] / n, c[0.0] / n] if n else [0.0, 0.0, 0.0]
+
+    def diff(pa, na, pb, nb):
+        e = 1.96 * math.sqrt(pa * (1 - pa) / na + pb * (1 - pb) / nb) if na and nb else float("nan")
+        return "%+.1f ± %.1f pp" % (100 * (pa - pb), 100 * e)
+
+    print("  roles by starting edge (|mean first-move score| ≥ %d cp; %d pairs level, %d skipped; descriptive, games "
+          "treated as independent):" % (cp, len(level) // 2, skipped))
+    for r, what, k in (("ahead", "conversion = win%", 0), ("behind", "hold = non-loss%", 2)):
+        na, pa = wdl(ours[r]); nb, pb = wdl(theirs[r])
+        ra, rb = (pa[0], pb[0]) if k == 0 else (1 - pa[2], 1 - pb[2])
+        print("    %-6s %s W %4.1f%% D %4.1f%% L %4.1f%% (%d) · %s W %4.1f%% D %4.1f%% L %4.1f%% (%d) ⇒ %s %s" % (
+            r, p1, 100 * pa[0], 100 * pa[1], 100 * pa[2], na, opp, 100 * pb[0], 100 * pb[1], 100 * pb[2], nb,
+            what, diff(ra, na, rb, nb)))
+    if level:
+        print("    level  %s score %.1f%% (%d games)" % (p1, 100 * sum(level) / len(level), len(level)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pgn", nargs="+")
     ap.add_argument("--p1", help="engine whose score is reported (default: White of the first game)")
     ap.add_argument("--summary-out")
     ap.add_argument("--blocks", type=int, help="pairs per block for the dispersion check")
+    ap.add_argument("--roles", type=float, help="split by starting edge: |edge| in cp at or above which a side is ahead")
     a = ap.parse_args()
 
     games = []
@@ -91,6 +137,7 @@ def main():
     p1 = a.p1 or games[0][1].headers["White"]
     tstats = collections.defaultdict(lambda: {"t": [], "d": [], "n": [], "ns": 0.0, "tn": 0.0})
     pairs = collections.OrderedDict()
+    role_rows = collections.defaultdict(list)
     term = collections.Counter()
     rows = []
     W = L = D = 0
@@ -109,6 +156,7 @@ def main():
         pairs.setdefault(key, []).append(ps)
         node = g
         plies = 0
+        first = None
         while node.variations:
             node = node.variation(0)
             mover = white if node.parent.board().turn else black
@@ -116,11 +164,16 @@ def main():
             m = COMMENT.match(node.comment or "")
             if not m or int(m.group("depth")) == 0:      # book / no search info
                 continue
+            if first is None and m.group("score"):
+                sc = m.group("score")
+                body = sc.lstrip("+-")
+                first = (-1 if sc.startswith("-") else 1) * (10000.0 if body.startswith("M") else float(body) * 100)
             ts = tstats[mover]
             t = float(m.group("time"))
             ts["t"].append(t); ts["d"].append(int(m.group("depth")))
             if m.group("nodes"):
                 n = int(m.group("nodes")); ts["n"].append(n); ts["ns"] += n; ts["tn"] += t
+        role_rows[key].append((ps, p1_white, g.board().turn == chess.WHITE, first, black if p1_white else white))
         rows.append([gi, list(pairs).index(key), "white" if p1_white else "black", white, black, res, ps, plies,
                      h.get("Termination", "")])
 
@@ -141,6 +194,8 @@ def main():
     if a.blocks:
         by_file = [[sum(v) for (fi, _), v in pairs.items() if fi == f and len(v) == 2] for f in range(len(a.pgn))]
         dispersion(by_file, [p.replace("\\", "/").rsplit("/", 1)[-1] for p in a.pgn], a.blocks)
+    if a.roles is not None:
+        roles(role_rows, p1, a.roles)
     print("\nper engine (searched moves only):")
     print("  %-14s %7s %8s %8s %8s %8s %7s %10s %9s" % ("engine", "moves", "mean s", "median", "p95", "max", "depth", "nodes", "nps"))
     for name, ts in sorted(tstats.items()):

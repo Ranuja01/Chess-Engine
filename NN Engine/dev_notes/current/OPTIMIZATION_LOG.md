@@ -60,7 +60,16 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
-## ⏳ 2026-11-01 night — QUEUE #131: CAPS AND DAMP RE-JUDGED WHERE THEY FIRE — caps +12.9 (first run), damp −0.4
+## ⏳ 2026-11-02 — QUEUES #131-#132: CAPS ON THE TRANSITION STARTS +12.9, +5.2 ⇒ pooled +9.0 ± 10.0 (z 1.77); damp −0.4
+
+**Replicate (#132 caps_tr_r, seed 1321, 01:26 → 03:20):** +5.2 ± 13.9, Ptnml 26-88-265-87-34, 0 disconnects / forfeits —
+within the first run's ± as registered (regression toward 0, as expected of a first run picked for being high). **Pooled over
+2,000 games +9.0 ± 10.0, z 1.77**: positive where they fire, under 2σ, so #133's ship checks do not run. Per the 11-01 plan
+(1-2σ ⇒ targeted venue) #134 judges them on starts where a capped ending is on the board or one trade away (`capped.epd`,
+`_make_transition_starts.py NEAR=caps`), with a roles read (conversion when ahead / hold when behind, `fastchess_report.py
+--roles`) of both transition runs first.
+
+First run (#131):
 
 Venue: the transition starts (`transition.epd`, 500 late-middlegame / early-endgame starts with a modest edge). Binary
 `chess_engine_uci_ks4` both sides (fingerprints base 36,991,901 · caps 38,998,902 · damp 35,917,541), preflight 0 warnings;

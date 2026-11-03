@@ -4,6 +4,21 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚡ 2026-11-03 — KS_FAST: king safety −4.4% bench time, result-identical (knob, default 0 until the owner flips it)
+Sampled profile first (`perf` on a `-g` copy, 16 self-play games st=0.2; `_perf_symbolise.py` gained `LINES=<regex>` for per-line self
+time): king safety 6.9% of all samples (≈ 10% of engine time); within it the contest planes (per-zone-square attack vs defence
+counts, `int na[64], nd[64]` zeroed per king and filled per attacked square for every man, pawns included) ≈ 52%, the attacker
+loop ≈ 16% (its contested-share divisions feed only `KS_V2_DEFAWARE`, off, and the probe), scoring ≈ 10%, king blockers ≈ 7% (also
+recomputed for mobility's pin rule, 0.66% of samples), weak / checks / flank / zone ≈ 5%.
+`KS_FAST=1`: the contest planes as bit-sliced counters over the zone (pawns added as two shifted bitboards, a borrow chain for
+attackers − defenders), attackers whose stored mask misses the zone skipped before the plain-occupancy recompute (that mask is a
+subset of the x-ray one), the share divisions only when DEFAWARE reads them. `KS_VERIFY=1` computes both forms per call and aborts on
+any difference. Plain build `chess_engine_uci_ksfast`:
+- bench 252 / 36,960,934 at `KS_FAST=0` and `=1` (identical); `KS_VERIFY=1` through the whole bench and 40 games (20 eg_critical,
+  20 UHO, st=0.1): 0 mismatches, 0 disconnects; v1 250 / 35,310,778.
+- bench time, alternating, 4 each: KS_FAST=0 33.50 / 34.05 / 34.02 / 33.65 s (mean 33.81) · KS_FAST=1 32.00 / 32.59 / 32.61 / 32.13 s
+  (mean 32.33): **−4.4% time, +4.6% nps**, every fast run below every slow one.
+
 ## 📏 2026-11-03 — SPEED RE-PROFILE on gen 6.5 (profiler build, `E:\chess_data\profile_v2_g65.log`)
 Same instrument as the 10-22 gen 5 profile: `evalprofile_mid` 40 midgame FENs d12 (Cython profiler build, `V2_PRESET=shipped`), plus
 arms with threats in the eval off and threat ordering off (neither has its own scope, so each is priced by difference), and WAC d10.

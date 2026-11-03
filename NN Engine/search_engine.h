@@ -3206,6 +3206,12 @@ namespace Config
     // before the root. A repetition count is map count + path occurrences, the same number the map held before.
     inline int REP_STACK = 1;
     inline int QGEN_VERIFY = 0;
+    // KS_FAST: king safety counts attacks and defence per king-zone square with bit-sliced counters (no per-square arrays,
+    // pawns added set-wise), its attacker loop skips pieces whose attack mask misses the zone, and the contested-share
+    // divisions run only when KS_V2_DEFAWARE reads them (same channels, less work). KS_VERIFY: compute both forms in every
+    // king-safety call and abort on the first difference, printing it.
+    inline int KS_FAST = 0;
+    inline int KS_VERIFY = 0;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound

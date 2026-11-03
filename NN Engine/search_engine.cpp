@@ -2849,6 +2849,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         }
         Config::QGEN_NOISY_ONLY = env_int("QGEN_NOISY_ONLY", Config::QGEN_NOISY_ONLY);
         Config::QGEN_VERIFY = env_int("QGEN_VERIFY", Config::QGEN_VERIFY);
+        Config::KS_FAST = env_int("KS_FAST", Config::KS_FAST);
+        Config::KS_VERIFY = env_int("KS_VERIFY", Config::KS_VERIFY);
         g_mate_quick_verify = env_int("MATE_TEST_VERIFY", 0) != 0;
         Config::REP_STACK = env_int("REP_STACK", Config::REP_STACK);
         Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);

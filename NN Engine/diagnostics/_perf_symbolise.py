@@ -1,9 +1,12 @@
 """Symbolise a perf self-time report with addr2line (this perf build cannot resolve symbols itself).
 Usage: python3 perf_sym.py <perf.data> <binary>
 Aggregates self time by INNERMOST function (inlined code attributed to the inlined function) and by the
-enclosing real function (what the call actually lands in after LTO inlining)."""
-import subprocess, sys, re, collections
+enclosing real function (what the call actually lands in after LTO inlining).
+LINES=<regex>: also print self time per source line for the addresses whose innermost function matches the regex
+(e.g. LINES='ks_channels|ks_units' to see where inside a function the time goes)."""
+import subprocess, sys, re, collections, os
 data, binary = sys.argv[1], sys.argv[2]
+LINES = os.environ.get('LINES')
 rep = subprocess.run(['perf', 'report', '-i', data, '--stdio', '--no-children', '--sort', 'dso,symbol', '--percent-limit', '0.01',
                       '-g', 'none'], capture_output=True, text=True).stdout
 rows = []
@@ -16,7 +19,7 @@ other = sum(r[0] for r in rows if r not in eng)
 addrs = [r[3] for r in eng]
 out = subprocess.run(['addr2line', '-f', '-C', '-i', '-e', binary] + addrs, capture_output=True, text=True).stdout.splitlines()
 # addr2line -i prints (function, file:line) pairs, innermost first, a variable number per address: re-run per address for alignment
-inner = collections.Counter(); outer = collections.Counter()
+inner = collections.Counter(); outer = collections.Counter(); lines = collections.Counter()
 for pct, dso, kind, a in eng:
     o = subprocess.run(['addr2line', '-f', '-C', '-i', '-e', binary, a], capture_output=True, text=True).stdout.splitlines()
     funcs = [o[i] for i in range(0, len(o), 2)]
@@ -25,6 +28,9 @@ for pct, dso, kind, a in eng:
     name = lambda f: re.sub(r'\(.*', '', f)[:70]
     inner[name(funcs[0])] += pct
     outer[name(funcs[-1])] += pct
+    if LINES and len(o) > 1 and re.search(LINES, funcs[0]):
+        # "path/file.cpp:123 (discriminator 2)"; the path may contain spaces, so strip the suffix before taking the basename
+        lines[(os.path.basename(re.sub(r' \(discriminator \d+\)$', '', o[1])), name(funcs[0]))] += pct
 tot = sum(r[0] for r in eng)
 print('engine samples %.1f%% of total; other DSOs (libc, kernel, ...) %.1f%%' % (tot, other))
 print('\n=== SELF TIME by innermost function (inlined code counted where it was written)')
@@ -33,6 +39,10 @@ for f, p in inner.most_common(40):
 print('\n=== SELF TIME by enclosing real function (after inlining)')
 for f, p in outer.most_common(25):
     print('  %6.2f%%  %s' % (p, f))
+if LINES:
+    print('\n=== SELF TIME by source line, innermost function matching %r (total %.2f%%)' % (LINES, sum(lines.values())))
+    for (l, f), p in lines.most_common(60):
+        print('  %6.2f%%  %-24s %s' % (p, l, f))
 print('\n=== other DSOs')
 dso = collections.Counter()
 for r in rows:

@@ -844,8 +844,66 @@ static int KS_W_LIVE[7] = {0, 0, 31, 31, 47, 78, 0};
 // SF KingFlank: the king's file and its neighbours, 3 files at the edge, 4 inside.
 static constexpr uint64_t KS_FILE_BB(int f) { return 0x0101010101010101ULL << f; }
 
+/* Per-square counts on the king zone as bit-sliced counters: plane k holds bit k of each square's count. Adding a mask adds
+ * 1 on each of its squares by a ripple carry through the planes; starting at plane 1 adds 2. Five planes hold up to 31,
+ * above any possible count (a zone square has at most 15 attackers, or 2 pawn defenders counted twice + 13 others). */
+struct ZoneCount { uint64_t b[5]; };
+static inline void zc_add(ZoneCount &n, uint64_t m, int from = 0) noexcept
+{
+	for (int k = from; k < 5 && m; ++k){
+		const uint64_t carry = n.b[k] & m;
+		n.b[k] ^= m;
+		m = carry;
+	}
+}
+
+/* The contest planes (see KsChannels) with bit-sliced counters, the same numbers as the per-square loop in ks_channels:
+ * enemy men attacking each zone square vs our men defending it, pawn defenders counted twice, kings excluded. Pawns are
+ * added set-wise (each zone square is attacked by at most one pawn per capture direction); the other men from the masks
+ * build_side_attacks stored, which list pawns first and the king last. Not for KS_V2_PIN_DEF (its defenders are restricted). */
+static inline uint64_t ks_contest_planes(const V2Context &c, const SideAttacks &att, const SideAttacks &def, uint64_t zone,
+                                         bool white_king, int &excess, int &sq) noexcept
+{
+	const uint64_t own   = white_king ? c.white : c.black;
+	const uint64_t enemy = white_king ? c.black : c.white;
+	const uint64_t ap = c.pawns & enemy, dp = c.pawns & own;
+	uint64_t al, ar, dl, dr;
+	if (white_king){
+		al = (ap & ~BB_FILE_A) >> 9;  ar = (ap & ~BB_FILE_H) >> 7;
+		dl = (dp & ~BB_FILE_A) << 7;  dr = (dp & ~BB_FILE_H) << 9;
+	} else {
+		al = (ap & ~BB_FILE_A) << 7;  ar = (ap & ~BB_FILE_H) << 9;
+		dl = (dp & ~BB_FILE_A) >> 9;  dr = (dp & ~BB_FILE_H) >> 7;
+	}
+	ZoneCount na{}, nd{};
+	zc_add(na, al & zone);     zc_add(na, ar & zone);
+	zc_add(nd, dl & zone, 1);  zc_add(nd, dr & zone, 1);
+	int end = att.n;
+	if (end > 0 && att.piece_type[end - 1] == KING) --end;
+	for (int k = __builtin_popcountll(ap); k < end; ++k) zc_add(na, att.piece_att[k] & zone);
+	end = def.n;
+	if (end > 0 && def.piece_type[end - 1] == KING) --end;
+	for (int k = __builtin_popcountll(dp); k < end; ++k) zc_add(nd, def.piece_att[k] & zone);
+
+	// na - nd per square, bit-sliced with a borrow chain: a final borrow means nd > na; otherwise the planes hold na - nd.
+	uint64_t diff[5], borrow = 0, nonzero = 0;
+	for (int k = 0; k < 5; ++k){
+		const uint64_t a = na.b[k], d = nd.b[k];
+		diff[k] = a ^ d ^ borrow;
+		borrow  = (~a & (d | borrow)) | (a & d & borrow);
+		nonzero |= diff[k];
+	}
+	const uint64_t contested = zone & ~borrow & nonzero;
+	excess = 0;
+	for (int k = 0; k < 5; ++k) excess += __builtin_popcountll(diff[k] & contested) << k;
+	sq = __builtin_popcountll(contested & (na.b[1] | na.b[2] | na.b[3] | na.b[4]));
+	return contested;
+}
+
+// fast: KS_FAST's forms (ks_contest_planes, attackers that miss the zone skipped). shares: compute the contested-share
+// channels (w_att_contest, share_t), which only KS_V2_DEFAWARE and the probe read.
 inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &wa, const SideAttacks &ba,
-                        bool white_king, bool full)
+                        bool white_king, bool full, bool fast = false, bool shares = true)
 {
 	ch = KsChannels{};
 	const uint64_t kbb = c.kings & (white_king ? c.white : c.black);
@@ -877,7 +935,9 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	const bool want_contest = full || Config::KS_V2_DEFAWARE || Config::KS_V2_CONTEST_EXCESS
 	                       || Config::KS_V2_CONTEST_SQ || Config::KS_V2_CONTEST_SQ_Q;
 	uint64_t contested = 0;
-	if (want_contest){
+	if (want_contest && fast && !Config::KS_V2_PIN_DEF){
+		contested = ks_contest_planes(c, att, def0, zone, white_king, ch.contest_excess, ch.contest_sq);
+	} else if (want_contest){
 		int na[64] = {0}, nd[64] = {0};
 		// Every man but the kings, with the attack masks build_side_attacks stored (the same occupancy, x-ray included).
 		for (int side = 0; side < 2; ++side){
@@ -916,6 +976,9 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	for (int k = 0; k < att.n; ++k){
 		const uint8_t pt = att.piece_type[k];
 		if (pt < KNIGHT || pt > QUEEN) continue;
+		// Every channel below needs the piece to reach the zone, and the plain-occupancy mask is a subset of the stored one
+		// (x-ray removes blockers), so a stored mask that misses the zone settles the piece.
+		if (fast && !(att.piece_att[k] & zone)) continue;
 		const int     i  = pt - KNIGHT;
 		const uint8_t sq = att.piece_sq[k];
 		const bool    xray_stored = Config::KS_V2_XRAY && (pt == BISHOP || pt == ROOK);
@@ -932,10 +995,12 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 				if (ax & zone){ ++ch.n_att_x; ch.w_att_x += W[pt]; ++ch.att_x_t[i]; }
 				if (cnt_mask & zone){
 					ch.adj_inst += __builtin_popcountll(cnt_mask & ring);
-					const int foot = __builtin_popcountll(cnt_mask & zone);
-					const int hit  = __builtin_popcountll(cnt_mask & zone & contested);
-					w_contest256 += (long long)W[pt] * 256 * hit / foot;
-					ch.share_t[i] += 256 * hit / foot;
+					if (shares){
+						const int foot = __builtin_popcountll(cnt_mask & zone);
+						const int hit  = __builtin_popcountll(cnt_mask & zone & contested);
+						w_contest256 += (long long)W[pt] * 256 * hit / foot;
+						ch.share_t[i] += 256 * hit / foot;
+					}
 				}
 			}
 		}
@@ -999,6 +1064,30 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	dev_notes/archive/eval/EVAL-V2-RUNG1-KS-DESIGN.md for the full 14-item audit of SF's kingDanger, and
 	dev_notes/archive/eval/TEXEL-C3-DETECTORS-DESIGN-2026-09-27.md for the 2026-09-27 balance channels (every one 0 by default).
 */
+// KS_VERIFY: the KS_FAST channels against the original forms for one king; the first difference is printed and aborts.
+static void ks_verify(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, bool white_king, bool full)
+{
+	KsChannels f, r;
+	ks_channels(f, c, wa, ba, white_king, full, true, true);
+	ks_channels(r, c, wa, ba, white_king, full, false, true);
+	bool same = f.n_att == r.n_att && f.w_att == r.w_att && f.weak == r.weak && f.adj_sq == r.adj_sq && f.n_att_x == r.n_att_x
+	         && f.w_att_x == r.w_att_x && f.adj_inst == r.adj_inst && f.unsafe == r.unsafe && f.blockers == r.blockers
+	         && f.flank_att == r.flank_att && f.flank_def == r.flank_def && f.knight_def == r.knight_def
+	         && f.contest_excess == r.contest_excess && f.contest_sq == r.contest_sq && f.w_att_contest == r.w_att_contest
+	         && f.chk_r == r.chk_r && f.chk_q == r.chk_q && f.chk_b == r.chk_b && f.chk_n == r.chk_n
+	         && f.enemy_queen == r.enemy_queen && f.gate == r.gate;
+	for (int t = 0; t < 4; ++t)
+		same = same && f.att_t[t] == r.att_t[t] && f.att_x_t[t] == r.att_x_t[t] && f.share_t[t] == r.share_t[t];
+	if (same) return;
+	std::cerr << "KS_VERIFY mismatch, " << (white_king ? "white" : "black") << " king; white " << c.white << " black " << c.black
+	          << " pawns " << c.pawns << " knights " << c.knights << " bishops " << c.bishops << " rooks " << c.rooks
+	          << " queens " << c.queens << " kings " << c.kings << "\n  fast: att " << f.n_att << "/" << f.w_att << " excess "
+	          << f.contest_excess << " sq " << f.contest_sq << " adj_inst " << f.adj_inst << " w_contest " << f.w_att_contest
+	          << "\n  ref:  att " << r.n_att << "/" << r.w_att << " excess " << r.contest_excess << " sq " << r.contest_sq
+	          << " adj_inst " << r.adj_inst << " w_contest " << r.w_att_contest << std::endl;
+	std::abort();
+}
+
 inline int ks_units(const V2Context &c, const SideAttacks &wa, const SideAttacks &ba, bool white_king)
 {
 	const bool full = Config::KS_V2_ATT_XRAY || Config::KS_V2_ADJ_INST || Config::KS_V2_UNSAFE || Config::KS_V2_BLOCKERS
@@ -1006,7 +1095,9 @@ inline int ks_units(const V2Context &c, const SideAttacks &wa, const SideAttacks
 	               || Config::KS_V2_KNIGHT_DEF || Config::KS_V2_CONTEST_EXCESS || Config::KS_V2_CONTEST_SQ
 	               || Config::KS_V2_CONTEST_SQ_Q || Config::KS_V2_DEFAWARE || Config::KS_V2_GATE || Config::KS_V2_PIN_DEF;
 	KsChannels ch;
-	ks_channels(ch, c, wa, ba, white_king, full);
+	const bool fast = Config::KS_FAST != 0;
+	ks_channels(ch, c, wa, ba, white_king, full, fast, !fast || Config::KS_V2_DEFAWARE);
+	if (Config::KS_VERIFY) ks_verify(c, wa, ba, white_king, full);
 	if (!(c.kings & (white_king ? c.white : c.black))) return 0;
 	if (Config::KS_V2_GATE && !ch.gate) return 0;
 

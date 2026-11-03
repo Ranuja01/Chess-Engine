@@ -4,6 +4,19 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚡ 2026-11-03 — SPEED BATCH 7 (result-identical knobs, default 0): KS_FAST + REP_FILTER + PAWN_HASH = −8.8% bench time
+All three keep bench 252 / 36,960,934 exactly; every verify mode together (`KS_VERIFY=1`, `REP_FILTER=2`, `PAWN_HASH=2`) over the
+bench and 40 games (UHO + eg_critical, st=0.1): 0 mismatches, 0 disconnects. Pinned bench (`taskset`, 5 alternating rounds):
+all off 34.87 s · `KS_FAST=1,REP_FILTER=1` 33.68 s (−3.4%) · + `PAWN_HASH=1` **31.81 s (−8.8%)**, the pawn hash faster in every round.
+- `REP_FILTER`: is_repetition's `position_count.find` runs only when a 4096-bit filter of the root map allows the key (the map is
+  fixed during a search). Invisible on the bench (its map holds only the root); in real play (perf, 16 self-play games, seed 651)
+  the `std::unordered_map` internals went from ≈ 2.9% of samples to < 0.4%, is_repetition +0.5 points.
+- `KS_FAST` in real play: king safety 6.85% → 4.57% of samples; it now also reads the king blockers mobility computed.
+- `PAWN_HASH`: 16K entries keyed exactly by both pawn sets; holds the pawn detector, pawn_structure_mp's per-side legs (the phase
+  blend stays per position) and the KS-B shelter legs for up to four king squares per side; cleared in v2_c3_init.
+- `PREFETCH_EARLY` (child-table prefetches right after the board update): not resolved on the bench (−0.8%), TT share up in the
+  perf comparison; left off.
+
 ## ⚡ 2026-11-03 — KS_FAST: king safety −4.4% bench time, result-identical (knob, default 0 until the owner flips it)
 Sampled profile first (`perf` on a `-g` copy, 16 self-play games st=0.2; `_perf_symbolise.py` gained `LINES=<regex>` for per-line self
 time): king safety 6.9% of all samples (≈ 10% of engine time); within it the contest planes (per-zone-square attack vs defence

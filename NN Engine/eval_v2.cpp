@@ -573,6 +573,10 @@ struct SideAttacks {
 	uint8_t  piece_sq[64];
 	uint8_t  piece_type[64];
 	uint64_t piece_att[64];
+	// This side's king blockers (v2_king_blockers), when mobility_build computed them for MOB_V2_PIN, so king safety reads
+	// them instead of computing them again. Valid only while blockers_set; build_side_attacks clears it.
+	uint64_t king_blockers;
+	bool     blockers_set;
 };
 
 /*
@@ -692,6 +696,7 @@ inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, 
 	sa.all = sa.dbl = 0;
 	for (int t = 0; t < 7; ++t) sa.by[t] = 0;
 	sa.n = 0;
+	sa.blockers_set = false;
 
 	const uint64_t own = white ? c.white : c.black;
 	const uint64_t typeMasks[6] = {c.pawns, c.knights, c.bishops, c.rooks, c.queens, c.kings};
@@ -920,7 +925,8 @@ inline void ks_channels(KsChannels &ch, const V2Context &c, const SideAttacks &w
 	SideAttacks defp;
 	const SideAttacks *defs = &def0;
 	uint64_t blk = 0;
-	if (full || Config::KS_V2_BLOCKERS || Config::KS_V2_PIN_DEF) blk = v2_king_blockers(c, white_king);
+	if (full || Config::KS_V2_BLOCKERS || Config::KS_V2_PIN_DEF)
+		blk = (fast && def0.blockers_set) ? def0.king_blockers : v2_king_blockers(c, white_king);
 	// Only a pinned knight, bishop, rook or queen changes the map; with none, the rebuild would equal the shared one.
 	if (Config::KS_V2_PIN_DEF && (blk & own & ~(c.pawns | c.kings))){
 		build_side_attacks(defp, c, white_king, nullptr, blk & own, ksq);
@@ -1934,9 +1940,10 @@ static inline void mobility_build(const V2Context &c, SideAttacks &wa, SideAttac
 	mob_reset(mb);
 	mw.area = mob_area(c, true);
 	mb.area = mob_area(c, false);
+	uint64_t kw = 0, kb = 0;
 	if (Config::MOB_V2_PIN){
-		const uint64_t kw = mob_king_blockers(c, true);
-		const uint64_t kb = mob_king_blockers(c, false);
+		kw = mob_king_blockers(c, true);
+		kb = mob_king_blockers(c, false);
 		mw.area &= ~kw;
 		mb.area &= ~kb;
 		mw.pinned = kw & c.white;
@@ -1946,6 +1953,10 @@ static inline void mobility_build(const V2Context &c, SideAttacks &wa, SideAttac
 	}
 	build_side_attacks(wa, c, true,  &mw);
 	build_side_attacks(ba, c, false, &mb);
+	if (Config::MOB_V2_PIN && Config::KS_FAST){
+		wa.king_blockers = kw;  wa.blockers_set = true;
+		ba.king_blockers = kb;  ba.blockers_set = true;
+	}
 	if (Config::MOB_V2_SAFE){
 		mob_count_safe(mw, ba);
 		mob_count_safe(mb, wa);

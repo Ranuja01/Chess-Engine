@@ -231,6 +231,10 @@ static constexpr int REP_PATH_MAX = 1024;
 static RepPathEntry g_rep_path[REP_PATH_MAX];
 static int g_rep_len = 0;
 static bool g_rep_in_search = false;   // true between the start of get_engine_move's search and its final make_move
+// Config::REP_FILTER: a 4096-bit filter of the repetition keys position_count holds at the root (it does not change during the
+// search). A clear bit means the key is not in the map, so is_repetition skips the hash lookup for almost every node.
+static uint64_t g_rep_filter[64];
+static inline bool rep_filter_has(uint64_t key) { return (g_rep_filter[key >> 58] >> ((key >> 52) & 63)) & 1; }
 
 // QGEN_VERIFY: qsearch move lists compared, and those whose noisy-only build differed from the full list's noisy subset.
 long g_qgen_verify_lists = 0, g_qgen_verify_mismatch = 0;
@@ -2853,6 +2857,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_VERIFY = env_int("KS_VERIFY", Config::KS_VERIFY);
         g_mate_quick_verify = env_int("MATE_TEST_VERIFY", 0) != 0;
         Config::REP_STACK = env_int("REP_STACK", Config::REP_STACK);
+        Config::REP_FILTER = env_int("REP_FILTER", Config::REP_FILTER);
         Config::FIX_MAX_NULL = env_int("FIX_MAX_NULL", Config::FIX_MAX_NULL);
         Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
         Config::FIX_MIN_SCOUT = env_int("FIX_MIN_SCOUT", Config::FIX_MIN_SCOUT);
@@ -2902,6 +2907,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             Config::TT_WAYS = 1;
         Config::ENABLE_TT_PREFETCH = env_flag("ENABLE_TT_PREFETCH", Config::ENABLE_TT_PREFETCH);
         Config::PREFETCH_TABLES = env_int("PREFETCH_TABLES", Config::PREFETCH_TABLES);
+        Config::PREFETCH_EARLY = env_int("PREFETCH_EARLY", Config::PREFETCH_EARLY);
         Config::TM_MODE = env_int("TM_MODE", Config::TM_MODE);
         Config::TM_PARTIAL = env_int("TM_PARTIAL", Config::TM_PARTIAL);
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
@@ -3613,6 +3619,10 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
 
     /* std::cout << occupied << " | " << occupied_white<< " | " << occupied_black << std::endl;
     std::cout << "AFTER: "<< std::endl; */
+    // PREFETCH_EARLY: the child's key, castling rights and ep square are final here, so its table slots can be requested
+    // before the clock / repetition / history work below instead of after it, giving the loads longer to arrive.
+    if (Config::PREFETCH_EARLY && Config::PREFETCH_TABLES)
+        prefetch_child_tables(zobrist, castling_rights, ep_square);
     // halfmove_clock += 1
     //  Reset the halfmove clock if the move is a pawn move or capture
     // B1 (FIX_HALFMOVE): `pawns` is POST-move here (update_state above moved the pawn off from_square), so the legacy test
@@ -3665,7 +3675,7 @@ inline void make_move(std::vector<BoardState> &state_history, std::unordered_map
     // behind the make/return work before get_score_*() reads it. Pure hint -> byte-identical.
     if (Config::ENABLE_TT_PREFETCH)
         prefetchSearchEvalCache(zobrist, castling_rights, ep_square);
-    if (Config::PREFETCH_TABLES)
+    if (Config::PREFETCH_TABLES && !Config::PREFETCH_EARLY)
         prefetch_child_tables(zobrist, castling_rights, ep_square);
 }
 
@@ -3855,6 +3865,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
     if (Config::FIX_REP_KEY & 2)
         g_pre_root_counts = position_count;   // the game's counts at the root, root included
+    if (Config::REP_FILTER)
+    {
+        std::memset(g_rep_filter, 0, sizeof g_rep_filter);
+        for (const auto &kv : position_count)
+            if (kv.second > 0)
+                g_rep_filter[kv.first >> 58] |= 1ULL << ((kv.first >> 52) & 63);
+    }
     g_rep_len = 0;
     g_rep_in_search = true;   // until the final make_move: search-path positions go on the stack, not into position_count
 
@@ -9281,8 +9298,21 @@ inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_coun
 {
     PROF_BLOCK(PROF_REPETITION);
     const uint64_t key = repetition_key(zobrist_key, state.castling_rights, state.ep_square);
-    auto it = position_count.find(key);
-    int count = (it == position_count.end()) ? 0 : it->second;
+    int count = 0;
+    if (!(Config::REP_FILTER && g_rep_in_search) || rep_filter_has(key))
+    {
+        auto it = position_count.find(key);
+        count = (it == position_count.end()) ? 0 : it->second;
+    }
+    else if (Config::REP_FILTER == 2)
+    {
+        auto it = position_count.find(key);
+        if (it != position_count.end() && it->second > 0)
+        {
+            std::cerr << "REP_FILTER miss: key " << key << " count " << it->second << std::endl;
+            std::abort();
+        }
+    }
     int pre_root = -1;   // occurrences before the root; resolved lazily below in map mode
     if (Config::REP_STACK && g_rep_in_search)
     {

@@ -3205,6 +3205,10 @@ namespace Config
     // unmake_move) instead of inserting into and erasing from the position_count map, which then holds only the game history
     // before the root. A repetition count is map count + path occurrences, the same number the map held before.
     inline int REP_STACK = 1;
+    // REP_FILTER: inside a search, is_repetition looks a key up in position_count only when a bit filter built from the
+    // map at the root says it may be there (same counts, fewer hash lookups). 2 = also look up every filtered-out key and
+    // abort if the map has it.
+    inline int REP_FILTER = 0;
     inline int QGEN_VERIFY = 0;
     // KS_FAST: king safety counts attacks and defence per king-zone square with bit-sliced counters (no per-square arrays,
     // pawns added set-wise), its attacker loop skips pieces whose attack mask misses the zone, and the contested-share
@@ -3394,6 +3398,9 @@ namespace Config
     // (bits: 1 TT, 2 q-cache, 4 eval cache, 8 move-gen cache; 0 = off). A hint only: results are unchanged.
     // Bench time ratio against off, same binary and load: 1 → 0.98, 7 → 0.95, 15 → 0.935.
     inline int PREFETCH_TABLES = 15;
+    // PREFETCH_EARLY: issue those prefetches right after the board update in make_move rather than at its end (same hints,
+    // earlier). Results are unchanged.
+    inline int PREFETCH_EARLY = 0;
     // TM_MODE (UCI clock games only; `go movetime`, fixed depth / nodes and the Cython path are unaffected): 0 = the
     // placeholder clock rule (a new iteration starts while the last one took at most the preset's MOVE_TIMES share of the
     // budget), 1 = an optimum / maximum allocation with a soft stop between iterations once the total elapsed time passes

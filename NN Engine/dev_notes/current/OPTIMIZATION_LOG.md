@@ -4,6 +4,34 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 📏 2026-11-03 — SPEED RE-PROFILE on gen 6.5 (profiler build, `E:\chess_data\profile_v2_g65.log`)
+Same instrument as the 10-22 gen 5 profile: `evalprofile_mid` 40 midgame FENs d12 (Cython profiler build, `V2_PRESET=shipped`), plus
+arms with threats in the eval off and threat ordering off (neither has its own scope, so each is priced by difference), and WAC d10.
+Production rebuilt after: v2 252 / 36,960,934 / 3.813, v1 250 / 35,310,778 / 3.784 ✓. rdtsc scopes inflate what they wrap: shares
+are upper bounds. ⚠️ The shipped arm printed 39 of 40 position blocks (one position stopped at depth 11 and skipped the profile
+print; its counts are lost, not misattributed).
+
+| share of SEARCH_ROOT | gen 6.5 (11-03) | gen 5 + S1/S2 (10-22) |
+|---|---|---|
+| V2_EVAL (whole evaluator) | **35.3%** (3,960 cyc/call) | 27.1% |
+| · KS-A (`ks_units` + scoring) | **9.4%** (27% of eval, 1,059 cyc/call) | 9.4% |
+| · attack build 4.9% · C3 3.9% · placement 3.0% · pawn detector 2.7% · structure 2.2% · PX / material+PST / Kaufman ~1.1% each · context 0.8% · winnability 0.5% | | |
+| · threats in eval (by difference of the unscoped eval remainder) | ≈ 1.2% (≈ 138 cyc/call, 3.5% of eval) | — |
+| MG_CACHE (main-search list build, generation nested) | 20.5% | 14.1% |
+| QGEN (qsearch list build, generation nested) | 17.7% | 13.7% |
+| MOVEGEN (nested in the two above): pseudo passes 7.6% · legality `is_safe` 7.5% · scoring 4.7% · sort 3.2% | 34.7% | 25.0% |
+| MAKEUNMAKE 4.0% · REPETITION 1.4% · TT_PROBE 1.3% | | 4.5 / 0.6 / 1.6% |
+| unscoped (move loop, pruning, history, ...) | ≈ 20% | ≈ 30% |
+
+- NPS median 793k (gen 5 + S1/S2: 519k); the same 40 positions to d12 take about half the cycles (13.9M evals vs 18.6M).
+- Threat ordering: +66 cyc per scoring call (≈ 0.3% of search) inside MG_SCORE; NPS medians 793k / 823k (ordering off) / 829k
+  (threats off) are tree-dependent and not a clean price.
+- Main-search move-gen cache: 7.86M list builds vs 6.80M generations ⇒ ≈ 32% of main-search builds are hits (13.5% of all
+  builds). Its probe + copy overhead is at most ~3.5% of search (MG_CACHE minus the generation it nests, bounded by QGEN).
+- Lazy-eval prize per firing eval (LAZY-EVAL-RESEARCH §4.2): the attack-based terms (attack build, KS-A, C3, placement, threats)
+  are ≈ 63% of eval time; the fire rate is still unmeasured (§4.1 counter).
+- Pawn hash: the detector it would memoize is ≤ 2.7%. TT occupancy is not measured by this profile (no hashfull counter yet).
+
 ## 🚢 2026-11-03 — GEN 6.5 = gen 6.4 + seven search correctness fixes (owner-confirmed)
 Set in the `V2_PRESET=shipped` gen-6 block (v1 untouched): `FIX_MAX_NULL 1` (A4), `NULL_NPM_GUARD 2` (G5), `FIX_MATE_50 1`,
 `FIX_HALFMOVE 1` (B1), `FIX_REP_KEY 1` (B2 bit 1), `FIX_KILLER_SPLICE 1`, `FIX_MATE_GATE 1`. `FIX_MDP` stays 0 until the TT stores

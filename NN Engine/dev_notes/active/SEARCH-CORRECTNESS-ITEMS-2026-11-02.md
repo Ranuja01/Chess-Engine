@@ -85,10 +85,36 @@ What it changes (proposed; owner to approve with the rest):
 production PGO binary both sides through `option.Knobs`; fingerprints: A4 bench 248 / 37,936,030, G5 leaves the bench unchanged
 but doubles the d14 nodes on a 7-pawn ending, so it is live). Results are measurements only; shipping either is the owner's call.
 B1 + B2 bit 1 waits for a venue choice: B1 fires only in long endgames (4/30 eg_critical, 0/30 UHO), so a UHO match cannot judge it.
+**Read (#137):** A4 +8.3 ± 19.4 on UHO (in its band) · G5 +15.0 ± 12.8 on the transition starts (above its band, z 2.29). Both pass
+not-harmful; G5 gets a fresh-seed replicate before it is quoted as a gain. B1 + B2 bit 1 runs on eg_critical.epd in #138
+(owner 11-02 approved the plan; venue = the set B1 fires in).
 
 **Step 2 — the code items**, each with its counter and move test, then one harm match for the narrow set (MDP + mate-before-50 + mate
 gate + rule-50 guard; registered −10 … +10). The killer splice and TT PV cutoffs change ordering / the tree broadly, so each gets its
 own match (registered −10 … +15 and −10 … +10). TT mates only after MDP ships.
+
+**Step 2 build checks (queue #138 part A, 11-02 evening).** Owner 11-02 approved the plan ("as long as they are as efficient
+and correct as can be"). Knobs `FIX_MDP`, `FIX_MATE_GATE`, `FIX_MATE_50`, `FIX_TT_R50`, `FIX_KILLER_SPLICE` (all 0 = today),
+binary `build_uci/chess_engine_uci_fix` (not PGO). With no knob: bench 249 / 36,991,901 = gen 6.4 ✓.
+
+| knob alone | bench solved | nodes | Δ nodes | bench time | games diverged eg / kp / UHO (of 30) | results changed |
+|---|---|---|---|---|---|---|
+| none | 249 | 36,991,901 | — | 37.2-37.6 s warm (first run 39.4 s cold) | — | — |
+| FIX_MDP | **253** | 42,158,317 | **+14.0%** | 42.0 s | 28 / 17 / 30 | 18 / 6 / 12 |
+| FIX_MATE_GATE | **253** | 37,742,103 | +2.0% | 37.3 s | 7 / 7 / 27 | 4 / 2 / 11 |
+| FIX_MATE_50 | 249 | identical | 0 | 37.6 s | 0 / 0 / 0 | 0 |
+| FIX_TT_R50 | 249 | identical | 0 | 37.2 s | 7 / 0 / 0 (median ply 118) | 0 |
+| FIX_KILLER_SPLICE | 247 | 36,874,208 | −0.3% | 37.1 s | 27 / 20 / 30 | 20 / 6 / 16 |
+
+0 crashes in 900 games. FIX_MATE_50 unit check (`7k/8/6K1/8/8/8/8/R7 w - - 99 120`, d8): without the knob `cp 0`, Rf1 (Ra8# on
+the 100th half-move read as a draw); with it `mate 1`, Ra8 ✓; at clock 0 both mate 1.
+- ☠️ **MDP is not a node saver here (registration refuted on the bench):** +14% nodes at fixed depth, +4 solved. Cause (read, not
+  yet measured): the TT never stores a score beyond ±9,000,000 (`addToSearchEvalCache`), and an MDP cut returns a mate-range bound,
+  so its answer is never remembered; the same searches used to return ordinary fail-soft scores that WERE stored (most MDP cuts
+  are scouts built on the window sentinels, e.g. (−9999998, −9999997)). MDP and "store TT mates" are therefore coupled: judge MDP
+  alone in games (mdp_uho, tonight), and if it is flat or negative, re-test it together with ply-adjusted mate storage.
+- The mate gate costs 2% nodes for +4 solved, as expected of a gate that searches where it used to prune.
+- FIX_MATE_50 never fired in 90 games with resign adjudication: correct by the unit check, practically inert in matches.
 
 **Cost.** Step 0 ≈ 1 h of box time, no timed games. Step 1 ≈ 8 h (three matches). Step 2 ≈ a day of code and counters plus three
 matches. Expected Elo: small — these are correctness items, valued for removing wrong behaviour without harm; the search arc's

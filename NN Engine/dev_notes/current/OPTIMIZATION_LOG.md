@@ -60,6 +60,23 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ✅ 2026-11-02 — QUEUE #137: A4 `FIX_MAX_NULL=1` +8.3 ± 19.4 (UHO) · G5 `NULL_NPM_GUARD=2` +15.0 ± 12.8 on the transition starts (z 2.29)
+Step 1 of `dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md`, both vs gen 6.4 (production PGO binary both sides, knobs
+through `option.Knobs`, preflight 0 warnings + both echoes), 10+0.1, 1,000 g each; 0 disconnects, 0 forfeits, 0 WSL dumps.
+
+  | arm | venue, seed | result | Ptnml | registered |
+  |---|---|---|---|---|
+  | A4 maximizer null move searches (β−1, β) | UHO, 1361 | +8.3 ± 19.4 (51.2%) | 74-79-186-71-90 | −5 … +15 ✓ |
+  | G5 SF's no-null-without-non-pawn-material rule added to ours | transition.epd, 1362 | **+15.0 ± 12.8** (52.15%) | 19-68-296-85-32 | −10 … +10 ✗ (above) |
+
+- Both pass the correctness ship rule (not harmful, ≥ −1σ). G5 is also positive beyond 2σ where it fires (a pawn-only mover); it
+  cannot fire elsewhere, since it only adds refusals in those positions. Its first run was registered and not selected, and the
+  match was fixed-length, so there is no stopping bias; it came in above its band, so a fresh-seed replicate is proposed before
+  it is quoted as a gain. Fingerprints: A4 bench 248 / 37,936,030; G5 leaves the bench unchanged and doubles the d14 nodes on a
+  7-pawn ending (`8/1p3kpp/p1p2p2/8/2P5/1P2PP2/P5PP/6K1 w`: 1,119,689 → 2,265,305).
+- Mode 1 (SF's rule replacing our count rule) was parked on 10-21 on a move test (−0.014 ± 0.012); mode 2 keeps both rules.
+- Ship: owner's call, proposed together with the other step 1 / step 2 items that pass (one new gen, one PGO rebuild).
+
 ## 📏 2026-11-02 — QUEUE #136: STEP 0 FIRE COUNTS of the open correctness items (no behaviour change)
 Counter build `chess_engine_uci_cnt2` (`-DFIXCNT_BUILD`) and the plain build of the same source: bench 36,991,901 both. Self-play
 at 30k nodes/move, 30 starts each from eg_critical / kp_dense / UHO, resign at |score| ≥ 1000 cp (`_fix_firecount.py ADJ=1000`,

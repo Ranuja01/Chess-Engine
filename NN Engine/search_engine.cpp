@@ -159,6 +159,25 @@ std::atomic<bool> is_draw;
 long g_fixcnt_fifty = 0, g_fixcnt_rep = 0, g_fixcnt_drawexit = 0, g_fixcnt_qsmate = 0;
 long g_fixcnt_depthcap = 0;   // iterative deepening stopped by the per-ply table bound (MAX_PLY - 4), not by time
 
+// Side to move is checkmated. Cache-free (no move-gen cache read or write), so calling it cannot change the search.
+static inline bool is_mated_uncached(const BoardState &s)
+{
+    return is_check(s.turn, s.occupied, s.queens | s.rooks, s.queens | s.bishops, s.kings, s.knights, s.pawns, s.occupied_colour[!s.turn]) &&
+           !has_any_legal_move(s.castling_rights, ~0ULL, ~0ULL, s.occupied, s.occupied_colour[true], s.occupied_colour[!s.turn],
+                               s.occupied_colour[s.turn], s.pawns, s.knights, s.bishops, s.rooks, s.queens, s.kings, s.ep_square, s.turn);
+}
+
+// The 50-move rule draws this position. With FIX_MATE_50 a checkmate on the 100th half-move is not a draw: the caller's normal
+// search path then finds no legal move and scores the mate.
+static inline bool fifty_move_draw(const BoardState &s)
+{
+    return s.halfmove_clock >= 100 && !(Config::FIX_MATE_50 && is_mated_uncached(s));
+}
+
+// Mate gate (FIX_MATE_GATE): set by the move loops just before each get_score_for_* call when every move the node has searched
+// is mated (or none has been searched); read once at the callee's entry, before it can recurse.
+static bool g_best_mated = false;
+
 // Fire counts for the open correctness items (dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md). Compiled only into a
 // counter build (EXTRA_FLAGS=-DFIXCNT_BUILD), so the production binary is unchanged; printed with FIX_COUNT_LOG. Counting only:
 // the build's bench must equal the production bench.
@@ -179,12 +198,7 @@ static inline void fixcntSplice(const Move &displaced, const BoardState &s)
 
 static inline void fixcntFifty(const BoardState &s)
 {
-    if (s.halfmove_clock < 100)
-        return;
-    // Cache-free checkmate test, so counting cannot change the move-gen cache
-    if (is_check(s.turn, s.occupied, s.queens | s.rooks, s.queens | s.bishops, s.kings, s.knights, s.pawns, s.occupied_colour[!s.turn]) &&
-        !has_any_legal_move(s.castling_rights, ~0ULL, ~0ULL, s.occupied, s.occupied_colour[true], s.occupied_colour[!s.turn],
-                            s.occupied_colour[s.turn], s.pawns, s.knights, s.bishops, s.rooks, s.queens, s.kings, s.ep_square, s.turn))
+    if (s.halfmove_clock >= 100 && is_mated_uncached(s))
         ++g_cnt_fifty_mated;
 }
 
@@ -2832,6 +2846,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_MIN_RD1 = env_int("FIX_MIN_RD1", Config::FIX_MIN_RD1);
         Config::FIX_MIN_SCOUT = env_int("FIX_MIN_SCOUT", Config::FIX_MIN_SCOUT);
         Config::FIX_RESEARCH = env_int("FIX_RESEARCH", Config::FIX_RESEARCH);
+        Config::FIX_MDP = env_int("FIX_MDP", Config::FIX_MDP);
+        Config::FIX_MATE_GATE = env_int("FIX_MATE_GATE", Config::FIX_MATE_GATE);
+        Config::FIX_MATE_50 = env_int("FIX_MATE_50", Config::FIX_MATE_50);
+        Config::FIX_TT_R50 = env_int("FIX_TT_R50", Config::FIX_TT_R50);
+        Config::FIX_KILLER_SPLICE = env_int("FIX_KILLER_SPLICE", Config::FIX_KILLER_SPLICE);
         Config::VERIFY_RESEARCH_REDUCTION = env_int("VERIFY_RESEARCH_REDUCTION", Config::VERIFY_RESEARCH_REDUCTION);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
@@ -3453,6 +3472,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " FIX_LMR_EG=" << Config::FIX_LMR_EG
                   << " FIX_MAX_NULL=" << Config::FIX_MAX_NULL << " FIX_MIN_RD1=" << Config::FIX_MIN_RD1
                   << " FIX_MIN_SCOUT=" << Config::FIX_MIN_SCOUT << " FIX_RESEARCH=" << Config::FIX_RESEARCH
+                  << " FIX_MDP=" << Config::FIX_MDP << " FIX_MATE_GATE=" << Config::FIX_MATE_GATE
+                  << " FIX_MATE_50=" << Config::FIX_MATE_50 << " FIX_TT_R50=" << Config::FIX_TT_R50
+                  << " FIX_KILLER_SPLICE=" << Config::FIX_KILLER_SPLICE
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " ENABLE_OTV=" << Config::ENABLE_OTV
                   << " OTV_MARGIN=" << Config::OTV_MARGIN
@@ -5001,8 +5023,9 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
         g_searchStack[cur_depth] = move; // record this node's move for the 2-ply continuation key
     bool using_tt = false;
     int score = 0;
+    const bool best_mated = Config::FIX_MATE_GATE && g_best_mated; // read before anything below can recurse
     BoardState updated_state = state_history.back();
-    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || updated_state.halfmove_clock >= 100)
+    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || fifty_move_draw(updated_state))
     {
         FIXCNT_FIFTY(updated_state);
         score = 0;
@@ -5043,7 +5066,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
             tt_probes++;
             if (entry->depth >= (depth_limit - cur_depth) /* && (depth_limit - cur_depth) >= 5 */)
             {
-                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true);
+                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true, updated_state.halfmove_clock);
                 /* if (using_tt && entry.flag == TTFlag::EXACT && entry.pv_length > 0 && score > alpha && !is_in_null_search) {
                     for (int j = 0; j < entry.pv_length; ++j) {
                         pv_table[cur_depth + 1][j] = entry.pv[j];
@@ -5150,10 +5173,11 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 const bool pe_gate = Config::PE_PRUNE_GATE && pe_pawns_only(current_state);
                 if (pe_gate)
                     ++g_pe_prune_gated;
+                const bool prune_gate = pe_gate || best_mated;
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
                 // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
-                if (Config::ENABLE_LMP && do_lmr && !pe_gate && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
+                if (Config::ENABLE_LMP && do_lmr && !prune_gate && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
                     bool lmp_reached = rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd;
@@ -5173,7 +5197,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
 
                 // History pruning: skip a late quiet the ordering strongly condemns (very negative butterfly
                 // history) at low remaining depth. Reads the existing from×to table; default off = byte-identical.
-                if (Config::ENABLE_HIST_PRUNE && do_lmr && !pe_gate)
+                if (Config::ENABLE_HIST_PRUNE && do_lmr && !prune_gate)
                 {
                     int rd_hp = depth_limit - cur_depth;
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
@@ -5186,7 +5210,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
                 // captured by the immediate recapture (post-move see() from the opponent's side). do_lmr
                 // already excludes captures/checks/promotions/killers/in-check. Default off = byte-identical.
-                if (Config::ENABLE_SEE_PRUNE && do_lmr && !pe_gate)
+                if (Config::ENABLE_SEE_PRUNE && do_lmr && !prune_gate)
                 {
                     int rd_see = depth_limit - cur_depth;
                     if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -5197,7 +5221,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
                 // see() from the mover's side) is skipped at low remaining depth. Captures bypass do_lmr; a
                 // checking capture (extend) is never pruned. Default off = byte-identical.
-                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !pe_gate)
+                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !prune_gate)
                 {
                     int rd_cap = depth_limit - cur_depth;
                     if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -5219,7 +5243,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, false);
                         if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
 
-                        if (Config::ENABLE_FUTILITY && !pe_gate &&
+                        if (Config::ENABLE_FUTILITY && !prune_gate &&
                             (early_score - FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] > beta))
                         {
                             if (Config::ENABLE_PRUNE_LOG) g_futility_fires++;
@@ -5289,7 +5313,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false);
+                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false, updated_state.halfmove_clock);
                         }
                     }
                     if (!using_tt)
@@ -5332,7 +5356,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false);
+                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false, updated_state.halfmove_clock);
                         }
                     }
                     if (!using_tt)
@@ -5428,11 +5452,12 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
         g_searchStack[cur_depth] = move; // record this node's move for the 2-ply continuation key
     bool using_tt = false;
     int score = 0;
+    const bool best_mated = Config::FIX_MATE_GATE && g_best_mated; // read before anything below can recurse
     std::vector<int> dummy_ints;
     std::vector<Move> dummy_moves;
     RootScore dummy_entry;
     BoardState updated_state = state_history.back();
-    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || updated_state.halfmove_clock >= 100)
+    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || fifty_move_draw(updated_state))
     {
         FIXCNT_FIFTY(updated_state);
         score = 0;
@@ -5473,7 +5498,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
             tt_probes++;
             if (entry->depth >= (depth_limit - cur_depth) /* && (depth_limit - cur_depth) >= 5 */)
             {
-                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, true, true);
+                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, true, true, updated_state.halfmove_clock);
                 /* if (using_tt && entry.flag == TTFlag::EXACT && entry.pv_length > 0 && score > alpha && !is_in_null_search) {
                     for (int j = 0; j < entry.pv_length; ++j) {
                         pv_table[cur_depth + 1][j] = entry.pv[j];
@@ -5578,10 +5603,11 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 const bool pe_gate = Config::PE_PRUNE_GATE && pe_pawns_only(current_state);
                 if (pe_gate)
                     ++g_pe_prune_gated;
+                const bool prune_gate = pe_gate || best_mated;
                 // Late-move pruning: at low remaining depth, skip late quiet moves. do_lmr eligibility
                 // already excludes captures, checks, promotions, killers/counter and in-check, so a forcing
                 // move is never pruned. Early return is safe — the caller unmakes the move (like futility).
-                if (Config::ENABLE_LMP && do_lmr && !pe_gate && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
+                if (Config::ENABLE_LMP && do_lmr && !prune_gate && !(Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH))
                 {
                     int rd = depth_limit - cur_depth;
                     bool lmp_reached = rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd;
@@ -5601,7 +5627,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
 
                 // History pruning: skip a late quiet the ordering strongly condemns (very negative butterfly
                 // history) at low remaining depth. Reads the existing from×to table; default off = byte-identical.
-                if (Config::ENABLE_HIST_PRUNE && do_lmr && !pe_gate)
+                if (Config::ENABLE_HIST_PRUNE && do_lmr && !prune_gate)
                 {
                     int rd_hp = depth_limit - cur_depth;
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
@@ -5614,7 +5640,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning: at low remaining depth, skip a quiet whose moved piece can be profitably
                 // captured by the immediate recapture (post-move see() from the opponent's side). do_lmr
                 // already excludes captures/checks/promotions/killers/in-check. Default off = byte-identical.
-                if (Config::ENABLE_SEE_PRUNE && do_lmr && !pe_gate)
+                if (Config::ENABLE_SEE_PRUNE && do_lmr && !prune_gate)
                 {
                     int rd_see = depth_limit - cur_depth;
                     if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -5625,7 +5651,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
                 // see() from the mover's side) is skipped at low remaining depth. Captures bypass do_lmr; a
                 // checking capture (extend) is never pruned. Default off = byte-identical.
-                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !pe_gate)
+                if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !prune_gate)
                 {
                     int rd_cap = depth_limit - cur_depth;
                     if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
@@ -5646,7 +5672,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, true);
                         if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
-                        if (Config::ENABLE_FUTILITY && !pe_gate &&
+                        if (Config::ENABLE_FUTILITY && !prune_gate &&
                             (early_score + FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] < alpha))
                         {
                             if (Config::ENABLE_PRUNE_LOG) g_futility_fires++;
@@ -5716,7 +5742,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false);
+                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false, updated_state.halfmove_clock);
                         }
                     }
                     if (!using_tt)
@@ -5760,7 +5786,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false);
+                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false, updated_state.halfmove_clock);
                         }
                     }
                     if (!using_tt)
@@ -5893,6 +5919,15 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     // Mate-distance bounds: the best this side can reach is mating at the next ply, the worst is being mated here
     FIXCNT_NODE(beta <= -9999999 + (static_cast<int>(state_history.size()) + 1) ||
                 alpha >= 9999999 - static_cast<int>(state_history.size()));
+    // FIX_MDP: when those bounds alone settle the window, return the bound. Not at ply 1, whose returns must fill out_entry.
+    if (Config::FIX_MDP && cur_depth > 1)
+    {
+        const int g = static_cast<int>(state_history.size());
+        if (beta <= -9999999 + (g + 1))
+            return beta;
+        if (alpha >= 9999999 - g)
+            return alpha;
+    }
 
     // Throwaway containers for the singular exclusion re-search — minimizer's signature takes second-level
     // score/move lists + a RootScore by reference, which carry root bookkeeping; the exclusion search must
@@ -6036,7 +6071,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
     if (cur_depth == 1)
     {
-        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state) || current_state.halfmove_clock >= 100)
+        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state) || fifty_move_draw(current_state))
         {
             ++g_draw_empty_ply1_min;
             // alpha_beta indexes scores[i].second_moves for every root move with no bounds or emptiness
@@ -6099,6 +6134,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 move.promotion);
 
             make_move(state_history, position_count, move, zobrist, capture_move);
+            g_best_mated = lowest_score >= 9000000;
             score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
             if (Config::ENABLE_HISTORY_MALUS || Config::ENABLE_CUTCAL_LOG || Config::ENABLE_QCUT)
@@ -6577,6 +6613,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 // Count this singular extension on the path for the duration of its child search so a chain
                 // of singular moves is bounded by SINGULAR_MAX_EXT.
                 SingularExtensionGuard seg(singular_extra > 0);
+                g_best_mated = lowest_score >= 9000000;
                 score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit + singular_extra, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                                 position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
             }
@@ -6657,6 +6694,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 (rfp_static_eval - score) > Config::OTV_MARGIN)
             {
                 VerifyGuard vg(cur_depth, Config::OTV_PLIES);
+                g_best_mated = lowest_score >= 9000000;
                 score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                                 position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
                 verified_this_move = true;
@@ -6896,6 +6934,15 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     // Mate-distance bounds: the best this side can reach is mating at the next ply, the worst is being mated here
     FIXCNT_NODE(alpha >= 9999999 - (static_cast<int>(state_history.size()) + 1) ||
                 beta <= -9999999 + static_cast<int>(state_history.size()));
+    // FIX_MDP: when those bounds alone settle the window, return the bound
+    if (Config::FIX_MDP)
+    {
+        const int g = static_cast<int>(state_history.size());
+        if (alpha >= 9999999 - (g + 1))
+            return alpha;
+        if (beta <= -9999999 + g)
+            return beta;
+    }
 
     if (cur_depth >= depth_limit)
     {
@@ -7280,6 +7327,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             // Count this singular extension on the path for the duration of its child search so a chain
             // of singular moves is bounded by SINGULAR_MAX_EXT.
             SingularExtensionGuard seg(singular_extra > 0);
+            g_best_mated = highest_score <= -9000000;
             score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit + singular_extra, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
         }
@@ -7316,6 +7364,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             (score - rfp_static_eval) > Config::OTV_MARGIN)
         {
             VerifyGuard vg(cur_depth, Config::OTV_PLIES);
+            g_best_mated = highest_score <= -9000000;
             score = get_score_for_maximizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
                                             position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
             verified_this_move = true;
@@ -8052,7 +8101,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
     // The preliminary pass has no incoming capture context; start its capture-chain density fresh.
     g_captureChain[cur_depth] = 0;
 
-    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state) || current_state.halfmove_clock >= 100)
+    if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state) || fifty_move_draw(current_state))
     {
         if (cur_depth == 1)
         {
@@ -8173,7 +8222,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
         make_move(state_history, position_count, move, zobrist, capture_move);
 
         BoardState updated_state = state_history.back();
-        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || updated_state.halfmove_clock >= 100)
+        if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || fifty_move_draw(updated_state))
         {
             score = 0;
         }
@@ -8188,7 +8237,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                 tt_probes++;
                 if (entry->depth >= (depth_limit - cur_depth))
                 {
-                    use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true);
+                    use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true, updated_state.halfmove_clock);
                     /* if(entry.flag == TTFlag::EXACT){
                         score = entry.score;
                         using_tt = true;
@@ -9103,9 +9152,14 @@ relevant_pawns |= BB_SQUARES[current_square];
     // return relevant_pins;
 }
 
-inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool use_extra_precautions)
+inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool use_extra_precautions,
+                         int halfmove_clock)
 {
     using_tt = false;
+
+    // FIX_TT_R50: near the 50-move limit whether the draw arrives depends on the path, so a stored score may not hold here
+    if (Config::FIX_TT_R50 && halfmove_clock >= 90)
+        return;
 
     if (entry.flag == TTFlag::EXACT)
     {
@@ -9465,6 +9519,41 @@ inline bool promoteMoveWithinQuiets(std::vector<Move> &moves, const Move &move, 
     return true;
 }
 
+// FIX_KILLER_SPLICE: on a move-gen cache hit, insert killer 1, killer 2 and the counter move (in that order; past ply 63 the counter
+// alone, as before) at the first slots after the leading move and the captures that follow it. The moves in between shift down one
+// place, so the best quiet and every capture keep their order instead of being swapped back to a killer's old slot. Sets
+// firstNonCapture / indexIncrement as the swap splice does (indexIncrement counts the killers placed, not the counter).
+static inline void insert_killers_after_captures(std::vector<Move> &moves, const BoardState &s, int cur_ply, const Move &prevMove,
+                                                 size_t &firstNonCapture, size_t &indexIncrement)
+{
+    firstNonCapture = 1;
+    while (firstNonCapture < moves.size() &&
+           is_capture(moves[firstNonCapture].from_square, moves[firstNonCapture].to_square, s.occupied_colour[!s.turn],
+                      is_en_passant(moves[firstNonCapture].from_square, moves[firstNonCapture].to_square, s.ep_square, s.occupied, s.pawns)))
+        ++firstNonCapture;
+    auto place = [&](const Move &m)
+    {
+        const size_t slot = firstNonCapture + indexIncrement;
+        if (slot >= moves.size())
+            return false;
+        auto it = std::find(moves.begin() + slot, moves.end(), m);
+        if (it == moves.end())
+            return false;
+        std::rotate(moves.begin() + slot, it, it + 1);
+        return true;
+    };
+    const Move counter = counterMoves[prevMove.from_square][prevMove.to_square];
+    if (cur_ply > 63)
+    {
+        place(counter);
+        return;
+    }
+    indexIncrement += place(killerMoves[cur_ply][0]);
+    indexIncrement += place(killerMoves[cur_ply][1]);
+    if (!(counter == killerMoves[cur_ply][0]) && !(counter == killerMoves[cur_ply][1]))
+        place(counter);
+}
+
 inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &state_history, uint64_t zobrist, int cur_ply, Move prevMove)
 {
     PROF_BLOCK(PROF_MG_CACHE); // whole main-search move-list build; MOVEGEN (a cache miss) is nested inside
@@ -9495,61 +9584,23 @@ inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &st
             // int firstKillerMoveUsed = false;
             size_t indexIncrement = 0;
 
-            for (size_t i = 0; i < cached_moves.size(); ++i)
-            {
-                if (!is_capture(cached_moves[i].from_square, cached_moves[i].to_square, current_state.occupied_colour[!current_state.turn], is_en_passant(cached_moves[i].from_square, cached_moves[i].to_square, current_state.ep_square, current_state.occupied, current_state.pawns)))
-                {
-                    firstNonCapture = static_cast<int>(i);
-                    break;
-                }
-            }
-
-            if (firstNonCapture == 0)
-                firstNonCapture = 1;
-
-            if (cur_ply > 63)
-            {
-                auto cm = std::find(cached_moves.begin(), cached_moves.end(), counterMoves[prevMove.from_square][prevMove.to_square]);
-
-                if (cm != cached_moves.end())
-                {
-                    size_t foundIndex = std::distance(cached_moves.begin(), cm);
-                    if (foundIndex > firstNonCapture)
-                    {
-                        FIXCNT_SPLICE(cached_moves[firstNonCapture + indexIncrement], current_state);
-                        std::iter_swap(cm, cached_moves.begin() + firstNonCapture + indexIncrement);
-                    }
-                }
-            }
+            if (Config::FIX_KILLER_SPLICE)
+                insert_killers_after_captures(cached_moves, current_state, cur_ply, prevMove, firstNonCapture, indexIncrement);
             else
             {
-                auto km1 = std::find(cached_moves.begin(), cached_moves.end(), killerMoves[cur_ply][0]);
-
-                if (km1 != cached_moves.end())
+                for (size_t i = 0; i < cached_moves.size(); ++i)
                 {
-                    size_t foundIndex = std::distance(cached_moves.begin(), km1);
-                    if (foundIndex > firstNonCapture)
+                    if (!is_capture(cached_moves[i].from_square, cached_moves[i].to_square, current_state.occupied_colour[!current_state.turn], is_en_passant(cached_moves[i].from_square, cached_moves[i].to_square, current_state.ep_square, current_state.occupied, current_state.pawns)))
                     {
-                        FIXCNT_SPLICE(cached_moves[firstNonCapture], current_state);
-                        std::iter_swap(km1, cached_moves.begin() + firstNonCapture);
-                        indexIncrement++;
+                        firstNonCapture = static_cast<int>(i);
+                        break;
                     }
                 }
 
-                auto km2 = std::find(cached_moves.begin(), cached_moves.end(), killerMoves[cur_ply][1]);
+                if (firstNonCapture == 0)
+                    firstNonCapture = 1;
 
-                if (km2 != cached_moves.end())
-                {
-                    size_t foundIndex = std::distance(cached_moves.begin(), km2);
-                    if (foundIndex > firstNonCapture)
-                    {
-                        FIXCNT_SPLICE(cached_moves[firstNonCapture + indexIncrement], current_state);
-                        std::iter_swap(km2, cached_moves.begin() + firstNonCapture + indexIncrement);
-                        indexIncrement++;
-                    }
-                }
-
-                if (!(counterMoves[prevMove.from_square][prevMove.to_square] == killerMoves[cur_ply][0]) && !(counterMoves[prevMove.from_square][prevMove.to_square] == killerMoves[cur_ply][1]))
+                if (cur_ply > 63)
                 {
                     auto cm = std::find(cached_moves.begin(), cached_moves.end(), counterMoves[prevMove.from_square][prevMove.to_square]);
 
@@ -9560,6 +9611,49 @@ inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &st
                         {
                             FIXCNT_SPLICE(cached_moves[firstNonCapture + indexIncrement], current_state);
                             std::iter_swap(cm, cached_moves.begin() + firstNonCapture + indexIncrement);
+                        }
+                    }
+                }
+                else
+                {
+                    auto km1 = std::find(cached_moves.begin(), cached_moves.end(), killerMoves[cur_ply][0]);
+
+                    if (km1 != cached_moves.end())
+                    {
+                        size_t foundIndex = std::distance(cached_moves.begin(), km1);
+                        if (foundIndex > firstNonCapture)
+                        {
+                            FIXCNT_SPLICE(cached_moves[firstNonCapture], current_state);
+                            std::iter_swap(km1, cached_moves.begin() + firstNonCapture);
+                            indexIncrement++;
+                        }
+                    }
+
+                    auto km2 = std::find(cached_moves.begin(), cached_moves.end(), killerMoves[cur_ply][1]);
+
+                    if (km2 != cached_moves.end())
+                    {
+                        size_t foundIndex = std::distance(cached_moves.begin(), km2);
+                        if (foundIndex > firstNonCapture)
+                        {
+                            FIXCNT_SPLICE(cached_moves[firstNonCapture + indexIncrement], current_state);
+                            std::iter_swap(km2, cached_moves.begin() + firstNonCapture + indexIncrement);
+                            indexIncrement++;
+                        }
+                    }
+
+                    if (!(counterMoves[prevMove.from_square][prevMove.to_square] == killerMoves[cur_ply][0]) && !(counterMoves[prevMove.from_square][prevMove.to_square] == killerMoves[cur_ply][1]))
+                    {
+                        auto cm = std::find(cached_moves.begin(), cached_moves.end(), counterMoves[prevMove.from_square][prevMove.to_square]);
+
+                        if (cm != cached_moves.end())
+                        {
+                            size_t foundIndex = std::distance(cached_moves.begin(), cm);
+                            if (foundIndex > firstNonCapture)
+                            {
+                                FIXCNT_SPLICE(cached_moves[firstNonCapture + indexIncrement], current_state);
+                                std::iter_swap(cm, cached_moves.begin() + firstNonCapture + indexIncrement);
+                            }
                         }
                     }
                 }

@@ -3211,6 +3211,12 @@ namespace Config
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound
     inline int FIX_RESEARCH = 0;   // A1: LMR re-search mirrored — a REDUCED move that beats the node's bound (max: >= beta,
                                    //     min: <= alpha) is re-searched at full depth; VERIFY near-misses mirrored for min
+    // Open correctness items (dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md §2). All default 0 = today's search.
+    inline int FIX_MDP = 0;           // mate-distance pruning: a node whose window the mate bounds alone settle returns that bound
+    inline int FIX_MATE_GATE = 0;     // no move-loop pruning (LMP, history, SEE, futility) while every move searched so far is mated
+    inline int FIX_MATE_50 = 0;       // a checkmate delivered on the 100th half-move scores as mate, not as a 50-move draw
+    inline int FIX_TT_R50 = 0;        // no TT cutoffs at halfmove clock >= 90, where a stored score may not hold on this path
+    inline int FIX_KILLER_SPLICE = 0; // move-gen cache hit: killers / counter are inserted after the captures, not swapped in
 
     // Graduated verification: re-search the near-miss at depth_limit - this (a
     // shallow re-look) instead of full depth, to cut the cost of a wide VERIFY_MARGIN.
@@ -3624,7 +3630,8 @@ inline void descending_sort_wrapper(const SearchData &preSearchData, SearchData 
 inline void ascending_sort(std::vector<int> &values, std::vector<Move> &moves);
 inline uint8_t get_piece_type(uint8_t square, std::vector<BoardState> &state_history);
 inline bool relevant_pin_exists(std::vector<BoardState> &state_history, bool probe);
-inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool using_extra_precautions);
+inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool using_extra_precautions,
+                         int halfmove_clock);
 inline void increment_node_count_with_decay(int &num_iterations);
 inline bool isUnsafeForNullMovePruning(BoardState current_state);
 inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count, const BoardState &state);

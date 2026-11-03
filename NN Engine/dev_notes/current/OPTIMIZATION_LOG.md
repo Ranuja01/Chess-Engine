@@ -60,6 +60,38 @@ Gen 6.2 vs Stockfish 1.1 at time odds (us 60+0.6, it 20+0.2, #108): 21.0% (42/20
   id "AlphaUX (v2 gen 6.3)". `THREAT_ORDER_W=0` restores gen 6.2 exactly. Production = PGO build, backup
   `chess_engine_uci_g62pgo`.
 
+## ✅ 2026-11-03 — QUEUE #139: every correctness item passes not-harmful; the gen 6.5 candidate is 0.0 ± 19.2; G5 did not replicate
+Step 2 of `dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md`. Binary `build_uci/chess_engine_uci_fix` both sides (no knob =
+gen 6.4, bench 36,991,901), knobs through `option.Knobs`, preflight 0 warnings + both echoes, 10+0.1, each match five pausable
+200-game chunks (seed base×10 + chunk) pooled by `fastchess_report.py`; 0 disconnects, 0 forfeits, 0 WSL dumps.
+
+  | arm vs gen 6.4 | venue, seed base | pooled Elo (95%) | Ptnml | −1σ bar | registered |
+  |---|---|---|---|---|---|
+  | B1 + B2 bit 1 `FIX_HALFMOVE=1,FIX_REP_KEY=1` (930 g) | eg_critical, 1371 | +8.2 (−1.0 … +17.5) | 6-48-332-76-3 | −4.7 ✓ | −10 … +10 ✓ |
+  | `FIX_MDP=1` | UHO, 1372 | −4.2 (−24.1 … +15.8) | 88-82-172-70-88 | −10.2 ✓ | −10 … +10 ✓ |
+  | `FIX_KILLER_SPLICE=1` | UHO, 1373 | −7.3 (−26.6 … +11.9) | 83-82-185-73-77 | −9.8 ✓ (edge) | −10 … +15 ✓ |
+  | `FIX_MATE_GATE=1` | UHO, 1374 | +3.8 (−14.8 … +22.4) | 65-92-189-75-79 | −9.5 ✓ | −10 … +10 ✓ |
+  | **candidate** = A4 + G5 + MATE_50 + all four above | UHO, 1375 | **0.0 (−19.2 … +19.2)** | 84-68-188-84-76 | −9.8 ✓ | −5 … +20 ✓ (low end) |
+  | G5 replicate `NULL_NPM_GUARD=2` | transition, 1376 | −1.0 (−13.4 … +11.3) | 25-67-318-66-24 | — | — |
+
+- The candidate's 0.0 is what its UHO parts add to (A4 +8.3, MDP −4.2, killer −7.3, gate +3.8 ≈ +0.6); B1, B2, G5 and MATE_50 barely
+  fire on UHO. No sign of antagonism at this resolution. Gen 6.5 is a correctness release, not a measured strength gain.
+- **G5 did not replicate:** first run +15.0 ± 12.8, fresh seed −1.0 ± 12.4; pooled over 2,000 g **+6.9 (−2.0 … +15.9)**. Not
+  harmful, not a gain; it stays as a correctness item and is no longer quoted as +15.
+- Combined bench (fixed depth, box otherwise idle) and the same candidate without MDP (run after the queue, same binary):
+
+  | | WAC bench solved / nodes / time | d10 nodes, UHO 300 (median ratio) | d10 nodes, WAC 300 | WAC, mate score seen / not |
+  |---|---|---|---|---|
+  | gen 6.4 | 249 / 36,991,901 / 33.0 s | — | — | — |
+  | candidate | 251 / 40,921,706 (+10.6%) / 36.3 s | −2.6% (0.971) | +6.7% | +65.0% (77) / +2.5% (223) |
+  | candidate without MDP | **252 / 36,960,934 (−0.1%)** / 30.9 s | **−6.5% (0.937)** | **+0.5%** | +27.0% (79) / −1.9% (221) |
+
+  Removing MDP makes the candidate cheaper on every set, and solves one more. MDP's cost is not only in mate positions inside the
+  bundle: on UHO it turns −6.5% into −2.6%, although alone it was −0.7%. The cause read on 11-02 (an MDP cut returns a mate-range
+  bound, which the TT never stores) fits both. The remaining +27% on mate-seen WAC positions is the mate gate searching defences it
+  used to prune, by design (+47% alone). **Proposed gen 6.5 = the candidate without MDP**; MDP returns only together with
+  ply-adjusted mate storage in the TT. Confirm match for that bundle vs gen 6.4: queue #140 (UHO, seed 1401, registered −10 … +10).
+
 ## ✅ 2026-11-02 — QUEUE #137: A4 `FIX_MAX_NULL=1` +8.3 ± 19.4 (UHO) · G5 `NULL_NPM_GUARD=2` +15.0 ± 12.8 on the transition starts (z 2.29)
 Step 1 of `dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md`, both vs gen 6.4 (production PGO binary both sides, knobs
 through `option.Knobs`, preflight 0 warnings + both echoes), 10+0.1, 1,000 g each; 0 disconnects, 0 forfeits, 0 WSL dumps.

@@ -127,6 +127,14 @@ the 100th half-move read as a draw); with it `mate 1`, Ra8 ✓; at clock 0 both 
 - The mate gate costs 2% nodes for +4 solved, as expected of a gate that searches where it used to prune.
 - FIX_MATE_50 never fired in 90 games with resign adjudication: correct by the unit check, practically inert in matches.
 
+**Step 2 games (queue #139, 11-02 night → 11-03; full table in OPTIMIZATION_LOG).** All pass not-harmful: B1 + B2 bit 1 +8.2 on
+eg_critical, MDP −4.2, killer splice −7.3 (edge of −1σ), mate gate +3.8, all on UHO; the candidate with all of them (plus A4, G5,
+MATE_50) 0.0 ± 19.2. G5's replicate −1.0 ± 12.4, pooled +6.9 (−2.0 … +15.9) over 2,000 g: not a gain. Benches: the candidate
+costs +10.6% WAC bench nodes and +6.7% d10 WAC (+65% on mate positions), −2.6% d10 UHO; **without MDP** it is −0.1% / +0.5% /
+−6.5%, 252 solved. So MDP is held out of gen 6.5 and returns only with ply-adjusted TT mate storage (the coupling read above).
+Confirm match for candidate-without-MDP: queue #140. Still open after the ship: the 50-move item (MATE_50 already in, plus
+FIX_TT_R50) on eg starts, and MDP + TT mates as one item.
+
 **Cost.** Step 0 ≈ 1 h of box time, no timed games. Step 1 ≈ 8 h (three matches). Step 2 ≈ a day of code and counters plus three
 matches. Expected Elo: small — these are correctness items, valued for removing wrong behaviour without harm; the search arc's
 larger forecast (+50 … +150) rests on the LMR / pruning / ordering redesign that comes after them.

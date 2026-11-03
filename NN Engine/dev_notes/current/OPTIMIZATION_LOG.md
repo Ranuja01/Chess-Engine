@@ -91,6 +91,10 @@ gen 6.4, bench 36,991,901), knobs through `option.Knobs`, preflight 0 warnings +
   bound, which the TT never stores) fits both. The remaining +27% on mate-seen WAC positions is the mate gate searching defences it
   used to prune, by design (+47% alone). **Proposed gen 6.5 = the candidate without MDP**; MDP returns only together with
   ply-adjusted mate storage in the TT. Confirm match for that bundle vs gen 6.4: queue #140 (UHO, seed 1401, registered −10 … +10).
+- **Queue #140 (11-03 daytime, idle box):** candidate without MDP vs gen 6.4, 1,000 g, **+8.7 (−10.0 … +27.4)**, Ptnml
+  70-78-185-91-76, −1σ bar −9.5 ✓, in its band ✓; 0 disconnects, 0 forfeits, 0 dumps. Start-up checks: gen 6.4 bench 36,991,901,
+  candidate 252 / 36,960,934. The gap to the with-MDP candidate (+8.7 vs 0.0) is +8.7 ± 26.8, unresolved: the case for leaving
+  MDP out rests on the benches, not on this difference. Passes the correctness ship rule; ship is the owner's call.
 
 ## ✅ 2026-11-02 — QUEUE #137: A4 `FIX_MAX_NULL=1` +8.3 ± 19.4 (UHO) · G5 `NULL_NPM_GUARD=2` +15.0 ± 12.8 on the transition starts (z 2.29)
 Step 1 of `dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md`, both vs gen 6.4 (production PGO binary both sides, knobs

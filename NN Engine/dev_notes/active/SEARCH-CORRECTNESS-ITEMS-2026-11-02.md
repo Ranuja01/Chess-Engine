@@ -132,7 +132,8 @@ eg_critical, MDP −4.2, killer splice −7.3 (edge of −1σ), mate gate +3.8, 
 MATE_50) 0.0 ± 19.2. G5's replicate −1.0 ± 12.4, pooled +6.9 (−2.0 … +15.9) over 2,000 g: not a gain. Benches: the candidate
 costs +10.6% WAC bench nodes and +6.7% d10 WAC (+65% on mate positions), −2.6% d10 UHO; **without MDP** it is −0.1% / +0.5% /
 −6.5%, 252 solved. So MDP is held out of gen 6.5 and returns only with ply-adjusted TT mate storage (the coupling read above).
-Confirm match for candidate-without-MDP: queue #140. Still open after the ship: the 50-move item (MATE_50 already in, plus
+Confirm match for candidate-without-MDP: queue #140, +8.7 ± 18.7. **SHIPPED as gen 6.5 on 11-03** (owner-confirmed; bench
+252 / 36,960,934). Still open after the ship: the 50-move item (MATE_50 already in, plus
 FIX_TT_R50) on eg starts, and MDP + TT mates as one item.
 
 **Cost.** Step 0 ≈ 1 h of box time, no timed games. Step 1 ≈ 8 h (three matches). Step 2 ≈ a day of code and counters plus three

@@ -2361,6 +2361,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // pruning margin tightened to 600; the more accurate eval is what makes the tighter margin safe. Evidence:
                 // OPTIMIZATION_LOG, ship checks for candidate C. THREAT_V2_PCT=0 RFP_MARGIN=1000 restores gen 6.3 exactly
                 // (256 / 42,263,170).
+                // ── GEN 6.5: search correctness fixes, each and the bundle not harmful in games (OPTIMIZATION_LOG, queues
+                // #137-#140): the maximizer's null move searches (beta-1, beta); no null move for a side with only pawns
+                // (alongside the count rule); a mate on the 100th half-move scores as mate; pawn moves reset the halfmove
+                // clock; repetitions are keyed with castling rights and the ep square; killers and the counter move go after
+                // the captures instead of being swapped over them; no move-loop pruning while every move so far is mated.
+                // Mate-distance pruning stays off until the TT stores mate scores (its cut bounds are never stored, which
+                // costs nodes). All seven at 0 restore gen 6.4 exactly (249 / 36,991,901).
                 Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 6);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
@@ -2385,6 +2392,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     Config::THREAT_V2_PCT = 100;  Config::THREAT_V2_MG_PCT = 50;  Config::THREAT_V2_EG_PCT = 100;
                     Config::THREAT_V2_HANGING = 1;  Config::THREAT_V2_KING = 1;  Config::THREAT_V2_PAWN_TARGETS = 1;
                     Config::RFP_MARGIN = 600;
+                    Config::FIX_MAX_NULL = 1;  Config::NULL_NPM_GUARD = 2;  Config::FIX_MATE_50 = 1;  Config::FIX_HALFMOVE = 1;
+                    Config::FIX_REP_KEY = 1;  Config::FIX_KILLER_SPLICE = 1;  Config::FIX_MATE_GATE = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

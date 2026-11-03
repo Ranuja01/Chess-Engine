@@ -1,6 +1,15 @@
 # Baseline performance reference
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.4 + PGO (2026-10-30, production binary)
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.5 + PGO (2026-11-03, production binary)
+- WAC d10 fingerprint **252 / 36,960,934 / EBF 3.813** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 6.4 + seven search
+  correctness fixes (`FIX_MAX_NULL 1`, `NULL_NPM_GUARD 2`, `FIX_MATE_50 1`, `FIX_HALFMOVE 1`, `FIX_REP_KEY 1`, `FIX_KILLER_SPLICE 1`,
+  `FIX_MATE_GATE 1`), all in the shipped gen-6 block (v1 frozen). The seven at 0 = gen 6.4 = 249 / 36,991,901; v1 (`EvalArm 0`)
+  = 250 / 35,310,778. Id "AlphaUX (v2 gen 6.5)". Backup of gen 6.4 production: `chess_engine_uci_g64pgo` (gen 6.5's own copy:
+  `chess_engine_uci_g65pgo`).
+- vs gen 6.4 at 10+0.1 on UHO: +8.7 ± 18.7 (1,000 g). d10 nodes per position: UHO −6.5% (median ratio 0.937), WAC +0.5% (mate
+  positions +27%, the mate gate searching defences it used to prune). OPTIMIZATION_LOG 11-03.
+
+## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 6.4 + PGO (2026-10-30)
 - WAC d10 fingerprint **249 / 36,991,901 / EBF 3.903** (UCI `bench` == Cython `V2_PRESET=shipped`); `Knobs THREAT_V2_PCT=0,RFP_MARGIN=1000`
   = gen 6.3 = 256 / 42,263,170; adding `THREAT_ORDER_W=0` = gen 6.2 = 257 / 46,196,950; `V2_SHIP_GEN=5` = 258 / 47,689,586; v1
   (`EvalArm 0`) = 250 / 35,310,778. Id "AlphaUX (v2 gen 6.4)". Backup of gen 6.3 production: `chess_engine_uci_g63pgo`

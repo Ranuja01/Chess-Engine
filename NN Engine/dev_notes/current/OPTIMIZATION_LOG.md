@@ -4,6 +4,18 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-11-03 — GEN 6.5 = gen 6.4 + seven search correctness fixes (owner-confirmed)
+Set in the `V2_PRESET=shipped` gen-6 block (v1 untouched): `FIX_MAX_NULL 1` (A4), `NULL_NPM_GUARD 2` (G5), `FIX_MATE_50 1`,
+`FIX_HALFMOVE 1` (B1), `FIX_REP_KEY 1` (B2 bit 1), `FIX_KILLER_SPLICE 1`, `FIX_MATE_GATE 1`. `FIX_MDP` stays 0 until the TT stores
+mate scores. Id "AlphaUX (v2 gen 6.5)". Evidence: queues #137, #139, #140 below (each item and the bundle not harmful; the
+bundle vs gen 6.4 +8.7 ± 18.7, a correctness release, not a measured gain).
+**Installed** as the PGO build `chess_engine_uci` (= `chess_engine_uci_g65pgo`; profile `/mnt/e/chess_data/pgo_g65`, bench + 8
+games st=0.25): bench **252 / 36,960,934** (33.3 s) · all seven at 0 = gen 6.4 249 / 36,991,901 (32.6 s, same binary) · + gen 6.3
+knobs 256 / 42,263,170 · `FIX_MDP=1` = the #139 candidate 251 / 40,921,706 · `V2_SHIP_GEN=5` 258 / 47,689,586 · `EvalArm 0`
+250 / 35,310,778. Cython `V2_PRESET=shipped` 252 / 36,960,934 / EBF 3.813, v1 250 / 35,310,778 / 3.784. Gen 6.4 backup:
+`chess_engine_uci_g64pgo`. Gen 6.4 knobs on a new binary:
+`FIX_MAX_NULL=0,NULL_NPM_GUARD=0,FIX_MATE_50=0,FIX_HALFMOVE=0,FIX_REP_KEY=0,FIX_KILLER_SPLICE=0,FIX_MATE_GATE=0`.
+
 ## 🚢 2026-10-30 — GEN 6.4 = gen 6.3 + threats in eval (mg 50 / eg 100) + RFP_MARGIN 600 (owner-confirmed)
 Set in the `V2_PRESET=shipped` gen-6 block (`THREAT_V2_PCT 100, HANGING 1, KING 1, PAWN_TARGETS 1, MG_PCT 50, EG_PCT 100`,
 `RFP_MARGIN 600`); v1 untouched. Id "AlphaUX (v2 gen 6.4)". Evidence: the ship checks and bench report below (#115-#118).

@@ -3208,18 +3208,18 @@ namespace Config
     // REP_FILTER: inside a search, is_repetition looks a key up in position_count only when a bit filter built from the
     // map at the root says it may be there (same counts, fewer hash lookups). 2 = also look up every filtered-out key and
     // abort if the map has it.
-    inline int REP_FILTER = 0;
+    inline int REP_FILTER = 1;
     inline int QGEN_VERIFY = 0;
     // KS_FAST: king safety counts attacks and defence per king-zone square with bit-sliced counters (no per-square arrays,
     // pawns added set-wise), its attacker loop skips pieces whose attack mask misses the zone, and the contested-share
     // divisions run only when KS_V2_DEFAWARE reads them (same channels, less work). KS_VERIFY: compute both forms in every
     // king-safety call and abort on the first difference, printing it.
-    inline int KS_FAST = 0;
+    inline int KS_FAST = 1;
     inline int KS_VERIFY = 0;
     // PAWN_HASH: the v2 evaluator keeps what it derives from the pawns alone (the pawn detector, the pawn-structure legs and
     // the KS-B shelter legs per king square) in a table keyed by both pawn sets (same values, computed once per structure).
     // 2 = recompute every cached value, compare, and abort on the first difference.
-    inline int PAWN_HASH = 0;
+    inline int PAWN_HASH = 1;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound

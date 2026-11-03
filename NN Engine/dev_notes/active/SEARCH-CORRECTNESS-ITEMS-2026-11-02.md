@@ -113,6 +113,17 @@ the 100th half-move read as a draw); with it `mate 1`, Ra8 ✓; at clock 0 both 
   so its answer is never remembered; the same searches used to return ordinary fail-soft scores that WERE stored (most MDP cuts
   are scouts built on the window sentinels, e.g. (−9999998, −9999997)). MDP and "store TT mates" are therefore coupled: judge MDP
   alone in games (mdp_uho, tonight), and if it is flat or negative, re-test it together with ply-adjusted mate storage.
+- **Per position (11-02 evening, `_depth_nodes_probe.py PAIRED=1`, d10, each position a fresh game, 300 each):**
+
+  | knob | WAC total · median ratio | WAC, mate score seen / not | UHO total · median ratio |
+  |---|---|---|---|
+  | FIX_MDP | +13.7% · 0.999 (10 positions carry 58%) | +62.5% (76) / +10.4% (224) | **−0.7%** · 0.999 |
+  | FIX_MATE_GATE | +2.2% · 1.000 (10 carry 69%) | +47.0% / −1.1% | +2.3% · 1.000 (10 carry 73%) |
+  | FIX_KILLER_SPLICE | −1.2% · 0.998 | −1.4% / −1.1% | **−4.5%** · 0.958 |
+
+  So MDP's bench increase is specific to the tactical, mate-heavy set and a few positions in it; on normal openings it is
+  neutral. The killer fix is a broad node saving in normal positions (median −4.2%). Per-position ratios spread ±15% (IQR) for
+  every arm, the usual tree-change scatter; totals and medians are the read.
 - The mate gate costs 2% nodes for +4 solved, as expected of a gate that searches where it used to prune.
 - FIX_MATE_50 never fired in 90 games with resign adjudication: correct by the unit check, practically inert in matches.
 

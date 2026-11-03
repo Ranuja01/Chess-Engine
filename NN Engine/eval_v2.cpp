@@ -114,6 +114,8 @@ namespace {
 	(an int8_t arithmetic chain costs sign-extension and blocks vectorisation, so it is a false economy on
 	anything hot).
 */
+struct PawnHashEntry;
+
 struct V2Context {
 	// Raw board, as handed in.
 	uint64_t pawns, knights, bishops, rooks, queens, kings;
@@ -135,6 +137,9 @@ struct V2Context {
 	// Deliberate: v2 does not inherit a convention it does not use, and mixing the two silently is a
 	// sign-error waiting to happen. Continuous, so no phase cliff exists to tune around.
 	int   phase256;
+
+	// This position's pawn-hash entry (Config::PAWN_HASH), set by the main evaluator only; null everywhere else.
+	PawnHashEntry *ph = nullptr;
 };
 
 /* ═══ (mg,eg) PAIR ACCUMULATOR — the structural prerequisite v2 has never had ═══════════════════════
@@ -1208,6 +1213,63 @@ struct PawnEntry {
 	uint8_t  openFiles, halfOpen[2];
 };
 
+/* Pawn hash (Config::PAWN_HASH): what the evaluator derives from the pawns alone, kept per pawn structure so positions that
+ * share it (most of a search tree) skip the work. Keyed by both pawn sets, compared exactly, so a shared slot can only miss,
+ * never return another structure's values. Holds the detector output, pawn_structure_mp's per-side legs (its phase blend still
+ * runs per position) and the KS-B shelter legs for up to four king squares per side. Every value also depends on the eval
+ * knobs and tables, so v2_c3_init clears the table whenever they are read. One table: the search is single-threaded. */
+struct PawnHashEntry {
+	uint64_t  wp, bp;
+	bool      used, pe_ok, ps_ok;
+	uint8_t   ksb_next[2];
+	int8_t    ksb_sq[2][4];               // king squares with stored shelter legs, -1 = empty
+	int       ksb_mg[2][4], ksb_eg[2][4];
+	int       ps_mg[2], ps_eg[2];
+	PawnEntry pe;
+};
+static constexpr int PAWN_HASH_BITS = 14;
+static PawnHashEntry g_pawn_hash[1 << PAWN_HASH_BITS];
+
+static void v2_pawn_hash_clear() noexcept
+{
+	for (PawnHashEntry &e : g_pawn_hash) e.used = false;
+}
+
+/* The entry for this position's pawns, reset to empty when the slot holds another structure. */
+static inline PawnHashEntry *pawn_hash_probe(const V2Context &c) noexcept
+{
+	const uint64_t wp = c.pawns & c.white, bp = c.pawns & c.black;
+	const uint64_t h  = (wp * 0x9E3779B97F4A7C15ULL) ^ (bp * 0xC2B2AE3D27D4EB4FULL);
+	PawnHashEntry &e  = g_pawn_hash[(h ^ (h >> 29)) >> (64 - PAWN_HASH_BITS)];
+	if (!(e.used && e.wp == wp && e.bp == bp)){
+		e.wp = wp;  e.bp = bp;
+		e.used = true;  e.pe_ok = e.ps_ok = false;
+		e.ksb_next[0] = e.ksb_next[1] = 0;
+		for (int s = 0; s < 2; ++s)
+			for (int i = 0; i < 4; ++i) e.ksb_sq[s][i] = -1;
+	}
+	return &e;
+}
+
+[[noreturn]] static void pawn_hash_mismatch(const char *what, const V2Context &c)
+{
+	std::cerr << "PAWN_HASH mismatch (" << what << "): white pawns " << (c.pawns & c.white) << " black pawns "
+	          << (c.pawns & c.black) << " kings " << c.kings << std::endl;
+	std::abort();
+}
+
+static inline bool pawn_entry_equal(const PawnEntry &a, const PawnEntry &b) noexcept
+{
+	for (int s = 0; s < 2; ++s)
+		if (a.passed[s] != b.passed[s] || a.candidate[s] != b.candidate[s] || a.isolated[s] != b.isolated[s]
+		 || a.doubled[s] != b.doubled[s] || a.backward[s] != b.backward[s] || a.phalanx[s] != b.phalanx[s]
+		 || a.supported[s] != b.supported[s] || a.opposed[s] != b.opposed[s] || a.lever[s] != b.lever[s]
+		 || a.blocked[s] != b.blocked[s] || a.stop_held[s] != b.stop_held[s] || a.attacks[s] != b.attacks[s]
+		 || a.attacks2[s] != b.attacks2[s] || a.halfOpen[s] != b.halfOpen[s])
+			return false;
+	return a.openFiles == b.openFiles;
+}
+
 /* Set-wise helpers. Deliberately tiny and side-agnostic: every predicate below is a fill or a shift, not
  * a per-square loop, which is what keeps the detector a pure function of two bitboards.
  */
@@ -1433,7 +1495,15 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c, Eval
 	int side_mg[2] = {0, 0};
 	int side_eg[2] = {0, 0};
 
-	for (int s = 0; s < 2; ++s){
+	// The per-side legs below read only the pawns, so the pawn hash keeps them (PAWN_HASH = 2 recomputes and compares).
+	PawnHashEntry *const ph = c.ph;
+	const bool cached = ph && ph->ps_ok && Config::PAWN_HASH != 2;
+	if (cached){
+		side_mg[0] = ph->ps_mg[0];  side_mg[1] = ph->ps_mg[1];
+		side_eg[0] = ph->ps_eg[0];  side_eg[1] = ph->ps_eg[1];
+	}
+
+	for (int s = 0; s < 2 && !cached; ++s){
 		const bool     white = (s == 0);
 		const uint64_t own   = c.pawns & (white ? c.white : c.black);
 
@@ -1542,6 +1612,14 @@ static inline int pawn_structure_mp(const PawnEntry &e, const V2Context &c, Eval
 			side_mg[s] -= nwu * Config::PS_V2_WEAKUNOPP_MG;
 			side_eg[s] -= nwu * Config::PS_V2_WEAKUNOPP_EG;
 		}
+	}
+	if (ph && !cached){
+		if (ph->ps_ok && (ph->ps_mg[0] != side_mg[0] || ph->ps_mg[1] != side_mg[1]
+		               || ph->ps_eg[0] != side_eg[0] || ph->ps_eg[1] != side_eg[1]))
+			pawn_hash_mismatch("pawn structure legs", c);
+		ph->ps_mg[0] = side_mg[0];  ph->ps_mg[1] = side_mg[1];
+		ph->ps_eg[0] = side_eg[0];  ph->ps_eg[1] = side_eg[1];
+		ph->ps_ok = true;
 	}
 
 	// Phase-blend each side, then combine Black-positive. c.phase256: 256 = full midgame, 0 = deep endgame.
@@ -3579,6 +3657,34 @@ static inline void ksb_legs(uint64_t own, uint64_t enemy, bool white, int ksq, i
  * a castling right is scored at the BEST of its square and the castling targets it may still reach (SF11
  * pawns.cpp:233-237 takes the max by mg; here the max is by the phase-blended value, since v2 blends per term).
  * ⚠️ The feature extractor reports the ACTUAL square only, so it flags mode 1 as unmodelled (flag 4). */
+/* ksb_legs through the pawn hash: the legs depend only on the two pawn sets, the side and the king square, so the entry
+ * keeps them for up to four king squares per side (round-robin). Without an entry it is ksb_legs. */
+static inline void ksb_legs_memo(const V2Context &c, uint64_t own, uint64_t enemy, bool white, int ksq, int &mg, int &eg) noexcept
+{
+	PawnHashEntry *const ph = c.ph;
+	if (!ph){
+		ksb_legs(own, enemy, white, ksq, mg, eg);
+		return;
+	}
+	const int s = white ? 0 : 1;
+	for (int i = 0; i < 4; ++i)
+		if (ph->ksb_sq[s][i] == ksq){
+			mg = ph->ksb_mg[s][i];
+			eg = ph->ksb_eg[s][i];
+			if (Config::PAWN_HASH == 2){
+				int m2, e2;
+				ksb_legs(own, enemy, white, ksq, m2, e2);
+				if (m2 != mg || e2 != eg) pawn_hash_mismatch("shelter legs", c);
+			}
+			return;
+		}
+	ksb_legs(own, enemy, white, ksq, mg, eg);
+	const int i = ph->ksb_next[s]++ & 3;
+	ph->ksb_sq[s][i] = (int8_t)ksq;
+	ph->ksb_mg[s][i] = mg;
+	ph->ksb_eg[s][i] = eg;
+}
+
 static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) noexcept
 {
 	const uint64_t kb = c.kings & (white ? c.white : c.black);
@@ -3586,7 +3692,7 @@ static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) no
 	if (!kb) return;
 	const int ksq = __builtin_ctzll(kb);
 	const uint64_t own = c.pawns & (white ? c.white : c.black), enemy = c.pawns & (white ? c.black : c.white);
-	ksb_legs(own, enemy, white, ksq, mg, eg);
+	ksb_legs_memo(c, own, enemy, white, ksq, mg, eg);
 	if (Config::KSB_V2_CASTLE == 0) return;
 	const int back = white ? 0 : 56;
 	const bool ks = (c.castling_rights >> (back + 7)) & 1, qs = (c.castling_rights >> back) & 1;
@@ -3595,7 +3701,7 @@ static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) no
 	for (int k = 0; k < 2; ++k){
 		if (!(k == 0 ? ks : qs)) continue;
 		int m2, e2;
-		ksb_legs(own, enemy, white, back + (k == 0 ? 6 : 2), m2, e2);
+		ksb_legs_memo(c, own, enemy, white, back + (k == 0 ? 6 : 2), m2, e2);
 		const int v = (m2 * c.phase256 + e2 * (256 - c.phase256)) >> 8;
 		if (v > best){ best = v; mg = m2; eg = e2; }
 	}
@@ -4501,6 +4607,8 @@ static bool c3_table_or_ship2(const char *knob, const char *env_name, int k0, in
  * separately. */
 void v2_c3_init()
 {
+	// The pawn hash holds values computed under the previous knobs and tables.
+	v2_pawn_hash_clear();
 	// The live attacker-weight profile (Fit K2): the shipped KS_W_OURS unless KS_V2_W_N/B/R/Q override it.
 	KS_W_LIVE[KNIGHT] = Config::KS_V2_W_N;
 	KS_W_LIVE[BISHOP] = Config::KS_V2_W_B;
@@ -4592,6 +4700,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		build_context(c, moveNum, turn, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask,
 		              occupied_whiteMask, occupied_blackMask, occupiedMask, castlingRights);
 	}
+	if (Config::PAWN_HASH) c.ph = pawn_hash_probe(c);
 
 	// (tier-2b technique value is defined above draw_class's caller; see tier2b_value_mp)
 	// ── slice 1: binary draw classifier ──────────────────────────────────────────────────────────
@@ -4790,7 +4899,17 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			// The pawn DETECTOR (Layer A). Scoped alone because it is the one block a pawnKey cache
 			// could memoize -- its share IS the prize for building one.
 			PROF_BLOCK(PROF_V2_PAWNENTRY);
-			build_pawn_entry(pe, c);
+			if (c.ph && c.ph->pe_ok){
+				pe = c.ph->pe;
+				if (Config::PAWN_HASH == 2){
+					PawnEntry fresh;
+					build_pawn_entry(fresh, c);
+					if (!pawn_entry_equal(fresh, pe)) pawn_hash_mismatch("pawn entry", c);
+				}
+			} else {
+				build_pawn_entry(pe, c);
+				if (c.ph){ c.ph->pe = pe; c.ph->pe_ok = true; }
+			}
 		}
 		// ⚠️ `lp` is RESET per term here: pawn_structure_mp and passer_value_mp return early (leaving lp
 		// untouched) when their magnitude knob is 0, so a stale lp would be added as that term's legs.

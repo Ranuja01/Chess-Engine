@@ -3216,6 +3216,10 @@ namespace Config
     // king-safety call and abort on the first difference, printing it.
     inline int KS_FAST = 0;
     inline int KS_VERIFY = 0;
+    // PAWN_HASH: the v2 evaluator keeps what it derives from the pawns alone (the pawn detector, the pawn-structure legs and
+    // the KS-B shelter legs per king square) in a table keyed by both pawn sets (same values, computed once per structure).
+    // 2 = recompute every cached value, compare, and abort on the first difference.
+    inline int PAWN_HASH = 0;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound

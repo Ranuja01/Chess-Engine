@@ -147,6 +147,32 @@ carried the 80/40 counters. Match, `FIX_TT_R50=1` vs production, 10+0.1, no draw
 bar would pass it); whether to adopt it on those grounds is the owner's call. Either way it is no Elo source, and on this venue
 58.5% of games are drawn and 71% of pairs split 1-1: the 50-move horizon rarely decides a game even where it is inside every search.
 
+**FIX_TT_R50 where the 50-move rule decides (queues #147 / #148, 11-04; owner: adopt it if it proves useful in its intended
+position).** Venue `diagnostics/_r50_venue.py SOURCE=all`: the first position at halfmove clock 78 of every past fastchess game
+that reached it (51,487 games read, 2,863 distinct positions), kept when Stockfish 18 at the REAL clock gives one side ≥ 2 pawns:
+**386 positions** (median +4.89; the fifty-move-draws-only version kept 98, too few). Live there: 29 of 40 fixed-node games
+diverged, 16 results changed. Run A = `FIX_TT_R50=1` vs production, run B = production vs itself, same positions, 10+0.1, no
+adjudication of any kind, interleaved per chunk of 100; `diagnostics/_r50_split.py`:
+
+| 386 positions | attacker score | fifty-move draws |
+|---|---|---|
+| arm attacks production | 91.3% | 11.1% |
+| production attacks arm | 90.7% | 11.7% |
+| production attacks production (reference) | 92.1% | 12.3% |
+
+**Conversion −0.8 pp ± 1.9 (95%), z −0.82; defence −1.4 pp ± 2.2, z −1.27** (the arm a slightly better defender, inside the
+noise); head-to-head +2.3 (−6.1 … +10.6), 772 games, 0 disconnects / forfeits / crash dumps. Registered: adopt if either side
+improves by ≥ 2σ and the other is not worse by more than 1σ — **neither does: FIX_TT_R50 stays 0.** It is correct but inert even
+where it fires.
+⭐ **What the venue shows instead:** production, holding a ≥ 2-pawn advantage with 22 half-moves left on the clock, lets **12% of
+games run into the 50-move rule**. The lever there is not the TT but the eval's ignorance of the clock: rule-50 damping (SF scales
+the eval down as the clock rises, so lines that reset the clock win the comparison) has never been built — it needs the clock in
+the eval and in the eval-cache key (EVAL-NUANCES-VS-GIANTS E6, SEARCH-TRANSITION-PREPLAN item 7). This venue and `_r50_split.py`
+are its ready-made instrument (registered metric: conversion delta and the fifty-move-draw share of the attacking side).
+**How often, though:** 2,863 of 51,487 past games (5.6%) reach clock 78 at all, 386 of those (13%) with a ≥ 2-pawn side, and 12% of
+those draw ⇒ about **0.1% of games**. A narrow item, not an Elo lever — consistent with EVAL-V2-PARKED-REGISTER, which lists rule-50
+as dead *as Elo work*; it stays a narrow / teacher-quality item with its instrument ready.
+
 **Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
 - **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`
   with the mated position on top of the history (`search_engine.cpp` 6095 / 7065 / 8234), so one value means "mate delivered at game

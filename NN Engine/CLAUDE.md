@@ -68,7 +68,9 @@ fingerprint scripts keep working; every new measurement, the UI and the UCI bina
 **The engine is AlphaUX** ("NN Engine" is only this folder's name). **Native UCI binary:** `selfplay/build_uci.sh` →
 `build_uci/chess_engine_uci` = **gen 6.5** (2026-11-03, PGO; id "AlphaUX (v2 gen 6.5)"; backup of 6.4 `chess_engine_uci_g64pgo`) =
 gen 6.4 + seven search correctness fixes (OPTIMIZATION_LOG 11-03), built with speed batches 7 + 8 on (result-identical, same
-fingerprints): production == `chess_engine_uci_g65b8pgo`; without batch 8 `chess_engine_uci_g65fpgo`, without either `chess_engine_uci_g65pgo`. Gen 6.4 = gen 6.3 (threat-aware quiet ordering) + threats in eval + `RFP_MARGIN` 600, on top of gen 6.2: gen 6.1 (2026-10-25: gen 6 + the time
+fingerprints), and since 11-04 without the toolchain's security hardening (F15, `build_uci.sh` default; `HARDEN=1` keeps it; v2
+identical, the UCI binary's v1 bench reads 35,310,775): production == `chess_engine_uci_f15pgo`; with hardening
+`chess_engine_uci_g65b8pgo`, without batch 8 `chess_engine_uci_g65fpgo`, without either `chess_engine_uci_g65pgo`. Gen 6.4 = gen 6.3 (threat-aware quiet ordering) + threats in eval + `RFP_MARGIN` 600, on top of gen 6.2: gen 6.1 (2026-10-25: gen 6 + the time
 manager's `TM_MODE=1` clock rule) + TM arm E as defaults (`TM_START=175 TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`, clock
 games only). Gen 6.1 behaviour: `Knobs TM_START=0,TM_SINGLE=0,TM_SCALE=0,TM_NORM=100,TM_OPT_PLY=0` (backup binary
 `chess_engine_uci_g61pgo`); `Knobs TM_MODE=0` = the pre-6.1 clock rule. Verify with `bench` (== 252 / 36,960,934 for gen 6.5) —

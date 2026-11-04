@@ -4,6 +4,17 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-11-04 14:15 — F15 INSTALLED (owner: pass it now, re-check it with batch 9)
+`build_uci/chess_engine_uci` == `chess_engine_uci_f15pgo`; the batch-8 binary with hardening stays as `chess_engine_uci_g65b8pgo`.
+Re-checked on the installed copy: 252 / 36,960,934 · gen 6.4 knobs 249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 · v1
+250 / **35,310,775** · id "AlphaUX (v2 gen 6.5)" · `EXEC`, 7 `endbr64`, no stack check. `selfplay/build_uci.sh` now leaves the
+hardening off by default (`HARDEN=1` keeps it), so every later build carries F15. The Cython module is unchanged (its v1 stays
+35,310,778). Real-play nps not read yet: it goes into the batch-9 bundle's read.
+**Bisection (queue #148, plain builds):** no flag alone moves anything (v2 252 / 36,960,934 and v1 250 / 35,310,778 for each of
+the five); all of them together give v1 35,310,777 (plain) / 35,310,775 (PGO), v2 exact in every build. So no single flag
+changes behaviour: the combination changes code layout, and v1's eval, which uses doubles under `-Ofast`, rounds differently
+somewhere. Owner 11-04: v1 is not the engine, so this does not matter for play.
+
 ## ⚡ 2026-11-04 — F15 HARDENING FLAGS OFF (queue #147, owner: "we can go for it"): v2 identical, bench ≈ +2.4% nps; v1 moved 3 nodes (bisection #148)
 The toolchain (Ubuntu GCC 11.4) turns on `-fstack-protector-strong`, `-fcf-protection=full`, `-fstack-clash-protection`,
 `_FORTIFY_SOURCE=2` and default PIE; the production binary carries all of them (PIE `DYN`, 894 `endbr64`, `__stack_chk_fail`,

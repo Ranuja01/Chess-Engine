@@ -13,7 +13,8 @@
   |---|---|---|---|
   | `chess_engine_uci_g65pgo` | gen 6.5 | 32.9 s, 1,124,408 nps | 1,165,753 nps |
   | `chess_engine_uci_g65fpgo` | + batch 7 (`KS_FAST`, `REP_FILTER`, `PAWN_HASH`) | 30.9 s, 1,196,942 nps (+6.4%) | 1,268,698 nps (+8.8%); +12.9 Elo (−5.9 … +31.7) |
-  | **`chess_engine_uci_g65b8pgo` = `chess_engine_uci` (11-03 evening)** | + batch 8 (`SCRATCH_REUSE`, `PIN_FAST`) | 28.6 s vs batch 7's 30.1 s in the same session (+5.3%) | 1,346,840 nps vs 1,295,095 (+4.0%); −13.2 Elo (−31.7 … +5.2), noise-sized; #145: games identical to batch 7 at fixed nodes (120 of 120) |
+  | **`chess_engine_uci_f15pgo` = `chess_engine_uci` (11-04 14:15)** | + F15 hardening off (`build_uci.sh` default) | 28.78 s vs 29.47 s in the same session (+2.4%, undisturbed runs) | not read yet: banked with batch 9 (owner: pass now, re-check in the bundle); games identical at fixed nodes (120 of 120); v1 bench 35,310,775 |
+  | `chess_engine_uci_g65b8pgo` (11-03 evening) | + batch 8 (`SCRATCH_REUSE`, `PIN_FAST`) | 28.6 s vs batch 7's 30.1 s in the same session (+5.3%) | 1,346,840 nps vs 1,295,095 (+4.0%); −13.2 Elo (−31.7 … +5.2), noise-sized; #145: games identical to batch 7 at fixed nodes (120 of 120) |
 - Outside opponents vs gen 6.4 (queue #143, 11-04): SF18 @ 1,100 nodes 56.10% vs 55.30%, paired +0.80 pp ± 4.82 · Mediocre 10+0.1
   +236.8 (79.6%) vs +212.4 (77.25%). Real play in the Mediocre legs: production **1,332,613 nps**, depth 11.2 vs `g64pgo`
   1,176,815 nps, depth 10.9 (+13.2%). OPTIMIZATION_LOG 11-04.

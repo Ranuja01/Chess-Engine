@@ -7,6 +7,10 @@ cd "$ND" || exit 1
 mkdir -p build_uci
 FLAGS="-Ofast -march=native -flto -fopenmp -fno-rtti -std=c++20 -mpopcnt -mbmi2 -I. -I/usr/include/eigen3"
 SRC="cpp_bitboard.cpp eval_v2.cpp ThreadPool.cpp search_engine.cpp position.cpp book.cpp uci_main.cpp"
+# The toolchain's default security hardening (stack protector, CET landing pads, stack-clash probes, _FORTIFY_SOURCE, PIE)
+# is switched off for speed. It changes code generation only: the v2 results are identical (see the F15 entry in
+# dev_notes/current/OPTIMIZATION_LOG.md). HARDEN=1 keeps the hardening.
+[ "${HARDEN:-0}" = 1 ] || FLAGS="$FLAGS -fno-stack-protector -fcf-protection=none -fno-stack-clash-protection -U_FORTIFY_SOURCE -fno-pie -no-pie"
 # Profile-guided build in two passes (results are unchanged; verify with the bench): PGO=gen builds an instrumented
 # binary that writes its profile into PGO_DIR when it exits; PGO=use rebuilds from that profile. Code the training run
 # never reached keeps normal optimisation (-fprofile-partial-training). FLAGS is expanded unquoted, so PGO_DIR must not

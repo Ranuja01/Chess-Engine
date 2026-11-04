@@ -147,6 +147,30 @@ carried the 80/40 counters. Match, `FIX_TT_R50=1` vs production, 10+0.1, no draw
 bar would pass it); whether to adopt it on those grounds is the owner's call. Either way it is no Elo source, and on this venue
 58.5% of games are drawn and 71% of pairs split 1-1: the 50-move horizon rarely decides a game even where it is inside every search.
 
+**Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
+- **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`
+  with the mated position on top of the history (`search_engine.cpp` 6095 / 7065 / 8234), so one value means "mate delivered at game
+  ply G" from every node. A stored mate is wrong only when the same position is reached at a different ply (a transposition through
+  a longer or shorter path), so the fix is the usual one in this frame: store `s + g` for a win and `s − g` for a loss, where g is
+  the keyed position's ply (`state_history.size()` with it on top); read back `s' − g` / `s' + g`. The stored value is then the
+  distance from that position, as consensus engines keep it.
+- **g is already passed to every store.** All ~30 `addToSearchEvalCache` calls give `state_history.size()` as `num_plies` (unused
+  today), and at each one checked the keyed position is on top (root 4558-4582, the helpers 5081 / 5513 read `state_history.back()`
+  after the caller's `make_move`). Each site gets checked once more when the code goes in.
+- **Reads that need the conversion (11 live):** `use_tt_entry` (one function, 7 calls — add a ply argument next to the 50-move
+  clock it already takes), the null-move TT reuse (6466, 7177), the singular `ttScore` (6584, 7298; singular is off), the root-level
+  exact read (8367) and the shadow probe's `tts` (1165, diagnostics only). Move-only reads (9933, 9974, the cutoff move writes)
+  need nothing. The stored `alpha` / `beta` fields are read only in commented-out code.
+- **What must not be stored:** the non-improving sentinels `±9999999` (pruned or futile moves, the window ends) sit just outside
+  the mate range (a real mate has g ≥ 1). Today the `|s| ≥ 9,000,000` filter drops them with the mates. The new filter keeps
+  `9,000,000 ≤ |s| < 9,999,999` and still drops the sentinels.
+- **Out of scope:** the qsearch cache (it skips mates too; qsearch mates are rare: `qsmate` 0-202 per 40 games) and draws
+  (`ENABLE_TT_STORE_DRAW` already exists; storing them is path-dependent through repetitions — a separate question).
+- **Plan:** knob `FIX_TT_MATE` (0 = today), a round-trip unit check (store at one ply, probe at another, the expected mate
+  distance), bench + d10 WAC / UHO node counts for `FIX_TT_MATE` alone and with `FIX_MDP` (the registration to beat: MDP alone
+  +14% WAC bench nodes, because its mate-range answers were never remembered), a fire-count gate, then one match of the pair
+  vs production. Correctness bar (not harmful), as for the rest of this list.
+
 **Cost.** Step 0 ≈ 1 h of box time, no timed games. Step 1 ≈ 8 h (three matches). Step 2 ≈ a day of code and counters plus three
 matches. Expected Elo: small — these are correctness items, valued for removing wrong behaviour without harm; the search arc's
 larger forecast (+50 … +150) rests on the LMR / pruning / ordering redesign that comes after them.

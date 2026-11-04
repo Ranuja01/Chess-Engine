@@ -30,7 +30,7 @@ Reading: the SF18 leg is the not-harmful check for the seven correctness fixes (
 and it passes with room; the Mediocre leg folds speed in and comes out on the positive side of the band. Neither is a gain claim.
 Mediocre at 10+0.1 is no longer a useful absolute yardstick at ~80% — a later Mediocre read should give it more time or us less.
 
-## 🚢 2026-11-03/04 — SPEED BATCH 8 ON BY DEFAULT (owner-confirmed): real play +4.0% nps; speed match −13.2 (−31.7 … +5.2), unresolved (queue #142)
+## 🚢 2026-11-03/04 — SPEED BATCH 8 ON BY DEFAULT (owner-confirmed): real play +4.0% nps; speed match −13.2 (−31.7 … +5.2) = noise, games identical at fixed nodes (queues #142, #145)
 `SCRATCH_REUSE=1 PIN_FAST=1` are the header defaults (all engines; results identical). **Installed** as the PGO build
 `chess_engine_uci` (= `chess_engine_uci_g65b8pgo`, profile `/mnt/e/chess_data/pgo_g65b8`); the batch-7 production binary stays as
 `chess_engine_uci_g65fpgo`. Fingerprints on the new binary: 252 / 36,960,934 (default and with both knobs off) · gen 6.4 knobs
@@ -57,6 +57,10 @@ verify modes (bench + 40 games, 0 mismatches), so the only lever in a timed matc
 the reading is noise on the unlucky side. ▶️ To close it rather than argue it: a **build-identity game check** (queue #145,
 `_fix_firecount.py BIN=<batch 7> BIN_ON=<batch 8> ON=` — fixed nodes, full games from eg / kp / UHO starts; every set must report
 "diverged: 0"). A divergence there would mean a real behaviour change and reopens the batch.
+✅ **Closed 11-04 07:36 (queue #145): identical.** Batch 7 vs batch 8 production binaries, 30k nodes/move, ≤ 200 plies, both sides,
+40 starts each from eg_critical / kp_dense / UHO: **diverged 0 / 40 in every set, 0 results changed, 0 crashes**, and every internal
+counter equal (repetition hits 832,770 / 62,231 / 203,037, fifty-move 199,641, draw exits, qsearch mates, depth caps). The −13.2
+was noise; batch 8 is a pure speed change.
 
 ## ⚡ 2026-11-03 — SPEED BATCH 8 (result-identical knobs, default 0): SCRATCH_REUSE + PIN_FAST = −7% bench time
 **Where the time was** (perf on a `-g -fno-omit-frame-pointer` copy, 6 self-play games st=0.2 seed 652, frame-pointer stacks — this

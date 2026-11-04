@@ -3224,11 +3224,11 @@ namespace Config
     // history-malus lists (a pool taken in nesting order), the move-generation sort's merge buffer, the lazy re-sort's scores,
     // and the beta-cutoff cache update, which copied the whole move list per cutoff. Same lists in the same order.
     // 2 = also sort every move list with std::stable_sort and abort on the first difference.
-    inline int SCRATCH_REUSE = 0;
+    inline int SCRATCH_REUSE = 1;
     // PIN_FAST: the LMR pin test looks from each king, queen and rook for an enemy slider on its line with exactly one own
     // piece between, instead of scanning every piece on a king or queen line for an attacker and x-raying behind it (same
     // answer). 2 = run both and abort on the first difference.
-    inline int PIN_FAST = 0;
+    inline int PIN_FAST = 1;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound

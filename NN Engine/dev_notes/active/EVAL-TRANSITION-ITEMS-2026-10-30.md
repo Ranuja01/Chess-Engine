@@ -125,7 +125,8 @@ Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication a
 Forecast registered 10-30 (self-play, vs gen 6.4; check it at the end of each leg): rest of the eval leg incl. the lean retune
 and the lazy eval exit +15 … +40; the search arc +50 … +150, top end raised to +250 after the owner's argument (EBF: each step
 toward SF's tree shape is several plies at equal time, IF the pruning is effective — prune more where safe, less where lines matter)
-(two-thirds of the SF11 gap is node efficiency; STS300 at equal nodes 1,944 vs SF11 2,374). External gains expected at roughly half the self-play figure. Search arc start ≈ 2026-11-07.
+(two-thirds of the SF11 gap is node efficiency; STS300 at equal nodes 1,944 vs SF11 2,374). External gains expected at roughly half the self-play figure. Search arc start ≈ 2026-11-07 — **a soft time box on the eval
+re-check so it does not run too long, not a deadline (owner 11-04): close-out items are done in full, never skipped to meet it.**
 6. Lazy eval exit — a dedicated item once the eval items are done and retuned (owner 10-30), before the margins re-sweep;
    research and measurement plan in `LAZY-EVAL-RESEARCH-2026-10-30.md`.
 

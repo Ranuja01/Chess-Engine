@@ -204,6 +204,22 @@ below). Plain build `chess_engine_uci_ttm`, every knob off = 252 / 36,960,934 �
   −38.4 / +7.0 / −19.1 (each ±40-47); liveness 40 / 40 diverged, 26 results changed; 0 disconnects, 0 forfeits, no crash dumps.
   Real play: arm 1,427,154 nps, depth 11.3, 337,815 nodes / move · ctl 1,433,885, 11.4, 340,227 (−0.5% nps). **z ≈ −0.92:
   passes the registered bar, at its edge, and the point sits below the expected −5 … +10.** Bundle fingerprint 252 / 39,257,155.
+  **Owner 11-04: lazy pass → gen 6.6** (shipped preset; replicate + `ENABLE_TT_FLAG_FIX` + SF18 check in queue #152 tonight).
+- **Bench report, gen 6.5 vs the candidate (queue #151, Cython rebuilt with the code, knobs by env):**
+
+  | bench | gen 6.5 | gen 6.6 candidate | read |
+  |---|---|---|---|
+  | WAC d10 fingerprint (Cython = UCI) | 252 / 36,960,934 / EBF 3.813 | 252 / 39,257,155 / **EBF 3.700** | +6.2% nodes at fixed depth (mostly the clamp) |
+  | WAC at LIGHTNING (~1 s / move) | 267 solved, depth 15.410 (non-mate), mates 73 | **271**, 15.417, mates 70 | +4 solved at equal time |
+  | Cython WAC speed, pinned (max of 3) | 1,004,919 nps | 1,024,456 nps (spread 36%, disturbed) | nps level |
+  | UCI bench, plain build, pinned, 4 undisturbed pairs of 6 | 27.09 s | 28.95 s | +6.9% time = the +6.2% nodes, nps level |
+  | STS300 d10 · full STS d10 | 1,908 · 9,620 | 2,020 · 9,860 | inside STS's ±150 floor (INSTRUMENT-MAP) |
+  | STS300 @ 249k nodes · WAC @ 249k | 1,890 · 250 | 1,845 · 246 | inside the floor; the equal-node direction matches the match's −9 |
+
+  ⚠️ Not from this item: gen 6.5's own full STS d10 (9,620) and STS300 @ 249k (1,890) sit below gen 6.4's 10-30 record
+  (10,063 · 1,944, queue #117). Both are deterministic, so either gen 6.5's search fixes moved STS or the setup differs.
+  **To check:** the gen 6.4 knobs on today's Cython build (~15 min). STS does not decide ships, but it is the equal-nodes
+  yardstick against SF11.
 
 **Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
 - **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`

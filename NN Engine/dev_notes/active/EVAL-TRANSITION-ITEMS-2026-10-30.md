@@ -128,3 +128,16 @@ toward SF's tree shape is several plies at equal time, IF the pruning is effecti
 (two-thirds of the SF11 gap is node efficiency; STS300 at equal nodes 1,944 vs SF11 2,374). External gains expected at roughly half the self-play figure. Search arc start ≈ 2026-11-07.
 6. Lazy eval exit — a dedicated item once the eval items are done and retuned (owner 10-30), before the margins re-sweep;
    research and measurement plan in `LAZY-EVAL-RESEARCH-2026-10-30.md`.
+
+**Close-out order of the transition (owner 11-04: "the big retune was part of closing off the transition first before going
+into search, due to the fact that we added some new stuff").** The eval was last fitted before threats (gen 6.4) and before the
+search changes of gen 6.5 / 6.6, so the retune closes the transition, not the search arc:
+1. the open correctness items (the mate-score bundle #150 → gen 6.6; `ENABLE_TT_FLAG_FIX`, dead since 08-22) and banked speed
+   (batch 9 + F15's real-play read);
+2. **the retune** — the eval re-fitted on top of threats and the current search, at the play depth;
+3. the static ladder re-check (owner 11-04: after the full retune steps; last run gen 6.4);
+4. lazy eval exit (item 6), then the margins re-sweep last;
+5. then the search arc.
+**Search v2 scope (owner 11-04):** a long arc, more than rewriting the search — also tuning its knobs the way the eval was
+tuned, with EBF as the target; correctness measured as nodes kept (pruning that is right where it prunes); and the technical
+changes that support it (SEARCH-TRANSITION-PREPLAN §3 negamax migration, §4 speed, §5 the fair node-efficiency instrument).

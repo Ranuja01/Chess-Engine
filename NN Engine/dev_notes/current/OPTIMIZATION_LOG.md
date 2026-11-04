@@ -4,6 +4,34 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-11-03/04 — SPEED BATCH 8 ON BY DEFAULT (owner-confirmed): real play +4.0% nps; speed match −13.2 (−31.7 … +5.2), unresolved (queue #142)
+`SCRATCH_REUSE=1 PIN_FAST=1` are the header defaults (all engines; results identical). **Installed** as the PGO build
+`chess_engine_uci` (= `chess_engine_uci_g65b8pgo`, profile `/mnt/e/chess_data/pgo_g65b8`); the batch-7 production binary stays as
+`chess_engine_uci_g65fpgo`. Fingerprints on the new binary: 252 / 36,960,934 (default and with both knobs off) · gen 6.4 knobs
+249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 · v1 250 / 35,310,778 · id "AlphaUX (v2 gen 6.5)"; Cython `V2_PRESET=shipped`
+252 / 36,960,934 / 3.813, v1 250 / 35,310,778 / 3.784. Timed part started 23:10 on the owner's go (the evening was theirs).
+
+**NPS reads:**
+
+| instrument | before (batch 7) | after (batch 8) | change |
+|---|---|---|---|
+| UCI `bench`, production PGO binaries, pinned, 6 alternating rounds | 30.06 s mean of 5 (one run at 43.5 s set aside) | 28.56 s mean of 5 (one run at 34.9 s set aside) | **−5.0% time, +5.3% nps**; new faster in all 4 undisturbed pairs |
+| Cython `depth_nps_bench.py --n 60 PRESET=LIGHTNING`, knobs off vs on, 3 alternating runs | median NPS mean 948,418 | 980,036 | +3.3%, ⚠️ disturbed (one "on" run's mean 828k) |
+| **real play: the 1,000 match games, searched moves only (~59,500 each)** | **1,295,095 nps**, depth 11.2, 307,509 nodes / move | **1,346,840 nps**, depth 11.3, 321,220 nodes / move | **+4.0% nps** at the same 0.237 s / move |
+
+Two of the twelve bench runs were hit by something else on the box (late evening, the owner still using it) — the reads are
+softer than batch 7's. Across sessions the production line now reads gen 6.5 1,165,753 → batch 7 1,268,698 / 1,295,095 → batch 8
+1,346,840 in real play (≈ +15% since this morning's gen 6.5 binary; compare session to session with care).
+
+**Speed match** (batch 8 vs batch 7 production PGO, 10+0.1, UHO, 5 × 200 games, seeds 14211-14215, concurrency 3): **−13.2 Elo
+(95% −31.7 … +5.2)**, from 500 pairs; 1000 games +369 −407 =224 (48.1%), pentanomial [76, 94, 186, 80, 64]; chunks −34.9 / 0.0 /
+−26.1 / −47.2 / +41.9 (each ±37-45). Registered 0 … +20: **below the band**, −1.4σ from 0 and ≈ −1.9σ from the +5 that +4%
+nps should buy. 0 disconnects, 0 time forfeits, no crash dumps. Both knobs are result-identical by construction and by their
+verify modes (bench + 40 games, 0 mismatches), so the only lever in a timed match is the speed, which real play shows went UP;
+the reading is noise on the unlucky side. ▶️ To close it rather than argue it: a **build-identity game check** (queue #145,
+`_fix_firecount.py BIN=<batch 7> BIN_ON=<batch 8> ON=` — fixed nodes, full games from eg / kp / UHO starts; every set must report
+"diverged: 0"). A divergence there would mean a real behaviour change and reopens the batch.
+
 ## ⚡ 2026-11-03 — SPEED BATCH 8 (result-identical knobs, default 0): SCRATCH_REUSE + PIN_FAST = −7% bench time
 **Where the time was** (perf on a `-g -fno-omit-frame-pointer` copy, 6 self-play games st=0.2 seed 652, frame-pointer stacks — this
 perf cannot unwind DWARF and has no libelf, so frames are named from `dsoff` offsets with addr2line): libc **6.9%** of engine

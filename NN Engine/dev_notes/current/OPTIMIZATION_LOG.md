@@ -4,6 +4,22 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚡ 2026-11-04 — F15 HARDENING FLAGS OFF (queue #147, owner: "we can go for it"): v2 identical, bench ≈ +2.4% nps; v1 moved 3 nodes (bisection #148)
+The toolchain (Ubuntu GCC 11.4) turns on `-fstack-protector-strong`, `-fcf-protection=full`, `-fstack-clash-protection`,
+`_FORTIFY_SOURCE=2` and default PIE; the production binary carries all of them (PIE `DYN`, 894 `endbr64`, `__stack_chk_fail`,
+3 fortify `_chk` imports). PGO build `chess_engine_uci_f15pgo` (profile `/mnt/e/chess_data/pgo_f15`) through `build_uci.sh`'s
+`EXTRA_FLAGS="-fno-stack-protector -fcf-protection=none -fno-stack-clash-protection -U_FORTIFY_SOURCE -fno-pie -no-pie"` — no
+build-script change. The binary: `EXEC`, 7 `endbr64` (libc start-up objects), no stack-check or fortify imports. **Not installed.**
+- Fingerprints: default 252 / 36,960,934 · gen 6.4 knobs 249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 — all exact.
+  ☠️ **v1 (`EvalArm 0`) 250 / 35,310,775 vs 35,310,778**: 3 nodes. Codegen-only flags should move nothing; the v1 and v2 evals and
+  the search all use doubles under `-Ofast`, so a different instruction schedule can round differently — or a flag exposes an
+  uninitialised read. Queue #148 bisects with plain builds (each flag alone).
+- Build identity (v2, production vs F15, fixed 30k nodes, both sides, 40 starts each from eg_critical / kp_dense / UHO):
+  **diverged 0 / 40 in every set**, 0 crashes.
+- Pinned bench, 6 alternating rounds: three runs were disturbed (+25%, 35-38 s; something else on the box). Undisturbed: production
+  29.27 / 29.31 / 29.73 / 29.56 s (mean 29.47), F15 28.82 / 28.79 / 28.62 / 28.88 s (mean 28.78): **−2.3% time ≈ +2.4% nps**; the two
+  fully clean pairs −1.5% and −1.8%. Inside the registered 0 … 3%.
+
 ## 📈 2026-11-04 — STOCKFISH 1.1 SERIES POINT (queue #146): production 36.75% at 3× time odds, gen 6.4 was 29.5%
 Today's production PGO binary vs Stockfish 1.1 (us 60+0.6, it 20+0.2, UHO, seed 1082 = the same openings as #108 / #118), 200 g:
 **+58 −111 =31, 36.75%, −94.3 (95% −140.8 … −51.0)**, pentanomial [31, 16, 33, 15, 5], 0 forfeits, 0 disconnects, no crash dumps.

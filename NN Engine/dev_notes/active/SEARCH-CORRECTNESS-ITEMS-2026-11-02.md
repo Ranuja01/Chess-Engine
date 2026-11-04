@@ -154,9 +154,13 @@ bar would pass it); whether to adopt it on those grounds is the owner's call. Ei
   a longer or shorter path), so the fix is the usual one in this frame: store `s + g` for a win and `s − g` for a loss, where g is
   the keyed position's ply (`state_history.size()` with it on top); read back `s' − g` / `s' + g`. The stored value is then the
   distance from that position, as consensus engines keep it.
-- **g is already passed to every store.** All ~30 `addToSearchEvalCache` calls give `state_history.size()` as `num_plies` (unused
-  today), and at each one checked the keyed position is on top (root 4558-4582, the helpers 5081 / 5513 read `state_history.back()`
-  after the caller's `make_move`). Each site gets checked once more when the code goes in.
+- **g is already passed to every store.** All 21 live `addToSearchEvalCache` calls (a 22nd sits in a comment block) give
+  `state_history.size()` as `num_plies` (unused today), and at each one checked the keyed position is on top (root 4558-4582,
+  the helpers 5081 / 5513 read `state_history.back()` after the caller's `make_move`, the node store at 5068 keys the node
+  itself). Each site gets checked once more when the code goes in.
+- **A sharper filter than the sentinels:** a real mate score found below a position at ply g names a mating ply G ≥ g
+  (G = 9999999 − |s|). A score implying G < g (e.g. the scout windows' −9999998) is a window artifact, not a mate, and is
+  not stored.
 - **Reads that need the conversion (11 live):** `use_tt_entry` (one function, 7 calls — add a ply argument next to the 50-move
   clock it already takes), the null-move TT reuse (6466, 7177), the singular `ttScore` (6584, 7298; singular is off), the root-level
   exact read (8367) and the shadow probe's `tts` (1165, diagnostics only). Move-only reads (9933, 9974, the cutoff move writes)

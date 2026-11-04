@@ -200,6 +200,10 @@ below). Plain build `chess_engine_uci_ttm`, every knob off = 252 / 36,960,934 �
 - **Match (queue #150, owner 11-04: "thats probably worth being correct, lets try it"):** TTM + MDP + clamp as one mate-score
   correctness bundle vs off, same binary, 1,000 g at 10+0.1 UHO; liveness 40 / 40 games diverged for TTM + MDP. Registered:
   not harmful (> −1σ), expected −5 … +10. A pass = gen 6.6 candidate. `ENABLE_TT_FLAG_FIX` gets its own test later.
+  **Read (11-04 17:55): −9.0 (95% −28.3 … +10.2)**, +381 −407 =212, pentanomial [85, 83, 177, 83, 72]; chunks +22.6 / −17.4 /
+  −38.4 / +7.0 / −19.1 (each ±40-47); liveness 40 / 40 diverged, 26 results changed; 0 disconnects, 0 forfeits, no crash dumps.
+  Real play: arm 1,427,154 nps, depth 11.3, 337,815 nodes / move · ctl 1,433,885, 11.4, 340,227 (−0.5% nps). **z ≈ −0.92:
+  passes the registered bar, at its edge, and the point sits below the expected −5 … +10.** Bundle fingerprint 252 / 39,257,155.
 
 **Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
 - **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`

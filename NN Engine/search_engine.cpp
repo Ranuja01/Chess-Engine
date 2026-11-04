@@ -2392,8 +2392,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // (alongside the count rule); a mate on the 100th half-move scores as mate; pawn moves reset the halfmove
                 // clock; repetitions are keyed with castling rights and the ep square; killers and the counter move go after
                 // the captures instead of being swapped over them; no move-loop pruning while every move so far is mated.
-                // Mate-distance pruning stays off until the TT stores mate scores (its cut bounds are never stored, which
-                // costs nodes). All seven at 0 restore gen 6.4 exactly (249 / 36,991,901).
+                // All seven at 0 restore gen 6.4 exactly (249 / 36,991,901).
+                // ── GEN 6.6: mate scores made correct, as one bundle (not harmful in games, OPTIMIZATION_LOG): the TT stores
+                // mates as the distance from the stored position; mate-distance pruning, whose cut bounds are now remembered;
+                // and an unproven mate returned by the null-move cutoff becomes the bound (that clamp's start-up read defaults
+                // to off, so only this preset turns it on; v1 keeps it off). All three at 0 restore gen 6.5 exactly
+                // (252 / 36,960,934).
                 Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 6);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
@@ -2420,6 +2424,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     Config::RFP_MARGIN = 600;
                     Config::FIX_MAX_NULL = 1;  Config::NULL_NPM_GUARD = 2;  Config::FIX_MATE_50 = 1;  Config::FIX_HALFMOVE = 1;
                     Config::FIX_REP_KEY = 1;  Config::FIX_KILLER_SPLICE = 1;  Config::FIX_MATE_GATE = 1;
+                    Config::FIX_TT_MATE = 1;  Config::FIX_MDP = 1;  Config::ENABLE_NULL_MATE_CLAMP = true;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on
@@ -2432,6 +2437,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 std::cerr << "☠️ V2_PRESET=" << preset << " is unknown (expected: shipped | candidate) -- ignored." << std::endl;
         }
         Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", Config::V2_SHIP_GEN);
+        // read again after the preset so the environment can still turn the shipped value off (the first read is above)
+        Config::ENABLE_NULL_MATE_CLAMP = env_flag("ENABLE_NULL_MATE_CLAMP", Config::ENABLE_NULL_MATE_CLAMP);
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
         Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
         Config::NULL_NPM_GUARD = env_int("NULL_NPM_GUARD", Config::NULL_NPM_GUARD);

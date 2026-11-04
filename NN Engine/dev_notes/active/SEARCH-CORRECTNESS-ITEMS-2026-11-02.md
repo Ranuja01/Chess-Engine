@@ -173,6 +173,34 @@ are its ready-made instrument (registered metric: conversion delta and the fifty
 those draw ⇒ about **0.1% of games**. A narrow item, not an Elo lever — consistent with EVAL-V2-PARKED-REGISTER, which lists rule-50
 as dead *as Elo work*; it stays a narrow / teacher-quality item with its instrument ready.
 
+**TT mates built and measured (11-04 afternoon, queue #149).** Knob `FIX_TT_MATE` (0 = today): `tt_score_storable` /
+`tt_score_to_entry` / `tt_score_from_entry` in `cache_management.h`, applied at the one store and the 11 live score reads (design
+below). Plain build `chess_engine_uci_ttm`, every knob off = 252 / 36,960,934 ✓.
+
+| arm | WAC bench (full) | WAC d10 nodes, paired | UHO d10 nodes | WAC mates (92 per SF): found / exact / impossibly short | nodes to first mate (median) | KQK / KRK plies beyond the shortest mate (mean, median) |
+|---|---|---|---|---|---|---|
+| off (= production) | 252 / 36,960,934 | — | — | 64 / 61 / **3** | 11,826 | 4.25, 2 |
+| TTM | 247 / 36,166,720 | −2.9% (mate positions −10.8%) | +0.6% | 64 / 62 / 2 | 11,258 | 4.57, 2 |
+| MDP | 251 / 40,921,706 | +6.1% | +4.1% | 63 / 62 / 0 | 10,693 | 3.96, 0 |
+| TTM + MDP | 249 / 37,499,539 | **+2.1%** (mate −8.9%) | **+0.8%** | 63 / 63 / 0 | 10,214 | 3.75, 0 |
+| null-move clamp alone | 256 / 37,914,994 | | | 64 / **64** / 0 | 11,879 | |
+| TTM + clamp | | | | 64 / **64** / 0 | 11,084 | |
+| TTM + MDP + clamp | | | | 63 / 63 / 0 | 10,626 | |
+
+- The coupling registered on 11-02 holds: with mates stored, MDP's cost falls from +6.1% to +2.1% (WAC) and +4.1% to +0.8% (UHO).
+- TTM alone loses 5 on the full WAC bench, but benched one position at a time it is 251 vs 250 (4 lost, 3 gained, ordinary
+  tree scatter at depth 9-10); the full bench carries caches across positions.
+- ☠️ **"Impossibly short" is real:** for all four flagged positions Stockfish's exact `go mate N` finds no mate within the
+  claimed distance. **Production reports a mate one move too short in 3 of its 64.** Cause: an unproven null-move mate
+  (the null move flips the side without a push, so mates under it sit one ply short in the game-ply frame) is returned as the
+  cutoff score. **`ENABLE_NULL_MATE_CLAMP` — shipped 08-22 (f831263) — has been OFF ever since**: the header says true, but the
+  start-up read is `env_flag("ENABLE_NULL_MATE_CLAMP", false)`, added in that same commit. Same for `ENABLE_TT_FLAG_FIX`.
+  On the production binary: clamp 256 / 37,914,994, flag fix 251 / 36,859,850, both 254 / 38,754,641. An audit of every
+  literal-default start-up read (13) finds only these two (`V2_SHIP_GEN` header 0 / read 6 is by design).
+- **Match (queue #150, owner 11-04: "thats probably worth being correct, lets try it"):** TTM + MDP + clamp as one mate-score
+  correctness bundle vs off, same binary, 1,000 g at 10+0.1 UHO; liveness 40 / 40 games diverged for TTM + MDP. Registered:
+  not harmful (> −1σ), expected −5 … +10. A pass = gen 6.6 candidate. `ENABLE_TT_FLAG_FIX` gets its own test later.
+
 **Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
 - **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`
   with the mated position on top of the history (`search_engine.cpp` 6095 / 7065 / 8234), so one value means "mate delivered at game

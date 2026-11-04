@@ -3240,6 +3240,7 @@ namespace Config
     inline int FIX_MATE_50 = 0;       // a checkmate delivered on the 100th half-move scores as mate, not as a 50-move draw
     inline int FIX_TT_R50 = 0;        // no TT cutoffs at halfmove clock >= 90, where a stored score may not hold on this path
     inline int FIX_KILLER_SPLICE = 0; // move-gen cache hit: killers / counter are inserted after the captures, not swapped in
+    inline int FIX_TT_MATE = 0;       // mate scores go into the TT as the distance from the stored position (today: never stored)
 
     // Graduated verification: re-search the near-miss at depth_limit - this (a
     // shallow re-look) instead of full depth, to cut the cost of a wide VERIFY_MARGIN.
@@ -3658,7 +3659,7 @@ inline uint8_t get_piece_type(uint8_t square, std::vector<BoardState> &state_his
 inline bool relevant_pin_exists(std::vector<BoardState> &state_history, bool probe);
 inline bool relevant_pin(std::vector<BoardState> &state_history);
 inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool using_extra_precautions,
-                         int halfmove_clock);
+                         int halfmove_clock, int ply);
 inline void increment_node_count_with_decay(int &num_iterations);
 inline bool isUnsafeForNullMovePruning(BoardState current_state);
 inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count, const BoardState &state);

@@ -1096,12 +1096,41 @@ inline void prefetchSearchEvalCache(uint64_t key, uint64_t castling_rights, int 
 }
 
 
+/*
+	Mate scores are in the game-ply frame: white mating at game ply G scores 9999999 - G, black mating -9999999 + G, the
+	same value from every node. Stored as they are, a transposition reached at another ply would read a wrong mate
+	distance, so mates are never stored by default. FIX_TT_MATE stores a mate as its distance from the stored position
+	(game ply `ply`, i.e. state_history.size() with that position on top) and converts it back at the reader's ply. A
+	mate-range value naming a ply before the stored position is a window bound (the scouts' sentinel windows), not a mate,
+	and is still not stored.
+*/
+inline bool tt_score_storable(int score, int ply) {
+    if (score > -9000000 && score < 9000000)
+        return true;
+    if (!Config::FIX_TT_MATE)
+        return false;
+    return score > 0 ? score <= 9999999 - ply : score >= -9999999 + ply;
+}
+
+inline int tt_score_to_entry(int score, int ply) {
+    if (!Config::FIX_TT_MATE)
+        return score;
+    return score >= 9000000 ? score + ply : score <= -9000000 ? score - ply : score;
+}
+
+inline int tt_score_from_entry(int score, int ply) {
+    if (!Config::FIX_TT_MATE)
+        return score;
+    return score >= 9000000 ? score - ply : score <= -9000000 ? score + ply : score;
+}
+
 inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int depth_used, TTFlag flag, int alpha_orig, int beta_orig, uint64_t castling_rights, int ep_square, Move move = Move()) {
 
 	if (g_no_tt_store)
 		return;
-	if (score >= 9000000 || score <= -9000000 || (score == 0 && !Config::ENABLE_TT_STORE_DRAW))
+	if (!tt_score_storable(score, num_plies) || (score == 0 && !Config::ENABLE_TT_STORE_DRAW))
 		return;
+	score = tt_score_to_entry(score, num_plies);   // num_plies = the stored position's game ply at every call site
 
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 
@@ -1121,7 +1150,7 @@ inline void addToSearchEvalCache(uint64_t key, int num_plies, int score, int dep
             entry.move = move;
 
         // Take the slot on a new/colliding key, or replace a same-position entry only
-        // when the new search is equal-or-deeper (depth-preferred). num_plies is unused now.
+        // when the new search is equal-or-deeper (depth-preferred).
         if ((updatedKey != entry.key) || (entry.depth <= depth_used)) {
             entry.key = updatedKey;
             entry.score = score;

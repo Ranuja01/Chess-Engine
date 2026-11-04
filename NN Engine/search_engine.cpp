@@ -2892,6 +2892,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_MATE_50 = env_int("FIX_MATE_50", Config::FIX_MATE_50);
         Config::FIX_TT_R50 = env_int("FIX_TT_R50", Config::FIX_TT_R50);
         Config::FIX_KILLER_SPLICE = env_int("FIX_KILLER_SPLICE", Config::FIX_KILLER_SPLICE);
+        Config::FIX_TT_MATE = env_int("FIX_TT_MATE", Config::FIX_TT_MATE);
         Config::VERIFY_RESEARCH_REDUCTION = env_int("VERIFY_RESEARCH_REDUCTION", Config::VERIFY_RESEARCH_REDUCTION);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
@@ -3516,7 +3517,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " FIX_MIN_SCOUT=" << Config::FIX_MIN_SCOUT << " FIX_RESEARCH=" << Config::FIX_RESEARCH
                   << " FIX_MDP=" << Config::FIX_MDP << " FIX_MATE_GATE=" << Config::FIX_MATE_GATE
                   << " FIX_MATE_50=" << Config::FIX_MATE_50 << " FIX_TT_R50=" << Config::FIX_TT_R50
-                  << " FIX_KILLER_SPLICE=" << Config::FIX_KILLER_SPLICE
+                  << " FIX_KILLER_SPLICE=" << Config::FIX_KILLER_SPLICE << " FIX_TT_MATE=" << Config::FIX_TT_MATE
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " ENABLE_OTV=" << Config::ENABLE_OTV
                   << " OTV_MARGIN=" << Config::OTV_MARGIN
@@ -5120,7 +5121,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
             tt_probes++;
             if (entry->depth >= (depth_limit - cur_depth) /* && (depth_limit - cur_depth) >= 5 */)
             {
-                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true, updated_state.halfmove_clock);
+                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true, updated_state.halfmove_clock, static_cast<int>(state_history.size()));
                 /* if (using_tt && entry.flag == TTFlag::EXACT && entry.pv_length > 0 && score > alpha && !is_in_null_search) {
                     for (int j = 0; j < entry.pv_length; ++j) {
                         pv_table[cur_depth + 1][j] = entry.pv[j];
@@ -5367,7 +5368,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false, updated_state.halfmove_clock);
+                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false, updated_state.halfmove_clock, static_cast<int>(state_history.size()));
                         }
                     }
                     if (!using_tt)
@@ -5410,7 +5411,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false, updated_state.halfmove_clock);
+                            use_tt_entry(*entry, score, using_tt, sa, sb, num_iterations, false, false, updated_state.halfmove_clock, static_cast<int>(state_history.size()));
                         }
                     }
                     if (!using_tt)
@@ -5552,7 +5553,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
             tt_probes++;
             if (entry->depth >= (depth_limit - cur_depth) /* && (depth_limit - cur_depth) >= 5 */)
             {
-                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, true, true, updated_state.halfmove_clock);
+                use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, true, true, updated_state.halfmove_clock, static_cast<int>(state_history.size()));
                 /* if (using_tt && entry.flag == TTFlag::EXACT && entry.pv_length > 0 && score > alpha && !is_in_null_search) {
                     for (int j = 0; j < entry.pv_length; ++j) {
                         pv_table[cur_depth + 1][j] = entry.pv[j];
@@ -5796,7 +5797,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false, updated_state.halfmove_clock);
+                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false, updated_state.halfmove_clock, static_cast<int>(state_history.size()));
                         }
                     }
                     if (!using_tt)
@@ -5840,7 +5841,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             } */
-                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false, updated_state.halfmove_clock);
+                            use_tt_entry(*entry, score, using_tt, alpha, alpha + 1, num_iterations, false, false, updated_state.halfmove_clock, static_cast<int>(state_history.size()));
                         }
                     }
                     if (!using_tt)
@@ -6463,7 +6464,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                 {
                     if (entry->flag == TTFlag::EXACT)
                     {
-                        null_move_score = entry->score;
+                        null_move_score = tt_score_from_entry(entry->score, static_cast<int>(state_history.size()));
                         using_tt = true;
                         increment_node_count_with_decay(num_iterations);
                     }
@@ -6581,7 +6582,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             if (nodeTT != nullptr)
             {
                 ttMove = nodeTT->move;
-                ttScore = nodeTT->score;
+                ttScore = tt_score_from_entry(nodeTT->score, static_cast<int>(state_history.size()));
                 ttDepth = nodeTT->depth;
                 ttFlag = nodeTT->flag;
                 haveTT = true;
@@ -7174,7 +7175,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             {
                 if (entry->flag == TTFlag::EXACT)
                 {
-                    null_move_score = entry->score;
+                    null_move_score = tt_score_from_entry(entry->score, static_cast<int>(state_history.size()));
                     using_tt = true;
                     increment_node_count_with_decay(num_iterations);
                 }
@@ -7295,7 +7296,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         if (nodeTT != nullptr)
         {
             ttMove = nodeTT->move;
-            ttScore = nodeTT->score;
+            ttScore = tt_score_from_entry(nodeTT->score, static_cast<int>(state_history.size()));
             ttDepth = nodeTT->depth;
             ttFlag = nodeTT->flag;
             haveTT = true;
@@ -8294,7 +8295,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                 tt_probes++;
                 if (entry->depth >= (depth_limit - cur_depth))
                 {
-                    use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true, updated_state.halfmove_clock);
+                    use_tt_entry(*entry, score, using_tt, alpha, beta, num_iterations, false, true, updated_state.halfmove_clock, static_cast<int>(state_history.size()));
                     /* if(entry.flag == TTFlag::EXACT){
                         score = entry.score;
                         using_tt = true;
@@ -8364,7 +8365,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                         {
                             if (entry->flag == TTFlag::EXACT)
                             {
-                                score = entry->score;
+                                score = tt_score_from_entry(entry->score, static_cast<int>(state_history.size()));
                                 using_tt = true;
                                 increment_node_count_with_decay(num_iterations);
                             }
@@ -9300,8 +9301,10 @@ inline bool relevant_pin(std::vector<BoardState> &state_history)
     return fast;
 }
 
+// `ply` is the probed position's game ply (state_history.size() with it on top), which converts a stored mate back
+// from its distance form (FIX_TT_MATE; a no-op otherwise).
 inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool use_extra_precautions,
-                         int halfmove_clock)
+                         int halfmove_clock, int ply)
 {
     using_tt = false;
 
@@ -9309,27 +9312,28 @@ inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, 
     if (Config::FIX_TT_R50 && halfmove_clock >= 90)
         return;
 
+    const int stored = tt_score_from_entry(entry.score, ply);
     if (entry.flag == TTFlag::EXACT)
     {
-        score = entry.score;
+        score = stored;
         using_tt = true;
         increment_node_count_with_decay(num_iterations);
         FIXCNT_TT_CUT(alpha, beta);
         return;
     }
 
-    if (entry.flag == TTFlag::LOWERBOUND && entry.score >= beta)
+    if (entry.flag == TTFlag::LOWERBOUND && stored >= beta)
     {
-        score = entry.score;
+        score = stored;
         using_tt = true;
         increment_node_count_with_decay(num_iterations);
         FIXCNT_TT_CUT(alpha, beta);
         return;
     }
 
-    if (entry.flag == TTFlag::UPPERBOUND && entry.score <= alpha)
+    if (entry.flag == TTFlag::UPPERBOUND && stored <= alpha)
     {
-        score = entry.score;
+        score = stored;
         using_tt = true;
         increment_node_count_with_decay(num_iterations);
         FIXCNT_TT_CUT(alpha, beta);

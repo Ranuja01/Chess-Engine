@@ -93,6 +93,9 @@ are exactly 0 then — to check).
 4. Then games at equal time, with the margins left as shipped; the margins re-sweep stays LAST.
 
 ## 5. Placement
+**Owner 11-04:** in the transition this is an exploration — how much of (A) we can get done and prove so far, not a finished
+system; it carries on into the search arc, where the other NPS and EBF helpers and the search features that read the static
+eval (part B) should make it matter more.
 After the eval items and their retune (the owner's condition), before the final margins re-sweep. Separately, the damp-only
 drawishness threshold being built now can carry its own near-balance gate (as SF's initiative effectively does), without
 waiting for the lazy exit.

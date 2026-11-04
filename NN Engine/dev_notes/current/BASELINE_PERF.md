@@ -8,6 +8,12 @@
   `chess_engine_uci_g65pgo`).
 - vs gen 6.4 at 10+0.1 on UHO: +8.7 ± 18.7 (1,000 g). d10 nodes per position: UHO −6.5% (median ratio 0.937), WAC +0.5% (mate
   positions +27%, the mate gate searching defences it used to prune). OPTIMIZATION_LOG 11-03.
+- **Speed, same fingerprints at every step** (result-identical knobs, on by default; OPTIMIZATION_LOG 11-03):
+  | production binary | knobs | pinned bench | real play |
+  |---|---|---|---|
+  | `chess_engine_uci_g65pgo` | gen 6.5 | 32.9 s, 1,124,408 nps | 1,165,753 nps |
+  | `chess_engine_uci_g65fpgo` | + batch 7 (`KS_FAST`, `REP_FILTER`, `PAWN_HASH`) | 30.9 s, 1,196,942 nps (+6.4%) | 1,268,698 nps (+8.8%); +12.9 Elo (−5.9 … +31.7) |
+  | **`chess_engine_uci_g65b8pgo` = `chess_engine_uci` (11-03 evening)** | + batch 8 (`SCRATCH_REUSE`, `PIN_FAST`) | queue #142 | queue #142 |
 
 ## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 6.4 + PGO (2026-10-30)
 - WAC d10 fingerprint **249 / 36,991,901 / EBF 3.903** (UCI `bench` == Cython `V2_PRESET=shipped`); `Knobs THREAT_V2_PCT=0,RFP_MARGIN=1000`

@@ -4,6 +4,40 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-11-03 — SPEED BATCH 7 ON BY DEFAULT (owner-confirmed): production PGO +6.4% nps (+8.8% in real play), Cython +10.0% nps, +12.9 Elo vs gen 6.5 production (queue #141)
+`KS_FAST=1 REP_FILTER=1 PAWN_HASH=1` are the header defaults (all engines; results identical). **Installed** as the PGO build
+`chess_engine_uci` (= `chess_engine_uci_g65fpgo`, profile `/mnt/e/chess_data/pgo_g65f`); the gen 6.5 production binary without
+the batch stays as `chess_engine_uci_g65pgo`. Fingerprints on the new binary: 252 / 36,960,934 (default and with the three
+knobs off) · gen 6.4 knobs 249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 · v1 250 / 35,310,778 · id "AlphaUX (v2 gen 6.5)";
+Cython `V2_PRESET=shipped` 252 / 36,960,934 / 3.813, v1 250 / 35,310,778 / 3.784.
+
+**NPS reads** (box otherwise idle, pinned to one core with `taskset`):
+
+| instrument | before | after | change |
+|---|---|---|---|
+| UCI `bench`, production PGO binaries, 6 alternating runs each | 32.875 s, **1,124,408 nps** (spread 2.7%) | 30.879 s, **1,196,942 nps** (spread 0.8%) | **+6.4% nps**, every new run faster than every old one |
+| Cython `depth_nps_bench.py --n 60 PRESET=LIGHTNING V2_PRESET=shipped` (~1.17 s per position), knobs off vs on, 3 alternating runs | median NPS 915,784 / 919,424 / 911,413 (mean **915,540**); depth mean 13.23 | 1,023,166 / 1,006,559 / 990,437 (mean **1,006,721**); depth mean 13.37 | **+10.0% nps**, +0.13 ply at ~1 s |
+
+- The PGO gain is smaller than the plain builds' −8.8% time: PGO had already made the old paths cheaper. The Cython path is not
+  PGO, and its +10.0% matches the plain-build figure.
+- ⚠️ On the new PGO binary the knobs-off arm is slower than the old binary (36.9 s): the profile was trained with the knobs on,
+  so the off paths are cold. Compare old vs new binaries, never knobs off vs on, on a PGO build.
+
+**Speed match** (new vs old production PGO binary, 10+0.1, `openings_uho.epd`, 5 × 200 games, seeds 14111-14115, concurrency 3):
+**+12.9 Elo (95% −5.9 … +31.7)**, +1.3σ, from 500 pairs; 1000 games +418 −381 =201 (51.8%), pentanomial [65, 83, 186, 82, 84];
+chunks −19.1 / +17.4 / +20.9 / +12.2 / +33.1 (each ±42). Inside the registered 0 … +25 and close to the +10 … +15 expected from
+the speed; 0 disconnects, 0 time forfeits, no WSL crash dumps. Result-identical, so the match was a check, not a gate.
+
+**Real-play NPS** (the same 1000 games, searched moves only, ~59,850 moves per engine):
+
+| engine | mean s / move | depth | nodes / move | nps |
+|---|---|---|---|---|
+| new production (batch 7) | 0.237 | 11.1 | 300,614 | **1,268,698** |
+| old production (gen 6.5) | 0.237 | 11.0 | 276,650 | **1,165,753** |
+
+**+8.8% nps in real play** at the same time per move, +0.1 ply. Larger than the bench's +6.4% because REP_FILTER only pays off
+with a real game history (the bench's repetition map holds only the root) and the pawn hash hits more across a game.
+
 ## ⚡ 2026-11-03 — SPEED BATCH 7 (result-identical knobs, default 0): KS_FAST + REP_FILTER + PAWN_HASH = −8.8% bench time
 All three keep bench 252 / 36,960,934 exactly; every verify mode together (`KS_VERIFY=1`, `REP_FILTER=2`, `PAWN_HASH=2`) over the
 bench and 40 games (UHO + eg_critical, st=0.1): 0 mismatches, 0 disconnects. Pinned bench (`taskset`, 5 alternating rounds):

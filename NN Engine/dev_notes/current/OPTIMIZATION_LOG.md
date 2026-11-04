@@ -4,6 +4,11 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⏸️ 2026-11-04 — FIX_TT_R50 ON A NEAR-50-MOVE VENUE (queue #144): +1.7 (−7.9 … +11.4), below its +2σ bar, not shipped
+eg_critical starts at halfmove 80 / move 40 (464 starts); live there (15 of 40 fixed-node games diverged, 8 results changed);
+`FIX_TT_R50=1` vs production, 10+0.1, no draw adjudication, 1,000 g: +210 −205 =585, pentanomial [10, 60, 353, 69, 8], 0 forfeits,
+0 disconnects. Not harmful, no gain. Details and the open adoption question in `dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md`.
+
 ## ✅ 2026-11-04 — OUTSIDE-OPPONENT READ FOR THE 11-03 SHIPS (queue #143): both within their registered bands, no harm
 Today's production line (gen 6.5 search fixes + speed batches 7 and 8) against gen 6.4 (`chess_engine_uci_g64pgo`; Cython via the
 seven FIX knobs at 0). Fingerprints first: production 252 / 36,960,934, g64pgo 249 / 36,991,901, Cython gen 6.5 252 / 36,960,934,

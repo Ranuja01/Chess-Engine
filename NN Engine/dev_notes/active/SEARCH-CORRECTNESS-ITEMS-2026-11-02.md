@@ -137,6 +137,16 @@ Confirm match for candidate-without-MDP: queue #140, +8.7 ± 18.7. **SHIPPED as 
 FIX_TT_R50) on eg starts, and MDP + TT mates as one item. Outside-opponent read (queue #143, OPTIMIZATION_LOG 11-04): SF18 @ 1,100
 nodes, paired 500 g, gen 6.5 − gen 6.4 = +0.80 pp ± 4.82 (95%) — not harmful against an outside engine either.
 
+**FIX_TT_R50 on its own venue (queue #144, 11-04).** Venue: the 464 eg_critical starts (no ep square) with clocks set to halfmove
+80 / move 40, so the 100-half-move horizon is inside every search. Fires there: at 30k nodes/move it changed 15 of 40 games
+(divergence median ply 4, min 2), 8 results, 0 crashes; preflight 0 option warnings, the knob echoed, 132 position commands
+carried the 80/40 counters. Match, `FIX_TT_R50=1` vs production, 10+0.1, no draw adjudication, 5 × 200 (seeds 14411-14415):
+**+1.7 Elo (95% −7.9 … +11.4)**, +210 −205 =585, pentanomial [10, 60, 353, 69, 8]; chunks 0.0 / +5.2 / 0.0 / −12.2 / +15.7;
+0 disconnects, 0 forfeits, no crash dumps. Real play: depth 15.4 vs 15.7, 2.44M vs 2.40M nps (endgames). Registered "ship only at
+≥ +2σ, expected 0 … +15": **+0.35σ — not shipped by its registered bar.** It is not harmful where it fires (the correctness-item
+bar would pass it); whether to adopt it on those grounds is the owner's call. Either way it is no Elo source, and on this venue
+58.5% of games are drawn and 71% of pairs split 1-1: the 50-move horizon rarely decides a game even where it is inside every search.
+
 **Cost.** Step 0 ≈ 1 h of box time, no timed games. Step 1 ≈ 8 h (three matches). Step 2 ≈ a day of code and counters plus three
 matches. Expected Elo: small — these are correctness items, valued for removing wrong behaviour without harm; the search arc's
 larger forecast (+50 … +150) rests on the LMR / pruning / ordering redesign that comes after them.

@@ -3220,6 +3220,15 @@ namespace Config
     // the KS-B shelter legs per king square) in a table keyed by both pawn sets (same values, computed once per structure).
     // 2 = recompute every cached value, compare, and abort on the first difference.
     inline int PAWN_HASH = 1;
+    // SCRATCH_REUSE: per-node lists the search builds and throws away reuse storage instead of allocating it per node: the
+    // history-malus lists (a pool taken in nesting order), the move-generation sort's merge buffer, the lazy re-sort's scores,
+    // and the beta-cutoff cache update, which copied the whole move list per cutoff. Same lists in the same order.
+    // 2 = also sort every move list with std::stable_sort and abort on the first difference.
+    inline int SCRATCH_REUSE = 0;
+    // PIN_FAST: the LMR pin test looks from each king, queen and rook for an enemy slider on its line with exactly one own
+    // piece between, instead of scanning every piece on a king or queen line for an attacker and x-raying behind it (same
+    // answer). 2 = run both and abort on the first difference.
+    inline int PIN_FAST = 0;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
     inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound
@@ -3647,6 +3656,7 @@ inline void descending_sort_wrapper(const SearchData &preSearchData, SearchData 
 inline void ascending_sort(std::vector<int> &values, std::vector<Move> &moves);
 inline uint8_t get_piece_type(uint8_t square, std::vector<BoardState> &state_history);
 inline bool relevant_pin_exists(std::vector<BoardState> &state_history, bool probe);
+inline bool relevant_pin(std::vector<BoardState> &state_history);
 inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool using_extra_precautions,
                          int halfmove_clock);
 inline void increment_node_count_with_decay(int &num_iterations);

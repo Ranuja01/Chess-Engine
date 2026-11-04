@@ -168,6 +168,49 @@ struct ScoredMove {
 	uint8_t promo;
 };
 
+/* Stable sort by descending score with a merge buffer kept between calls. A stable sort's result is fixed by the comparison
+   alone, so this gives exactly std::stable_sort's order without the temporary buffer std::stable_sort allocates on every
+   call: insertion-sorted runs of 8, then bottom-up merges that take the right element only when it scores strictly higher. */
+inline void stableSortScoredDesc(std::vector<ScoredMove>& a)
+{
+	constexpr size_t RUN = 8;
+	const size_t n = a.size();
+	for (size_t lo = 0; lo < n; lo += RUN) {
+		const size_t hi = std::min(lo + RUN, n);
+		for (size_t i = lo + 1; i < hi; ++i) {
+			const ScoredMove x = a[i];
+			size_t j = i;
+			while (j > lo && a[j - 1].score < x.score) {
+				a[j] = a[j - 1];
+				--j;
+			}
+			a[j] = x;
+		}
+	}
+	if (n <= RUN)
+		return;
+	thread_local std::vector<ScoredMove> buffer;
+	if (buffer.size() < n)
+		buffer.resize(n);
+	ScoredMove* src = a.data();
+	ScoredMove* dst = buffer.data();
+	for (size_t width = RUN; width < n; width *= 2) {
+		for (size_t lo = 0; lo < n; lo += 2 * width) {
+			const size_t mid = std::min(lo + width, n), hi = std::min(lo + 2 * width, n);
+			size_t i = lo, j = mid, k = lo;
+			while (i < mid && j < hi)
+				dst[k++] = (src[j].score > src[i].score) ? src[j++] : src[i++];
+			while (i < mid)
+				dst[k++] = src[i++];
+			while (j < hi)
+				dst[k++] = src[j++];
+		}
+		std::swap(src, dst);
+	}
+	if (src != a.data())
+		std::copy(src, src + n, a.data());
+}
+
 // Move-list body with the node-invariant king square, slider blockers and checker mask supplied by
 // the caller. These depend only on the board, not on from_mask/to_mask, so the partitioned move-gen
 // (processMaskPairs invokes this once per piece-type pair) computes them once per node instead of
@@ -970,9 +1013,27 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	{
 	PROF_BLOCK(PROF_MG_SORT);
 	// stable_sort over the 0..N-1 build order matches the previous index-based reorder exactly.
-	std::stable_sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
-		return a.score > b.score;
-	});
+	if (Config::SCRATCH_REUSE) {
+		thread_local std::vector<ScoredMove> expected;
+		if (Config::SCRATCH_REUSE == 2) {
+			expected = scored;
+			std::stable_sort(expected.begin(), expected.end(), [](const ScoredMove& a, const ScoredMove& b) {
+				return a.score > b.score;
+			});
+		}
+		stableSortScoredDesc(scored);
+		if (Config::SCRATCH_REUSE == 2) {
+			for (size_t i = 0; i < move_count; ++i)
+				if (scored[i].score != expected[i].score || scored[i].from != expected[i].from || scored[i].to != expected[i].to
+				    || scored[i].promo != expected[i].promo) {
+					std::cerr << "SCRATCH_REUSE sort mismatch at " << i << " of " << move_count << std::endl;
+					std::abort();
+				}
+		}
+	} else
+		std::stable_sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
+			return a.score > b.score;
+		});
 
 	for (const ScoredMove& s : scored) {
 		converted_moves.push_back(Move(s.from, s.to, s.promo));

@@ -1188,7 +1188,13 @@ inline int printSearchEvalCacheStats() {
 }
 
 
-inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, uint64_t ep_square, Move move, std::vector<Move> moves, std::vector<BoardState>& state_history){
+inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, uint64_t ep_square, Move move, const std::vector<Move>& node_moves, std::vector<BoardState>& state_history){
+    // With SCRATCH_REUSE a missing slot copies the node's list into its own storage (no allocation once the slot has held a
+    // list this long) and a present slot needs no copy at all; otherwise every call takes a private copy, as it always did.
+    std::vector<Move> own_copy;
+    if (!Config::SCRATCH_REUSE)
+        own_copy = node_moves;
+    const std::vector<Move>& moves = Config::SCRATCH_REUSE ? node_moves : own_copy;
     uint64_t updatedKey = make_move_cache_key(zobrist, castling, ep_square);
     // Read the slot directly: accessMutableMoveGenCache would stamp the key first,
     // making the miss below undetectable and silently discarding the move list
@@ -1209,7 +1215,13 @@ inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, ui
             moveEntry.last_cutoff_index = (it != moves.end()) ? (int)std::distance(moves.begin(), it) : -1;
             moveEntry.reuse_count = 0;
         }
-        promoteMoveToFront(moves, move);
+        if (Config::SCRATCH_REUSE) {
+            moveEntry.moves.assign(moves.begin(), moves.end());
+            promoteMoveToFront(moveEntry.moves, move);
+        } else {
+            promoteMoveToFront(own_copy, move);
+            moveEntry.moves = std::move(own_copy);
+        }
 
         /* int num_plies = static_cast<int>(state_history.size());
         int max_cache_size;
@@ -1224,7 +1236,6 @@ inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, ui
             max_cache_size = 3000000; 
         } */
         //addToMoveGenCache(zobrist, /* max_cache_size * Config::ACTIVE->cache_size_multiplier, */ moves, castling, ep_square);
-        moveEntry.moves = std::move(moves);
         return;
     }
 

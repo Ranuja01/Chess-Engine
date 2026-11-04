@@ -236,6 +236,28 @@ static bool g_rep_in_search = false;   // true between the start of get_engine_m
 static uint64_t g_rep_filter[64];
 static inline bool rep_filter_has(uint64_t key) { return (g_rep_filter[key >> 58] >> ((key >> 52) & 63)) & 1; }
 
+// Config::SCRATCH_REUSE: the history-malus lists a node fills while it searches come from a pool taken in nesting order -- a
+// node takes the next free list on entry and gives it back when it returns -- so their storage is reused rather than
+// allocated per node, and a nested search of the same node (the singular exclusion search) still gets lists of its own.
+// Past the pool's end, or with the knob off, a list owns its storage as before.
+static constexpr int MALUS_POOL = 2 * MOVE_POOL_PLIES + 16;
+static std::vector<Move> g_malus_pool[MALUS_POOL];
+static int g_malus_top = 0;
+struct MalusList
+{
+    const bool pooled;
+    std::vector<Move> own;
+    std::vector<Move> &v;
+    MalusList() : pooled(Config::SCRATCH_REUSE && g_malus_top < MALUS_POOL), v(pooled ? g_malus_pool[g_malus_top++] : own) { v.clear(); }
+    ~MalusList()
+    {
+        if (pooled)
+            --g_malus_top;
+    }
+    MalusList(const MalusList &) = delete;
+    MalusList &operator=(const MalusList &) = delete;
+};
+
 // QGEN_VERIFY: qsearch move lists compared, and those whose noisy-only build differed from the full list's noisy subset.
 long g_qgen_verify_lists = 0, g_qgen_verify_mismatch = 0;
 double g_tm_total_s = 0, g_tm_wasted_s = 0;
@@ -2856,6 +2878,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_FAST = env_int("KS_FAST", Config::KS_FAST);
         Config::KS_VERIFY = env_int("KS_VERIFY", Config::KS_VERIFY);
         Config::PAWN_HASH = env_int("PAWN_HASH", Config::PAWN_HASH);
+        Config::SCRATCH_REUSE = env_int("SCRATCH_REUSE", Config::SCRATCH_REUSE);
+        Config::PIN_FAST = env_int("PIN_FAST", Config::PIN_FAST);
         g_mate_quick_verify = env_int("MATE_TEST_VERIFY", 0) != 0;
         Config::REP_STACK = env_int("REP_STACK", Config::REP_STACK);
         Config::REP_FILTER = env_int("REP_FILTER", Config::REP_FILTER);
@@ -3874,6 +3898,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                 g_rep_filter[kv.first >> 58] |= 1ULL << ((kv.first >> 52) & 63);
     }
     g_rep_len = 0;
+    g_malus_top = 0;
     g_rep_in_search = true;   // until the final make_move: search-path positions go on the stack, not into position_count
 
     BoardState current = state_history.back();
@@ -5265,7 +5290,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 bool was_reduced = false;
                 if (do_lmr)
                 {
-                    bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
+                    bool is_in_relavent_pin = relevant_pin(state_history);
                     if (cur_depth > 1 && (depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !is_in_relavent_pin)
                     {
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
@@ -5695,7 +5720,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 bool was_reduced = false;
                 if (do_lmr)
                 {
-                    bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
+                    bool is_in_relavent_pin = relevant_pin(state_history);
                     if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !is_in_relavent_pin)
                     {
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
@@ -6121,7 +6146,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         ascending_sort(second_level_preliminary_scores, second_level_moves_list);
         out_entry.second_moves = second_level_moves_list;
         bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
-        std::vector<Move> searched_quiets, searched_captures; // history-gravity malus lists (empty = no cost when gravity off)
+        MalusList malus_quiets, malus_captures; // history-gravity malus lists (empty = no cost when gravity off)
+        std::vector<Move> &searched_quiets = malus_quiets.v, &searched_captures = malus_captures.v;
         for (size_t i = 0; i < second_level_moves_list.size(); ++i)
         {
             Move &move = second_level_moves_list[i];
@@ -6486,7 +6512,8 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             depth_limit -= 1;
 
         std::vector<Move> &moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
-        std::vector<Move> searched_quiets, searched_captures; // history-gravity malus lists (empty = no cost when gravity off)
+        MalusList malus_quiets, malus_captures; // history-gravity malus lists (empty = no cost when gravity off)
+        std::vector<Move> &searched_quiets = malus_quiets.v, &searched_captures = malus_captures.v;
 
         // OTV needs the node's OWN static eval as the phantom reference. Compute it once here, at the node
         // position before any child move is made, when OTV is eligible and RFP/null-gate did not already.
@@ -7192,7 +7219,8 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         depth_limit -= 1;
 
     std::vector<Move> &moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previousMove);
-    std::vector<Move> searched_quiets, searched_captures; // history-gravity malus lists (empty = no cost when gravity off)
+    MalusList malus_quiets, malus_captures; // history-gravity malus lists (empty = no cost when gravity off)
+    std::vector<Move> &searched_quiets = malus_quiets.v, &searched_captures = malus_captures.v;
 
     // OTV needs the node's OWN static eval as the phantom reference. Compute it once here, at the node
     // position before any child move is made, when OTV is eligible and RFP/null-gate did not already.
@@ -8322,7 +8350,7 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 
                 if (do_lmr)
                 {
-                    bool is_in_relavent_pin = relevant_pin_exists(state_history, false);
+                    bool is_in_relavent_pin = relevant_pin(state_history);
                     int reduced_depth = reduced_search_depth(depth_limit, cur_depth, is_in_relavent_pin, i, current_state);
                     // int reduced_depth = depth_reduction(depth_limit);
 
@@ -9181,6 +9209,97 @@ relevant_pawns |= BB_SQUARES[current_square];
     // return relevant_pins;
 }
 
+// Empty-board rook and bishop lines through each square, for the sniper alignment test below. Built on first use, which is
+// always after the attack tables are filled.
+struct SliderLines
+{
+    uint64_t rook[64], bishop[64];
+    SliderLines()
+    {
+        for (int s = 0; s < 64; ++s)
+        {
+            rook[s] = BB_RANK_ATTACKS[s][0] | BB_FILE_ATTACKS[s][0];
+            bishop[s] = BB_DIAG_ATTACKS[s][0];
+        }
+    }
+};
+
+/* relevant_pin_exists seen from the other end. The scan finds a piece P on a king or queen line that an enemy slider attacks,
+   with an own king, queen or rook T directly behind it (only a king, if P is a pawn). That is P being the only piece between T
+   and an enemy slider on T's line, so for each such T: enemy sliders on its empty-board lines, and the single piece between.
+   A piece next to a king, or to each side's lowest-square queen, is on the scan's candidate lines by construction; for any
+   other target the candidate lines are built (as the scan builds them) and checked. */
+inline bool relevant_pin_exists_fast(const BoardState &s)
+{
+    static const SliderLines lines;
+    const uint64_t occ = s.occupied;
+    uint64_t candidates = 0;
+    bool candidates_built = false;
+    for (int side = 0; side < 2; ++side)
+    {
+        const bool white = side != 0;
+        const uint64_t own = s.occupied_colour[white], opp = s.occupied_colour[!white];
+        const uint64_t enemy_rook_like = (s.queens | s.rooks) & opp, enemy_bishop_like = (s.queens | s.bishops) & opp;
+        if (!(enemy_rook_like | enemy_bishop_like))
+            continue;
+        const uint64_t own_queens = s.queens & own;
+        const uint64_t first_queen = own_queens & (0 - own_queens);
+        for (uint64_t targets = (s.kings | s.queens | s.rooks) & own; targets; targets &= targets - 1)
+        {
+            const uint8_t t = __builtin_ctzll(targets);
+            uint64_t snipers = (lines.rook[t] & enemy_rook_like) | (lines.bishop[t] & enemy_bishop_like);
+            uint64_t pinned = 0;
+            for (; snipers; snipers &= snipers - 1)
+            {
+                const uint64_t b = betweenPieces(t, __builtin_ctzll(snipers)) & occ;
+                if (b && !(b & (b - 1)))
+                    pinned |= b;
+            }
+            const uint64_t t_bb = BB_SQUARES[t];
+            const bool to_king = (t_bb & s.kings) != 0;
+            pinned &= own & ~s.kings;
+            if (!to_king)
+                pinned &= ~s.pawns;
+            if (!pinned)
+                continue;
+            if (to_king || t_bb == first_queen)
+                return true;
+            if (!candidates_built)
+            {
+                const uint8_t kings_sq[2] = {(uint8_t)__builtin_ctzll(s.kings & s.occupied_colour[true]), (uint8_t)__builtin_ctzll(s.kings & s.occupied_colour[false])};
+                for (uint8_t k : kings_sq)
+                    candidates |= BB_DIAG_ATTACKS[k][BB_DIAG_MASKS[k] & occ] | BB_RANK_ATTACKS[k][BB_RANK_MASKS[k] & occ] | BB_FILE_ATTACKS[k][BB_FILE_MASKS[k] & occ];
+                for (int c = 1; c >= 0; --c)
+                    if (s.occupied_colour[c] & s.queens)
+                    {
+                        const uint8_t q = __builtin_ctzll(s.queens & s.occupied_colour[c]);
+                        candidates |= BB_DIAG_ATTACKS[q][BB_DIAG_MASKS[q] & occ] | BB_RANK_ATTACKS[q][BB_RANK_MASKS[q] & occ] | BB_FILE_ATTACKS[q][BB_FILE_MASKS[q] & occ];
+                    }
+                candidates_built = true;
+            }
+            if (pinned & candidates)
+                return true;
+        }
+    }
+    return false;
+}
+
+// The LMR pin test on the position after the move. PIN_FAST picks the targeted form; 2 runs both and aborts on any difference.
+inline bool relevant_pin(std::vector<BoardState> &state_history)
+{
+    if (!Config::PIN_FAST)
+        return relevant_pin_exists(state_history, false);
+    const bool fast = relevant_pin_exists_fast(state_history.back());
+    if (Config::PIN_FAST == 2 && fast != relevant_pin_exists(state_history, false))
+    {
+        BoardState s = state_history.back();   // create_fen takes non-const references
+        std::cerr << "PIN_FAST mismatch (fast " << fast << ") at " << create_fen(s.pawns, s.knights, s.bishops, s.rooks, s.queens, s.kings, s.occupied,
+                     s.occupied_colour[true], s.occupied_colour[false], s.promoted, s.castling_rights, s.ep_square, s.turn) << std::endl;
+        std::abort();
+    }
+    return fast;
+}
+
 inline void use_tt_entry(TTEntry &entry, int &score, bool &using_tt, int alpha, int beta, int &num_iterations, bool is_maximizing, bool use_extra_precautions,
                          int halfmove_clock)
 {
@@ -9739,7 +9858,10 @@ inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &st
                                                         current_state.kings & opp, current_state.occupied);
                     }
                     size_t qn = cached_moves.size() - quiet_start;
-                    std::vector<int> qs(qn);
+                    thread_local std::vector<int> qs_reused;
+                    std::vector<int> qs_own;
+                    std::vector<int> &qs = Config::SCRATCH_REUSE ? qs_reused : qs_own;
+                    qs.assign(qn, 0);
                     for (size_t t = 0; t < qn; ++t)
                     {
                         const Move &m = cached_moves[quiet_start + t];

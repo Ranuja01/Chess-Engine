@@ -4,6 +4,34 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚡ 2026-11-03 — SPEED BATCH 8 (result-identical knobs, default 0): SCRATCH_REUSE + PIN_FAST = −7% bench time
+**Where the time was** (perf on a `-g -fno-omit-frame-pointer` copy, 6 self-play games st=0.2 seed 652, frame-pointer stacks — this
+perf cannot unwind DWARF and has no libelf, so frames are named from `dsoff` offsets with addr2line): libc **6.9%** of engine
+samples, of which malloc/free **3.47%** (most chains break inside glibc, which reuses the frame register), memmove/memset 1.94%.
+An LD_PRELOAD malloc census (every malloc counted, every 1024th stack kept; bench, knob off) named the callers exactly:
+**19.4 M mallocs = 0.525 per node** — the history-malus lists `searched_quiets` / `searched_captures` grown by `push_back` at
+every interior node 10.7 M, `std::stable_sort`'s temporary buffer in `generateLegalMovesReordered` 5.7 M, first-use growth of
+move-cache slots 1.44 M, the by-value list copy in `updateMoveCacheForBetaCutoff` 0.22 M, root bookkeeping ~1 M.
+- `SCRATCH_REUSE`: the malus lists come from a pool taken in nesting order (RAII lease; a same-node re-search such as the
+  singular exclusion search gets its own pair; past the pool or knob off, a list owns its storage); the move-gen sort is a
+  stable bottom-up merge sort with a kept buffer (a stable sort's output is fixed by the comparison, so it equals
+  `std::stable_sort`'s; `=2` also runs `std::stable_sort` on a copy and aborts on any difference); the lazy re-sort's score
+  array is reused; the beta-cutoff update takes the list by reference and copies into the slot's own storage.
+  Census with it on: **2.69 M mallocs = 0.073 per node (−86%)**, the rest first-use slot growth and once-per-root-move work.
+  Real play (same 6 games): malloc/free **3.47% → 1.65%**, libc overall 6.9% → 4.9%.
+- `PIN_FAST`: the LMR pin test (`relevant_pin_exists`, ≈ 1.5% of samples plus its attack-mask calls) seen from the targets:
+  for each king, queen and rook, enemy sliders on its empty-board lines with exactly one own piece between (a pawn only when
+  the target is the king). A blocker next to a king or to each side's lowest-square queen lies on the scan's candidate lines
+  by construction; for other targets the candidate lines are built and checked, as the scan does. `=2` runs both, aborts on
+  any difference.
+
+Plain build `chess_engine_uci_pf`: bench 252 / 36,960,934 with either knob and both; v1 250 / 35,310,778. Both verify modes
+(`SCRATCH_REUSE=2,PIN_FAST=2`) over the bench and 40 games (UHO + eg_critical, st=0.1): 0 mismatches, 0 disconnects,
+0 option warnings. Pinned bench, 5 alternating rounds: off 31.94 s · `SCRATCH_REUSE=1` 30.55 s (−4.4%, 5/5 rounds) · both
+**29.66 s (−7.1%, 5/5 rounds; below scratch alone in 4/5)**. ⚠️ The box drifted faster through that run (off 33.3 → 30.2 s), so
+the sizes are soft; two earlier SCRATCH_REUSE-only sessions read −1.8% and −1.6% (9 of 13 rounds). Real-play NPS and Elo to come
+with the PGO build.
+
 ## 🚢 2026-11-03 — SPEED BATCH 7 ON BY DEFAULT (owner-confirmed): production PGO +6.4% nps (+8.8% in real play), Cython +10.0% nps, +12.9 Elo vs gen 6.5 production (queue #141)
 `KS_FAST=1 REP_FILTER=1 PAWN_HASH=1` are the header defaults (all engines; results identical). **Installed** as the PGO build
 `chess_engine_uci` (= `chess_engine_uci_g65fpgo`, profile `/mnt/e/chess_data/pgo_g65f`); the gen 6.5 production binary without

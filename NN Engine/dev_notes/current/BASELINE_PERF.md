@@ -10,6 +10,9 @@ Every new production build gets a row in the ledger below, before or at install:
    nodes/move; note the venue (UHO self-play, endgame starts, an outside opponent), since nps differs by venue.
 4. For a result-identical build: the **build-identity games** (`_fix_firecount.py BIN=<old> BIN_ON=<new> ON=`, 120 games).
 5. The **Cython module** (the UI's engine) when it is rebuilt: `depth_nps_bench.py --n 60 PRESET=LIGHTNING V2_PRESET=shipped`.
+6. **Static ladder** (`_reference_ceiling.py`, SF18 WDL) only when the EVAL changes. Last run: gen 6.4 (own-play 147.5, diverse
+   107.7, SF18 WDL 384.2; OPTIMIZATION_LOG 10-30). Gen 6.5 and the gen 6.6 candidate are search-only. **Owner 11-04: re-run
+   it after the full retune steps** (the final retune at the end of the transition arc).
 
 ## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.5 + PGO (2026-11-03), current build `chess_engine_uci_f15pgo` (2026-11-04)
 - WAC d10 fingerprint **252 / 36,960,934 / EBF 3.813** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 6.4 + seven search

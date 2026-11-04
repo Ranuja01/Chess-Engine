@@ -4,6 +4,14 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 📈 2026-11-04 — STOCKFISH 1.1 SERIES POINT (queue #146): production 36.75% at 3× time odds, gen 6.4 was 29.5%
+Today's production PGO binary vs Stockfish 1.1 (us 60+0.6, it 20+0.2, UHO, seed 1082 = the same openings as #108 / #118), 200 g:
+**+58 −111 =31, 36.75%, −94.3 (95% −140.8 … −51.0)**, pentanomial [31, 16, 33, 15, 5], 0 forfeits, 0 disconnects, no crash dumps.
+Series on these openings: gen 6.1 22.5% · 6.2 21.0% · 6.3 29.25% · 6.4 29.5% (plain build, −151) · **today 36.75%** — +7.25 pp
+(≈ +57 Elo) over gen 6.4, at the top of the registered 31 … 37%, about +1.7σ unpaired. Per engine: ours 1.419 s/move, 1,433,804 nps,
+depth 14.2, 2.03M nodes/move · SF 1.1 0.452 s/move, 1,742,669 nps, depth 14.6, 788k nodes/move — with 3.1× the time and 2.6×
+the nodes we still search 0.4 ply shallower, the node-efficiency gap search v2 is for.
+
 ## ⏸️ 2026-11-04 — FIX_TT_R50 ON A NEAR-50-MOVE VENUE (queue #144): +1.7 (−7.9 … +11.4), below its +2σ bar, not shipped
 eg_critical starts at halfmove 80 / move 40 (464 starts); live there (15 of 40 fixed-node games diverged, 8 results changed);
 `FIX_TT_R50=1` vs production, 10+0.1, no draw adjudication, 1,000 g: +210 −205 =585, pentanomial [10, 60, 353, 69, 8], 0 forfeits,

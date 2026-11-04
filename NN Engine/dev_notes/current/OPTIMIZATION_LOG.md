@@ -4,6 +4,27 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ✅ 2026-11-04 — OUTSIDE-OPPONENT READ FOR THE 11-03 SHIPS (queue #143): both within their registered bands, no harm
+Today's production line (gen 6.5 search fixes + speed batches 7 and 8) against gen 6.4 (`chess_engine_uci_g64pgo`; Cython via the
+seven FIX knobs at 0). Fingerprints first: production 252 / 36,960,934, g64pgo 249 / 36,991,901, Cython gen 6.5 252 / 36,960,934,
+Cython gen 6.4 249 / 36,991,901 — all as registered. No crash dumps.
+
+| leg | gen 6.4 | today's production / gen 6.5 | difference | registered |
+|---|---|---|---|---|
+| SF18 @ 1,100 nodes vs ours @ 250k nodes, 500 g, seed 1431 (node-limited: behaviour only, speed cannot show) | 55.30% (+37 vs SF) | 56.10% (+43 vs SF) | **+0.80 pp ± 4.82 (95%), paired by game, z +0.33 ⇒ +5.6 Elo (−28.1 … +40.2)**; 304 of 500 games changed | gen 6.5 − gen 6.4 > −1σ, expected −3 … +5 pp → **pass** |
+| Mediocre at 10+0.1, 400 g, seed 1432 (timed: behaviour + speed) | +212.4 (+178.4 … +250.3), 77.25%, +292 −74 =34, ptnml [2, 9, 61, 25, 103] | **+236.8 (+198.8 … +280.4)**, 79.62%, +300 −63 =37, ptnml [6, 7, 46, 26, 115] | **+2.4 pp ≈ +24 Elo**, about +0.9σ (each side ±18-20 Elo σ) | production ahead by 0 … +40 → **pass (inside the band, not resolved on its own)** |
+
+Real-play speed in the Mediocre legs (searched moves only, ~20,000 each, same 0.237 s / move): gen 6.4 **1,176,815 nps**, depth
+10.9, 278,540 nodes / move → production **1,332,613 nps**, depth 11.2, 316,093 nodes / move: **+13.2% nps, +0.3 ply** for the day's
+three speed steps together (gen 6.5's fixes are node-neutral on the bench, so this is batches 7 + 8 and PGO on the new code).
+Mediocre ran at 847k / 839k nps, depth 11.1 / 10.7. Each leg had one time forfeit, both by Mediocre (we were White and won).
+Collapses vs SF18: 67 (gen 6.5) vs 58 (gen 6.4), in `selfplay/games/g1100_g6{5,4}_s1431/collapses.csv` — inside the noise of a
+500-game leg, unexamined.
+
+Reading: the SF18 leg is the not-harmful check for the seven correctness fixes (node-limited, so batches 7 and 8 cannot move it)
+and it passes with room; the Mediocre leg folds speed in and comes out on the positive side of the band. Neither is a gain claim.
+Mediocre at 10+0.1 is no longer a useful absolute yardstick at ~80% — a later Mediocre read should give it more time or us less.
+
 ## 🚢 2026-11-03/04 — SPEED BATCH 8 ON BY DEFAULT (owner-confirmed): real play +4.0% nps; speed match −13.2 (−31.7 … +5.2), unresolved (queue #142)
 `SCRATCH_REUSE=1 PIN_FAST=1` are the header defaults (all engines; results identical). **Installed** as the PGO build
 `chess_engine_uci` (= `chess_engine_uci_g65b8pgo`, profile `/mnt/e/chess_data/pgo_g65b8`); the batch-7 production binary stays as

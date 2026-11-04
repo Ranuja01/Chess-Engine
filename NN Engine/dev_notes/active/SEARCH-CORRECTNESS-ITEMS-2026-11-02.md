@@ -134,7 +134,8 @@ costs +10.6% WAC bench nodes and +6.7% d10 WAC (+65% on mate positions), −2.6%
 −6.5%, 252 solved. So MDP is held out of gen 6.5 and returns only with ply-adjusted TT mate storage (the coupling read above).
 Confirm match for candidate-without-MDP: queue #140, +8.7 ± 18.7. **SHIPPED as gen 6.5 on 11-03** (owner-confirmed; bench
 252 / 36,960,934). Still open after the ship: the 50-move item (MATE_50 already in, plus
-FIX_TT_R50) on eg starts, and MDP + TT mates as one item.
+FIX_TT_R50) on eg starts, and MDP + TT mates as one item. Outside-opponent read (queue #143, OPTIMIZATION_LOG 11-04): SF18 @ 1,100
+nodes, paired 500 g, gen 6.5 − gen 6.4 = +0.80 pp ± 4.82 (95%) — not harmful against an outside engine either.
 
 **Cost.** Step 0 ≈ 1 h of box time, no timed games. Step 1 ≈ 8 h (three matches). Step 2 ≈ a day of code and counters plus three
 matches. Expected Elo: small — these are correctness items, valued for removing wrong behaviour without harm; the search arc's

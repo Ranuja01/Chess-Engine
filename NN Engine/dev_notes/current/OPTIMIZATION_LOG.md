@@ -4,6 +4,19 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-05 14:07 — QUEUE #159 READ: `TM_LOWCLOCK` +20.4 (+1.1 … +39.9) at 10+0, z ≈ 2.06 — passes the narrow-item bar, at its edge
+- **The gap** (TIME-MANAGER-RESEARCH 10-25, "known gap"): `left = rem + inc·(h−1) − overhead·(2+h)` with h = 50 and the 30 ms
+  Move Overhead reserves 1.56 s, so in sudden death with about 1-3 s left the allocation collapses to the 10 ms floor and the move
+  is played after the first iteration. **`TM_LOWCLOCK=1`**: `left = max(left, rem / 2)` (the same idea as Stockfish shrinking its
+  horizon under 1 s, in a form that scales with Move Overhead). With an increment above ~32 ms the reserve is already negative,
+  so every increment game is unchanged by construction. Commit e628d2c, default 0; plain build `chess_engine_uci_tmlc`, bench 251
+  / 36,859,850 (the clock rule is not in the bench).
+- **Probe** (middlegame FEN, no increment): 3,000 ms left depth 5 → **7**; 1,500 ms depth 3 → **5**; 800 ms depth 3 both.
+- **Self-play 10+0 UHO, arm vs ctl on the same binary, seeds 159111-159114: +20.4 (+1.1 … +39.9), 800 g**, chunks +15.7 / +19.1 /
+  +5.2 / +41.9, pentanomial [41, 55, 177, 70, 57], **0 time forfeits on either side**, 0 disconnects; depth 10.1 vs 9.9, mean
+  0.116 vs 0.114 s per move. Registered +0 … +30: inside. Narrow-item rule (≥ +2σ where it fires, unchanged elsewhere): passes at
+  z ≈ 2.06, on the bar. A fresh-seed replicate before the ship, per the usual practice for a positive item (it can only revoke).
+
 ## 🚢 2026-11-05 ~10:05 — GEN 6.7 INSTALLED (owner): gen 6.5 + `ENABLE_TT_FLAG_FIX`; the mate bundle (gen 6.6) is not kept
 - **Change:** the shipped preset turns `ENABLE_TT_FLAG_FIX` on (the TT bound flag of a PVS re-search is computed against the
   window actually searched; read again after the preset, so `ENABLE_TT_FLAG_FIX=0` restores gen 6.5) and no longer sets

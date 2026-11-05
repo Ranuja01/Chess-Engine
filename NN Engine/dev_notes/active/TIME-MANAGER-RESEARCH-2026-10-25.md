@@ -214,3 +214,5 @@ Step 1 is built as `build_uci/chess_engine_uci_tm1` (plain build, commit 28b0e97
 - **E is the gen 6.2 candidate**, pending the Mediocre confirmation (queue #107).
 
 **Known gap, left for step 4:** with no increment and 1–2 s left, the 30 ms × 52 overhead reserve leaves almost nothing, so the move is played at once at depth 3. That is no worse than today. With any increment the gap is gone: 1 s + 0.1 → optimum 0.11 s.
+
+**Closed 11-05 (queue #159):** `TM_LOWCLOCK=1` keeps at least half of the remaining time (`left = max(left, rem / 2)`); increment games are unchanged by construction. 10+0 self-play +20.4 (+1.1 … +39.9) over 800 g, 0 time forfeits; probe depth 5 → 7 at 3 s left, 3 → 5 at 1.5 s. Passes the narrow-item bar at z ≈ 2.06; replicate, then ship (OPTIMIZATION_LOG 11-05).

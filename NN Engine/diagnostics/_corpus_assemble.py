@@ -54,7 +54,16 @@ SLICES = [
     ("VAR", sorted(glob.glob(os.path.join(D, "VAR_sf18_s*.csv")))),
 ]
 OWNPLAY = ("A", "A2", "V1", "GAUNT")
-MATE_CP = 50000                   # _build_regret_set scores mates as ±(100000 − distance)
+# SLICES_EXTRA=EGX,CUR,VARG,ODDS,STRIP (2026-11-05, corpus_v3): further slices, appended in that order after the six above,
+# opt-in so corpus_v1 / v2 reproduce exactly. MODE=map never sees them (their game ids come from <slice>_fens.csv).
+#   EGX   endgame-type enriched own-play (10-15)          split by game, val like own-play (nested games share A's groups)
+#   CUR   own-play + Mediocre games since 10-19 (gens 4-6.7) split by game, val like own-play
+#   VARG  games from the 960-style starts                 split by game, a never-trained stress hold
+#   ODDS  games from the odds starts                      split by game, a never-trained stress hold
+#   STRIP strip-down stress (gen_kp_fens nopawn/heavy/mixed) split by row, a never-trained stress hold (like KP)
+EXTRA_SLICES = {n: sorted(glob.glob(os.path.join(D, n + "_fens_sf18_s*.csv"))) for n in ("EGX", "CUR", "VARG", "ODDS", "STRIP")}
+GAME_OWN, GAME_STRESS = ("EGX", "CUR"), ("VARG", "ODDS")
+MATE_CP = 50000                  # _build_regret_set scores mates as ±(100000 − distance)
 PV = {chess.PAWN: 1000, chess.KNIGHT: 3250, chess.BISHOP: 3450, chess.ROOK: 5000, chess.QUEEN: 10000, chess.KING: 100000}
 NPM_LO, NPM_HI = 10000, 40000     # EVAL_V2_EG_LIMIT / EVAL_V2_MG_LIMIT defaults (eval_v2.cpp phase256)
 
@@ -250,18 +259,52 @@ def run_assemble():
         for r in csv.DictReader(open(gpath, newline="")):
             if r.get("game"):
                 gmap.setdefault(key_of(r["fen"]), "gaunt:" + r["game"])
+    extra = [n for n in os.environ.get("SLICES_EXTRA", "").split(",") if n]
+    for n in extra:
+        SLICES.append((n, EXTRA_SLICES[n]))
+        gp = os.path.join(D, n + "_fens.csv")
+        if n in GAME_OWN + GAME_STRESS and os.path.exists(gp):
+            for r in csv.DictReader(open(gp, newline="")):
+                g = r.get("game")
+                if not g:
+                    continue
+                # a nested own-play game is one file; the game map names it <path>#0, so EGX joins A's group for it
+                grp = g + "#0" if (n == "EGX" and g.endswith("/game.jsonl")) else n.lower() + ":" + g
+                gmap.setdefault(key_of(r["fen"]), grp)
     hold, hold_per = held_out_keys()
     print("  game map: %d keys · held-out/bench/regret keys: %d %s" % (len(gmap), len(hold), hold_per), flush=True)
-    d10 = {}
-    for p in sorted(glob.glob(os.path.join(D, "A_ours1004_d10_s*of4.csv"))):
+    # D10_TAG=ours1105 (11-05): every slice's d10 pass of that ship (<slice>_<tag>_d10*.csv on D), with our d10 move;
+    # default = the 10-04 pass on slice A only, as corpus_v1 / v2 were built.
+    tag = os.environ.get("D10_TAG", "")
+    d10, d10mv = {}, {}
+    d10_glob = ("*_%s_d10*.csv" % tag) if tag else "A_ours1004_d10_s*of4.csv"
+    for p in sorted(glob.glob(os.path.join(D, d10_glob))):
         for r in csv.DictReader(open(p, newline="")):
             if r.get("fen") and r.get("ours_cp_white") not in (None, ""):
                 d10[key_of(r["fen"])] = r["ours_cp_white"]
-    print("  d10 depth rows (slice A): %d" % len(d10), flush=True)
+                d10mv[key_of(r["fen"])] = r.get("move", "")
+    print("  d10 depth rows (%s): %d" % (d10_glob, len(d10)), flush=True)
+    # CRIT_GLOB=<glob> (11-05): SF18 multi-PV files (`moves` = uci:cp;… best-first, White-POV cp) → gap12 = |best − 2nd| cp
+    gap12 = {}
+    if os.environ.get("CRIT_GLOB"):
+        for p in sorted(glob.glob(os.path.join(D, os.environ["CRIT_GLOB"]))):
+            for r in csv.DictReader(open(p, newline="")):
+                mv = [x.rsplit(":", 1) for x in (r.get("moves") or "").split(";") if ":" in x]
+                if len(mv) >= 2:
+                    try:
+                        gap12[key_of(r["fen"])] = abs(int(float(mv[0][1])) - int(float(mv[1][1])))
+                    except ValueError:
+                        pass
+        print("  multi-PV gap rows (%s): %d" % (os.environ["CRIT_GLOB"], len(gap12)), flush=True)
 
     out_path = os.path.join(D, os.environ.get("OUT", "corpus_v1.csv"))   # OUT=corpus_v2.csv (10-13) keeps v1 reproducible
     fields = ["fen", "key", "slice", "group", "split", "phase256", "stage", "pieces", "sf_cp", "sf_best", "mate",
               "quiet", "unq", "band", "w_band", "ours_d10"]
+    if tag:
+        fields.append("ours_move")
+    if os.environ.get("CRIT_GLOB"):
+        fields.append("gap12")
+    d10_miss = Counter()
     seen = set()
     st = defaultdict(Counter)
     a_nod10 = Counter()
@@ -284,12 +327,18 @@ def run_assemble():
                     st[name]["bad"] += 1
                     continue
                 mate = int(abs(cp) >= MATE_CP)
-                if name in OWNPLAY:
+                if name in OWNPLAY or name in GAME_OWN:
                     grp = gmap.get(k)
                     if grp is None:
                         nomap[name] += 1
                         grp = "nomap:" + k
                     split = "val" if hpct(grp) < val_pct else "train"
+                elif name in GAME_STRESS:
+                    grp = gmap.get(k)
+                    if grp is None:
+                        nomap[name] += 1
+                        grp = name + ":" + k
+                    split = "stress_hold" if hpct(grp) < hold_pct else "train"
                 else:
                     grp = name + ":" + k
                     split = "stress_hold" if hpct(grp) < hold_pct else "train"
@@ -299,12 +348,19 @@ def run_assemble():
                 unq = unquiet_reason(board, r.get("best_uci", ""))
                 band, wb = band_of(cp)
                 od = ""
-                if name == "A":
+                if name == "A" or tag:
                     od = d10.get(k, "")
-                    if od == "":
+                    if od == "" and name == "A":
                         a_nod10["mate" if mate else "non-mate"] += 1
-                w.writerow([fen, k, name, grp, split, p256, stage_of(p256), len(board.piece_map()), cp, r.get("best_uci", ""),
-                            mate, int(unq == ""), unq, band, wb, od])
+                    if od == "":
+                        d10_miss[name] += 1
+                row = [fen, k, name, grp, split, p256, stage_of(p256), len(board.piece_map()), cp, r.get("best_uci", ""),
+                       mate, int(unq == ""), unq, band, wb, od]
+                if tag:
+                    row.append(d10mv.get(k, ""))
+                if os.environ.get("CRIT_GLOB"):
+                    row.append(gap12.get(k, ""))
+                w.writerow(row)
                 s = st[name]
                 s["kept"] += 1; s["split:" + split] += 1; s["stage:" + stage_of(p256)] += 1
                 s["quiet" if unq == "" else "unq:" + unq] += 1; s["band:" + band] += 1
@@ -324,6 +380,8 @@ def run_assemble():
                  pc("band:level"), pc("band:0.5-1.5"), pc("band:1.5-4"), pc("band:4-15"), pc("band:>=15"), pc("band:mate")))
     print("  own-play rows without a game group: %s" % dict(nomap))
     print("  slice A rows without a d10 depth row: %s (expect ≈ 3k, all mate)" % dict(a_nod10))
+    if tag:
+        print("  rows without a %s d10 row, per slice: %s" % (tag, dict(d10_miss)))
     print("  ASSEMBLE DONE", flush=True)
 
 

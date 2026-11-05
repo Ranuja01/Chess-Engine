@@ -33,22 +33,22 @@ grep -v '^#' selfplay/openings_odds.txt    | sed 's/ *;.*$//' | grep -v '^$' > $
 NV=$(wc -l < $G/variant.epd); NO=$(wc -l < $G/odds.epd)
 echo "[q161] starts: variant $NV, odds $NO"
 ADJ="-draw movenumber=60 movecount=10 score=5 -resign movecount=6 score=2500 -maxmoves 150 -recover"
-E1="-engine cmd=$PROD name=a option.OwnBook=false nodes=25000"
-E2="-engine cmd=$PROD name=b option.OwnBook=false nodes=40000"
+E1=(-engine "cmd=$PROD" name=a option.OwnBook=false nodes=25000)
+E2=(-engine "cmd=$PROD" name=b option.OwnBook=false nodes=40000)
 t0=$(date +%s)
-timeout 600 "$FC" $E1 $E2 -openings file=$G/variant.epd format=epd order=sequential -rounds 4 -games 1 -concurrency 1 $ADJ \
+timeout 600 "$FC" "${E1[@]}" "${E2[@]}" -openings file=$G/variant.epd format=epd order=sequential -rounds 4 -games 1 -concurrency 1 $ADJ \
   -pgnout file=$G/pilot.pgn notation=san append=false > $G/pilot.log 2>&1
 n=$(grep -c '^\[Event' $G/pilot.pgn 2>/dev/null)
 echo "[q161] pilot: $n games in $(( $(date +%s) - t0 )) s · $(grep -E '^Games:' $G/pilot.log | tail -1) · warnings $(grep -c 'have option' $G/pilot.log) · plies $(grep -oE '\[PlyCount "[0-9]+' $G/pilot.pgn | grep -oE '[0-9]+$' | tr '\n' ' ')"
 [ "${n:-0}" -ge 4 ] || { echo "[q161] ☠️ pilot failed — QUEUE 161 ABORTED"; tail -5 $G/pilot.log | show; exit 1; }
 stopped "the variant games"
 echo "[q161] $(date) variant games ($NV)"
-nice -n 5 "$FC" $E1 $E2 -openings file=$G/variant.epd format=epd order=sequential -rounds $NV -games 1 -concurrency 2 $ADJ \
+nice -n 5 "$FC" "${E1[@]}" "${E2[@]}" -openings file=$G/variant.epd format=epd order=sequential -rounds $NV -games 1 -concurrency 2 $ADJ \
   -pgnout file=$G/varg.pgn notation=san append=false > $G/varg.log 2>&1
 echo "[q161] $(date) variant games done: $(grep -c '^\[Event' $G/varg.pgn) · $(grep -E '^Games:' $G/varg.log | tail -1)"
 stopped "the odds games"
 echo "[q161] $(date) odds games ($NO x 2 colours)"
-nice -n 5 "$FC" $E1 $E2 -openings file=$G/odds.epd format=epd order=sequential -rounds $NO -games 2 -repeat -concurrency 2 $ADJ \
+nice -n 5 "$FC" "${E1[@]}" "${E2[@]}" -openings file=$G/odds.epd format=epd order=sequential -rounds $NO -games 2 -repeat -concurrency 2 $ADJ \
   -pgnout file=$G/odds.pgn notation=san append=false > $G/odds.log 2>&1
 echo "[q161] $(date) odds games done: $(grep -c '^\[Event' $G/odds.pgn) · $(grep -E '^Games:' $G/odds.log | tail -1)"
 

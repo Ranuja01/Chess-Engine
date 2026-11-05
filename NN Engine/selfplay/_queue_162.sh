@@ -21,7 +21,7 @@ until grep -qE 'QUEUE 160 (DONE|ABORTED)' /mnt/e/chess_data/q160.log 2>/dev/null
   sleep 60
 done
 sleep 20
-pgrep -f "fastchess-linux-x86-64/fastchess|vs_sf.py|_depth_residual_pass|_build_regret_set" >/dev/null && { echo "[q162] a match, depth pass or labeller is running — QUEUE 162 ABORTED"; exit 1; }
+pgrep -f "fastchess-linux-x86-64/fastchess|vs_sf.py|_depth_residual_pass" >/dev/null && { echo "[q162] a match or depth pass is running — QUEUE 162 ABORTED"; exit 1; }   # #163 labels beside it by design
 START=$(date '+%Y-%m-%d %H:%M:%S')
 echo "[q162] $START start"
 grep -E 'QUEUE 161 (DONE|ABORTED)|labelled:' /mnt/e/chess_data/q161.log | sed 's/^/[q162]   #161: /'

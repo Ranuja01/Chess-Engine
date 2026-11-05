@@ -219,7 +219,8 @@ below). Plain build `chess_engine_uci_ttm`, every knob off = 252 / 36,960,934 �
   ⚠️ Not from this item: gen 6.5's own full STS d10 (9,620) and STS300 @ 249k (1,890) sit below gen 6.4's 10-30 record
   (10,063 · 1,944, queue #117). Both are deterministic, so either gen 6.5's search fixes moved STS or the setup differs.
   **To check:** the gen 6.4 knobs on today's Cython build (~15 min). STS does not decide ships, but it is the equal-nodes
-  yardstick against SF11. (Running in queue #153.)
+  yardstick against SF11. **Checked 11-05 (#153): gen 6.4's knobs reproduce #117 exactly (2,003 · 10,063 · 1,944), so the
+  setup is unchanged and the move comes from gen 6.5's seven search fixes.** Not a ship input (6.5 passed in games).
 - **Queue #152 read (11-05 02:00).** Replicate on the production binaries −2.4 (−21.8 … +16.9) ⇒ pooled with #150 ≈ −5.7 ± 7.0
   (z ≈ −0.8, passes). **SF18 @ 1,100, paired seed 1521: gen 6.6 54.4% vs gen 6.5 58.0%, −3.60 pp ± 4.92, z −1.43 — fails the
   registered −1σ bar.** Gen 6.6 is flagged for the owner (still installed; tonight's queues need it in place).
@@ -229,6 +230,9 @@ below). Plain build `chess_engine_uci_ttm`, every knob off = 252 / 36,960,934 �
   as the fix's own worth: fresh-seed replicate (#153), and the 2×2 with the mate bundle (#155: SF18 for 6.6 + fix and 6.5 + fix
   on seed 1521, self-play 6.5 + fix vs 6.5, 400 g). Hypothesis: with mates now stored in the TT (FIX_TT_MATE), a wrong bound
   flag costs more, so the fix may be recovering part of what the bundle lost against SF18.
+  **Replicate (#153, seeds 153111-153115): +12.5 (−6.0 … +31.1); pooled 2,000 g +23.3 (+10.1 … +36.6), z ≈ 3.4.** Self-play leg
+  of the gain rule met; SF18 (#155) and Mediocre outstanding. Cython liveness (#155): gen 6.6 + fix 249 / 38,002,371 / 3.701 =
+  UCI; gen 6.5 + fix 251 / 36,859,850 / 3.812, UCI == Cython.
 
 **Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
 - **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`

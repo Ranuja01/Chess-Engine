@@ -24,7 +24,10 @@ Every new production build gets a row in the ledger below, before or at install:
 - Games: vs gen 6.5 (same plain binary, knobs) **−9.0 (−28.3 … +10.2)**, 1,000 g — inside the not-harmful bar at its edge;
   owner 11-04: lazy pass. Replicate (production binaries, #152) −2.4 (−21.8 … +16.9) ⇒ pooled ≈ −5.7 ± 7.0. **SF18 @ 1,100
   (#152, paired seed 1521): 54.4% vs 58.0%, −3.60 pp ± 4.92, z −1.43 — below the −1σ bar ⇒ FLAGGED, owner's call.**
-  `ENABLE_TT_FLAG_FIX` on top: +34.2 (+15.4 … +53.2); the 2×2 and its SF18 read in #153 / #155.
+  `ENABLE_TT_FLAG_FIX` on top: +34.2 (+15.4 … +53.2), replicate +12.5 (−6.0 … +31.1) ⇒ **pooled +23.3 (+10.1 … +36.6)**, 2,000 g
+  (#152 / #153); its SF18 read and the 2×2 with the mate bundle in #155.
+  F15 re-check (#153): real play +3.4% nps, identical games ⇒ confirmed. STS: gen 6.4's knobs reproduce #117 exactly, so gen
+  6.5's lower STS is its seven search fixes.
 - **Build ledger of gen 6.6:**
 
   | build (production from) | change | pinned UCI bench vs gen 6.5's binary, same session | real-play nps (venue) | games check | Cython module (UI) |
@@ -50,7 +53,7 @@ Every new production build gets a row in the ledger below, before or at install:
   | `chess_engine_uci_g65pgo` (11-03 a.m.) | gen 6.5 | 32.9 s, 1,124,408 nps | 1,165,753 (UHO self-play) | — | — |
   | `chess_engine_uci_g65fpgo` (11-03 p.m.) | + batch 7 (`KS_FAST`, `REP_FILTER`, `PAWN_HASH`) | 30.9 s, 1,196,942 nps (**+6.4%**) | 1,268,698 (**+8.8%**, UHO) | +12.9 Elo (−5.9 … +31.7) | 915,540 → 1,006,721 (**+10.0%**) |
   | `chess_engine_uci_g65b8pgo` (11-03 ~21:00) | + batch 8 (`SCRATCH_REUSE`, `PIN_FAST`) | 28.56 vs 30.06 s (**+5.3%**) | 1,346,840 vs 1,295,095 (**+4.0%**, UHO) | 120/120 identical (#145); match −13.2, noise | 948,418 → 980,036 (+3.3%, ⚠️ disturbed) |
-  | **`chess_engine_uci_f15pgo` (11-04 14:15) = current** | + F15 hardening off (`build_uci.sh` default) | 28.78 vs 29.47 s (**+2.4%**, undisturbed runs) | **pending** — read with the batch-9 bundle (owner: pass now, re-check there) | 120/120 identical (#147) | not applied (UCI binary only) |
+  | **`chess_engine_uci_f15pgo` (11-04 14:15) = current** | + F15 hardening off (`build_uci.sh` default) | 28.78 vs 29.47 s (**+2.4%**, undisturbed runs) | read on gen 6.6's code (#153, `HARDEN=1` PGO build vs production): **1,490,133 vs 1,441,031 (+3.4%, UHO)**; pinned bench +3.0% | 120/120 identical (#147; #153 again on gen 6.6) | not applied (UCI binary only) |
 
   Cumulative, real play: gen 6.5 1,165,753 → 1,346,840 nps after batch 8 (**+15.5%**, UHO self-play), F15 on top still to read.
   Against gen 6.4 in the Mediocre legs (#143, same venue for both): 1,176,815 → 1,332,613 nps (**+13.2%**, depth 10.9 → 11.2).

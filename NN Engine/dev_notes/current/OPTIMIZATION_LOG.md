@@ -4,6 +4,20 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-05 06:42 — QUEUE #153 READ: flag fix replicate +12.5 (pooled +23.3 ± 13.3) · F15 real play +3.4% · STS drop = gen 6.5's fixes
+- **`ENABLE_TT_FLAG_FIX` replicate on gen 6.6** (seeds 153111-153115): **+12.5 (−6.0 … +31.1)**, 1,000 g, chunks +33.1 / −7.0 /
+  +15.7 / +20.9 / 0.0. **Pooled with #152: +23.3 (+10.1 … +36.6), 2,000 g, z ≈ 3.4** — the self-play leg of the gain ship rule
+  (≥ +2σ) is met; the replicate alone is z ≈ 1.3, so the first read's +34 was on the high side. Real play 1,447,683 vs 1,436,258
+  nps (pooled). Outstanding for a ship: SF18 (> −1σ, queue #155) and Mediocre (not negative, not run yet).
+- **F15 real-play read (owner: pass now, re-check later):** gen 6.6 built with `HARDEN=1` and its own PGO profile, 252 /
+  39,257,155; build identity 120 / 120 games identical (eg, kp, UHO at 30k nodes). Pinned bench 6 alternating rounds: 30.58 s vs
+  29.69 s (**+3.0%**). Real play, 600 g at 10+0.1 UHO: production **1,490,133 vs hardened 1,441,031 nps (+3.4%)**, match +6.4 ±
+  24.0 (noise, as for every result-identical speed match). **F15 confirmed.**
+- **STS check:** gen 6.4's knobs on today's Cython module reproduce #117 exactly (STS300 d10 2,003 · full d10 10,063 · STS300 @
+  249k 1,944; WAC 249 / 36,991,901). The setup is unchanged, so **gen 6.5's lower STS (full d10 9,620, STS300 @ 249k 1,890) comes
+  from its seven search fixes.** STS does not decide ships (gen 6.5 passed in games, +8.7 ± 18.7 and SF18 +0.80 pp); a
+  per-fix STS split is cheap (deterministic, ~10 min each) if the equal-nodes yardstick needs explaining later.
+
 ## ⚠️ 2026-11-05 02:00 — QUEUE #152 READ: gen 6.6 FLAGGED (SF18 below the bar) · `ENABLE_TT_FLAG_FIX` +34.2 on gen 6.6
 - **Replicate, gen 6.6 vs gen 6.5 production binaries** (10+0.1 UHO, seeds 152111-152115): −2.4 (−21.8 … +16.9), 1,000 g, chunks
   +34.9 / +13.9 / −15.7 / −12.2 / −33.1, 0 disconnects / forfeits. Pooled with #150's −9.0 ± 19.3: **≈ −5.7 ± 7.0 (z ≈ −0.8)**,

@@ -79,8 +79,30 @@ def phase_of(board):
 
 # Sample positions spread across MANY distinct games (diversity) and across plies within each game.
 _gg = os.environ.get("GAMES_GLOB", os.path.join("*", "*.jsonl"))
-files = sorted(glob.glob(os.path.join(GAMES, _gg)))
-files = [f for f in files if "_archive" not in f and "_bak" not in f]
+# GAMES_PGN=<glob> (2026-11-05): read games from PGN files (fastchess output, absolute glob) instead of the harness jsonls.
+# Each PGN game becomes one "file" whose positions are replayed from its own start (the [FEN] tag), with the id
+# "<pgn file>#<game index>" in the `game` column, so downstream by-game splits work the same way.
+_pgn = os.environ.get("GAMES_PGN", "")
+if _pgn:
+    import chess.pgn
+    files = []
+    for _p in sorted(glob.glob(_pgn)):
+        with open(_p) as _fh:
+            _gi = 0
+            while True:
+                _g = chess.pgn.read_game(_fh)
+                if _g is None:
+                    break
+                _b = _g.board()
+                _seq = [_b.fen()]
+                for _mv in _g.mainline_moves():
+                    _b.push(_mv)
+                    _seq.append(_b.fen())
+                files.append(("%s#%d" % (os.path.basename(_p), _gi), _seq))
+                _gi += 1
+else:
+    files = sorted(glob.glob(os.path.join(GAMES, _gg)))
+    files = [f for f in files if "_archive" not in f and "_bak" not in f]
 MAX_GAMES = int(os.environ.get("MAX_GAMES", "2500"))   # 2026-10-09: configurable (2,500 games caps a set near ~35k rows)
 stride_f = max(1, len(files) // MAX_GAMES)     # spread over up to MAX_GAMES distinct games
 sel_files = files[::stride_f]
@@ -99,15 +121,22 @@ if SIG_QUOTA:
     from _eg_signatures import signature as _eg_sig
     sig_count = defaultdict(int)
 for fp in sel_files:
-    try:
-        lines = open(fp).read().splitlines()
-    except Exception:
-        continue
-    for ln in lines[::PLY_STRIDE]:
+    if _pgn:
+        gid, lines = fp
+    else:
         try:
-            fen = (json.loads(ln).get("fen") or "").strip()
+            lines = open(fp).read().splitlines()
         except Exception:
             continue
+        gid = os.path.relpath(fp, GAMES)
+    for ln in lines[::PLY_STRIDE]:
+        if _pgn:
+            fen = ln
+        else:
+            try:
+                fen = (json.loads(ln).get("fen") or "").strip()
+            except Exception:
+                continue
         if not fen or fen in seen or fen in exclude:
             continue
         try:
@@ -122,7 +151,7 @@ for fp in sel_files:
                 continue
             sig_count[sg] += 1
         seen.add(fen)
-        picked.append((fen, phase_of(board), os.path.relpath(fp, GAMES)))   # + the GAME (10-13: by-game splits downstream)
+        picked.append((fen, phase_of(board), gid))   # + the GAME (10-13: by-game splits downstream)
     if len(picked) >= N * (2 if EG_QUOTA else 1):
         break
 if EG_QUOTA:

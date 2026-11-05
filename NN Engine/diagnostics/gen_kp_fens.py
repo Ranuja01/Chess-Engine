@@ -18,6 +18,10 @@ Modes (MIX controls the blend):
   dense  - STRESS ZONE: 7-8 pawns a side, no pieces. Unreachable in a real game, but both engines must
            still evaluate it, and with no pieces the pawn terms ARE the eval, so a disagreement with SF18
            cannot be blamed on piece play.
+  nopawn - strip-down stress: kings + a small piece set each (R v N, Q v R, R+B v R, B+N v -, ...), no pawns
+  heavy  - strip-down stress: rook / queen sets with 1-7 pawns a side
+  mixed  - strip-down stress: 1-3 random pieces a side (often imbalanced) with 1-7 pawns a side
+  (the three strip-down modes are never in the default MIX, so existing seeds reproduce exactly)
 
 Positions are validated with python-chess (legal, not already over, side to move not giving check) and are
 deduped. Deterministic given SEED.
@@ -73,6 +77,10 @@ def make_position(mode):
     else:
         return None
 
+    if mode in STRIP_MODES:
+        stripdown(board, taken, mode)
+        return finish(board)
+
     # `dense` = the stress zone: 7-8 pawns a side and NO pieces. Unreachable from a real game, but both
     # engines must still evaluate it, and with no pieces on the board the pawn terms ARE the evaluation --
     # so any disagreement with SF18 is unambiguously a pawn-eval defect rather than a piece-play confound.
@@ -97,7 +105,46 @@ def make_position(mode):
     if mode == "rook":
         place(board, chess.ROOK, chess.WHITE, taken)
         place(board, chess.ROOK, chess.BLACK, taken)
+    return finish(board)
 
+
+# Strip-down stress modes (2026-11-05, retune corpus): strip the board to one subsystem so a term that only fits
+# opening-derived structures is exposed. nopawn = piece endings with no pawns (the material and king terms alone);
+# heavy = rook / queen endings with pawns; mixed = random small piece sets with pawns, often imbalanced.
+STRIP_MODES = ("nopawn", "heavy", "mixed")
+PIECE = {"N": chess.KNIGHT, "B": chess.BISHOP, "R": chess.ROOK, "Q": chess.QUEEN}
+NOPAWN_SETS = [("R", "N"), ("R", "B"), ("Q", "R"), ("RB", "R"), ("RN", "R"), ("Q", "RB"), ("Q", "RN"), ("Q", "BB"),
+               ("Q", "RR"), ("BN", ""), ("BB", "N"), ("RR", "Q"), ("RB", "RN"), ("QR", "Q"), ("R", "R"), ("N", "N"),
+               ("B", "N"), ("BB", "R"), ("Q", "NN"), ("RR", "R")]
+HEAVY_SETS = [("R", "R"), ("Q", "Q"), ("RR", "RR"), ("QR", "QR"), ("Q", "RR"), ("RB", "RN"), ("RN", "R"), ("Q", "R"),
+              ("R", "B"), ("R", "N"), ("QB", "Q"), ("RR", "RB")]
+
+
+def stripdown(board, taken, mode):
+    if mode == "nopawn":
+        w, b = rng.choice(NOPAWN_SETS)
+        nw = nb = 0
+    else:
+        if mode == "heavy":
+            w, b = rng.choice(HEAVY_SETS)
+        else:
+            w = "".join(rng.choice("NNBBRRQ") for _ in range(rng.randint(1, 3)))
+            b = "".join(rng.choice("NNBBRRQ") for _ in range(rng.randint(1, 3)))
+        nw = rng.randint(1, 6)
+        nb = max(1, min(7, nw + rng.choice([-1, 0, 0, 1])))
+    if rng.random() < 0.5:
+        w, b, nw, nb = b, w, nb, nw
+    for c in w:
+        place(board, PIECE[c], chess.WHITE, taken)
+    for c in b:
+        place(board, PIECE[c], chess.BLACK, taken)
+    for _ in range(nw):
+        place(board, chess.PAWN, chess.WHITE, taken)
+    for _ in range(nb):
+        place(board, chess.PAWN, chess.BLACK, taken)
+
+
+def finish(board):
     board.turn = rng.choice([chess.WHITE, chess.BLACK])
     board.castling_rights = 0
     board.halfmove_clock = 0

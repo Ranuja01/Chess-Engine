@@ -4,6 +4,26 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-11-05 ~10:05 — GEN 6.7 INSTALLED (owner): gen 6.5 + `ENABLE_TT_FLAG_FIX`; the mate bundle (gen 6.6) is not kept
+- **Change:** the shipped preset turns `ENABLE_TT_FLAG_FIX` on (the TT bound flag of a PVS re-search is computed against the
+  window actually searched; read again after the preset, so `ENABLE_TT_FLAG_FIX=0` restores gen 6.5) and no longer sets
+  `FIX_TT_MATE` / `FIX_MDP` / `ENABLE_NULL_MATE_CLAMP`. v1 unchanged. Id "AlphaUX (v2 gen 6.7)". Commit 597efbb, queue #157.
+- **Ship evidence (all three legs):** self-play +23.3 (+10.1 … +36.6) on gen 6.6 over 2,000 g, +13.9 (−18.4 … +46.4) on gen 6.5
+  over 400 g, and on the production binaries (#157, gen 6.7 vs gen 6.5's `f15pgo`, seeds 157111-157112) **+24.4 (−4.8 … +53.9)**,
+  400 g, pentanomial [27, 19, 87, 33, 34]. Inverse-variance pooled over the three: ≈ +22.3 ± 5.8 (z ≈ 3.9; mixed bases, a
+  summary, not a test). SF18 @ 1,100: +0.50 pp on 6.6, +0.30 pp on 6.5. Mediocre 0.5 at 10+0.1 (#156, seed 1432): **81.7%, +259.5
+  (+216.2 … +311.0)** on 300 g vs gen 6.5's 79.6%, +236.8 (#143, 400 g); the one time forfeit was Mediocre's.
+- **Fingerprints on `chess_engine_uci_g67pgo`** (profile `/mnt/e/chess_data/pgo_g67`): default **251 / 36,859,850 / 3.812** ·
+  `ENABLE_TT_FLAG_FIX=0` 252 / 36,960,934 (gen 6.5) · + mate bundle 249 / 38,002,371 · bundle on, flag fix 0 252 / 39,257,155 (gen
+  6.6) · gen 6.4 knobs 249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 · v1 250 / 35,310,778. Cython module rebuilt: shipped
+  251 / 36,859,850 / 3.812, gen 6.5 knobs 252 / 36,960,934, v1 250 / 35,310,778. Production `chess_engine_uci` == `g67pgo`;
+  backups `g66pgo` (gen 6.6) and `f15pgo` (gen 6.5).
+- **Bench report and nps:** BASELINE_PERF gen 6.7 section (pinned bench level with gen 6.5, ≈ 7% faster to fixed depth than gen
+  6.6; real play +1.3% nps vs gen 6.5's binary; STS300 @ 249k 1,928 vs 1,890).
+- **Gen 6.6's mate bundle, parked:** self-play pooled ≈ −5.7 ± 7.0, SF18 −3.60 pp (z −1.43) and −3.40 pp with the flag fix on.
+  Later, if mate handling comes back up: which of the three carries the SF18 cost, and whether it is the +6.2% nodes per depth
+  (the SF18 gauntlet gives our side a fixed 250k nodes per move).
+
 ## 2026-11-05 09:12 — QUEUE #155 READ (the 2×2): the flag fix is neutral vs SF18 on both gens; the mate bundle's SF18 deficit stays
 - **Liveness in the Cython module:** gen 6.6 + flag fix WAC d10 249 / 38,002,371 (== UCI); gen 6.5 + flag fix 251 / 36,859,850
   UCI == Cython. The gauntlet arms below ran what they claim.

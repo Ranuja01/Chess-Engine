@@ -14,7 +14,31 @@ Every new production build gets a row in the ledger below, before or at install:
    107.7, SF18 WDL 384.2; OPTIMIZATION_LOG 10-30). Gen 6.5 and the gen 6.6 candidate are search-only. **Owner 11-04: re-run
    it after the full retune steps** (the final retune at the end of the transition arc).
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.6 + PGO (2026-11-04 18:54, lazy pass — replicate running), `chess_engine_uci_g66pgo`
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.7 + PGO (2026-11-05 ~10:05, owner), `chess_engine_uci_g67pgo`
+- WAC d10 fingerprint **251 / 36,859,850 / EBF 3.812** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 6.5 +
+  `ENABLE_TT_FLAG_FIX` in the shipped preset (the TT bound flag of a PVS re-search computed against the window actually
+  searched; dead since 08-22 because its start-up read defaulted to off). Gen 6.6's mate bundle is off again. Knobs:
+  `ENABLE_TT_FLAG_FIX=0` = gen 6.5 252 / 36,960,934 · + `FIX_TT_MATE=1,FIX_MDP=1,ENABLE_NULL_MATE_CLAMP=1` 249 / 38,002,371 · that
+  with the flag fix 0 = gen 6.6 252 / 39,257,155 · gen 6.4 knobs 249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 · v1 250 /
+  35,310,778 (UCI and Cython). Id "AlphaUX (v2 gen 6.7)". F15 flags (no hardening) by default. Backups: `g66pgo`, `f15pgo`.
+- Games: flag fix +23.3 (+10.1 … +36.6) on gen 6.6 (2,000 g), +13.9 (−18.4 … +46.4) on gen 6.5 (400 g), **production binaries
+  +24.4 (−4.8 … +53.9) vs `f15pgo`** (400 g, #157); SF18 @ 1,100 +0.50 pp (on 6.6) / +0.30 pp (on 6.5); Mediocre 81.7% vs
+  79.6%. OPTIMIZATION_LOG 11-05.
+- **Build ledger of gen 6.7:**
+
+  | build (production from) | change | pinned UCI bench, same session (#157), fastest of 6 alternating rounds | real-play nps (venue) | games check | Cython module (UI) |
+  |---|---|---|---|---|---|
+  | **`chess_engine_uci_g67pgo` (11-05) = current** | gen 6.7 (F15 flags by default) | gen 6.5 `f15pgo` 28.39 s · 1,301,943 nps; gen 6.6 `g66pgo` 30.63 s · 1,281,832; **gen 6.7 28.42 s · 1,297,090** ⇒ level with gen 6.5 (nps −0.4%, nodes −0.3%), **7.2% faster to fixed depth than gen 6.6** (its +6.2% nodes). ⚠️ 5 of 18 runs disturbed (41-44 s; medians 30.43 / 31.98 / 28.83 s) | vs `f15pgo`, 400 g 10+0.1 UHO: **1,250,365 vs 1,233,832 (+1.3%)**, depth 10.9 / 10.9, nodes per move 300,128 vs 296,477 (absolute nps below other sessions: same-session ratio only) | +24.4 (−4.8 … +53.9) | 251 / 36,859,850 / 3.812; WAC speed MAX_NPS 997,290 vs gen 6.5's 954,816 (#158, clean) and 966,436 vs 990,644 (#157, disturbed) ⇒ level |
+- Benches vs gen 6.5 (Cython): WAC at LIGHTNING mean depth (non-mate) **15.372 vs 15.370** (#158, clean); solved **262 vs 268**
+  (#158) and 267 vs 267 (#157, gen 6.7's run disturbed) — a timed count; the deterministic WAC reads show no tactical loss (d10 251
+  vs 252, 249k nodes 250 vs 250), noted as a watch item. STS300 d10 **2,018** (6.5: 1,908, 6.6: 2,020), full STS d10 **9,830**
+  (9,620 / 9,860), **STS300 @ 249k 1,928** (1,890 / 1,845), WAC @ 249k 250 (250 / 246), all inside STS's ±150 floor. Static eval
+  unchanged since gen 6.4.
+- d10 nodes per WAC position over the v2 gens (same bench, same counter; v1 35,310,778): gen 1 +43% · gen 5 +35% · gen 6.2 +31% ·
+  gen 6.3 (threat-aware ordering) +20% · gen 6.4 (threats in eval + RFP 600) +4.8% · **gen 6.7 +4.4%**. The printed EBF is not a
+  branching factor (`ebf-metric-is-not-comparable`); a per-iteration one is the search arc's first instrument.
+
+## ⭐⭐⭐ NOT KEPT: v2 gen 6.6 + PGO (2026-11-04 18:54 – 2026-11-05 ~10:05, lazy pass), `chess_engine_uci_g66pgo`
 - WAC d10 fingerprint **252 / 39,257,155 / EBF 3.700** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 6.5 + the mate-score
   bundle in the shipped preset: `FIX_TT_MATE 1` (mates stored in the TT as distance from the stored position), `FIX_MDP 1`
   (mate-distance pruning), `ENABLE_NULL_MATE_CLAMP 1` (an unproven null-move mate returns the bound; "shipped" 08-22 but off
@@ -34,7 +58,7 @@ Every new production build gets a row in the ledger below, before or at install:
 
   | build (production from) | change | pinned UCI bench vs gen 6.5's binary, same session | real-play nps (venue) | games check | Cython module (UI) |
   |---|---|---|---|---|---|
-  | **`chess_engine_uci_g66pgo` (11-04 18:54) = current** | gen 6.6 (F15 flags by default) | 6 alternating rounds: 29.38 s vs 31.69 s (+7.9%); without the first, disturbed pair 29.12 vs 31.02 s (+6.5%) = the +6.2% nodes per fixed depth, **nps level** (−0.3%) | #150 (same plain binary): 1,427,154 vs 1,433,885 (−0.5%, UHO); production binaries (#152 replicate): **1,395,907 vs 1,400,644 (−0.3%, UHO)**, depth 11.2 vs 11.3 | #150 −9.0 ± 19.3; replicate −2.4 ± 19.4; SF18 −3.60 pp ± 4.92 (flagged) | 252 / 39,257,155 / 3.700 |
+  | `chess_engine_uci_g66pgo` (11-04 18:54, production until gen 6.7) | gen 6.6 (F15 flags by default) | 6 alternating rounds: 29.38 s vs 31.69 s (+7.9%); without the first, disturbed pair 29.12 vs 31.02 s (+6.5%) = the +6.2% nodes per fixed depth, **nps level** (−0.3%) | #150 (same plain binary): 1,427,154 vs 1,433,885 (−0.5%, UHO); production binaries (#152 replicate): **1,395,907 vs 1,400,644 (−0.3%, UHO)**, depth 11.2 vs 11.3 | #150 −9.0 ± 19.3; replicate −2.4 ± 19.4; SF18 −3.60 pp ± 4.92 (flagged) | 252 / 39,257,155 / 3.700 |
 - Benches vs gen 6.5 (queue #151, Cython): WAC at LIGHTNING 271 vs 267 solved; EBF 3.700 vs 3.813; STS300 d10 2,020 vs 1,908,
   full STS d10 9,860 vs 9,620, STS300 @ 249k 1,845 vs 1,890 (all inside STS's ±150 floor). WAC mates (92 per Stockfish): found 63,
   exact 63, impossibly short 0 (gen 6.5: 64 / 61 / 3). Static eval unchanged since gen 6.4 (owner 11-04: re-run the static

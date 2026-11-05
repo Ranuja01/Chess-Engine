@@ -4,6 +4,21 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ⚠️ 2026-11-05 02:00 — QUEUE #152 READ: gen 6.6 FLAGGED (SF18 below the bar) · `ENABLE_TT_FLAG_FIX` +34.2 on gen 6.6
+- **Replicate, gen 6.6 vs gen 6.5 production binaries** (10+0.1 UHO, seeds 152111-152115): −2.4 (−21.8 … +16.9), 1,000 g, chunks
+  +34.9 / +13.9 / −15.7 / −12.2 / −33.1, 0 disconnects / forfeits. Pooled with #150's −9.0 ± 19.3: **≈ −5.7 ± 7.0 (z ≈ −0.8)**,
+  above the registered −1σ. Real play: 1,395,907 vs 1,400,644 nps (level), depth 11.2 vs 11.3.
+- **SF18 @ 1,100 nodes, seed 1521, paired:** gen 6.6 54.4% vs gen 6.5 58.0% ⇒ **−3.60 pp ± 4.92 (z −1.43), −25.4 Elo
+  [−59.7, +9.5] — BELOW the registered −1σ bar.** Both instruments point the same way (neither resolves). Gen 6.6 stays
+  installed for now (queues #153 / #155 check production == `g66pgo`); **the keep / revert call is the owner's.**
+- **`ENABLE_TT_FLAG_FIX` on gen 6.6** (dead since 08-22, see `header-default-is-not-the-runtime-default`): liveness 40 / 40
+  diverged (median ply 3), bench 249 / 38,002,371; match **+34.2 (+15.4 … +53.2), 1,000 g, z ≈ 3.6**, all five chunks positive
+  (+59.6 / +15.7 / +19.1 / +24.4 / +52.5); registered expectation was −5 … +10, so the size is a surprise. nps 1,407,089 vs
+  1,398,776. Fresh-seed replicate in #153 (it ran because the first read passed).
+- **Hypothesis to test, not a finding:** the flag fix may repair an interaction with the mate bundle (gen 6.6 stores mates in the
+  TT; a wrong bound flag on a stored mate would do the most harm). Queue #155 (replaces #154's Stockfish 1.1 point) runs the 2×2:
+  SF18 for gen 6.6 + flag fix and gen 6.5 + flag fix on the same seed, and a first self-play look at gen 6.5 + flag fix vs 6.5.
+
 ## 🚢 2026-11-04 18:54 — GEN 6.6 INSTALLED (owner: lazy pass, keep the runs going): the mate-score bundle
 `FIX_TT_MATE 1` + `FIX_MDP 1` + `ENABLE_NULL_MATE_CLAMP 1` in the shipped preset (details, the WAC mate tests and the match in
 `dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md`). Production `chess_engine_uci` == `chess_engine_uci_g66pgo` (profile

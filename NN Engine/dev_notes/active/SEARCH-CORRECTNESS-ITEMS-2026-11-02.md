@@ -219,7 +219,16 @@ below). Plain build `chess_engine_uci_ttm`, every knob off = 252 / 36,960,934 �
   ⚠️ Not from this item: gen 6.5's own full STS d10 (9,620) and STS300 @ 249k (1,890) sit below gen 6.4's 10-30 record
   (10,063 · 1,944, queue #117). Both are deterministic, so either gen 6.5's search fixes moved STS or the setup differs.
   **To check:** the gen 6.4 knobs on today's Cython build (~15 min). STS does not decide ships, but it is the equal-nodes
-  yardstick against SF11.
+  yardstick against SF11. (Running in queue #153.)
+- **Queue #152 read (11-05 02:00).** Replicate on the production binaries −2.4 (−21.8 … +16.9) ⇒ pooled with #150 ≈ −5.7 ± 7.0
+  (z ≈ −0.8, passes). **SF18 @ 1,100, paired seed 1521: gen 6.6 54.4% vs gen 6.5 58.0%, −3.60 pp ± 4.92, z −1.43 — fails the
+  registered −1σ bar.** Gen 6.6 is flagged for the owner (still installed; tonight's queues need it in place).
+- **`ENABLE_TT_FLAG_FIX` on gen 6.6 (#152): +34.2 (+15.4 … +53.2), 1,000 g, z ≈ 3.6,** pentanomial [53, 79, 184, 85, 99], five
+  chunks all positive; registered −5 … +10. Bench on gen 6.6 249 / 38,002,371 (on gen 6.5's binary 11-04: 251 / 36,859,850).
+  Real play 1,407,089 vs 1,398,776 nps. A gain of this size is outside what the item was expected to do, so before reading it
+  as the fix's own worth: fresh-seed replicate (#153), and the 2×2 with the mate bundle (#155: SF18 for 6.6 + fix and 6.5 + fix
+  on seed 1521, self-play 6.5 + fix vs 6.5, 400 g). Hypothesis: with mates now stored in the TT (FIX_TT_MATE), a wrong bound
+  flag costs more, so the fix may be recovering part of what the bundle lost against SF18.
 
 **Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
 - **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`

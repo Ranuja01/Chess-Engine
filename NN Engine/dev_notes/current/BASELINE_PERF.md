@@ -22,12 +22,14 @@ Every new production build gets a row in the ledger below, before or at install:
   36,991,901; `V2_SHIP_GEN=5` 258 / 47,689,586; v1 (`EvalArm 0`) 250 / 35,310,778 on this binary and on Cython (the F15 build
   read 35,310,775: v1 moves with code layout). Id "AlphaUX (v2 gen 6.6)". Gen 6.5's binary: `chess_engine_uci_f15pgo`.
 - Games: vs gen 6.5 (same plain binary, knobs) **−9.0 (−28.3 … +10.2)**, 1,000 g — inside the not-harmful bar at its edge;
-  owner 11-04: lazy pass. Replicate (production binaries), `ENABLE_TT_FLAG_FIX` and SF18 @ 1,100: queue #152.
+  owner 11-04: lazy pass. Replicate (production binaries, #152) −2.4 (−21.8 … +16.9) ⇒ pooled ≈ −5.7 ± 7.0. **SF18 @ 1,100
+  (#152, paired seed 1521): 54.4% vs 58.0%, −3.60 pp ± 4.92, z −1.43 — below the −1σ bar ⇒ FLAGGED, owner's call.**
+  `ENABLE_TT_FLAG_FIX` on top: +34.2 (+15.4 … +53.2); the 2×2 and its SF18 read in #153 / #155.
 - **Build ledger of gen 6.6:**
 
   | build (production from) | change | pinned UCI bench vs gen 6.5's binary, same session | real-play nps (venue) | games check | Cython module (UI) |
   |---|---|---|---|---|---|
-  | **`chess_engine_uci_g66pgo` (11-04 18:54) = current** | gen 6.6 (F15 flags by default) | 6 alternating rounds: 29.38 s vs 31.69 s (+7.9%); without the first, disturbed pair 29.12 vs 31.02 s (+6.5%) = the +6.2% nodes per fixed depth, **nps level** (−0.3%) | #150 (same plain binary): 1,427,154 vs 1,433,885 (−0.5%, UHO); production-binary read from #152's replicate: pending | #150 −9.0 ± 19.3; replicate pending | 252 / 39,257,155 / 3.700 |
+  | **`chess_engine_uci_g66pgo` (11-04 18:54) = current** | gen 6.6 (F15 flags by default) | 6 alternating rounds: 29.38 s vs 31.69 s (+7.9%); without the first, disturbed pair 29.12 vs 31.02 s (+6.5%) = the +6.2% nodes per fixed depth, **nps level** (−0.3%) | #150 (same plain binary): 1,427,154 vs 1,433,885 (−0.5%, UHO); production binaries (#152 replicate): **1,395,907 vs 1,400,644 (−0.3%, UHO)**, depth 11.2 vs 11.3 | #150 −9.0 ± 19.3; replicate −2.4 ± 19.4; SF18 −3.60 pp ± 4.92 (flagged) | 252 / 39,257,155 / 3.700 |
 - Benches vs gen 6.5 (queue #151, Cython): WAC at LIGHTNING 271 vs 267 solved; EBF 3.700 vs 3.813; STS300 d10 2,020 vs 1,908,
   full STS d10 9,860 vs 9,620, STS300 @ 249k 1,845 vs 1,890 (all inside STS's ±150 floor). WAC mates (92 per Stockfish): found 63,
   exact 63, impossibly short 0 (gen 6.5: 64 / 61 / 3). Static eval unchanged since gen 6.4 (owner 11-04: re-run the static

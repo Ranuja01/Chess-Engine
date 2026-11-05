@@ -4,6 +4,17 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚢 2026-11-04 18:54 — GEN 6.6 INSTALLED (owner: lazy pass, keep the runs going): the mate-score bundle
+`FIX_TT_MATE 1` + `FIX_MDP 1` + `ENABLE_NULL_MATE_CLAMP 1` in the shipped preset (details, the WAC mate tests and the match in
+`dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md`). Production `chess_engine_uci` == `chess_engine_uci_g66pgo` (profile
+`/mnt/e/chess_data/pgo_g66`); gen 6.5's binary stays as `chess_engine_uci_f15pgo`. Checked on the PGO build: default 252 /
+39,257,155 · the three at 0 → 252 / 36,960,934 · gen 6.4 knobs 249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 · v1 250 /
+35,310,778 · id "AlphaUX (v2 gen 6.6)"; Cython shipped 252 / 39,257,155 / 3.700, gen 6.5 knobs 252 / 36,960,934 / 3.813, v1 250 /
+35,310,778 / 3.784. Pinned bench vs gen 6.5's binary (6 alternating rounds, the box drifting faster through the run): +6.5% time
+without the first, disturbed pair = the +6.2% nodes per fixed depth; nps level. Match (#150, same plain binary): −9.0
+(−28.3 … +10.2), the edge of the not-harmful bar. Queue #152 tonight: replicate on the production binaries (seeds 15211-15215),
+`ENABLE_TT_FLAG_FIX` on gen 6.6, SF18 @ 1,100 nodes for 6.6 and 6.5.
+
 ## 🚢 2026-11-04 14:15 — F15 INSTALLED (owner: pass it now, re-check it with batch 9)
 `build_uci/chess_engine_uci` == `chess_engine_uci_f15pgo`; the batch-8 binary with hardening stays as `chess_engine_uci_g65b8pgo`.
 Re-checked on the installed copy: 252 / 36,960,934 · gen 6.4 knobs 249 / 36,991,901 · `V2_SHIP_GEN=5` 258 / 47,689,586 · v1

@@ -2957,6 +2957,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CORR2_BDIV = std::max(1, env_int("CORR2_BDIV", Config::CORR2_BDIV));
         Config::CORR2_GLOBAL = env_int("CORR2_GLOBAL", Config::CORR2_GLOBAL);
         Config::TM_SINGLE = env_int("TM_SINGLE", Config::TM_SINGLE);
+        Config::TM_LOWCLOCK = env_int("TM_LOWCLOCK", Config::TM_LOWCLOCK);
         Config::EVAL_CACHE_FORM = env_int("EVAL_CACHE_FORM", Config::EVAL_CACHE_FORM);
         // Table sizes, once per process, after the presets: v2 gen 6 sizes its tables for a normal engine footprint (TT 2^22 =
         // 128 MB, eval / q / move-gen caches 2^20; ≈ 1.23 GB → ≈ 0.25 GB per process; queue #96 arms A/B no harm). Set as

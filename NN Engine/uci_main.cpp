@@ -196,7 +196,9 @@ namespace
             // the clock) is the hard stop inside an iteration.
             const double rem = mine / 1000.0, incs = inc / 1000.0, mo = g_move_overhead_ms / 1000.0;
             const int h = mtg > 0 ? std::min(mtg, 50) : 50;
-            const double left = std::max(0.001, rem + incs * (h - 1) - mo * (2 + h));
+            double left = std::max(0.001, rem + incs * (h - 1) - mo * (2 + h));
+            // TM_LOWCLOCK: on a low clock without increment the reserve alone exceeds the clock; keep at least half of it.
+            if (Config::TM_LOWCLOCK) left = std::max(left, 0.5 * rem);
             // TM_OPT_PLY: the sudden-death share grows with the game ply (later moves get more of what is left).
             const int ply = 2 * (std::max(1, (int)root.fullmove_number) - 1) + (root.turn ? 0 : 1);
             const double sd_share = Config::TM_OPT_PLY ? std::min(0.012 + std::pow(ply + 3.0, 0.45) * 0.0039, 0.2 * rem / left)

@@ -3446,6 +3446,11 @@ namespace Config
     inline int TM_START = 175;
     // TM_SINGLE (clock games): 1 = with exactly one legal move, stop after the first iteration. Default 1 since gen 6.2.
     inline int TM_SINGLE = 1;
+    // TM_LOWCLOCK (clock games, TM_MODE >= 1): 1 = the horizon's overhead reserve (Move Overhead x (2 + 50) less the
+    // horizon's increments) never takes more than half of the remaining time. Without it, sudden death with about 1-3 s
+    // left reserves the whole clock and the move is played after the first iteration. With an increment above the overhead
+    // the reserve is already negative, so those games are unchanged.
+    inline int TM_LOWCLOCK = 0;
     // EVAL_CACHE_FORM (v2 only): 0 = the eval cache holds side_to_play-relative values (wrong sign for a search for the
     // other side), 1 = it holds the fixed Black-positive value, flipped on read, 2 = 1 and checkmate scores (ply-dependent)
     // are not cached. See get_board_evaluation.

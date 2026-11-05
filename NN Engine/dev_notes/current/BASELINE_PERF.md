@@ -25,7 +25,9 @@ Every new production build gets a row in the ledger below, before or at install:
   owner 11-04: lazy pass. Replicate (production binaries, #152) −2.4 (−21.8 … +16.9) ⇒ pooled ≈ −5.7 ± 7.0. **SF18 @ 1,100
   (#152, paired seed 1521): 54.4% vs 58.0%, −3.60 pp ± 4.92, z −1.43 — below the −1σ bar ⇒ FLAGGED, owner's call.**
   `ENABLE_TT_FLAG_FIX` on top: +34.2 (+15.4 … +53.2), replicate +12.5 (−6.0 … +31.1) ⇒ **pooled +23.3 (+10.1 … +36.6)**, 2,000 g
-  (#152 / #153); its SF18 read and the 2×2 with the mate bundle in #155.
+  (#152 / #153). 2×2 (#155, SF18 seed 1521): the fix is SF18-neutral on both gens (+0.50 pp on 6.6, +0.30 pp on 6.5) and
+  +13.9 (−18.4 … +46.4) in self-play on gen 6.5; gen 6.6 + fix vs gen 6.5 still −3.10 pp (z −1.22) ⇒ the bundle's SF18 deficit
+  is not repaired by the fix. Mediocre for gen 6.5 + fix in #156.
   F15 re-check (#153): real play +3.4% nps, identical games ⇒ confirmed. STS: gen 6.4's knobs reproduce #117 exactly, so gen
   6.5's lower STS is its seven search fixes.
 - **Build ledger of gen 6.6:**

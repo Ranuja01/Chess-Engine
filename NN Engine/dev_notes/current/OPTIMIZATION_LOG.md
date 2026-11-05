@@ -4,6 +4,33 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-05 09:12 — QUEUE #155 READ (the 2×2): the flag fix is neutral vs SF18 on both gens; the mate bundle's SF18 deficit stays
+- **Liveness in the Cython module:** gen 6.6 + flag fix WAC d10 249 / 38,002,371 (== UCI); gen 6.5 + flag fix 251 / 36,859,850
+  UCI == Cython. The gauntlet arms below ran what they claim.
+- **SF18 @ 1,100 nodes, seed 1521, all four on the same openings (500 g each):**
+
+  | | flag fix off | flag fix on | flag fix effect |
+  |---|---|---|---|
+  | gen 6.5 | 58.0% (#152) | 58.3% | +0.30 pp ± 4.94, z +0.12 |
+  | gen 6.6 | 54.4% (#152) | 54.9% | +0.50 pp ± 5.02, z +0.20 (registered > −1σ: **passes**) |
+  | mate-bundle effect | −3.60 pp ± 4.92, z −1.43 | −3.40 pp (6.6f vs 6.5f) | |
+
+  Gen 6.6 + flag fix vs gen 6.5: −3.10 pp ± 4.98, z −1.22. **The hypothesis that the flag fix repairs the mate bundle is not
+  supported**: the flag fix moves SF18 by the same ~0 on both gens, and the 6.6 family sits ~3.5 pp under the 6.5 family in
+  both pairs. The two pairs share openings (one seed), so the second pair is not a full replicate, but its game noise is fresh
+  (~330 of 500 games changed per pair): pooled, the bundle's SF18 cost is z ≈ −1.4 to −2.0 depending on how much the shared
+  openings correlate the pairs.
+- **Self-play, gen 6.5 + flag fix vs gen 6.5** (gen 6.6's binary, knobs both sides, seeds 155111-155112): **+13.9 (−18.4 …
+  +46.4)**, 400 g, chunks +8.7 / +19.1, pentanomial [33, 29, 70, 25, 43], 0 disconnects / forfeits, nps 1,526,500 vs 1,517,311.
+  Consistent with the +23.3 pooled on gen 6.6: the flag fix's self-play gain does not need the mate bundle.
+- **Where the two candidates stand:**
+  - `ENABLE_TT_FLAG_FIX`: self-play ≥ +2σ (2,000 g on 6.6), SF18 > −1σ on both gens. Mediocre (not negative) is the last leg,
+    queue #156 (gen 6.5 + flag fix, 300 g, seed 1432 = #143's gen 6.5 opening order).
+  - Mate bundle (gen 6.6): self-play pooled ≈ −5.7 ± 7.0 (passes), SF18 below the −1σ bar twice on one seed. On the
+    correctness rule it does not pass. **Recommendation for the owner: gen 6.7 = gen 6.5 + `ENABLE_TT_FLAG_FIX`, the three
+    bundle knobs back to 0 and parked** (later: which of the three carries the SF18 cost, and whether it is gen 6.6's +6.2%
+    nodes per depth).
+
 ## 2026-11-05 06:42 — QUEUE #153 READ: flag fix replicate +12.5 (pooled +23.3 ± 13.3) · F15 real play +3.4% · STS drop = gen 6.5's fixes
 - **`ENABLE_TT_FLAG_FIX` replicate on gen 6.6** (seeds 153111-153115): **+12.5 (−6.0 … +31.1)**, 1,000 g, chunks +33.1 / −7.0 /
   +15.7 / +20.9 / 0.0. **Pooled with #152: +23.3 (+10.1 … +36.6), 2,000 g, z ≈ 3.4** — the self-play leg of the gain ship rule

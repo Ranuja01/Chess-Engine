@@ -233,6 +233,11 @@ below). Plain build `chess_engine_uci_ttm`, every knob off = 252 / 36,960,934 �
   **Replicate (#153, seeds 153111-153115): +12.5 (−6.0 … +31.1); pooled 2,000 g +23.3 (+10.1 … +36.6), z ≈ 3.4.** Self-play leg
   of the gain rule met; SF18 (#155) and Mediocre outstanding. Cython liveness (#155): gen 6.6 + fix 249 / 38,002,371 / 3.701 =
   UCI; gen 6.5 + fix 251 / 36,859,850 / 3.812, UCI == Cython.
+  **The 2×2 (#155, 11-05 09:12).** SF18 @ 1,100, seed 1521: gen 6.5 58.0 → 58.3% with the fix (+0.30 pp, z +0.12); gen 6.6
+  54.4 → 54.9% (+0.50 pp, z +0.20, passes the registered > −1σ). Self-play gen 6.5 + fix vs 6.5: +13.9 (−18.4 … +46.4), 400 g.
+  **The hypothesis is not supported:** the fix is SF18-neutral on both gens and gains in self-play without the bundle; the bundle's
+  SF18 deficit stays (6.6 + fix vs 6.5 + fix −3.4 pp; vs 6.5 −3.10 pp, z −1.22). Mediocre leg in #156 (gen 6.5 + fix, 300 g,
+  seed 1432). Recommendation for the owner: gen 6.7 = gen 6.5 + the flag fix, the mate bundle back to 0 and parked.
 
 **Scoping for the last open item, TT mates + MDP (read 11-04 morning, no code yet).**
 - **The score frame is absolute game ply, not distance from the root.** A mated node returns `±(9999999 − state_history.size())`

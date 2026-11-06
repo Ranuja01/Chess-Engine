@@ -4,6 +4,60 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-06 04:15 — QUEUES #164-#166 FIRST READ: corpus v3 built, both retune arms through the gates, `TM_LOWCLOCK` revoked, d18 labels not needed
+- **`TM_LOWCLOCK` REVOKED by its replicate (default stays 0, no gen 6.8).** Fresh seeds 165111-165114, 800 g 10+0: **+3.5 (−17.0 …
+  +24.0)**, chunks +5.2 / +19.1 / +10.4 / −20.9, pentanomial [52, 70, 154, 66, 58], 0 forfeits either side. Pooled with #159 over
+  1,600 g: **+11.9 (−2.1 … +26.0), z ≈ 1.66**, under the registered "stays ≥ +2σ". Mediocre 0.5 at 10+0 (seed 1651, 300 g each): on
+  80.0%, +240.8 vs off 82.8%, +273.4, 0 forfeits by ours in either, so the second check ("not negative") reads negative too, at
+  about −1σ. A real effect of around +10 is not excluded, but neither check passes. The first read was on the bar and regressed.
+- **Label noise: SF18 d14 vs d18 on 10,000 positions** (2,500 per stage, all joined). Win% MSE between the two labels: mg 4.1 · mgl
+  7.6 · egl 10.1 · eg 26.2 · all 12.0; best move the same on 75.6 / 69.1 / 64.2 / 55.8%. Out-of-fold ridge (5 folds by game, 632
+  feature columns of gen 6.7) on win%(d18) − win%(d14): **+19% looks predictable (eg +23%) but it is all SCALE.** One number,
+  the d14 win% deviation from 50, explains +30.7% (eg +43.2%), and the features explain +0.6% after it (eg −0.0%, mg −0.4%). Depth
+  makes the same winner more decisive: slope +2.9% mg, +5.0% mgl, +6.3% egl, +8.9% eg; level positions barely move. ⇒ **Do not
+  relabel at d18**; what is left is unpredictable noise, which more rows average down. Bound: 10k rows cannot see structure below
+  roughly 1% of that MSE. Open, parked: the slope differs by stage, so d14 slightly under-scales endgames against middlegames.
+  Worth a look only if the stage balance of the eval ever becomes the question.
+- **corpus_v3:** identity check passed (default assembler output byte-identical, 1,053,423 rows); adds EGX 58,646 · CUR 38,813 ·
+  VARG 19,935 · ODDS 7,990 · STRIP 12,000 and the ours1105 d10 pass, complete on A, GAUNT, EGX, CUR, VARG, ODDS, STRIP (A2 runs now, V1
+  / KP / VAR have none). CUR is much more level than A (31.1% vs 18.9% in the level band; 21.8% vs 38.7% in 4-15).
+- **The fits (#166), recipe of gen 3 on corpus v3:** 779,074 rows × 1,047 columns, load 308 s, 2,000 it cap, 59-226 s, peak RSS 4.56 GB
+  side by side. Held-out own-play games, win% MSE vs gen 6.7:
+
+  | scope | N 25% | N 50% | **N 100%** | **S** |
+  |---|---|---|---|---|
+  | static all | −2.02 | −2.52 | **−2.96** | **−3.04** |
+  | depth all | −1.81 | −2.33 | **−2.81** | **−2.86** |
+  | depth mg / mgl | −4.79 / −2.87 | −4.96 / −3.30 | −5.46 / −4.28 | −5.34 / −4.10 |
+  | depth egl / eg | +1.20 / −1.38 | +0.34 / −1.95 | −0.13 / −2.32 | −0.21 / −2.49 |
+  | depth val CUR / EGX / GAUNT | | | −2.17 / −2.98 / −6.58 | −2.32 / −3.16 / −6.48 |
+  | static hold KP / VAR | | | +1.69 / −0.54 | +1.78 / −0.58 |
+  | static hold VARG / ODDS / STRIP | | | −0.66 / −1.17 / +1.84 | −1.82 / −2.13 / +1.41 |
+
+  **Predictions against the read so far.** Learning curve: 50% → 100% moves "depth all" by 0.48 of 2.81 = 17% of the gain, over the
+  registered 10%, so on this statistic more depth rows still help; A2's pass is worth finishing. S: not worse on normal play, better
+  on all three new holds, as registered. But [[real-d10-accuracy-gains-did-not-become-elo]] stands: none of this is Elo. GAUNT moves
+  about three times as much as CUR, a question for later (positions a stronger opponent steers us into are misjudged more). The
+  depth target gains almost nothing on egl.
+- **Gates, both arms pass.** Closure: N engine −1.35% vs predicted −1.34%; S −1.31% vs −1.35% (residual median 4.5 / 3.3 mp, signed
+  mean −0.09 / −0.19 mp). Symmetry 0 / 0 on both. UCI == Cython on both. Largest cell moves ~100-136 mp; rms ~18 cp on the eval.
+  Values relative to gen 3: R mg −142 / −128 vs −136, R eg +135 vs +127, Q eg −82 / −83 vs −68, B eg −81 / −91 vs −64, N eg −46 / −45
+  vs −70, pawn mg +20.
+- ⚠️ **Bench: N 242 / 40,663,661 · S 246 / 36,509,830, against 251 / 36,859,850.** WAC −9 and −5 would be the largest fall of any shipped
+  retune (gens 2 and 3 gained 2 and 3). WAC does not rank strength and gen 6.4 lost 7 while gaining Elo, so this is a thing to watch in
+  the games, not a verdict.
+- Timed legs took 2 h, not the 3.5 h planned, so the fits ran at 04:00.
+- **The screen, 50k nodes vs gen 6.7, 2,000 g each, UHO, 0 warnings, 0 stalls: S +17.6 (+4.0 … +31.2), z ≈ 2.5,** chunks +33.5 / +21.6 /
+  +16.0 / −0.7, pentanomial [144, 136, 377, 161, 182]. **N −5.6 (−19.2 … +8.1)**, chunks −4.2 / −9.7 / −6.3 / −2.1, pentanomial [167, 161,
+  364, 153, 155]. Registered N +0 … +20: the point estimate is under it. Registered S within ±10 of N on normal-play val: yes (S is
+  0.05-0.08 better), yet S − N in games is **+23 ± 10, z ≈ 2.4**. Two readings, not separated: the stress slices (5% of the depth
+  target, 2.5% of the static) teach something own-play val cannot see, or near-equal tables differ by this much anyway (true candidate
+  spread ~16 Elo, `games-harness-null`). The difference is a real property of these tables either way, so S goes to the timed check;
+  a same-recipe fit on another sampling seed would separate the two readings if that ever matters. 50k is well below play depth, and
+  K1p's +41 at 50k became −11 at 250k (`fit-data-depth-must-match-play-depth`), so this is a screen and nothing more.
+- **Next, queue #167 (started 06:18):** SF18 @ 1,100 on fresh seed 1671 (gen 6.7 and S, beside the A2 pass), then A2 pauses for timed
+  self-play 10+0.1, 2,000 g on fresh seeds, and Mediocre 300 g each, then A2 resumes until 20:00. Registered in the script.
+
 ## 2026-11-05 14:07 — QUEUE #159 READ: `TM_LOWCLOCK` +20.4 (+1.1 … +39.9) at 10+0, z ≈ 2.06 — passes the narrow-item bar, at its edge
 - **The gap** (TIME-MANAGER-RESEARCH 10-25, "known gap"): `left = rem + inc·(h−1) − overhead·(2+h)` with h = 50 and the 30 ms
   Move Overhead reserves 1.56 s, so in sudden death with about 1-3 s left the allocation collapses to the 10 ms floor and the move

@@ -408,6 +408,11 @@ the conclusion, were safe to assume.
 - ☠️ **`sts`/`wac` take `<tag>` FIRST, knobs after.** Reversing it is the tag artifact — and the harness
   discards the guard's output (`2>/dev/null`), so it fails silently. **A guard whose output the harness
   discards is not a guard.**
+- 📌 **THE d14 LABEL'S OWN FLOOR (2026-11-06, 10,000 positions vs SF18 d18).** Win% MSE d14 vs d18: mg 4.1 · mgl 7.6 · egl 10.1 ·
+  eg 26.2 · all 12.0. ☠️ It looks 19-23% predictable from eval features, and all of that is one scale: depth makes the same winner
+  more decisive (+2.9% mg … +8.9% eg). After that scale the features predict nothing (+0.6%; eg −0.0%), so deeper labels would not
+  redirect a linear fit. **A "predictable label change" needs its global scale removed first**, the same trap as a learner re-mapping
+  SF's material-scaled cp (`sf-cp-labels-are-material-scaled-use-wdl`).
 - ☠️ **THE JUDGE IS THE TARGET COLUMN — never change it incrementally.** Every number here is scored
   against **SF18 multi-PV @ d14**: the null bands, the +7pp prize, SF11's 0.08 gap, the heat map's 1.3pp.
   **SF19 (on disk since 2026-09-09, ~+44 Elo) must NOT relabel or extend an existing corpus** — mixed

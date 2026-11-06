@@ -65,6 +65,8 @@ def d10_override(d10, fens):
 def load():
     t0 = time.time()
     cols = {c: [] for c in ("fen", "slice", "split", "quiet", "band", "stage", "sf_cp", "ours_d10")}
+    if KV.get("LC"):
+        cols["group"] = []                    # LC (learning curve) subsamples the training rows by game
     with open(os.path.join(D, KV.get("CORPUS", "corpus_v1.csv")), newline="") as fh:   # CORPUS=corpus_v2.csv (10-13)
         rd = csv.reader(fh); hdr = next(rd); ix = {c: hdr.index(c) for c in cols}
         for r in rd:
@@ -77,11 +79,17 @@ def load():
     rng = np.random.default_rng(int(KV.get("SEED", 1)))
     sl = np.array(cols["slice"]); split = np.array(cols["split"])
     ok = (flags & 3) == 0
-    own = np.isin(sl, ["A", "A2", "V1", "GAUNT"])          # GAUNT (10-13): our games vs stronger opponents — real play
+    # GAUNT (10-13): our games vs stronger opponents — real play. EGX / CUR (corpus_v3): own-play slices split by game
+    own = np.isin(sl, ["A", "A2", "V1", "GAUNT", "EGX", "CUR"])
     pick = lambda m, n: np.sort(rng.permutation(np.flatnonzero(m))[:n])
     if KV.get("EXPERIMENT") == "hybrid":
-        # every slice-A row (the only rows with our d10 depth score) is kept; the rest of the quota is sampled from A2/V1
-        isA = sl == "A"
+        # every slice-A row (the only rows with our d10 depth score) is kept; the rest of the quota is sampled from A2/V1.
+        # DEPTH_SLICES=A,GAUNT,… (corpus_v3, every slice's d10 joined at assembly): every row of those slices that has a d10
+        # score is kept instead.
+        if KV.get("DEPTH_SLICES"):
+            isA = np.isin(sl, KV["DEPTH_SLICES"].split(",")) & (np.array(cols["ours_d10"]) != "")
+        else:
+            isA = sl == "A"
         def pick(m, n):
             a = np.flatnonzero(m & isA)
             return np.sort(np.r_[a, rng.permutation(np.flatnonzero(m & ~isA))[:max(0, n - len(a))]])
@@ -171,6 +179,8 @@ def load():
         "fen": [cols["fen"][i] for i in idx],
         "phase": ph,                          # v2 phase256 per row (10-13: the POT probe weights by it)
     }
+    if "group" in cols:
+        meta["group"] = np.array([cols["group"][i] for i in idx])
     print("  design: %d rows × %d live columns, nnz %d · load %.0fs" % (X.shape[0], X.shape[1], X.nnz, time.time() - t0), flush=True)
     return X, names, meta
 
@@ -288,7 +298,7 @@ def experiment_weights(X, names, meta):
                         deltas=np.array([p for p in res.values()]))
 
 
-def fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, wstat, wdep, p0=None, pin_groups=(), pin_w=0.0):
+def fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, wstat, wdep, p0=None, pin_groups=(), pin_w=0.0, wd_rows=None):
     """The agreed HYBRID objective (10-10): wstat·L_static/L_s0 + wdep·L_depth/L_d0 + λ·|δ|²/1e4, δ SHARED; each target
     has its own (STM, SCALE) nuisances. Static rows ms (row weights ws_rows), base = ship static; depth rows md, base =
     our d10 search of the ship, design Wd = X with the non-structural columns zeroed (mobility: the dynamic lane).
@@ -307,7 +317,8 @@ def fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, wstat, wdep, p0=None, pin_grou
     bs, bd = meta["static"][ms], meta["d10"][md]
     ss, sd = stm[ms], stm[md]
     ts, td = tgt[ms], tgt[md]
-    wn_s = ws_rows / ws_rows.sum(); wn_d = np.full(md.sum(), 1.0 / md.sum())
+    wn_s = ws_rows / ws_rows.sum()
+    wn_d = np.full(md.sum(), 1.0 / md.sum()) if wd_rows is None else wd_rows / wd_rows.sum()
     ns = np.array([10.0, 0.1])
 
     def part(A, b, s, t, wn, u, nu):
@@ -393,14 +404,33 @@ def experiment_hybrid(X, names, meta):
         pin_groups = [np.array(v) for v in grp.values()]
         print("  PST mean pin: %d groups, weight %g" % (len(pin_groups), pin_w), flush=True)
     Wd = (X @ sp.diags(struct)).tocsr()
-    okd = (meta["slice"] == "A") & ~np.isnan(meta["d10"]) & (np.abs(meta["sf"]) < 50000) & (np.abs(np.nan_to_num(meta["d10"])) < 4999)
+    # DEPTH_SLICES (default A): the slices whose d10 rows form the depth target; a stress slice listed here joins it at its
+    # stress weight
+    okd = (np.isin(meta["slice"], KV.get("DEPTH_SLICES", "A").split(",")) & ~np.isnan(meta["d10"]) & (np.abs(meta["sf"]) < 50000)
+           & (np.abs(np.nan_to_num(meta["d10"])) < 4999))
     w_st = float(KV.get("STRESS_W", 0.5))
-    ms = ((role == "tr_own") | (role == "tr_st")) & quiet
-    ws_rows = np.where(role[ms] == "tr_st", w_st, 1.0)
-    md = (role == "tr_own") & okd
+    # SLICE_W=VARG:0.5,STRIP:0 — the weight of one stress (non-own) slice's training rows, static and depth; 0 drops it
+    wrow = np.where(role == "tr_st", w_st, 1.0)
+    for s_, w_ in ((x.split(":")[0], float(x.split(":")[1])) for x in KV.get("SLICE_W", "").split(",") if x):
+        wrow[(role == "tr_st") & (meta["slice"] == s_)] = w_
+    ms = ((role == "tr_own") | (role == "tr_st")) & quiet & (wrow > 0 if KV.get("SLICE_W") else True)
+    ws_rows = wrow[ms]
+    md = ((role == "tr_own") | (role == "tr_st")) & okd & (wrow > 0)
+    wd_rows = None if (wrow[md] == 1.0).all() else wrow[md]
     vs, vd = (role == "va_own") & quiet, (role == "va_own") & okd
     print("\nHYBRID EXPERIMENT · static train %d (quiet, stress w %.2f) · depth train %d · val static %d · val depth %d · cols %d (mobility out of the depth design)"
           % (ms.sum(), w_st, md.sum(), vs.sum(), vd.sum(), X.shape[1]), flush=True)
+    if KV.get("SLICE_W") or KV.get("DEPTH_SLICES"):
+        for nm_, m_ in (("static", ms), ("depth", md)):
+            tot_ = wrow[m_].sum()
+            print("  %s target weight by slice: %s" % (nm_, " · ".join("%s %d rows %.1f%%" % (s_, int((m_ & (meta["slice"] == s_)).sum()),
+                  100 * wrow[m_ & (meta["slice"] == s_)].sum() / tot_) for s_ in sorted(set(meta["slice"][m_])))), flush=True)
+    # LC=0.25,0.5,1 (learning curve): each arm is also fitted on that fraction of the own-play TRAINING games (by a hash of the
+    # game id; stress rows and every val row unchanged), so the val scores show whether more rows still help
+    lcs = [float(x) for x in KV.get("LC", "1").split(",")]
+    if KV.get("LC"):
+        import zlib
+        gh = np.array([zlib.crc32(g.encode()) / 2.0 ** 32 for g in meta["group"]])
     tgt, stm = wp(meta["sf"]), meta["stm"]
 
     moves = {}
@@ -422,24 +452,40 @@ def experiment_hybrid(X, names, meta):
     zero = np.zeros(X.shape[1])
     scopes = [("static all", vs, "s")] + [("static " + s, vs & (meta["stage"] == s), "s") for s in STAGES] + \
              [("depth all", vd, "d")] + [("depth " + s, vd & (meta["stage"] == s), "d") for s in STAGES]
+    if KV.get("EXTRA_SCOPES") == "1":
+        # per slice: own-play val (normal play, by source) and the stress holds (positions never trained), static and depth
+        for s_ in sorted(set(meta["slice"])):
+            for hm, nm_ in (((role == "va_own") & (meta["slice"] == s_), "val"), ((role == "ho_st") & (meta["slice"] == s_), "hold")):
+                for t_, m_ in (("s", hm & quiet), ("d", hm & okd)):
+                    if m_.sum() >= 200:
+                        scopes.append(("%s %s %s" % ("static" if t_ == "s" else "depth", nm_, s_), m_, t_))
     nus0 = {"s": refit_nuis(zero, meta["static"], quiet), "d": refit_nuis(zero, np.nan_to_num(meta["d10"]), okd)}
     base = {n: score(zero, meta["static"] if t == "s" else np.nan_to_num(meta["d10"]), m, nus0[t]) for n, m, t in scopes}
     res = {}
     modes = [m for m in (("static", 1, 0), ("depth", 0, 1), ("hybrid", 1, 1)) if m[0] in KV.get("MODES", "static,depth,hybrid").split(",")]
     for lam in [float(x) for x in KV.get("LAMBDAS", "0.1,1").split(",")]:
         for label, a, b in modes:
-            t0 = time.time()
-            p, info = fit_hybrid(X, meta, ms, ws_rows, md, Wd, lam, a, b, pin_groups=pin_groups, pin_w=pin_w)
-            mv = (X[role == "va_own"] @ p[:X.shape[1]]) / 10.0
-            res["%s/λ%g" % (label, lam)] = p
-            print("  %-7s λ %-5g · %s · %.0fs · rms δ %.1f mp · moves the ship rms %.1f cp" % (label, lam, info, time.time() - t0,
-                  np.sqrt(np.mean(p[:X.shape[1]] ** 2)), np.sqrt(np.mean(mv ** 2))), flush=True)
+            for lc in lcs:
+                ms_, md_, ws_, wd_, key = ms, md, ws_rows, wd_rows, "%s/λ%g" % (label, lam)
+                if KV.get("LC"):
+                    keep = (role != "tr_own") | (gh < lc)
+                    ms_, md_ = ms & keep, md & keep
+                    ws_, wd_ = wrow[ms_], (None if wd_rows is None else wrow[md_])
+                    key += "/lc%g" % lc
+                    print("  LC %g: static train %d · depth train %d" % (lc, ms_.sum(), md_.sum()), flush=True)
+                t0 = time.time()
+                p, info = fit_hybrid(X, meta, ms_, ws_, md_, Wd, lam, a, b, pin_groups=pin_groups, pin_w=pin_w, wd_rows=wd_)
+                mv = (X[role == "va_own"] @ p[:X.shape[1]]) / 10.0
+                res[key] = p
+                print("  %-7s λ %-5g · %s · %.0fs · rms δ %.1f mp · moves the ship rms %.1f cp" % (label, lam, info, time.time() - t0,
+                      np.sqrt(np.mean(p[:X.shape[1]] ** 2)), np.sqrt(np.mean(mv ** 2))), flush=True)
     nus = {k: {"s": refit_nuis(p, meta["static"], quiet), "d": refit_nuis(p, np.nan_to_num(meta["d10"]), okd)} for k, p in res.items()}
     print("\n  val win%% MSE change vs the ship (negative = better)")
-    print("  %-14s %7s " % ("scope", "n") + " ".join("%14s" % k for k in res))
+    cw = max(14, max(len(k) for k in res) + 1); sw = max(14, max(len(n) for n, _, _ in scopes))
+    print("  %-*s %7s " % (sw, "scope", "n") + " ".join("%*s" % (cw, k) for k in res))
     for n, m, t in scopes:
         bb = meta["static"] if t == "s" else np.nan_to_num(meta["d10"])
-        print("  %-14s %7d " % (n, m.sum()) + " ".join("%+13.2f%%" % (100 * (score(p, bb, m, nus[k][t]) / base[n] - 1)) for k, p in res.items()))
+        print("  %-*s %7d " % (sw, n, m.sum()) + " ".join("%+*.2f%%" % (cw - 1, 100 * (score(p, bb, m, nus[k][t]) / base[n] - 1)) for k, p in res.items()))
     blocks = {}
     for j, n in enumerate(names):
         blocks.setdefault(_block_of(n), []).append(j)

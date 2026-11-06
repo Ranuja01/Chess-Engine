@@ -147,7 +147,7 @@ def export():
     env.append("PST_V2_FILE=%s" % os.path.join(out, "pst.txt"))
     # PIECE VALUES (V2_VAL_* knobs, 10-11): deltas on top of the ship's (gen 2 ships them at 0; the pawn mg leg is
     # EVAL_V2_PAWN_MG, 1000 in every ship so far)
-    base = SHIP_VALUES.get(ship_gen(), {})
+    base = SHIP_VALUES.get(min(ship_gen(), 3), {})   # the piece values are unchanged since gen 3 (gen 4-6 add none)
     for p in "NBRQ":
         for leg in ("mg", "eg"):
             key = "%s:%s" % (p, leg)
@@ -193,6 +193,9 @@ def closure():
         for f, t, df, ph, wn in zip(z["fen"], z["total"], z["diff"], z["phase"], wz):
             if f in want:
                 ship[f] = (int(t), df.astype(float), float(ph), int(wn))
+    if len(ship) < len(rows):                 # a corpus_v1 val row the export lacks (a later corpus deduped it away)
+        print("  %d of %d closure rows are not in %s — skipped" % (len(rows) - len(ship), len(rows), KV.get("FEAT", "feat_ship")))
+        rows = [f for f in rows if f in ship]; want = set(rows)
     # caps (10-13): their Δ at the start value, from the cap dumps of the same base (final totals, so NOT scaled by m)
     capd = defaultdict(dict)
     for cname in CAP_START:

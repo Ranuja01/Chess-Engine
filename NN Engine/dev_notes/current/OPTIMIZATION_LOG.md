@@ -4,6 +4,32 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-06 15:25 — QUEUE #168 FITS (games not read): the accuracy curve is flatter under recipe S, and rows and stress share are confounded, so #170 adds the control
+- **Check on the new path:** the full-set arm reproduces `fit_hybrid_v3s.npz` exactly (max |d| 0.000 mp over 1,039 cells).
+- **Accuracy by size, recipe S, averaged over non-overlapping tables (25% four, 50% two):** depth all **−2.29 / −2.63 / −2.86**, static all −2.60 /
+  −2.94 / −3.04. The last doubling gives 0.23 of 2.86 = **8%, under the registered 10%** (static 3.5%). N's curve gave 17% (−1.81 / −2.33 / −2.81),
+  and that is what I told the owner: its early points are low because N has less stress data to lean on when own-play is scarce. The earlier
+  extrapolation (−3.4% at 733k positions, −3.7% at 1.03M, at 0.5 per doubling) was too high: at most 0.23 per doubling gives about −3.1 / −3.2.
+- ☠️ **Rows and stress share are confounded in #168.** The stress rows stay while own-play shrinks, so a quarter table has 4× S's stress share. All five
+  stress holds worsen steadily as own-play grows: static VAR −2.54 / −1.42 / −0.58 · VARG −2.69 / −2.23 / −1.82 · ODDS −2.44 / −2.33 / −2.13 · KP +0.38 / +1.30 /
+  +1.78 · STRIP +0.05 / +0.96 / +1.41. So level(100%) − level(25%) cannot read rows alone. **Queue #170** (after #168's games): S ×2 and S ×4, all rows with
+  the stress weight raised to the halves' and quarters' share. The rows read becomes S ×4 − quarters and S ×2 − halves; S vs S ×2 vs S ×4 reads stress share
+  by itself, at no data cost. Changed before any #168 game was read.
+- **Gates:** lc0 (a quarter) dropped by the closure gate (predicted −0.39%, engine −0.24%, 61% against the 70% bar; residual fine, a small denominator), not
+  rescued, so the 25% level is 3 tables and 3,000 g. It had the smallest predicted gain, so dropping it can only lift the 25% level. The others pass, symmetry 0.
+- **Table noise:** a quarter table sits 15-18 mp rms from the full fit, a half 11 mp, S's whole move is 26.6 mp. By 1/n scaling about 10 mp rms of S's move is
+  sampling noise (about 15% of its variance).
+- **WAC is scatter here:** the five passing tables solve 244-252 from near-identical accuracy, so S's 246 and N's 242 say nothing by themselves.
+
+## 2026-11-06 14:53 — QUEUE #167 READ: retune arm S +11.1 (−2.7 … +25.0) at 10+0.1, z ≈ 1.57 — SF18 and Mediocre pass, self-play misses +2σ, not shipped so far
+- **Timed self-play, 10+0.1 UHO, S vs gen 6.7 on `g67pgo`, fresh seeds 167111-167114, 2,000 g: +11.1 (−2.7 … +25.0)**, chunks +30.0 / −4.2 /
+  +30.7 / −11.8, pentanomial [160, 138, 360, 162, 180], 0 forfeits, 0 stalls. Inside the registered +0 … +20, under the ship rule's +2σ
+  (about +14) by about 3 Elo.
+- **SF18 @ 1,100, fresh seed 1671, 500 g paired: gen 6.7 61.0%, S 60.1%, −0.90 pp ± 4.88, z −0.36**: passes (> −1σ).
+- **Mediocre 0.5 at 10+0.1, seed 1671, 300 g each: S 86.0%, +315 vs gen 6.7 81.8%, +261**: passes (not negative; about +54, inside its noise).
+- **Speed:** real-play nps 1,462,927 vs 1,463,380, depth 11.3 both. Pinned bench, 3 rounds: ctl 1.33M (one disturbed run at 1.24M), arm 1.32-1.34M on
+  its own tree. The tables cost nothing.
+
 ## 2026-11-06 04:15 — QUEUES #164-#166 FIRST READ: corpus v3 built, both retune arms through the gates, `TM_LOWCLOCK` revoked, d18 labels not needed
 - **`TM_LOWCLOCK` REVOKED by its replicate (default stays 0, no gen 6.8).** Fresh seeds 165111-165114, 800 g 10+0: **+3.5 (−17.0 …
   +24.0)**, chunks +5.2 / +19.1 / +10.4 / −20.9, pentanomial [52, 70, 154, 66, 58], 0 forfeits either side. Pooled with #159 over

@@ -427,7 +427,8 @@ def experiment_hybrid(X, names, meta):
                   100 * wrow[m_ & (meta["slice"] == s_)].sum() / tot_) for s_ in sorted(set(meta["slice"][m_])))), flush=True)
     # LC=0.25,0.5,1 (learning curve): each arm is also fitted on that fraction of the own-play TRAINING games (by a hash of the
     # game id; stress rows and every val row unchanged), so the val scores show whether more rows still help
-    lcs = [float(x) for x in KV.get("LC", "1").split(",")]
+    # LC=0.25@0.5 starts that fraction at hash 0.5, so several arms of one size can use games that do not overlap
+    lcs = [tuple(float(y) for y in (x + "@0").split("@")[:2]) for x in KV.get("LC", "1").split(",")]
     if KV.get("LC"):
         import zlib
         gh = np.array([zlib.crc32(g.encode()) / 2.0 ** 32 for g in meta["group"]])
@@ -465,14 +466,15 @@ def experiment_hybrid(X, names, meta):
     modes = [m for m in (("static", 1, 0), ("depth", 0, 1), ("hybrid", 1, 1)) if m[0] in KV.get("MODES", "static,depth,hybrid").split(",")]
     for lam in [float(x) for x in KV.get("LAMBDAS", "0.1,1").split(",")]:
         for label, a, b in modes:
-            for lc in lcs:
+            for lc, off in lcs:
                 ms_, md_, ws_, wd_, key = ms, md, ws_rows, wd_rows, "%s/λ%g" % (label, lam)
                 if KV.get("LC"):
-                    keep = (role != "tr_own") | (gh < lc)
+                    keep = (role != "tr_own") | (((gh - off) % 1.0) < lc)
                     ms_, md_ = ms & keep, md & keep
                     ws_, wd_ = wrow[ms_], (None if wd_rows is None else wrow[md_])
-                    key += "/lc%g" % lc
-                    print("  LC %g: static train %d · depth train %d" % (lc, ms_.sum(), md_.sum()), flush=True)
+                    tag_ = "%g" % lc + ("@%g" % off if off else "")
+                    key += "/lc" + tag_
+                    print("  LC %s: static train %d · depth train %d" % (tag_, ms_.sum(), md_.sum()), flush=True)
                 t0 = time.time()
                 p, info = fit_hybrid(X, meta, ms_, ws_, md_, Wd, lam, a, b, pin_groups=pin_groups, pin_w=pin_w, wd_rows=wd_)
                 mv = (X[role == "va_own"] @ p[:X.shape[1]]) / 10.0

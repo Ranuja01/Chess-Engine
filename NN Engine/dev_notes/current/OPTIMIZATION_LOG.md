@@ -4,6 +4,29 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-06 16:12 — QUEUE #169: THE EVAL BENCH REPORT, retune arm S vs gen 6.7 (template #117; a read, not a gate)
+
+| measure | gen 6.7 | **arm S** | reference |
+|---|---|---|---|
+| static WDL MSE, calibrated (5,988 rows, all in val) | 384.2 | **372.3** (−11.9 ± 2.0, −3.1%, paired) | SF11 334.9 · v1 566.2 |
+| … by stage mg / mgl / egl / eg | 577 / 391 / 276 / 292 | **560 / 377 / 273 / 278** | SF11 538 / 362 / 230 / 209 |
+| static win% MSE, same rows, cp label, calibrated | 103.8 | **100.0** (−3.8 ± 0.5, −3.7%) | SF11 111.5 |
+| d10 WDL MSE, calibrated | 201.3 (gen 6.4 209.9) | **197.6** (−3.7 ± 2.4, −1.9%, ≈ 1.5σ) | v1 320.7 |
+| … by stage | 236 / 190 / 160 / 219 | 228 / 183 / 161 / 219 | |
+| static ladder, own-play (3,000 rows, not in corpus_v3) | 147.48 | 147.75 | SF11 151.41 · SF15.1c 192.35 · SF15.1n 72.76 · SF18 61.93 |
+| static ladder, diverse (1.3% in train) | 107.68 | 106.01 | SF11 95.26 · SF15.1c 139.20 · SF15.1n 61.61 · SF18 68.85 |
+| full STS d10 (15,000) | 9,830 | **10,006** | — |
+| STS300 d10 | 2,018 | 1,951 | SF11 1,983 (reproduced) |
+| STS300 @ 249,014 nodes | 1,928 | 1,890 | SF1.1 1,991 · SF11 2,374 · SF18 2,605 |
+| WAC @ 249,014 nodes | 250 | 247 | SF11 266 · SF18 269 |
+| WAC d10 (solved / nodes / EBF) | 251 / 36,859,850 / 3.812 | 246 / 36,509,830 / 3.783 | |
+
+- **Gen 6.7's ladder reproduces gen 6.4's** (147.5 and 107.7), as it should: only search changed in between. Harness check good.
+- ★ **The static gain is real where the fit aimed it, and sits mostly in the middlegame.** The WDL gap to SF11 closes 24% (49.3 → 37.4): mg 39 → 22, mgl 29 → 16, but egl 46 → 43 and eg 83 → 69. The endgame half
+  still carries the gap ([[the-remaining-eval-gap-is-endgame-structural]]). The own-play ladder is flat (+0.27), on a mix that is not only quiet rows.
+- **The depth read is weaker than the static one** (−1.9% at about 1.5σ, raw +0.7%), and the benches are mixed: full STS +176, STS300 −67 at d10 and −38 at equal nodes, WAC −3 at equal nodes. STS300 is the smaller set,
+  and full STS was not run at equal nodes. No alarm, no verdict; games decide.
+
 ## 2026-11-06 15:25 — QUEUE #168 FITS (games not read): the accuracy curve is flatter under recipe S, and rows and stress share are confounded, so #170 adds the control
 - **Check on the new path:** the full-set arm reproduces `fit_hybrid_v3s.npz` exactly (max |d| 0.000 mp over 1,039 cells).
 - **Accuracy by size, recipe S, averaged over non-overlapping tables (25% four, 50% two):** depth all **−2.29 / −2.63 / −2.86**, static all −2.60 /

@@ -74,10 +74,14 @@ instruments resolve well (the SF11/SF15c gap read 0.08 on both corpora, first tr
 #include "ship_tables_v2.h"
 #include "ship_tables_v3.h"   // V2_SHIP_GEN = 2: the structural-retune tables (2026-10-11)
 #include "ship_tables_v4.h"   // V2_SHIP_GEN = 3: retune round 2 + explicit piece values (2026-10-12)
+#include "ship_tables_v5.h"   // V2_SHIP_GEN = 7: the big retune, stage 1
 
-/* One compiled table of the CURRENT ship generation (gen 3 → *_SHIP3_*, gen 2 → *_SHIP2_*), as plain pointers. */
+/* One compiled table of the CURRENT ship generation (gen 7 → *_SHIP7_*, gen 3 → *_SHIP3_*, gen 2 → *_SHIP2_*), as plain
+ * pointers. Gens 4-6 changed no table, so they read the gen 3 ones. */
 struct ShipCells { int n; const int *k; const int *leg; const int *v; };
-#define V2_SHIP_CELLS(NAME) (Config::V2_SHIP_GEN >= 3 \
+#define V2_SHIP_CELLS(NAME) (Config::V2_SHIP_GEN >= 7 \
+	? ShipCells{NAME##_SHIP7_N, NAME##_SHIP7_K, NAME##_SHIP7_LEG, NAME##_SHIP7_V} \
+	: Config::V2_SHIP_GEN >= 3 \
 	? ShipCells{NAME##_SHIP3_N, NAME##_SHIP3_K, NAME##_SHIP3_LEG, NAME##_SHIP3_V} \
 	: ShipCells{NAME##_SHIP2_N, NAME##_SHIP2_K, NAME##_SHIP2_LEG, NAME##_SHIP2_V})
 #include "cpp_bitboard.h"
@@ -385,9 +389,9 @@ void v2_pst_init_impl()
 	if (Config::PST_V2_TAPERED == 2 && Config::V2_SHIP_GEN >= 2)
 		for (int t = 0; t < 6; ++t)
 			for (int sq = 0; sq < 64; ++sq){
-				const bool g3 = Config::V2_SHIP_GEN >= 3;
-				v2PstMg[t][sq] = g3 ? V2_PST_SHIP3[t][0][sq] : V2_PST_SHIP2[t][0][sq];
-				v2PstEg[t][sq] = g3 ? V2_PST_SHIP3[t][1][sq] : V2_PST_SHIP2[t][1][sq];
+				const int g = Config::V2_SHIP_GEN;
+				v2PstMg[t][sq] = g >= 7 ? V2_PST_SHIP7[t][0][sq] : g >= 3 ? V2_PST_SHIP3[t][0][sq] : V2_PST_SHIP2[t][0][sq];
+				v2PstEg[t][sq] = g >= 7 ? V2_PST_SHIP7[t][1][sq] : g >= 3 ? V2_PST_SHIP3[t][1][sq] : V2_PST_SHIP2[t][1][sq];
 			}
 
 	if (const char *path = std::getenv("PST_V2_FILE"); path && *path){
@@ -2368,10 +2372,10 @@ static void kauf_fit_load()
 		// No file: the SHIPPED fitted cells, compiled in (ship_tables_v2.h, 2026-10-03) — V2_PRESET=shipped needs no file.
 		const int g = Config::V2_SHIP_GEN;
 		for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b){
-			KAUF_FIT_OURS[a][b]   = g >= 3 ? KAUF_SHIP3_OURS[a][b]   : g >= 2 ? KAUF_SHIP2_OURS[a][b]   : KAUF_SHIP_OURS[a][b];
-			KAUF_FIT_THEIRS[a][b] = g >= 3 ? KAUF_SHIP3_THEIRS[a][b] : g >= 2 ? KAUF_SHIP2_THEIRS[a][b] : KAUF_SHIP_THEIRS[a][b];
+			KAUF_FIT_OURS[a][b]   = g >= 7 ? KAUF_SHIP7_OURS[a][b]   : g >= 3 ? KAUF_SHIP3_OURS[a][b]   : g >= 2 ? KAUF_SHIP2_OURS[a][b]   : KAUF_SHIP_OURS[a][b];
+			KAUF_FIT_THEIRS[a][b] = g >= 7 ? KAUF_SHIP7_THEIRS[a][b] : g >= 3 ? KAUF_SHIP3_THEIRS[a][b] : g >= 2 ? KAUF_SHIP2_THEIRS[a][b] : KAUF_SHIP_THEIRS[a][b];
 		}
-		std::cerr << "[kauf] KAUF_V2_FORM=3 ON: compiled shipped cells (" << (g >= 3 ? "ship_tables_v4.h, gen 3" : g >= 2 ? "ship_tables_v3.h, gen 2" : "ship_tables_v2.h") << ")" << '\n';
+		std::cerr << "[kauf] KAUF_V2_FORM=3 ON: compiled shipped cells (" << (g >= 7 ? "ship_tables_v5.h, gen 7" : g >= 3 ? "ship_tables_v4.h, gen 3" : g >= 2 ? "ship_tables_v3.h, gen 2" : "ship_tables_v2.h") << ")" << '\n';
 		return;
 	}
 	std::ifstream in(path);
@@ -4491,12 +4495,12 @@ void v2_c1_init()
 	const bool from_ship = (!path || !*path) && Config::V2_SHIP_GEN >= 2;
 	if (from_ship){
 		// Ship gen 2: the compiled structural-retune values (ship_tables_v3.h), exactly as the file path would load them.
-		const bool g3 = Config::V2_SHIP_GEN >= 3;
-		const int n = g3 ? C1_SHIP3_N : C1_SHIP2_N;
-		const int *K = g3 ? C1_SHIP3_K : C1_SHIP2_K, *L = g3 ? C1_SHIP3_LEG : C1_SHIP2_LEG;
-		const double *V = g3 ? C1_SHIP3_V : C1_SHIP2_V;
+		const bool g7 = Config::V2_SHIP_GEN >= 7, g3 = Config::V2_SHIP_GEN >= 3;
+		const int n = g7 ? C1_SHIP7_N : g3 ? C1_SHIP3_N : C1_SHIP2_N;
+		const int *K = g7 ? C1_SHIP7_K : g3 ? C1_SHIP3_K : C1_SHIP2_K, *L = g7 ? C1_SHIP7_LEG : g3 ? C1_SHIP3_LEG : C1_SHIP2_LEG;
+		const double *V = g7 ? C1_SHIP7_V : g3 ? C1_SHIP3_V : C1_SHIP2_V;
 		for (int i = 0; i < n; ++i){ set(K[i], L[i], V[i]); ++n_set; }
-		path = g3 ? "ship_tables_v4.h (gen 3)" : "ship_tables_v3.h (gen 2)";
+		path = g7 ? "ship_tables_v5.h (gen 7)" : g3 ? "ship_tables_v4.h (gen 3)" : "ship_tables_v3.h (gen 2)";
 	}
 	else if (!path || !*path){
 		std::cerr << "☠️ C1_V2_FIT=1 needs C1_V2_FILE -- fit stays OFF." << std::endl;
@@ -4664,7 +4668,7 @@ static void conn_load_table()
 		// Ship gen 2: the compiled structural-retune cells (ship_tables_v3.h) over the live start, as the file path does.
 		const ShipCells s = V2_SHIP_CELLS(CONN);
 		for (int i = 0; i < s.n; ++i){ w[s.leg[i]][s.k[i] - V2F_CONN] = s.v[i]; ++n_set; }
-		path = Config::V2_SHIP_GEN >= 3 ? "ship_tables_v4.h (gen 3)" : "ship_tables_v3.h (gen 2)";
+		path = Config::V2_SHIP_GEN >= 7 ? "ship_tables_v5.h (gen 7)" : Config::V2_SHIP_GEN >= 3 ? "ship_tables_v4.h (gen 3)" : "ship_tables_v3.h (gen 2)";
 	}
 	else if (path && *path){
 		std::ifstream in(path);

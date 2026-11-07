@@ -2400,7 +2400,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                 // ── GEN 6.7: gen 6.5 + the TT bound flag of a PVS re-search computed against the window actually searched
                 // (a self-play gain, neutral against the outside opponents). Its start-up read defaults to off, so only this
                 // preset turns it on; v1 keeps it off. ENABLE_TT_FLAG_FIX=0 restores gen 6.5 exactly (252 / 36,960,934).
-                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 6);
+                // ── GEN 7: the big retune, stage 1. One hybrid fit of every v2 table (C1, KS-B, KFL, KPROT, PX, CONN, Kaufman
+                // cells, PST) and the piece values on 1.19M rows, with the stress slices at half weight; tables compiled in
+                // ship_tables_v5.h. Timed self-play +16.0 (+6.2 … +25.8) over 4,000 games, not harmful against the outside
+                // opponents (OPTIMIZATION_LOG). V2_SHIP_GEN=6 restores gen 6.7 exactly (251 / 36,859,850).
+                Config::V2_SHIP_GEN = env_int("V2_SHIP_GEN", 7);
                 if (Config::V2_SHIP_GEN >= 2){
                     Config::C1_V2_FIT = 1;  Config::KFL_V2 = 1;  Config::KPROT_V2 = 1;  Config::PX_V2 = 1;  Config::CONN_V2 = 1;
                 }
@@ -2427,6 +2431,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     Config::FIX_MAX_NULL = 1;  Config::NULL_NPM_GUARD = 2;  Config::FIX_MATE_50 = 1;  Config::FIX_HALFMOVE = 1;
                     Config::FIX_REP_KEY = 1;  Config::FIX_KILLER_SPLICE = 1;  Config::FIX_MATE_GATE = 1;
                     Config::ENABLE_TT_FLAG_FIX = true;
+                }
+                if (Config::V2_SHIP_GEN >= 7){
+                    // the refitted piece values (same layout as gen 3's: mp deltas on values[], the pawn's mg leg separate)
+                    Config::V2_VAL_MG[1] = 1;    Config::V2_VAL_MG[2] = 11;   Config::V2_VAL_MG[3] = -128; Config::V2_VAL_MG[4] = -36;
+                    Config::V2_VAL_EG[1] = -45;  Config::V2_VAL_EG[2] = -91;  Config::V2_VAL_EG[3] = 135;  Config::V2_VAL_EG[4] = -83;
+                    Config::EVAL_V2_PAWN_MG = 1021;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

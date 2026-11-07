@@ -68,6 +68,8 @@ COMMON="-openings file=$O/openings_uho.epd format=epd order=random -repeat -conc
 T=rt_${ARM}_10p1b
 rm -f $O/${T}_c[1-4].pgn $O/${T}_c[1-4].log
 for c in 1 2 3 4; do
+  # Wait for a quiet box here: skipping on busy would lose every remaining chunk at once.
+  while busy && ! give_up; do sleep 60; done
   timed_ok || { echo "[q171] $(date) skip $T chunk $c (stop, late or busy)"; continue; }
   nice -n 5 "$FC" -engine "cmd=$BIN" name=arm option.OwnBook=false "option.Knobs=$KN" tc=10+0.1 timemargin=250 \
     -engine "cmd=$BIN" name=ctl option.OwnBook=false tc=10+0.1 timemargin=250 \

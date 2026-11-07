@@ -104,6 +104,7 @@ gate() {  # $1 tag; adds it to PASS
   echo "[q173] $t symmetry: $(echo "$SYM" | tr '\n' ' ')"
   [ "$(echo "$SYM" | grep -c 'violations 0 ')" = "2" ] || { echo "[q173] $t ✗ symmetry — dropped"; return; }
   KN=$(tr -s ' \n' ',' < $D/arm_$t/env.txt | sed 's/,$//')
+  pace "the benches of $t"   # #171 skips its chunks if it finds a bench running, so a bench must not start once #170 has ended
   U=$(printf 'setoption name Knobs value %s\nbench\nquit\n' "$KN" | "$BIN" 2>/dev/null | grep -oE 'solved [0-9]+/300 nodes [0-9]+')
   W=$(env V2_PRESET=shipped $ENVL bash "$R" wac fp_$t 2>&1 | grep -E "^SOLVED|^NODES" | tr '\n' ' ' | grep -oE 'Solved [0-9]+/300 NODES: [0-9]+')
   un=$(echo "$U" | grep -oE '[0-9]+$'); wn=$(echo "$W" | grep -oE '[0-9]+$')
@@ -231,6 +232,8 @@ if [ -n "$BEST" ] && [ -n "$BL" ] && awk -v a="$BE" -v b="$BL" 'BEGIN{exit !(a -
   T=rt_${BEST}_10p1
   rm -f $O/${T}_c[1-4].pgn $O/${T}_c[1-4].log
   for c in 1 2 3 4; do
+    # Wait for a quiet box here: skipping on busy would lose every remaining chunk at once.
+    while busy && [ ! -e "$STOP" ] && [ $(date +%s) -le $TIMED_LATEST ]; do sleep 60; done
     { [ -e "$STOP" ] || [ $(date +%s) -gt $TIMED_LATEST ] || busy; } && { echo "[q173] $(date) skip $T chunk $c (stop, late or busy)"; continue; }
     nice -n 5 "$FC" -engine "cmd=$BIN" name=arm option.OwnBook=false "option.Knobs=$KN" tc=10+0.1 timemargin=250 \
       -engine "cmd=$BIN" name=ctl option.OwnBook=false tc=10+0.1 timemargin=250 \

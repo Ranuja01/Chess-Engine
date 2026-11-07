@@ -281,7 +281,13 @@ for _ai, (name, c) in enumerate(CANDS):
     #   delta > 0  => KS-off worse => KS-on move better => KS HELPED here
     #   delta < 0  => KS-off better => KS-on move worse => KS HURT here (the damp target)
     if os.environ.get("DUMP"):
-        with open(os.environ["DUMP"], "w", newline="") as _f:
+        # With several arms in one run each arm gets its own file (<DUMP stem>_<arm name>.csv); otherwise
+        # every arm would overwrite the same path and only the last would survive. One arm: DUMP as given.
+        _dp = os.environ["DUMP"]
+        if len(CANDS) > 1:
+            _stem, _ext = os.path.splitext(_dp)
+            _dp = "%s_%s%s" % (_stem, "".join(ch if ch.isalnum() else "_" for ch in name), _ext or ".csv")
+        with open(_dp, "w", newline="") as _f:
             _w = csv.writer(_f)
             _w.writerow(["fen", "ks_on_move", "ks_off_move", "reg_ks_on", "reg_ks_off", "delta"])
             for _fen in changed:

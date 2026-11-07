@@ -66,7 +66,9 @@ and the v1 control below; full table `dev_notes/current/BASELINE_PERF.md` §v2. 
 st=1 +170 / 155 g, 60+0.6 +199 / 300 g — OPTIMIZATION_LOG 10-19). v1 stays the Cython path's no-env default ONLY so the
 fingerprint scripts keep working; every new measurement, the UI and the UCI binary (default `V2_PRESET=shipped`) use v2.
 **The engine is AlphaUX** ("NN Engine" is only this folder's name). **Native UCI binary:** `selfplay/build_uci.sh` →
-`build_uci/chess_engine_uci` = **gen 6.7** (2026-11-05, PGO, `chess_engine_uci_g67pgo`; id "AlphaUX (v2 gen 6.7)") = gen 6.5 +
+`build_uci/chess_engine_uci` = **gen 7** (2026-11-07, PGO, `chess_engine_uci_g7pgo`; id "AlphaUX (v2 gen 7)") = gen 6.7 + the big
+retune's stage 1 tables (`ship_tables_v5.h`, `V2_SHIP_GEN` 7 with refitted piece values; bench **246 / 36,509,830 / EBF 3.783**;
+`V2_SHIP_GEN=6` = gen 6.7; backup `chess_engine_uci_g67pgo`). Gen 6.7 (2026-11-05, PGO; id "AlphaUX (v2 gen 6.7)") = gen 6.5 +
 `ENABLE_TT_FLAG_FIX` in the shipped preset (bench 251 / 36,859,850 / EBF 3.812; `ENABLE_TT_FLAG_FIX=0` = gen 6.5). Gen 6.6
 (2026-11-04, the mate-score bundle `FIX_TT_MATE`, `FIX_MDP`, `ENABLE_NULL_MATE_CLAMP`; not kept, below the SF18 bar) stays as
 `chess_engine_uci_g66pgo`; the three at 1 turn it back on (bench 249 / 38,002,371 with the flag fix). Gen 6.5 (2026-11-03, PGO; backup of 6.4
@@ -76,7 +78,7 @@ identical, the UCI binary's v1 bench reads 35,310,775): production == `chess_eng
 `chess_engine_uci_g65b8pgo`, without batch 8 `chess_engine_uci_g65fpgo`, without either `chess_engine_uci_g65pgo`. Gen 6.4 = gen 6.3 (threat-aware quiet ordering) + threats in eval + `RFP_MARGIN` 600, on top of gen 6.2: gen 6.1 (2026-10-25: gen 6 + the time
 manager's `TM_MODE=1` clock rule) + TM arm E as defaults (`TM_START=175 TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`, clock
 games only). Gen 6.1 behaviour: `Knobs TM_START=0,TM_SINGLE=0,TM_SCALE=0,TM_NORM=100,TM_OPT_PLY=0` (backup binary
-`chess_engine_uci_g61pgo`); `Knobs TM_MODE=0` = the pre-6.1 clock rule. Verify with `bench` (== 251 / 36,859,850 for gen 6.7) —
+`chess_engine_uci_g61pgo`); `Knobs TM_MODE=0` = the pre-6.1 clock rule. Verify with `bench` (== 246 / 36,509,830 for gen 7; 251 / 36,859,850 for gen 6.7) —
 memory `uci-binary-and-fastchess`. ☠️ Knobs in fastchess ONLY via `option.Knobs=NAME=V,NAME=V` (undeclared `Knob_*` are silently
 dropped — every 10-19…10-22 `Knob_` match was void); assert 0 "doesn't have option" warnings. Anything TIMED (vs other engines,
 time-sensitive A/Bs) goes through the binary; the Cython path is for fixed-depth / node-limited diagnostics.
@@ -127,6 +129,9 @@ whenever C: free space is under ~40 GB, check `df -h /mnt/c` and the folder's si
 match folders older than ~2 weeks with `selfplay/archive_games.ps1 -Before <date>` (one verified `.tar.zst` per tag on
 `E:\chess_data\archive\games\`, `manifest.csv` alongside; summaries stay in place; idle priority; never while a queue
 writes into `selfplay/games/`). Restore one tag: `tar.exe -xf E:\chess_data\archive\games\<tag>.tar.zst -C selfplay\games`.
+One command covers the routine and OneDrive's health: `powershell -NoProfile -ExecutionPolicy Bypass -File selfplay\machine_health.ps1 -Games`
+(disk space, OneDrive file sync running, the Lists-sync log loop not back, OneDrive logs under 2 GB, `selfplay\games` size;
+exit code = number of alerts; drop `-Games` while a queue times anything).
 Index of every match: `selfplay/GAMES-INDEX.csv`. First run 2026-10-18 (1,391 tags, ~22 GB).
 
 ---

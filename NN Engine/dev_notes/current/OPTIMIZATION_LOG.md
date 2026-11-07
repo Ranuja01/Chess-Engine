@@ -4,6 +4,40 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-07 17:35 — STAGE 2 CLOSED at 200k nodes (#173): S +33.5, cr2 +1.7; gen 7's pinned bench (#175); queue #176 registered (the d7 ruler on known arms)
+
+**#173's afternoon leg, 200k-node self-play vs gen 6.7 (both arms as knobs on `g67pgo`), 2,000 g each:**
+
+| arm | chunks (500 g) | pooled | W / L / D |
+|---|---|---|---|
+| **S (gen 7)** | +33.5, +28.6, +35.6, +36.3 | **+33.5 (+20.4 … +46.6)**, 54.8% | 861 / 669 / 470 |
+| cr2 (stage 2, critical rows 0.5) | +2.1, −17.4, +22.3, −0.0 | **+1.7 (−11.6 … +15.1)**, 50.2% | 798 / 788 / 414 |
+
+⇒ **Stage 2's first pass is closed with no winner; S stays.** cr2 was level with S at 50k (+17.4 vs +15.4) and is 32 behind it at 200k,
+about 3.3σ. The held-out critical moves gave no arm a 2σ edge over S either. Extra weight on critical rows inside the same fit does not
+become Elo. S's gain at 200k (+33.5) is above its timed (+16.0) and 50k (+15.4) reads. Timed 10+0.1 searches more nodes per move
+(about 357k) than 200k, so this is not a clean rise with depth. The three reads agree that gen 7 is ahead at every budget tried.
+Error vs games, the whole stage: on the 1,722 gated quiet rows (win% MSE, Lichess formula, gen 6.7 = 89.13) the order is all0 −1.53% ·
+all2 −1.49% · cr1 −1.47% · cr2 −1.37% · N −1.35% · **S −1.31%** · cr3 −1.01%. The arm that plays best has one of the smallest error gains
+(`corpus-fit-is-anti-correlated-with-elo`, once more).
+
+**#175 step 3, the pinned UCI bench** (WAC d10, `taskset -c 5`, gen 6.7 and gen 7 production binaries alternating × 6, quiet box,
+16:33-16:39): gen 6.7 fastest 27.56 s / 1,337,679 nps, median 27.74 s · **gen 7 fastest 27.32 s / 1,336,214 nps, median 27.59 s**.
+Nps level (−0.1%); gen 7 is 0.5-0.8% faster to fixed depth, from its 0.95% fewer nodes. Last run of each pair slower (29.2 / 28.9 s),
+both arms alike. QUEUE 175 DONE.
+
+**Box note:** OneDrive was found stopped since ~10-22 with its Lists-sync engine writing ~110 GB of unrotated logs on C:. The logs were
+deleted at 14:05 (C: 21 → 132 GB). The machine policy `DisableNucleusSync` = 1 did not stop the loop on OneDrive 26.195, and the restarted
+catch-up loaded about 3 cores. OneDrive has been quit since 15:31 (owner), so no Windows-side load was present in #175's bench.
+`selfplay/machine_health.ps1` now checks this at each handoff.
+
+**Queue #176 registered (held; owner playing UI games first): does the d7 move-regret ruler rank the retune arms the way the games did?**
+Base gen 6.7; arms S, cr1, cr2, cr3, all0, all2 with known game results, and three neutral arms (`ASPIRATION_DELTA=300`, `=800`,
+`EVAL_NOISE_SIGMA=30`); both disjoint game sets, d7, then each arm against the nulls on the positions both changed (`_paired_null.py`).
+PASS: on both sets S, cr1, cr2 all read above all0 and cr3 by more than the nulls' spread. FAIL: all0 or cr3 in the top half on both.
+Otherwise UNRESOLVED. Prediction: unresolved 60%, pass 25%, fail 15%. Stage 3's design depends on it. `_ks_footprint_regret.py` now writes
+one `DUMP` file per arm when several arms share a run (it kept only the last); one arm keeps the path as given.
+
 ## 2026-11-07 10:25 — GEN 7 SHIPPED (arm S); more rows are a ghost (#170); stage 2 at 50k (#173); all-rows refit and error scoreboard (#174)
 
 **#171, the registered timed read (S pooled with #167, bar +2σ): +16.0 (+6.2 … +25.8) over 4,000 g at 10+0.1**, z 3.20, pentanomial

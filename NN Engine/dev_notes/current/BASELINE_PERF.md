@@ -25,7 +25,7 @@ Every new production build gets a row in the ledger below, before or at install:
 
   | build (production from) | change | pinned UCI bench, same session | real-play nps (venue) | games check | Cython module (UI) |
   |---|---|---|---|---|---|
-  | **`chess_engine_uci_g7pgo` (11-07) = current** | gen 7 (retune tables) | queue #175 step 3, after #173 (pending) | S's knobs on `g67pgo` vs `g67pgo`, 4,000 g 10+0.1 UHO (#167 + #171): **1,493,327 vs 1,494,108 (−0.05%)**, depth 11.4 / 11.4, nodes per move 356,581 vs 360,204 (file tables vs compiled: same arrays at run time) | +16.0 (+6.2 … +25.8) | 246 / 36,509,830 / 3.783 |
+  | **`chess_engine_uci_g7pgo` (11-07) = current** | gen 7 (retune tables) | #175, alternating × 6 vs `g67pgo`, quiet box (OneDrive off): **gen 7 fastest 27.32 s · 1,336,214 nps, median 27.59 s**; gen 6.7 27.56 s · 1,337,679, median 27.74 s ⇒ nps level (−0.1%), 0.5-0.8% faster to fixed depth (0.95% fewer nodes) | S's knobs on `g67pgo` vs `g67pgo`, 4,000 g 10+0.1 UHO (#167 + #171): **1,493,327 vs 1,494,108 (−0.05%)**, depth 11.4 / 11.4, nodes per move 356,581 vs 360,204 (file tables vs compiled: same arrays at run time) | +16.0 (+6.2 … +25.8) | 246 / 36,509,830 / 3.783 |
 - Benches (S, deterministic, #169): STS full d10 10,006 (gen 6.7 9,830), STS300 @ 249k 1,890 (1,928), WAC d10 246 (251); static
   ladder own-play 147.75 (147.48), diverse 106.01 (107.68); static WDL 372.3 vs 384.2 (−3.1%), d10 WDL 197.6 vs 201.3 (−1.9%).
 

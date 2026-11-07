@@ -120,7 +120,7 @@ middlegame (memory `eval-payoff-is-opening-midgame-not-endgame`) ⇒ item 4 (mid
    item 5 (endgame, low prior after caps / damp), the lean retune, item 6 (lazy eval exit), and two live defects with no fix
    built (queen-vs-minor compensation; KR vs K+minor read +1.5 pawns).
    **Read 11-02 (#132): shelter coupling K 12 −6.3 ± 19.9 ⇒ PARKED.** Item 4 closed with nothing shipped.
-   5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4.
+   5. Scale onto the eg leg (`EVAL_V2_PAIR=1`), pawn ramp to 4. **PARKED 11-07 (owner: "sure"), not run:** low prior after caps and damp, and it goes with the focused eval arc after search v2 (`EVAL-V2-PARKED-REGISTER`, last section).
 Each positive item gets a tighter-margin (crank) arm, a fresh-seed replication and the ship checks.
 Forecast registered 10-30 (self-play, vs gen 6.4; check it at the end of each leg): rest of the eval leg incl. the lean retune
 and the lazy eval exit +15 … +40; the search arc +50 … +150, top end raised to +250 after the owner's argument (EBF: each step

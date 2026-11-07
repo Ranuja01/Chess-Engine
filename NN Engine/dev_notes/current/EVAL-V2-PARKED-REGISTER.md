@@ -217,6 +217,19 @@ at all**) · `PawnDoubled2` (1/4, no record hit) · rook/bishop-on-king-ring · 
 | **K+B+N vs K technique** (owner 11-03: "sure", park it) | NEVER BUILT — found 11-03 in a UI test | UI test at 60+0.6, `8/8/8/4k3/8/8/8/1NB1K3 w - - 0 1` (dark bishop) vs SF18 defending: we drove the king to **a8, the wrong (light) corner**, boxed it there for ~35 moves, no mate by move 50 (then, the draw claimable, the engine stopped caring and dropped the bishop). The ordinary eval only pulls the weak king to an edge / any corner. SF handles the ending with a dedicated value: known win + kings close + push to the corner of the BISHOP'S colour (`stockfish_11/src/endgame.cpp` KBNK). Same shape as our tier-2b K+R vs K+minor replacement (`tier2b_value_mp`, `TIER2_V2_MAG`) | **any eval slot** — a narrow item, judged where it fires: 50-100 K+B+N vs K starts (both bishop colours, random squares) vs an SF defender at 60+0.6, **pass = mates within 50 moves** (today 0 / 1); elsewhere only byte-identical (the replacement fires in this ending alone). Rare in games, so little Elo; it also matters as NN-teacher labels |
 | **Shelter → danger coupling** `KS_V2_SHELTER_K=12` (SF11's 6/8 in our units: the king-shelter deficit feeds the attack-danger units, a few % of them) | PARKED 11-02, default 0 = byte-identical, code kept | games vs gen 6.4, UHO 10+0.1: −6.3 ± 19.9 (#132 `shelter`, seed 1323, Ptnml 90-82-166-80-82), inside its registered −10 … +15, under the +8 replicate bar | **the final retune** (K fitted jointly with the KS units, on a refreshed depth-fit base) · or a KS venue where a broken shelter decides |
 
+## ★ THE FOCUSED EVAL ARC AFTER SEARCH V2 (owner 2026-11-07)
+
+Owner: "the room left to grow statically isn't that much, so it will likely require another focused targeted arc rather than things here and there ... with stronger search, we can better understand how our eval translates into it, to adjust how the eval operates." So these wait for that arc and are not reopened in the transition. **Trigger for all of them:** search v2 has shipped and play depth at 10+0.1 has risen by about 2 plies or more → re-pass the fit sets at the new play depth, retune on it, then take these on the new base, judged in games.
+
+| item | state | evidence | what to do in the arc |
+|---|---|---|---|
+| **Scale on the eg leg + pawn ramp to 4 pawns** (`EVAL_V2_PAIR=1`, transition item 5) | NEVER RUN, parked 11-07 | low prior: the endgame caps and the damp-only threshold both gained static accuracy (−5.8%, −2.9%) and no Elo | SF's exact object (scale on the eg leg, gated by material class), small code |
+| **Queen vs minor compensation** | live misread, no fix built | [[v2-overvalues-queen-vs-minor-compensation]] | build the move test first, then the term |
+| **KR vs K+minor** | live misread, no fix built | reads about +1.5 pawns on an ending that is about 74% drawn ([[kr-vs-kminor-is-74pct-drawn-and-v2-reads-it-as-plus-1-point-5-pawns]]) | note: "stay closed" in the 10-30 list as a tablebase question; reopen only as a static correction |
+| **How eval translates into search** (new question for the arc) | not measured | owner's reason for waiting: 09-06 crank; threats plus `RFP_MARGIN` 600 about +66 while threats alone added nothing | per term: what changes in pruning, node counts and moves under search v2's margins, not only static error |
+
+Also on that base: the other items above whose trigger names the search arc or the final retune (POT race, shelter coupling, caps, corrhist).
+
 ## PROVENANCE
 Built by a full sweep of `dev_notes/` + memory on 2026-09-20. Companion docs:
 `EVAL-V2-CURRENT-CONFIG.md` (shipped config + decision register) · `EVAL-V2-REBUILD-LOG.md` (the narrative) ·

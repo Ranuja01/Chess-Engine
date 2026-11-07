@@ -14,7 +14,22 @@ Every new production build gets a row in the ledger below, before or at install:
    107.7, SF18 WDL 384.2; OPTIMIZATION_LOG 10-30). Gen 6.5 and the gen 6.6 candidate are search-only. **Owner 11-04: re-run
    it after the full retune steps** (the final retune at the end of the transition arc).
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 6.7 + PGO (2026-11-05 ~10:05, owner), `chess_engine_uci_g67pgo`
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7 + PGO (2026-11-07 10:23, owner), `chess_engine_uci_g7pgo`
+- WAC d10 fingerprint **246 / 36,509,830 / EBF 3.783** (UCI `bench` == Cython `V2_PRESET=shipped` == arm S's file knobs on gen 6.7).
+  = gen 6.7 + the big retune's stage 1 tables (arm S) compiled in `ship_tables_v5.h`, `V2_SHIP_GEN` 7 + S's piece values. Knobs:
+  `V2_SHIP_GEN=6` = gen 6.7 251 / 36,859,850 · `=5` 258 / 47,689,586 · v1 250 / 35,310,775 (UCI) / 35,310,778 (Cython). Id
+  "AlphaUX (v2 gen 7)". Profile `/mnt/e/chess_data/pgo_g7`. Backups: `g67pgo` (gen 6.7), gen 6.7's .so in `pgo_g7/`.
+- Games: timed self-play +16.0 (+6.2 … +25.8) over 4,000 g (#167 + #171, z 3.20); 50k nodes +15.4 (+5.6 … +25.2) over 4,000 g;
+  SF18 @ 1,100 −0.90 pp ± 4.88; Mediocre passed (#167). OPTIMIZATION_LOG 11-07.
+- **Build ledger of gen 7:**
+
+  | build (production from) | change | pinned UCI bench, same session | real-play nps (venue) | games check | Cython module (UI) |
+  |---|---|---|---|---|---|
+  | **`chess_engine_uci_g7pgo` (11-07) = current** | gen 7 (retune tables) | queue #175 step 3, after #173 (pending) | S's knobs on `g67pgo` vs `g67pgo`, 4,000 g 10+0.1 UHO (#167 + #171): **1,493,327 vs 1,494,108 (−0.05%)**, depth 11.4 / 11.4, nodes per move 356,581 vs 360,204 (file tables vs compiled: same arrays at run time) | +16.0 (+6.2 … +25.8) | 246 / 36,509,830 / 3.783 |
+- Benches (S, deterministic, #169): STS full d10 10,006 (gen 6.7 9,830), STS300 @ 249k 1,890 (1,928), WAC d10 246 (251); static
+  ladder own-play 147.75 (147.48), diverse 106.01 (107.68); static WDL 372.3 vs 384.2 (−3.1%), d10 WDL 197.6 vs 201.3 (−1.9%).
+
+## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 6.7 + PGO (2026-11-05 ~10:05 – 11-07, owner), `chess_engine_uci_g67pgo`
 - WAC d10 fingerprint **251 / 36,859,850 / EBF 3.812** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 6.5 +
   `ENABLE_TT_FLAG_FIX` in the shipped preset (the TT bound flag of a PVS re-search computed against the window actually
   searched; dead since 08-22 because its start-up read defaulted to off). Gen 6.6's mate bundle is off again. Knobs:

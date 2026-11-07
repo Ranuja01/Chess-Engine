@@ -4,6 +4,64 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-07 10:25 — GEN 7 SHIPPED (arm S); more rows are a ghost (#170); stage 2 at 50k (#173); all-rows refit and error scoreboard (#174)
+
+**#171, the registered timed read (S pooled with #167, bar +2σ): +16.0 (+6.2 … +25.8) over 4,000 g at 10+0.1**, z 3.20, pentanomial
+[306, 275, 722, 323, 374]; #171's own 2,000 g ≈ +21. Per engine: nps 1,493,327 vs 1,494,108, depth 11.4 both, nodes per move 356,581 vs
+360,204. No crash dumps. With SF18 @ 1,100 −0.90 pp ± 4.88 and Mediocre (#167), S meets the whole ship rule. **Owner 11-07 ~10:10: ship.**
+
+**Gen 7 = gen 6.7 + S's tables** compiled in `ship_tables_v5.h` (`*_SHIP7_*`, from `_ship_tables_gen.py GEN=7`), `V2_SHIP_GEN` 7 by default
+with S's piece values; commit 65dab69, queue #175. Fingerprints on `chess_engine_uci_g7pgo` (profile `/mnt/e/chess_data/pgo_g7`):
+default **246 / 36,509,830** == S's file knobs on gen 7 == S's file knobs on gen 6.7 · `V2_SHIP_GEN=6` 251 / 36,859,850 (gen 6.7) ·
+`=5` 258 / 47,689,586 · v1 250 / 35,310,775. Id "AlphaUX (v2 gen 7)". Production `chess_engine_uci` == `g7pgo` (installed 10:23); gen 6.7
+stays as `g67pgo`. Cython module rebuilt 10:54 (gen 6.7's .so backed up in `pgo_g7/`): shipped 246 / 36,509,830 / 3.783,
+`V2_SHIP_GEN=6` 251 / 36,859,850 / 3.812, v1 250 / 35,310,778 / 3.784. ⚠️ `_retune_export.py` (`ship_gen`, `SHIP_VALUES`,
+`ship_kauf`) knows gens ≤ 3 only: gen-6.7-based work sets `V2_SHIP_GEN=6`; add gen 7 before any fit on a gen 7 base.
+
+**#170, does more data help (registered read): no, a ghost.** 50k nodes vs gen 6.7, 4,000 g each: S × 2 +7.8 (−1.6 … +17.2), S × 4
++5.3 (−4.4 … +15.0). S × 4 − quarters = −1.9 (bar for "data matters" ≥ +12), S × 2 − halves = −0.9 (≥ +6). The rise with rows in #168
+(+7.2 / +8.7 / +15.4) followed the falling stress share, not the row count. No arm beats S by +14, so the stress share stays at S's.
+
+**#174, refit on every labelled row + A2's d10 scores (`corpus_v5`), and the WDL error scoreboard** (5,988 held-out quiet own-play
+rows, SF18 d14 WDL, calibrated, paired vs gen 6.7; games at 50k vs gen 6.7):
+
+| arm | static | d10 | games (95% half-width ≈ 14 at 2,000 g) |
+|---|---|---|---|
+| S | 372.3 (−3.1%) | 197.6 (−1.9%) | +15.4 (4,000 g) |
+| cr2 (critical rows 0.5) | 375.8 (−2.2%) | 196.2 (−2.5%) | +17.4 |
+| cr1 (own critical × 3) | 373.2 (−2.9%) | 196.5 (−2.4%) | +13.6 |
+| all2 | 373.9 (−2.7%) | 197.3 (−2.1%) | +2.3 |
+| all0 (S recipe, all rows) | 372.1 (−3.1%) | 193.7 (−3.7%) | −9.4 |
+| cr3 (critical rows 1) | 380.4 (−1.0%) | 198.7 (−1.2%) | −13.7 |
+| gen 6.7 / SF11 | 384.2 / 334.9 | 201.3 | — |
+
+Neither error column tracks the games: all0 is the most accurate on both and about 2.9σ below S in play (`corpus-fit-is-anti-correlated-
+with-elo` again). With #170 the "more rows" line is closed: no static gain (all0 = S) and no Elo.
+
+**#173, stage 2 at 50k, 2,000 g each vs gen 6.7:** cr1 +13.6 (+0.1 … +27.0), cr2 +17.4 (+3.8 … +31.1), cr3 −13.7 (−27.3 … −0.2); none
+beats S's +15.4 by the +10 screen, so the afternoon is 200k-node self-play of S and cr2 (no chunk after 17:00). STS full d10 / STS300 @
+249k: cr1 9,845 / 2,052 · cr2 9,930 / 2,008 · cr3 9,862 / 1,851 (gen 6.7 9,830 / 1,928, S 10,006 / 1,890; no bar).
+**Held-out critical moves: my bug.** The queue fed `CR_hold.csv` to `_depth_residual_pass.py`, which keeps only rows with `best_cp`, so
+every arm got 0 rows and the 07:30 read showed gen 6.7 alone (24.73% missed; sacrifice 30.4%, quiet 25.6%, check 28.5%, evasion 9.4%).
+Redone 09:50-10:50 on a copy with `best_cp` added (`CR_hold_bc.csv`, scratch `hold_fix.sh`, log `E:\chess_data\holdfix.log`).
+**Registered moves read (bar: miss rate below S's by 2σ of the paired difference): no arm passes.** 11,628 held-out critical rows, d10:
+
+| arm | miss% | vs S (pp, z) | puzzles vs S | own games vs S | regret vs S |
+|---|---|---|---|---|---|
+| gen 6.7 | 24.73 | +0.23 ± 0.30 (+0.8) | +0.57 (+1.7) | −0.45 | +0.154 ± 0.077 |
+| **S** | 24.50 | — | — | — | — |
+| cr1 | 24.48 | −0.03 ± 0.28 (−0.1) | +0.24 | −0.74 | +0.091 ± 0.070 |
+| cr2 | 24.14 | −0.36 ± 0.30 (−1.2) | 0.00 | −1.19 (−1.6) | −0.018 ± 0.076 |
+| cr3 | 23.95 | −0.55 ± 0.31 (−1.8) | −0.68 (−2.1) | −0.41 | −0.165 ± 0.078 |
+
+The miss rate falls with the dose of critical rows, inside the registered expectation (under 1 pp at 0.5), and mostly on puzzles, the
+source the new rows come from; at dose 1 (cr3) the games fall to −13.7 and the average error rises. Per class, cr1 misses more
+sacrifices (+1.77 ± 0.48, z +3.7: own-play critical × 3 pushes against sacrifices) and cr2 fewer check choices (−4.48 ± 1.66 on 513
+rows, one of ~20 cells). S itself carries ≈ 2σ less regret than gen 6.7 on these rows (−0.154 ± 0.077). Stage 2's first pass gives at
+best cr2 as a near-equal of S (games +17.4 vs +15.4, d10 error −2.5% vs −1.9%, static −2.2% vs −3.1%); the 200k-node games decide it.
+
+**Predictions of 00:35 vs results:** S timed +16.0 (predicted best arm +10 … +20); static WDL error −3.1% (−3 to −4%).
+
 ## 2026-11-06 22:00 — QUEUE #168 GAMES and #172 DATA: S +15.4 at 50k on 4,000 fresh g; 46,627 critical rows; queue #173 built for stage 2
 
 **#168, 50k nodes vs gen 6.7, fresh seeds, disjoint tables of each size:**

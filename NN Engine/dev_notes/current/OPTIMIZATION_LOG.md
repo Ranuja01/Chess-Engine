@@ -4,6 +4,24 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-06 22:00 — QUEUE #168 GAMES and #172 DATA: S +15.4 at 50k on 4,000 fresh g; 46,627 critical rows; queue #173 built for stage 2
+
+**#168, 50k nodes vs gen 6.7, fresh seeds, disjoint tables of each size:**
+
+| level | tables | games | Elo (95%) |
+|---|---|---|---|
+| 25% of own-play rows | lc1 +13.2, lc2 +14.3, lc3 −5.9 (lc0 dropped by closure) | 3,000 | +7.2 (−3.6 … +18.0) |
+| 50% | lc4 +13.7, lc5 +3.6 | 4,000 | +8.7 (−0.9 … +18.3) |
+| 100% | S | 4,000 | **+15.4 (+5.6 … +25.2)** |
+
+Not a verdict on rows: each smaller level also has a larger stress share, so the read waits for #170 (S × 2, S × 4), registered in its header. S replicates its 50k screen (+17.6) on seeds it was not selected on. Its timed result (+11.1 on 2,000 g) stays the bar that counts; #171 adds 2,000 more.
+
+**#172, critical data.** 87,638 of 87,639 positions labelled (SF18 d14, K=4). One shard stopped at 18:39 for over 3 h on `8/p7/8/1P6/2b5/p2k4/8/K7 b - - 10 63` (depth 11 after 30 s and 75M nodes). The position is dropped; the shard's remaining 5,984 rows were labelled by a capped process and its Stockfish was stopped by hand. `_build_regret_set.py` now takes `MAX_S=`. Critical: 46,627 (puzzles 40,319 = 67.2%: quiet 22,079, sacrifice 11,004, evasion 6,384, check 852; collapses 6,308). Puzzle sacrifices need no cap (8,822 training rows against 17,657 quiet).
+
+**Queue #173**, registered in its header: stage 2 first pass. Own-play critical rows × 3, new rows at 0, 0.5, 1 and 3, a check arm that must reproduce the base fit, an accuracy curve at 25 / 50 / 100% of the new rows; gates; 2,000 g each at 50k; d10 moves on 11,628 held-out critical rows; STS as judge, never trained on. An arm that beats the base's level by +10 at 50k gets timed games on the afternoon of 11-07 (owner's one-day exception); otherwise 200k-node self-play. Fits and gates run overnight beside #170.
+
+**Tool bug found by the dry run:** a crc32 split of the puzzles is clustered (a "25%" sample kept 87%), because the puzzles were chosen by lowest crc32 and crc32 is linear. The split uses md5.
+
 ## 2026-11-06 16:12 — QUEUE #169: THE EVAL BENCH REPORT, retune arm S vs gen 6.7 (template #117; a read, not a gate)
 
 | measure | gen 6.7 | **arm S** | reference |

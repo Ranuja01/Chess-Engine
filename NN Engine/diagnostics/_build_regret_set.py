@@ -32,6 +32,9 @@ from arbiter import find_stockfish
 N = int(os.environ.get("N", "1000"))
 K = int(os.environ.get("K", "8"))
 SF_DEPTH = int(os.environ.get("SF_DEPTH", "14"))
+# MAX_S=<seconds>: cap per position. A rare low-material position never reaches the depth with several lines (one ran over 3 hours at
+# depth 14, K=4, and held up its whole shard). A position that hits the cap is reported and not written. Default 0: no cap.
+MAX_S = float(os.environ.get("MAX_S", "0"))
 OUT = os.environ.get("OUT", "ks_sets/regret_set.csv")
 if not os.path.isabs(OUT):
     OUT = os.path.join(THIS, OUT)
@@ -121,9 +124,13 @@ for i, (fen, ph) in enumerate(picked, 1):
         continue
     board = chess.Board(fen)
     try:
-        infos = eng.analyse(board, chess.engine.Limit(depth=SF_DEPTH), multipv=K)
+        limit = chess.engine.Limit(depth=SF_DEPTH, time=MAX_S) if MAX_S > 0 else chess.engine.Limit(depth=SF_DEPTH)
+        infos = eng.analyse(board, limit, multipv=K)
     except Exception as e:
         print("  [%4d/%4d] SKIP %s" % (i, len(picked), type(e).__name__), flush=True)
+        continue
+    if MAX_S > 0 and (not infos or infos[0].get("depth", 0) < SF_DEPTH):
+        print("  [%4d/%4d] CAPPED at %g s: %s" % (i, len(picked), MAX_S, fen), flush=True)
         continue
     pairs = []
     for info in infos:

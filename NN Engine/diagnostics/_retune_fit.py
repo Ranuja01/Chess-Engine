@@ -413,7 +413,11 @@ def experiment_hybrid(X, names, meta):
     wrow = np.where(role == "tr_st", w_st, 1.0)
     for s_, w_ in ((x.split(":")[0], float(x.split(":")[1])) for x in KV.get("SLICE_W", "").split(",") if x):
         wrow[(role == "tr_st") & (meta["slice"] == s_)] = w_
-    ms = ((role == "tr_own") | (role == "tr_st")) & quiet & (wrow > 0 if KV.get("SLICE_W") else True)
+    # ROW_W=<csv of key,w under D>: multiplies the weight of the listed rows, static and depth; w 0 drops a row
+    if KV.get("ROW_W"):
+        rw_ = {r["key"]: float(r["w"]) for r in csv.DictReader(open(os.path.join(D, KV["ROW_W"]), newline=""))}
+        wrow = wrow * np.array([rw_.get(" ".join(f.split()[:4]), 1.0) for f in meta["fen"]])
+    ms = ((role == "tr_own") | (role == "tr_st")) & quiet & (wrow > 0 if KV.get("SLICE_W") or KV.get("ROW_W") else True)
     ws_rows = wrow[ms]
     md = ((role == "tr_own") | (role == "tr_st")) & okd & (wrow > 0)
     wd_rows = None if (wrow[md] == 1.0).all() else wrow[md]
@@ -460,6 +464,16 @@ def experiment_hybrid(X, names, meta):
                 for t_, m_ in (("s", hm & quiet), ("d", hm & okd)):
                     if m_.sum() >= 200:
                         scopes.append(("%s %s %s" % ("static" if t_ == "s" else "depth", nm_, s_), m_, t_))
+    # SCOPE_KEYS=<csv of key,cls under D>: the own-play val and held-out rows listed there, together and per class
+    if KV.get("SCOPE_KEYS"):
+        kc_ = {r["key"]: r["cls"] for r in csv.DictReader(open(os.path.join(D, KV["SCOPE_KEYS"]), newline=""))}
+        cl_ = np.array([kc_.get(" ".join(f.split()[:4]), "") for f in meta["fen"]])
+        for role_, nm_ in (("va_own", "val"), ("ho_st", "hold")):
+            for c_ in [""] + sorted(set(cl_.tolist()) - {""}):
+                hm = (role == role_) & (cl_ == c_ if c_ else cl_ != "")
+                for t_, m_ in (("s", hm & quiet), ("d", hm & okd)):
+                    if m_.sum() >= 200:
+                        scopes.append(("%s %s critical%s" % ("static" if t_ == "s" else "depth", nm_, " " + c_ if c_ else ""), m_, t_))
     nus0 = {"s": refit_nuis(zero, meta["static"], quiet), "d": refit_nuis(zero, np.nan_to_num(meta["d10"]), okd)}
     base = {n: score(zero, meta["static"] if t == "s" else np.nan_to_num(meta["d10"]), m, nus0[t]) for n, m, t in scopes}
     res = {}

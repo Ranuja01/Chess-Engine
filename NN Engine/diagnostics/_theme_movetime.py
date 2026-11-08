@@ -1,13 +1,15 @@
-"""Equal-time (or fixed-depth) solve rates on bench-format suites (FEN | best moves), one UCI engine process per call, pinned to one core.
+"""Solve rates on bench-format suites (FEN | best moves) at equal time, fixed depth or fixed nodes, one UCI engine process per
+call, pinned to one core. Works for our binary and for reference engines (Stockfish).
 
 Usage: python diagnostics/_theme_movetime.py BINARY CORE LIMIT KNOBS FILE [FILE ...]
-  LIMIT: seconds per move (e.g. 0.25), or `dN` for a fixed depth N (e.g. d10).
-  KNOBS: the engine's Knobs option ("NAME=V,NAME=V"), or "-" for none.
+  LIMIT: seconds per move (e.g. 0.25), `dN` for a fixed depth N (e.g. d10), or `nN` for N nodes per move (e.g. n250000).
+  KNOBS: our engine's Knobs option ("NAME=V,NAME=V"), or "-" for none (a reference engine).
+  UCI_OPTS=Name=Value|Name=Value (env, optional): other UCI options, e.g. "Use NNUE=false|Hash=128" (true/false and integers
+    are converted). OwnBook is turned off when the engine has it.
   EACH=DIR (env, optional): also write DIR/<suite>.txt, one line per position: index, 1/0 solved, the move played.
-Prints one line per file: name, solved, positions. Each position is a new game (ucinewgame: search tables and caches cleared),
-own book off. Companion of the fixed-depth `bench` runs; built for the lazy eval critical-situation test
-(LAZY-EVAL-RESEARCH-2026-10-30.md §4 item 5), where speed may buy back what a lazy value costs. The per-position output pairs two
-arms position by position (11-08, the lazy eval passer guard test).
+Prints one line per file: name, solved, positions. Each position is a new game (ucinewgame: our search tables and caches are
+cleared). Built for the lazy eval critical-situation test (LAZY-EVAL.md §6); the per-position output pairs two arms position by
+position; the node limit compares engines at equal work, the regime of REFERENCE-BENCH-LADDER.md.
 """
 import os
 import sys
@@ -16,15 +18,31 @@ import chess
 import chess.engine
 
 
+def parse_value(v):
+    if v.lower() in ("true", "false"):
+        return v.lower() == "true"
+    return int(v) if v.lstrip("-").isdigit() else v
+
+
 def main(binary, core, limit, knobs, files):
-    lim = chess.engine.Limit(depth=int(limit[1:])) if limit.startswith("d") else chess.engine.Limit(time=float(limit))
+    if limit.startswith("d"):
+        lim = chess.engine.Limit(depth=int(limit[1:]))
+    elif limit.startswith("n"):
+        lim = chess.engine.Limit(nodes=int(limit[1:]))
+    else:
+        lim = chess.engine.Limit(time=float(limit))
     each = os.environ.get("EACH")
     if each:
         os.makedirs(each, exist_ok=True)
     eng = chess.engine.SimpleEngine.popen_uci(["taskset", "-c", str(core), binary])
-    opts = {"OwnBook": False}
+    opts = {}
+    if "OwnBook" in eng.options:
+        opts["OwnBook"] = False
     if knobs != "-":
         opts["Knobs"] = knobs
+    for kv in filter(None, os.environ.get("UCI_OPTS", "").split("|")):
+        k, v = kv.split("=", 1)
+        opts[k.strip()] = parse_value(v.strip())
     eng.configure(opts)
     for f in files:
         name = os.path.splitext(os.path.basename(f))[0]

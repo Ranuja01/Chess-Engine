@@ -141,6 +141,8 @@ rest gains):
   BINARY CORE dN KNOBS FILES` with `EACH=DIR` for per-position results (paired comparison, `selfplay/_queue_179.sh`).
 - Equal time: `_theme_movetime.py` with seconds per move (0.25 s used), both arms at once on separate cores
   (`selfplay/_queue_177.sh`). Lazy off read 3,728 and 3,726 of 4,124 on two nights: suites within ±2.
+- Against reference engines at equal work: `_theme_movetime.py` with `nN` (nodes per move) drives Stockfish too (`UCI_OPTS` for
+  its options); `selfplay/_queue_180.sh` runs SF11, SF15.1 classical, SF18 and ours on every suite at 100k and 400k nodes.
 - Games: 10+0.1 UHO, fastchess, the candidate vs `LAZY_V2=0` on the same binary (`selfplay/_queue_177.sh`).
 
 **Timing caveat.** Time to depth on the grid moves up to 6% between replicates of one arm, with arms early in a replicate

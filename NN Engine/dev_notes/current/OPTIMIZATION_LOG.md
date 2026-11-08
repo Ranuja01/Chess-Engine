@@ -4,6 +4,44 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-07 19:45 — Queue #176: the d7 regret ruler FAILS on the retune arms (the two arms that lost games read best on both sets)
+
+Base gen 6.7, d7, 3 workers, 18:25-19:40. Statistic as registered: each arm's win% of changed moves minus a neutral arm's, on the
+positions both changed, averaged over the three nulls (`ASPIRATION_DELTA=300`, `=800`, `EVAL_NOISE_SIGMA=30`). Games are vs gen 6.7 at 50k
+nodes, 2,000 g each (S 4,000).
+
+| arm | games at 50k | set 1, 15,000 pos (null spread) | set 2, 11,940 pos (null spread) |
+|---|---|---|---|
+| S (gen 7) | +15.4 (+33.5 at 200k, +16.0 timed) | +0.5 (1.0) | −0.1 (1.1) |
+| cr1 | +13.6 | +1.3 (1.0) | +0.4 (1.2) |
+| cr2 | +17.4 | +0.8 (1.5) | +0.3 (0.3) |
+| all2 | +2.3 | +0.8 (1.4) | +0.0 (0.6) |
+| all0 | −9.4 | **+1.5** (1.2) | **+0.6** (0.4) |
+| cr3 | −13.7 | **+1.4** (1.2) | **+1.0** (0.6) |
+
+**Verdict by the registered rule: FAIL.** all0 and cr3 are in the top half on both sets; they are the top two on both. PASS needed S, cr1
+and cr2 above both of them. Prediction was unresolved 60%, pass 25%, fail 15%.
+- The order repeats on the two disjoint sets (cr3 and all0 first two, cr1 third, cr2 fourth, all2 and S last two), so the ruler reads
+  something stable, but not what the games read. The size of the inversion is small: bottom-group mean minus top-group mean is +0.58 pp
+  (set 1) and +0.60 pp (set 2), about one null spread. The robust part is that a 25-30 Elo gap between the groups is invisible to it.
+- 11 of 12 arm reads are ≥ 0 and the arms change more moves than the nulls (35-37% against 31-33%): the ruler sees that a retune changes
+  moves without making them worse, and cannot say which retune is better.
+- The unpaired win% does not rank them either and disagrees between the sets (set 1: cr1 51.8% first, S 50.0% last; set 2: S 51.1% first).
+- Same shape as the corpus error (#174): all0, the most accurate arm there, also leads here. Two fixed-position proxies favour arms that
+  play worse. Why is not tested.
+
+⇒ **Stage 3 with d7 regret as its objective is not viable**: it cannot choose among arms this close. The retune arc closes on gen 7 (arm S)
+unless the owner wants a different stage 3 objective. Next in the close-out order: lazy eval, then the margins re-sweep with corrhist
+(`CORR2_*`) swept inside it. Dumps in `E:\chess_data\q176\`.
+
+**UI note, the STANDARD preset's 45 s moves (owner games 11-07), explained from the code.** No limit in `go` ⇒ the preset's legacy rule:
+another iteration starts whenever the last one took ≤ `MOVE_TIMES[d]` (6.0 s from d8; `search_engine.h` STANDARD), and 45 s is the hard
+cut. When the started iteration runs past 45 s it is cut and its work discarded (`TM_PARTIAL` = 0; mode 1 failed its 10-25 judge and is
+parked until search v2), so the last completed iteration's move is played. `info` lines print only at an iteration's end, so the UI shows
+that iteration's nodes (1.4-7 s worth). An iteration that runs that long is often one where the previous best move is failing, so the
+discarded work is the deeper look at a critical move. The clock route (`clock=` in the UI, `TM_MODE` 1) has the 1.75× start rule and the
+score-drop scale, and rarely starts an iteration it cannot finish.
+
 ## 2026-11-07 17:35 — STAGE 2 CLOSED at 200k nodes (#173): S +33.5, cr2 +1.7; gen 7's pinned bench (#175); queue #176 registered (the d7 ruler on known arms)
 
 **#173's afternoon leg, 200k-node self-play vs gen 6.7 (both arms as knobs on `g67pgo`), 2,000 g each:**

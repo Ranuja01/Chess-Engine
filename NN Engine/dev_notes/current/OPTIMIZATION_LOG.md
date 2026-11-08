@@ -4,6 +4,38 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 14:45 — #180 READ: passed pawns ARE a relative weakness against SF11 at equal work; lazy eval moves it by under a tenth
+
+Owner: "passers are known to be somewhat of a weakness already ... test our passer positions against other engines to see if our
+power has noticeably dropped in these critical situations". Equal work (REFERENCE-BENCH-LADDER's regime): every engine the same
+nodes per move, 100k and 400k (400k is about our budget per move at 10+0.1). 5,624 positions: the 5 passed-pawn suites (1,500),
+the 18 critical themes (3,600), WAC 300, ksattack 224. Ours = `chess_engine_uci_lazy2`, lazy off and keep_m1000; SF11, SF15.1
+classical, SF18 native, 1 thread, Hash 128. Queue `selfplay/_queue_180.sh`, data `E:\chess_data\lazy\ref180\`.
+
+| group | nodes | ours off | keep_m1000 | SF11 | SF15.1c | SF18 |
+|---|---|---|---|---|---|---|
+| passed pawns (of 1,500) | 400k | 1,360 | 1,351 | 1,478 | 1,481 | 1,498 |
+| | 100k | 1,270 | 1,262 | 1,432 | 1,419 | 1,489 |
+| 18 themes (of 3,600) | 400k | 3,364 | 3,356 | 3,529 | 3,555 | 3,591 |
+| | 100k | 3,194 | 3,204 | 3,443 | 3,467 | 3,580 |
+| WAC (of 300) | 400k / 100k | 254 / 230 | 254 / 228 | 273 / 251 | 272 / 253 | 273 / 260 |
+| ksattack (of 224) | 400k / 100k | 122 / 118 | 122 / 115 | 133 / 132 | 145 / 143 | 150 / 147 |
+
+**Q1, passed pawns a relative weakness: YES at both budgets** (registered: our share of SF11's solves lower on passers than on
+the themes). Share of SF11: passers 92.0% / 88.7%, themes 95.3% / 92.8% (400k / 100k). Our gap to SF11 is 7.9 / 10.8 points of
+the passer positions against 4.6 / 6.9 points of the theme positions, about 1.6-1.7x per position. By suite at 400k (SF11 − ours,
+of 300): rookEndgame_passer 35, advancedPawn_mg 23, promotion 21, minor / queen endgame 20, pawnEndgame 19. Among the 200-sets the
+same gap per position puts quietMove (23), sacrifice (21) and advancedPawn (20) with the passer suites; we match or beat SF11 on
+mates in 2-4 and on interference. Caveat: Lichess solutions are found by Stockfish, so SF18 is close to the label source; SF11 and
+SF15.1c are the fair columns.
+
+**Q2, does lazy eval drop us there: NOT HARMFUL** (registered: harmful if off is ahead at z ≥ 2 at one budget and the same sign
+at the other). keep_m1000 vs off, paired: passers z +1.17 (34 / 25) at 400k and +0.92 (42 / 34) at 100k, off ahead both times
+but well short of 2; themes +0.77 / −0.85; WAC 0.00 / +0.43; ksattack 0.00 / +0.52. The passer cost is 9 and 8 positions of
+1,500, **7.6% and 4.9% of our gap to SF11** (prediction: under a tenth; held). Equal nodes remove the lazy speed, so this is the
+accuracy cost alone; tonight's #181 measures it at equal time. The passer direction is now the same in 3 of 4 readings for
+keep_m1000 (#179 depth 10 +1.64, depth 12 −0.12; here +1.17, +0.92): small, consistent, never significant.
+
 ## 2026-11-08 13:05 — #179 READ: the passer guard test — short of the registered bar at both depths, same sign; keep_g3 is last on passers
 
 Owner asked for the passed-pawn test after the lazy eval literature (talkchess 2010-2017, Rebel, Crafty, Komodo, IvanHoe, SF)

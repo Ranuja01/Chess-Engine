@@ -4,6 +4,45 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 16:10 — #182 READ: the passer weakness is partly eval in piece endgames, not in pawn endings, and the eval share shrinks with depth
+
+Owner: "it's not necessarily eval that's the issue ... search may not be correctly keeping everything that's needed". Our search with
+SF11's static eval substituted (`ENABLE_ORACLE_EVAL`, binary `chess_engine_uci_orc`: lazy2's sources plus the oracle memo cleared at
+ucinewgame, which had been unbounded; default bench 246 / 36,509,830; oracle live: WAC depth 4 = 126 / 935,416 vs our 128 /
+1,015,705) against our own at the same fixed depth, so search, ordering and pruning are held and only the eval changes. Queue
+`selfplay/_queue_182.sh`, data `E:\chess_data\lazy\oracle182\`.
+
+| suite (of 300) | ours d10 | SF11 eval d10 | ours d8 | SF11 eval d8 |
+|---|---|---|---|---|
+| rookEndgame_passer | 247 | 253 (+6) | 221 | 238 (+17) |
+| minorQueenEndgame_passer | 250 | 256 (+6) | 220 | 237 (+17) |
+| advancedPawn_mg | 269 | 273 (+4) | 252 | 256 (+4) |
+| promotion | 261 | 255 (−6) | 232 | 236 (+4) |
+| pawnEndgame | 250 | 238 (**−12**) | 228 | 216 (**−12**) |
+| passer group (1,500) | 1,277 | 1,275 (−2; paired z −0.14) | 1,153 | 1,183 (+30; z +1.83) |
+| 18 themes (3,600) | 3,297 | 3,263 (−34; z −2.15) | 3,088 | 3,049 (−39; z −2.12) |
+| ksattack (224) | 123 | 130 (+7) | 106 | 119 (+13) |
+
+**Registered rule:** EVAL-BORNE (at least in part) if SF11's eval gains more per position on the passers than on the themes at both
+depths: **met** (passers −0.13 vs themes −0.94 points at depth 10; +2.00 vs −1.08 at depth 8). Prediction (a little more on passers,
+under half of the gap) held.
+
+**Reading.**
+- SF11's eval costs our search about 1 point on the tactical themes at both depths (z −2.1): our eval suits our search's tactics
+  better, or the substitution carries a scale / margin mismatch. Read the passer result relative to that.
+- Relative to the themes, SF11's eval is worth +0.8 points on the passers at depth 10 and +3.1 at depth 8. #180's passer *excess*
+  (passer gap to SF11 minus theme gap) is 3.3-3.9 points, so the eval explains most of the excess at depth 8 and about a quarter at
+  depth 10: **the eval share shrinks as depth rises**, so search v2's extra depth also eats into it.
+- **It splits by endgame type.** Rook and minor / queen endgames with a passer: SF11's eval helps our search (+6 / +6 at depth 10,
+  +17 / +17 at depth 8) — SF11 knows something about piece endgames with passers that we do not. **Pawn endings: SF11's eval makes our
+  search worse (−12 at both depths)**, so the pawn-ending gap is not an eval gap against SF11. With SF11's three pawn-ending search
+  rules already failing in our search (10-15, #69), the pawn-ending gap is depth / efficiency or knowledge no static eval has (race,
+  tempo, opposition; memory `the-remaining-eval-gap-is-endgame-structural`).
+- ksattack gains +7 / +13 with SF11's eval (king attacks, not passers).
+- So the owner's read is half right: pawn endings are search / depth; piece endgames with passers carry real eval knowledge. Both
+  belong to the parked endgame items after search v2, now with targets: SF11's piece-endgame passer terms (rook behind the passer,
+  king proximity to the passer, passer scaling by the remaining pieces) are the place to look first.
+
 ## 2026-11-08 14:45 — #180 READ: passed pawns ARE a relative weakness against SF11 at equal work; lazy eval moves it by under a tenth
 
 Owner: "passers are known to be somewhat of a weakness already ... test our passer positions against other engines to see if our

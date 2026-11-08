@@ -1,5 +1,8 @@
 # Lazy / cheap evaluation — research for a dedicated transition item (2026-10-30)
 
+> **The system as built, its knobs, status and evidence: [current/LAZY-EVAL.md](../current/LAZY-EVAL.md).** This file keeps the
+> research, the reference-engine survey and the design history.
+
 Owner (10-30): a dedicated transition item, researched and discussed during idle time, slotted in once the eval is settled
 (the eval items done, optimised and retuned). It helps speed in general and gives a cheap static value that other static-eval
 consumers can use. Two open questions from the owner, answered from the reference code below:

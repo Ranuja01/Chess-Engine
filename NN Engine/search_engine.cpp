@@ -1528,11 +1528,46 @@ static inline int lz_parent_pos(const std::vector<BoardState> &h)
     return (pp.pos != LZ_NA && pp.skey == lz_skey(h[n - 2])) ? pp.pos : LZ_NA;
 }
 
-// A cache hit: no eval body ran, so take the positional part from the side table (LZ_NA if it was overwritten).
+// A cache hit: no eval body ran, so take the positional part from the side table (LZ_NA if it was overwritten). With
+// LAZY_V2_KEEP an unknown value leaves the slot's older record in place, as the search side does.
 static void lazy_probe_hit(const std::vector<BoardState> &h, uint64_t ckey)
 {
     const LzSide &e = g_lz_side[(ckey * 0x9E3779B97F4A7C15ULL) >> (64 - LZ_SIDE_BITS)];
+    if (e.key != ckey && Config::LAZY_V2_KEEP) return;
     g_lz_ply[h.size() & 2047] = LzPly{lz_skey(h.back()), e.key == ckey ? e.pos : LZ_NA};
+}
+
+// The move that led to the position at the end of h, for the context split (11-08): -1 root, 0 quiet piece move, 1 pawn move,
+// 2 pawn push to the 6th / 7th rank, 3 king move or castling, 4 pawn captured, 5 piece captured, 6 promotion, 7 null move (the
+// side to move flipped in place, so it matches the position one ply back). *kz = a capture within 2 squares of either king.
+static int lazy_probe_move_type(const std::vector<BoardState> &h, int *kz)
+{
+    *kz = 0;
+    const size_t n = h.size();
+    if (n < 2) return -1;
+    const BoardState &p = h[n - 2], &c = h[n - 1];
+    if (p.turn == c.turn) return 7;
+    const bool m = p.turn;   // the side that moved
+    const uint64_t victim = p.occupied_colour[!m] & ~c.occupied_colour[!m];
+    const uint64_t my_pawns_p = p.pawns & p.occupied_colour[m], my_pawns_c = c.pawns & c.occupied_colour[m];
+    if (__builtin_popcountll(my_pawns_c) < __builtin_popcountll(my_pawns_p))   // the mover's own pawns vanish only by promoting
+        return 6;
+    if (victim)
+    {
+        const int vs = __builtin_ctzll(victim);
+        const uint64_t ks = c.kings;
+        for (uint64_t k = ks; k; k &= k - 1)
+        {
+            const int s = __builtin_ctzll(k);
+            const int df = (s & 7) - (vs & 7), dr = (s >> 3) - (vs >> 3);
+            if (df >= -2 && df <= 2 && dr >= -2 && dr <= 2) *kz = 1;
+        }
+        return (p.pawns & victim) ? 4 : 5;
+    }
+    if ((p.kings & p.occupied_colour[m]) != (c.kings & c.occupied_colour[m])) return 3;
+    const uint64_t pushed = my_pawns_c & ~my_pawns_p;
+    if (pushed) return (pushed & (m ? 0x00FFFF0000000000ULL : 0x0000000000FFFF00ULL)) ? 2 : 1;
+    return 0;
 }
 
 static void lazy_probe_log(const std::vector<BoardState> &h, uint64_t zobrist, uint64_t ckey, int ply, int ret)
@@ -1543,7 +1578,10 @@ static void lazy_probe_log(const std::vector<BoardState> &h, uint64_t zobrist, u
     const int pos = p.special ? LZ_NA : p.total - p.cheap;   // Black-positive
     g_lz_side[(ckey * 0x9E3779B97F4A7C15ULL) >> (64 - LZ_SIDE_BITS)] = LzSide{ckey, pos};
     const int parent_pos = lz_parent_pos(h);
-    g_lz_ply[h.size() & 2047] = LzPly{lz_skey(h.back()), pos};
+    if (pos != LZ_NA || !Config::LAZY_V2_KEEP)
+        g_lz_ply[h.size() & 2047] = LzPly{lz_skey(h.back()), pos};
+    int kz = 0;
+    const int mv = lazy_probe_move_type(h, &kz);
     if (!g_lazy_init)
     {
         g_lazy_init = true;
@@ -1552,16 +1590,16 @@ static void lazy_probe_log(const std::vector<BoardState> &h, uint64_t zobrist, u
         if (path && *path && (g_lazy_out = std::fopen(path, "w")))
             std::fputs("site,max,alpha,beta,depth_left,margin,stp,ply,ret,special,cheap,mob,space,threats,ks,pawns,passers,rookfile,"
                        "placement,c3,px,tempo,win,total,npm_w,npm_b,mat_w,mat_b,phase,ksu_w,ksu_b,q_w,q_b,minors_w,minors_b,"
-                       "rooks_w,rooks_b,pawns_w,pawns_b,advp_w,advp_b,near_wk,near_bk,turn,parent_pos\n", g_lazy_out);
+                       "rooks_w,rooks_b,pawns_w,pawns_b,advp_w,advp_b,near_wk,near_bk,turn,parent_pos,mv,kz\n", g_lazy_out);
     }
     if (!g_lazy_out || ((zobrist * 0x9E3779B97F4A7C15ULL) >> 40) % g_lazy_every != 0) return;
     const LazySite &s = g_lazy_site;
     std::fprintf(g_lazy_out, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
-                             "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+                             "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
                  s.site, (int)s.maximizing, s.alpha, s.beta, s.depth_left, s.margin, (int)Config::side_to_play, ply, ret, p.special,
                  p.cheap, p.mob, p.space, p.threats, p.ks, p.pawns, p.passers, p.rookfile, p.placement, p.c3, p.px, p.tempo, p.win,
                  p.total, p.npm_w, p.npm_b, p.mat_w, p.mat_b, p.phase256, p.ksu_w, p.ksu_b, p.q_w, p.q_b, p.minors_w, p.minors_b,
-                 p.rooks_w, p.rooks_b, p.pawns_w, p.pawns_b, p.advp_w, p.advp_b, p.near_wk, p.near_bk, (int)p.turn, parent_pos);
+                 p.rooks_w, p.rooks_b, p.pawns_w, p.pawns_b, p.advp_w, p.advp_b, p.near_wk, p.near_bk, (int)p.turn, parent_pos, mv, kz);
 }
 #else
 #define LAZY_SITE(s, a, b, d, mg, mx) ((void)0)
@@ -4003,6 +4041,8 @@ void clearAllCaches()
 	clearSearchTables();
 	std::fill(evalCacheNew.begin(), evalCacheNew.end(), EvalEntry{});
 	std::fill(moveGenCache.begin(), moveGenCache.end(), MoveEntry{});
+	// The oracle memo is unbounded and search positions almost never repeat across games, so a new game empties it.
+	Oracle::g_memo.clear();
 }
 
 // Repetition counts as of the root of the current search (FIX_REP_KEY bit 2 only): the game history before the root.
@@ -6619,6 +6659,9 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         {
             // Lazy eval (LAZY_V2_KEEP): the null search reuses this history slot, so keep this node's record and put it back.
             const LazyPly lazy_keep = g_lazy_ply[state_history.size() & 2047];
+#ifdef LAZY_PROBE
+            const LzPly lz_keep = g_lz_ply[state_history.size() & 2047];
+#endif
             state_history.back().turn = !state_history.back().turn;
 
             int cur_ep_square = state_history.back().ep_square;
@@ -6700,6 +6743,10 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             zobrist = cur_hash;
             if (Config::LAZY_V2_KEEP)
                 g_lazy_ply[state_history.size() & 2047] = lazy_keep;
+#ifdef LAZY_PROBE
+            if (Config::LAZY_V2_KEEP)
+                g_lz_ply[state_history.size() & 2047] = lz_keep;
+#endif
 
             if (null_move_score <= alpha)
             {
@@ -7344,6 +7391,9 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     {
         // Lazy eval (LAZY_V2_KEEP): the null search reuses this history slot, so keep this node's record and put it back.
         const LazyPly lazy_keep = g_lazy_ply[state_history.size() & 2047];
+#ifdef LAZY_PROBE
+        const LzPly lz_keep = g_lz_ply[state_history.size() & 2047];
+#endif
         state_history.back().turn = !state_history.back().turn;
 
         int cur_ep_square = state_history.back().ep_square;
@@ -7411,6 +7461,10 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         zobrist = cur_hash;
         if (Config::LAZY_V2_KEEP)
             g_lazy_ply[state_history.size() & 2047] = lazy_keep;
+#ifdef LAZY_PROBE
+        if (Config::LAZY_V2_KEEP)
+            g_lz_ply[state_history.size() & 2047] = lz_keep;
+#endif
 
         /* if(current_state.occupied == 10515685296490865501 && current_state.queens == 1125899906842632){
             //if (depth_limit >= 11){

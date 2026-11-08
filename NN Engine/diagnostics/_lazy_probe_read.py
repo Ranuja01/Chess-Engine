@@ -269,8 +269,98 @@ def inherit(d):
               f"   miss per 1000 {1000 * (fire & changed)[kk].mean():6.2f}")
 
 
+MOVES = {-1: "root", 0: "quiet piece", 1: "pawn move", 2: "push to 6th/7th", 3: "king move", 4: "pawn captured",
+         5: "piece captured", 6: "promotion", 7: "null move"}
+
+
+def build_rule(g, m_par, m_cheap, guards=7):
+    """The build's exit (LAZY-EVAL.md §3), cut side only: the estimate clears the site's cut bound by M (M_PAR with the parent's
+    positional part, M_CHEAP without), unless a guard applies. Returns (fire, miss): miss = the full eval would not have cut."""
+    known = (g.parent_pos != -999999999).values
+    sgn = np.where(g.stp == 1, -1, 1)
+    est = sgn * (g.cheap.values + np.where(known, g.parent_pos.values, 0))
+    full = g.full.values
+    M = np.where(known, m_par, m_cheap)
+    mx = g["max"].values == 1
+    a, b, m, s = g.alpha.values, g.beta.values, g.margin.values, g.site.values
+    sp = s == 1
+    # cut bounds in the search frame: stand-pat max >= beta / min <= alpha; RFP max >= beta + m / min <= alpha - m;
+    # futility of a child (prune) max <= alpha - m - 1 / min >= beta + m + 1
+    up = np.where(sp, mx, np.where(s == 3, mx, ~mx))
+    bound = np.where(sp, np.where(mx, b, a), np.where(s == 3, np.where(mx, b + m, a - m), np.where(mx, a - m - 1, b + m + 1)))
+    fire = np.where(up, est >= bound + M, est <= bound - M) & (M > 0)
+    cut_full = np.where(up, full >= bound, full <= bound)
+    ok = np.ones(len(g), bool)
+    if guards & 1:
+        ok &= (g.near_max < 2).values
+    if guards & 2:
+        ok &= ~(g.pv.values & (s != 3))
+    if guards & 4:
+        ok &= (g.advp == 0).values
+    fire &= ok
+    return fire, fire & ~cut_full
+
+
+def context(d):
+    """7. The context split (11-08, owner's gating idea): where the build's misses fall, by the move that led to the position and by
+    depth, at the candidate's margins (keep_m1000: 1000 with a parent value, 2000 without) and at build 1's (1500 / 3000)."""
+    if "mv" not in d.columns:
+        print("no mv column (a probe before 11-08); section 7 needs the context probe")
+        return
+    g = d[d.site.isin([1, 3, 4])].copy()   # the build's three sites (2, the q-depth cap's return value, is not one)
+    g["sitek"] = np.where(g.site == 1, "stand-pat", np.where(g.site == 3, "rfp", "futility"))
+    known = (g.parent_pos != -999999999).values
+    print(f"context probe: {len(g):,} decision rows; parent known on {pct(known.mean())}; by site:",
+          {k: pct(known[(g.sitek == k).values].mean()) for k in ("stand-pat", "rfp", "futility")})
+    for label, mp, mc in (("candidate M 1000 / 2000", 1000, 2000), ("build 1 M 1500 / 3000", 1500, 3000)):
+        fire, miss = build_rule(g, mp, mc)
+        print(f"  {label}: fires {pct(fire.mean())} of asks, miss/fire {pct(miss.sum() / max(fire.sum(), 1))},"
+              f" misses per 1000 asks {1000 * miss.mean():.2f}")
+    fire, miss = build_rule(g, 1000, 2000)
+    nf, nm = max(fire.sum(), 1), max(miss.sum(), 1)
+    print("\n  by site and last move (candidate rule): share of asks / of fires / of misses, miss per fire")
+    print(f"  {'site':10s} {'last move':16s} {'asks':>7s} {'fires':>7s} {'misses':>7s} {'miss/fire':>9s}")
+    for sk in ("stand-pat", "rfp", "futility"):
+        for code, name in MOVES.items():
+            k = (g.sitek == sk).values & (g.mv == code).values
+            if k.sum() == 0:
+                continue
+            print(f"  {sk:10s} {name:16s} {pct(k.mean())} {pct(fire[k].sum() / nf)} {pct(miss[k].sum() / nm)}"
+                  f"   {pct(miss[k].sum() / max(fire[k].sum(), 1))}")
+    cap = g.mv.isin([4, 5]).values
+    for label, k in (("capture near a king", cap & (g.kz == 1).values), ("capture elsewhere", cap & (g.kz == 0).values)):
+        print(f"  {'all':10s} {label:16s} {pct(k.mean())} {pct(fire[k].sum() / nf)} {pct(miss[k].sum() / nm)}"
+              f"   {pct(miss[k].sum() / max(fire[k].sum(), 1))}")
+    print("\n  by remaining depth (rfp, futility) and qsearch depth (stand-pat): share of fires / of misses, miss per fire")
+    for sk in ("rfp", "futility", "stand-pat"):
+        ks = (g.sitek == sk).values
+        for dl in sorted(g.depth_left[ks].unique(), reverse=True)[:8]:
+            k = ks & (g.depth_left == dl).values
+            print(f"  {sk:10s} depth {dl:3d}   {pct(fire[k].sum() / nf)} {pct(miss[k].sum() / nm)}   {pct(miss[k].sum() / max(fire[k].sum(), 1))}")
+    print("\n  candidate gates (no lazy exit when the condition holds): fires kept, misses removed")
+    rfp, fut, sp = (g.sitek == "rfp").values, (g.sitek == "futility").values, (g.sitek == "stand-pat").values
+    gates = {
+        "after any capture": cap,
+        "after a capture near a king": cap & (g.kz == 1).values,
+        "after a piece capture": (g.mv == 5).values,
+        "after a promotion or 6th/7th push": g.mv.isin([2, 6]).values,
+        "after a king move": (g.mv == 3).values,
+        "after a null move": (g.mv == 7).values,
+        "stand-pat after any capture": sp & cap,
+        "rfp at depth >= 4": rfp & (g.depth_left >= 4).values,
+        "rfp at depth >= 5": rfp & (g.depth_left >= 5).values,
+        "no parent value (cheap path)": ~known,
+    }
+    for label, k in gates.items():
+        kept = (fire & ~k).sum() / nf
+        removed = (miss & k).sum() / nm
+        print(f"  {label:36s} fires kept {pct(kept)}   misses removed {pct(removed)}")
+
+
 if __name__ == "__main__":
-    if os.environ.get("ONLY_GUARDS") == "1":
+    if os.environ.get("ONLY_CONTEXT") == "1":
+        context(load(sys.argv[1:]))
+    elif os.environ.get("ONLY_GUARDS") == "1":
         guards(load(sys.argv[1:]))
     elif os.environ.get("ONLY_INHERIT") == "1":
         inherit(load(sys.argv[1:]))

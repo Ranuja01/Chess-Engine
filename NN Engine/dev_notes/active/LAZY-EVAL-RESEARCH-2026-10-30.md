@@ -106,6 +106,18 @@ is (fire rate) × (the skipped share), and the fire rate has never been measured
 space, threats and the passer path checks, so a second checkpoint after king safety saves much less here than in SF: most of the
 saving is at the first checkpoint, before the attack build.
 
+## 1c. Our own data and the first build (2026-11-07; numbers in OPTIMIZATION_LOG 11-07 22:30)
+
+Step 0 (probe) answered "when not to" from our search: the gap between the full eval and its cheap part is large (median 0.8 pawns),
+largest with a crowded king, at PV nodes, with advanced passers and in endgames; a window-aware exit beats a position-only one at every
+fire rate. Step 0b: IvanHoe's estimate (cheap part + parent's positional part) halves the gap, so the margin falls to 1.5-2 pawns and
+the guards matter less (the parent's eval already carries the attack or the passer). That is the design built as `LAZY_V2`: three
+cut-side sites (stand-pat, reverse futility, futility of a child), the inherited estimate with the cheap part as a wider-margin
+fallback, three guards, nothing lazy cached, positional parts kept in the eval cache entry. First read at depth 10: 7-13% faster to
+depth on everything but WAC, themes level within noise. Queue #177 plays the games. Next refinements, in order of what the data says:
+make the cheap part cheaper (incremental material / PST, the context build), raise the parent coverage (66%), then the sites that keep
+searching under a lazy value (stand-pat's raise-alpha side, delta pruning), which need a value that is trusted, not only a bound.
+
 ## 2. Sacrifices and compensation — how they are kept safe
 1. **The threshold is huge.** SF11 ≈ 8-10 pawns of cheap-part imbalance; SF15.1's first checkpoint larger still. Ordinary
    sacrifices (a pawn, the exchange, even a piece ≈ 3 pawns) sit far below it, so the full eval runs on them.

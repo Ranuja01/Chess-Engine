@@ -4,6 +4,49 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-07 22:30 — LAZY EVAL: research supplement, step 0 / 0b probes, the first build (LAZY_V2, 86fe007); queue #177 overnight
+
+The retune closed on gen 7 (#176), so close-out step 4 began. Owner 11-07: lazy eval is infrastructure for search v2, judged "not
+harmful", not live or die (memory `lazy-eval-is-infrastructure-for-search-v2`). Research supplement on the classic HCE engines
+(Crafty, Toga II, IvanHoe, Gull, Fruit, Arasan, Texel, SF's history) in `dev_notes/active/LAZY-EVAL-RESEARCH-2026-10-30.md` §1b:
+window-aware lazy eval exists, two checkpoints were found independently, IvanHoe estimates from the parent's positional value.
+
+**Step 0 (probe build `-DLAZY_PROBE`, depth 10, WAC / STS300 / ksattack / 400 game positions, 4.8M sampled evals; reader
+`diagnostics/_lazy_probe_read.py`, rows `E:\chess_data\lazy\`).** The stages partition the total on every row. The gap between the
+full eval and its cheap part (material, PST, bishop pair, Kaufman, narrow classes): median 0.8 pawns, p99 4.8. A position-only exit
+at SF11's ~8 pawns fires on 17% of evals and changes the site's decision on 5.8% of its fires. A window-aware exit (the cheap part
+clears the site's bound by M) does better at every fire rate: M = 3 pawns with guards fires on 33%, 2.8 decision changes per 1000
+evals. What the misses carry: 2+ enemy pieces near a king (five times the gap tail), PV windows (2.3x), advanced passers (1.6x),
+endgames; king safety and mobility are most of the gap on them.
+
+**Step 0b, IvanHoe's estimate (the cheap part + the parent's positional part, matched by the position one ply back):** gap median
+0.35, p90 1.2, p99 2.6 pawns, half the cheap part's. M = 1.5 pawns with guards fires on 33% at 0.67 changes per 1000; M = 2 pawns
+without guards 36% at 0.31. Parent known on 66% of evals (cache hits included through a side table).
+
+**The first build, `LAZY_V2` (bitmask of sites, default 0 = byte-identical; bench 246 / 36,509,830 both ways).** The qsearch stand-pat
+cutoff, the reverse futility prune and the futility prune of a child may take the eval's estimate, on their cut side only, so a lazy
+value is returned as the site's bound and nothing is searched under it. Estimate: cheap part + parent's positional part (M
+`LAZY_V2_M` 1500), else the cheap part alone (`LAZY_V2_M_CHEAP` 3000). Guards `LAZY_V2_GUARDS` 7 (crowded king, PV, advanced passer).
+Lazy values are never cached; the eval cache entry carries each position's positional part in its padding. Depth 10, same binary,
+pinned, off / on:
+
+| set | solved | time to depth | nps | lazy returns |
+|---|---|---|---|---|
+| WAC | 246 / 245 | −0.2% | +2.4% | 46% of asked evals |
+| STS300 | 157 / 174 | −12.2% | +5.6% | 37% |
+| ksattack | 120 / 122 | −8.8% | +3.4% | 39% |
+| 400 game positions | 171 / 179 | −6.9% | +8.8% | 36% |
+
+**Critical-situation test (owner 11-07), 18 Lichess theme suites x 200 (rating 1800-2800; `diagnostics/_build_theme_suites.py`,
+`E:\chess_data\puzzles\themes\`), depth 10:** 3,282 → 3,275 solved (−7 of 3,600), time −12.7%. No theme moves more than 3 of 200
+(noise about ±7). Sacrifice −2, sacrifice_long −2, attraction −3, exposedKing −3 lean the way the owner worried about, within noise;
+kingsideAttack +2, defensiveMove +3; mateIn2-5 0 / +1 / −1 / 0 with mateIn4 and mateIn5 28-29% faster. Table
+`E:\chess_data\lazy\themes_d10\table.txt`.
+
+**Queue #177 (`selfplay/_queue_177.sh`, log `E:\chess_data\q177.log`), from 00:45 on 11-08:** fingerprints, pinned time to depth,
+2,000 timed games at 10+0.1 lazy on vs off on the same binary, then the 20 suites at equal time (0.25 s per move). Registered: keep and
+develop at ≥ −1σ, a gain only at +2σ; a theme moving more than 14 of 200 is flagged. Prediction +5 to +15, z 0.5-2.
+
 ## 2026-11-07 19:45 — Queue #176: the d7 regret ruler FAILS on the retune arms (the two arms that lost games read best on both sets)
 
 Base gen 6.7, d7, 3 workers, 18:25-19:40. Statistic as registered: each arm's win% of changed moves minus a neutral arm's, on the

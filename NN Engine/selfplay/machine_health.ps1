@@ -51,7 +51,13 @@ if ($pol -ne 1) { "note: Lists sync is allowed; it is the engine whose logs fill
 $logs = Join-Path $env:LOCALAPPDATA 'Microsoft\OneDrive\logs'
 $ls = @(Get-ChildItem (Join-Path $logs 'ListSync\Local') -File -Filter *.odl -ErrorAction SilentlyContinue)
 "ListSync\Local: {0} .odl files, {1:N1} MB" -f $ls.Count, (($ls | Measure-Object Length -Sum).Sum / 1MB)
-if ($ls.Count -gt 100) { Alert "the Lists sync log loop is back (ListSync\Local keeps growing)" }
+# Many files alone can be leftovers from a loop that has since stopped; it is live only if the newest file is recent.
+if ($ls.Count -gt 100) {
+    $newest = ($ls | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+    $age = (New-TimeSpan -Start $newest -End (Get-Date)).TotalMinutes
+    if ($age -lt 30) { Alert "the Lists sync log loop is back (ListSync\Local keeps growing, newest file $([int]$age) min old)" }
+    else { "note: $($ls.Count) leftover Lists sync logs, newest written $newest; not growing" }
+}
 $all = @(Get-ChildItem $logs -File -Recurse -ErrorAction SilentlyContinue)
 $allGB = ($all | Measure-Object Length -Sum).Sum / 1GB
 "OneDrive logs total: {0} files, {1:N2} GB nominal" -f $all.Count, $allGB

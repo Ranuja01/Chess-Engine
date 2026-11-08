@@ -4,6 +4,33 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 13:05 — #179 READ: the passer guard test — short of the registered bar at both depths, same sign; keep_g3 is last on passers
+
+Owner asked for the passed-pawn test after the lazy eval literature (talkchess 2010-2017, Rebel, Crafty, Komodo, IvanHoe, SF)
+named passed pawns as the classic lazy eval hazard. Five Lichess passed-pawn suites × 300, seed 1108 (`_build_theme_suites.py`
+GROUP=passer, now in `E:\chess_data\puzzles\passer\`): promotion, advancedPawn + middlegame, pawnEndgame, rookEndgame + passer,
+minor / queen endgame + passer. Fixed depth 10 and 12, one position per new game, per-position results
+(`_theme_movetime.py` LIMIT `dN`, env EACH; `E:\chess_data\lazy\passer179\`). Queue `selfplay/_queue_179.sh`.
+
+| depth | off | b1 | keep | keep_g3 | keep_m1000 |
+|---|---|---|---|---|---|
+| 10 (of 1,500) | 1,277 | 1,274 | 1,273 | **1,262** | 1,264 |
+| 12 | 1,346 | 1,351 | 1,348 | **1,333** | 1,347 |
+
+Paired, on the positions only one arm solves (z = (a − b) / √(a + b)):
+- **keep vs keep_g3 (the guard alone): +1.24 at depth 10 (45 / 34), +1.92 at depth 12 (38 / 23).** Registered "matters" bar z ≥ 2:
+  not met at either depth, but the sign is the same at both. Where keep_g3 loses against keep: pawnEndgame −5 / −9, rookEndgame
+  passer −6 / −2, minor / queen endgame −1 / −4 (advancedPawn_mg +4 / −3, promotion −3 / +3).
+- off vs keep_g3 +1.46 / +1.52 (harmful bar not met, same sign); off vs keep +0.55 / −0.25; off vs b1 +0.42 / −0.67; off vs
+  keep_m1000 +1.64 / −0.12; keep vs keep_m1000 +1.44 / +0.15.
+
+**Reading.** The registered prediction (|z| < 2 for the guard at both depths) held, so the guard is not proven to matter. The
+direction is consistent, though: keep_g3 is the lowest arm at both depths and gives most of it back in pawn and rook endgames,
+the guard's own domain, while keep and b1 are level with off. With the guard on, keep_m1000 is level with off at depth 12 and
+about as fast as keep_g3 at depth 10 (−8.0% vs −9.7%, within the grid's timing noise). So the evidence does not justify dropping
+the guard: carry the guard, and get the speed from the margins (keep_m1000) rather than from the passer positions. keep_m1000 has
+no games yet.
+
 ## 2026-11-08 09:50 — #178 READ: keep_g3 vs off +0.3 Elo (1,200 g, z 0.03), "not harmful"; themes at equal time +31; lazy eval as a class ≈ +9 ± 10
 
 **Games** (`lz2_10p1`, 10+0.1 UHO, seeds 178111-178113; chunk 4 skipped at the 09:30 cutoff): +474 −473 =253, **Elo +0.3 (95%

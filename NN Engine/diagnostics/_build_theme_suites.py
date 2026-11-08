@@ -2,7 +2,8 @@
 UCI `bench` format (FEN | best move), for the lazy eval critical-situation test (dev_notes/active/LAZY-EVAL-RESEARCH-2026-10-30.md
 §4 item 5) and any later search or eval change that could cost tactics.
 
-Usage: python diagnostics/_build_theme_suites.py SRC.csv[.zst] OUTDIR [N=200] [SEED=1107]
+Usage: python diagnostics/_build_theme_suites.py SRC.csv[.zst] OUTDIR [N=200] [SEED=1107] [GROUP=critical]
+  GROUP: `critical` (the 18 sets below) or `passer` (passed-pawn sets, built 11-08 to test the lazy eval passer guard).
 
 A Lichess puzzle's FEN is the position BEFORE the opponent's move; the first UCI move is that move and the second is the solution's
 first move, so each line here is the position after the first move with the second as the answer. Filters: rating 1800-2800,
@@ -26,6 +27,15 @@ SETS = {
     "exposedKing": {"exposedKing"}, "kingsideAttack": {"kingsideAttack"}, "xRayAttack": {"xRayAttack"},
     "zugzwang": {"zugzwang"}, "advancedPawn": {"advancedPawn"}, "endgame_crushing": {"endgame", "crushing"},
 }
+# Positions where a passed pawn decides: the lazy eval guard for an advanced passer is meant to protect these.
+PASSER_SETS = {
+    "promotion": {"promotion"},
+    "advancedPawn_mg": {"advancedPawn", "middlegame"},
+    "pawnEndgame": {"pawnEndgame"},
+    "rookEndgame_passer": {"rookEndgame", "advancedPawn|promotion"},
+    "minorQueenEndgame_passer": {"bishopEndgame|knightEndgame|queenEndgame", "advancedPawn|promotion"},
+}
+GROUPS = {"critical": SETS, "passer": PASSER_SETS}
 
 
 def matches(themes, need):
@@ -41,9 +51,10 @@ def rows(src):
         yield from csv.DictReader(open(src, encoding="utf-8"))
 
 
-def main(src, outdir, n=200, seed=1107):
+def main(src, outdir, n=200, seed=1107, group="critical"):
+    sets = GROUPS[group]
     os.makedirs(outdir, exist_ok=True)
-    pools = {k: [] for k in SETS}
+    pools = {k: [] for k in sets}
     for r in rows(src):
         try:
             if not (1800 <= int(r["Rating"]) <= 2800 and int(r["RatingDeviation"]) < 90
@@ -52,7 +63,7 @@ def main(src, outdir, n=200, seed=1107):
         except (KeyError, ValueError):
             continue
         themes = set(r["Themes"].split())
-        for k, need in SETS.items():
+        for k, need in sets.items():
             if matches(themes, need):
                 pools[k].append((r["FEN"], r["Moves"]))
     rng = random.Random(seed)
@@ -70,4 +81,4 @@ def main(src, outdir, n=200, seed=1107):
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    main(a[0], a[1], int(a[2]) if len(a) > 2 else 200, int(a[3]) if len(a) > 3 else 1107)
+    main(a[0], a[1], int(a[2]) if len(a) > 2 else 200, int(a[3]) if len(a) > 3 else 1107, a[4] if len(a) > 4 else "critical")

@@ -4,6 +4,52 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 05:40 — #177 READ: lazy build 1 (LAZY_V2=7) +14.8 Elo vs off, z 2.18, a gain at the registered +2σ; themes level at equal time
+
+**Games** (2,000 at 10+0.1 UHO, fastchess, seeds 177111-177114, tag `lz7_10p1`, log `E:\chess_data\q177.log`): +829 −744 =427,
+52.1%, **Elo +14.8 (95% +1.5 … +28.1), z = 2.18**; pentanomial [141, 143, 364, 194, 158] over 1,000 pairs. Chunks +9.7, +8.3, +9.7,
++31.4 (each about ±27): chunk 4 is the high one, but the four agree (chi2 about 2 on 3 df). 0 option warnings, 0 disconnects or
+stalls, 0 time losses, no new WSL crash dumps. The fastchess A/A (#128) read −5.3 ± 12.9, so no harness offset is subtracted.
+Per searched move: lazy nps 1,662,520 vs 1,563,732 (**+6.3%**), nodes per move +5.7%, mean depth 11.6 vs 11.5, the same time per move.
+
+**Critical-situation test at equal time** (0.25 s per move, both arms together on cores 3 and 5): off 3,728, on **3,749** of 4,124.
+No suite moved by more than 7 (flag ±14): clearance +7, zugzwang +7, WAC +3; worst advancedPawn −3, the mate suites −1 to +1,
+sacrifice +1, sacrifice_long 0. At depth 10 the same build was −7 of 3,600 (3,282 → 3,275), so the misses it makes at a fixed
+depth cost less than the speed buys back at equal time.
+
+**Verdict under the registered rule:** keep (well above −1σ) and a gain (+2σ cleared, narrowly). This is one run of 2,000 games and
+its lower bound is +1.5, so read it as "lazy eval helps by something like 5-25 Elo", not as +15. Not yet the default: making
+`LAZY_V2` default on is a ship and needs the full ship rule (SF18 > −1σ, Mediocre not negative) and a changed default bench.
+Build 2 (#178, now running) decides which variant goes to that gate.
+
+## 2026-11-08 00:15 — LAZY EVAL build 2 written (a lost-record bug, per-site margins, counters); queue #178 registered behind #177
+
+**#177 started 00:00** (owner away for the night). Fingerprints matched (246 / 36,509,830 and 245 / 37,305,726). Pinned WAC at depth 10,
+four alternations: off 27,463 ms, on 26,835 ms (−2.3%, nps +4%). The games started 00:12.
+
+**A bug in build 1's parent record.** The null-move search flips the side to move in place, in the same history slot, so its eval
+overwrote the node's lazy record. Every child searched after a failed null move then found no parent value and fell to the cheap part
+alone, at the wider margin. Step 0 / 0b put that path's misses per fire about 9x the inherited path's (stand-pat 1.8% at 3000 against
+0.2% at 1500), so most of build 1's misses probably come from it. The step 0b probe kept its records the same way, so its 66% parent
+coverage is understated by the same bug. A lazy return or a mate also wrote "unknown" over its slot, erasing a valid record of the same
+position (a singular re-search). A record is read only when its position key matches, so a kept older record is always correct.
+
+**Build 2** (binary `build_uci/chess_engine_uci_lazy2`; every knob defaults to build 1, so LAZY_V2=7 must still bench 245 / 37,305,726):
+`LAZY_V2_KEEP` (the record kept across the null search; no unknown overwrites); `LAZY_V2_S_QS / S_RFP / S_FUT` (per-site margin scale,
+percent; step 0b's misses per fire at one margin: stand-pat 0.9%, reverse futility 0.4%, futility 0.1%); the bench line now adds the
+asks with a parent value and the returns / asks by site.
+
+**Queue #178 (registered before it runs; `selfplay/_queue_178.sh`, log `E:\chess_data\q178.log`).** Build, fingerprints (the KEEP arm
+must agree between the Knobs option and env). Then a depth-10 grid of 8 arms over 22 sets (WAC, STS300, ksattack, 400 game positions,
+the 18 theme suites), two replicates on rotated cores. The arms: off, b1, keep, keep + no cheap path, keep + per-site (stand-pat 2000 /
+futility 1000), keep + M 1000 / 2000, keep + no passer guard, and keep + cheap margin 5000.
+- **Pick:** the fastest arm other than off and b1 whose theme total is at least b1's − 5 and whose WAC is at least b1's − 1.
+- **Games:** the pick vs off, up to 4 × 400 at 10+0.1 on fresh seeds (no chunk starts after 09:30), with #177's rule (keep at ≥ −1σ, a
+  gain at +2σ).
+- **Then** the equal-time theme test, if it can start by 10:00.
+- **Prediction:** KEEP lifts the asks with a parent value from about 66% to 85% or more, and cuts a further 2-5% off the time to depth
+  against b1, with the theme total level within noise.
+
 ## 2026-11-07 22:30 — LAZY EVAL: research supplement, step 0 / 0b probes, the first build (LAZY_V2, 86fe007); queue #177 overnight
 
 The retune closed on gen 7 (#176), so close-out step 4 began. Owner 11-07: lazy eval is infrastructure for search v2, judged "not

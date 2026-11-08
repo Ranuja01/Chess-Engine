@@ -4694,7 +4694,7 @@ static void conn_load_table()
 }
 
 // ── LAZY EVAL (Config::LAZY_V2; see LazyReq in eval_v2.h) ──────────────────────────────────────────────────────────
-LazyReq g_lazy_req{false, false, false, 0, LAZY_POS_NA};
+LazyReq g_lazy_req{false, false, false, 0, LAZY_POS_NA, 100};
 bool g_lazy_fired = false;
 int  g_v2_last_pos = LAZY_POS_NA;
 
@@ -4897,7 +4897,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// knows it. Step 0b (11-07) put its gap to the full eval at 0.35 pawns median, 2.6 at p99; the cheap part alone, 0.78 / 4.6.
 	if (g_lazy_req.armed && !pair_mode){
 		const bool have_parent = g_lazy_req.parent_pos != LAZY_POS_NA;
-		const int M = have_parent ? Config::LAZY_V2_M : Config::LAZY_V2_M_CHEAP;
+		const int M = (have_parent ? Config::LAZY_V2_M : Config::LAZY_V2_M_CHEAP) * g_lazy_req.scale / 100;
 		if (M > 0){
 			const int est = total + (have_parent ? g_lazy_req.parent_pos : 0);
 			if ((g_lazy_req.above ? est >= g_lazy_req.bound + M : est <= g_lazy_req.bound - M)

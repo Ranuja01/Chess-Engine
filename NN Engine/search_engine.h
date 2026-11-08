@@ -3439,6 +3439,16 @@ namespace Config
     // Guards, bitmask: 1 = no exit when 2+ enemy knights / bishops / rooks / queens stand within 2 squares of a king, 2 = none at
     // PV nodes (a window wider than one), 4 = none with a passed pawn on its 6th or 7th rank.
     inline int LAZY_V2_GUARDS = 7;
+    // Per-site margin scale, percent of LAZY_V2_M and LAZY_V2_M_CHEAP: stand-pat cutoff, reverse futility, futility of a child.
+    // Step 0b (11-07) measured misses per fire at the same margin as 0.9% at stand-pat, 0.4% at reverse futility, 0.1% at futility.
+    inline int LAZY_V2_S_QS = 100;
+    inline int LAZY_V2_S_RFP = 100;
+    inline int LAZY_V2_S_FUT = 100;
+    // 1 = keep the per-ply lazy records that build 1 loses. The null search flips the side to move in place, in the same history
+    // slot, so its eval overwrote the node's record and every child searched after a failed null move had no parent value; the
+    // record is now kept across it. An eval whose positional part is unknown (a lazy return, mate, an early return) no longer
+    // overwrites the slot either: a record is used only when its position key matches, so an older record left there is correct.
+    inline int LAZY_V2_KEEP = 0;
     // TM_SCALE (clock games under TM_MODE >= 1): bits that scale the soft limit after each completed iteration from depth 5.
     // 1 = the best move's share of the nodes spent under root moves this search, max(0.563, 0.4499 + 2.2669 * (1 - share));
     // 2 = best-move stability, 1.311 - 0.0533 * (consecutive iterations with the same best move, at most 10);

@@ -173,6 +173,7 @@ struct LazyReq {
 	bool above;       // true: lazy when estimate >= bound + margin; false: lazy when estimate <= bound - margin
 	int  bound;
 	int  parent_pos;  // the parent position's positional part, or LAZY_POS_NA
+	int  scale;       // the site's margin scale, percent
 };
 extern LazyReq g_lazy_req;
 extern bool g_lazy_fired;

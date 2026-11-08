@@ -25,6 +25,7 @@
 
 extern std::atomic<bool> time_up;   // search_engine.cpp
 extern long long g_lazy_asks, g_lazy_fires;   // search_engine.cpp, lazy eval counters (Config::LAZY_V2)
+extern long long g_lazy_asks_parent, g_lazy_site_asks[3], g_lazy_site_fires[3];
 
 namespace
 {
@@ -409,7 +410,10 @@ namespace
             " time " + std::to_string((int)(sec * 1000)) + " ms nps " + std::to_string(sec > 0 ? (long long)(nodes / sec) : 0));
         if (Config::LAZY_V2)
             say("info string lazy eval: " + std::to_string(g_lazy_fires) + " lazy returns of " + std::to_string(g_lazy_asks) +
-                " evals asked");
+                " evals asked; parent known on " + std::to_string(g_lazy_asks_parent) + "; returns/asks by site: stand-pat " +
+                std::to_string(g_lazy_site_fires[0]) + "/" + std::to_string(g_lazy_site_asks[0]) + " rfp " +
+                std::to_string(g_lazy_site_fires[1]) + "/" + std::to_string(g_lazy_site_asks[1]) + " futility " +
+                std::to_string(g_lazy_site_fires[2]) + "/" + std::to_string(g_lazy_site_asks[2]));
     }
 
     void cmd_perft(std::istringstream &in, bool divide)

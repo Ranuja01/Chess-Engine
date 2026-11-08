@@ -4,6 +4,61 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 09:50 — #178 READ: keep_g3 vs off +0.3 Elo (1,200 g, z 0.03), "not harmful"; themes at equal time +31; lazy eval as a class ≈ +9 ± 10
+
+**Games** (`lz2_10p1`, 10+0.1 UHO, seeds 178111-178113; chunk 4 skipped at the 09:30 cutoff): +474 −473 =253, **Elo +0.3 (95%
+−17.0 … +17.6), z = 0.03**; pentanomial [85, 112, 216, 91, 96]. Chunks −17.4, −13.9, +32.2 (each about ±30; spread chi2 about 6.8
+on 2 df, p ≈ 0.03, unexplained: the box was otherwise idle). 0 warnings, 0 disconnects or stalls, 0 time losses, no WSL crash
+dumps. Per searched move: nps 1,705,430 vs 1,569,116 (**+8.7%**, build 1 read +6.3%), nodes per move +7.4%, depth 11.7 vs 11.5.
+Registered rule: keep (above −1σ), no gain.
+
+**Critical-situation test at equal time** (0.25 s): off 3,726, keep_g3 **3,757** of 4,124 (+31; build 1 read +21 in #177). No suite
+below −1 (defensiveMove −1, mateIn4 −1); clearance +5, advancedPawn +3, attraction +3, ksattack +3, quietMove +3, sacrifice +2,
+mateIn5 +2. The off arm on two nights read 3,728 and 3,726, suites within ±2, so this instrument's run-to-run noise is small and
+both lazy builds' gains on it are real at this time control.
+
+**What the two runs say together.** Build 1 vs off +14.8 ± 13.3 and keep_g3 vs off +0.3 ± 17.3 (95%): the difference, 14.5 ± 21.8,
+is unresolved, so games cannot rank the two variants. Pooled as "lazy on vs off" over 3,200 games: about **+9 ± 10**, close to
+what the speed alone predicts (6-9% nps ≈ +6-8 Elo at this time control). On the instruments that resolve, keep_g3 is ahead of
+build 1: faster in games (+8.7% vs +6.3% nps), more theme positions at depth 10 (3,279 vs 3,275) and at equal time (+31 vs +21),
+with the record logic correct.
+
+**Status:** lazy eval is not harmful on every test the owner asked for, in both builds, and buys 6-9% speed. Default-on is a ship:
+the SF18 gauntlet (> −1σ) and Mediocre (not negative) are timed games, so they wait for a weekday slot or Sunday night after
+midnight. Variant to carry, by the resolving instruments: keep_g3 (`LAZY_V2=7, LAZY_V2_KEEP=1, LAZY_V2_GUARDS=3`).
+
+## 2026-11-08 06:25 — #178 grid READ: the record fix trades speed for accuracy; its accuracy pays for dropping the passer guard; pick keep_g3
+
+Build 2 compiled and fingerprinted (default 246 / 36,509,830; LAZY_V2=7 = 245 / 37,305,726; +KEEP = 245 / 38,661,603 by option and
+by env). Grid at depth 10, 8 arms × 22 sets, two replicates (05:41-06:20, `E:\chess_data\lazy\grid178\`, table.txt):
+
+| arm | themes /3600 | WAC | time vs off | lazy % of asks | parent known | stand-pat / rfp / fut fire % |
+|---|---|---|---|---|---|---|
+| off | 3282 | 246 | 0 | - | - | - |
+| b1 (build 1) | 3275 | 245 | −8.3% | 42.1 | 70.6 | 25.9 / 61.3 / 68.9 |
+| keep | **3285** | 245 | −5.2% | 42.9 | **82.5** | 27.3 / 61.6 / 69.3 |
+| keep, no cheap path | 3283 | 245 | −6.0% | 39.6 | 83.3 | 23.4 / 57.8 / 69.4 |
+| keep, per-site (stand-pat 133%, fut 67%) | 3278 | 247 | −4.6% | 41.5 | 82.7 | 23.9 / 61.9 / 72.4 |
+| keep, M 1000 / cheap 2000 | 3276 | 249 | −8.0% | 47.4 | 82.6 | 32.5 / 64.7 / 72.0 |
+| **keep, no passer guard (g3)** | 3279 | 245 | **−9.7%** | 49.1 | 82.9 | 32.4 / 66.7 / 78.4 |
+| keep, cheap margin 5000 | 3283 | 245 | −7.8% | 41.7 | 83.0 | 25.6 / 60.5 / 69.5 |
+
+**Prediction check (registered 00:15):** parent coverage rose as predicted in direction (70.6% → 82.5%; b1 read 70.6 here, not the
+probe's 66) but short of 85%. **The speed prediction FAILED**: keep is 3.1 points slower than b1, not 2-5% faster. Themes level as
+predicted (+10, above off). Reading: the cheap-path misses build 1 made were cutting nodes the full eval would have searched, so they
+saved work as well as costing accuracy (the productive-bug pattern, memory `search-value-bugs-and-the-productive-bug-pattern`). The
+fix buys accuracy; the faster arms spend that accuracy on more fires (g3 drops the passer guard; m1000 narrows both margins) and land
+at or under b1's time with themes still at or above b1's.
+
+**Timing noise:** an arm's two replicates differ by up to 6% (g3 346,060 vs 368,236 ms), with arms early in a replicate slower in
+both orders, so the reversed order cancels a drift in the mean; the spread among the keep variants (−4.6 to −9.7%) is close to that
+noise, so g3 being first is partly selection. Per suite, g3 against off at depth 10: none beyond ±4 except ksattack +8, the game
+positions +15, STS +10; advancedPawn −2, endgame_crushing +1, clearance −4, mateIn5 −3, sacrifice 0. The passer guard protected
+nothing visible at depth 10.
+
+**Registered pick: keep_g3** (`LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_GUARDS=3`), games vs off from 06:22 (tag `lz2_10p1`); at about 64
+minutes per 400-game chunk, chunk 4 likely falls past 09:30, so expect 1,200 games, then the equal-time themes.
+
 ## 2026-11-08 05:40 — #177 READ: lazy build 1 (LAZY_V2=7) +14.8 Elo vs off, z 2.18, a gain at the registered +2σ; themes level at equal time
 
 **Games** (2,000 at 10+0.1 UHO, fastchess, seeds 177111-177114, tag `lz7_10p1`, log `E:\chess_data\q177.log`): +829 −744 =427,

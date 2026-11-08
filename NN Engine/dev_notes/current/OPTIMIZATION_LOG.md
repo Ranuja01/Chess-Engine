@@ -4,6 +4,43 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 16:30 — #183 READ: lazy misses cluster after captures and null moves (the owner's gate qualifies); narrower margins are the dear way to buy fires
+
+The context probe (`chess_engine_uci_lzprobe2`: records follow `LAZY_V2_KEEP`; new columns `mv` = the move that led to the position,
+`kz` = a capture within 2 squares of a king), depth 10, 1 position in 16, sets WAC / STS300 / ksattack / 400 game positions + the
+1,500 passed-pawn positions: 6.15M decision rows. The probe logs what the build's rule would do at stand-pat, reverse futility and
+futility against the full eval (lazy itself off). Reader `_lazy_probe_read.py` section 7 (ONLY_CONTEXT=1); data and reads
+`E:\chess_data\lazy\c\`. The probe's own record fix: WAC parent coverage 62.8% → 76.2% (all sets 77.6%).
+
+**Where the candidate's misses fall** (keep_m1000's margins 1000 / 2000; fires 29.3% of asks, 0.87% miss per fire, 2.57 misses per
+1,000 asks). Stand-pat after a pawn capture: 4.3% of fires, 23.3% of misses (4.8% miss per fire); after a piece capture 1.9% / 14.5%
+(6.8%); after a null move 1.4% / 8.9% (5.7%); reverse futility after a null move 29% miss per fire on few fires. Quiet moves and pawn
+moves: 0.1-0.5% per fire. Stand-pat deeper in qsearch (the captures' own plies): 9% of fires, 37% of misses. Depth at reverse
+futility does not matter: depth ≥ 4 holds 0.4% of fires.
+
+**Gates** (registered: worth building if the share of misses removed is at least 3x the share of fires removed): after any capture
+9.2% of fires / 43.4% of misses (4.7x, **qualifies**); stand-pat after a capture 6.1% / 37.8% (6.2x, qualifies; the prediction held);
+after a piece capture 2.8% / 17.0%; after a capture near a king 3.0% / 17.4%; after a null move 1.4% / 9.4% (6.7x); after a king move
+15.6% / 15.0% (no); after a promotion or 6th / 7th push 1.6% / 1.2% (no); reverse futility at depth ≥ 4 negligible; no parent value
+(the cheap path) 9.6% / 27.4% (2.9x, just short).
+
+**Margins against gates** (fires % of asks / misses per 1,000 asks):
+
+| margins | no gate | gate: capture or null move |
+|---|---|---|
+| 1000 / 2000 (keep_m1000) | 29.3 / 2.57 | 26.2 / 1.21 |
+| 1250 / 2500 | 27.2 / 1.33 | 24.6 / 0.68 |
+| 1500 / 3000 (keep) | 25.4 / 0.72 | 23.2 / 0.41 |
+| 1500 / 0 (no cheap path) | 23.2 / 0.45 | 21.3 / 0.24 |
+
+Passers only: keep_m1000 18.6 / 2.18; 1500 / 3000 + gate 14.9 / 0.42 (5x fewer misses).
+
+**Reading.** The fires that narrowing the margins adds miss at 3.4% (1500 → 1250) and 5.9% (1250 → 1000) per fire; the capture /
+null fires at 1500 / 3000 miss at 1.4%. So keep_m1000's extra speed is bought with its worst fires, and part of its time saving is
+the productive-bug kind (−3.9% nodes against keep's −2.0%). At equal fire rate the gated or wider-margin rules miss half as often.
+The design that matches the owner's ideal ("fires only for needed situations, at a rate that boosts NPS") is the wider margins with
+the capture / null gate. Next: a gate knob (build 3), then games for the gated variant.
+
 ## 2026-11-08 16:10 — #182 READ: the passer weakness is partly eval in piece endgames, not in pawn endings, and the eval share shrinks with depth
 
 Owner: "it's not necessarily eval that's the issue ... search may not be correctly keeping everything that's needed". Our search with

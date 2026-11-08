@@ -3427,6 +3427,18 @@ namespace Config
     // pass and scored above the pass's alpha (a real result at the deeper depth); otherwise, and at 0, the last completed
     // iteration's move is played. A move whose own search was cut is never used.
     inline int TM_PARTIAL = 0;
+    // LAZY_V2 (lazy eval, transition item 6; dev_notes/active/LAZY-EVAL-RESEARCH-2026-10-30.md §6): bitmask of the search sites that
+    // may take a lazy value, each on its cut side only, so a lazy value is only ever returned as a bound and never searched under:
+    // 1 = qsearch stand-pat cutoff, 2 = reverse futility prune, 4 = futility prune of a child. 0 = off = byte-identical. v2 only.
+    // The eval returns its estimate when it clears the site's bound by a margin: the cheap part (material, PST, bishop pair,
+    // Kaufman, narrow classes) plus the parent position's positional part (full - cheap) when the parent was evaluated on the same
+    // line, else the cheap part alone with the wider margin. A lazy value is never cached. Assumes corrhist off (it is added after).
+    inline int LAZY_V2 = 0;
+    inline int LAZY_V2_M = 1500;         // margin with the parent's positional part, millipawns
+    inline int LAZY_V2_M_CHEAP = 3000;   // margin with the cheap part alone; 0 = no lazy exit without a parent value
+    // Guards, bitmask: 1 = no exit when 2+ enemy knights / bishops / rooks / queens stand within 2 squares of a king, 2 = none at
+    // PV nodes (a window wider than one), 4 = none with a passed pawn on its 6th or 7th rank.
+    inline int LAZY_V2_GUARDS = 7;
     // TM_SCALE (clock games under TM_MODE >= 1): bits that scale the soft limit after each completed iteration from depth 5.
     // 1 = the best move's share of the nodes spent under root moves this search, max(0.563, 0.4499 + 2.2669 * (1 - share));
     // 2 = best-move stability, 1.311 - 0.0533 * (consecutive iterations with the same best move, at most 10);

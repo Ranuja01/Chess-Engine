@@ -159,4 +159,49 @@ void placement_probe(uint64_t pawns, uint64_t knights, uint64_t bishops, uint64_
 void eval_v2_shadow_record(int v1, int v2);
 void eval_v2_shadow_report();
 
+/*
+	LAZY EVAL (Config::LAZY_V2; dev_notes/active/LAZY-EVAL-RESEARCH-2026-10-30.md §6). A search site that would cut or prune once
+	the eval clears a bound sets g_lazy_req before asking for the eval and clears it after. After its cheap part the v2 eval forms
+	an estimate (the cheap part + parent_pos when known) and, when that clears the bound by the margin and the guards allow it,
+	returns the estimate with g_lazy_fired set; the caller must not cache it. Every full v2 eval leaves its positional part
+	(total - cheap part) in g_v2_last_pos, LAZY_POS_NA after an early return. All values Black-positive millipawns.
+*/
+constexpr int LAZY_POS_NA = -1000000000;
+struct LazyReq {
+	bool active;      // the search site asks for a lazy eval
+	bool armed;       // set by get_board_evaluation around the one eval call whose result it will not cache; the eval reads only this
+	bool above;       // true: lazy when estimate >= bound + margin; false: lazy when estimate <= bound - margin
+	int  bound;
+	int  parent_pos;  // the parent position's positional part, or LAZY_POS_NA
+};
+extern LazyReq g_lazy_req;
+extern bool g_lazy_fired;
+extern int  g_v2_last_pos;
+
+#ifdef LAZY_PROBE
+/*
+	LAZY EVAL PROBE (diagnostic build only: compiled with -DLAZY_PROBE, absent from every other build; research and plan in
+	dev_notes/active/LAZY-EVAL-RESEARCH-2026-10-30.md). The v2 eval records each stage's contribution and some board features
+	a lazy-exit guard could read before the attack build; the search logs a sample of them with the window of the site that
+	asked for the eval. Values are Black-positive millipawns, like the eval's return. Assumes EVAL_V2_PAIR = 0 (the shipped
+	path, where every stage adds to the running total).
+*/
+struct LazyProbe {
+	bool fresh;       // an eval body ran since the search last read the probe
+	int  special;     // 0 = normal, 1 = draw classifier, 2 = tier-2b replacement (returned before any stage)
+	int  cheap;       // material + PST + bishop pair + Kaufman + narrow material classes
+	int  mob, space, threats, ks;               // the consumers of the shared attack build
+	int  pawns, passers, rookfile, placement;   // the pawn-entry block
+	int  c3, px, tempo, win;                    // king shelter / flank / protector, passer system, tempo, endgame scales
+	int  total;                                 // the eval's return
+	int  npm_w, npm_b, mat_w, mat_b, phase256;
+	int  ksu_w, ksu_b;                          // king-safety units against White's king, against Black's king
+	int  q_w, q_b, minors_w, minors_b, rooks_w, rooks_b, pawns_w, pawns_b;
+	int  advp_w, advp_b;                        // passed pawns on the relative 6th / 7th rank
+	int  near_wk, near_bk;                      // enemy knights, bishops, rooks, queens within 2 squares of each king
+	bool turn;                                  // true = White to move
+};
+extern LazyProbe g_lazy_probe;
+#endif
+
 #endif

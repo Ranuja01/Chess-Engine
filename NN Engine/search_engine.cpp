@@ -1433,6 +1433,133 @@ static inline uint64_t eval_cache_key(uint64_t zobrist, uint64_t castling_rights
            ^ (EVAL_ARM_SALT * (uint64_t)Config::EVAL_ARM);
 }
 
+// ── LAZY EVAL, the search side (Config::LAZY_V2; LazyReq in eval_v2.h) ────────────────────────────────────────────────
+// Each eval on the search path records its positional part (full - cheap) by ply, with a key of the position's bitboards; the
+// eval of a child reads its parent's record only when that key matches the position one ply back in its own history. A cache hit
+// reads the positional part from its eval cache entry. Recorded only while LAZY_V2 is on.
+struct LazyPly { uint64_t skey; int pos; };
+static LazyPly g_lazy_ply[2048];
+long long g_lazy_asks = 0, g_lazy_fires = 0;   // evals computed with a lazy request, and those that returned lazily
+
+static inline uint64_t lazy_skey(const BoardState &s)
+{
+    uint64_t h = s.pawns * 0x9E3779B97F4A7C15ULL;
+    h ^= (s.knights + 0x632BE59BD9B4E019ULL) * 0xC2B2AE3D27D4EB4FULL;  h = (h << 17) | (h >> 47);
+    h ^= (s.bishops + 0x85EBCA77C2B2AE63ULL) * 0x165667B19E3779F9ULL; h = (h << 17) | (h >> 47);
+    h ^= (s.rooks + 0x27D4EB2F165667C5ULL) * 0x9E3779B97F4A7C15ULL;   h = (h << 17) | (h >> 47);
+    h ^= (s.queens + 0x94D049BB133111EBULL) * 0xC2B2AE3D27D4EB4FULL;  h = (h << 17) | (h >> 47);
+    h ^= (s.kings + 0xBF58476D1CE4E5B9ULL) * 0x165667B19E3779F9ULL;   h = (h << 17) | (h >> 47);
+    h ^= (s.occupied_colour[true] + 0xD6E8FEB86659FD93ULL) * 0x9E3779B97F4A7C15ULL;
+    return h ^ (uint64_t)s.turn ^ ((uint64_t)s.castling_rights << 1) ^ ((uint64_t)(s.ep_square + 1) << 9);
+}
+
+static inline void lazy_record(const std::vector<BoardState> &h, int pos)
+{
+    g_lazy_ply[h.size() & 2047] = LazyPly{lazy_skey(h.back()), pos};
+}
+
+static inline int lazy_parent_pos(const std::vector<BoardState> &h)
+{
+    const size_t n = h.size();
+    if (n < 2) return LAZY_POS_NA;
+    const LazyPly &pp = g_lazy_ply[(n - 1) & 2047];
+    return (pp.pos != LAZY_POS_NA && pp.skey == lazy_skey(h[n - 2])) ? pp.pos : LAZY_POS_NA;
+}
+
+// A site that cuts or prunes once the eval reaches `need` (up) or falls to `need` (!up), in the search frame (root side
+// positive), lets the eval return its estimate when that clears `need` by the margin. Set immediately before the eval call and
+// cleared immediately after, with no return in between.
+static inline void lazy_request(bool up, int need)
+{
+    const bool flip = Config::side_to_play;   // the search frame is the Black-positive eval negated when the root side is White
+    g_lazy_req.active = true;
+    g_lazy_req.above = (up != flip);
+    g_lazy_req.bound = flip ? -need : need;
+}
+
+static inline void lazy_request_end()
+{
+    g_lazy_req.active = false;
+}
+
+#ifdef LAZY_PROBE
+// LAZY EVAL PROBE, the search side (diagnostic build only; see LazyProbe in eval_v2.h and dev_notes/active/LAZY-EVAL-RESEARCH-
+// 2026-10-30.md). A static-eval site sets g_lazy_site before asking for an eval; the eval's cache-miss path calls lazy_probe_log,
+// which writes a sampled CSV row: the site and its window in the search frame (root side positive), the eval's stages
+// (Black-positive) and the guard features. A cache hit is not logged: it costs nothing, so a lazy exit cannot save anything there.
+// Env: LAZY_PROBE_OUT = output path (unset = no log) · LAZY_PROBE_EVERY = keep 1 position in N by zobrist (default 8).
+struct LazySite { int site, alpha, beta, depth_left, margin; bool maximizing; };
+enum { LZ_OTHER = 0, LZ_QS = 1, LZ_QHORIZON = 2, LZ_RFP = 3, LZ_FUTILITY = 4, LZ_IMPROVING = 5 };
+static LazySite g_lazy_site{LZ_OTHER, 0, 0, 0, 0, false};
+static FILE *g_lazy_out = nullptr;
+static bool g_lazy_init = false;
+static unsigned g_lazy_every = 8;
+#define LAZY_SITE(s, a, b, d, mg, mx) (g_lazy_site = LazySite{(s), (a), (b), (d), (mg), (mx)})
+#define LAZY_SITE_END() (g_lazy_site.site = LZ_OTHER)
+
+// Step 0b, the parent's positional part (IvanHoe's estimate: this position's cheap part + its parent's full - cheap). Every eval
+// call records its positional part per ply, cache hits included (looked up in a side table filled by the misses), with a key of the
+// position's bitboards; a child reads its parent's record only when that key matches the position one ply back in its history.
+static constexpr int LZ_SIDE_BITS = 22;
+static constexpr int LZ_NA = -999999999;
+struct LzSide { uint64_t key; int pos; };
+struct LzPly { uint64_t skey; int pos; };
+static LzSide g_lz_side[1 << LZ_SIDE_BITS];
+static LzPly g_lz_ply[2048];
+
+static inline uint64_t lz_skey(const BoardState &s)
+{
+    return lazy_skey(s);
+}
+
+static inline int lz_parent_pos(const std::vector<BoardState> &h)
+{
+    const size_t n = h.size();
+    if (n < 2) return LZ_NA;
+    const LzPly &pp = g_lz_ply[(n - 1) & 2047];
+    return (pp.pos != LZ_NA && pp.skey == lz_skey(h[n - 2])) ? pp.pos : LZ_NA;
+}
+
+// A cache hit: no eval body ran, so take the positional part from the side table (LZ_NA if it was overwritten).
+static void lazy_probe_hit(const std::vector<BoardState> &h, uint64_t ckey)
+{
+    const LzSide &e = g_lz_side[(ckey * 0x9E3779B97F4A7C15ULL) >> (64 - LZ_SIDE_BITS)];
+    g_lz_ply[h.size() & 2047] = LzPly{lz_skey(h.back()), e.key == ckey ? e.pos : LZ_NA};
+}
+
+static void lazy_probe_log(const std::vector<BoardState> &h, uint64_t zobrist, uint64_t ckey, int ply, int ret)
+{
+    LazyProbe &p = g_lazy_probe;
+    if (!p.fresh) return;
+    p.fresh = false;
+    const int pos = p.special ? LZ_NA : p.total - p.cheap;   // Black-positive
+    g_lz_side[(ckey * 0x9E3779B97F4A7C15ULL) >> (64 - LZ_SIDE_BITS)] = LzSide{ckey, pos};
+    const int parent_pos = lz_parent_pos(h);
+    g_lz_ply[h.size() & 2047] = LzPly{lz_skey(h.back()), pos};
+    if (!g_lazy_init)
+    {
+        g_lazy_init = true;
+        if (const char *e = std::getenv("LAZY_PROBE_EVERY")) g_lazy_every = (unsigned)std::max(1, std::atoi(e));
+        const char *path = std::getenv("LAZY_PROBE_OUT");
+        if (path && *path && (g_lazy_out = std::fopen(path, "w")))
+            std::fputs("site,max,alpha,beta,depth_left,margin,stp,ply,ret,special,cheap,mob,space,threats,ks,pawns,passers,rookfile,"
+                       "placement,c3,px,tempo,win,total,npm_w,npm_b,mat_w,mat_b,phase,ksu_w,ksu_b,q_w,q_b,minors_w,minors_b,"
+                       "rooks_w,rooks_b,pawns_w,pawns_b,advp_w,advp_b,near_wk,near_bk,turn,parent_pos\n", g_lazy_out);
+    }
+    if (!g_lazy_out || ((zobrist * 0x9E3779B97F4A7C15ULL) >> 40) % g_lazy_every != 0) return;
+    const LazySite &s = g_lazy_site;
+    std::fprintf(g_lazy_out, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
+                             "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+                 s.site, (int)s.maximizing, s.alpha, s.beta, s.depth_left, s.margin, (int)Config::side_to_play, ply, ret, p.special,
+                 p.cheap, p.mob, p.space, p.threats, p.ks, p.pawns, p.passers, p.rookfile, p.placement, p.c3, p.px, p.tempo, p.win,
+                 p.total, p.npm_w, p.npm_b, p.mat_w, p.mat_b, p.phase256, p.ksu_w, p.ksu_b, p.q_w, p.q_b, p.minors_w, p.minors_b,
+                 p.rooks_w, p.rooks_b, p.pawns_w, p.pawns_b, p.advp_w, p.advp_b, p.near_wk, p.near_bk, (int)p.turn, parent_pos);
+}
+#else
+#define LAZY_SITE(s, a, b, d, mg, mx) ((void)0)
+#define LAZY_SITE_END() ((void)0)
+#endif
+
 inline int static_eval_for_improving(std::vector<BoardState> &state_history, uint64_t zobrist)
 {
     BoardState cs = state_history.back();
@@ -1450,6 +1577,9 @@ inline int static_eval_for_improving(std::vector<BoardState> &state_history, uin
     int cached;
     if (accessCacheNew(eval_cache_key(zobrist, cs.castling_rights, cs.ep_square), cached))
     {
+#ifdef LAZY_PROBE
+        lazy_probe_hit(state_history, eval_cache_key(zobrist, cs.castling_rights, cs.ep_square));
+#endif
         // EVAL_CACHE_FORM 1/2 (v2): the cache holds the fixed Black-positive value (see get_board_evaluation).
         if (Config::EVAL_ARM == 1 && Config::EVAL_CACHE_FORM != 0 && Config::side_to_play)
             return -cached;
@@ -1464,6 +1594,11 @@ inline int static_eval_for_improving(std::vector<BoardState> &state_history, uin
     // improving comparison mixes flipped and unflipped evals when side_to_play is true.
     if (Config::side_to_play)
         total = -total;
+#ifdef LAZY_PROBE
+    LAZY_SITE(LZ_IMPROVING, 0, 0, 0, 0, false);
+    lazy_probe_log(state_history, zobrist, eval_cache_key(zobrist, cs.castling_rights, cs.ep_square), moveNum, total);
+    LAZY_SITE_END();
+#endif
     return total;
 }
 
@@ -2956,6 +3091,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::PREFETCH_EARLY = env_int("PREFETCH_EARLY", Config::PREFETCH_EARLY);
         Config::TM_MODE = env_int("TM_MODE", Config::TM_MODE);
         Config::TM_PARTIAL = env_int("TM_PARTIAL", Config::TM_PARTIAL);
+        Config::LAZY_V2 = env_int("LAZY_V2", Config::LAZY_V2);
+        Config::LAZY_V2_M = env_int("LAZY_V2_M", Config::LAZY_V2_M);
+        Config::LAZY_V2_M_CHEAP = env_int("LAZY_V2_M_CHEAP", Config::LAZY_V2_M_CHEAP);
+        Config::LAZY_V2_GUARDS = env_int("LAZY_V2_GUARDS", Config::LAZY_V2_GUARDS);
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
         Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
         Config::TM_OPT_PLY = env_int("TM_OPT_PLY", Config::TM_OPT_PLY);
@@ -5315,7 +5454,16 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     bool is_in_relavent_pin = relevant_pin(state_history);
                     if (cur_depth > 1 && (depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !is_in_relavent_pin)
                     {
+                        // Lazy eval (LAZY_V2 bit 4): only when the futility prune below is checked; it returns at once on the value.
+                        const bool lazy_fut = (Config::LAZY_V2 & 4) && Config::ENABLE_FUTILITY && !prune_gate &&
+                                              !((Config::LAZY_V2_GUARDS & 2) && beta - alpha > 1);
+                        if (lazy_fut)
+                            lazy_request(true, beta + FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] + 1);
+                        LAZY_SITE(LZ_FUTILITY, alpha, beta, depth_limit - cur_depth, FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1], false);
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
+                        LAZY_SITE_END();
+                        if (lazy_fut)
+                            lazy_request_end();
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, false);
                         if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
 
@@ -5745,7 +5893,16 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     bool is_in_relavent_pin = relevant_pin(state_history);
                     if ((depth_limit - cur_depth) <= 4 && (depth_limit - cur_depth) > 1 && depth_limit >= 5 && !is_in_relavent_pin)
                     {
+                        // Lazy eval (LAZY_V2 bit 4): only when the futility prune below is checked; it returns at once on the value.
+                        const bool lazy_fut = (Config::LAZY_V2 & 4) && Config::ENABLE_FUTILITY && !prune_gate &&
+                                              !((Config::LAZY_V2_GUARDS & 2) && beta - alpha > 1);
+                        if (lazy_fut)
+                            lazy_request(false, alpha - FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1] - 1);
+                        LAZY_SITE(LZ_FUTILITY, alpha, beta, depth_limit - cur_depth, FUTILITY_MARGINS_EFF[depth_limit - cur_depth - 1], true);
                         int early_score = eval_by_mode(Config::FUTILITY_EVAL_MODE, state_history, zobrist, num_iterations);
+                        LAZY_SITE_END();
+                        if (lazy_fut)
+                            lazy_request_end();
                         // int early_score = get_q_search_eval(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previousMove, num_iterations, true);
                         if (Config::ENABLE_PRUNE_LOG) g_futility_evals++;
                         if (Config::ENABLE_FUTILITY && !prune_gate &&
@@ -6406,7 +6563,16 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                               Config::ENABLE_NULL_EVAL_GATE);
         if (rfp_want_eval)
         {
+            // Lazy eval (LAZY_V2 bit 2): only when the reverse-futility prune below is checked; it returns at once on the value.
+            const bool lazy_rfp = (Config::LAZY_V2 & 2) && Config::ENABLE_RFP && (beta - alpha) == 1 && alpha > -9000000 && alpha < 9000000 &&
+                                  (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH;
+            if (lazy_rfp)
+                lazy_request(false, alpha - Config::RFP_MARGIN * (depth_limit - cur_depth));
+            LAZY_SITE(LZ_RFP, alpha, beta, depth_limit - cur_depth, Config::RFP_MARGIN * (depth_limit - cur_depth), false);
             rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+            LAZY_SITE_END();
+            if (lazy_rfp)
+                lazy_request_end();
             rfp_raw_eval = rfp_static_eval;
             if (Config::ENABLE_CORR_HIST)
                 rfp_static_eval += corrhist_correction(current_state, 0);
@@ -7118,7 +7284,16 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
                           Config::ENABLE_NULL_EVAL_GATE);
     if (rfp_want_eval)
     {
+        // Lazy eval (LAZY_V2 bit 2): only when the reverse-futility prune below is checked; it returns at once on the value.
+        const bool lazy_rfp = (Config::LAZY_V2 & 2) && Config::ENABLE_RFP && (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
+                              (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH;
+        if (lazy_rfp)
+            lazy_request(true, beta + Config::RFP_MARGIN * (depth_limit - cur_depth));
+        LAZY_SITE(LZ_RFP, alpha, beta, depth_limit - cur_depth, Config::RFP_MARGIN * (depth_limit - cur_depth), true);
         rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+        LAZY_SITE_END();
+        if (lazy_rfp)
+            lazy_request_end();
         rfp_raw_eval = rfp_static_eval;
         if (Config::ENABLE_CORR_HIST)
             rfp_static_eval += corrhist_correction(current_state, 1);
@@ -8593,7 +8768,9 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
                 return eval;
             }
         }
+        LAZY_SITE(LZ_QHORIZON, alpha, beta, -qDepth, 0, is_maximizing);
         int horizon_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
+        LAZY_SITE_END();
         if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
             horizon_eval += corrhist_correction(state_history.back(), is_maximizing ? 1 : 0);
         if (Config::CORR2 && Config::CORR2_QS)
@@ -8701,7 +8878,15 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
         return best;
     }
 
+    // Lazy eval (LAZY_V2 bit 1): the stand-pat cutoff below may take the eval's estimate, and cuts at once with it.
+    const bool lazy_qs = (Config::LAZY_V2 & 1) && !((Config::LAZY_V2_GUARDS & 2) && beta - alpha > 1);
+    if (lazy_qs)
+        lazy_request(is_maximizing, is_maximizing ? beta : alpha);
+    LAZY_SITE(LZ_QS, alpha, beta, -qDepth, 0, is_maximizing);
     int static_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
+    LAZY_SITE_END();
+    if (lazy_qs)
+        lazy_request_end();
     if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
         static_eval += corrhist_correction(current_state, is_maximizing ? 1 : 0);
     if (Config::CORR2 && Config::CORR2_QS)
@@ -10371,9 +10556,18 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
     //   2 = 1, and a checkmate score is not cached (it holds the ply it was found at, wrong at any other ply).
     const int cache_form = (Config::EVAL_ARM == 1) ? Config::EVAL_CACHE_FORM : 0;
     // cache_result = accessCache(zobrist);
-    if (!g_eval_light && accessCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), cache_result))
+    // Lazy eval (Config::LAZY_V2, v2 cache forms only): the cache entry also carries the position's positional part.
+    const bool lazy_on = Config::LAZY_V2 != 0 && cache_form != 0;
+    int16_t cache_pos = INT16_MIN;
+    if (!g_eval_light && (lazy_on ? accessCacheNewPos(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), cache_result, cache_pos)
+                                  : accessCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), cache_result)))
     {
         eval_cache_hits++;
+        if (lazy_on)
+            lazy_record(state_history, cache_pos == INT16_MIN ? LAZY_POS_NA : (int)cache_pos);
+#ifdef LAZY_PROBE
+        lazy_probe_hit(state_history, eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square));
+#endif
         if (cache_form == 0)
             return cache_result;
         int r = Config::side_to_play ? -cache_result : cache_result;
@@ -10384,6 +10578,7 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 
     int total = 0;
     int moveNum = static_cast<int>(state_history.size());
+    bool lazy_full = false;   // a full v2 eval ran, so g_v2_last_pos is this position's positional part
 
     const int mate = mate_state(zobrist, current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn], current_state.occupied_colour[current_state.turn], current_state.pawns,
                                 current_state.knights, current_state.bishops, current_state.rooks, current_state.queens, current_state.kings, current_state.ep_square, current_state.turn);
@@ -10444,9 +10639,30 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
                 ++Oracle::g_fallbacks;
         }
         if (!used_oracle)
+        {
+            const bool lazy_ask = lazy_on && g_lazy_req.active;
+            if (lazy_ask)
+            {
+                g_lazy_req.parent_pos = lazy_parent_pos(state_history);
+                g_lazy_req.armed = true;
+                g_lazy_fired = false;
+                ++g_lazy_asks;
+            }
             total = placement_and_piece_eval(moveNum, current_state.turn, current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
                                              current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false], current_state.occupied,
                                              current_state.castling_rights);
+            if (lazy_ask)
+                g_lazy_req.armed = false;
+            if (lazy_ask && g_lazy_fired)
+            {
+                // A lazy estimate: the site takes it as its bound and cuts or prunes, so it is not cached, and this position
+                // has no positional part on record for children (it will have none: nothing is searched under it).
+                ++g_lazy_fires;
+                lazy_record(state_history, LAZY_POS_NA);
+                return Config::side_to_play ? -total : total;
+            }
+            lazy_full = true;
+        }
     }
 
     const int fixed_total = total;   // Black-positive, before the side flip and noise (what forms 1 and 2 cache)
@@ -10492,7 +10708,21 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
         if (cache_form == 0)
             addToCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), total);
         else if (!(cache_form == 2 && mate == 1))
-            addToCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), fixed_total);
+        {
+            if (lazy_on)
+            {
+                const int lp = lazy_full ? g_v2_last_pos : LAZY_POS_NA;
+                const int16_t lp16 = (lp == LAZY_POS_NA || lp < -32767 || lp > 32767) ? INT16_MIN : (int16_t)lp;
+                addToCacheNewPos(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), fixed_total, lp16);
+            }
+            else
+                addToCacheNew(eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), fixed_total);
+        }
     }
+    if (lazy_on)
+        lazy_record(state_history, lazy_full ? g_v2_last_pos : LAZY_POS_NA);
+#ifdef LAZY_PROBE
+    lazy_probe_log(state_history, zobrist, eval_cache_key(zobrist, current_state.castling_rights, current_state.ep_square), moveNum, total);
+#endif
     return total;
 }

@@ -133,6 +133,11 @@ saving is at the first checkpoint, before the attack build.
 3. Error where it fires: |full − cheap| on those positions, and how many change side of level or cross a likely α/β window
    (the compensation cases) — on the WDL corpus and on positions sampled from game trees.
 4. Then games at equal time, with the margins left as shipped; the margins re-sweep stays LAST.
+5. **Critical-situation test (owner 11-07), on every lazy build:** sacrifices, sequences forced into a sacrifice, precision
+   mates and similar critical positions, each theme scored lazy-on against lazy-off at fixed depth and at equal time, beside how much
+   the other positions gain. The aim: the exit fires only where it is safe, often enough to raise NPS, and it gives search v2 a
+   cheap static value to build on. Theme sources: WAC, ksattack, `tactical_fails_deep12`, the collapse sets, and themed puzzles
+   (Lichess puzzle database themes such as sacrifice, mateIn2-5, attraction, deflection, quietMove, defensiveMove).
 
 ## 5. Placement
 **Owner 11-04:** in the transition this is an exploration — how much of (A) we can get done and prove so far, not a finished

@@ -4693,6 +4693,88 @@ static void conn_load_table()
 	std::cerr << "[c3] CONN_V2 ON: " << n_set << " values from " << (path && *path ? path : "(none — live decomposition)") << '\n';
 }
 
+// ── LAZY EVAL (Config::LAZY_V2; see LazyReq in eval_v2.h) ──────────────────────────────────────────────────────────
+LazyReq g_lazy_req{false, false, false, 0, LAZY_POS_NA};
+bool g_lazy_fired = false;
+int  g_v2_last_pos = LAZY_POS_NA;
+
+// Guard bit 1: 2+ enemy knights, bishops, rooks or queens within 2 squares (king distance) of either king. Step 0 (11-07): these
+// positions have five times the gap between the full eval and its cheap part. Checked only once the estimate has cleared its
+// bound, so the cost falls on calls that are about to return early.
+static inline bool lazy_king_crowded(const V2Context &c)
+{
+	static uint64_t zone[64];
+	static bool zone_ready = false;
+	if (!zone_ready){
+		for (int s = 0; s < 64; ++s){
+			zone[s] = 0;
+			for (int t = 0; t < 64; ++t){
+				const int df = (s & 7) - (t & 7), dr = (s >> 3) - (t >> 3);
+				if (df >= -2 && df <= 2 && dr >= -2 && dr <= 2) zone[s] |= 1ULL << t;
+			}
+		}
+		zone_ready = true;
+	}
+	const uint64_t pcs = c.knights | c.bishops | c.rooks | c.queens;
+	const uint64_t wk = c.kings & c.white, bk = c.kings & c.black;
+	return (wk && __builtin_popcountll(zone[__builtin_ctzll(wk)] & pcs & c.black) >= 2)
+	    || (bk && __builtin_popcountll(zone[__builtin_ctzll(bk)] & pcs & c.white) >= 2);
+}
+
+// Guard bit 4: a passed pawn on its 6th or 7th rank, from the pawn entry (pawn-hashed; built and stored here when missing, which
+// the full eval would otherwise do).
+static inline bool lazy_advanced_passer(V2Context &c)
+{
+	PawnEntry tmp;
+	const PawnEntry *pe = &tmp;
+	if (c.ph && c.ph->pe_ok) pe = &c.ph->pe;
+	else {
+		build_pawn_entry(tmp, c);
+		if (c.ph){ c.ph->pe = tmp; c.ph->pe_ok = true; }
+	}
+	return (pe->passed[0] & 0x00FFFF0000000000ULL) || (pe->passed[1] & 0x0000000000FFFF00ULL);
+}
+
+#ifdef LAZY_PROBE
+LazyProbe g_lazy_probe;
+
+// Board features for the lazy eval probe (see eval_v2.h). Each one is available before the attack build in a real lazy exit:
+// census counts, the pawn entry (pawn-hashed) and king proximity from the bitboards.
+static void lazy_probe_features(const V2Context &c, const PawnEntry *pe)
+{
+	LazyProbe &p = g_lazy_probe;
+	const uint64_t W = c.white, B = c.black;
+	p.npm_w = c.npm_white;  p.npm_b = c.npm_black;
+	p.mat_w = c.mat_white;  p.mat_b = c.mat_black;
+	p.phase256 = c.phase256;
+	p.q_w      = __builtin_popcountll(c.queens & W);               p.q_b      = __builtin_popcountll(c.queens & B);
+	p.minors_w = __builtin_popcountll((c.knights | c.bishops) & W); p.minors_b = __builtin_popcountll((c.knights | c.bishops) & B);
+	p.rooks_w  = __builtin_popcountll(c.rooks & W);                p.rooks_b  = __builtin_popcountll(c.rooks & B);
+	p.pawns_w  = __builtin_popcountll(c.pawns & W);                p.pawns_b  = __builtin_popcountll(c.pawns & B);
+	// Relative 6th and 7th ranks: White's are ranks 6-7 (bits 40-55), Black's are ranks 3-2 (bits 8-23). -1 = no pawn entry.
+	p.advp_w = pe ? __builtin_popcountll(pe->passed[0] & 0x00FFFF0000000000ULL) : -1;
+	p.advp_b = pe ? __builtin_popcountll(pe->passed[1] & 0x0000000000FFFF00ULL) : -1;
+	auto near_king = [&](uint64_t own, uint64_t enemy) {
+		const uint64_t k = c.kings & own;
+		if (!k) return 0;
+		const int ksq = __builtin_ctzll(k), kf = ksq & 7, kr = ksq >> 3;
+		uint64_t pcs = (c.knights | c.bishops | c.rooks | c.queens) & enemy;
+		int n = 0;
+		while (pcs){
+			const int s = __builtin_ctzll(pcs);
+			pcs &= pcs - 1;
+			const int df = (s & 7) > kf ? (s & 7) - kf : kf - (s & 7);
+			const int dr = (s >> 3) > kr ? (s >> 3) - kr : kr - (s >> 3);
+			if (df <= 2 && dr <= 2) ++n;
+		}
+		return n;
+	};
+	p.near_wk = near_king(W, B);
+	p.near_bk = near_king(B, W);
+	p.turn = c.turn;
+}
+#endif
+
 int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, uint64_t occupied_whiteMask, uint64_t occupied_blackMask, uint64_t occupiedMask, uint64_t castlingRights)
 {
 	// Compile-gated cycle profiler (no-op unless built with PROFILE_EVAL=1; production stays
@@ -4723,6 +4805,13 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			g_eval_breakdown.arm         = Config::EVAL_ARM;
 			g_eval_breakdown.terms_valid = (1ULL << EB_TOTAL);
 		}
+#ifdef LAZY_PROBE
+		g_lazy_probe = LazyProbe{};
+		g_lazy_probe.fresh = true;
+		g_lazy_probe.special = 1;
+		lazy_probe_features(c, nullptr);
+#endif
+		g_v2_last_pos = LAZY_POS_NA;
 		return 0;
 	}
 
@@ -4744,6 +4833,14 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 				g_eval_breakdown.arm         = Config::EVAL_ARM;
 				g_eval_breakdown.terms_valid = (1ULL << EB_TOTAL);
 			}
+#ifdef LAZY_PROBE
+			g_lazy_probe = LazyProbe{};
+			g_lazy_probe.fresh = true;
+			g_lazy_probe.special = 2;
+			g_lazy_probe.total = t2;
+			lazy_probe_features(c, nullptr);
+#endif
+			g_v2_last_pos = LAZY_POS_NA;
 			return t2;
 		}
 	}
@@ -4793,6 +4890,26 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		const int m = mcl_mp(c);
 		if (pair_mode) acc.mg -= mcl_white_mp(c); else total += m;     // acc is Black-positive like the total
 	}
+#ifdef LAZY_PROBE
+	const int lzp_cheap = total;   // the cheap part: everything before the attack build
+#endif
+	// ── LAZY EXIT (Config::LAZY_V2): the estimate is the cheap part above plus the parent's positional part when the search
+	// knows it. Step 0b (11-07) put its gap to the full eval at 0.35 pawns median, 2.6 at p99; the cheap part alone, 0.78 / 4.6.
+	if (g_lazy_req.armed && !pair_mode){
+		const bool have_parent = g_lazy_req.parent_pos != LAZY_POS_NA;
+		const int M = have_parent ? Config::LAZY_V2_M : Config::LAZY_V2_M_CHEAP;
+		if (M > 0){
+			const int est = total + (have_parent ? g_lazy_req.parent_pos : 0);
+			if ((g_lazy_req.above ? est >= g_lazy_req.bound + M : est <= g_lazy_req.bound - M)
+			    && !((Config::LAZY_V2_GUARDS & 1) && lazy_king_crowded(c))
+			    && !((Config::LAZY_V2_GUARDS & 4) && lazy_advanced_passer(c))){
+				g_lazy_fired = true;
+				g_v2_last_pos = LAZY_POS_NA;
+				return est;
+			}
+		}
+	}
+	const int lazy_cheap = total;
 
 	// ── rung 1: king safety (KS-A) ───────────────────────────────────────────────────────────────
 	// Gated on KS_V2_MAX, so 0 = the rung is absent and this is byte-identical to rung 0.5. The attack maps
@@ -4994,6 +5111,9 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	// endgame, so their tempo is ~1.7-2.0x more pawns in the midgame without them choosing it; our pawn is
 	// flat at 1000, so we have to state the taper explicitly. SF1.1 -- the only reference that chose it --
 	// used an explicit 50/20 pair. See dev_notes/archive/eval/EVAL-V2-SLICE1-TEMPO-DESIGN.md §1.
+#ifdef LAZY_PROBE
+	const int lzp_pre_tempo = total;
+#endif
 	if (Config::TEMPO_V2_MG != 0 || Config::TEMPO_V2_EG != 0){
 		const int t = (Config::TEMPO_V2_MG * c.phase256
 		             + Config::TEMPO_V2_EG * (256 - c.phase256)) >> 8;
@@ -5003,6 +5123,9 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			acc.eg += sgn * Config::TEMPO_V2_EG;
 		} else total += c.turn ? -t : t;
 	}
+#ifdef LAZY_PROBE
+	const int lzp_post_tempo = total;
+#endif
 
 	// ═══ THE ONE INTERPOLATION ═════════════════════════════════════════════════════════════════════
 	// Everything above contributed unblended legs; this is the single place phase is applied. It is also
@@ -5047,6 +5170,25 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	}
 
 	// Later rungs accumulate here, each gated on its own knob.
+
+#ifdef LAZY_PROBE
+	{
+		// Every stage's contribution. With EVAL_V2_PAIR = 0 they partition the total exactly; the reader checks that.
+		LazyProbe &p = g_lazy_probe;
+		p = LazyProbe{};
+		p.fresh = true;
+		p.cheap = lzp_cheap;
+		p.mob = mob_mp;   p.space = sp_mp;    p.threats = th_mp;  p.ks = ks_mp;
+		p.pawns = ps_mp;  p.passers = pp_mp;  p.rookfile = rf_mp; p.placement = pl_mp;
+		p.c3 = ksb_mp + kfl_mp + kprot_mp;
+		p.px = px_mp;
+		p.tempo = lzp_post_tempo - lzp_pre_tempo;
+		p.win = total - lzp_post_tempo;
+		p.total = total;
+		p.ksu_w = ks_w;   p.ksu_b = ks_b;
+		lazy_probe_features(c, (Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on) ? &pe : nullptr);
+	}
+#endif
 
 	// ⚠️ Arm 2 excluded deliberately: in SHADOW the value search uses is v1's, and v1 has already published
 	// its own breakdown for this position. Publishing here would leave a breakdown from one eval attached to
@@ -5158,5 +5300,6 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		}
 	}
 
+	g_v2_last_pos = total - lazy_cheap;   // read by the search for the children of this position (lazy eval)
 	return total;
 }

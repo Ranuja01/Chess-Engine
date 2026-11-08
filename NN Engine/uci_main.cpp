@@ -24,6 +24,7 @@
 #include "cache_management.h"
 
 extern std::atomic<bool> time_up;   // search_engine.cpp
+extern long long g_lazy_asks, g_lazy_fires;   // search_engine.cpp, lazy eval counters (Config::LAZY_V2)
 
 namespace
 {
@@ -406,6 +407,9 @@ namespace
         g_last_side = -1;
         say("bench: solved " + std::to_string(solved) + "/" + std::to_string(n) + " nodes " + std::to_string(nodes) +
             " time " + std::to_string((int)(sec * 1000)) + " ms nps " + std::to_string(sec > 0 ? (long long)(nodes / sec) : 0));
+        if (Config::LAZY_V2)
+            say("info string lazy eval: " + std::to_string(g_lazy_fires) + " lazy returns of " + std::to_string(g_lazy_asks) +
+                " evals asked");
     }
 
     void cmd_perft(std::istringstream &in, bool divide)

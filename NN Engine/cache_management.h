@@ -78,6 +78,8 @@ struct EvalEntry {
     uint64_t key = 0;
     int value = 0;
     bool valid = false;
+    int16_t pos = INT16_MIN;   // lazy eval (Config::LAZY_V2): the position's positional part (full - cheap), INT16_MIN = unknown.
+                               // Sits in the entry's padding, so the entry stays 16 bytes.
 };
 
 struct MoveEntry {
@@ -722,6 +724,25 @@ inline void addToCacheNew(uint64_t key, int value) {
     entry.key = key;
     entry.value = value;
     entry.valid = true;
+}
+
+// The same two with the positional part (lazy eval only; see EvalEntry::pos).
+inline bool accessCacheNewPos(uint64_t key, int& out, int16_t& pos) {
+    const EvalEntry &entry = evalCacheNew[key & g_eval_mask];
+    if (entry.valid && entry.key == key) {
+        out = entry.value;
+        pos = entry.pos;
+        return true;
+    }
+    return false;
+}
+
+inline void addToCacheNewPos(uint64_t key, int value, int16_t pos) {
+    EvalEntry& entry = evalCacheNew[key & g_eval_mask];
+    entry.key = key;
+    entry.value = value;
+    entry.valid = true;
+    entry.pos = pos;
 }
 
 

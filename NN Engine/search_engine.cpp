@@ -1475,6 +1475,22 @@ static inline int lazy_parent_pos(const std::vector<BoardState> &h)
 // A site that cuts or prunes once the eval reaches `need` (up) or falls to `need` (!up), in the search frame (root side
 // positive), lets the eval return its estimate when that clears `need` by the margin. Set immediately before the eval call and
 // cleared immediately after, with no return in between.
+// LAZY_V2_GATE: true when the move that led to the position at the end of h bars the lazy exit. The tests match the probe's
+// split (lazy_probe_move_type): a null move leaves the side to move equal to the position one ply back; a capture removes an
+// enemy piece; a promotion (the mover's pawn count drops) is not a capture here.
+long long g_lazy_gated = 0;   // asks refused by the gate
+static inline bool lazy_gated(const std::vector<BoardState> &h)
+{
+    const size_t n = h.size();
+    if (n < 2) return false;
+    const BoardState &p = h[n - 2], &c = h[n - 1];
+    if (p.turn == c.turn) return Config::LAZY_V2_GATE & 2;
+    if (!(Config::LAZY_V2_GATE & 1)) return false;
+    const bool m = p.turn;   // the side that moved
+    if (!(p.occupied_colour[!m] & ~c.occupied_colour[!m])) return false;
+    return __builtin_popcountll(c.pawns & c.occupied_colour[m]) >= __builtin_popcountll(p.pawns & p.occupied_colour[m]);
+}
+
 static inline void lazy_request(bool up, int need, int site)
 {
     const bool flip = Config::side_to_play;   // the search frame is the Black-positive eval negated when the root side is White
@@ -3145,6 +3161,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LAZY_V2_S_RFP = env_int("LAZY_V2_S_RFP", Config::LAZY_V2_S_RFP);
         Config::LAZY_V2_S_FUT = env_int("LAZY_V2_S_FUT", Config::LAZY_V2_S_FUT);
         Config::LAZY_V2_KEEP = env_int("LAZY_V2_KEEP", Config::LAZY_V2_KEEP);
+        Config::LAZY_V2_GATE = env_int("LAZY_V2_GATE", Config::LAZY_V2_GATE);
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
         Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
         Config::TM_OPT_PLY = env_int("TM_OPT_PLY", Config::TM_OPT_PLY);
@@ -10714,7 +10731,12 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
         }
         if (!used_oracle)
         {
-            const bool lazy_ask = lazy_on && g_lazy_req.active;
+            bool lazy_ask = lazy_on && g_lazy_req.active;
+            if (lazy_ask && Config::LAZY_V2_GATE && lazy_gated(state_history))
+            {
+                lazy_ask = false;
+                ++g_lazy_gated;
+            }
             if (lazy_ask)
             {
                 g_lazy_req.parent_pos = lazy_parent_pos(state_history);

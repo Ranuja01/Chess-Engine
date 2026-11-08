@@ -4,30 +4,34 @@ How AlphaUX's v2 eval may stop early when a search site only needs to know wheth
 the reference for the system as of **2026-11-08**: built, measured, **off by default in every build**, and not compiled into the
 production UCI binary (gen 7, `chess_engine_uci_g7pgo`, predates the code). The research, the reference-engine survey and the
 design history live in [LAZY-EVAL-RESEARCH-2026-10-30.md](../active/LAZY-EVAL-RESEARCH-2026-10-30.md); the measured record is in
-[OPTIMIZATION_LOG.md](OPTIMIZATION_LOG.md) (2026-11-07 22:30, 2026-11-08 00:15, 05:40, 06:25, 09:50, 13:05).
+[OPTIMIZATION_LOG.md](OPTIMIZATION_LOG.md) (2026-11-07 22:30, 2026-11-08 00:15, 05:40, 06:25, 09:50, 13:05, 14:45, 16:10, 16:30,
+17:45).
 
 Code: the exit is in `placement_and_piece_eval` (`eval_v2.cpp`, block "LAZY EXIT", after the cheap terms and before king
-safety); the request, the per-ply records and the counters are in `search_engine.cpp` (section "LAZY EVAL, the search side",
-`lazy_request`, `lazy_record`, `lazy_parent_pos`) and the wrapper `get_board_evaluation`. Knobs: `Config::LAZY_V2*` in
+safety); the request, the per-ply records, the gate and the counters are in `search_engine.cpp` (section "LAZY EVAL, the search
+side", `lazy_request`, `lazy_record`, `lazy_parent_pos`, `lazy_gated`) and the wrapper `get_board_evaluation`. Knobs: `Config::LAZY_V2*` in
 `search_engine.h`. `LazyReq` is in `eval_v2.h`.
 
 Owner framing (11-07): lazy eval is **infrastructure for search v2**, not a live-or-die item on today's search. Exact parts
-ship on speed; the value-changing exit ships on "not harmful" in games.
+ship on speed; the value-changing exit ships on "not harmful" in games. Owner 11-08: "as long as we have the right structure for
+the future, we can improve upon it as time goes. For now let's note the best we can do." So the variant carried forward is the
+one that misses least per fire (keep_gate), not the fastest; section 7 lists what to improve.
 
 ---
 
-## 0. Status (2026-11-08)
+## 0. Status (2026-11-08 evening)
 
 | variant | knobs | state |
 |---|---|---|
 | off (default) | `LAZY_V2=0` | byte-identical to gen 7: bench 246 / 36,509,830 |
 | build 1 | `LAZY_V2=7` | games +14.8 Elo vs off (2,000 g, z 2.18); has the lost-record defect (section 2) |
-| fix only | `+LAZY_V2_KEEP=1` | most accurate variant; slowest; no games |
+| fix only (keep) | `+LAZY_V2_KEEP=1` | most accurate ungated variant; slowest; no games |
 | keep_g3 | `+LAZY_V2_KEEP=1,LAZY_V2_GUARDS=3` | games +0.3 vs off (1,200 g); weakest on passed pawns (section 8) |
-| **keep_m1000 (candidate)** | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_M=1000,LAZY_V2_M_CHEAP=2000` | guards on, about as fast as keep_g3; **no games yet** |
+| keep_m1000 | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_M=1000,LAZY_V2_M_CHEAP=2000` | **FAILED the SF18 leg** (#184: −4.2 pp vs off at equal nodes, z −1.54); 3.5x keep's misses |
+| **keep_gate (current best)** | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_GATE=3` | build 3; the fewest misses per fire (probe 0.41 per 1,000 asks); queue #185 runs SF18, passers, games |
 
-Next: games for keep_m1000 vs off, then the ship gate (SF18 gauntlet > −1σ, Mediocre not negative, the default bench change).
-Turning it on by default is a ship like any other.
+Next: queue #185's reads (SF18 leg > −1σ, self-play not harmful, passers, equal-time themes), then the rest of the ship gate
+(Mediocre not negative, the default bench change). Turning it on by default is a ship like any other.
 
 ## 1. What it does
 
@@ -79,6 +83,19 @@ and no guard applies
 
 Guards 1 and 4 are checked only once the estimate has cleared its bound, so their cost falls on calls about to return early.
 
+**The gate by the last move (`LAZY_V2_GATE`, build 3).** Checked before the request is armed, from the last two history entries:
+
+| gate bit | no lazy exit when the position was reached by | probe 11-08 (#183, keep_m1000's margins) |
+|---|---|---|
+| 1 capture | a move that removed an enemy piece (en passant included; a capturing promotion is not gated) | 9.2% of fires, 43.4% of misses |
+| 2 null move | the null move (the side to move equals the position one ply back: the null search flips it in place) | 1.4% of fires, 9.4% of misses |
+
+This is the owner's idea from 11-08: bar the lazy exit where search itself would not trust a static value, as search exempts
+captures and the PV from its own pruning. A position just after a capture is mid-exchange, so its positional part moves most
+from its parent's; after a null move the parent is the same position with the other side to move. A refused request is a full
+eval. Gates the probe tested and rejected (removed no more misses than fires): after a king move, after a promotion or a push to
+the 6th / 7th rank, reverse futility at depth ≥ 4.
+
 ## 4. The sites
 
 | site | where | `need` (max side / min side) | search's own conditions it inherits | misses per fire (step 0b, build 1 era) |
@@ -100,6 +117,7 @@ misses a ninth as often per fire as the site that inherits none.
 | `LAZY_V2_GUARDS` | 7 | bits: 1 crowded king, 2 PV, 4 advanced passer |
 | `LAZY_V2_S_QS` / `S_RFP` / `S_FUT` | 100 | per-site margin scale, percent of both margins |
 | `LAZY_V2_KEEP` | 0 | 1 = keep the per-ply records across the null search and against unknown values |
+| `LAZY_V2_GATE` | 0 | bits: 1 no exit after a capture, 2 none after a null move (build 3 only) |
 
 Every knob is env-wired and settable through the UCI `Knobs` option. Knobs latch at engine start: one process per setting.
 
@@ -109,7 +127,8 @@ Every knob is env-wired and settable through the UCI `Knobs` option. Knobs latch
 (never `option.Knob_X`, which is silently dropped; assert 0 "have option" warnings); env for the Cython path. The 11-08 builds
 checked that the Knobs option and env give the same bench.
 
-**Fingerprints** (`bench`, WAC 300 at depth 10, binary `chess_engine_uci_lazy2`):
+**Fingerprints** (`bench`, WAC 300 at depth 10, binaries `chess_engine_uci_lazy2` and `chess_engine_uci_lazy3`, which agree on
+every lazy2 arm):
 
 | variant | bench |
 |---|---|
@@ -118,18 +137,23 @@ checked that the Knobs option and env give the same bench.
 | fix only | 245 / 38,661,603 |
 | keep_g3 | 245 / 38,269,252 |
 | keep_m1000 | 249 / 37,197,972 |
+| keep_gate (lazy3) | 247 / 39,852,210 |
+| keep + `GATE=1` / `GATE=2` (lazy3) | 250 / 40,135,697 · 249 / 36,922,472 |
 
 With `LAZY_V2` on, the bench also prints `info string lazy eval: F lazy returns of A evals asked; parent known on P;
-returns/asks by site: stand-pat a/b rfp c/d futility e/f`.
+returns/asks by site: stand-pat a/b rfp c/d futility e/f` and, with a gate on, `; refused by the gate N`.
 
 **Binaries** (`build_uci/`, none PGO, none installed): `chess_engine_uci_lazy` (build 1), `chess_engine_uci_lazy2` (build 2,
-all knobs), `chess_engine_uci_lzprobe` (the probe), `chess_engine_uci_lzplain` (from the 11-07 probe work).
+all knobs but the gate), **`chess_engine_uci_lazy3` (build 3, all knobs)**, `chess_engine_uci_lzprobe2` (the context probe),
+`chess_engine_uci_orc` (lazy2 plus the oracle memo cleared at ucinewgame), `chess_engine_uci_lzprobe` / `lzplain` (11-07).
 A ship would be a PGO build with the chosen knobs as defaults.
 
-**The probe.** `EXTRA_FLAGS=-DLAZY_PROBE` builds log sampled fresh evals with the site, window, every eval stage and the board
-features; `diagnostics/_lazy_probe_read.py` reads them (gap by feature, fire and miss rates for position-only and window-aware
-exits, the inherited estimate). Rows in `E:\chess_data\lazy\`. The probe predates KEEP and has the same lost-record defect, so
-its parent coverage (66%) is understated.
+**The probe.** `EXTRA_FLAGS=-DLAZY_PROBE` builds log sampled fresh evals with the site, window, every eval stage, the board
+features, the move that led to the position (`mv`) and a capture near a king (`kz`); `diagnostics/_lazy_probe_read.py` reads them
+(gap by feature, fire and miss rates, the inherited estimate; section 7 with `ONLY_CONTEXT=1` splits by site, last move and depth
+and prices gates). `build_rule` in the reader simulates any margins and guards on the same rows, so a candidate rule can be
+priced before it is built. Rows in `E:\chess_data\lazy\` (context probe: `lazy\c\`). Since 11-08 the probe's records follow
+`LAZY_V2_KEEP` (parent coverage 77.6% with KEEP).
 
 **The test kit for any lazy build** (owner requirement 11-07: critical situations by theme, lazy on vs off, against how much the
 rest gains):
@@ -144,6 +168,9 @@ rest gains):
 - Against reference engines at equal work: `_theme_movetime.py` with `nN` (nodes per move) drives Stockfish too (`UCI_OPTS` for
   its options); `selfplay/_queue_180.sh` runs SF11, SF15.1 classical, SF18 and ours on every suite at 100k and 400k nodes.
 - Games: 10+0.1 UHO, fastchess, the candidate vs `LAZY_V2=0` on the same binary (`selfplay/_queue_177.sh`).
+- **SF18 at equal nodes** (the accuracy cost alone, the most sensitive instrument so far): ours at 250,000 nodes against SF18 at
+  1,100, fastchess `-each tc=inf` with per-engine `nodes=` (pure `go nodes`), 250-game chunks, the candidate and lazy off on the
+  same openings (`selfplay/_queue_184.sh`, `_queue_185.sh`). Node-limited, so safe beside the owner's evening.
 
 **Timing caveat.** Time to depth on the grid moves up to 6% between replicates of one arm, with arms early in a replicate
 slower; run two replicates in reversed order and read the mean. Compare arms on time, never on nodes.
@@ -152,9 +179,17 @@ slower; run two replicates in reversed order and read the mean. Compare arms on 
 
 1. **The passer guard is unresolved.** Dropping it (keep_g3) is weakest on the passed-pawn suites at both depths (z +1.24 and
    +1.92 against the fix alone, short of the registered 2.0, the same sign, losses in pawn and rook endgames). Kept on.
-2. **Build 2's per-decision miss rate is unmeasured.** The probe predates KEEP. A context probe (misses by the last move's type,
-   by remaining depth and by site) is the next measurement; it also tests the owner's gating idea (bar or raise the bar where
-   search itself refuses to prune).
+2. **The gate is a first cut** (build 3; the context probe of 11-08 measured where build 2 misses). Its known limits, the
+   improvements to make as time allows:
+   - what it leaves is mostly stand-pat at the qsearch entry after a quiet or king move (at keep_m1000's margins, 16% and 12% of
+     all misses, 0.5% and 1.1% per fire). The existing per-site scale `LAZY_V2_S_QS` is the first knob to try there, priced on
+     the probe rows first (`build_rule`); qsearch positions below the entry are reached mostly by captures, so the gate already
+     covers most of them;
+   - it is all-or-nothing: a raised margin after a capture (instead of no exit) might keep some fires cheaply;
+   - the cheap path (no parent value) holds 27% of the misses for 10% of the fires, just short of the 3x bar; with search v2's
+     per-ply stack the parent value would be known nearly always, and this path would mostly vanish;
+   - **narrower margins buy speed with the worst fires** (keep_m1000's extra fires miss at 3-6% each, and it failed the SF18
+     leg). Do not narrow the margins again without the SF18 leg at equal nodes.
 3. **Corrhist.** The exit returns before correction history would be added (the knob comment: "Assumes corrhist off"). If
    `CORR2_*` ships in the margins re-sweep, the estimate must include the correction or the exit must account for it.
 4. **The margins fit today's eval.** They are set against how far the positional part can swing. Any eval change that widens
@@ -166,7 +201,12 @@ slower; run two replicates in reversed order and read the mean. Compare arms on 
 7. **Records travel through a side table keyed by position.** A real per-ply search stack (search v2) would make the parent
    value exact and near 100%, and remove this class of defect.
 8. **The Elo is below one run's resolution.** Pooled lazy on vs off is about +9 ± 10 over 3,200 games; the speed alone predicts
-   low single digits. Variants are chosen on the instruments that resolve (time to depth, fixed-depth and equal-time suites).
+   low single digits. Variants are chosen on the instruments that resolve (time to depth, fixed-depth and equal-time suites,
+   the probe's misses per fire, and SF18 at equal nodes, which resolved keep_m1000's cost where self-play could not).
+9. **Passed pawns are a weakness of the engine, not of lazy eval.** At equal nodes (#180) SF11 / SF15c / SF18 solve 1,478 /
+   1,481 / 1,498 of the 1,500 passer positions at 400k nodes against our 1,360; lazy eval moves ours by under 10. With SF11's
+   eval in our search (#182), rook and minor / queen endgames with a passer gain, pawn endings lose: the gap is partly eval
+   (piece endgames) and partly search (pawn endings). Both belong to the search v2 and endgame arcs, not to lazy eval.
 
 **Search v2 hooks** (owner 11-08 asked whether search v2 can harden it): a per-ply stack (exact parent values, the eval two
 plies back); search v2's criticality signals as gates (tt-PV, singular / check extensions, cut-node, the null-move threat,
@@ -202,6 +242,22 @@ Games (10+0.1 UHO, fastchess, vs off on the same binary; Elo ± 95%):
 |---|---|---|---|---|---|
 | build 1 (#177) | 2,000 | **+14.8** (+1.5 … +28.1), z 2.18 | +6.3% | 11.6 vs 11.5 | 3,749 vs 3,728 (+21) |
 | keep_g3 (#178) | 1,200 | +0.3 (−17.0 … +17.6) | +8.7% | 11.7 vs 11.5 | 3,757 vs 3,726 (+31) |
+
+SF18 at equal nodes (ours 250k nodes, SF18 1,100; score vs SF18):
+
+| variant | games | score | vs off |
+|---|---|---|---|
+| off (#184) | 500 | 60.2% | |
+| keep_m1000 (#184) | 500 | 56.0% | −4.2 pp ± 5.35, z −1.54, **FAIL** |
+| keep_gate, keep, build 1 (#185) | 750 / 500 / 500 | queued 11-08 17:41 | |
+
+Context probe (#183, 6.15M decision rows, rule simulated on the probe's rows; fires % of asks / misses per 1,000 asks):
+
+| margins | no gate | capture or null gate |
+|---|---|---|
+| 1000 / 2000 (keep_m1000) | 29.3 / 2.57 | 26.2 / 1.21 |
+| 1250 / 2500 | 27.2 / 1.33 | 24.6 / 0.68 |
+| 1500 / 3000 (keep / keep_gate) | 25.4 / 0.72 | **23.2 / 0.41** |
 
 Step 0 / 0b (probe, 4.8M sampled evals, WAC / STS300 / ksattack / game positions): a position-only exit at Stockfish 11's
 ~8 pawns fires on 17% of evals and changes the decision on 5.8% of its fires; a window-aware exit with guards at 3 pawns on the

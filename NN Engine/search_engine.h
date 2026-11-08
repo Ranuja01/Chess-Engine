@@ -3449,6 +3449,10 @@ namespace Config
     // record is now kept across it. An eval whose positional part is unknown (a lazy return, mate, an early return) no longer
     // overwrites the slot either: a record is used only when its position key matches, so an older record left there is correct.
     inline int LAZY_V2_KEEP = 0;
+    // Gates by the move that led to the position, bitmask: 1 = no lazy exit after a capture (a promotion that captures is not
+    // gated), 2 = none after a null move. 0 = off = byte-identical. The 11-08 context probe (queue #183) put 43% of the misses
+    // after a capture for 9% of the fires, and 9% after a null move for 1.4% of the fires.
+    inline int LAZY_V2_GATE = 0;
     // TM_SCALE (clock games under TM_MODE >= 1): bits that scale the soft limit after each completed iteration from depth 5.
     // 1 = the best move's share of the nodes spent under root moves this search, max(0.563, 0.4499 + 2.2669 * (1 - share));
     // 2 = best-move stability, 1.311 - 0.0533 * (consecutive iterations with the same best move, at most 10);

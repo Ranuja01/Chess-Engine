@@ -4,6 +4,53 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 17:45 — #184 READ: keep_m1000 FAILS the SF18 leg at equal nodes; build 3 adds the capture / null gate, and queue #185 replaces #181
+
+**#184** (`selfplay/_queue_184.sh`, binary `chess_engine_uci_lazy2`): ours at 250,000 nodes against SF18 at 1,100 nodes, fastchess
+`go nodes` (tc=inf), UHO, ABBA chunks of 250 (ctl, arm, arm, ctl; seeds 184111 / 184112), 0 warnings, 0 disconnects. Equal nodes
+remove the lazy speed, so this reads the accuracy cost alone.
+
+| arm | games | W-L-D | score |
+|---|---|---|---|
+| lazy off | 500 | 242-140-118 | 60.2% (se 1.9 pp) |
+| keep_m1000 | 500 | 225-165-110 | 56.0% (se 2.0 pp) |
+
+arm − ctl **−4.20 pp ± 5.35** (95%), z −1.54: **FAIL** against the registered rule (> −1σ). The prediction (within ±1σ of 0)
+was wrong. About −30 Elo at this score (60.2% = +72, 56.0% = +42), against keep_m1000's speed gain of −8% time to depth. The chunks agree in sign (seed 184111
+−5.2 pp, 184112 −3.2 pp). This is the instrument that #183's miss count pointed at: keep_m1000 makes 3.5x the misses of the 1500 /
+3000 margins.
+
+**Build 3** (`chess_engine_uci_lazy3`, no PGO): `LAZY_V2_GATE`, bits 1 = no lazy exit in a position reached by a capture (a
+capturing promotion is not gated, as in the probe's split), 2 = none after a null move (the side to move equals the position one
+ply back); default 0. Checked in `get_board_evaluation` before the request is armed (`lazy_gated`); a refused request is a full
+eval and is counted (`refused by the gate N` in the bench's lazy line). Fingerprints (WAC 300, depth 10):
+
+| arm | bench | lazy returns / asks | refused by the gate |
+|---|---|---|---|
+| default | 246 / 36,509,830 (unchanged) | | |
+| `LAZY_V2_GATE=3` alone | 246 / 36,509,830 (inert with lazy off) | | |
+| keep | 245 / 38,661,603 (= lazy2) | 5,685,037 / 12,204,208 | |
+| keep_m1000 | 249 / 37,197,972 (= lazy2) | 6,127,816 / 11,882,146 | |
+| keep + `GATE=1` | 250 / 40,135,697 | 5,470,012 / 9,240,295 | 3,262,785 |
+| keep + `GATE=2` | 249 / 36,922,472 | 5,444,720 / 10,817,986 | 732,001 |
+| **keep_gate** (keep + `GATE=3`) | **247 / 39,852,210** | 5,374,176 / 8,331,331 | 4,060,868 |
+
+The gate refuses a third of the requests but only 5.5% of keep's fires, as the probe predicted (captures are asked often and
+rarely fire, but miss when they do).
+
+**Owner 11-08:** "as long as we have the right structure for the future, we can improve upon it as time goes. For now let's note
+the best we can do." keep_gate (`LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_GATE=3`, margins 1500 / 3000, guards on) is the current best:
+the fewest misses per fire of any variant built (probe: 23.2% of asks, 0.41 misses per 1,000 against keep_m1000's 29.3% / 2.57).
+
+**Queue #185** (`selfplay/_queue_185.sh`, launched 17:41; #181 stopped by its stop file before it ran anything):
+- fingerprints;
+- the pinned bench (off / keep / keep_gate / keep_m1000 × 3);
+- the passed-pawn suites at depth 10 / 12 against #179;
+- SF18 at fixed nodes: gate 750 g, keep 500, b1 500, ctl 750, pooled with #184's 500;
+- from 00:45 (or `q185.go`): 2,000 timed games 10+0.1, keep_gate vs off, then the equal-time themes.
+
+Registered in the queue header: the SF18 leg passes above −1σ against the pooled control, and self-play is "not harmful" at ≥ −1σ.
+
 ## 2026-11-08 16:30 — #183 READ: lazy misses cluster after captures and null moves (the owner's gate qualifies); narrower margins are the dear way to buy fires
 
 The context probe (`chess_engine_uci_lzprobe2`: records follow `LAZY_V2_KEEP`; new columns `mv` = the move that led to the position,

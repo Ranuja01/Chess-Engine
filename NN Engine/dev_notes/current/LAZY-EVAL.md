@@ -28,7 +28,7 @@ one that misses least per fire (keep_gate), not the fastest; section 7 lists wha
 | fix only (keep) | `+LAZY_V2_KEEP=1` | most accurate ungated variant; slowest; no games |
 | keep_g3 | `+LAZY_V2_KEEP=1,LAZY_V2_GUARDS=3` | games +0.3 vs off (1,200 g); weakest on passed pawns (section 8) |
 | keep_m1000 | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_M=1000,LAZY_V2_M_CHEAP=2000` | **FAILED the SF18 leg** (#184: −4.2 pp vs off at equal nodes, z −1.54); 3.5x keep's misses |
-| **keep_gate (current best)** | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_GATE=3` | build 3; the fewest misses per fire (probe 0.41 per 1,000 asks); queue #185 runs SF18, passers, games |
+| **keep_gate (current best)** | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_GATE=3` | build 3; fewest misses per fire (probe 0.41 per 1,000 asks); **passed SF18** (#185: +0.7 pp vs off on shared openings); passers level; WAC bench +3.2% time to depth (22-set grid in #186); timed games running |
 
 Next: queue #185's reads (SF18 leg > −1σ, self-play not harmful, passers, equal-time themes), then the rest of the ship gate
 (Mediocre not negative, the default bench change). Turning it on by default is a ship like any other.
@@ -243,13 +243,20 @@ Games (10+0.1 UHO, fastchess, vs off on the same binary; Elo ± 95%):
 | build 1 (#177) | 2,000 | **+14.8** (+1.5 … +28.1), z 2.18 | +6.3% | 11.6 vs 11.5 | 3,749 vs 3,728 (+21) |
 | keep_g3 (#178) | 1,200 | +0.3 (−17.0 … +17.6) | +8.7% | 11.7 vs 11.5 | 3,757 vs 3,726 (+31) |
 
-SF18 at equal nodes (ours 250k nodes, SF18 1,100; score vs SF18):
+SF18 at equal nodes (ours 250k nodes, SF18 1,100; score vs SF18; "vs off" = against lazy off on the same openings, because the
+opening sets alone moved lazy off's score by 4.4 pp between #184 and #185):
 
-| variant | games | score | vs off |
+| variant | games | score | vs off (same openings) |
 |---|---|---|---|
-| off (#184) | 500 | 60.2% | |
+| off | 500 (#184) + 750 (#185) | 60.2% / 55.8% | |
+| build 1 (#185) | 500 | 56.6% | +1.2 pp, z +0.44 |
+| keep (#185) | 500 | 52.1% | −3.3 pp, z −1.20 |
 | keep_m1000 (#184) | 500 | 56.0% | −4.2 pp ± 5.35, z −1.54, **FAIL** |
-| keep_gate, keep, build 1 (#185) | 750 / 500 / 500 | queued 11-08 17:41 | |
+| **keep_gate (#185)** | 750 | 56.5% | **+0.7 pp ± 4.4, z +0.33, PASS** |
+
+The two arms that lean negative both have KEEP on and no gate. Passed-pawn suites at fixed depth (#185): keep_gate 1,271 /
+1,358 at depth 10 / 12 (off 1,277 / 1,346; paired z vs off +0.90 / −1.60): level. Pinned WAC bench (#185, three rounds): time to
+depth vs off keep −1.0%, keep_gate +3.2%, keep_m1000 −6.6%; nps +7.0 / +5.8 / +9.0%.
 
 Context probe (#183, 6.15M decision rows, rule simulated on the probe's rows; fires % of asks / misses per 1,000 asks):
 

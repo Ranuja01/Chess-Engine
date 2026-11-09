@@ -4,6 +4,44 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-08 20:10 — #185 first reads: keep_gate PASSES the SF18 leg (level with off on shared openings); passers level; slower to depth on the WAC bench
+
+**SF18 at equal nodes** (ours 250k nodes, SF18 1,100; chunks of 250; 0 warnings, 0 disconnects). Per chunk, by seed (arms on one
+seed play the same openings):
+
+| seed | ctl | keep_gate | keep | b1 | keep_m1000 |
+|---|---|---|---|---|---|
+| 185111 | 54.6 | 57.0 | 52.6 | 57.6 | |
+| 185112 | 56.2 | 55.0 | 51.6 | 55.6 | |
+| 185113 | 56.6 | 57.6 | | | |
+| 184111 / 184112 (#184) | 60.4 / 60.0 | | | | 55.2 / 56.8 |
+
+Against the control on the same openings: **keep_gate +0.73 pp ± 4.37 (750 g each), z +0.33**; b1 +1.2 (500 g, z +0.44); keep
+−3.3 (500 g, z −1.20); keep_m1000 −4.2 (#184, z −1.54). keep_gate − keep on 185111 / 185112: +3.9 pp, z +1.42.
+
+The registered read (against the control pooled over #184's and #185's seeds) also passes: keep_gate −1.03 pp ± 3.90, z −0.52
+→ **PASS**. That pooled rule was a design error, and it erred against the gate. The opening sets alone moved the control 4.4 pp
+(60.2% on #184's seeds, 55.8% on #185's, z ≈ 1.8), so a control pooled across sets is biased by the sets' difficulty: −1.03
+pooled vs +0.73 on shared seeds for keep_gate, and −1.56 vs −4.2 for keep_m1000. The shared-seed comparison is the fair one, and
+#184's FAIL of keep_m1000 was on shared seeds, so it stands.
+
+**Reading.** Both arms that lean negative have KEEP on and no gate (keep, keep_m1000); build 1 (no KEEP) and keep_gate are level
+with off. A hypothesis, not tested: KEEP gives positions after a null move a parent value, so they fire on the 1500 margin instead
+of falling to the cheap path at 3000. The probe put stand-pat after a null move at 5.7% miss per fire and reverse futility at 29%.
+The null bit of the gate bars exactly those. The probe's miss counts do NOT rank the SF18 results (keep has a third of
+keep_m1000's misses and reads as low), so misses per fire is a screen, not a predictor.
+
+**Passed-pawn suites** (fixed depth, of 1,500): keep_gate 1,271 (d10) / **1,358** (d12) against off 1,277 / 1,346, keep 1,273 /
+1,348, keep_m1000 1,264 / 1,347. Paired vs off z +0.90 (off ahead) / −1.60 (keep_gate ahead); vs keep +0.39 / −2.04. The signs
+flip between depths, so this reads level and is not harmful (registered rule not met in either direction).
+
+**Pinned WAC bench** (depth 10, core 5, three rounds, off first each round): time to depth vs off: keep −1.0%, **keep_gate
++3.2%**, keep_m1000 −6.6%; nps +7.0% / +5.8% / +9.0%; bench nodes +5.9% / +9.2% / +1.9%. On WAC the gate keeps most of the nps gain
+but searches 9% more nodes, so it reaches depth 10 later than off. WAC understated keep too (−1.0% here, −5.2% on #178's 22-set
+grid), so #186 runs the 22-set grid before anything is concluded about speed.
+
+The timed games (2,000, keep_gate vs off) started 20:03 (owner: early start).
+
 ## 2026-11-08 17:45 — #184 READ: keep_m1000 FAILS the SF18 leg at equal nodes; build 3 adds the capture / null gate, and queue #185 replaces #181
 
 **#184** (`selfplay/_queue_184.sh`, binary `chess_engine_uci_lazy2`): ours at 250,000 nodes against SF18 at 1,100 nodes, fastchess

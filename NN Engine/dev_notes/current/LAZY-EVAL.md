@@ -193,7 +193,8 @@ slower; run two replicates in reversed order and read the mean. Compare arms on 
   is the probe's misses. Re-price it with the probe when the depth or the search changes.
 - **W3, speed to depth is noisy.** keep_gate's two grid replicates read −10.0% and −0.1%; build 1's agree at −7.6 / −8.8%. Real
   play is +6.3% nps (#185). Re-read the grid with more replicates before attributing speed to the gate.
-- **W4, corrhist.** See item 3 below: `CORR2_*` cannot ship in the margins re-sweep until the exit accounts for the correction.
+- **W4, corrhist. FIXED IN CODE 11-09** (item 3 below): the exit now decides on the corrected value; checked on
+  `chess_engine_uci_lazy4`.
 - **W5, the gain is unresolved.** Equal-time self-play leaned positive in all four chunks (+12.9, z 1.86), below +2σ.
 
 1. **The passer guard is unresolved.** Dropping it (keep_g3) is weakest on the passed-pawn suites at both depths (z +1.24 and
@@ -209,8 +210,25 @@ slower; run two replicates in reversed order and read the mean. Compare arms on 
      per-ply stack the parent value would be known nearly always, and this path would mostly vanish;
    - **narrower margins buy speed with the worst fires** (keep_m1000's extra fires miss at 3-6% each, and it failed the SF18
      leg). Do not narrow the margins again without the SF18 leg at equal nodes.
-3. **Corrhist.** The exit returns before correction history would be added (the knob comment: "Assumes corrhist off"). If
-   `CORR2_*` ships in the margins re-sweep, the estimate must include the correction or the exit must account for it.
+3. **Corrhist (fixed 11-09).** The exit used to decide on the uncorrected estimate, and the correction was added after it.
+   With the shipped weights the correction is at most 350 + 2 × 400 = 1,150 mp, below the smallest margin (1,500), so every
+   lazy return still cut. But a correction toward the bound shrank the margin left for the estimate's error to as little as
+   350 mp. Now the reverse-futility and stand-pat sites read the correction (CORR2, and the old ENABLE_CORR_HIST) before the
+   eval and pass the bound minus it (`lazy_request`). A lazy return therefore always cuts on the corrected value with the full
+   margin. A counter checks it: `g_lazy_nocut`, printed by `bench` as "failed to cut N" whenever a correction is on; it must
+   read 0. Checks on `chess_engine_uci_lazy4` (plain build of the fix):
+
+   | setting | result |
+   |---|---|
+   | default | byte-identical, 247 / 39,852,210 |
+   | `LAZY_V2=0` | 246 / 36,509,830 |
+   | `CORR2=1,LAZY_V2=0` | equals g71pgo (250 / 36,797,138) |
+   | `CORR2=1`, old rule (g71pgo) | 251 / 37,221,047 |
+   | `CORR2=1`, new rule | 248 / 37,975,594; failed to cut 0 |
+   | `CORR2=1`, lazy margins at 50% | failed to cut 0 |
+   | `CORR2=1`, double weights | failed to cut 0 |
+
+   Futility of a child takes no correction, so it is unaffected.
 4. **The margins fit today's eval.** They are set against how far the positional part can swing. Any eval change that widens
    that swing (new king safety, a retune) raises the miss rate: re-check the guards and margins after such a change.
 5. **Ordering with the margins re-sweep.** The fire rate depends on the reverse-futility and futility margins (the bound

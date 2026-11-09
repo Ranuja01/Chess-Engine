@@ -25,7 +25,7 @@
 
 extern std::atomic<bool> time_up;   // search_engine.cpp
 extern long long g_lazy_asks, g_lazy_fires;   // search_engine.cpp, lazy eval counters (Config::LAZY_V2)
-extern long long g_lazy_asks_parent, g_lazy_site_asks[3], g_lazy_site_fires[3], g_lazy_gated;
+extern long long g_lazy_asks_parent, g_lazy_site_asks[3], g_lazy_site_fires[3], g_lazy_gated, g_lazy_nocut;
 
 namespace
 {
@@ -414,7 +414,9 @@ namespace
                 std::to_string(g_lazy_site_fires[0]) + "/" + std::to_string(g_lazy_site_asks[0]) + " rfp " +
                 std::to_string(g_lazy_site_fires[1]) + "/" + std::to_string(g_lazy_site_asks[1]) + " futility " +
                 std::to_string(g_lazy_site_fires[2]) + "/" + std::to_string(g_lazy_site_asks[2]) +
-                (Config::LAZY_V2_GATE ? "; refused by the gate " + std::to_string(g_lazy_gated) : std::string()));
+                (Config::LAZY_V2_GATE ? "; refused by the gate " + std::to_string(g_lazy_gated) : std::string()) +
+                // printed only when a correction is on, the one case where a lazy return could fail to cut (must read 0)
+                (Config::CORR2 || Config::ENABLE_CORR_HIST ? "; failed to cut " + std::to_string(g_lazy_nocut) : std::string()));
     }
 
     void cmd_perft(std::istringstream &in, bool divide)

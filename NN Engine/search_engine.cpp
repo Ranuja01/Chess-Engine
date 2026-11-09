@@ -1474,11 +1474,13 @@ static inline int lazy_parent_pos(const std::vector<BoardState> &h)
 
 // A site that cuts or prunes once the eval reaches `need` (up) or falls to `need` (!up), in the search frame (root side
 // positive), lets the eval return its estimate when that clears `need` by the margin. Set immediately before the eval call and
-// cleared immediately after, with no return in between.
+// cleared immediately after, with no return in between. A site that adds a correction to the eval (correction history) reads it
+// first and passes `need` minus the correction, so the exit decides on the corrected value and every lazy return cuts.
 // LAZY_V2_GATE: true when the move that led to the position at the end of h bars the lazy exit. The tests match the probe's
 // split (lazy_probe_move_type): a null move leaves the side to move equal to the position one ply back; a capture removes an
 // enemy piece; a promotion (the mover's pawn count drops) is not a capture here.
 long long g_lazy_gated = 0;   // asks refused by the gate
+long long g_lazy_nocut = 0;   // lazy returns the site then did not cut or prune with; must stay 0
 static inline bool lazy_gated(const std::vector<BoardState> &h)
 {
     const size_t n = h.size();
@@ -1499,6 +1501,7 @@ static inline void lazy_request(bool up, int need, int site)
     g_lazy_req.bound = flip ? -need : need;
     g_lazy_req.scale = site == LAZY_SITE_QS ? Config::LAZY_V2_S_QS : site == LAZY_SITE_RFP ? Config::LAZY_V2_S_RFP : Config::LAZY_V2_S_FUT;
     g_lazy_site_id = site;
+    g_lazy_fired = false;   // so the site can tell afterwards whether this eval returned lazily (a cache hit or a gated ask does not set it)
 }
 
 static inline void lazy_request_end()
@@ -6640,23 +6643,28 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
             // Lazy eval (LAZY_V2 bit 2): only when the reverse-futility prune below is checked; it returns at once on the value.
             const bool lazy_rfp = (Config::LAZY_V2 & 2) && Config::ENABLE_RFP && (beta - alpha) == 1 && alpha > -9000000 && alpha < 9000000 &&
                                   (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH;
+            // The corrections are read before the eval, so a lazy exit is decided on the corrected value (see lazy_request).
+            // The eval does not touch the correction tables, so the values are the same as read after it.
+            const int corr_ch = Config::ENABLE_CORR_HIST ? corrhist_correction(current_state, 0) : 0;
+            const int corr_c2 = Config::CORR2 ? corr2_root(current_state, 0) : 0;
             if (lazy_rfp)
-                lazy_request(false, alpha - Config::RFP_MARGIN * (depth_limit - cur_depth), LAZY_SITE_RFP);
+                lazy_request(false, alpha - Config::RFP_MARGIN * (depth_limit - cur_depth) - corr_ch - corr_c2, LAZY_SITE_RFP);
             LAZY_SITE(LZ_RFP, alpha, beta, depth_limit - cur_depth, Config::RFP_MARGIN * (depth_limit - cur_depth), false);
             rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
             LAZY_SITE_END();
             if (lazy_rfp)
                 lazy_request_end();
             rfp_raw_eval = rfp_static_eval;
-            if (Config::ENABLE_CORR_HIST)
-                rfp_static_eval += corrhist_correction(current_state, 0);
+            rfp_static_eval += corr_ch;
             if (Config::CORR2)
             {
-                rfp_static_eval += corr2_root(current_state, 0);
+                rfp_static_eval += corr_c2;
                 const int rfp_bound = alpha - Config::RFP_MARGIN * (depth_limit - cur_depth);
                 ++g_corr2_rfp_seen;
                 g_corr2_rfp_flips += (rfp_raw_eval <= rfp_bound) != (rfp_static_eval <= rfp_bound);
             }
+            if (lazy_rfp && g_lazy_fired && rfp_static_eval + Config::RFP_MARGIN * (depth_limit - cur_depth) > alpha)
+                ++g_lazy_nocut;
         }
 
         // Reverse futility (static null): so far below alpha a quiet move is assumed to hold.
@@ -7372,23 +7380,27 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         // Lazy eval (LAZY_V2 bit 2): only when the reverse-futility prune below is checked; it returns at once on the value.
         const bool lazy_rfp = (Config::LAZY_V2 & 2) && Config::ENABLE_RFP && (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
                               (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH;
+        // The corrections are read before the eval, so a lazy exit is decided on the corrected value (see lazy_request).
+        const int corr_ch = Config::ENABLE_CORR_HIST ? corrhist_correction(current_state, 1) : 0;
+        const int corr_c2 = Config::CORR2 ? corr2_root(current_state, 1) : 0;
         if (lazy_rfp)
-            lazy_request(true, beta + Config::RFP_MARGIN * (depth_limit - cur_depth), LAZY_SITE_RFP);
+            lazy_request(true, beta + Config::RFP_MARGIN * (depth_limit - cur_depth) - corr_ch - corr_c2, LAZY_SITE_RFP);
         LAZY_SITE(LZ_RFP, alpha, beta, depth_limit - cur_depth, Config::RFP_MARGIN * (depth_limit - cur_depth), true);
         rfp_static_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
         LAZY_SITE_END();
         if (lazy_rfp)
             lazy_request_end();
         rfp_raw_eval = rfp_static_eval;
-        if (Config::ENABLE_CORR_HIST)
-            rfp_static_eval += corrhist_correction(current_state, 1);
+        rfp_static_eval += corr_ch;
         if (Config::CORR2)
         {
-            rfp_static_eval += corr2_root(current_state, 1);
+            rfp_static_eval += corr_c2;
             const int rfp_bound = beta + Config::RFP_MARGIN * (depth_limit - cur_depth);
             ++g_corr2_rfp_seen;
             g_corr2_rfp_flips += (rfp_raw_eval >= rfp_bound) != (rfp_static_eval >= rfp_bound);
         }
+        if (lazy_rfp && g_lazy_fired && rfp_static_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) < beta)
+            ++g_lazy_nocut;
     }
 
     // Reverse futility (static null): so far above beta a quiet move is assumed to hold.
@@ -8976,22 +8988,26 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
 
     // Lazy eval (LAZY_V2 bit 1): the stand-pat cutoff below may take the eval's estimate, and cuts at once with it.
     const bool lazy_qs = (Config::LAZY_V2 & 1) && !((Config::LAZY_V2_GUARDS & 2) && beta - alpha > 1);
+    // The corrections are read before the eval, so a lazy exit is decided on the corrected value (see lazy_request).
+    const int qcorr_ch = (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH) ? corrhist_correction(current_state, is_maximizing ? 1 : 0) : 0;
+    const int qcorr_c2 = (Config::CORR2 && Config::CORR2_QS) ? corr2_root(current_state, is_maximizing ? 1 : 0) : 0;
     if (lazy_qs)
-        lazy_request(is_maximizing, is_maximizing ? beta : alpha, LAZY_SITE_QS);
+        lazy_request(is_maximizing, (is_maximizing ? beta : alpha) - qcorr_ch - qcorr_c2, LAZY_SITE_QS);
     LAZY_SITE(LZ_QS, alpha, beta, -qDepth, 0, is_maximizing);
     int static_eval = eval_by_mode(Config::QSTANDPAT_EVAL_MODE, state_history, zobrist, num_iterations);
     LAZY_SITE_END();
     if (lazy_qs)
         lazy_request_end();
-    if (Config::ENABLE_CORR_HIST && Config::ENABLE_CORRHIST_QSEARCH)
-        static_eval += corrhist_correction(current_state, is_maximizing ? 1 : 0);
+    static_eval += qcorr_ch;
     if (Config::CORR2 && Config::CORR2_QS)
     {
         const int raw = static_eval;
-        static_eval += corr2_root(current_state, is_maximizing ? 1 : 0);
+        static_eval += qcorr_c2;
         ++g_corr2_sp_seen;
         g_corr2_sp_flips += is_maximizing ? ((raw >= beta) != (static_eval >= beta)) : ((raw <= alpha) != (static_eval <= alpha));
     }
+    if (lazy_qs && g_lazy_fired && (is_maximizing ? static_eval < beta : static_eval > alpha))
+        ++g_lazy_nocut;
     // Quietness probe: capture THIS node's tension before the move loop recurses and overwrites the global.
     int qprobe_tension = Config::ENABLE_QUIET_PROBE ? g_capg_tension : 0;
     if (is_maximizing)

@@ -4,6 +4,25 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-09 13:50 — Lazy eval made corrhist-aware (watch item 4); byte-identical at the defaults
+
+The lazy exit used to decide on the uncorrected estimate, and CORR2 was added after it. At the shipped weights the
+correction is at most 1,150 mp, below the 1,500 lazy margin, so every lazy return still cut. But the margin left for the
+estimate's error could shrink to 350 mp. The reverse-futility and stand-pat sites now read the correction first and shift the
+lazy bound by it. A counter (`bench`: "failed to cut N", printed while a correction is on) proves every lazy return cuts.
+Plain build `chess_engine_uci_lazy4`:
+
+| setting | result |
+|---|---|
+| default | 247 / 39,852,210 (= g71pgo) |
+| `LAZY_V2=0` | 246 / 36,509,830 |
+| `CORR2=1,LAZY_V2=0` | 250 / 36,797,138 (= g71pgo) |
+| `CORR2=1`, old rule (g71pgo) | 251 / 37,221,047 |
+| `CORR2=1`, new rule (lazy4) | 248 / 37,975,594; failed to cut 0 |
+| `CORR2=1`, lazy margins 50% / double CORR2 weights | failed to cut 0 |
+
+Production is unchanged (CORR2 is off by default), so g71pgo is not rebuilt. Details: LAZY-EVAL.md §7 item 3.
+
 ## 2026-11-09 12:40 — GEN 7.1 SHIPPED (lazy eval keep_gate, owner): #185 timed + themes, #186 grid + Mediocre, #187 SF18 repeat
 
 **#185 timed games (registered: not harmful at ≥ −1σ, a gain at +2σ). keep_gate vs off at 10+0.1, 2,000 g: +12.9 (−0.7 …

@@ -3432,7 +3432,8 @@ namespace Config
     // 1 = qsearch stand-pat cutoff, 2 = reverse futility prune, 4 = futility prune of a child. 0 = off = byte-identical. v2 only.
     // The eval returns its estimate when it clears the site's bound by a margin: the cheap part (material, PST, bishop pair,
     // Kaufman, narrow classes) plus the parent position's positional part (full - cheap) when the parent was evaluated on the same
-    // line, else the cheap part alone with the wider margin. A lazy value is never cached. Assumes corrhist off (it is added after).
+    // line, else the cheap part alone with the wider margin. A lazy value is never cached. With a correction on (CORR2,
+    // ENABLE_CORR_HIST) the site reads it before the eval and shifts the bound by it, so the exit decides on the corrected value.
     // The v2 shipped preset turns it on from gen 7.1 (LAZY_V2 7, LAZY_V2_KEEP 1, LAZY_V2_GATE 3); the 0s here keep v1 and the
     // earlier gens off.
     inline int LAZY_V2 = 0;

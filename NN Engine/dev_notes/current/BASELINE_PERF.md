@@ -14,7 +14,22 @@ Every new production build gets a row in the ledger below, before or at install:
    107.7, SF18 WDL 384.2; OPTIMIZATION_LOG 10-30). Gen 6.5 and the gen 6.6 candidate are search-only. **Owner 11-04: re-run
    it after the full retune steps** (the final retune at the end of the transition arc).
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7 + PGO (2026-11-07 10:23, owner), `chess_engine_uci_g7pgo`
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7.1 + PGO (2026-11-09 12:56, owner), `chess_engine_uci_g71pgo`
+- WAC d10 fingerprint **247 / 39,852,210 / EBF 3.762** (UCI `bench` == Cython `V2_PRESET=shipped` == keep_gate's knobs on
+  `chess_engine_uci_lazy3`). = gen 7 + lazy eval keep_gate (`LAZY_V2 7`, `LAZY_V2_KEEP 1`, `LAZY_V2_GATE 3`) in the shipped
+  preset's gen 7 block. Knobs: `LAZY_V2=0` = gen 7 246 / 36,509,830 · `V2_SHIP_GEN=6` = gen 6.7 251 / 36,859,850 · `=5` 258 /
+  47,689,586 · v1 250 / 35,310,775-778 (UCI; wobbles from run to run on one binary) / 35,310,778 (Cython). Id "AlphaUX (v2 gen
+  7.1)". Profile `/mnt/e/chess_data/pgo_g71`. Backups: `g7pgo` (gen 7), gen 7's .so in `pgo_g71/`. Queue #188.
+- A speed change, so compare it on time, never on nodes (bench nodes +9.2% at depth 10 on WAC).
+- Games: timed self-play +12.9 (−0.7 … +26.5) over 2,000 g (#185, z 1.86); Mediocre 83.2% vs 79.2% (#186); SF18 @ 1,100 at
+  equal nodes −1.02 pp over 8 opening sets (#185 + #187). OPTIMIZATION_LOG 11-09; watch list in LAZY-EVAL.md §7.
+- **Build ledger of gen 7.1:**
+
+  | build (production from) | change | pinned UCI bench, same session | real-play nps (venue) | games check | Cython module (UI) |
+  |---|---|---|---|---|---|
+  | **`chess_engine_uci_g71pgo` (11-09) = current** | gen 7.1 (lazy eval keep_gate) | #188, alternating × 6 vs `g7pgo`: **gen 7.1 30,136 ms mean · 1,322,646 nps; gen 7 28,926 ms · 1,262,632** ⇒ nps +4.8%, **+4.2% slower to depth 10 on WAC** (tree +9.2%; the 22-set grid read −5.1%, #186) | production smoke vs `g7pgo`, 60 g 10+0.1 UHO (#188): **1,469,885 vs 1,392,146 (+5.6%)**, depth 11.2 / 11.1, nodes per move 343,960 vs 324,552; keep_gate knobs on lazy3, 2,000 g (#185): +6.3% | +12.9 (−0.7 … +26.5) on lazy3; smoke 29 / 60, 0 forfeits | 247 / 39,852,210 / 3.762 |
+
+## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 7 + PGO (2026-11-07 10:23 – 11-09, owner), `chess_engine_uci_g7pgo`
 - WAC d10 fingerprint **246 / 36,509,830 / EBF 3.783** (UCI `bench` == Cython `V2_PRESET=shipped` == arm S's file knobs on gen 6.7).
   = gen 6.7 + the big retune's stage 1 tables (arm S) compiled in `ship_tables_v5.h`, `V2_SHIP_GEN` 7 + S's piece values. Knobs:
   `V2_SHIP_GEN=6` = gen 6.7 251 / 36,859,850 · `=5` 258 / 47,689,586 · v1 250 / 35,310,775 (UCI) / 35,310,778 (Cython). Id
@@ -25,11 +40,11 @@ Every new production build gets a row in the ledger below, before or at install:
 
   | build (production from) | change | pinned UCI bench, same session | real-play nps (venue) | games check | Cython module (UI) |
   |---|---|---|---|---|---|
-  | **`chess_engine_uci_g7pgo` (11-07) = current** | gen 7 (retune tables) | #175, alternating × 6 vs `g67pgo`, quiet box (OneDrive off): **gen 7 fastest 27.32 s · 1,336,214 nps, median 27.59 s**; gen 6.7 27.56 s · 1,337,679, median 27.74 s ⇒ nps level (−0.1%), 0.5-0.8% faster to fixed depth (0.95% fewer nodes) | S's knobs on `g67pgo` vs `g67pgo`, 4,000 g 10+0.1 UHO (#167 + #171): **1,493,327 vs 1,494,108 (−0.05%)**, depth 11.4 / 11.4, nodes per move 356,581 vs 360,204 (file tables vs compiled: same arrays at run time) | +16.0 (+6.2 … +25.8) | 246 / 36,509,830 / 3.783 |
+  | **`chess_engine_uci_g7pgo` (11-07 – 11-09)** | gen 7 (retune tables) | #175, alternating × 6 vs `g67pgo`, quiet box (OneDrive off): **gen 7 fastest 27.32 s · 1,336,214 nps, median 27.59 s**; gen 6.7 27.56 s · 1,337,679, median 27.74 s ⇒ nps level (−0.1%), 0.5-0.8% faster to fixed depth (0.95% fewer nodes) | S's knobs on `g67pgo` vs `g67pgo`, 4,000 g 10+0.1 UHO (#167 + #171): **1,493,327 vs 1,494,108 (−0.05%)**, depth 11.4 / 11.4, nodes per move 356,581 vs 360,204 (file tables vs compiled: same arrays at run time) | +16.0 (+6.2 … +25.8) | 246 / 36,509,830 / 3.783 |
 - Benches (S, deterministic, #169): STS full d10 10,006 (gen 6.7 9,830), STS300 @ 249k 1,890 (1,928), WAC d10 246 (251); static
   ladder own-play 147.75 (147.48), diverse 106.01 (107.68); static WDL 372.3 vs 384.2 (−3.1%), d10 WDL 197.6 vs 201.3 (−1.9%).
 
-## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 6.7 + PGO (2026-11-05 ~10:05 – 11-07, owner), `chess_engine_uci_g67pgo`
+## ⭐⭐⭐ OLDER ENGINE: v2 gen 6.7 + PGO (2026-11-05 ~10:05 – 11-07, owner), `chess_engine_uci_g67pgo`
 - WAC d10 fingerprint **251 / 36,859,850 / EBF 3.812** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 6.5 +
   `ENABLE_TT_FLAG_FIX` in the shipped preset (the TT bound flag of a PVS re-search computed against the window actually
   searched; dead since 08-22 because its start-up read defaulted to off). Gen 6.6's mate bundle is off again. Knobs:

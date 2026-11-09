@@ -3433,6 +3433,8 @@ namespace Config
     // The eval returns its estimate when it clears the site's bound by a margin: the cheap part (material, PST, bishop pair,
     // Kaufman, narrow classes) plus the parent position's positional part (full - cheap) when the parent was evaluated on the same
     // line, else the cheap part alone with the wider margin. A lazy value is never cached. Assumes corrhist off (it is added after).
+    // The v2 shipped preset turns it on from gen 7.1 (LAZY_V2 7, LAZY_V2_KEEP 1, LAZY_V2_GATE 3); the 0s here keep v1 and the
+    // earlier gens off.
     inline int LAZY_V2 = 0;
     inline int LAZY_V2_M = 1500;         // margin with the parent's positional part, millipawns
     inline int LAZY_V2_M_CHEAP = 3000;   // margin with the cheap part alone; 0 = no lazy exit without a parent value

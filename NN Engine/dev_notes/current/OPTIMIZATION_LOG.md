@@ -4,6 +4,83 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-09 12:40 — GEN 7.1 SHIPPED (lazy eval keep_gate, owner): #185 timed + themes, #186 grid + Mediocre, #187 SF18 repeat
+
+**#185 timed games (registered: not harmful at ≥ −1σ, a gain at +2σ). keep_gate vs off at 10+0.1, 2,000 g: +12.9 (−0.7 …
++26.5), z 1.86.** Not harmful; the gain bar is missed by a hair. Per chunk +16.7 / +24.4 / +2.8 / +7.6; pentanomial [147, 143, 376,
+157, 177]. Per engine: nps 1,559,136 vs 1,467,063 (+6.3%), nodes per move 369,406 vs 349,749 (+5.6%), depth 11.5 vs 11.4. 0
+warnings, disconnects or time forfeits; no crash dumps. Build 1's equal-time read was +14.8, z 2.18 (#177).
+Themes and passers at 0.25 s per move (both arms at once, cores 3 / 5): 5,116 vs 5,082 of 5,624 (+34). No suite moved by more than
+±14; largest +7 (advancedPawn_mg, clearance), −5 (advancedPawn). keep_g3 read +31 on the same test (#178).
+
+**#186 grid** (22 sets at depth 10, two replicates, cores rotated and order reversed):
+
+| arm | time vs off | replicates | nodes vs off | themes (of 3,600) | WAC | lazy % of asks | parent known |
+|---|---|---|---|---|---|---|---|
+| build 1 | −8.2% | −7.6 / −8.8 | −3.3% | 3,275 | 245 | 42.1 | 70.6% |
+| keep | −4.8% | −7.0 / −2.4 | −2.0% | 3,285 | 245 | 42.9 | 82.5% |
+| **keep_gate** | **−5.1%** | **−10.0 / −0.1** | −1.4% | 3,281 | 247 | 58.6 | 85.2% |
+| keep_m1000 | −9.9% | −14.7 / −4.7 | −3.9% | 3,276 | 249 | 47.4 | 82.6% |
+
+Off itself moved 5.5% between replicates (421,071 vs 397,725 ms); build 1 is the only arm whose two readings agree. Every lazy
+variant reaches depth 10 faster than off; keep_gate's −5.1% is the mean of two readings that disagree. #185's pinned WAC bench
+(+3.2% slower) was the outlier, as WAC was for keep on #178. (lazy % for keep_gate counts returns of the asks the gate let through.)
+
+**#186 Mediocre** (10+0.1, Mediocre `timemargin=1000`, 300 g per arm on two seeds; registered: not negative): **keep_gate 83.2% vs
+off 79.2%, +4.0 pp ± 5.71, z +1.37 → NOT NEGATIVE.** All 5 time losses were Mediocre's (3 in off's games, 2 in keep_gate's).
+
+**#187 SF18 at equal nodes, five fresh seeds** (all four arms per seed, 250 g per arm per seed; registered on the fresh seeds):
+
+| comparison | 5 fresh seeds (1,250 g each) | every shared seed, #185 + #187 |
+|---|---|---|
+| keep_gate − keep | −1.16 pp ± 3.34, z −0.68 | +0.29 ± 2.84, z +0.20 (7 seeds) |
+| keep − off | −0.92 ± 3.33, z −0.54 | −1.60 ± 2.84, z −1.10 |
+| **keep_gate − off** | **−2.08 ± 3.30, z −1.24** | **−1.02 ± 2.63, z −0.76** (8 seeds) |
+| build 1 − off | −1.20 ± 3.34, z −0.71 | −0.51 ± 2.83, z −0.36 |
+| keep_gate − build 1 | −0.88 ± 3.34, z −0.52 | −0.80 ± 2.82, z −0.56 |
+
+Per seed, off: 59.4 / 59.8 / 56.2 / 59.0 / 57.0; keep_gate: 56.4 / 56.2 / 55.8 / 55.6 / 57.0. Verdicts: **"the gate matters" is
+not supported** (−1.16; it needed ≥ +2σ). **"KEEP without the gate is harmful" is not supported** (−0.92; it needed ≤ −2σ).
+**"keep_gate level" FAILS on the fresh seeds** (z −1.24 against the > −1σ bar) and passes on all eight shared seeds (z −0.76).
+
+**Reading.** #185's pattern (keep low, the gate rescuing it) did not replicate: gate − keep was +3.9 pp on #185's two shared seeds
+and is −1.2 on five fresh ones, so the null-move hypothesis of 11-08 is unsupported. What holds over all eight seeds: every lazy
+variant reads 0.5 to 1.6 pp below off against SF18 at equal nodes, and the variants cannot be told apart. Equal nodes charges lazy
+eval for its misses and gives no credit for its speed, so this is the price; the timed games are price plus speed, and net +12.9.
+
+**The ship rule.** The strict rule (self-play ≥ +2σ, SF18 > −1σ, Mediocre not negative) is missed narrowly on two legs (z 1.86;
+z −1.24 on the fresh seeds, −0.76 on all). The owner's lazy-eval bar (11-07: the exit ships on "not harmful" in games) is met by
+both timed legs. **Owner 11-09 ~12:30: "given the evidence we can ship this, but it seems we must monitor this as we continue on,
+since there are some weaknesses."** keep_gate is the only variant with all three legs measured.
+
+**Gen 7.1** = gen 7 + `LAZY_V2 7, LAZY_V2_KEEP 1, LAZY_V2_GATE 3`, set in the gen 7 block of the v2 shipped preset, before the
+start-up reads, so `LAZY_V2=0` restores gen 7 and `V2_SHIP_GEN=6` / v1 are untouched. Id "AlphaUX (v2 gen 7.1)".
+
+**Ship queue #188** (`selfplay/_queue_188.sh`; PGO profile `/mnt/e/chess_data/pgo_g71`). Fingerprints on `chess_engine_uci_g71pgo`:
+default **247 / 39,852,210** (== keep_gate's knobs on lazy3) · `LAZY_V2=0` 246 / 36,509,830 (gen 7; also with KEEP=0, GATE=0) ·
+`V2_SHIP_GEN=6` 251 / 36,859,850 · `=5` 258 / 47,689,586 · v1 250 / 35,310,775. **Installed 12:56**: production `chess_engine_uci`
+== `g71pgo`; gen 7 stays as `g7pgo`. The first run (log `q188_run1.log`) stopped before installing on my v1 gate (it read 777
+and the gate accepted 775 / 778). v1's UCI node count wobbles from RUN to run on one binary: the untouched gen 7 binary read 777
+and then 775. So it is not the binary's layout, as the register had it, and v1 is now gated as 775-778. Lazy eval cannot reach
+v1 (`EvalArm 0` drops the shipped preset). The rerun reused the build (`SKIP_BUILD=1`).
+Cython module rebuilt (gen 7's .so in `pgo_g71/`): shipped 247 / 39,852,210 / 3.762, `LAZY_V2=0` 246 / 36,509,830 / 3.783, v1 250 /
+35,310,778 / 3.784. Symmetry: colour 0 of 4,000, file 0 of 3,170, identical with `LAZY_V2=0` (the static eval is unchanged, so this
+gate cannot see lazy eval). **Pinned WAC bench** (core 5, alternating × 6): gen 7.1 30,136 ms vs gen 7 28,926 ms mean (**+4.2%
+slower to depth 10**), nps 1,322,646 vs 1,262,632 (+4.8%), fastest 29,322 vs 28,472 ms. WAC grows the tree +9.2%. The 22-set grid
+read −5.1% (#186), so the sign depends on the venue (watch item 3). **Production smoke**, 60 g at 10+0.1 vs gen 7: 29 / 60, 0
+warnings, disconnects, time forfeits or crash dumps; nps 1,469,885 vs 1,392,146 (+5.6%), nodes per move 343,960 vs 324,552 (+6.0%),
+depth 11.2 vs 11.1.
+
+**Watch list** (the weaknesses, also LAZY-EVAL.md §7):
+1. The equal-node accuracy cost (−1.0 pp vs SF18 over eight sets, −2.1 on the fresh five). Re-run the SF18 leg on fresh seeds
+   (default vs `LAZY_V2=0`) after any change to pruning or the eval's positional swing (search v2 steps, the margins re-sweep, a
+   retune).
+2. The gate has no game evidence of its own: on accuracy gate ≈ keep ≈ build 1. Its case is the probe (43% of misses after a
+   capture for 9% of the fires).
+3. Speed to depth is noisy: keep_gate's grid replicates disagree (−10.0 / −0.1%); build 1 is the consistently fastest at 1500 / 3000.
+4. Corrhist: the exit returns before the correction is added. The margins re-sweep with `CORR2_*` must handle that first.
+5. Equal-time self-play leaned positive in all four chunks but did not reach +2σ; the gain is not yet resolved.
+
 ## 2026-11-08 20:10 — #185 first reads: keep_gate PASSES the SF18 leg (level with off on shared openings); passers level; slower to depth on the WAC bench
 
 **SF18 at equal nodes** (ours 250k nodes, SF18 1,100; chunks of 250; 0 warnings, 0 disconnects). Per chunk, by seed (arms on one

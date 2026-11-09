@@ -2634,6 +2634,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     Config::V2_VAL_MG[1] = 1;    Config::V2_VAL_MG[2] = 11;   Config::V2_VAL_MG[3] = -128; Config::V2_VAL_MG[4] = -36;
                     Config::V2_VAL_EG[1] = -45;  Config::V2_VAL_EG[2] = -91;  Config::V2_VAL_EG[3] = 135;  Config::V2_VAL_EG[4] = -83;
                     Config::EVAL_V2_PAWN_MG = 1021;
+                    // ── GEN 7.1: lazy eval at the stand-pat cutoff, reverse futility and the futility of a child, with the per-ply
+                    // records kept across the null move and no lazy exit after a capture or a null move. A speed change: timed
+                    // self-play not harmful (+12.9 over 2,000 games), Mediocre not negative (OPTIMIZATION_LOG). Set before the
+                    // start-up reads, so LAZY_V2=0 restores gen 7 exactly (246 / 36,509,830).
+                    Config::LAZY_V2 = 7;  Config::LAZY_V2_KEEP = 1;  Config::LAZY_V2_GATE = 3;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

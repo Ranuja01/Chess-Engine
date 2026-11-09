@@ -1,11 +1,11 @@
 # Lazy eval
 
 How AlphaUX's v2 eval may stop early when a search site only needs to know whether the score is past a bound. This is
-the reference for the system as of **2026-11-08**: built, measured, **off by default in every build**, and not compiled into the
-production UCI binary (gen 7, `chess_engine_uci_g7pgo`, predates the code). The research, the reference-engine survey and the
-design history live in [LAZY-EVAL-RESEARCH-2026-10-30.md](../active/LAZY-EVAL-RESEARCH-2026-10-30.md); the measured record is in
-[OPTIMIZATION_LOG.md](OPTIMIZATION_LOG.md) (2026-11-07 22:30, 2026-11-08 00:15, 05:40, 06:25, 09:50, 13:05, 14:45, 16:10, 16:30,
-17:45).
+the reference for the system as of **2026-11-09**: **SHIPPED as gen 7.1** (keep_gate, on in the v2 shipped preset; production
+`chess_engine_uci` == `chess_engine_uci_g71pgo`, installed 11-09 12:56). `LAZY_V2=0` restores gen 7 exactly. The research, the
+reference-engine survey and the design history live in [LAZY-EVAL-RESEARCH-2026-10-30.md](../active/LAZY-EVAL-RESEARCH-2026-10-30.md);
+the measured record is in [OPTIMIZATION_LOG.md](OPTIMIZATION_LOG.md) (2026-11-07 22:30, 2026-11-08 00:15, 05:40, 06:25, 09:50,
+13:05, 14:45, 16:10, 16:30, 17:45, 20:10, 2026-11-09 12:40).
 
 Code: the exit is in `placement_and_piece_eval` (`eval_v2.cpp`, block "LAZY EXIT", after the cheap terms and before king
 safety); the request, the per-ply records, the gate and the counters are in `search_engine.cpp` (section "LAZY EVAL, the search
@@ -19,19 +19,21 @@ one that misses least per fire (keep_gate), not the fastest; section 7 lists wha
 
 ---
 
-## 0. Status (2026-11-08 evening)
+## 0. Status (2026-11-09: shipped as gen 7.1)
 
-| variant | knobs | state |
+| variant | knobs (against the gen 7.1 default) | state |
 |---|---|---|
-| off (default) | `LAZY_V2=0` | byte-identical to gen 7: bench 246 / 36,509,830 |
-| build 1 | `LAZY_V2=7` | games +14.8 Elo vs off (2,000 g, z 2.18); has the lost-record defect (section 2) |
-| fix only (keep) | `+LAZY_V2_KEEP=1` | most accurate ungated variant; slowest; no games |
-| keep_g3 | `+LAZY_V2_KEEP=1,LAZY_V2_GUARDS=3` | games +0.3 vs off (1,200 g); weakest on passed pawns (section 8) |
-| keep_m1000 | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_M=1000,LAZY_V2_M_CHEAP=2000` | **FAILED the SF18 leg** (#184: −4.2 pp vs off at equal nodes, z −1.54); 3.5x keep's misses |
-| **keep_gate (current best)** | `LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_GATE=3` | build 3; fewest misses per fire (probe 0.41 per 1,000 asks); **passed SF18** (#185: +0.7 pp vs off on shared openings); passers level; WAC bench +3.2% time to depth (22-set grid in #186); timed games running |
+| **keep_gate = gen 7.1 (SHIPPED)** | default (`LAZY_V2=7,LAZY_V2_KEEP=1,LAZY_V2_GATE=3`) | bench **247 / 39,852,210**; timed +12.9 vs off (2,000 g, z 1.86, #185); Mediocre +4.0 pp (#186); SF18 at equal nodes −1.0 pp over 8 opening sets, −2.1 (z −1.24) on the fresh 5 (#187); grid −5.1% time to depth 10 (replicates −10.0 / −0.1); passers level; themes at equal time +34 |
+| off = gen 7 | `LAZY_V2=0` | bench 246 / 36,509,830 |
+| build 1 | `LAZY_V2_KEEP=0,LAZY_V2_GATE=0` | games +14.8 vs off (2,000 g, z 2.18, #177); SF18 −0.5 pp over 7 sets; the most consistently fast (grid −8.2%, replicates agree); has the lost-record defect (section 2) |
+| fix only (keep) | `LAZY_V2_GATE=0` | SF18 −1.6 pp over 7 sets, level with keep_gate (+0.3); grid −4.8%; no games |
+| keep_g3 | `LAZY_V2_GATE=0,LAZY_V2_GUARDS=3` | games +0.3 vs off (1,200 g); weakest on passed pawns (section 8) |
+| keep_m1000 | `LAZY_V2_GATE=0,LAZY_V2_M=1000,LAZY_V2_M_CHEAP=2000` | **FAILED the SF18 leg** (#184: −4.2 pp vs off at equal nodes, z −1.54); 3.5x keep's misses |
 
-Next: queue #185's reads (SF18 leg > −1σ, self-play not harmful, passers, equal-time themes), then the rest of the ship gate
-(Mediocre not negative, the default bench change). Turning it on by default is a ship like any other.
+The ship (owner 11-09): "given the evidence we can ship this, but it seems we must monitor this as we continue on, since there
+are some weaknesses." It met the owner's lazy-eval bar ("not harmful" in games, both timed legs) and missed the strict ship rule
+narrowly on two legs (self-play z 1.86 against +2σ; SF18 z −1.24 on the fresh seeds against −1σ). keep_gate was the only variant
+with all three legs measured. **The weaknesses to monitor are the watch list at the top of section 7.**
 
 ## 1. What it does
 
@@ -109,15 +111,18 @@ misses a ninth as often per fire as the site that inherits none.
 
 ## 5. The knobs (defaults)
 
-| knob | default | meaning |
+Header defaults are 0 (v1 and the gens before 7.1 stay off); the v2 shipped preset sets `LAZY_V2 7`, `LAZY_V2_KEEP 1`,
+`LAZY_V2_GATE 3` from gen 7.1, before the start-up reads, so the environment or `Knobs` still override them.
+
+| knob | header default (gen 7.1) | meaning |
 |---|---|---|
-| `LAZY_V2` | 0 | sites, bits: 1 stand-pat, 2 reverse futility, 4 futility of a child; 0 = off, byte-identical |
+| `LAZY_V2` | 0 (7) | sites, bits: 1 stand-pat, 2 reverse futility, 4 futility of a child; 0 = off, byte-identical |
 | `LAZY_V2_M` | 1500 | margin with the parent's positional part, millipawns |
 | `LAZY_V2_M_CHEAP` | 3000 | margin with the cheap part alone; 0 = no exit without a parent value |
 | `LAZY_V2_GUARDS` | 7 | bits: 1 crowded king, 2 PV, 4 advanced passer |
 | `LAZY_V2_S_QS` / `S_RFP` / `S_FUT` | 100 | per-site margin scale, percent of both margins |
-| `LAZY_V2_KEEP` | 0 | 1 = keep the per-ply records across the null search and against unknown values |
-| `LAZY_V2_GATE` | 0 | bits: 1 no exit after a capture, 2 none after a null move (build 3 only) |
+| `LAZY_V2_KEEP` | 0 (1) | 1 = keep the per-ply records across the null search and against unknown values |
+| `LAZY_V2_GATE` | 0 (3) | bits: 1 no exit after a capture, 2 none after a null move (build 3 and later) |
 
 Every knob is env-wired and settable through the UCI `Knobs` option. Knobs latch at engine start: one process per setting.
 
@@ -143,10 +148,12 @@ every lazy2 arm):
 With `LAZY_V2` on, the bench also prints `info string lazy eval: F lazy returns of A evals asked; parent known on P;
 returns/asks by site: stand-pat a/b rfp c/d futility e/f` and, with a gate on, `; refused by the gate N`.
 
-**Binaries** (`build_uci/`, none PGO, none installed): `chess_engine_uci_lazy` (build 1), `chess_engine_uci_lazy2` (build 2,
-all knobs but the gate), **`chess_engine_uci_lazy3` (build 3, all knobs)**, `chess_engine_uci_lzprobe2` (the context probe),
-`chess_engine_uci_orc` (lazy2 plus the oracle memo cleared at ucinewgame), `chess_engine_uci_lzprobe` / `lzplain` (11-07).
-A ship would be a PGO build with the chosen knobs as defaults.
+**Binaries** (`build_uci/`): **production `chess_engine_uci` == `chess_engine_uci_g71pgo`** (gen 7.1, PGO, profile
+`/mnt/e/chess_data/pgo_g71`, queue #188; gen 7 stays as `chess_engine_uci_g7pgo`). Development builds, none PGO:
+`chess_engine_uci_lazy` (build 1), `chess_engine_uci_lazy2` (build 2, all knobs but the gate), `chess_engine_uci_lazy3` (build 3,
+all knobs, lazy off by default), `chess_engine_uci_lzprobe2` (the context probe), `chess_engine_uci_orc` (lazy2 plus the oracle
+memo cleared at ucinewgame), `chess_engine_uci_lzprobe` / `lzplain` (11-07). On g71pgo the default bench is 247 / 39,852,210 and
+`LAZY_V2=0` gives 246 / 36,509,830, the same as keep_gate's knobs and off on lazy3.
 
 **The probe.** `EXTRA_FLAGS=-DLAZY_PROBE` builds log sampled fresh evals with the site, window, every eval stage, the board
 features, the move that led to the position (`mv`) and a capture near a king (`kz`); `diagnostics/_lazy_probe_read.py` reads them
@@ -177,6 +184,18 @@ slower; run two replicates in reversed order and read the mean. Compare arms on 
 
 ## 7. Weaknesses and open items
 
+**Watch list since the ship (owner 11-09: "we must monitor this as we continue on").**
+- **W1, the equal-node accuracy cost.** Every lazy variant reads 0.5-1.6 pp below off against SF18 at equal nodes, keep_gate
+  −1.0 over 8 sets (−2.1 on #187's fresh 5). After any pruning change (each search v2 step, the margins re-sweep) or eval change
+  that widens the positional swing (a retune, new king safety), re-run the SF18 leg on FRESH seeds: default vs `LAZY_V2=0`,
+  250k vs 1,100 nodes, both on the same openings (`selfplay/_queue_187.sh` is the template).
+- **W2, the gate is unproven in games.** On SF18 gate ≈ keep ≈ build 1 (#187 refuted "the gate matters" on fresh seeds). Its case
+  is the probe's misses. Re-price it with the probe when the depth or the search changes.
+- **W3, speed to depth is noisy.** keep_gate's two grid replicates read −10.0% and −0.1%; build 1's agree at −7.6 / −8.8%. Real
+  play is +6.3% nps (#185). Re-read the grid with more replicates before attributing speed to the gate.
+- **W4, corrhist.** See item 3 below: `CORR2_*` cannot ship in the margins re-sweep until the exit accounts for the correction.
+- **W5, the gain is unresolved.** Equal-time self-play leaned positive in all four chunks (+12.9, z 1.86), below +2σ.
+
 1. **The passer guard is unresolved.** Dropping it (keep_g3) is weakest on the passed-pawn suites at both depths (z +1.24 and
    +1.92 against the fix alone, short of the registered 2.0, the same sign, losses in pawn and rook endgames). Kept on.
 2. **The gate is a first cut** (build 3; the context probe of 11-08 measured where build 2 misses). Its known limits, the
@@ -195,7 +214,7 @@ slower; run two replicates in reversed order and read the mean. Compare arms on 
 4. **The margins fit today's eval.** They are set against how far the positional part can swing. Any eval change that widens
    that swing (new king safety, a retune) raises the miss rate: re-check the guards and margins after such a change.
 5. **Ordering with the margins re-sweep.** The fire rate depends on the reverse-futility and futility margins (the bound
-   includes them). Ship lazy eval before the re-sweep, so the margins are tuned with it on.
+   includes them). Lazy eval shipped first (gen 7.1), so the re-sweep tunes the margins with it on.
 6. **The cheap part is not incremental.** It is about a tenth of the eval, so incremental material / PST is a refinement, not
    the prize; the fire rate decides the prize.
 7. **Records travel through a side table keyed by position.** A real per-ply search stack (search v2) would make the parent
@@ -226,6 +245,11 @@ Depth 10 grid (22 sets: WAC, STS300, ksattack, 400 game positions, 18 themes; tw
 | keep_g3 | −9.7% | −2.8% | +7.6% | 3,279 | 245 | 49.1 | 82.9% |
 | keep_m1000 | −8.0% | −3.9% | +4.5% | 3,276 | 249 | 47.4 | 82.6% |
 
+The same grid on lazy3 (#186, 11-09; replicates in brackets, off moved 5.5% between them): build 1 −8.2% (−7.6 / −8.8), keep −4.8%
+(−7.0 / −2.4), **keep_gate −5.1% (−10.0 / −0.1)**, keep_m1000 −9.9% (−14.7 / −4.7); nodes −3.3 / −2.0 / −1.4 / −3.9%; themes 3,275 /
+3,285 / 3,281 / 3,276 (off 3,282); WAC 245 / 245 / 247 / 249; lazy % of asks 42.1 / 42.9 / 58.6 / 47.4 (keep_gate: of the asks the
+gate let through); parent known 70.6 / 82.5 / 85.2 / 82.6%.
+
 Passed-pawn suites, fixed depth (of 1,500; paired z on the positions only one arm solves):
 
 | variant | depth 10 | depth 12 | z vs off (d10 / d12) |
@@ -242,6 +266,9 @@ Games (10+0.1 UHO, fastchess, vs off on the same binary; Elo ± 95%):
 |---|---|---|---|---|---|
 | build 1 (#177) | 2,000 | **+14.8** (+1.5 … +28.1), z 2.18 | +6.3% | 11.6 vs 11.5 | 3,749 vs 3,728 (+21) |
 | keep_g3 (#178) | 1,200 | +0.3 (−17.0 … +17.6) | +8.7% | 11.7 vs 11.5 | 3,757 vs 3,726 (+31) |
+| **keep_gate (#185)** | 2,000 | **+12.9** (−0.7 … +26.5), z 1.86 | +6.3% | 11.5 vs 11.4 | 5,116 vs 5,082 of 5,624 (+34; themes + passers) |
+
+Against Mediocre (#186, 10+0.1, 300 g per arm): keep_gate 83.2% vs off 79.2%, +4.0 pp ± 5.7, z +1.37.
 
 SF18 at equal nodes (ours 250k nodes, SF18 1,100; score vs SF18; "vs off" = against lazy off on the same openings, because the
 opening sets alone moved lazy off's score by 4.4 pp between #184 and #185):
@@ -254,7 +281,14 @@ opening sets alone moved lazy off's score by 4.4 pp between #184 and #185):
 | keep_m1000 (#184) | 500 | 56.0% | −4.2 pp ± 5.35, z −1.54, **FAIL** |
 | **keep_gate (#185)** | 750 | 56.5% | **+0.7 pp ± 4.4, z +0.33, PASS** |
 
-The two arms that lean negative both have KEEP on and no gate. Passed-pawn suites at fixed depth (#185): keep_gate 1,271 /
+**#187, five fresh opening sets** (all four arms per set, 1,250 g per arm; registered on these sets): keep_gate − off −2.08 pp ±
+3.30, z −1.24 (**the "level" bar of > −1σ FAILED**); keep_gate − keep −1.16, z −0.68 ("the gate matters" not supported); keep −
+off −0.92, z −0.54 ("KEEP harmful" not supported); build 1 − off −1.20, z −0.71. Over every set both arms played (#185 + #187):
+keep_gate − off −1.02 ± 2.63, z −0.76 (8 sets, 2,000 g each); keep − off −1.60, z −1.10; build 1 − off −0.51, z −0.36; keep_gate −
+keep +0.29, z +0.20.
+
+#185's reading from the table above ("the two arms that lean negative both have KEEP on and no gate") did NOT replicate on
+fresh sets: every variant pays about 1 pp at equal nodes and the variants are indistinguishable. Passed-pawn suites at fixed depth (#185): keep_gate 1,271 /
 1,358 at depth 10 / 12 (off 1,277 / 1,346; paired z vs off +0.90 / −1.60): level. Pinned WAC bench (#185, three rounds): time to
 depth vs off keep −1.0%, keep_gate +3.2%, keep_m1000 −6.6%; nps +7.0 / +5.8 / +9.0%.
 

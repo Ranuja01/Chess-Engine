@@ -211,6 +211,45 @@ Checked against the 10-19 transition list (`archive/handoffs/SESSION-HANDOFF-202
 | **POT-as-search** (10-19 list) | three parts: race + margins; the complexity scaler as an "unresolved" signal for LMR / time; pending-break protection (owner game 7) | never built. Two parked-register triggers point at "POT-as-search in the transition" (complexity scaler, middlegame POT) | owner's call: re-point all three to S4-S5 (they need the per-ply stack and reduction signals, and sit beside Reckless's line signals and the passer prune exemption), or build a first version now |
 | SF11 pawn-ending rules (10-08 preplan, first item) | `NULL_NPM_GUARD`, `PE_PRUNE_GATE`, `PE_PASSER_EXT` | built 10-15; the guard shipped in gen 6.5; the other two did not fix the bias (the lever was the eval) | closed |
 
+## 7c. POT reread: review of the analysis (`POT-REREAD-ANALYSIS-2026-11-10.md`, Fable 5.2, 11-10)
+
+**Verified in the code or the record:**
+- `PawnEntry` holds `lever`, `blocked`, `openFiles`, `halfOpen`; `pawn_hash_probe` and `passer_potential` exist.
+- `ENABLE_PRUNE_SHADOW` / `ENABLE_SHADOW_EVENTS` and `_shadow_auc.py` exist.
+- `transform_critical.csv` / `transform_trap.csv` exist in two sets (`classes_move/`, `classes_move_g2/`), so test S-2 can
+  be cross-set.
+- Test A's data is on disk: `E:\chess_data\deep\mg_cand_d12_s*of3.csv` and `mg_wdl_train_s*of3.csv` / `mg_wdl_val.csv`.
+- The C64 pawn-ending cell raises the scale ceiling to 128/64 (`f += POT_V2_WIN_PAWNEND`, `fmax = 64 + …`). So a false edge
+  in a dead-drawn pawn ending is amplified up to 2×, which makes E1 the missing guard on a shipped cell.
+
+**Two corrections to my handoff brief that the analysis caught, and two more found while checking it:**
+1. The material-scaled label matters little for the middlegame fit and the sibling move tests (agreed).
+2. A feeder into an additive leg is an added score under another name, so M1 / M3 were in effect tested (agreed).
+3. The boosted trees kept −7.26% (half their gain) at full size on SF's win model (POT brief §5o). "Did not survive" was
+   the half-size check only.
+4. `pot_owner_cases.txt` labels game 7 **EVAL** ("an unresolved, structurally pending break the KS term cannot see yet");
+   only POT brief §5m re-read it as depth / pruning. I repeated the re-read as fact. Test C (with the triage re-run)
+   decides.
+
+**Agreed:**
+- The core finding: magnitude is a second-moment quantity, and netting Black − White destroys it, so the magnitude half
+  was never tested on its own terms.
+- The split: magnitude steers trust and selectivity; direction becomes a narrow move class; neither adds to the eval.
+- Tests A-D with their stop rules.
+- The "unlikely" list.
+
+**Additions:**
+- **Test A:** replicate on the 5,988 held-out quiet WDL rows (`E:\chess_data\wdlcal`, d10). The trajectory starts are
+  tactical.
+- **Test B:** if no two-depth pass exists, run our d10 and d12 moves on `game_regret_set.csv` (fixed depth, safe at any
+  time). The d7 regret ruler failed at ranking arms (#176). Depth gain by stratum within one arm is a different question,
+  but read it with that in mind.
+- **Test C:** today's LMR is keyed by **iteration** depth, not remaining depth (ENGINE-ORIENTATION). Near the leaves, a
+  plan move can be reduced as if it had the whole depth ahead, which could make §4.2's reduction chain worse here than in
+  SF. Record the reduction each plan move receives.
+- **S-2:** the precedents both point at narrowness. `ENABLE_PASSER_PRUNE_EXEMPT` (+2.9% nodes) was flat; protect-killers
+  (+1.16% nodes) won +12.4.
+
 ## 8. Questions for the owner
 
 1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory

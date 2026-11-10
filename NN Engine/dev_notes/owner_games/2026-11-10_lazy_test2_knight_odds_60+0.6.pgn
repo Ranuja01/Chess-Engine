@@ -1,0 +1,14 @@
+[Event "Owner UI test 2: lazy eval (gen 7.1), knight odds (White without the b1 knight), 60+0.6 each"]
+[Site "owner UI"]
+[Date "2026.11.10"]
+[Round "2"]
+[White "Opponent (knight odds)"]
+[Black "AlphaUX v2 gen 7.1 (assumed Black, as in test 1)"]
+[Result "0-1"]
+[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+
+1. e4 e5 2. Nf3 Nc6 3. d4 exd4 4. Bb5 a6 5. Ba4 Bc5 6. O-O Nge7 7. b4 Bxb4 8. Bb3 Bc3 9. Ng5 d5 10. Qh5 g6
+11. Qh4 Bxa1 12. Ba3 Bc3 13. exd5 Ne5 14. Ne4 Nxd5 15. Qg3 f6 16. Bxd5 Bf5 17. Rb1 Bxe4 18. Bxe4 b5 19. h4 Rb8
+20. f4 f5 21. fxe5 fxe4 22. Qf4 b4 23. h5 d3 24. Bb2 dxc2 25. Re1 Bxb2 26. Kh2 Qd1 27. Qxe4 Qxe1 28. Qxe1 Rb5
+29. Qe4 c1=Q 30. Qf3 Rxe5 31. Qa8+ Kd7 32. Qf3 Rxh5+ 33. Qxh5 gxh5 34. a3 Rf8 35. axb4 Qe1 36. b5 Qh4+ 37. Kg1 Bd4# 0-1

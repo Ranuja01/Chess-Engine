@@ -14,7 +14,9 @@ leaves the engine untouched, so it measures any binary, any knob setting and the
   O<i>             UCI options, `name:value` separated by `;` (a value may contain commas, as Knobs does)
   D<i>             `go depth` for that engine (default 14)
   N                positions per phase bucket, sampled with SEED from FENS (a CSV with `fen` and `phase_bucket`)
-  OUT              writes per_iter.csv (engine, fen index, phase, depth, cumulative nodes, time ms) and summary.txt
+  OUT              writes per_iter.csv (engine, fen index, phase, depth, cumulative nodes, time ms), fens.csv (index,
+                   phase, FEN) and summary.txt. The sample is deterministic per N / SEED / FENS, so an older run's
+                   positions are recovered by re-running the sampler with the same arguments
 
 Reads (printed and in summary.txt), per engine:
   - per depth: positions reaching it, the geometric mean of nodes(d) / nodes(d-1), the geometric mean and median of the
@@ -207,6 +209,10 @@ def main():
 			w.writerows(rows)
 		with open(os.path.join(od, "summary.txt"), "w") as f:
 			f.write("\n".join(out) + "\n")
+		with open(os.path.join(od, "fens.csv"), "w", newline="") as f:   # pos index -> position, for outlier follow-up
+			w = csv.writer(f)
+			w.writerow(["pos", "phase", "fen"])
+			w.writerows((i, phase, fen) for i, (phase, fen) in enumerate(fens))
 
 
 if __name__ == "__main__":

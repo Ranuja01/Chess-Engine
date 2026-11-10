@@ -197,11 +197,43 @@ Each claim that could be checked against the code was checked (11-10); "verified
 | **Set-aside list** (TT probe before make, SSE2 both colours, eval attacks into movegen, incremental PST) | Agree with all four. | — |
 | **15.4** newer compiler, `thread_local` | Worth one build each at the release sweep (we are on GCC 11: `/usr/include/c++/11` in the S0 run). Caveat: with `-Ofast` a different compiler or libm can change start-up floating-point tables (the LMR log table), so bench identity may break and has to be checked, not assumed. | release sweep |
 
+## 7b. Transition items still open on 11-10 (owner: "let's at least give those remaining transition items a look")
+
+Checked against the 10-19 transition list (`archive/handoffs/SESSION-HANDOFF-2026-10-19.md`), the 10-08 preplan and the
+10-30 eval-items order:
+
+| item | what it is | state on 11-10 | proposal |
+|---|---|---|---|
+| **Bench checkpoint #3** (10-19 list, the formal last step) | checkpoint #2's scope (POT brief §5f): static ladder; depth ladder vs SF11; critical-position move test vs SF11 / SF18; WAC / STS; strength vs SF18, Mediocre ≥ 200 g, plus a Stockfish 1.1 series point | **Partly in hand for gen 7.1:** static ladder (#169, gen 7's eval, which lazy eval does not change); depth ladder (§6.1); SF18 at equal nodes 56.9% over 2,250 g (#189 / #192 control arms); Mediocre 81.3% over 300 g at 10+0.1 (#189 control). **Missing:** the Stockfish 1.1 point, the record queue (`_queue_v2_record.sh`: STS300, STS full, WAC at LIGHTNING, speed) and the critical-position move test | run the missing legs (timed ones outside the owner's games) |
+| **Batch 9** (banked 11-04) | (a) the child key once per node: `make_move_cache_key` + `hash_castling` run inside about 17 probe helpers, the prefetch and the repetition key; (b) the move-cache snapshot copy (`out = entry.moves`, a ~100-byte memmove per node); (c) no zeroing of what is overwritten (`KsChannels ch;` at two eval sites, the passer count array) | never built; result-identical; guess +1.5-2.5% nps. All three sit in code S1's port reuses | build with F24 + F26 as one batch, judged by the instruction-count yardstick, then real-play nps |
+| **Tree blow-ups** (10-19 "v2's tree blows up on some positions") | positions where our tree explodes | **found again in §6.1's data:** position 54 (midgame) 21.9 M nodes / 12.1 s to depth 13 against SF11's 63 nodes (83 at depth 18); position 27 (endgame) 10.1 M against 1,870. SF11's tree collapses (a forced result is known); ours keeps growing about 2.7× a ply. Likely cause: no mate-distance pruning and no mate scores in the TT (the gen 6.6 bundle, not kept for its SF18 read). Not yet confirmed: the run did not save FENs (fixed in the probe 11-10; the sample can be regenerated) | confirm on the two FENs; then the mate handling is designed into v2 from S1 (standard, ply-adjusted TT mates + MDP), judged where it fires |
+| **Owner-game triage re-run** (`_case_triage.py`, 17 cases; 10-18: EVAL 6, DEPTH 7, PRUNING 2, ok 2 on gen ~4) | which of your game positions fail by eval, depth or pruning | never re-run since gen 4 | re-run on gen 7.1 as an S0 instrument: the DEPTH and PRUNING cases are search v2's test set |
+| **POT-as-search** (10-19 list) | three parts: race + margins; the complexity scaler as an "unresolved" signal for LMR / time; pending-break protection (owner game 7) | never built. Two parked-register triggers point at "POT-as-search in the transition" (complexity scaler, middlegame POT) | owner's call: re-point all three to S4-S5 (they need the per-ply stack and reduction signals, and sit beside Reckless's line signals and the passer prune exemption), or build a first version now |
+| SF11 pawn-ending rules (10-08 preplan, first item) | `NULL_NPM_GUARD`, `PE_PRUNE_GATE`, `PE_PASSER_EXT` | built 10-15; the guard shipped in gen 6.5; the other two did not fix the bias (the lever was the eval) | closed |
+
 ## 8. Questions for the owner
 
-1. **S1 scope:** port every current feature one for one before anything new (the plan above), or start v2 with the
-   traditional stack directly and port ours as options afterwards? The first keeps a clean "same search, new structure"
-   read; the second gets to the interesting comparison sooner but loses that read.
-2. **Separate history tables for v2**, or share ours? Sharing is less code; separate tables allow the re-keying in S5
-   without touching v1.
-3. **Lazy SMP** is out of scope (single-core goal), but the `Stack` design keeps it possible. Confirm.
+1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory
+   `search-correctness-asymmetries-2026-10`), and negamax has one code path, so for each asymmetry v2 has to pick one form:
+   - **A1** LMR re-search: the maximizer accepts a reduced fail-high unverified, the minimizer verifies it at full depth
+     (`FIX_RESEARCH`). Standard = verify.
+   - **A2** the minimizer scouts at (alpha, alpha+1) instead of its own bound (`FIX_MIN_SCOUT`). Negamax does the correct
+     thing by construction. On WAC the fix read 258 → 250 with −12.6% nodes: the margins may have been fitted to it.
+   - **A3** a minimizer-only full-window branch at remaining depth 1 (`FIX_MIN_RD1`: 1 drops it, 2 adds it to the max side
+     too). Productive on WAC both ways round (243 and 254 against 258), so a v2 knob.
+   - A4 (`FIX_MAX_NULL`) is already fixed in production since gen 6.5.
+   - Other quirks carry over as they are, each a later knob: LMR keyed by iteration depth (LMP by remaining depth), the
+     light-endgame LMR bypass (`FIX_LMR_EG` lost −19.8).
+   The A1 / A2 game numbers on record are void (the 10-20 matches never sent the knobs), so none has a games read.
+   ~~Proposal (S1a): play A1 × A2 on today's search and port the winner.~~ **Withdrawn 11-10 on a record check:**
+   `SEARCH-CORRECTNESS-ITEMS-2026-11-02.md` §3 already found that the bound, the reduction scale and VERIFY are ONE mechanism
+   (VERIFY is the hidden second look that makes the reduction size work), to be replaced together as LMR v2, not fixed one
+   at a time. **Revised proposal:** the negamax port carries a "root side" flag, so it reproduces today's asymmetries exactly.
+   Then S1 needs no knob games first, and it can be held to **node-for-node identity at fixed depth against today's
+   production search** (bench 247 / 39,852,210 through `SEARCH_ARM=1`): any difference is a port bug or a listed, intended
+   change. LMR v2 (the symmetric bound, the reduction scale and VERIFY, together) is an S5 stack.
+2. **Separate history tables for v2: yes** (owner 11-10: "we may be revisiting history formulas as well as how the tables
+   are designed and shaped").
+3. **SMP: later, like NNUE** (owner 11-10): an nps booster to apply later. Strength testing stays single-thread against
+   single-thread engines, but before any public release (CCRL or similar) the engine must have a multi-thread option to
+   stay competitive. The `Stack` design (one per thread) keeps Lazy SMP possible.

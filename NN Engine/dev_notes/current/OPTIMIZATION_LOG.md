@@ -30,7 +30,8 @@ against the default on the same binary: c2q = `CORR2=1,CORR2_WP=88,CORR2_WN=100`
   EVAL-V2-PARKED-REGISTER.md (search phase). Gen 7.1 stays production.
 - The night's follow-ons: #190 (watch item W1) died with the WSL VM at 06:38:22, when Windows re-registered the WSL package
   (3.0.5.0); no Windows reboot, no crash dump, binaries bench exact afterwards. W1 after 4 of 9 fresh sets: lazy on − off
-  −1.7 pp ± 3.7 (z −0.89). #192 plays the other 5 sets (LAZY-EVAL.md §7).
+  −1.7 pp ± 3.7 (z −0.89). #192 played the other 5 sets: **W1 over all 9 fresh sets +0.13 pp ± 2.49 (z +0.10) ⇒ level,
+  closed** (registered bar > −1σ; LAZY-EVAL.md §7).
 
 ## 2026-11-09 13:50 — Lazy eval made corrhist-aware (watch item 4); byte-identical at the defaults
 

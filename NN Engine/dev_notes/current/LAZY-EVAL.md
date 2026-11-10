@@ -189,6 +189,10 @@ slower; run two replicates in reversed order and read the mean. Compare arms on 
   −1.0 over 8 sets (−2.1 on #187's fresh 5). After any pruning change (each search v2 step, the margins re-sweep) or eval change
   that widens the positional swing (a retune, new king safety), re-run the SF18 leg on FRESH seeds: default vs `LAZY_V2=0`,
   250k vs 1,100 nodes, both on the same openings (`selfplay/_queue_187.sh` is the template).
+  **11-10: CLOSED AS LEVEL on the registered read** (#189 + #190 / #192, 9 fresh sets, 2,250 g per arm; level if > −1σ):
+  gen 7.1 − `LAZY_V2=0` **+0.13 pp ± 2.49, z +0.10** (the 6 sets of #190 / #192 alone +2.27 pp, z +1.45; #189's 3 −4.1). The
+  earlier −1 to −2 pp was seed noise. The re-run duty after each pruning or eval change stays (`selfplay/_queue_192.sh` is
+  the newer template: complete chunks only, every helper variable local).
 - **W2, the gate is unproven in games.** On SF18 gate ≈ keep ≈ build 1 (#187 refuted "the gate matters" on fresh seeds). Its case
   is the probe's misses. Re-price it with the probe when the depth or the search changes.
 - **W3, speed to depth is noisy.** keep_gate's two grid replicates read −10.0% and −0.1%; build 1's agree at −7.6 / −8.8%. Real

@@ -4,6 +4,34 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-10 12:00 — Margins re-sweep with corrhist (#189): not harmful, +2σ nowhere ⇒ corrhist PARKED for search v2 (owner)
+
+Queue #189 on `chess_engine_uci_lazy4` (default = gen 7.1; lazy eval reads the correction first, ac7ba67). Arms are Knobs
+against the default on the same binary: c2q = `CORR2=1,CORR2_WP=88,CORR2_WN=100` (quarter weights), c2r = c2q +
+`RFP_MARGIN=500` (gen 7.1's is 600). Fingerprints: c2q 248 / 37,989,957, c2r 245 / 36,768,650, both "failed to cut 0".
+
+| arm | self-play vs gen 7.1, 10+0.1 | SF18 at equal nodes (3 seeds × 250) | Mediocre (2 seeds × 150) |
+|---|---|---|---|
+| c2q | **−0.0 ± 13.5** (2,000 g), z 0.00, nps −2.9% | +3.8 pp, z +1.72 | +3.5 pp, z +1.23 |
+| c2r | **+6.9 (−7.6 … +21.5)** (1,750 g), z +0.93, nps −2.2% | +1.5 pp, z +0.66 | +4.5 pp, z +1.62 |
+
+- Registered bars: both arms are not harmful on all three instruments; neither reaches +2σ in self-play. c2r − c2q = +6.9,
+  under the +10 screen, so the tighter margin is not shown to pay. Predictions: c2q 0 to +10 (it landed at the bottom); c2r
+  within ±10 of c2q (held).
+- The control was the lowest arm on SF18 (lazy off also beat it by 4.1 pp on those seeds), so the SF18 leans are inflated
+  (memory a-shared-baseline-correlates-every-arm-of-its-seed). All 6 Mediocre time losses were Mediocre's own, 5 of them
+  against c2r (about 1 pp of its +4.5).
+- c2r has 1,750 games, not 2,000: the chunk on seed 189222 (00:00 11-10) played no games. `sf_block`'s loop variable was not
+  local, so the evening SF18 block, run from inside that chunk's wait, left the chunk's arm as `ctl` and fastchess refused an
+  empty `option.Knobs=` (memory queue-helpers-must-localise-every-variable). The replay (#191) was dropped: reaching +2σ would
+  have needed about +60 in one 250-game chunk.
+- **Decision (owner 11-10): park corrhist** for search v2, where the node-entry static eval gives it the standard consumers
+  ("its something strong engines have though ... Even with NNUE engines have it"). Code and knobs stay, default off. Trigger in
+  EVAL-V2-PARKED-REGISTER.md (search phase). Gen 7.1 stays production.
+- The night's follow-ons: #190 (watch item W1) died with the WSL VM at 06:38:22, when Windows re-registered the WSL package
+  (3.0.5.0); no Windows reboot, no crash dump, binaries bench exact afterwards. W1 after 4 of 9 fresh sets: lazy on − off
+  −1.7 pp ± 3.7 (z −0.89). #192 plays the other 5 sets (LAZY-EVAL.md §7).
+
 ## 2026-11-09 13:50 — Lazy eval made corrhist-aware (watch item 4); byte-identical at the defaults
 
 The lazy exit used to decide on the uncorrected estimate, and CORR2 was added after it. At the shipped weights the

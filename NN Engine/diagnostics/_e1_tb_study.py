@@ -29,6 +29,10 @@ RESULT (seed 11, 11-10 20:10): fires 500: draw 42.6% / leader wins 46.0%; non-fi
 REPLICATION, registered before its run (11-10 20:15): KR_MIN=1 on a FRESH seed (12) keeps only fires with KR >= 1 and
   queries the tablebase only for those, until N_FIRE=80. Same bar: designable if draw >= 85% and leader wins <= 10%.
   Prediction: draw 80-90%, wins 3-8% (the seed-11 pool of 22 read 86% / 4.5%).
+  RESULT (seed 12, 11-10 18:35): 80 fires with KR >= 1: draw 62.5%, leader wins 17.5%, leader LOSES 20.0% (KR +1 56:
+  64.3 / 21.4 / 14.3; +2 18: 50.0 / 11.1 / 38.9; +3..+8 6: 83.3 / 0 / 16.7). Did NOT replicate (the seed-11 22 were
+  a small-sample high). ⇒ E1 as a structural input PARKS by the registered rule: in K+P endings the kings decide what
+  a static passer + king-race rule cannot see.
 Caveat: uniform random placement is not the game distribution (more scattered kings and pawns); it measures the rule's
 logic, not its frequency in play. Good citizen: modest N, a delay per new query, everything cached.
 """

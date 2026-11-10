@@ -276,5 +276,110 @@ def main_moves():
     print("  KEEP TEST (paired): POT FIXES %d · BREAKS %d · z = %+.2f  (part 1 needs z > −1; part 2 needs z ≥ +2)" % (fixed, broke, z))
 
 
+def feats_sum(b):
+    """POT's MAGNITUDE half (POT-REREAD-ANALYSIS §2.1, test A): the same structure SUMMED over both sides, never netted
+    (a position where both sides have a live break is the most unresolved and nets to zero). Plus a tension count."""
+    wpb, bpb, occ = board_bits(b.fen())
+    npm = sum(NPM[p.piece_type] for p in b.piece_map().values() if p.piece_type in NPM)
+    wmg = min(npm, 24) / 24.0
+    base = rel(wpb, bpb, wmg)
+    wn, wpu = side_options(wpb, bpb, occ, True, wmg, base)
+    bn, bpu = side_options(wpb, bpb, occ, False, wmg, base)
+    wp_, bp_ = b.pieces(chess.PAWN, chess.WHITE), b.pieces(chess.PAWN, chess.BLACK)
+    tension = sum(bin(chess.BB_PAWN_ATTACKS[chess.WHITE][s] & int(bp_)).count("1") for s in wp_)
+    hw, sw, pw = side_feats(b, chess.WHITE)
+    hb, sb, pb = side_feats(b, chess.BLACK)
+    return [abs(wn) + abs(bn), abs(wpu) + abs(bpu), hw + hb, abs(mobile_majority(wpb, bpb, occ)), sw + sb, pw + pb, tension]
+
+
+MAG_NAMES = ["lever_now_sum", "lever_push_sum", "halfopen_sum", "majority_abs", "storm_sum (king files)", "space_sum", "tension"]
+
+
+def main_magnitude():
+    """TEST A (registered 11-10 20:45, before this ran; POT-REREAD-ANALYSIS §5, search v2 plan §7c):
+    does pawn structure predict the SIZE of our error? Rows = mg / mgl trajectory starts with our candidate d12 score (queue
+    #81) and SF18's own WDL label (mg_wdl_train_s*of3.csv, mg_wdl_val.csv; White POV). E = |win%(SF18 WDL) − win%(our d12)|.
+    Controls C: |win%(d12) − 50|, phase (npm), |material diff|, |win%(our static) − win%(d12)|. Features F = feats_sum.
+    5-fold by GAME. In each fold: fit E ~ C (train), fit the train residual ~ F, predict U = F·β on held-out. Read the
+    held-out ratio of mean E, top fifth of U over bottom fifth, WITHIN terciles of the control prediction (beyond the
+    controls), averaged over terciles. Second target: |win%(SF18 t+16) − win%(SF18 t0)| (realised change; cp label).
+    KEEP: ratio >= 1.25 in >= 4 of 5 folds on the primary target. Shuffled-F null reported.
+    Prediction: 1.05-1.15 (miss); the quiet-row replication runs only on a pass.
+    RESULT (11-10 18:55, 26,244 rows): per fold 1.248 1.247 1.236 1.236 1.218 (0 / 5 at >= 1.25) ⇒ registered MISS;
+    shuffled null 0.95-1.08. A consistent ~1.24x effect beyond the controls, just under the bar (prediction too low).
+    Second target (t+16 change): 1.167 1.271 1.206 1.347 1.247 (2 / 5). Owner decides on the quiet-row replication."""
+    d12, tr, meta = load()
+    lab = {}
+    for p in glob.glob(os.path.join(DEEP, "mg_wdl_train_s*of3.csv")) + [os.path.join(DEEP, "mg_wdl_val.csv")]:
+        for r in csv.DictReader(open(p, newline="")):
+            try:
+                lab[r["fen"]] = (float(r["w"]) + 0.5 * float(r["d"])) / 10.0   # White expected score, %
+            except (KeyError, ValueError):
+                pass
+    rows = []
+    for fen, (game, stage, control, static) in meta.items():
+        if fen not in d12 or fen not in lab:
+            continue
+        b = chess.Board(fen)
+        npm = sum(NPM[p.piece_type] for p in b.piece_map().values() if p.piece_type in NPM)
+        val = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+        mat = sum(val[p.piece_type] * (1 if p.color == chess.WHITE else -1) for p in b.piece_map().values() if p.piece_type in val)
+        w12 = float(wp(d12[fen]))
+        e = abs(lab[fen] - w12)
+        t16 = tr[fen].get(16)
+        e16 = abs(float(wp(t16)) - float(wp(tr[fen][0]))) if (t16 is not None and 0 in tr[fen]) else np.nan
+        C = [abs(w12 - 50.0), npm, abs(mat), abs(float(wp(static)) - w12)]
+        rows.append((game, e, e16, C, feats_sum(b)))
+    print("test A rows: %d (trajectory starts with a d12 score and an SF18 WDL label)" % len(rows))
+    games = np.array([zlib.crc32(r[0].encode()) % 5 for r in rows])
+    E = np.array([r[1] for r in rows]); E16 = np.array([r[2] for r in rows])
+    Cm = np.array([r[3] for r in rows], float); Fm = np.array([r[4] for r in rows], float)
+    print("mean E %.2f win%% pts; feature means: %s" % (E.mean(), ", ".join("%s %.2f" % (n, v) for n, v in zip(MAG_NAMES, Fm.mean(0)))))
+
+    def ols(X, y):
+        X1 = np.c_[np.ones(len(X)), X]
+        return np.linalg.lstsq(X1, y, rcond=None)[0]
+
+    def pred(beta, X):
+        return np.c_[np.ones(len(X)), X] @ beta
+
+    def run(target, shuffle_seed=None):
+        ratios = []
+        ok_all = ~np.isnan(target)
+        for k in range(5):
+            tr_m, te_m = (games != k) & ok_all, (games == k) & ok_all
+            F_tr = Fm[tr_m].copy()
+            if shuffle_seed is not None:
+                np.random.default_rng(shuffle_seed + k).shuffle(F_tr)
+            bc = ols(Cm[tr_m], target[tr_m])
+            res = target[tr_m] - pred(bc, Cm[tr_m])
+            bf = ols(F_tr, res)
+            u = pred(bf, Fm[te_m]); cpred = pred(bc, Cm[te_m]); t = target[te_m]
+            per = []
+            for lo, hi in ((0, 1 / 3), (1 / 3, 2 / 3), (2 / 3, 1.0001)):
+                q = np.quantile(cpred, [lo, min(hi, 1.0)])
+                m = (cpred >= q[0]) & (cpred <= q[1]) if hi > 1 else (cpred >= q[0]) & (cpred < q[1])
+                if m.sum() < 50:
+                    continue
+                uq = np.quantile(u[m], [0.2, 0.8])
+                top, bot = t[m][u[m] >= uq[1]], t[m][u[m] <= uq[0]]
+                if len(top) and len(bot) and bot.mean() > 0:
+                    per.append(top.mean() / bot.mean())
+            ratios.append(float(np.mean(per)) if per else float("nan"))
+        return ratios
+
+    for name, target in (("PRIMARY |SF18 WDL − our d12|", E), ("second |SF18 t+16 − SF18 t0| (cp label)", E16)):
+        r = run(target)
+        rn = run(target, shuffle_seed=7)
+        npass = sum(x >= 1.25 for x in r)
+        print("\n=== %s" % name)
+        print("  top/bottom-fifth ratio of mean error, within control terciles, per fold: %s  (pass >= 1.25: %d / 5)"
+              % (" ".join("%.3f" % x for x in r), npass))
+        print("  shuffled-feature null per fold: %s" % " ".join("%.3f" % x for x in rn))
+        if name.startswith("PRIMARY"):
+            print("  REGISTERED: %s" % ("KEEP: structure predicts the size of our error beyond the controls" if npass >= 4
+                                      else "MISS: structural magnitude does not predict our error beyond the controls ⇒ the structural U half closes"))
+
+
 if __name__ == "__main__":
-    main_moves() if MODE == "moves" else main_fit()
+    {"moves": main_moves, "magnitude": main_magnitude}.get(MODE, main_fit)()

@@ -250,6 +250,15 @@ Checked against the 10-19 transition list (`archive/handoffs/SESSION-HANDOFF-202
 - **S-2:** the precedents both point at narrowness. `ENABLE_PASSER_PRUNE_EXEMPT` (+2.9% nodes) was flat; protect-killers
   (+1.16% nodes) won +12.4.
 
+**Results so far (11-10 night):**
+- **Test A** (`_pot_mg_fit.py MODE=magnitude`, registered in its docstring): structure summed over both sides predicts the
+  size of our d12 error beyond the controls (score, phase, material, |static − d12|) by **1.22-1.25×** per fold, top fifth
+  over bottom fifth; the shuffled null is 0.95-1.08. The bar was ≥ 1.25 in 4 of 5 folds ⇒ **registered MISS (0 / 5)**, by a
+  hair and with a real, consistent effect. The bar is not moved after the fact; the owner decides whether the quiet-row
+  replication runs anyway.
+- **Test B:** data in queue #193.
+- **E1:** PARKED (tablebase study, register row).
+
 ## 8. Questions for the owner
 
 1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory

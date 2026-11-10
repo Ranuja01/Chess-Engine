@@ -4,6 +4,43 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 2026-11-10 20:20 — Speed items F24 + F26 built and measured NEUTRAL by the instruction-count yardstick (knobs stay 0)
+
+The transition close-out's speed batch (owner 11-10: "ok" to the order), from `owner-cpp-ideas.md` §14. Both are
+result-identical knobs, default 0:
+- `HIST_DIRTY_GATE`: counter-move history reads skip chunks `g_cmh_dirty` marks as never written (F24);
+- `MF_PRESENCE`: `moveFrequency` reads go through a 1 KB presence map (F26).
+
+Value 2 of either is a verify mode that reads both ways and counts disagreements (`bench` prints them). Every write was
+checked to go through the marking path: `cmh_ref_bb` is read-only at all five of its uses, and `moveFrequency` has one
+live write.
+
+Binary `chess_engine_uci_b9`, plain build:
+
+| check | result |
+|---|---|
+| default | 247 / 39,852,210 |
+| both gates on | 247 / 39,852,210 |
+| `LAZY_V2=0` with the gates | 246 / 36,509,830 |
+| v1 with the gates | 250 / 35,310,778 |
+| verify mode | 0 mismatches |
+
+Yardstick (cachegrind, 9 game positions to depth 10, identical trees of 222,199 nodes):
+
+| | gates off | gates on | change |
+|---|---|---|---|
+| instructions | 11,094,873,835 | 11,121,853,799 | +0.24% |
+| L1 data read misses | 54.86 M | 52.98 M | −3.4% |
+| last-level read misses | 9.60 M | 9.51 M | −0.9% |
+| cost model (Ir + 10·L1 + 100·LL) | 12.604 G | 12.603 G | 0.0% |
+
+Verdict: the misses saved are paid back in the gate's own instructions, and the history table's DRAM misses were already
+small (§14.7 guessed "up to ~2%"). Knobs stay 0, code kept. Batch 9's other items:
+- (a), the key once per node: `hash_castling` is already branch-free, so what is left is well under 1% for a refactor of
+  about 17 probe helpers. Not done.
+- (b), the move-cache copy, and (c), the zeroing: about 0.5% and 0.3% by the 11-03 profile. Folded into S2, where search
+  v2's own move source and eval call sites replace them.
+
 ## 2026-11-10 12:00 — Margins re-sweep with corrhist (#189): not harmful, +2σ nowhere ⇒ corrhist PARKED for search v2 (owner)
 
 Queue #189 on `chess_engine_uci_lazy4` (default = gen 7.1; lazy eval reads the correction first, ac7ba67). Arms are Knobs

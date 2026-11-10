@@ -3415,6 +3415,15 @@ namespace Config
     // PREFETCH_EARLY: issue those prefetches right after the board update in make_move rather than at its end (same hints,
     // earlier). Results are unchanged.
     inline int PREFETCH_EARLY = 0;
+    // HIST_DIRTY_GATE (speed, result-identical): reads of the from x to counter-move history (move ordering, statScore)
+    // skip the 134 MB table where g_cmh_dirty says the 64-int chunk was never written, since it is then exactly 0
+    // (every write goes through cmh_ref, which marks it). 2 = verify mode: read both and count disagreements in
+    // g_gate_mismatch (bench prints it; must be 0). owner-cpp-ideas F24.
+    inline int HIST_DIRTY_GATE = 0;
+    // MF_PRESENCE (speed, result-identical): moveFrequency reads consult a 1 KB presence map first (g_mf_present, bit `to`
+    // of [side][from], set on every write, cleared with the table), so the never-written entries, nearly all of them,
+    // read 0 without touching the 32 KB table. 2 = verify mode as above. owner-cpp-ideas F26.
+    inline int MF_PRESENCE = 0;
     // TM_MODE (UCI clock games only; `go movetime`, fixed depth / nodes and the Cython path are unaffected): 0 = the
     // placeholder clock rule (a new iteration starts while the last one took at most the preset's MOVE_TIMES share of the
     // budget), 1 = an optimum / maximum allocation with a soft stop between iterations once the total elapsed time passes

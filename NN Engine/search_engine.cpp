@@ -3159,6 +3159,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ENABLE_TT_PREFETCH = env_flag("ENABLE_TT_PREFETCH", Config::ENABLE_TT_PREFETCH);
         Config::PREFETCH_TABLES = env_int("PREFETCH_TABLES", Config::PREFETCH_TABLES);
         Config::PREFETCH_EARLY = env_int("PREFETCH_EARLY", Config::PREFETCH_EARLY);
+        Config::HIST_DIRTY_GATE = env_int("HIST_DIRTY_GATE", Config::HIST_DIRTY_GATE);
+        Config::MF_PRESENCE = env_int("MF_PRESENCE", Config::MF_PRESENCE);
         Config::TM_MODE = env_int("TM_MODE", Config::TM_MODE);
         Config::TM_PARTIAL = env_int("TM_PARTIAL", Config::TM_PARTIAL);
         Config::LAZY_V2 = env_int("LAZY_V2", Config::LAZY_V2);
@@ -4029,6 +4031,7 @@ void clearSearchTables()
 {
 	std::fill(&historyHeuristics[0][0][0],     &historyHeuristics[0][0][0]     + 2LL * 64 * 64,     0);
 	std::fill(&moveFrequency[0][0][0],         &moveFrequency[0][0][0]         + 2LL * 64 * 64,     0);
+	std::fill(&g_mf_present[0][0],             &g_mf_present[0][0]             + 2LL * 64,          0);
 	std::fill(&captureHistory[0][0][0],        &captureHistory[0][0][0]        + 2LL * 64 * 64,     0);
 	std::fill(&captureHistoryV[0][0][0][0],    &captureHistoryV[0][0][0][0]    + 2LL * 7 * 7 * 64,  0);
 	if (Config::CONT_HIST_PIECE_KEY)
@@ -4383,6 +4386,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
             int bonus = (((depth_limit - 1) * (depth_limit - 1)) * (pv_length[0] - i) * (pv_length[0] - i));
             moveFrequency[side][move.from_square][move.to_square] += bonus;
+            g_mf_present[side][move.from_square] |= 1ULL << move.to_square;   // see mf_get
 
             if (depth_limit >= 9)
             {

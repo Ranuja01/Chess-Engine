@@ -302,6 +302,7 @@ extern int contHist2P[2][PCONT_DIM][PCONT_DIM];
 // which sets the bit, so an unmarked chunk is all zero and the periodic decay and the clear can skip it (a search
 // touches a small part of the 134 MB table). Reads use cmh_get, which does not mark. Cleared with the table.
 extern uint64_t g_cmh_dirty[2 * 4096];
+extern long long g_gate_mismatch;   // verify mode of HIST_DIRTY_GATE / MF_PRESENCE: gated reads that would have differed
 inline int &cmh_ref(int side, const Move &ctx, const Move &ent, const BoardState &st)
 {
     if (Config::CONT_HIST_PIECE_KEY)
@@ -310,11 +311,30 @@ inline int &cmh_ref(int side, const Move &ctx, const Move &ent, const BoardState
     g_cmh_dirty[side * 4096 + c] |= 1ULL << (e >> 6);
     return counterMoveHeuristics[side][c][e];
 }
+// Read of the from x to table at [side][c][e]. With HIST_DIRTY_GATE an unmarked chunk is known to be zero, so the 134 MB
+// table is not touched for it (one 64-bit dirty word per context row, the same word for every move of a node).
+inline int cmh_read_gated(int side, int c, int e)
+{
+    if (Config::HIST_DIRTY_GATE)
+    {
+        const bool marked = (g_cmh_dirty[side * 4096 + c] >> (e >> 6)) & 1;
+        if (Config::HIST_DIRTY_GATE == 2)
+        {
+            const int v = counterMoveHeuristics[side][c][e];
+            if (!marked && v != 0)
+                ++g_gate_mismatch;
+            return v;
+        }
+        if (!marked)
+            return 0;
+    }
+    return counterMoveHeuristics[side][c][e];
+}
 inline int cmh_get(int side, const Move &ctx, const Move &ent, const BoardState &st)
 {
     if (Config::CONT_HIST_PIECE_KEY)
         return counterMoveHeuristicsP[side][pcont_ctx_key(ctx, st)][pcont_ent_key(ent, st)];
-    return counterMoveHeuristics[side][cont_ctx_key(ctx, st)][cont_ent_key(ent, st)];
+    return cmh_read_gated(side, cont_ctx_key(ctx, st), cont_ent_key(ent, st));
 }
 inline int &ch2_ref(int side, const Move &ctx, const Move &ent, const BoardState &st)
 {
@@ -1341,6 +1361,34 @@ inline int &cmh_ref_bb(int side, const Move &ctx, uint8_t from, uint8_t to, uint
                                           [pcont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM)];
     return counterMoveHeuristics[side][cont_ctx_key_bb(ctx, pM, nM, bM, rM, qM, kM)]
                                      [cont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM)];
+}
+// Read-only twin of cmh_ref_bb for move ordering, through the HIST_DIRTY_GATE read.
+inline int cmh_get_bb(int side, const Move &ctx, uint8_t from, uint8_t to, uint64_t pM, uint64_t nM,
+                      uint64_t bM, uint64_t rM, uint64_t qM, uint64_t kM)
+{
+    if (Config::CONT_HIST_PIECE_KEY)
+        return counterMoveHeuristicsP[side][pcont_ctx_key_bb(ctx, pM, nM, bM, rM, qM, kM)]
+                                          [pcont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM)];
+    return cmh_read_gated(side, cont_ctx_key_bb(ctx, pM, nM, bM, rM, qM, kM), cont_ent_key_bb(from, to, pM, nM, bM, rM, qM, kM));
+}
+// moveFrequency read through the MF_PRESENCE map. A decayed entry keeps its bit and still reads the table.
+extern uint64_t g_mf_present[2][64];
+inline int mf_get(int side, int from, int to)
+{
+    if (Config::MF_PRESENCE)
+    {
+        const bool present = (g_mf_present[side][from] >> to) & 1;
+        if (Config::MF_PRESENCE == 2)
+        {
+            const int v = moveFrequency[side][from][to];
+            if (!present && v != 0)
+                ++g_gate_mismatch;
+            return v;
+        }
+        if (!present)
+            return 0;
+    }
+    return moveFrequency[side][from][to];
 }
 inline int &ch2_ref_bb(int side, const Move &ctx, uint8_t from, uint8_t to, uint64_t pM, uint64_t nM,
                        uint64_t bM, uint64_t rM, uint64_t qM, uint64_t kM)

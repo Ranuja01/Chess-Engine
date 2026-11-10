@@ -417,6 +417,8 @@ namespace
                 (Config::LAZY_V2_GATE ? "; refused by the gate " + std::to_string(g_lazy_gated) : std::string()) +
                 // printed only when a correction is on, the one case where a lazy return could fail to cut (must read 0)
                 (Config::CORR2 || Config::ENABLE_CORR_HIST ? "; failed to cut " + std::to_string(g_lazy_nocut) : std::string()));
+        if (Config::HIST_DIRTY_GATE == 2 || Config::MF_PRESENCE == 2)   // verify mode: gated reads that would have differed
+            say("info string gate verify: " + std::to_string(g_gate_mismatch) + " mismatches (must be 0)");
     }
 
     void cmd_perft(std::istringstream &in, bool divide)

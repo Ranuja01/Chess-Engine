@@ -216,10 +216,12 @@ alignas(64) Move counterMoves[64][64];
 
 alignas(64) int counterMoveHeuristics[2][4096][4096] = {};
 uint64_t g_cmh_dirty[2 * 4096] = {};   // non-zero chunks of counterMoveHeuristics (see cmh_ref)
+long long g_gate_mismatch = 0;          // HIST_DIRTY_GATE / MF_PRESENCE verify mode (see cmh_read_gated, mf_get)
 
 alignas(64) int historyHeuristics[2][64][64] = {};
 
 alignas(64) int moveFrequency[2][64][64] = {};
+alignas(64) uint64_t g_mf_present[2][64] = {};   // written moveFrequency entries: bit `to` of [side][from] (see mf_get)
 
 alignas(64) int contHist2[2][4096][4096] = {};
 alignas(64) int counterMoveHeuristicsP[2][PCONT_DIM][PCONT_DIM] = {};  // piece x to twin (CONT_HIST_PIECE_KEY)

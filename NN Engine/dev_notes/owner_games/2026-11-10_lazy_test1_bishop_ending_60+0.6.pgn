@@ -1,0 +1,13 @@
+[Event "Owner UI test 1: lazy eval (gen 7.1), set position, 60+0.6 each"]
+[Site "owner UI"]
+[Date "2026.11.10"]
+[Round "1"]
+[White "Opponent"]
+[Black "AlphaUX v2 gen 7.1"]
+[Result "0-1"]
+[FEN "8/6p1/7p/5B1P/2p1P1P1/1k1b4/2p5/2K5 b - - 0 1"]
+[SetUp "1"]
+
+1... Kb4 2. e5 Kc5 3. Bd7 Kd5 4. e6 Kd6 5. Bc8 Ke7 6. Bd7 Be2 7. Kxc2 Bxg4 8. Kc3 Bxe6 9. Ba4 Kf6 10. Bc2 Kg5
+11. Kd4 Kxh5 12. Ke5 Bf7 13. Kd4 Kg4 14. Ba4 Kf4 15. Kc5 g5 16. Bc6 c3 17. Kd6 c2 18. Bb5 c1=Q 19. Kd7 Qc5
+20. Bf1 Ke5 21. Bh3 Qa7+ 22. Kc8 Kd6 23. Bg2 Qc7# 0-1

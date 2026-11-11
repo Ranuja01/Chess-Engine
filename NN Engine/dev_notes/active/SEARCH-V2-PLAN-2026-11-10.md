@@ -285,6 +285,27 @@ runs and are not moved afterwards. The search-side candidates (S-1 to S-5, analy
 Order: gen 7.2's ship queue first (#199; nothing else runs during a build), then A-rep and B-powered (no new code), then C
 and D as their probes are written. All fixed-depth or node-limited: safe beside the owner's games.
 
+**Results (queue #200, 11-11 13:02; `q200.log`):**
+- **A-rep = KEEP (registered primary).** Production gen 7.2 at d10 on 5,940 quiet rows, test A's β frozen. Ratio **1.327**
+  (bootstrap 95% 1.240 … 1.415), every fold ≥ 1.25 (1.264 1.304 1.414 1.252 1.367), shuffled-U null 0.964. Above the predicted
+  1.10-1.25.
+- The cross-check on the 11-06 arm-S dumps (`d10_v3s` / `static_v3s`, the pre-ship candidate; its static differs from gen 7.2
+  on 173 rows and its d10 by 41.6 cp mean) reads **1.183 (1.097 … 1.282)**, null 1.001: a miss on that arm's bar by a hair.
+- **Reading:** three reads on two independent row sets and three engines now agree: test A 1.22-1.25 on tactical trajectory
+  starts, 1.33 and 1.18 on quiet rows, nulls ≈ 1.0. **Structural magnitude carries real information about WHERE our score
+  is unreliable**, at about 1.2-1.35×. The size depends on the arm: an error-size ratio is conditional on which errors that
+  engine makes. The magnitude half is not closed. Its use is the TRUST form: margins, aspiration and time where U is high
+  (S-3, S-4), not an eval term.
+- **B-powered = MISS, still UNRESOLVED (stop rule NOT met).** Both sets pooled, 26,919 rows: ALL ratio **1.31**, top − bottom
+  +0.050 ± 0.050 (1 SE); opening 1.42, **midgame 0.74** (−0.063 ± 0.072), endgame 1.41. Critical rows (gap ≥ 10, n 1,403):
+  top fifth +0.275, bottom −0.080, +0.356 ± 0.275 (1.3 SE). Set 2 alone (the named replication): ratio **1.53**, but
+  +0.075 ± 0.074 (1 SE) ⇒ MISS on the SE half. The 2σ upper bounds (ALL ≈ 1.95×) are far above 1.3, so the stop rule is not
+  met.
+- **Reading:** the depth-gain signal points the right way on both sets and pooled, but the per-row target is too noisy to
+  resolve it. +0.050 at 2 SE needs ≈ 4× the pooled rows (~110k SF18-labelled rows). The critical-row read needs ≈ 2.4× its
+  rows. The midgame split is negative, the stratum where POT was expected to matter. **Selectivity on U (extend / reduce,
+  S-4 time on U) stays unsupported but open.** A readable version needs a lower-variance target, not more of this one.
+
 ## 8. Questions for the owner
 
 1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory

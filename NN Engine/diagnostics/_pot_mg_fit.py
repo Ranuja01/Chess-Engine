@@ -393,7 +393,10 @@ def main_depthgain():
     1 SE) ⇒ registered MISS. Opening 0.97, midgame 1.08, endgame 1.95 (+0.116 ± 0.119): every split within 1 SE.
     ☠️ UNDERPOWERED, so not a refutation: the 1.5x bar is a gap of ~+0.07, about 1 SE here (per-row regret gain is mostly
     0 with rare large values), and the 2σ upper bound on ALL is ~1.9x. A readable test B needs ~4x the rows or a
-    lower-variance target (critical rows only)."""
+    lower-variance target (critical rows only).
+    B-POWERED (11-11 13:01, queue #200; DIRS both sets, 26,919 rows): ALL 1.31 (+0.050 ± 0.050), midgame 0.74, critical
+    (gap >= 10, 1,403 rows) +0.356 ± 0.275 ⇒ MISS; set 2 alone 1.53 at +0.075 ± 0.074 ⇒ MISS on the SE half. Stop rule
+    not met (2σ upper bound ~1.95x): UNRESOLVED again; +0.050 at 2 SE needs ~4x the pooled rows."""
     beta = test_a_beta()
     dirs = KV.get("DIRS", "/mnt/e/chess_data/s0_testB").split(",")
     reg = {}
@@ -468,7 +471,9 @@ def main_quiet():
     our static eval (STATIC=, fen,cp_white). β = test A's, FROZEN. E = |win%(SF18 WDL) − win%(our d10)|; controls as test A
     (|win%(d10) − 50|, phase, |material|, |win%(static) − win%(d10)|), fitted out of fold over 5 random folds. Read: top fifth
     of U over bottom fifth of mean E within control terciles, averaged over terciles, on all rows pooled; bootstrap 95% CI.
-    KEEP: ratio >= 1.25 AND bootstrap lower bound > 1.10. Prediction 1.10-1.25. Stop: lower bound <= 1.0."""
+    KEEP: ratio >= 1.25 AND bootstrap lower bound > 1.10. Prediction 1.10-1.25. Stop: lower bound <= 1.0.
+    RESULT (11-11 13:01, queue #200, gen 7.2 d10, 5,940 rows): 1.327 (95% 1.240 … 1.415), folds 1.264-1.414, null 0.964 ⇒ KEEP.
+    Cross-check on the 11-06 arm-S dumps (d10_v3s): 1.183 (1.097 … 1.282), null 1.001 ⇒ that arm misses by a hair."""
     W = KV.get("WDL", "/mnt/e/chess_data/wdlcal")
     beta = test_a_beta()
     lab, d10, st = {}, {}, {}

@@ -393,9 +393,9 @@ routing. When the whole search is ported, `SEARCH_ARM=1` dispatches to it once p
 
 | step | piece | result |
 |---|---|---|
-| 1 | `qSearch` → `sv2::qsearch` (`-DSV2_DEV=1` routes `qSearch` to it) | **identical** (11-11 15:20, bench 247 / 39,861,964) |
-| 2a | both move scorers → `sv2::score_move<RootSide>`, its children still today's node functions (`-DSV2_DEV=2`: `child_search` calls them) | **identical** (11-11 16:10) |
-| 2b | `maximizer` + the minimizer's interior branch (`cur_depth > 1`) → `sv2::negamax<RootSide>`; `child_search` calls it (`-DSV2_DEV=3`) | **identical** (11-11 16:45); also under the v1 eval (35,310,778, inside its 775-778 wobble) and gen 6.7's knobs (251 / 36,859,850) |
+| 1 | `qSearch` → `sv2::qsearch` (`-DSV2_DEV=1` routes `qSearch` to it) | **identical** (11-11 14:51, bench 247 / 39,861,964) |
+| 2a | both move scorers → `sv2::score_move<RootSide>`, its children still today's node functions (`-DSV2_DEV=2`: `child_search` calls them) | **identical** (11-11 14:56) |
+| 2b | `maximizer` + the minimizer's interior branch (`cur_depth > 1`) → `sv2::negamax<RootSide>`; `child_search` calls it (`-DSV2_DEV=3`) | **identical** (11-11 15:01); also under the v1 eval (35,310,778, inside its 775-778 wobble) and gen 6.7's knobs (251 / 36,859,850) |
 | 3 | `Config::SEARCH_ARM` (0 default; first after `EVAL_ARM` in the `[toggles]` dump). At 1, the root's three entries into the interior go to v2: the minimizer's ply-1 branch scores its moves with `sv2::score_move<false>`, and `pre_minimizer`'s three ply-2 searches call `sv2::negamax<true>`; v2's horizon calls its own q-search entry (`qsearch_entry`, today's `get_q_search_eval` with the q-cache store). The `SV2_DEV` routers are removed | |
 
 **The root stays as it is in S1 (decision 11-11).** `alpha_beta`, the minimizer's ply-1 branch, `reorder_legal_moves` and
@@ -404,7 +404,7 @@ asymmetries A1-A4 lives there; they hold ~1,700 lines of root bookkeeping (the r
 root LMR, simplification bias). S3 rebuilds the root beside the pre-search anyway, so re-expressing it now would be done twice.
 `SEARCH_ARM` is read at those three sites only (plies 0-2), so the interior pays no switch.
 
-Step 3 result (11-11 17:20): plain build `chess_engine_uci_sv2`, `SEARCH_ARM` 0 and 1 node for node on every set of
+Step 3 result (11-11 15:07): plain build `chess_engine_uci_sv2`, `SEARCH_ARM` 0 and 1 node for node on every set of
 `diagnostics/_sv2_identity.sh`: WAC 39,861,964 (also 35,310,778 under the v1 eval and 251 / 36,859,850 under gen 6.7's
 knobs), WAC mirrored 38,059,595, STS300 100,753,502, STS300 mirrored 98,825,166, 48 bare-king endings (mates, the mop-up
 value) 6,715,062, the perpetual probe 41,426: **1,249 positions, ~320 M nodes, all SAME**. The Cython module builds with v2
@@ -416,6 +416,13 @@ the arms can only see a speed difference. Proposed to the owner instead (11-11):
 the same trees (load-insensitive), real-play nps on a quiet box, and a short games smoke for crashes; the full 2,000-game read
 only if the speed reads are not level. The node-type templates (PV / non-PV) and the
 `Stack` struct (F18) are refactors of the v2 file that keep its fingerprint; each lands with the same bench check.
+
+**Speed read 1 (queue #204, 11-11 15:17; registered in the queue header: level = within ±0.5%):** cachegrind, plain build,
+12 game positions at d10, the same 3,179,520 nodes on both arms: arm 0 **18,171,848,914** instructions, arm 1
+**17,832,294,422**, **−1.87%** ⇒ **v2 faster** by the registered rule. The prediction (within ±1%) was wrong. Likely source:
+what the port leaves out (trace records, shadow-search tests, position-matched debug compares) and the side branches that
+become compile-time constants; not yet ablated. Instructions are not time: real-play nps on a quiet box (and a PGO build,
+production's form) remain.
 
 Not ported (diagnostics): `note_node_type` (only the shadow logger reads `g_node_type`), the `FIXCNT_*` / `MG_COUNT` counters
 (no-ops in production), `TraceRec`, shadow searches, `lmr_profile_event`, `log_prune_fire`, the CORR2 flip counters,

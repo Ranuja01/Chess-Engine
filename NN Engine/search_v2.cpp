@@ -65,23 +65,27 @@ namespace sv2
 	                               std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move move, int &num_iterations, bool capture_move,
 	                               bool is_in_null_search)
 	{
-#if SV2_DEV == 2
-		// Port step 2a: today's node functions answer, in the root frame.
-		if constexpr (RootSide)
-		{
-			std::vector<int> no_scores;
-			std::vector<Move> no_moves;
-			RootScore no_entry;
-			return minimizer(cur_depth + 1, depth_limit, a, b, t0, no_scores, no_moves, no_entry, state_history, position_count, zobrist, move,
-			                 num_iterations, capture_move, false, is_in_null_search);
-		}
-		else
-			return -maximizer(cur_depth + 1, depth_limit, -b, -a, t0, state_history, position_count, zobrist, move, num_iterations, capture_move,
-			                  false, is_in_null_search);
-#else
 		return -negamax<!RootSide>(cur_depth + 1, depth_limit, -b, -a, t0, state_history, position_count, zobrist, move, num_iterations, capture_move,
-		                          false, is_in_null_search);
-#endif
+		                           false, is_in_null_search);
+	}
+
+	/*
+	 * The q-search at a horizon node (today's get_q_search_eval): searches, then stores the result in the q-cache with its
+	 * bound against the window, both in the root frame. An abort value or a path-dependent draw (a bare 0 on a repetition) is
+	 * not stored under QCACHE_SOUND_STORE.
+	 */
+	template <bool RootSide>
+	static inline int qsearch_entry(int alpha, int beta, int cur_depth, const TimePoint &t0, std::vector<BoardState> &state_history, const BoardState &current_state,
+	                                std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prev_move, int &num_iterations)
+	{
+		const int result = qsearch(alpha, beta, cur_depth, 0, t0, state_history, position_count, zobrist, prev_move, num_iterations, RootSide);
+		const int root_result = RootSide ? result : -result;
+		const TTFlag flag = root_flag<RootSide>(result, alpha, beta);
+		const bool unsound_store = Config::QCACHE_SOUND_STORE && (time_up.load(std::memory_order_relaxed) ||
+		                                                          (root_result == 0 && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state)));
+		if (!Config::DISABLE_QCACHE && !unsound_store)
+			addToQCache(zobrist, root_result, flag, current_state.castling_rights, current_state.ep_square);
+		return result;
 	}
 
 	// History after a quiet move's cutoff: killer, counter move, butterfly / continuation (1 and 2 plies) / piece-continuation
@@ -212,8 +216,7 @@ namespace sv2
 		if (cur_depth >= depth_limit)
 		{
 			if (USE_Q_SEARCH && (!use_q_precautions.load(std::memory_order_relaxed) || depth_limit >= 6))
-				return s * get_q_search_eval(root_lo<RootSide>(alpha, beta), root_hi<RootSide>(alpha, beta), cur_depth, t0, state_history, current_state,
-				                             position_count, zobrist, previous_move, num_iterations, RootSide);
+				return qsearch_entry<RootSide>(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previous_move, num_iterations);
 			return s * get_board_evaluation(state_history, zobrist, num_iterations);
 		}
 

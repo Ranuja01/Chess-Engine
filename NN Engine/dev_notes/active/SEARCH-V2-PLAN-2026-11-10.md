@@ -395,8 +395,18 @@ routing. When the whole search is ported, `SEARCH_ARM=1` dispatches to it once p
 |---|---|---|
 | 1 | `qSearch` → `sv2::qsearch` (`-DSV2_DEV=1` routes `qSearch` to it) | **identical** (11-11 15:20, bench 247 / 39,861,964) |
 | 2a | both move scorers → `sv2::score_move<RootSide>`, its children still today's node functions (`-DSV2_DEV=2`: `child_search` calls them) | **identical** (11-11 16:10) |
-| 2b | `maximizer` + the minimizer's interior branch (`cur_depth > 1`) → `sv2::negamax<RootSide>`; `child_search` calls it (`-DSV2_DEV=3` and production) | see below |
-| 3 | the root, all single-sided: `alpha_beta` (ply 0, max), the minimizer's ply-1 branch (fed by the pre-search lists), `reorder_legal_moves` + `pre_minimizer` (the pre-search; calls today's `maximizer` directly) → v2 root functions, then the `SEARCH_ARM` dispatch in `get_engine_move` and removal of the `SV2_DEV` routers | |
+| 2b | `maximizer` + the minimizer's interior branch (`cur_depth > 1`) → `sv2::negamax<RootSide>`; `child_search` calls it (`-DSV2_DEV=3`) | **identical** (11-11 16:45); also under the v1 eval (35,310,778, inside its 775-778 wobble) and gen 6.7's knobs (251 / 36,859,850) |
+| 3 | `Config::SEARCH_ARM` (0 default; first after `EVAL_ARM` in the `[toggles]` dump). At 1, the root's three entries into the interior go to v2: the minimizer's ply-1 branch scores its moves with `sv2::score_move<false>`, and `pre_minimizer`'s three ply-2 searches call `sv2::negamax<true>`; v2's horizon calls its own q-search entry (`qsearch_entry`, today's `get_q_search_eval` with the q-cache store). The `SV2_DEV` routers are removed | |
+
+**The root stays as it is in S1 (decision 11-11).** `alpha_beta`, the minimizer's ply-1 branch, `reorder_legal_moves` and
+`pre_minimizer` each play one side only (the root maximizes, ply 1 minimizes), already in the root frame, so none of the
+asymmetries A1-A4 lives there; they hold ~1,700 lines of root bookkeeping (the root table, root razoring and its hybrids,
+root LMR, simplification bias). S3 rebuilds the root beside the pre-search anyway, so re-expressing it now would be done twice.
+`SEARCH_ARM` is read at those three sites only (plies 0-2), so the interior pays no switch.
+
+**Before S1 counts as done:** the other correctness gates in §3 (perft unchanged, mate and draw suites, the mirrored bench);
+the Cython module builds; then the games read, not harmful at equal time. The node-type templates (PV / non-PV) and the
+`Stack` struct (F18) are refactors of the v2 file that keep its fingerprint; each lands with the same bench check.
 
 Not ported (diagnostics): `note_node_type` (only the shadow logger reads `g_node_type`), the `FIXCNT_*` / `MG_COUNT` counters
 (no-ops in production), `TraceRec`, shadow searches, `lmr_profile_event`, `log_prune_fire`, the CORR2 flip counters,

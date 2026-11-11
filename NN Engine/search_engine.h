@@ -3467,6 +3467,10 @@ namespace Config
     // record is now kept across it. An eval whose positional part is unknown (a lazy return, mate, an early return) no longer
     // overwrites the slot either: a record is used only when its position key matches, so an older record left there is correct.
     inline int LAZY_V2_KEEP = 0;
+    // Which search runs below the root's children: 0 = today's maximizer / minimizer pair, 1 = search v2, the negamax form
+    // (search_v2.cpp; dev_notes/active/SEARCH-V2-PLAN-2026-11-10.md §7e). Stage S1 is a one-for-one port, so 1 visits the same
+    // nodes as 0 at fixed depth. Selected at the root, ply 1 and the pre-search's ply 2 only, never per interior node.
+    inline int SEARCH_ARM = 0;
     // Gates by the move that led to the position, bitmask: 1 = no lazy exit after a capture (a promotion that captures is not
     // gated), 2 = none after a null move. 0 = off = byte-identical. The 11-08 context probe (queue #183) put 43% of the misses
     // after a capture for 9% of the fires, and 9% after a null move for 1.4% of the fires.

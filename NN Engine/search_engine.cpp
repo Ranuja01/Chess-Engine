@@ -3251,6 +3251,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LAZY_V2_S_RFP = env_int("LAZY_V2_S_RFP", Config::LAZY_V2_S_RFP);
         Config::LAZY_V2_S_FUT = env_int("LAZY_V2_S_FUT", Config::LAZY_V2_S_FUT);
         Config::LAZY_V2_KEEP = env_int("LAZY_V2_KEEP", Config::LAZY_V2_KEEP);
+        Config::SEARCH_ARM = env_int("SEARCH_ARM", Config::SEARCH_ARM);
         Config::LAZY_V2_GATE = env_int("LAZY_V2_GATE", Config::LAZY_V2_GATE);
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
         Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
@@ -3313,6 +3314,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // ⚠️ EVAL_ARM leads the dump deliberately: it decides WHICH EVAL produced every number that
         // follows, and a grepped or truncated stderr must still answer that question.
         std::cerr << "[toggles] EVAL_ARM=" << Config::EVAL_ARM
+                  << " SEARCH_ARM=" << Config::SEARCH_ARM
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
                   << " PASSER_V2_MAG=" << Config::PASSER_V2_MAG
@@ -5400,11 +5402,6 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
-#if SV2_DEV >= 2
-    // Search v2 port check (development builds only): the negamax move scorer answers, in the minimizer's frame.
-    return -sv2::score_move<false>(-beta, -alpha, -beta_orig, -alpha_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
-                                   position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
-#endif
     if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
         g_searchStack[cur_depth] = move; // record this node's move for the 2-ply continuation key
     bool using_tt = false;
@@ -5871,11 +5868,6 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
-#if SV2_DEV >= 2
-    // Search v2 port check (development builds only): the negamax move scorer answers.
-    return sv2::score_move<true>(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
-                                 position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
-#endif
     if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
         g_searchStack[cur_depth] = move; // record this node's move for the 2-ply continuation key
     bool using_tt = false;
@@ -6601,8 +6593,13 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
 
             make_move(state_history, position_count, move, zobrist, capture_move);
             g_best_mated = lowest_score >= 9000000;
-            score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
-                                            position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
+            // SEARCH_ARM=1: search v2 scores the move, in the minimizer's frame.
+            if (Config::SEARCH_ARM)
+                score = -sv2::score_move<false>(-beta, -alpha, -beta_orig, -alpha_orig, (int)i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
+                                                position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
+            else
+                score = get_score_for_minimizer(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove, last_move_was_capture,
+                                                position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search, is_exact_hit);
             if (Config::ENABLE_HISTORY_MALUS || Config::ENABLE_CUTCAL_LOG || Config::ENABLE_QCUT)
                 (capture_move ? searched_captures : searched_quiets).push_back(move);
 
@@ -8833,7 +8830,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                     }
                     if (!using_tt)
                     {
-                        score = maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+                        score = Config::SEARCH_ARM ? sv2::negamax<true>(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false)
+                                                   : maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
 
                         if (cur_depth < reduced_depth - 1)
                         {
@@ -8862,7 +8860,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 
                         if (!using_tt)
                         {
-                            score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+                            score = Config::SEARCH_ARM ? sv2::negamax<true>(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false)
+                                           : maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
                             if (cur_depth < depth_limit - 1)
                             {
                                 TTFlag flag;
@@ -8889,7 +8888,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 
                     if (!using_tt)
                     {
-                        score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+                        score = Config::SEARCH_ARM ? sv2::negamax<true>(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false)
+                                           : maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
                         if (cur_depth < depth_limit - 1)
                         {
                             TTFlag flag;
@@ -8989,12 +8989,6 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 
 int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prevMove, int &num_iterations, bool is_maximizing)
 {
-#if SV2_DEV >= 1
-    // Search v2 port check (development builds only, -DSV2_DEV=1): the negamax qsearch answers in place of this one, so a
-    // bench that still reads 247 / 39,861,964 shows the port visits the same nodes.
-    return is_maximizing ? sv2::qsearch(alpha, beta, cur_depth, qDepth, t0, state_history, position_count, zobrist, prevMove, num_iterations, true)
-                         : -sv2::qsearch(-beta, -alpha, cur_depth, qDepth, t0, state_history, position_count, zobrist, prevMove, num_iterations, false);
-#endif
     qsearchVisits++;
     if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, state_history.back()))
     {

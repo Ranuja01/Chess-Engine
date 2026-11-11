@@ -5400,6 +5400,11 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
+#if SV2_DEV >= 2
+    // Search v2 port check (development builds only): the negamax move scorer answers, in the minimizer's frame.
+    return -sv2::score_move<false>(-beta, -alpha, -beta_orig, -alpha_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
+                                   position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
+#endif
     if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
         g_searchStack[cur_depth] = move; // record this node's move for the 2-ply continuation key
     bool using_tt = false;
@@ -5866,6 +5871,11 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                    std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0, std::vector<BoardState> &state_history, BoardState current_state,
                                    bool &using_fp, int &num_iterations, bool is_in_null_search, bool &is_exact_hit)
 {
+#if SV2_DEV >= 2
+    // Search v2 port check (development builds only): the negamax move scorer answers.
+    return sv2::score_move<true>(alpha, beta, alpha_orig, beta_orig, i, cur_depth, depth_limit, capture_move, currently_in_check, move, previousMove,
+                                 position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
+#endif
     if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
         g_searchStack[cur_depth] = move; // record this node's move for the 2-ply continuation key
     bool using_tt = false;

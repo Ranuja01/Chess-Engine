@@ -27,4 +27,10 @@ namespace sv2
 	int qsearch(int alpha, int beta, int cur_depth, int q_depth, const TimePoint &t0, std::vector<BoardState> &state_history,
 	            std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prev_move, int &num_iterations,
 	            bool root_side);
+
+	// Score one already-made move of an interior node (today's get_score_for_maximizer / _minimizer), in this node's frame.
+	template <bool RootSide>
+	int score_move(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check,
+	               Move move, Move previous_move, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0,
+	               std::vector<BoardState> &state_history, BoardState current_state, bool &using_fp, int &num_iterations, bool is_in_null_search);
 }

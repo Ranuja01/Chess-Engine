@@ -25,7 +25,10 @@ REGISTERED (11-11, before any trace ran; search v2 plan §7d test C):
   STOP (the burial story is not what happens on these lines): buried < 25% of quiet visits in the missed cases.
   Prediction: buried 35-60% in the missed cases, the ok / EVAL cases lower but not by 1.5x; reach falls off fast with k
   (most visits at k = 2-3). Also reported: median ordering index of quiet vs tactical SF moves, by remaining depth.
-"""
+RESULT (11-11 13:20, gen 7.2, test module so_trace; queue #201's run was void, live module imported): final iteration
+  d10 missed 11/20 = 55.0% vs found 9/27 = 33.3% (1.65x, 3 of 6 cases) and d12 13/23 = 56.5% vs 12/34 = 35.3% (1.60x,
+  4 of 6) => KEEP at both; all iterations d10 46.2% vs 21.7%, d12 47.7% vs 21.8% => MISS on the 50% bar. Thin: 20-23
+  primary visits; the triage no-pruning arm still misses 7 of 8 missed cases at d10 (search v2 plan section 7d)."""
 import os, sys, json, math, tempfile, collections
 KV = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a)
 THIS = os.path.dirname(os.path.abspath(__file__))

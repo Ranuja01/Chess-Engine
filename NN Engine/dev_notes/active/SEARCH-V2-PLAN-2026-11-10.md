@@ -306,6 +306,34 @@ and D as their probes are written. All fixed-depth or node-limited: safe beside 
   rows. The midgame split is negative, the stratum where POT was expected to matter. **Selectivity on U (extend / reduce,
   S-4 time on U) stays unsupported but open.** A readable version needs a lower-variance target, not more of this one.
 
+**Results, test C (11-11 13:20; `_line_trace.py`, test module `so_trace`; queue #201's own traces were VOID: the probe imported
+the live module, which has no tracer, so 0 records; fixed, then re-run directly):**
+
+| read | missed cases (DEPTH + PRUNING) | found cases (ok + EVAL) | ratio | registered |
+|---|---|---|---|---|
+| d10, final iteration | 11 / 20 = **55.0%** | 9 / 27 = 33.3% | 1.65× | **KEEP** (3 of 6 missed cases ≥ 50%: exactly the bar) |
+| d12, final iteration | 13 / 23 = **56.5%** | 12 / 34 = 35.3% | 1.60× | **KEEP** (4 of 6) |
+| d10, all iterations (secondary) | 36 / 78 = 46.2% | 20 / 92 = 21.7% | 2.1× | MISS (under 50%) |
+| d12, all iterations (secondary) | 51 / 107 = 47.7% | 32 / 147 = 21.8% | 2.2× | MISS (under 50%) |
+
+- **Ordering:** SF's quiet moves come late near the leaves: median index 5-7 at remaining depth 1, 3 at depth 2, 1-2 at depth
+  6+. SF's tactical moves sit at index 0 at every depth.
+- **Reach:** our search visits SF's line rarely, 0-152 records per case. Two cases (g5b at d12, g6b) barely touch it.
+- **Reading:** by the registered rule, KEEP at both depths. Where we miss SF's move, SF's own quiet continuation is buried
+  (pruned, or reduced ≥ 2 plies) in about 55% of final-iteration visits, against about 35% where we find it, and the
+  contrast doubles across all iterations. The direction agrees at both depths and on both reads. The prediction (found
+  lower but not 1.5×) was wrong.
+- **Limits, stated with the KEEP:**
+  - The primary reads rest on 20-23 visits from 6 missed cases; a single visit moves d10 across the 50% bar. A
+    two-proportion test on the final-iteration counts is not significant (d12 p ≈ 0.18). The all-iteration contrast is
+    large (z ≈ 4), but its visits cluster within cases.
+  - The burial is consistent with the miss and does not prove that un-burying finds the move. The triage's no-pruning arm
+    (LMR, LMP, futility, razoring and reverse futility all off) still misses 7 of the 8 missed cases at d10; only g3a
+    recovers. So at equal depth, removing burial is not sufficient. The claim that survives: at equal time, the depth our
+    reductions buy is spent away from these lines.
+- **Consequence:** S-2 (reduce transformation moves less, exempt them from LMP) gains direct support as a WHERE-TO-SPEND
+  item. Its own registered test stays the gate (transform sets + games, node cost under +3%).
+
 ## 8. Questions for the owner
 
 1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory

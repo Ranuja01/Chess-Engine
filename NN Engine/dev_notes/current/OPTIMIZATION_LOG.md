@@ -4,6 +4,70 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 📈 2026-11-10 22:35 — BENCH CHECKPOINT #3 (queue #194): Stockfish 1.1 at 39.5%, the series high; record queue on gen 7.1
+This is the transition's formal last bench step (the 10-19 list; the owner said "ok" to the close-out order on 11-10). The
+close-out left production unchanged: gen 7.1, 247 / 39,852,210, fingerprint checked at the start.
+
+Queue #194 ran the legs that were missing. Outputs are in `/mnt/e/chess_data/checkpoint3/` and `fastchess/g71_sf11_odds.*`.
+There were no crash dumps.
+
+**1. Stockfish 1.1 series point** (the #146 protocol: ours at 60+0.6 vs SF 1.1 at 20+0.2, UHO, seed 1082, 200 games, the same
+openings as every earlier point):
+- Result: **+61 −103 =36, 39.5%, −74.1 Elo (95% −118.5 … −31.9)**, pentanomial [24, 21, 37, 9, 9], 0 forfeits, 0 disconnects.
+- Registered (`_queue_194.sh`): ≥ 33.6% means no regression → **pass**. Predicted 37-44% → **inside**.
+- Series on these openings:
+
+  | build | score |
+  |---|---|
+  | gen 6.1 | 22.5% |
+  | gen 6.2 | 21.0% |
+  | gen 6.3 | 29.25% |
+  | gen 6.4 | 29.5% |
+  | 11-04 production (gen 6.5) | 36.75% |
+  | **gen 7.1** | **39.5%** |
+
+  That is +2.75 pp over 11-04 (≈ +0.9σ unpaired, σ ≈ 3.1 pp at 200 games), which does not resolve a gain on its own. It is
+  +17 pp over gen 6.1.
+- Per engine (searched moves only):
+
+  | engine | s / move | nps | depth | nodes / move |
+  |---|---|---|---|---|
+  | ours | 1.432 | 1,432,294 | 14.2 | 2.05 M |
+  | SF 1.1 | 0.454 | 1,566,362 | 14.5 | 712k |
+
+  With 3.2× the time and 2.9× the nodes we still search 0.3 ply shallower; on 11-04 the gap was 0.4 ply.
+- The box was busier than on 11-04 (the live server): SF 1.1's nps reads 10% lower, and ours is level despite gen 7.1's +4.8% on
+  the bench. Both engines shared the same box and clock, so the point stands.
+
+**2. The record queue for v2** (`V2_PRESET=shipped`, Cython path, the #87 template; v1's 10-20 record stands because v1 is
+frozen):
+
+| measure | gen 4 (10-20, the transition's start) | **gen 7.1 (11-10)** | reading |
+|---|---|---|---|
+| WAC d10 (fingerprint) | 258 / 47,689,413 / EBF 3.926 | **247 / 39,852,210 / 3.762** | deterministic. Tighter pruning (RFP 600, lazy eval) costs fixed-depth solves; WAC at d10 does not discriminate strength |
+| STS300 d10 | 2,115 | **2,006** | fixed depth falls as pruning tightens (10-30). Equal nodes is the honest reading, and it was not re-run here (gen 7: 1,890 at 249k nodes, #169) |
+| STS full d10 (15,000) | 9,727 (64.8%) | **10,156 (67.7%)** | +429; above gen 7's 10,006 (#169) and SF11's 65.5% at d10 (07-28; equal depth flatters us) |
+| WAC at LIGHTNING: solved · mean depth (non-mate, n = 228) | 254 · 13.8 | 269 · 15.59 (72 mates found) | provisional: the end of the run may have overlapped a side bench of mine (20:14) |
+| WAC speed, Cython, pinned, max of 3 | 397k nps | 1,016,120 (median 1,008,917, spread 1.1%) | provisional: overlapped two side benches of mine (20:14-20:17) |
+
+- The two provisional timed legs are re-run on a quiet box as queue #196 step 1 (`checkpoint3/*_quiet.log`), and those runs
+  replace these numbers.
+- STS full's weakest themes are the same five as on 10-20: a/b/c-pawn advancement 57%, offer of simplification 59%, AT 60%,
+  AKPC 62%, king activity 62%. Per-theme deltas do not replicate; the total is the tracked number.
+- The EPD carries a second spelling of the knight-outpost theme name, so the theme splits into 0 / 10 + 722 / 990. The total
+  is unaffected.
+
+**3. Legs in hand** (production unchanged since they were measured):
+- SF18 @ 1,100 nodes at equal nodes: 56.9% over 2,250 games (#189 / #192 control arms).
+- Mediocre: 81.3% over 300 games (#189 control).
+- Static ladder: #169 (gen 7's eval = gen 7.1's).
+- Depth ladder: search v2 plan §6.1.
+- Critical-move test: the d12 regret pass, mean 1.219 on `game_regret_set` (#193). The second set runs as #196 step 3.
+
+**4. Still to come, in queue #196:**
+- The transition end to end: gen 7.1 vs gen 4 (`selfplay/gen4_uci.sh`), 300 games at 60+0.6. Registered as a summary, not a
+  gate; predicted +120 to +220.
+
 ## 2026-11-10 20:20 — Speed items F24 + F26 built and measured NEUTRAL by the instruction-count yardstick (knobs stay 0)
 
 The transition close-out's speed batch (owner 11-10: "ok" to the order), from `owner-cpp-ideas.md` §14. Both are

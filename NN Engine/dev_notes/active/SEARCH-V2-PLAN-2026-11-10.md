@@ -256,7 +256,17 @@ Checked against the 10-19 transition list (`archive/handoffs/SESSION-HANDOFF-202
   over bottom fifth; the shuffled null is 0.95-1.08. The bar was ≥ 1.25 in 4 of 5 folds ⇒ **registered MISS (0 / 5)**, by a
   hair and with a real, consistent effect. The bar is not moved after the fact; the owner decides whether the quiet-row
   replication runs anyway.
-- **Test B:** data in queue #193.
+- **Test B** (`_pot_mg_fit.py MODE=depthgain`, registered before the d12 data finished; queue #193 d10 and d12 passes on
+  `game_regret_set.csv`, 15,000 rows, mean regret 1.391 → 1.219, gain 0.172 win% pts): U = test A's β applied out of
+  sample. Top fifth of U over bottom fifth, depth gain **1.13× on all rows** (+0.023 ± 0.066, 1 SE) against the 1.5× bar ⇒
+  **registered MISS** (prediction 1.2-1.6×, too high). Opening 0.97, midgame 1.08, endgame 1.95 (+0.116 ± 0.119): every
+  split within 1 SE. ☠️ **Underpowered:** the bar is a gap of ~+0.07, about 1 SE at this per-row variance (gain is mostly 0
+  with rare large values), and the 2σ upper bound is ~1.9×. So the point estimate misses but the effect is not ruled out:
+  UNRESOLVED, not refuted. A readable version needs ~4× the rows or a lower-variance target (critical rows only).
+- **Reading A and B together:** structure carries a real but modest signal about where our score is wrong (A, ~1.24×),
+  and no measurable signal about where two more plies fix it (B). The magnitude-as-selectivity form (extend or reduce on
+  U) has no support yet. The trust form (wider aspiration windows or a less aggressive cut where U is high) is not what
+  B measured; it stays a candidate for S5 only with its own test.
 - **E1:** PARKED (tablebase study, register row).
 
 ## 8. Questions for the owner

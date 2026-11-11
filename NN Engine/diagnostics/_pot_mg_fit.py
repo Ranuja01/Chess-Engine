@@ -381,5 +381,65 @@ def main_magnitude():
                                       else "MISS: structural magnitude does not predict our error beyond the controls ⇒ the structural U half closes"))
 
 
+def main_depthgain():
+    """TEST B (registered 11-10 19:00, before the depth-12 pass finished; POT-REREAD-ANALYSIS §5): is extra depth worth more
+    where structural U is high? U = F·β, β fitted on ALL of test A's rows (the d12-error residual after test A's controls
+    regressed on feats_sum), then applied out of sample to game_regret_set.csv. Per position: gain = regret(our d10 move) −
+    regret(our d12 move) from queue #193 (SF18 multi-PV d14 labels; the cp label through the fixed formula, shared by both
+    depths of a row). Read: mean gain in the top fifth of U over the bottom fifth.
+    KEEP: >= 1.5x on all rows, then a replication on a second set (game_regret_set_v2) before it counts.
+    Prediction: 1.2-1.6x. Phases reported (opening / midgame / endgame by the corpus bucket).
+    RESULT (11-10 20:00, 15,000 rows, mean gain d10 → d12 0.172 win% pts): ALL ratio 1.13 (top − bottom +0.023 ± 0.066,
+    1 SE) ⇒ registered MISS. Opening 0.97, midgame 1.08, endgame 1.95 (+0.116 ± 0.119): every split within 1 SE.
+    ☠️ UNDERPOWERED, so not a refutation: the 1.5x bar is a gap of ~+0.07, about 1 SE here (per-row regret gain is mostly
+    0 with rare large values), and the 2σ upper bound on ALL is ~1.9x. A readable test B needs ~4x the rows or a
+    lower-variance target (critical rows only)."""
+    d12, tr, meta = load()
+    lab = {}
+    for p in glob.glob(os.path.join(DEEP, "mg_wdl_train_s*of3.csv")) + [os.path.join(DEEP, "mg_wdl_val.csv")]:
+        for r in csv.DictReader(open(p, newline="")):
+            try:
+                lab[r["fen"]] = (float(r["w"]) + 0.5 * float(r["d"])) / 10.0
+            except (KeyError, ValueError):
+                pass
+    C, F, E = [], [], []
+    val = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+    for fen, (game, stage, control, static) in meta.items():
+        if fen not in d12 or fen not in lab:
+            continue
+        b = chess.Board(fen)
+        npm = sum(NPM[p.piece_type] for p in b.piece_map().values() if p.piece_type in NPM)
+        mat = sum(val[p.piece_type] * (1 if p.color == chess.WHITE else -1) for p in b.piece_map().values() if p.piece_type in val)
+        w12 = float(wp(d12[fen]))
+        E.append(abs(lab[fen] - w12)); C.append([abs(w12 - 50.0), npm, abs(mat), abs(float(wp(static)) - w12)]); F.append(feats_sum(b))
+    C, F, E = np.array(C, float), np.array(F, float), np.array(E)
+    X1 = np.c_[np.ones(len(C)), C]
+    res = E - X1 @ np.linalg.lstsq(X1, E, rcond=None)[0]
+    beta = np.linalg.lstsq(np.c_[np.ones(len(F)), F], res, rcond=None)[0]
+    print("β from test A (%d rows): %s" % (len(E), ", ".join("%s %+.3f" % (n, v) for n, v in zip(["const"] + MAG_NAMES, beta))))
+    reg = {}
+    for dep in (10, 12):
+        for p in glob.glob("/mnt/e/chess_data/s0_testB/d%d_s*.csv" % dep):
+            for r in csv.reader(open(p, newline="")):
+                if len(r) >= 4 and r[1]:
+                    reg.setdefault(r[0], {})[dep] = (float(r[2]), r[3])
+    rows = [(fen, v[10][0] - v[12][0], v[10][1]) for fen, v in reg.items() if 10 in v and 12 in v]
+    U = np.array([np.r_[1.0, feats_sum(chess.Board(f))] @ beta for f, _, _ in rows])
+    G = np.array([g for _, g, _ in rows]); ph = np.array([p for _, _, p in rows])
+    print("test B rows: %d with both depths; mean regret gain d10 → d12 %.3f win%% pts" % (len(rows), G.mean()))
+    for name, m in (("ALL", np.ones(len(G), bool)), ("opening", ph == "opening"), ("midgame", ph == "midgame"), ("endgame", ph == "endgame")):
+        if m.sum() < 200:
+            continue
+        q = np.quantile(U[m], [0.2, 0.8])
+        gt, gb = G[m][U[m] >= q[1]], G[m][U[m] <= q[0]]
+        top, bot = gt.mean(), gb.mean()
+        se = (gt.var(ddof=1) / len(gt) + gb.var(ddof=1) / len(gb)) ** 0.5     # SE of top − bottom
+        ratio = top / bot if bot > 0 else float("nan")
+        print("  %-8s n %5d · gain top fifth %.3f · bottom fifth %.3f · ratio %s · top − bottom %+.3f ± %.3f (1 SE)"
+              % (name, m.sum(), top, bot, ("%.2f" % ratio) if bot > 0 else "n/a (bottom gain <= 0)", top - bot, se))
+        if name == "ALL":
+            print("  REGISTERED: %s" % ("KEEP on this set (needs the second-set replication)" if bot > 0 and ratio >= 1.5 else "MISS"))
+
+
 if __name__ == "__main__":
-    {"moves": main_moves, "magnitude": main_magnitude}.get(MODE, main_fit)()
+    {"moves": main_moves, "magnitude": main_magnitude, "depthgain": main_depthgain}.get(MODE, main_fit)()

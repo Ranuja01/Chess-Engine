@@ -378,6 +378,37 @@ Placement, by the rule set before the tests (strong ⇒ build now; mixed ⇒ eac
 - **The plan knowledge itself ⇒ the eval arc after search v2** (`retune-depth-follows-play-depth`): if the search cannot
   see a plan's value at the node, the eval has to.
 
+## 7e. S1 port: method and log (started 11-11)
+
+**Method.** The negamax search is built in `search_v2.h` / `search_v2.cpp` (namespace `sv2`; the .cpp is `#include`d at
+the end of `search_engine.cpp` so it can call that file's helpers, and is not in either build's source list). It is ported
+one piece at a time. A development build (`EXTRA_FLAGS=-DSV2_DEV=<step>`) routes today's function to its port; the step
+passes only if that build's `bench` still reads **247 / 39,861,964**, node for node. Production builds never compile the
+routing. When the whole search is ported, `SEARCH_ARM=1` dispatches to it once per search and the routing is removed.
+- Every behaviour knob is ported as it is read today, so the port matches the old search under any setting, not only the
+  shipped one; pure diagnostics (probes, logs, shadow searches, counters that change nothing) are not ported.
+- Frames: v2 scores from the side to move, `v = s * root_frame` with `s = +1` when the side to move is the root side
+  (today's maximizer). The TT, q-cache, lazy-eval requests and corrections keep the root frame in S1, so each access
+  converts the score and the window (`root_side ? (a, b) : (-b, -a)`) and passes today's per-side flags unchanged.
+
+| step | piece | result |
+|---|---|---|
+| 1 | `qSearch` → `sv2::qsearch` | **identical** (11-11 15:20, bench 247 / 39,861,964 through `-DSV2_DEV=1`) |
+| 2 | `get_score_for_maximizer` / `_minimizer` + `maximizer` / `minimizer` (below the root) → one `sv2::search` | in progress |
+| 3 | root (`alpha_beta`, `pre_minimizer`, the root-child minimizer) + the `SEARCH_ARM` dispatch | |
+
+**Asymmetries found so far** (each is a `root_side` branch in the port; S5's LMR v2 replaces A1-A3 together):
+- The two move scorers differ in 112 of ~470 lines, almost all of them mirrors. The real differences:
+  - **A1:** the maximizer re-searches a reduced fail-high only under `FIX_RESEARCH`; legacy VERIFY re-searches the
+    absolute-frame near-miss `score <= alpha` on BOTH sides, so the minimizer verifies its reduced fail-highs and the
+    maximizer its near-miss fail-lows.
+  - **A2:** the minimizer scouts at the absolute `(alpha, alpha + 1)` (in its own frame, `(beta - 1, beta)`) unless
+    `FIX_MIN_SCOUT`.
+  - **A3:** a full window at remaining depth 1 on the minimizer side (`FIX_MIN_RD1 != 1`), on the maximizer side only at
+    `FIX_MIN_RD1 == 2`.
+  - Futility in the minimizer's scorer also needs `cur_depth > 1`.
+  - The scout TT probe passes `is_maximizing = false` on both sides; the full-window probe passes the true side.
+
 ## 8. Questions for the owner
 
 1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory

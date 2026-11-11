@@ -3,6 +3,7 @@
 #include "move_gen.h"
 #include "cache_management.h"
 #include "eval_v2.h"
+#include "search_v2.h"
 
 #include <vector>
 #include <array>
@@ -8978,6 +8979,12 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
 
 int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0, std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prevMove, int &num_iterations, bool is_maximizing)
 {
+#if SV2_DEV >= 1
+    // Search v2 port check (development builds only, -DSV2_DEV=1): the negamax qsearch answers in place of this one, so a
+    // bench that still reads 247 / 39,861,964 shows the port visits the same nodes.
+    return is_maximizing ? sv2::qsearch(alpha, beta, cur_depth, qDepth, t0, state_history, position_count, zobrist, prevMove, num_iterations, true)
+                         : -sv2::qsearch(-beta, -alpha, cur_depth, qDepth, t0, state_history, position_count, zobrist, prevMove, num_iterations, false);
+#endif
     qsearchVisits++;
     if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, state_history.back()))
     {
@@ -10990,3 +10997,6 @@ inline int get_board_evaluation(std::vector<BoardState> &state_history, uint64_t
 #endif
     return total;
 }
+
+// Search v2 (SEARCH_ARM=1): included here, after every helper and table it uses (see search_v2.h).
+#include "search_v2.cpp"

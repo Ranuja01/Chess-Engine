@@ -4,6 +4,46 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ✅ 2026-11-11 11:10 — MOPUP_V2 BUILT AND GATED (queue #198): ship candidate, owner's call
+**Why:** the owner decided on 11-11, after #195: "adding a tablebase can be done whenever. For now lets have a cheap technique
+rule. As long as it adds negligible time in general."
+
+**What it is:** `eval_v2.cpp` `mopup_value_mp`, a material-configuration replacement beside tier2b with the same contract. It
+fires only when the position is pawnless, one side has a bare king, and the other side has mating material (a queen, a rook,
+bishop + knight, or bishops on both colours). The value is material + the kings close together + the lone king pushed to the
+edge; for K+B+N vs K the push is to a corner of the bishop's colour. Shapes and ratios are SF15.1's (`endgame.cpp`), and the
+knob `MOPUP_V2` is a percent of its scale. Default 0 is byte-identical. Committed fb125f2.
+
+**Run:** test copies only (`build_uci/chess_engine_uci_mopup`, Cython module `/mnt/e/chess_data/so_mopup`). It was queued for
+the night, stopped by the Windows-update reboot at 03:29 before it started, and re-run at 10:44.
+
+| check | registered | result |
+|---|---|---|
+| default fingerprint | 247 / 39,852,210 | **247 / 39,852,210** ✅ |
+| `MOPUP_V2=100` bench nodes | < 0.5% change | 247 / 39,861,964 (+0.02%) ✅ |
+| KBNK mates at 1M / 100k | ≥ 28 / ≥ 25 of 30 | **30 / 27** (were 1 / 1); moves 27 / 28 vs DTM 25 / 24 ✅ |
+| KBBK mates at 100k | ≥ 29 | **30** (was 15); at 1M 30 ✅ |
+| KQK, KRK | 30 / 30 at both | 30 / 30 at both; KQK at 100k 6 moves vs DTM 5 (was 15) ✅ |
+| mirror test, 120 bare-king positions + N=800 | 0 violations | 0 and 0 ✅ |
+| bench time, rule on vs off (4 alternating reps, pinned) | ±1% | +1.9% mean, +1.3% median ❓ (one rep +5.1%; the off arm alone spans 3.2%) |
+
+- The 3 KBNK misses at 100k were fifty-move draws.
+- **The timing leg could not resolve ±1%**, so the cost was re-measured with the instruction-count yardstick: cachegrind, 9
+  game positions (6 midgame, 3 endgame) to depth 10, the same binary, one process per setting.
+
+  | | `MOPUP_V2=0` | `MOPUP_V2=100` | change |
+  |---|---|---|---|
+  | instructions | 1,101,924,384 | 1,101,933,826 | **+0.0009%** |
+  | L1 data misses | 60,341,568 | 60,341,566 | 0 |
+  | best moves | — | — | all 9 identical |
+
+  The trees are identical, so the difference is the rule's own cost: one pawn test per evaluation. It is negligible, and the
+  bench gap was noise.
+- **Verdict:** every gate passes ⇒ `MOPUP_V2=100` is a **ship candidate**. It is a narrow item, judged where it fires; games
+  cannot see it, because self-play adjudicates long before a bare king. Shipping is the owner's call. It needs a PGO
+  production rebuild with the knob in the shipped preset, a new fingerprint (expected 247 / 39,861,964) and a BASELINE_PERF
+  row. Tablebases stay "whenever" (owner).
+
 ## ☠️ 2026-11-10 22:51 — BARE-KING CONVERSION PROBE (queue #195): v2 cannot mate with bishop + knight (1 / 30; SF11 29-30 / 30)
 **Why it ran:** the owner said on 11-10 that "certain mate types (like bishop and knight) are unknown by our eval". The tool is
 `diagnostics/_mopup_conversion.py`. It plays 120 tablebase-won positions, 30 per class, with White to move. Our arm attacks;

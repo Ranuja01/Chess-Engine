@@ -393,9 +393,22 @@ routing. When the whole search is ported, `SEARCH_ARM=1` dispatches to it once p
 
 | step | piece | result |
 |---|---|---|
-| 1 | `qSearch` → `sv2::qsearch` | **identical** (11-11 15:20, bench 247 / 39,861,964 through `-DSV2_DEV=1`) |
-| 2 | `get_score_for_maximizer` / `_minimizer` + `maximizer` / `minimizer` (below the root) → one `sv2::search` | in progress |
-| 3 | root (`alpha_beta`, `pre_minimizer`, the root-child minimizer) + the `SEARCH_ARM` dispatch | |
+| 1 | `qSearch` → `sv2::qsearch` (`-DSV2_DEV=1` routes `qSearch` to it) | **identical** (11-11 15:20, bench 247 / 39,861,964) |
+| 2a | both move scorers → `sv2::score_move<RootSide>`, its children still today's node functions (`-DSV2_DEV=2`: `child_search` calls them) | **identical** (11-11 16:10) |
+| 2b | `maximizer` + the minimizer's interior branch (`cur_depth > 1`) → `sv2::negamax<RootSide>`; `child_search` calls it (`-DSV2_DEV=3` and production) | see below |
+| 3 | the root, all single-sided: `alpha_beta` (ply 0, max), the minimizer's ply-1 branch (fed by the pre-search lists), `reorder_legal_moves` + `pre_minimizer` (the pre-search; calls today's `maximizer` directly) → v2 root functions, then the `SEARCH_ARM` dispatch in `get_engine_move` and removal of the `SV2_DEV` routers | |
+
+Not ported (diagnostics): `note_node_type` (only the shadow logger reads `g_node_type`), the `FIXCNT_*` / `MG_COUNT` counters
+(no-ops in production), `TraceRec`, shadow searches, `lmr_profile_event`, `log_prune_fire`, the CORR2 flip counters,
+`ENABLE_CUTOFF_CLASS`'s histogram, `dbg_bad_move` (acts only under `CHESS_DEBUG_INVARIANTS`), and the position-matched
+`std::cout` debug prints. Cheap counters that the bench or knob audits read are kept (`tt_*`, `g_fh_*`, `g_cutoff_histogram`,
+`g_sing_*`, fire counters).
+
+More asymmetries, in the node functions:
+- the null-move depth gate has one knob per side (`NULLMOVE_CURDEPTH_MAXI` / `_MINI`); A4's window as recorded;
+- the capture-chain update sits before the time check on the max side, after `FIX_MDP` on the min side, and `FIX_MDP` skips
+  the minimizer's ply 1;
+- the PV update: the minimizer updates on `score > alpha` in the root frame, i.e. below its own constant bound.
 
 **Asymmetries found so far** (each is a `root_side` branch in the port; S5's LMR v2 replaces A1-A3 together):
 - The two move scorers differ in 112 of ~470 lines, almost all of them mirrors. The real differences:

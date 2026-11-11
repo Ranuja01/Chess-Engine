@@ -56,11 +56,6 @@ namespace sv2
 			score = RootSide ? sc : -sc;
 	}
 
-	template <bool RootSide>
-	int score_move(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check,
-	               Move move, Move previous_move, std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, const TimePoint &t0,
-	               std::vector<BoardState> &state_history, BoardState current_state, bool &using_fp, int &num_iterations, bool is_in_null_search);
-
 	/*
 	 * A child search in this node's frame: the child (the position after `move`, already made) is searched to depth_limit with
 	 * this node's window (a, b), and its result comes back in this node's frame.
@@ -70,6 +65,7 @@ namespace sv2
 	                               std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move move, int &num_iterations, bool capture_move,
 	                               bool is_in_null_search)
 	{
+#if SV2_DEV == 2
 		// Port step 2a: today's node functions answer, in the root frame.
 		if constexpr (RootSide)
 		{
@@ -82,6 +78,489 @@ namespace sv2
 		else
 			return -maximizer(cur_depth + 1, depth_limit, -b, -a, t0, state_history, position_count, zobrist, move, num_iterations, capture_move,
 			                  false, is_in_null_search);
+#else
+		return -negamax<!RootSide>(cur_depth + 1, depth_limit, -b, -a, t0, state_history, position_count, zobrist, move, num_iterations, capture_move,
+		                          false, is_in_null_search);
+#endif
+	}
+
+	// History after a quiet move's cutoff: killer, counter move, butterfly / continuation (1 and 2 plies) / piece-continuation
+	// bonus, the threat history, and the malus on the quiets searched before it.
+	static inline void quiet_cutoff_history(const BoardState &cs, const Move &move, const Move &previous_move, int cur_depth, int depth_limit,
+	                                        std::vector<Move> &searched_quiets)
+	{
+		storeKillerMove(cur_depth, move);
+		counterMoves[previous_move.from_square][previous_move.to_square] = move;
+		const int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
+		const Move p2 = (cur_depth >= 2) ? g_searchStack[cur_depth - 2] : Move{};
+		const bool p2v = Config::ENABLE_CONT_HIST_2PLY && p2.from_square != p2.to_square;
+		if (Config::ENABLE_HISTORY_SATURATION)
+		{
+			hist_update(historyHeuristics[cs.turn][move.from_square][move.to_square], b);
+			hist_update(cmh_ref(cs.turn, previous_move, move, cs), b);
+			if (p2v)
+				hist_update(ch2_ref(cs.turn, p2, move, cs), b / Config::CONT2_GRAVITY_DIV);
+			if (Config::ENABLE_PIECE_CONTHIST)
+				hist_update(pieceContHist[cs.turn][pcont_ctx_key(previous_move, cs)][pcont_ent_key(move, cs)], b);
+		}
+		else
+		{
+			historyHeuristics[cs.turn][move.from_square][move.to_square] += b;
+			cmh_ref(cs.turn, previous_move, move, cs) += 4 * b;
+			if (p2v)
+				ch2_ref(cs.turn, p2, move, cs) += 4 * b;
+			if (Config::ENABLE_PIECE_CONTHIST)
+				pieceContHist[cs.turn][pcont_ctx_key(previous_move, cs)][pcont_ent_key(move, cs)] += 4 * b;
+		}
+		threat_hist_on_cutoff(cs, move, searched_quiets, b, Config::ENABLE_HISTORY_SATURATION, Config::MALUS_DIV, Config::ENABLE_HISTORY_MALUS);
+		if (Config::ENABLE_HISTORY_MALUS)
+		{
+			for (const Move &q : searched_quiets)
+			{
+				if (q == move)
+					continue;
+				if (Config::ENABLE_HISTORY_SATURATION)
+				{
+					hist_update(historyHeuristics[cs.turn][q.from_square][q.to_square], -b / Config::MALUS_DIV);
+					hist_update(cmh_ref(cs.turn, previous_move, q, cs), -b / Config::MALUS_DIV);
+					if (p2v)
+						hist_update(ch2_ref(cs.turn, p2, q, cs), -b / Config::CONT2_GRAVITY_DIV / Config::MALUS_DIV);
+					if (Config::ENABLE_PIECE_CONTHIST)
+						hist_update(pieceContHist[cs.turn][pcont_ctx_key(previous_move, cs)][pcont_ent_key(q, cs)], -b / Config::MALUS_DIV);
+				}
+				else
+				{
+					historyHeuristics[cs.turn][q.from_square][q.to_square] -= b / Config::MALUS_DIV;
+					cmh_ref(cs.turn, previous_move, q, cs) -= 4 * b / Config::MALUS_DIV;
+					if (p2v)
+						ch2_ref(cs.turn, p2, q, cs) -= 4 * b / Config::MALUS_DIV;
+					if (Config::ENABLE_PIECE_CONTHIST)
+						pieceContHist[cs.turn][pcont_ctx_key(previous_move, cs)][pcont_ent_key(q, cs)] -= 4 * b / Config::MALUS_DIV;
+				}
+			}
+		}
+	}
+
+	// Capture history after a capture's cutoff (ENABLE_CAPTURE_HIST), with the malus on the captures searched before it.
+	static inline void capture_cutoff_history(const BoardState &cs, const Move &move, int cur_depth, int depth_limit, std::vector<Move> &searched_captures)
+	{
+		const int b = ((depth_limit - cur_depth) * (depth_limit - cur_depth) * Config::HISTORY_BONUS_SCALE) / 100;
+		if (Config::ENABLE_HISTORY_SATURATION)
+			hist_update(capture_hist_ref(cs.turn, move.from_square, move.to_square, cs), b);
+		else
+			capture_hist_ref(cs.turn, move.from_square, move.to_square, cs) += b;
+		if (Config::ENABLE_HISTORY_MALUS)
+		{
+			for (const Move &q : searched_captures)
+			{
+				if (q == move)
+					continue;
+				if (Config::ENABLE_HISTORY_SATURATION)
+					hist_update(capture_hist_ref(cs.turn, q.from_square, q.to_square, cs), -b / Config::MALUS_DIV);
+				else
+					capture_hist_ref(cs.turn, q.from_square, q.to_square, cs) -= b / Config::MALUS_DIV;
+			}
+		}
+	}
+
+	/*
+	 * An interior node below the root's children (today's maximizer, and the minimizer's non-root branch). In order: the time
+	 * check, mate-distance bounds (FIX_MDP), the horizon (q-search or static eval), the node-entry eval (improving, RFP / null
+	 * gate, lazy), reverse futility, null move, IIR, ProbCut, the singular probe, then the move loop (singular extension,
+	 * score_move, OTV, the cutoff with its history updates and node TT store), and the no-legal-move and history / correction
+	 * updates at the end. Scores and windows in the side-to-move frame.
+	 */
+	template <bool RootSide>
+	int negamax(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<BoardState> &state_history,
+	           std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previous_move, int &num_iterations,
+	           bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search)
+	{
+		constexpr int s = RootSide ? 1 : -1;
+		constexpr int side_bit = RootSide ? 1 : 0;   // the corrections' maximizer flag
+		// Today's two node functions update the capture chain at different points of node entry; the order is kept (it
+		// matters only on a time abort or a mate-distance return).
+		if constexpr (RootSide)
+			g_captureChain[cur_depth] = last_move_was_capture ? g_captureChain[cur_depth - 1] + 1 : std::max(0, g_captureChain[cur_depth - 1] - 1);
+
+		if (time_up.load(std::memory_order_relaxed))
+			return 0;
+		else if (Config::NODE_LIMIT > 0 && num_iterations >= Config::NODE_LIMIT)
+		{
+			time_up.store(true, std::memory_order_relaxed);
+			return 0;
+		}
+		else if (nodes_since_time_check++ >= Config::TIME_CHECK_NODES)
+		{
+			nodes_since_time_check = 0;
+			if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
+				time_up.store(true, std::memory_order_relaxed);
+		}
+
+		const int g = static_cast<int>(state_history.size());
+		// FIX_MDP: when the mate-distance bounds alone settle the window, return the bound.
+		if (Config::FIX_MDP && (RootSide || cur_depth > 1))
+		{
+			if (alpha >= MATE - (g + 1))
+				return alpha;
+			if (beta <= -MATE + g)
+				return beta;
+		}
+		if constexpr (!RootSide)
+			g_captureChain[cur_depth] = last_move_was_capture ? g_captureChain[cur_depth - 1] + 1 : std::max(0, g_captureChain[cur_depth - 1] - 1);
+
+		BoardState current_state = state_history.back();
+		if (cur_depth >= depth_limit)
+		{
+			if (USE_Q_SEARCH && (!use_q_precautions.load(std::memory_order_relaxed) || depth_limit >= 6))
+				return s * get_q_search_eval(root_lo<RootSide>(alpha, beta), root_hi<RootSide>(alpha, beta), cur_depth, t0, state_history, current_state,
+				                             position_count, zobrist, previous_move, num_iterations, RootSide);
+			return s * get_board_evaluation(state_history, zobrist, num_iterations);
+		}
+
+		increment_node_count_with_decay(num_iterations);
+		const uint64_t cur_hash = zobrist;
+		const int no_move_score = -MATE + g;   // the best score before any move improves on it
+		int best_score = no_move_score;
+		const int alpha_orig = alpha, beta_orig = beta;
+		Move best_move;
+		bool all_moves_pruned = true;
+		bool using_fp = false;
+		int best_early_eval = no_move_score;
+		const bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops,
+		                                         current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
+		if (Config::ENABLE_IMPROVING && cur_depth < MAX_PLY)
+			g_evalStack[cur_depth] = (!currently_in_check && (depth_limit - cur_depth) <= Config::IMPROVING_EVAL_WINDOW)
+			                             ? static_eval_for_improving(state_history, zobrist)
+			                             : NO_STATIC_EVAL;
+
+		// Node-entry static eval for RFP and the null-move gate, in the ROOT frame (NO_STATIC_EVAL when not computed): the
+		// corrected value, and the raw one the correction update at node exit reuses.
+		int rfp_eval = NO_STATIC_EVAL;
+		int rfp_raw_eval = NO_STATIC_EVAL;
+		const bool rfp_want_eval = !currently_in_check &&
+		                           ((Config::ENABLE_RFP && (beta - alpha) == 1 && (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH &&
+		                             (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
+		                            Config::ENABLE_NULL_EVAL_GATE);
+		if (rfp_want_eval)
+		{
+			// Lazy eval (LAZY_V2 bit 2), only where the reverse-futility prune is checked. The corrections are read first, so
+			// a lazy exit is decided on the corrected value.
+			const bool lazy_rfp = (Config::LAZY_V2 & 2) && Config::ENABLE_RFP && (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
+			                      (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH;
+			const int corr_ch = Config::ENABLE_CORR_HIST ? corrhist_correction(current_state, side_bit) : 0;
+			const int corr_c2 = Config::CORR2 ? corr2_root(current_state, side_bit) : 0;
+			if (lazy_rfp)
+				lazy_request(RootSide, s * (beta + Config::RFP_MARGIN * (depth_limit - cur_depth)) - corr_ch - corr_c2, LAZY_SITE_RFP);
+			rfp_raw_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+			if (lazy_rfp)
+				lazy_request_end();
+			rfp_eval = rfp_raw_eval + corr_ch + corr_c2;
+			if (lazy_rfp && g_lazy_fired && s * rfp_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) < beta)
+				++g_lazy_nocut;
+		}
+
+		// Reverse futility (static null move): far enough above beta, a quiet move is assumed to hold.
+		if (Config::ENABLE_RFP && rfp_eval != NO_STATIC_EVAL && (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
+		    (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
+		    s * rfp_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) >= beta)
+		{
+			if (Config::RFP_RETURN_BLEND > 0)   // the returned score pulled toward the bound
+				return (Config::RFP_RETURN_BLEND * beta + (100 - Config::RFP_RETURN_BLEND) * (s * rfp_eval)) / 100;
+			return s * rfp_eval;
+		}
+
+		// Null move. The depth gate has one knob per side (NULLMOVE_CURDEPTH_MAXI / _MINI).
+		const int null_min_depth = RootSide ? Config::NULLMOVE_CURDEPTH_MAXI : Config::NULLMOVE_CURDEPTH_MINI;
+		if (Config::ENABLE_NULLMOVE && cur_depth >= null_min_depth && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move &&
+		    !currently_in_check && !isUnsafeForNullMovePruning(current_state) && (!Config::ENABLE_NULL_EVAL_GATE || s * rfp_eval >= beta))
+		{
+			// The null search reuses this history slot: keep this node's lazy-eval record and put it back (LAZY_V2_KEEP).
+			const LazyPly lazy_keep = g_lazy_ply[g & 2047];
+			state_history.back().turn = !state_history.back().turn;
+			const int cur_ep_square = state_history.back().ep_square;
+			state_history.back().ep_square = -1;
+			updateZobristHashForNullMove(zobrist);
+
+			int reduced_depth = depth_reduction(depth_limit);
+			reduced_depth -= Config::NULLMOVE_EXTRA;
+			if (depth_limit >= 10)
+				reduced_depth -= 1;
+			if (Config::ENABLE_NULLMOVE_EVAL_R && rfp_eval != NO_STATIC_EVAL)
+			{
+				const int extra_R = std::min((s * rfp_eval - beta) / Config::NULLMOVE_R_DIV, Config::NULLMOVE_R_CAP);
+				if (extra_R > 0)
+					reduced_depth -= extra_R;
+			}
+			if (Config::NULLMOVE_PROGRESSIVE)
+			{
+				const int base_depth = depth_limit - g_check_extensions;   // the iteration depth without check extensions
+				if (base_depth >= 12)
+					reduced_depth -= 1;
+				if (base_depth >= 14)
+					reduced_depth -= 1;
+			}
+			TTEntry *entry = accessSearchEvalCache(zobrist, state_history.back().castling_rights, state_history.back().ep_square);
+			int null_move_score = 0;
+			bool null_tt = false;
+			if (entry != nullptr && entry->depth >= (reduced_depth - cur_depth) && entry->flag == TTFlag::EXACT)
+			{
+				null_move_score = s * tt_score_from_entry(entry->score, g);
+				null_tt = true;
+				increment_node_count_with_decay(num_iterations);
+			}
+			if (!null_tt)
+			{
+				Move dummy_move;
+				if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
+					g_searchStack[cur_depth] = dummy_move;   // a null move breaks the 2-ply continuation chain
+				// A4: the null search probes (beta - 1, beta), as the cut below tests beta; the maximizer probes (alpha, alpha + 1)
+				// unless FIX_MAX_NULL (the same at non-PV nodes).
+				const int na = (!RootSide || Config::FIX_MAX_NULL) ? beta - 1 : alpha;
+				null_move_score = -negamax<!RootSide>(cur_depth + 1, reduced_depth, -(na + 1), -na, t0, state_history, position_count, zobrist, dummy_move,
+				                                     num_iterations, false, true, true);
+			}
+			state_history.back().turn = !state_history.back().turn;
+			state_history.back().ep_square = cur_ep_square;
+			zobrist = cur_hash;
+			if (Config::LAZY_V2_KEEP)
+				g_lazy_ply[g & 2047] = lazy_keep;
+			if (null_move_score >= beta)
+			{
+				if (Config::ENABLE_NULL_MATE_CLAMP && null_move_score >= 9000000)
+					return beta;   // an unproven mate returns the bound
+				return null_move_score;
+			}
+		}
+
+		// IIR: one ply less on a first visit (no cached move list) with depth to spare.
+		if (Config::ENABLE_IIR && !currently_in_check && (depth_limit - cur_depth) >= Config::IIR_MIN_DEPTH &&
+		    !moveGenCacheHasMoves(zobrist, current_state.castling_rights, current_state.ep_square))
+			depth_limit -= 1;
+
+		std::vector<Move> &moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previous_move);
+		MalusList malus_quiets, malus_captures;   // history-gravity malus lists (empty when the malus is off)
+		std::vector<Move> &searched_quiets = malus_quiets.v, &searched_captures = malus_captures.v;
+
+		// OTV's reference: the node's own static eval, when RFP / the null gate did not compute it.
+		if (Config::ENABLE_OTV && rfp_eval == NO_STATIC_EVAL && !g_in_verify && !currently_in_check && (!Config::OTV_PV_ONLY || (beta - alpha) > 1) &&
+		    (depth_limit - cur_depth) >= Config::OTV_MIN_REMAINING)
+			rfp_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+
+		// ProbCut: at a non-PV node, a good capture or promotion that holds a null window PROBCUT_MARGIN above beta at reduced
+		// depth cuts the node.
+		if (Config::ENABLE_PROBCUT && !g_in_verify && !currently_in_check && (beta - alpha) == 1 && (depth_limit - cur_depth) >= Config::PROBCUT_MIN_DEPTH &&
+		    alpha > -9000000 && alpha < 9000000 && beta > -9000000 && beta < 9000000)
+		{
+			const int probcut_beta = beta + Config::PROBCUT_MARGIN;
+			int probcut_tried = 0;
+			for (size_t i = 0; i < moves_list.size() && probcut_tried < Config::PROBCUT_CANDIDATES; ++i)
+			{
+				Move &move = moves_list[i];
+				const bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
+				const bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
+				if (!(capture_move || move.promotion != 1))
+					continue;
+				if (see(move.to_square, current_state.turn, current_state) < 0)
+					continue;
+				++probcut_tried;
+				updateZobristHashForMove(zobrist, move.from_square, move.to_square, capture_move, current_state.pawns, current_state.knights, current_state.bishops,
+				                         current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false],
+				                         move.promotion);
+				make_move(state_history, position_count, move, zobrist, capture_move);
+				const bool prev_no_store = g_no_tt_store;
+				if (Config::ENABLE_PROBCUT_NO_TT_STORE)
+					g_no_tt_store = true;
+				const int probcut_score = -negamax<!RootSide>(cur_depth + 1, depth_limit - Config::PROBCUT_DEPTH_REDUCTION, -probcut_beta, -probcut_beta + 1, t0,
+				                                             state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
+				g_no_tt_store = prev_no_store;
+				unmake_move(state_history, position_count, zobrist);
+				zobrist = cur_hash;
+				if (time_up.load(std::memory_order_relaxed))
+					return 0;
+				if (probcut_score >= probcut_beta && probcut_score < 9000000)
+					return probcut_score;
+			}
+		}
+
+		// Singular probe (read-only): the node's TT move with its score (this node's frame), depth and bound. excluding = this
+		// is the exclusion re-search of this node.
+		const bool excluding = Config::ENABLE_SINGULAR && (g_excluded_move[cur_depth].from_square != g_excluded_move[cur_depth].to_square);
+		Move tt_move;
+		int tt_score = 0, tt_depth = -1;
+		TTFlag tt_flag = TTFlag::EXACT;
+		bool have_tt = false;
+		if (Config::ENABLE_SINGULAR && !excluding)
+		{
+			TTEntry *node_tt = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+			if (node_tt != nullptr)
+			{
+				tt_move = node_tt->move;
+				tt_score = s * tt_score_from_entry(node_tt->score, g);
+				tt_depth = node_tt->depth;
+				tt_flag = node_tt->flag;
+				have_tt = true;
+			}
+			if (have_tt && tt_move.from_square != tt_move.to_square)
+				++g_sing_eligible;
+		}
+		// A fail-high in this node's frame: a root-frame lower bound for the maximizer, an upper bound for the minimizer.
+		constexpr TTFlag tt_fail_high = RootSide ? TTFlag::LOWERBOUND : TTFlag::UPPERBOUND;
+
+		if (Config::ENABLE_KILLER_CHILD_CLEAR && cur_depth + 1 < MAX_PLY)
+		{
+			killerMoves[cur_depth + 1][0] = Move{};
+			killerMoves[cur_depth + 1][1] = Move{};
+		}
+		for (size_t i = 0; i < moves_list.size(); ++i)
+		{
+			Move &move = moves_list[i];
+			if (excluding && move == g_excluded_move[cur_depth])
+				continue;
+			using_fp = false;
+			const bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
+			const bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
+
+			// Singular extension: the TT move (a fail-high) is extended one ply when a half-depth exclusion search of the
+			// other moves cannot reach its score less SINGULAR_MARGIN per ply.
+			int singular_extra = 0;
+			if (Config::ENABLE_SINGULAR && !excluding && have_tt && !currently_in_check && move == tt_move && tt_move.from_square != tt_move.to_square &&
+			    (depth_limit - cur_depth) >= Config::SINGULAR_MIN_DEPTH && tt_depth >= (depth_limit - cur_depth) - 3 && tt_score > -9000000 && tt_score < 9000000 &&
+			    tt_flag == tt_fail_high && g_singular_extensions < Config::SINGULAR_MAX_EXT)
+			{
+				++g_sing_gatepass;
+				const int rem = depth_limit - cur_depth;
+				const int sb = tt_score - Config::SINGULAR_MARGIN * rem;
+				g_excluded_move[cur_depth] = move;
+				const int v = negamax<RootSide>(cur_depth, cur_depth + rem / 2, sb - 1, sb, t0, state_history, position_count, zobrist, previous_move, num_iterations,
+				                               last_move_was_capture, false, is_in_null_search);
+				g_excluded_move[cur_depth] = Move();
+				if (v < sb)
+				{
+					++g_sing_fire;
+					singular_extra = 1;
+				}
+			}
+
+			updateZobristHashForMove(zobrist, move.from_square, move.to_square, capture_move, current_state.pawns, current_state.knights, current_state.bishops,
+			                         current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false],
+			                         move.promotion);
+			make_move(state_history, position_count, move, zobrist, capture_move);
+			int score;
+			{
+				SingularExtensionGuard seg(singular_extra > 0);   // bounds a chain of singular extensions by SINGULAR_MAX_EXT
+				g_best_mated = best_score <= -9000000;
+				score = score_move<RootSide>(alpha, beta, alpha_orig, beta_orig, (int)i, cur_depth, depth_limit + singular_extra, capture_move, currently_in_check, move,
+				                             previous_move, position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
+			}
+			if (Config::ENABLE_HISTORY_MALUS)
+				(capture_move ? searched_captures : searched_quiets).push_back(move);
+			if (using_fp)
+			{
+				best_early_eval = std::max(best_early_eval, score);
+				unmake_move(state_history, position_count, zobrist);
+				zobrist = cur_hash;
+				continue;
+			}
+			all_moves_pruned = false;
+
+			// OTV: a child about to become the best that overshoots the node's own static eval by OTV_MARGIN is searched again
+			// with reductions off for its first OTV_PLIES plies.
+			if (Config::ENABLE_OTV && !g_in_verify && g_verify_count < Config::OTV_PATH_CAP && rfp_eval != NO_STATIC_EVAL && score > best_score &&
+			    (!Config::OTV_PV_ONLY || (beta - alpha) > 1) && (depth_limit - cur_depth) >= Config::OTV_MIN_REMAINING && (score - s * rfp_eval) > Config::OTV_MARGIN)
+			{
+				VerifyGuard vg(cur_depth, Config::OTV_PLIES);
+				g_best_mated = best_score <= -9000000;
+				score = score_move<RootSide>(alpha, beta, alpha_orig, beta_orig, (int)i, cur_depth, depth_limit, capture_move, currently_in_check, move,
+				                             previous_move, position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
+			}
+			unmake_move(state_history, position_count, zobrist);
+			if (time_up.load(std::memory_order_relaxed))
+				return 0;
+			zobrist = cur_hash;
+
+			if (score > best_score)
+			{
+				best_score = score;
+				best_move = move;
+				// The PV is updated on a move that does not fail low in the root frame: above the maximizer's alpha, below the
+				// minimizer's beta (its constant bound here).
+				if ((RootSide ? score > alpha : score < beta) && !is_in_null_search)
+					updatePV(move, cur_depth);
+			}
+			alpha = std::max(alpha, best_score);
+			if (beta <= alpha)
+			{
+				++g_fh_total;
+				if (i == 0)
+					++g_fh_first;
+				g_cutoff_histogram[i < 3 ? (int)i : (i < 8 ? 3 : 4)]++;
+				// The cutoff move onto the node's own TT entry (singular's and TT-move ordering's move), not while excluding.
+				if ((Config::ENABLE_SINGULAR || Config::ENABLE_TT_MOVE) && !excluding)
+				{
+					TTEntry *node_entry = accessSearchEvalCache(zobrist, current_state.castling_rights, current_state.ep_square);
+					if (node_entry != nullptr)
+						node_entry->move = move;
+				}
+				if (i != 0)
+					updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+				if (!capture_move)
+					quiet_cutoff_history(current_state, move, previous_move, cur_depth, depth_limit, searched_quiets);
+				else if (Config::ENABLE_CAPTURE_HIST)
+					capture_cutoff_history(current_state, move, cur_depth, depth_limit, searched_captures);
+				store_node_tt(zobrist, current_state, state_history, s * best_score, cur_depth, depth_limit, root_lo<RootSide>(alpha_orig, beta_orig),
+				              root_hi<RootSide>(alpha_orig, beta_orig), best_move);
+				return best_score;
+			}
+		}
+
+		// No move improved on the start value: checkmate, stalemate, or every move futility-pruned.
+		if (best_score == no_move_score)
+		{
+			if (is_checkmate(zobrist, current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn],
+			                 current_state.occupied_colour[current_state.turn], current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
+			                 current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
+				return best_score;
+			else if (is_stalemate(zobrist, current_state.castling_rights, current_state.occupied, current_state.occupied_colour[true], current_state.occupied_colour[!current_state.turn],
+			                      current_state.occupied_colour[current_state.turn], current_state.pawns, current_state.knights, current_state.bishops, current_state.rooks,
+			                      current_state.queens, current_state.kings, current_state.ep_square, current_state.turn))
+				return 0;
+			else if (all_moves_pruned)
+				return best_early_eval;
+		}
+
+		const bool best_en_passant = is_en_passant(best_move.from_square, best_move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
+		const bool best_capture = is_capture(best_move.from_square, best_move.to_square, current_state.occupied_colour[!current_state.turn], best_en_passant);
+		if (!best_capture)
+		{
+			historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
+			if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG || Config::CORR2) && std::abs(best_score) < 9000000 &&
+			    !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings,
+			              current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
+			{
+				int se;   // the raw node-entry eval when this node computed one
+				if (rfp_raw_eval != NO_STATIC_EVAL)
+				{
+					se = rfp_raw_eval;
+					g_corrhist_eval_reused++;
+				}
+				else
+				{
+					se = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+					g_corrhist_eval_computed++;
+				}
+				const int root_best = s * best_score;
+				const int ra = root_lo<RootSide>(alpha_orig, beta_orig), rb = root_hi<RootSide>(alpha_orig, beta_orig);
+				if (Config::ENABLE_CORR_HIST)
+					corrhist_update(current_state, side_bit, se, root_best);
+				if (Config::CORR2)
+					corr2_update(current_state, side_bit, se, root_best, depth_limit - cur_depth, ra, rb);
+				if (Config::ENABLE_CORRHIST_LOG)
+					corrhist_log(current_state, side_bit, se, root_best, depth_limit - cur_depth, ra, rb);
+			}
+		}
+		store_node_tt(zobrist, current_state, state_history, s * best_score, cur_depth, depth_limit, root_lo<RootSide>(alpha_orig, beta_orig),
+		              root_hi<RootSide>(alpha_orig, beta_orig), best_move);
+		return best_score;
 	}
 
 	/*

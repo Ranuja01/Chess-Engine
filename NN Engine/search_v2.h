@@ -28,6 +28,12 @@ namespace sv2
 	            std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prev_move, int &num_iterations,
 	            bool root_side);
 
+	// An interior node below the root's children (today's maximizer, and the minimizer's non-root branch), in its own frame.
+	template <bool RootSide>
+	int negamax(int cur_depth, int depth_limit, int alpha, int beta, const TimePoint &t0, std::vector<BoardState> &state_history,
+	            std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move previous_move, int &num_iterations,
+	            bool last_move_was_capture, bool last_move_was_null_move, bool is_in_null_search);
+
 	// Score one already-made move of an interior node (today's get_score_for_maximizer / _minimizer), in this node's frame.
 	template <bool RootSide>
 	int score_move(int alpha, int beta, int alpha_orig, int beta_orig, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check,

@@ -2642,6 +2642,10 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // self-play not harmful (+12.9 over 2,000 games), Mediocre not negative (OPTIMIZATION_LOG). Set before the
                     // start-up reads, so LAZY_V2=0 restores gen 7 exactly (246 / 36,509,830).
                     Config::LAZY_V2 = 7;  Config::LAZY_V2_KEEP = 1;  Config::LAZY_V2_GATE = 3;
+                    // ── GEN 7.2: the bare-king technique value at SF15.1's scale. K+B+N vs K mated 30 / 30 at 1M nodes (was 1),
+                    // two bishops 30 / 30 at 100k (was 15); +0.0009% instructions elsewhere (OPTIMIZATION_LOG). Set before the
+                    // start-up read, so MOPUP_V2=0 restores gen 7.1 exactly (247 / 39,852,210).
+                    Config::MOPUP_V2 = 100;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

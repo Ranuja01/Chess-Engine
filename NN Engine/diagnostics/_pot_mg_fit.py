@@ -394,6 +394,48 @@ def main_depthgain():
     ☠️ UNDERPOWERED, so not a refutation: the 1.5x bar is a gap of ~+0.07, about 1 SE here (per-row regret gain is mostly
     0 with rare large values), and the 2σ upper bound on ALL is ~1.9x. A readable test B needs ~4x the rows or a
     lower-variance target (critical rows only)."""
+    beta = test_a_beta()
+    dirs = KV.get("DIRS", "/mnt/e/chess_data/s0_testB").split(",")
+    reg = {}
+    for dep in (10, 12):
+        for d in dirs:
+            for p in glob.glob(os.path.join(d, "d%d_s*.csv" % dep)):
+                for r in csv.reader(open(p, newline="")):
+                    if len(r) >= 4 and r[1]:
+                        reg.setdefault(r[0], {})[dep] = (float(r[2]), r[3])
+    # best-vs-second gap of SF18's multi-PV (side-to-move cp), for the critical-row read
+    gap = {}
+    for s in KV.get("REGSETS", "ks_sets/game_regret_set.csv").split(","):
+        for r in csv.DictReader(open(os.path.join(THIS, s), newline="")):
+            cps = [float(m.rsplit(":", 1)[1]) for m in r.get("moves", "").split(";") if ":" in m]
+            if len(cps) >= 2:
+                cps.sort(reverse=True)
+                gap[r["fen"]] = float(wp(cps[0]) - wp(cps[1]))
+    rows = [(fen, v[10][0] - v[12][0], v[10][1]) for fen, v in reg.items() if 10 in v and 12 in v]
+    U = np.array([np.r_[1.0, feats_sum(chess.Board(f))] @ beta for f, _, _ in rows])
+    G = np.array([g for _, g, _ in rows]); ph = np.array([p for _, _, p in rows])
+    GAP = np.array([gap.get(f, np.nan) for f, _, _ in rows])
+    crit_min = float(KV.get("CRIT", 10))
+    print("test B rows: %d with both depths (dirs %s); mean regret gain d10 → d12 %.3f win%% pts; with a multi-PV gap %d"
+          % (len(rows), ",".join(dirs), G.mean(), int((~np.isnan(GAP)).sum())))
+    for name, m in (("ALL", np.ones(len(G), bool)), ("opening", ph == "opening"), ("midgame", ph == "midgame"),
+                    ("endgame", ph == "endgame"), ("CRITICAL (gap >= %g)" % crit_min, GAP >= crit_min)):
+        if m.sum() < 200:
+            continue
+        q = np.quantile(U[m], [0.2, 0.8])
+        gt, gb = G[m][U[m] >= q[1]], G[m][U[m] <= q[0]]
+        top, bot = gt.mean(), gb.mean()
+        se = (gt.var(ddof=1) / len(gt) + gb.var(ddof=1) / len(gb)) ** 0.5     # SE of top − bottom
+        ratio = top / bot if bot > 0 else float("nan")
+        print("  %-20s n %5d · gain top fifth %.3f · bottom fifth %.3f · ratio %s · top − bottom %+.3f ± %.3f (1 SE)"
+              % (name, m.sum(), top, bot, ("%.2f" % ratio) if bot > 0 else "n/a (bottom gain <= 0)", top - bot, se))
+        if name == "ALL" or name.startswith("CRITICAL"):
+            keep = bot > 0 and ratio >= 1.5 and (top - bot) > 2 * se
+            print("  REGISTERED (11-11, B-powered): %s" % ("KEEP" if keep else "MISS"))
+
+
+def test_a_beta():
+    """Test A's β: the d12-error residual after the four controls, regressed on feats_sum over ALL of test A's rows."""
     d12, tr, meta = load()
     lab = {}
     for p in glob.glob(os.path.join(DEEP, "mg_wdl_train_s*of3.csv")) + [os.path.join(DEEP, "mg_wdl_val.csv")]:
@@ -417,29 +459,75 @@ def main_depthgain():
     res = E - X1 @ np.linalg.lstsq(X1, E, rcond=None)[0]
     beta = np.linalg.lstsq(np.c_[np.ones(len(F)), F], res, rcond=None)[0]
     print("β from test A (%d rows): %s" % (len(E), ", ".join("%s %+.3f" % (n, v) for n, v in zip(["const"] + MAG_NAMES, beta))))
-    reg = {}
-    for dep in (10, 12):
-        for p in glob.glob("/mnt/e/chess_data/s0_testB/d%d_s*.csv" % dep):
-            for r in csv.reader(open(p, newline="")):
-                if len(r) >= 4 and r[1]:
-                    reg.setdefault(r[0], {})[dep] = (float(r[2]), r[3])
-    rows = [(fen, v[10][0] - v[12][0], v[10][1]) for fen, v in reg.items() if 10 in v and 12 in v]
-    U = np.array([np.r_[1.0, feats_sum(chess.Board(f))] @ beta for f, _, _ in rows])
-    G = np.array([g for _, g, _ in rows]); ph = np.array([p for _, _, p in rows])
-    print("test B rows: %d with both depths; mean regret gain d10 → d12 %.3f win%% pts" % (len(rows), G.mean()))
-    for name, m in (("ALL", np.ones(len(G), bool)), ("opening", ph == "opening"), ("midgame", ph == "midgame"), ("endgame", ph == "endgame")):
-        if m.sum() < 200:
+    return beta
+
+
+def main_quiet():
+    """A-REP (registered 11-11 in search v2 plan §7d, before this ran): test A's question on independent QUIET rows. Rows =
+    wdlcal/cal_wdl.csv (SF18 WDL labels, White POV, per mille) with our d10 search (D10=, `_depth_residual_pass.py` output) and
+    our static eval (STATIC=, fen,cp_white). β = test A's, FROZEN. E = |win%(SF18 WDL) − win%(our d10)|; controls as test A
+    (|win%(d10) − 50|, phase, |material|, |win%(static) − win%(d10)|), fitted out of fold over 5 random folds. Read: top fifth
+    of U over bottom fifth of mean E within control terciles, averaged over terciles, on all rows pooled; bootstrap 95% CI.
+    KEEP: ratio >= 1.25 AND bootstrap lower bound > 1.10. Prediction 1.10-1.25. Stop: lower bound <= 1.0."""
+    W = KV.get("WDL", "/mnt/e/chess_data/wdlcal")
+    beta = test_a_beta()
+    lab, d10, st = {}, {}, {}
+    for r in csv.DictReader(open(os.path.join(W, "cal_wdl.csv"), newline="")):
+        lab[r["fen"]] = (float(r["w"]) + 0.5 * float(r["d"])) / 10.0
+    for r in csv.DictReader(open(KV["D10"], newline="")):
+        if r.get("ours_cp_white") not in (None, ""):
+            d10[r["fen"]] = float(r["ours_cp_white"])
+    for r in csv.DictReader(open(KV["STATIC"], newline="")):
+        if r.get("cp_white") not in (None, ""):
+            st[r["fen"]] = float(r["cp_white"])
+    val = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+    rows = []
+    for fen in lab:
+        if fen not in d10 or fen not in st:
             continue
-        q = np.quantile(U[m], [0.2, 0.8])
-        gt, gb = G[m][U[m] >= q[1]], G[m][U[m] <= q[0]]
-        top, bot = gt.mean(), gb.mean()
-        se = (gt.var(ddof=1) / len(gt) + gb.var(ddof=1) / len(gb)) ** 0.5     # SE of top − bottom
-        ratio = top / bot if bot > 0 else float("nan")
-        print("  %-8s n %5d · gain top fifth %.3f · bottom fifth %.3f · ratio %s · top − bottom %+.3f ± %.3f (1 SE)"
-              % (name, m.sum(), top, bot, ("%.2f" % ratio) if bot > 0 else "n/a (bottom gain <= 0)", top - bot, se))
-        if name == "ALL":
-            print("  REGISTERED: %s" % ("KEEP on this set (needs the second-set replication)" if bot > 0 and ratio >= 1.5 else "MISS"))
+        b = chess.Board(fen)
+        npm = sum(NPM[p.piece_type] for p in b.piece_map().values() if p.piece_type in NPM)
+        mat = sum(val[p.piece_type] * (1 if p.color == chess.WHITE else -1) for p in b.piece_map().values() if p.piece_type in val)
+        w10 = float(wp(d10[fen]))
+        rows.append((fen, abs(lab[fen] - w10), [abs(w10 - 50.0), npm, abs(mat), abs(float(wp(st[fen])) - w10)], feats_sum(b)))
+    E = np.array([r[1] for r in rows]); Cm = np.array([r[2] for r in rows], float); Fm = np.array([r[3] for r in rows], float)
+    U = np.c_[np.ones(len(Fm)), Fm] @ beta
+    fold = np.array([zlib.crc32(r[0].encode()) % 5 for r in rows])
+    cpred = np.empty(len(E))
+    for k in range(5):
+        tr_m, te_m = fold != k, fold == k
+        X1 = np.c_[np.ones(tr_m.sum()), Cm[tr_m]]
+        bc = np.linalg.lstsq(X1, E[tr_m], rcond=None)[0]
+        cpred[te_m] = np.c_[np.ones(te_m.sum()), Cm[te_m]] @ bc
+    print("A-rep rows: %d quiet rows with a label, d10 and static (D10 %s) · mean E %.2f win%% pts"
+          % (len(E), os.path.basename(KV["D10"]), E.mean()))
+
+    def ratio(idx, u):
+        e, c, uu = E[idx], cpred[idx], u[idx]
+        qs = np.quantile(c, [1 / 3, 2 / 3])
+        per = []
+        for m in (c < qs[0], (c >= qs[0]) & (c < qs[1]), c >= qs[1]):
+            if m.sum() < 50:
+                continue
+            uq = np.quantile(uu[m], [0.2, 0.8])
+            top, bot = e[m][uu[m] >= uq[1]], e[m][uu[m] <= uq[0]]
+            if len(top) and len(bot) and bot.mean() > 0:
+                per.append(top.mean() / bot.mean())
+        return float(np.mean(per)) if per else float("nan")
+
+    allidx = np.arange(len(E))
+    point = ratio(allidx, U)
+    rng = np.random.default_rng(1111)
+    boots = np.array([ratio(rng.integers(0, len(E), len(E)), U) for _ in range(1000)])
+    lo, hi = np.nanquantile(boots, [0.025, 0.975])
+    Us = U.copy(); np.random.default_rng(7).shuffle(Us)
+    null = ratio(allidx, Us)
+    print("  top/bottom-fifth ratio of mean error within control terciles: %.3f  (bootstrap 95%% %.3f … %.3f) · shuffled-U null %.3f"
+          % (point, lo, hi, null))
+    print("  per fold: %s" % " ".join("%.3f" % ratio(np.where(fold == k)[0], U) for k in range(5)))
+    verdict = "KEEP" if point >= 1.25 and lo > 1.10 else ("MISS, and STOP (lower bound <= 1.0)" if lo <= 1.0 else "MISS")
+    print("  REGISTERED (11-11, A-rep): %s" % verdict)
 
 
 if __name__ == "__main__":
-    {"moves": main_moves, "magnitude": main_magnitude, "depthgain": main_depthgain}.get(MODE, main_fit)()
+    {"moves": main_moves, "magnitude": main_magnitude, "depthgain": main_depthgain, "quiet": main_quiet}.get(MODE, main_fit)()

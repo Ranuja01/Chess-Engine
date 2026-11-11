@@ -68,6 +68,8 @@ LIMIT = int(os.environ.get("LIMIT", "0"))          # play only the first LIMIT p
 ENGINES = {
 	"ours":    (os.path.join(ND, "build_uci", "chess_engine_uci"), {"OwnBook": False}),
 	"ours_v1": (os.path.join(ND, "build_uci", "chess_engine_uci"), {"OwnBook": False, "EvalArm": 0}),
+	# the MOPUP_V2 test build (queue #198): production code + the bare-king technique value at SF's scale
+	"ours_mop": (os.path.join(ND, "build_uci", "chess_engine_uci_mopup"), {"OwnBook": False, "Knobs": "MOPUP_V2=100"}),
 	"sf11":    ("/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_11_linux/stockfish-11-linux/"
 	            "Linux/stockfish_20011801_x64_bmi2", {"Threads": 1, "Hash": 16}),
 	"sf18":    ("/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_18_linux/"

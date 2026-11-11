@@ -2819,6 +2819,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
             std::cerr << "☠️ TIER2_V2_MAG must be >= 0 (a PERCENT of SF's scale; 100 == SF's own) -- restoring 0.\n";
             Config::TIER2_V2_MAG = 0;
         }
+        Config::MOPUP_V2 = env_int("MOPUP_V2", Config::MOPUP_V2);
+        if (Config::MOPUP_V2 < 0){
+            std::cerr << "☠️ MOPUP_V2 must be >= 0 (a PERCENT of SF's scale; 100 == SF's own) -- restoring 0.\n";
+            Config::MOPUP_V2 = 0;
+        }
         if (Config::KAUF_V2_MAG > 0 && Config::KAUF_V2_FORM == 1)
             std::cerr << "⚠️ KAUF_V2_FORM=1 uses v1's FITTED tables -- DIAGNOSTIC ONLY, not a ship candidate.\n";
         // ⚠️ Double-pay guard: SF prices the bishop pair ONLY inside the imbalance matrix. If both owners are
@@ -3311,6 +3316,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " KAUF_V2_PAIR=" << Config::KAUF_V2_PAIR
                   << " KAUF_V2_FORM=" << Config::KAUF_V2_FORM
                   << " TIER2_V2_MAG=" << Config::TIER2_V2_MAG
+                  << " MOPUP_V2=" << Config::MOPUP_V2
                   << " SPACE_V2_MAG=" << Config::SPACE_V2_MAG
                   << " SPACE_V2_REGION=" << Config::SPACE_V2_REGION
                   << " SPACE_V2_SAFE=" << Config::SPACE_V2_SAFE

@@ -189,7 +189,7 @@ extern int  g_v2_last_pos;
 */
 struct LazyProbe {
 	bool fresh;       // an eval body ran since the search last read the probe
-	int  special;     // 0 = normal, 1 = draw classifier, 2 = tier-2b replacement (returned before any stage)
+	int  special;     // 0 = normal, 1 = draw classifier, 2 = tier-2b replacement, 3 = MOPUP_V2 replacement (returned before any stage)
 	int  cheap;       // material + PST + bishop pair + Kaufman + narrow material classes
 	int  mob, space, threats, ks;               // the consumers of the shared attack build
 	int  pawns, passers, rookfile, placement;   // the pawn-entry block

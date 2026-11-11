@@ -3549,6 +3549,13 @@ static bool draw_class(const V2Context &c) noexcept
  */
 static inline int t2_edge_dist(int x) noexcept { return x < 7 - x ? x : 7 - x; }
 
+/* SF15.1's push_to_edge (endgame.cpp), in SF endgame units: 90 in a corner, 28 in the centre. */
+static inline int sf_push_to_edge(int sq) noexcept
+{
+	const int fd = t2_edge_dist(sq & 7), rd = t2_edge_dist(sq >> 3);
+	return 90 - (7 * fd * fd / 2 + 7 * rd * rd / 2);
+}
+
 static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
 {
 	if (c.pawns) return false;
@@ -3563,9 +3570,8 @@ static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
 	if ((strong & ~(c.kings | c.rooks)) || (weak & ~(c.kings | minors))) return false;
 
 	const int weak_ksq = __builtin_ctzll(c.kings & weak);
-	const int fd = t2_edge_dist(weak_ksq & 7), rd = t2_edge_dist(weak_ksq >> 3);
-	int units = 90 - (7 * fd * fd / 2 + 7 * rd * rd / 2);
-	if (c.knights){                                   // K+R vs K+N: also split the king from its knight
+	int units = sf_push_to_edge(weak_ksq);
+	if (c.knights){                                  // K+R vs K+N: also split the king from its knight
 		const int nsq  = __builtin_ctzll(c.knights);
 		const int dfile = (nsq & 7) - (weak_ksq & 7), drank = (nsq >> 3) - (weak_ksq >> 3);
 		const int af = dfile < 0 ? -dfile : dfile, ar = drank < 0 ? -drank : drank;
@@ -3574,6 +3580,58 @@ static bool tier2b_value_mp(const V2Context &c, int &out) noexcept
 	// SF units -> our millipawns, as a percent of SF's own scale. Black-positive: negate when White is strong.
 	const int mp = units * Config::TIER2_V2_MAG * 10 / 213;
 	out = rook_white ? -mp : mp;
+	return true;
+}
+
+/*
+ * MOPUP_V2 -- TECHNIQUE VALUE for a bare king against mating material.
+ * Why: queue #195 (diagnostics/_mopup_conversion.py, 120 tablebase-won positions, SF18 defending) -- v2 mated K+B+N vs K
+ * in 1 of 30 (SF11 29-30 of 30), and converted K+B+B vs K and K+Q vs K slowly at 100k nodes. The ordinary eval has no
+ * gradient in these endings, so search sees no progress inside its horizon.
+ * When: no pawns, one side a bare king, the other side holding mating material (a queen, a rook, bishop + knight, or
+ * bishops on both colours). K+N+N vs K belongs to draw_class; bishops of one colour cannot mate and keep the ordinary eval.
+ * Value, a material-configuration REPLACEMENT like tier2b (Black-positive):
+ *   K+B+N vs K exactly:  material + kings close + the losing king driven toward a corner of the bishop's colour
+ *   otherwise:           material + kings close + the losing king driven to any edge
+ * Shapes and ratios are SF15.1's (endgame.cpp: push_to_edge, push_close, push_to_corner; Endgame<KXK>, Endgame<KBNK>), in
+ * SF endgame units converted as tier2b does: MOPUP_V2 is a PERCENT of SF's scale (100 = SF's magnitude in our millipawns).
+ * The material stays in, so the drive never pays for giving up a piece. SF's VALUE_KNOWN_WIN is left out: capturing the
+ * last defender already raises the score by the defender's material, and a large constant would cross RESIGN_THRESHOLD.
+ * Correctness is the tablebase's to judge: the gate is the #195 probe re-run, plus the mirror test on its positions.
+ * Gating: caller checks MOPUP_V2 > 0, so 0 = absent = byte-identical. Cost in every other position: the pawn test.
+ */
+static constexpr int MOPUP_SF_EG_PAWN  = 213;   // SF's endgame pawn (types.h) against our 1000
+static constexpr int MOPUP_CLOSE_MAX   = 140;   // SF15.1 push_close at king distance 0
+static constexpr int MOPUP_CLOSE_STEP  = 20;    // ... less this per step of king distance
+static constexpr int MOPUP_CORNER_STEP = 420;   // K+B+N: per diagonal step toward a corner of the bishop's colour
+
+static bool mopup_value_mp(const V2Context &c, int &out) noexcept
+{
+	if (c.pawns) return false;
+	const uint64_t pcs = c.occupied & ~c.kings;
+	if (!pcs) return false;
+	const bool white_strong = (pcs & c.white) == pcs;
+	if (!white_strong && (pcs & c.black) != pcs) return false;          // both sides still have pieces
+	const uint64_t bishops = c.bishops & pcs, knights = c.knights & pcs;
+	const bool mating = ((c.queens | c.rooks) & pcs) != 0 || (bishops && knights)
+	                    || ((bishops & LIGHT_SQUARES) && (bishops & DARK_SQUARES));
+	if (!mating) return false;
+
+	const uint64_t strong = white_strong ? c.white : c.black;
+	const int sk = __builtin_ctzll(c.kings & strong), wk = __builtin_ctzll(c.kings & ~strong);
+	int units = MOPUP_CLOSE_MAX - MOPUP_CLOSE_STEP * dv_dist(sk, wk);
+	if (pcs == (bishops | knights) && __builtin_popcountll(bishops) == 1 && __builtin_popcountll(knights) == 1){
+		// Diagonal distance from the long diagonal of the WRONG colour: 7 in both corners of the bishop's colour
+		// (a8 / h1 for a light bishop, a1 / h8 for a dark one), 0 on that diagonal.
+		const int f = wk & 7, r = wk >> 3;
+		const int d = dv_light(__builtin_ctzll(bishops)) ? r - f : 7 - r - f;
+		units += MOPUP_CORNER_STEP * (d < 0 ? -d : d);
+	} else {
+		units += sf_push_to_edge(wk);
+	}
+	const int mat = white_strong ? c.mat_white - c.mat_black : c.mat_black - c.mat_white;   // the ordinary census
+	const int v = mat + units * Config::MOPUP_V2 * 10 / MOPUP_SF_EG_PAWN;
+	out = white_strong ? -v : v;
 	return true;
 }
 
@@ -4250,6 +4308,7 @@ void v2_features(uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask,
 	if (Config::DRAW_V2_CLASS && draw_class(c)) flags |= 1;
 	int t2 = 0;
 	if (Config::TIER2_V2_MAG > 0 && tier2b_value_mp(c, t2)) flags |= 2;
+	if (Config::MOPUP_V2 > 0 && mopup_value_mp(c, t2)) flags |= 2;        // also a replacement
 	// Knobs whose terms this extractor does not decompose: a live one would leave its value in the "fixed" part.
 	if (Config::OUTPOST_V2_FORM != 0 || Config::BADB_V2_FORM != 1 || Config::TRAPROOK_V2_FORM != 0
 	    || Config::MOB_V2_SAFE || Config::REACH_V2_PCT || Config::LONGDIAG_V2_PCT || Config::LATENT_V2_PCT
@@ -4842,6 +4901,28 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 #endif
 			g_v2_last_pos = LAZY_POS_NA;
 			return t2;
+		}
+	}
+
+	// ── MOPUP_V2: TECHNIQUE VALUE for a bare king against mating material ─────────────────────────────
+	// Gated on MOPUP_V2, so 0 = absent = byte-identical; the same replacement contract as tier-2b above.
+	if (Config::MOPUP_V2 > 0){
+		int mu = 0;
+		if (mopup_value_mp(c, mu)){
+			if (g_capture_eval_breakdown && Config::EVAL_ARM == 1){
+				g_eval_breakdown.total       = mu;
+				g_eval_breakdown.arm         = Config::EVAL_ARM;
+				g_eval_breakdown.terms_valid = (1ULL << EB_TOTAL);
+			}
+#ifdef LAZY_PROBE
+			g_lazy_probe = LazyProbe{};
+			g_lazy_probe.fresh = true;
+			g_lazy_probe.special = 3;
+			g_lazy_probe.total = mu;
+			lazy_probe_features(c, nullptr);
+#endif
+			g_v2_last_pos = LAZY_POS_NA;
+			return mu;
 		}
 	}
 

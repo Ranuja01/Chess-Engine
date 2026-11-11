@@ -1255,6 +1255,12 @@ namespace Config
     // not a consensus adoption, and its gate is the tablebase oracle, not §I (which is blind to this family).
     inline int TIER2_V2_MAG = 0;
 
+    // MOPUP_V2 -- TECHNIQUE VALUE for a bare king against mating material (pawnless; Q, R, B+N or bishops on both colours):
+    // material + kings close + the losing king to the edge, or for K+B+N vs K to a corner of the bishop's colour.
+    // PERCENT of SF15.1's scale, as TIER2_V2_MAG. 0 = off = byte-identical. Code and rationale: eval_v2.cpp mopup_value_mp.
+    // Why (queue #195, 11-10): v2 mated K+B+N vs K 1 / 30 against SF18's defence (SF11 29-30 / 30).
+    inline int MOPUP_V2 = 0;
+
     // Slice 3 -- SPACE. Design: dev_notes/archive/eval/EVAL-V2-SLICE3-DESIGN.md §1.1 + §2.1. ★ 3/5 references have it (SF11,
     // SF15.1, Ethereal; SF1.1 and Weiss have NONE) and all three give it a ZERO endgame leg, so this is applied
     // mg-only (tapered by phase256). ☠️ v1's flat `SPACE_MAG` form died on the pre-08-14 contaminated harness =

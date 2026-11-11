@@ -1178,7 +1178,13 @@ namespace
                   << " cap=" << cap << " chk=" << chk << " ns=" << nullsrch
                   << " cc=" << cchain << " sps=" << sps << " asps=" << (sps < 0 ? -sps : sps)
                   << " tth=" << tth << " ttdge=" << ttdge << " ttm=" << ttm
-                  << " ttd=" << ttd << " tts=" << tts << std::endl;
+                  << " ttd=" << ttd << " tts=" << tts
+                  // the node's board and the move, so position features (the POT markers of _pot_shadow.py) can be
+                  // computed offline: python-chess square order, bw / bb = White / Black occupancy, tu 1 = White to move
+                  << " fr=" << (int)move.from_square << " to=" << (int)move.to_square
+                  << " bp=" << cs.pawns << " bn=" << cs.knights << " bbi=" << cs.bishops << " br=" << cs.rooks
+                  << " bq=" << cs.queens << " bk=" << cs.kings << " bw=" << cs.occupied_colour[1] << " bb=" << cs.occupied_colour[0]
+                  << " tu=" << (int)cs.turn << std::endl;
     }
 
     // Record a shadow result. minimizer: entered window if shadow < beta, cutoff if shadow <= alpha.

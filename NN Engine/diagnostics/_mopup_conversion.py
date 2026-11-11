@@ -14,9 +14,12 @@ both node-limited (load-independent, so safe beside other work). Ends on mate, s
 
 Modes:
   MODE=gen     N=30 SEED=1111      write ks_sets/mopup_positions.csv (cls, fen, dtm moves)
-  MODE=play    ARMS=name:engine:nodes,...  OUT=dir  THREADS=3  DEF_NODES=200000   -> OUT/games.csv
+  MODE=play    ARMS=name:engine:nodes,...  OUT=dir  THREADS=3  DEF_NODES=200000  [CLS=KBNK,KBBK] [LIMIT=n]
+               -> OUT/games.csv
   MODE=report  OUT=dir             conversion per class per arm, mean moves to mate against DTM
-Engines: ours (production UCI binary, OwnBook off), ours_v1 (the same binary, EvalArm 0), sf11, sf18.
+Engines: ours (production UCI binary, OwnBook off), ours_v1 (the same binary, EvalArm 0), sf11, sf18 (the defender),
+sf18_att (SF18 as the attacker, a separate process), sf1.1. Arm indices are positions within the CLS-filtered list,
+so a CLS run needs its own OUT.
 
 RESULT (queue #195, 11-10, gen 7.1, defender SF18 at 200k nodes; mates / 30 and mean moves to mate / mean DTM):
   arm        KQK          KRK          KBBK         KBNK
@@ -69,7 +72,12 @@ ENGINES = {
 	            "Linux/stockfish_20011801_x64_bmi2", {"Threads": 1, "Hash": 16}),
 	"sf18":    ("/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_18_linux/"
 	            "stockfish-ubuntu-x86-64-avx2", {"Threads": 1, "Hash": 16}),
+	# SF18 as the ATTACKER: its own process, so it never shares a hash table with the sf18 defender
+	"sf18_att": ("/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/stockfish_18_linux/"
+	             "stockfish-ubuntu-x86-64-avx2", {"Threads": 1, "Hash": 16}),
+	"sf1.1":   ("/mnt/e/chess_data/engines/sf1.1/stockfish-1.1", {"Threads": 1, "Hash": 16, "OwnBook": False}),
 }
+CLS = [c for c in os.environ.get("CLS", "").split(",") if c]   # play only these classes (empty = all)
 
 CLASSES = {
 	"KQK":  [chess.QUEEN],
@@ -162,6 +170,8 @@ def play_one(job):
 def play():
 	with open(POS) as f:
 		pos = list(csv.DictReader(f))
+	if CLS:
+		pos = [p for p in pos if p["cls"] in CLS]
 	if LIMIT:
 		by = {}
 		for p in pos:

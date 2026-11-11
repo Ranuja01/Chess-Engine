@@ -13,6 +13,7 @@ current one behind a switch, so every part of ours stays available and games dec
 | 11-07 | Lazy eval is infrastructure for search v2: re-measure it at each step; the window-aware request (site, bound, direction) is the contract to keep. | memory `lazy-eval-is-infrastructure-for-search-v2` |
 | 11-10 | Corrhist waits for search v2's node-entry static eval and its consumers. | `EVAL-V2-PARKED-REGISTER.md`, search-phase row |
 | 11-07 | Eval items wait for search v2: after it raises play depth by about 2 plies, a focused eval arc retunes at the new depth. | memory `retune-depth-follows-play-depth` |
+| 11-11 | The transition is closed and the search arc fully entered. The sealing UI games are deferred until search v2 brings gains worth playing (gen 7.2 added only the bare-king technique since the owner's 11-10 games). | owner, 11-11 |
 
 ## 1. Principles
 

@@ -17,6 +17,19 @@ Modes:
   MODE=play    ARMS=name:engine:nodes,...  OUT=dir  THREADS=3  DEF_NODES=200000   -> OUT/games.csv
   MODE=report  OUT=dir             conversion per class per arm, mean moves to mate against DTM
 Engines: ours (production UCI binary, OwnBook off), ours_v1 (the same binary, EvalArm 0), sf11, sf18.
+
+RESULT (queue #195, 11-10, gen 7.1, defender SF18 at 200k nodes; mates / 30 and mean moves to mate / mean DTM):
+  arm        KQK          KRK          KBBK         KBNK
+  v2 1M      30  7 / 5    30 12 / 10   27 24 / 11    1  7 / 7
+  v2 100k    29 15 / 5    30 14 / 10   15 20 / 10    1  7 / 7
+  v1 1M      30  6 / 5    30 11 / 10   24 22 / 11    1  7 / 7
+  SF11 1M    30  5 / 5    30 10 / 10   30 12 / 12   29 25 / 24
+  SF11 100k  30  6 / 5    30 10 / 10   30 12 / 12   30 24 / 25
+  KBNK: a technique defect, worse than the registered 9-18 / 30. v2's one mate started 7 moves from mate with the king
+  already in the bishop's corner; v1's generic drive does no better. KQK / KRK are converted by search (the generic-defect
+  rule, two KQK / KRK failures at 1M, was not triggered), but v2 takes 2-3x the DTM at 100k and draws half its KBBK there.
+  Every "capture" ending came at move 49-50: once the 50-move draw is certain all moves score 0, the attacker drops a
+  piece, and the capture is counted before the fifty check. Read those as fifty-move failures.
 """
 import csv
 import os

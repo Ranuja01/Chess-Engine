@@ -4,6 +4,60 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## ☠️ 2026-11-10 22:51 — BARE-KING CONVERSION PROBE (queue #195): v2 cannot mate with bishop + knight (1 / 30; SF11 29-30 / 30)
+**Why it ran:** the owner said on 11-10 that "certain mate types (like bishop and knight) are unknown by our eval". The tool is
+`diagnostics/_mopup_conversion.py`. It plays 120 tablebase-won positions, 30 per class, with White to move. Our arm attacks;
+Stockfish 18 defends at 200k nodes. Both sides are node-limited.
+
+**Result** (mates out of 30, then mean moves to mate / mean DTM):
+
+| arm | KQK | KRK | KBBK | KBNK |
+|---|---|---|---|---|
+| v2 at 1M nodes | 30 · 7 / 5 | 30 · 12 / 10 | 27 · 24 / 11 | **1 · 7 / 7** |
+| v2 at 100k nodes | 29 · 15 / 5 | 30 · 14 / 10 | **15** · 20 / 10 | **1** |
+| v1 at 1M (generic mate drive) | 30 · 6 / 5 | 30 · 11 / 10 | 24 · 22 / 11 | 1 |
+| SF11 at 1M | 30 · 5 / 5 | 30 · 10 / 10 | 30 · 12 / 12 | 29 · 25 / 24 |
+| SF11 at 100k | 30 · 6 / 5 | 30 · 10 / 10 | 30 · 12 / 12 | 30 · 24 / 25 |
+
+Notes on reading it:
+- Every failure was a fifty-move draw. The "capture" endings all came at move 49-50: once the draw is certain, the attacker
+  drops a piece.
+- v2's single KBNK mate started 7 moves from mate, with the king already in the bishop's corner.
+- No crash dumps; 16 minutes for 600 games at 3 threads.
+
+**Against the registration** (`_queue_195.sh`):
+
+| registered | outcome |
+|---|---|
+| KQK / KRK ≥ 29 / 30 for every arm at 1M | **passed** |
+| KBBK, v2 ≥ 25 / 30 at 1M | **passed** (27) |
+| KBNK, SF11 ≥ 28 / 30 | **passed** |
+| KBNK, v2 at 1M 9-18 / 30 | **wrong:** 1 / 30 |
+| KBNK, v1 no better than v2 | **held:** v1's generic drive has no bishop-corner rule |
+
+Reading:
+- ⇒ **A real technique defect** under the read rule (v2 ≤ 20 / 30 with SF11 ≥ 28 / 30).
+- The generic-defect rule (two or more KQK / KRK failures at 1M) did not trigger: search converts those endings. But at 100k
+  (below a 10+0.1 move, ~340k nodes), v2 takes 3× the DTM in KQK, draws one, and draws half its KBBK. That is a missing gradient, not a
+  missing search.
+
+**Proposal (owner's call; nothing built):** a v2 bare-king replacement value beside tier2b, with the same contract (a
+material-configuration replacement after `draw_class`; publishes `EB_TOTAL`).
+- **Knob:** `MOPUP_V2`, default 0 = absent and byte-identical.
+- **When it fires:** pawnless, one bare king, mating material on the other side.
+- **Value:** a won base plus push-to-edge for the lone king plus kings-close. KBNK pushes to a corner of the bishop's colour.
+  The formulas follow tier2b's SF15.1 shapes.
+- **Correctness check:** the tablebase, not a reference engine. This is objectively correct technique, so it is not an SF-clone
+  question.
+- **Gate:** re-run this probe with the knob.
+  - KBNK ≥ 28 / 30 at 1M and at 100k.
+  - KBBK ≥ 29 / 30 at 100k.
+  - KQK / KRK no failures and fewer moves.
+  - The mirror test.
+  - The WAC bench may well be unchanged (bare-king positions there are unlikely; not checked), in which case the ship proof
+    of activation is this probe.
+- **Cost:** about an evening, mostly the 16-minute probe.
+
 ## 📈 2026-11-10 22:35 — BENCH CHECKPOINT #3 (queue #194): Stockfish 1.1 at 39.5%, the series high; record queue on gen 7.1
 This is the transition's formal last bench step (the 10-19 list; the owner said "ok" to the close-out order on 11-10). The
 close-out left production unchanged: gen 7.1, 247 / 39,852,210, fingerprint checked at the start.
@@ -47,11 +101,14 @@ frozen):
 | WAC d10 (fingerprint) | 258 / 47,689,413 / EBF 3.926 | **247 / 39,852,210 / 3.762** | deterministic. Tighter pruning (RFP 600, lazy eval) costs fixed-depth solves; WAC at d10 does not discriminate strength |
 | STS300 d10 | 2,115 | **2,006** | fixed depth falls as pruning tightens (10-30). Equal nodes is the honest reading, and it was not re-run here (gen 7: 1,890 at 249k nodes, #169) |
 | STS full d10 (15,000) | 9,727 (64.8%) | **10,156 (67.7%)** | +429; above gen 7's 10,006 (#169) and SF11's 65.5% at d10 (07-28; equal depth flatters us) |
-| WAC at LIGHTNING: solved · mean depth (non-mate, n = 228) | 254 · 13.8 | 269 · 15.59 (72 mates found) | provisional: the end of the run may have overlapped a side bench of mine (20:14) |
-| WAC speed, Cython, pinned, max of 3 | 397k nps | 1,016,120 (median 1,008,917, spread 1.1%) | provisional: overlapped two side benches of mine (20:14-20:17) |
+| WAC at LIGHTNING: solved · mean depth (non-mate) | 254 · 13.8 | **269 · 15.59** (n = 228); quiet re-run 269 · 15.54 (n = 229) | **+1.8 ply at equal time** over gen 4; the two runs agree |
+| WAC speed, Cython, pinned, max of 3 | 397k nps | **1,016,120** (median 1,008,917, spread 1.1%); quiet re-run 959,832 (median 938,141, spread 3.7%) | **2.6× gen 4**; gen 6.7 997,290 (#158, clean) |
 
-- The two provisional timed legs are re-run on a quiet box as queue #196 step 1 (`checkpoint3/*_quiet.log`), and those runs
-  replace these numbers.
+- My two side benches (20:14-20:17) overlapped the timed legs, so #196 step 1 re-ran them on a box where WSL held only the run
+  itself (`checkpoint3/*_quiet.log`, 22:52-23:00).
+- The overlap did no measurable harm. Depth agrees. The re-run's speed came out *lower*, and its session was the slower one:
+  its own production bench took 33.0 s against 29.2 s at 19:59, from Windows-side load.
+- Disturbance only lowers nps, so the higher reading (#194's) is the least-disturbed one and stays the headline.
 - STS full's weakest themes are the same five as on 10-20: a/b/c-pawn advancement 57%, offer of simplification 59%, AT 60%,
   AKPC 62%, king activity 62%. Per-theme deltas do not replicate; the total is the tracked number.
 - The EPD carries a second spelling of the knight-outpost theme name, so the theme splits into 0 / 10 + 722 / 990. The total

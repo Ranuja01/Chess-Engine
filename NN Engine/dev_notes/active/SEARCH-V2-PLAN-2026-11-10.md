@@ -140,6 +140,29 @@ Reads:
 - **Last-level data misses are few** (8.4 M read misses in 10.7 G instructions); the eval / TT cache probe owns 7% of them.
   Memory waits are not where this workload's time goes, which matches the downgrade of the prefetch items (§7).
 
+### 6.2b The v2 path's profile (11-11, queue #206)
+
+perf, profiling copy `build_uci/chess_engine_uci_sv2prof` (production flags + `-g -fno-omit-frame-pointer`, no PGO; bench
+247 / 39,861,964), 24 game positions (`game_regret_set`, every 625th row) to depth 12, the same 17,622,774 nodes on both
+arms: `SEARCH_ARM=1` 12,344 ms, `=0` 12,963 ms (−4.8%, one run each; consistent with #204's −1.87% instructions, not a
+speed claim). perf data must go to `/tmp` (DrvFs: "Bad address"). Self time with `SEARCH_ARM=1`
+(`E:\chess_data\sv2_profile\self_arm1.txt`):
+
+| group | share | parts |
+|---|---|---|
+| eval v2 | ≈ 30% | `placement_and_piece_eval_v2` 10.1, `ks_channels` 6.6, `build_side_attacks` 4.3, `placement_detect` 2.8, `kfl_side` 1.9, `threats_mp` 1.6 |
+| move generation | **≈ 20%** | `generateLegalMovesReordered` 10.5, `generatePseudoLegalMoves` 5.9, `generateLegalMovesPre` 3.8 |
+| v2 search code | ≈ 17% | `score_move` 9.7 (true 6.0 + false 3.7), `negamax` 5.0, `qsearch` 2.6; the TT probe (~6.4 in arm 0), the repetition test and Zobrist update are inlined into it |
+| make / unmake | ≈ 9% | `make_move` 6.8, `update_state` 2.2 |
+| SEE, attacks | ≈ 4.5% | `see_impl` 3.1, `attackersMask` 1.5 |
+
+**What it means for S2.** Move generation is the largest cost outside the eval: every interior node generates,
+legality-checks and sorts its full list, though ~92% of cutoffs come on the first move. Today's order cannot be reproduced
+lazily: a losing capture scores near zero and sorts among the quiets, quiet scores mix history, counter, continuation and
+check bonuses, killers are spliced after the captures, and the move cache reorders lists. So saving that work changes the
+order: it is S3's staged picker (a behaviour change, judged in games), not a result-identical S2 item. The result-identical S2
+items (F16 per-position facts, F17 16-bit moves, prefetch) each address a few percent at most here.
+
 ### 6.3 Stack frames (11-10, `-fstack-usage`)
 
 `E:\chess_data\s0_profile_2026-11-10\stack_top40.txt`. Per ply the search uses about 1.8 KB: `maximizer` 1,168 B +

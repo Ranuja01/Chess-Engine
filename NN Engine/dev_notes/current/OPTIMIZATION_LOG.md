@@ -4,6 +4,30 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-11 12:27 — GEN 7.2 SHIPPED (owner: "sure"): MOPUP_V2 100 + no resignation in a bare-king defence
+**What:** gen 7.1 plus two changes.
+- `MOPUP_V2 = 100` in the gen 7 block of the shipped preset. `MOPUP_V2=0` restores gen 7.1 exactly.
+- The search's resign check, and the UI's UCI wrapper (`ChessUI/chess_engine.py`, local submodule edit), never resign with a
+  lone king against no pawns. The owner asked for this after the bare-king value turned out to pass −15000 near the K+B+N
+  mating corner: "a small addition to not resign in bare endgames probably would help with no otherwise costs".
+
+**Evidence:** #198 above (narrow item, judged where it fires) and #197 (the technique is knowledge, not depth).
+
+**Queue #199** (`chess_engine_uci_g72pgo`, PGO; installed 12:27):
+
+| check | result |
+|---|---|
+| default | **247 / 39,861,964 / 3.762** (Cython the same) |
+| `MOPUP_V2=0` | 247 / 39,852,210 = gen 7.1 ✅ |
+| `LAZY_V2=0,MOPUP_V2=0` | 246 / 36,509,830 = gen 7 ✅ |
+| `V2_SHIP_GEN=6` | 251 / 36,859,850 = gen 6.7 ✅ |
+| v1 | 250 / 35,310,778 ✅ |
+| mirror test, N=4000 | 0 violations ✅ |
+| pinned bench × 6 vs gen 7.1 | −0.6% time, +0.6% nps (noise) |
+| smoke, 60 g at 10+0.1 vs gen 7.1 | 31.5 / 60, 0 forfeits, 0 stalls; real-play nps 1,463,095 vs 1,447,840, depth 11.2 both |
+
+Backups: `chess_engine_uci_g71pgo`; gen 7.1's Cython module in `/mnt/e/chess_data/pgo_g72/`. BASELINE_PERF row added.
+
 ## 🔬 2026-11-11 11:22 — SEARCH OR KNOWLEDGE? (queue #197): bare-king technique is eval knowledge, not depth
 **Why it ran:** the owner asked on 11-11 whether the giants mate with bishop + knight through "deep search" or through "eval
 knowledge". It reused the #195 probe on its 60 KBNK + KBBK positions, with SF18 defending at 200k nodes.

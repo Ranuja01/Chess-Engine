@@ -14,7 +14,20 @@ Every new production build gets a row in the ledger below, before or at install:
    107.7, SF18 WDL 384.2; OPTIMIZATION_LOG 10-30). Gen 6.5 and the gen 6.6 candidate are search-only. **Owner 11-04: re-run
    it after the full retune steps** (the final retune at the end of the transition arc).
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7.1 + PGO (2026-11-09 12:56, owner), `chess_engine_uci_g71pgo`
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7.2 + PGO (2026-11-11 12:27, owner), `chess_engine_uci_g72pgo`
+- WAC d10 fingerprint **247 / 39,861,964 / EBF 3.762** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 7.1 + `MOPUP_V2 100`
+  (the bare-king technique value) in the shipped preset's gen 7 block, plus no resignation with a lone king against no pawns.
+  Knobs: `MOPUP_V2=0` = gen 7.1 247 / 39,852,210 · `LAZY_V2=0,MOPUP_V2=0` = gen 7 246 / 36,509,830 · `V2_SHIP_GEN=6` = gen 6.7
+  251 / 36,859,850 · v1 250 / 35,310,778. Id "AlphaUX (v2 gen 7.2)". Profile `/mnt/e/chess_data/pgo_g72`. Backups: `g71pgo`
+  (gen 7.1), gen 7.1's .so in `pgo_g72/`. Queue #199. Mirror test N=4000: 0 violations.
+- A narrow item judged where it fires (OPTIMIZATION_LOG 11-11 11:10): K+B+N vs K 30 / 30 at 1M nodes (was 1), two bishops
+  30 / 30 at 100k (was 15); cachegrind +0.0009% instructions elsewhere.
+
+  | build (production from) | change | pinned UCI bench, same session | real-play nps (venue) | games check | Cython module (UI) |
+  |---|---|---|---|---|---|
+  | **`chess_engine_uci_g72pgo` (11-11) = current** | gen 7.2 (MOPUP_V2 100 + bare-king no-resign) | #199, alternating × 6 vs `g71pgo`: **gen 7.2 31,438 ms mean · 1,268,039 nps; gen 7.1 31,622 ms · 1,260,704** ⇒ −0.6% time (noise; tree +0.02%) | production smoke vs `g71pgo`, 60 g 10+0.1 UHO (#199): **1,463,095 vs 1,447,840 (+1.1%)**, depth 11.2 / 11.2, nodes per move 345,350 vs 344,733 | smoke 31.5 / 60, 0 forfeits, 0 stalls | 247 / 39,861,964 / 3.762 |
+
+## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 7.1 + PGO (2026-11-09 12:56 – 11-11, owner), `chess_engine_uci_g71pgo`
 - WAC d10 fingerprint **247 / 39,852,210 / EBF 3.762** (UCI `bench` == Cython `V2_PRESET=shipped` == keep_gate's knobs on
   `chess_engine_uci_lazy3`). = gen 7 + lazy eval keep_gate (`LAZY_V2 7`, `LAZY_V2_KEEP 1`, `LAZY_V2_GATE 3`) in the shipped
   preset's gen 7 block. Knobs: `LAZY_V2=0` = gen 7 246 / 36,509,830 · `V2_SHIP_GEN=6` = gen 6.7 251 / 36,859,850 · `=5` 258 /
@@ -29,7 +42,7 @@ Every new production build gets a row in the ledger below, before or at install:
   |---|---|---|---|---|---|
   | **`chess_engine_uci_g71pgo` (11-09) = current** | gen 7.1 (lazy eval keep_gate) | #188, alternating × 6 vs `g7pgo`: **gen 7.1 30,136 ms mean · 1,322,646 nps; gen 7 28,926 ms · 1,262,632** ⇒ nps +4.8%, **+4.2% slower to depth 10 on WAC** (tree +9.2%; the 22-set grid read −5.1%, #186) | production smoke vs `g7pgo`, 60 g 10+0.1 UHO (#188): **1,469,885 vs 1,392,146 (+5.6%)**, depth 11.2 / 11.1, nodes per move 343,960 vs 324,552; keep_gate knobs on lazy3, 2,000 g (#185): +6.3% | +12.9 (−0.7 … +26.5) on lazy3; smoke 29 / 60, 0 forfeits | 247 / 39,852,210 / 3.762 |
 
-## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 7 + PGO (2026-11-07 10:23 – 11-09, owner), `chess_engine_uci_g7pgo`
+## ⭐⭐⭐ EARLIER ENGINE: v2 gen 7 + PGO (2026-11-07 10:23 – 11-09, owner), `chess_engine_uci_g7pgo`
 - WAC d10 fingerprint **246 / 36,509,830 / EBF 3.783** (UCI `bench` == Cython `V2_PRESET=shipped` == arm S's file knobs on gen 6.7).
   = gen 6.7 + the big retune's stage 1 tables (arm S) compiled in `ship_tables_v5.h`, `V2_SHIP_GEN` 7 + S's piece values. Knobs:
   `V2_SHIP_GEN=6` = gen 6.7 251 / 36,859,850 · `=5` 258 / 47,689,586 · v1 250 / 35,310,775 (UCI) / 35,310,778 (Cython). Id

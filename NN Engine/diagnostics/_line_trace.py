@@ -30,9 +30,15 @@ import os, sys, json, math, tempfile, collections
 KV = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a)
 THIS = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.dirname(THIS)
-if os.environ.get("CHESSAI_DIR") or KV.get("CHESSAI_DIR"):    # a test build of the engine module, kept apart from the live one
-    sys.path.insert(0, os.environ.get("CHESSAI_DIR") or KV["CHESSAI_DIR"])
 sys.path.insert(0, ENGINE); sys.path.insert(0, THIS)
+# a test build of the engine module, kept apart from the live one the UI loads: it must come FIRST on the path and be
+# imported here, before tactical_test puts the engine folder (and its live module) in front again
+CHESSAI_DIR = os.environ.get("CHESSAI_DIR") or KV.get("CHESSAI_DIR")
+if CHESSAI_DIR:
+    sys.path.insert(0, CHESSAI_DIR)
+    import ChessAI as _chessai_module
+    assert os.path.dirname(os.path.abspath(_chessai_module.__file__)) == os.path.abspath(CHESSAI_DIR), _chessai_module.__file__
+    print("engine module: %s" % _chessai_module.__file__, flush=True)
 os.environ.setdefault("PRESET", "LONG_FORMAT"); os.environ.setdefault("USE_OPENING_BOOK", "0")
 import chess, chess.engine
 MODE = KV.get("MODE", "report")

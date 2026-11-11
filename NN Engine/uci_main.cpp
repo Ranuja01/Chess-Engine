@@ -375,6 +375,7 @@ namespace
         g_uci_stop.store(false);
         long long nodes = 0;
         int n = 0, solved = 0;
+        const bool per_pos = std::getenv("BENCH_PER_POS") != nullptr;
         const auto t0 = std::chrono::steady_clock::now();
         std::string line;
         while (std::getline(f, line))
@@ -395,6 +396,9 @@ namespace
             const MoveData md = get_engine_move(g.history, g.counts);
             nodes += md.num_iterations;
             ++n;
+            // BENCH_PER_POS=1: each position's node count, to find where two runs part (e.g. a layout-dependent wobble)
+            if (per_pos)
+                say("info string bench pos " + std::to_string(n) + " nodes " + std::to_string(md.num_iterations));
             if (md.a >= 1)
             {
                 std::string u;

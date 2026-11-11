@@ -418,6 +418,18 @@ the same trees (load-insensitive), real-play nps on a quiet box, and a short gam
 only if the speed reads are not level. The node-type templates (PV / non-PV) and the
 `Stack` struct (F18) are refactors of the v2 file that keep its fingerprint; each lands with the same bench check.
 
+**S1 accepted as not harmful for now; watched as v2 grows (owner 11-11: "lets keep a watch on it as we continue building").**
+The fixed-depth bench cannot see everything, so these run again at every v2 step:
+
+| # | watch | tool | when |
+|---|---|---|---|
+| SW1 | node-for-node identity on the bench sets (WAC, mirrors, STS300, bare kings, perpetual) | `diagnostics/_sv2_identity.sh` | every v2 change meant to keep results |
+| SW2 | game conditions: tables carried from move to move (no reset), and searches stopped part-way by a node limit (the abort paths) | `diagnostics/_sv2_game_identity.py` (self-play per arm, fixed depth and fixed nodes) | every v2 change meant to keep results |
+| SW3 | speed: instructions on identical trees; then real-play nps on a quiet box and a PGO build | cachegrind (queue #204's form); `_ebf_per_iter.py` | each step (instructions); before `SEARCH_ARM=1` becomes the default (nps, PGO) |
+| SW4 | diagnostics not ported (shadow logger, line tracer, LMR / cutoff profiles, prune log): any test that needs them runs on `SEARCH_ARM=0` or ports them first. Test D's re-read at S5 needs the shadow logger in v2 | this list | when a test is planned |
+| — | **S1 reads (11-11):** SW1 1,249 positions SAME; **SW2 12 of 12 games SAME** (6 starts × depth 8 / nodes 30000, up to 60 plies, tables carried over); SW3 −1.87% instructions. Not vacuous: `[toggles]` reads `SEARCH_ARM=1` and the instruction counts differ | | |
+| SW5 | before `SEARCH_ARM=1` is shipped as the default: a games read at equal time, registered then, even at identity (the switch also changes the PGO profile and code layout) | fastchess, the ship rule | at that ship |
+
 **Speed read 1 (queue #204, 11-11 15:17; registered in the queue header: level = within ±0.5%):** cachegrind, plain build,
 12 game positions at d10, the same 3,179,520 nodes on both arms: arm 0 **18,171,848,914** instructions, arm 1
 **17,832,294,422**, **−1.87%** ⇒ **v2 faster** by the registered rule. The prediction (within ±1%) was wrong. Likely source:

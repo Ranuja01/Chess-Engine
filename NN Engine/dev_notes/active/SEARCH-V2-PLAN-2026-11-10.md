@@ -269,6 +269,22 @@ Checked against the 10-19 transition list (`archive/handoffs/SESSION-HANDOFF-202
   B measured; it stays a candidate for S5 only with its own test.
 - **E1:** PARKED (tablebase study, register row).
 
+### 7d. POT due diligence (owner 11-11: "lets give it the proper due diligence before writing it off or benching")
+
+No POT item is closed or parked on tests A and B as they stand (A missed by a hair with a consistent effect; B was
+underpowered). Four tests on today's engine come first. Each one's prediction and stop rule are written here BEFORE it
+runs and are not moved afterwards. The search-side candidates (S-1 to S-5, analysis §5) are placed only after these.
+
+| step | question | data and method | registered (11-11, before any run) |
+|---|---|---|---|
+| **A-rep** | does structural magnitude predict the size of our error on independent QUIET rows? | `wdlcal/cal_wdl.csv` (6,000 quiet rows, SF18 WDL labels). Fresh d10 pass of production (`_depth_residual_pass.py`) plus our static eval. β = test A's, fitted on all of test A's rows and FROZEN; the control model (same four controls) fitted on the quiet rows by 5 random folds; the same estimator (top fifth of U over bottom fifth of mean error, within control terciles). Shuffled-U null | **KEEP:** pooled ratio ≥ 1.25 AND bootstrap 95% lower bound > 1.10. **Prediction: 1.10-1.25** (quiet errors are smaller and less structural than the tactical trajectory starts) ⇒ a likely MISS on the bar with a lower bound above 1.0. **Stop:** lower bound ≤ 1.0 ⇒ the magnitude half has no quiet-row support |
+| **B-powered** | is extra depth worth more where U is high? | `game_regret_set` (15,000) + `game_regret_set_v2` (11,940, after finishing its last 1,208 d12 rows) pooled ≈ 26,900 rows; the same U and estimator (`MODE=depthgain`, a `DIR` knob for both sets). Secondary: critical rows only, best-vs-second gap ≥ 10 win% pts in the stored multi-PV (lower variance) | **KEEP:** pooled ALL ratio ≥ 1.5 with top − bottom > 2 SE, OR critical-row ratio ≥ 1.5 with > 2 SE. **Prediction:** ALL 1.0-1.3 (MISS), critical 1.1-1.6 (open). **Stop:** both reads with 2σ upper bounds below 1.3 ⇒ magnitude-as-selectivity (S-3 extend / reduce on U, S-4 time on U) closes; the trust form (margins) needs its own test |
+| **C** | are plan moves reduced or pruned as if they were ordinary late moves? | a probe on the triage cases' SF lines (g7a, g7b, g1c, g5b, g5c, g6a, g3a, g3b, g2b): for each SF move, its ordering index, reduction and whether it was pruned at the node where it is played, our normal search vs `NO_PRUNE` | registered when the probe is written (before it runs) |
+| **D** | do POT markers separate wrong prunes? | `ENABLE_PRUNE_SHADOW` + `_shadow_auc.py` with four new fields (U at the node; lever push; heavy piece onto a break file; break file at a king zone) on a quiet middlegame set, fixed depth | as analysis §5: **KEEP** a marker at AUC ≥ 0.60 on ≥ 200 wrong events that still separates within the existing leaders' strata; **Stop:** nothing above 0.55 (today, and again at S5) closes the move-class half |
+
+Order: gen 7.2's ship queue first (#199; nothing else runs during a build), then A-rep and B-powered (no new code), then C
+and D as their probes are written. All fixed-depth or node-limited: safe beside the owner's games.
+
 ## 8. Questions for the owner
 
 1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory

@@ -121,9 +121,23 @@ frozen):
 - Depth ladder: search v2 plan §6.1.
 - Critical-move test: the d12 regret pass, mean 1.219 on `game_regret_set` (#193). The second set runs as #196 step 3.
 
-**4. Still to come, in queue #196:**
-- The transition end to end: gen 7.1 vs gen 4 (`selfplay/gen4_uci.sh`), 300 games at 60+0.6. Registered as a summary, not a
-  gate; predicted +120 to +220.
+**4. The transition end to end** (queue #196 step 2, 11-10 23:00 → 11-11 02:21): gen 7.1 vs gen 4 (`selfplay/gen4_uci.sh`,
+fingerprint 258 / 47,689,413 checked), 300 games at 60+0.6, UHO, seed 196001. Registered as a summary, not a gate; predicted
++120 to +220.
+- Result: **+231 −32 =37, 83.2%, +277.5 Elo (95% +234.9 … +328.5)**, pentanomial [1, 4, 30, 25, 90], 0 forfeits, 0 stalls;
+  260 games adjudicated, 40 played out. **Above the predicted band.**
+- Per engine (searched moves only):
+
+  | engine | s / move (mean · median · p95) | depth | nodes / move | nps |
+  |---|---|---|---|---|
+  | gen 4 | 0.951 · 0.810 · 1.902 | 12.5 | 834k | 876,834 |
+  | **gen 7.1** | 1.534 · 1.246 · 3.737 | **14.0** | 2.23 M | **1,452,512** |
+
+- Gen 4 spends 62% of gen 7.1's time per move. That is the clock rule the transition shipped (gen 6.1 `TM_MODE=1`, gen 6.2 TM
+  arm E), so it belongs in the end-to-end number, but this match cannot split it from search, speed and eval.
+- Self-play between versions this far apart usually overstates the external gain. The independent anchor is the Stockfish 1.1
+  series on fixed openings: gen 6.1 22.5% → gen 7.1 39.5%, about +140 Elo from gen 6.1 alone (no gen 4 point exists). Read
+  +277 as "large, and larger than predicted", not as a rating difference against other engines.
 
 ## 2026-11-10 20:20 — Speed items F24 + F26 built and measured NEUTRAL by the instruction-count yardstick (knobs stay 0)
 

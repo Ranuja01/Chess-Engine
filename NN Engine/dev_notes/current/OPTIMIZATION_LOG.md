@@ -4,6 +4,28 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🔬 2026-11-11 11:22 — SEARCH OR KNOWLEDGE? (queue #197): bare-king technique is eval knowledge, not depth
+**Why it ran:** the owner asked on 11-11 whether the giants mate with bishop + knight through "deep search" or through "eval
+knowledge". It reused the #195 probe on its 60 KBNK + KBBK positions, with SF18 defending at 200k nodes.
+
+Source survey first: hand-written KXK / KBNK handlers exist only in Stockfish's classical line (SF 1.1, SF11, SF15.1). There are
+none in SF16-18, Reckless, Ethereal or Weiss, which rely on Syzygy, plus NNUE for the first three.
+
+| arm (attacker) | what it has | KBBK | KBNK (moves / DTM) |
+|---|---|---|---|
+| SF11 @ 10k nodes | hand-written handler, almost no search | 30 | **29** (28 / 24) |
+| SF 1.1 @ 1M | hand-written handler | 30 | **30** (25 / 25) |
+| SF18 @ 100k | NNUE, no handler, no tablebases | 30 | **29** (31 / 25) |
+| SF18 @ 1M | NNUE, no handler, no tablebases | 30 | **30** (25 / 25) |
+| v2 gen 7.1 @ 10M | no knowledge, search only | 29 | **1** (28 fifty-move draws) |
+
+- Registered: SF11 / SF 1.1 / SF18 100k ≥ 25, SF18 1M ≥ 28, v2 10M ≤ 6, v2 KBBK ≥ 28 → **all six inside**.
+- **Reading:** it is **knowledge**. SF11 mates with 10k nodes, while v2 with 1,000× the nodes mates 1 / 30. SF18 has no rule, but
+  its net has learned the technique: it mates at 100k nodes, 100× fewer than v2's failing budget. Depth alone does not find a
+  mate 25+ moves away when the eval gives no gradient toward the right corner.
+- That makes the cheap rule the right fix for an HCE. #198 above shows `MOPUP_V2=100` reaching the reference engines' level
+  (30 / 30 at 1M, 27 / 30 at 100k). An NNUE would learn it from data, and tablebases would make it exact (owner: "whenever").
+
 ## ✅ 2026-11-11 11:10 — MOPUP_V2 BUILT AND GATED (queue #198): ship candidate, owner's call
 **Why:** the owner decided on 11-11, after #195: "adding a tablebase can be done whenever. For now lets have a cheap technique
 rule. As long as it adds negligible time in general."

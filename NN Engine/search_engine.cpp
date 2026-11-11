@@ -1234,6 +1234,70 @@ namespace
         }
     }
 
+    // Line tracer (diagnostic; test C of the POT due diligence). TRACE_TARGETS names a file of boards, one per line:
+    // "k pawns knights bishops rooks queens kings white black turn" (python-chess square order, turn 1 = White to move),
+    // each the position after move k of a reference line. It is read at the start of every search. Where a child the
+    // search makes equals one of them, one [TRACE] record on stderr says how the move into it was treated: ordering
+    // index, remaining depth, prune kind or reduction, re-search. No file = g_trace_on false = no record, no change.
+    struct TraceBoard
+    {
+        uint64_t bb[8];
+        bool turn;
+        int k;
+    };
+    std::vector<TraceBoard> g_trace_boards;
+    bool g_trace_on = false;
+    int g_trace_iter = 0;   // the iterative-deepening depth being searched, for the records
+    inline void trace_load()
+    {
+        g_trace_boards.clear();
+        g_trace_on = false;
+        const char *path = std::getenv("TRACE_TARGETS");
+        if (!path || !*path)
+            return;
+        FILE *f = std::fopen(path, "r");
+        if (!f)
+            return;
+        TraceBoard t;
+        int turn = 0;
+        unsigned long long v[8];
+        while (std::fscanf(f, "%d %llu %llu %llu %llu %llu %llu %llu %llu %d", &t.k, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7], &turn) == 10)
+        {
+            for (int j = 0; j < 8; ++j)
+                t.bb[j] = v[j];
+            t.turn = turn != 0;
+            g_trace_boards.push_back(t);
+        }
+        std::fclose(f);
+        g_trace_on = !g_trace_boards.empty();
+    }
+    inline int trace_match(const BoardState &s)
+    {
+        for (const TraceBoard &t : g_trace_boards)
+            if (s.turn == t.turn && s.pawns == t.bb[0] && s.knights == t.bb[1] && s.bishops == t.bb[2] && s.rooks == t.bb[3] &&
+                s.queens == t.bb[4] && s.kings == t.bb[5] && s.occupied_colour[1] == t.bb[6] && s.occupied_colour[0] == t.bb[7])
+                return t.k;
+        return -1;
+    }
+    // One record per visit, printed when the move's handler returns (so after its subtree). kind: first (full window,
+    // first move), scout (null window, not reduced), reduced, LMP / HIST / SEE / SEEC / FUT (pruned), tt (cut by the
+    // table on arrival), rep (repetition or fifty-move draw).
+    struct TraceRec
+    {
+        int k = -1, ply = 0, dl = 0, i = 0, red = 0, research = 0, tt = 0, ext = 0, alpha = 0, beta = 0, score = 0;
+        int nullsrch = 0, inshadow = 0, cap = 0, it = 0;
+        bool side_max = false;
+        const char *kind = "?";
+        ~TraceRec()
+        {
+            if (k >= 0)
+                std::cerr << "[TRACE] k=" << k << " it=" << it << " side=" << (side_max ? "max" : "min") << " ply=" << ply << " dl=" << dl
+                          << " rd=" << (dl - ply) << " i=" << i << " kind=" << kind << " red=" << red << " rs=" << research
+                          << " tt=" << tt << " ext=" << ext << " cap=" << cap << " ns=" << nullsrch << " sh=" << inshadow
+                          << " a=" << alpha << " b=" << beta << " sc=" << score << "\n";
+        }
+    };
+
     // Cutoff-calibration logger (diagnostic; ENABLE_CUTCAL_LOG). At each quiet beta-cutoff the labels are
     // known for free: the cutting quiet CUT, the tried-and-failed quiets (searched_quiets) FAILED. Bucket
     // both by their statScore (same sum the shipped statScore-LMR reads) to build P(cut | statScore) and the
@@ -4088,6 +4152,7 @@ static std::unordered_map<uint64_t, int> g_pre_root_counts;
 
 MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_map<uint64_t, int> &position_count)
 {
+    trace_load(); // diagnostic line tracer (TRACE_TARGETS); no file = off
 #ifdef EVAL_PROFILE
     eval_profile_reset(); // accumulate PROF scopes across this one search, dump at the end
     // ★ THE DENOMINATOR for "what fraction of a node is eval?" (2026-09-20). ⚠️ Deliberately NOT a
@@ -4257,6 +4322,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         }
 
         depth_limit++;
+        g_trace_iter = depth_limit;
         if (depth_limit == id_depth_cap && id_depth_cap < Config::MAX_ITERATIVE_DEPTH)
             ++g_fixcnt_depthcap;   // this search reached the table bound and would have gone deeper before
 
@@ -5333,10 +5399,17 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
     int score = 0;
     const bool best_mated = Config::FIX_MATE_GATE && g_best_mated; // read before anything below can recurse
     BoardState updated_state = state_history.back();
+    TraceRec tr;
+    if (g_trace_on && (tr.k = trace_match(updated_state)) >= 0)
+    {
+        tr.side_max = false; tr.ply = cur_depth; tr.dl = depth_limit; tr.i = i; tr.alpha = alpha; tr.beta = beta;
+        tr.nullsrch = is_in_null_search; tr.inshadow = g_in_shadow; tr.cap = capture_move; tr.it = g_trace_iter;
+    }
     if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || fifty_move_draw(updated_state))
     {
         FIXCNT_FIFTY(updated_state);
         score = 0;
+        tr.kind = "rep";
     }
     else
     {
@@ -5365,6 +5438,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
         CheckExtensionGuard ceg(extend);
         if (extend)
             depth_limit++;
+        tr.ext = extend;
+        tr.dl = depth_limit;
 
         TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
         tt_visits++;
@@ -5394,6 +5469,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                 // Full window search for first move
                 if (!using_tt)
                 {
+                    tr.kind = "first";
                     score = maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                     if (cur_depth < depth_limit - 1)
                     {
@@ -5499,6 +5575,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                             g_in_shadow = false;
                             shadow_record(true, true, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                         }
+                        tr.kind = "LMP";
                         return 9999999; // non-improving sentinel for the minimizer (never the new min, no false cutoff)
                     }
                 }
@@ -5511,6 +5588,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
                     {
+                        tr.kind = "HIST";
                         return 9999999;
                     }
                 }
@@ -5523,7 +5601,10 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     int rd_see = depth_limit - cur_depth;
                     if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
                         see(move.to_square, updated_state.turn, updated_state) > Config::SEE_PRUNE_MARGIN)
+                    {
+                        tr.kind = "SEE";
                         return 9999999;
+                    }
                 }
 
                 // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
@@ -5534,7 +5615,10 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     int rd_cap = depth_limit - cur_depth;
                     if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
                         see(move.to_square, current_state.turn, current_state) < -Config::SEE_PRUNE_CAPTURE_MARGIN)
+                    {
+                        tr.kind = "SEEC";
                         return 9999999;
+                    }
                 }
 
                 // Null window search with LMR applied inside
@@ -5571,6 +5655,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                                 g_in_shadow = false;
                                 shadow_record(false, true, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                             }
+                            tr.kind = "FUT";
+                            tr.score = early_score;
                             using_fp = true;
                             return early_score;
                         }
@@ -5618,6 +5704,8 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                         }
                     }
                     was_reduced = reduced_depth < depth_limit;
+                    tr.kind = was_reduced ? "reduced" : "scout";
+                    tr.red = depth_limit - reduced_depth;
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -5656,10 +5744,12 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     else
                     {
                         tt_hits++;
+                        tr.tt = 1;
                     }
                 }
                 else
                 {
+                    tr.kind = "scout";
 
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
@@ -5697,6 +5787,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     else
                     {
                         tt_hits++;
+                        tr.tt = 1;
                     }
                 }
 
@@ -5715,6 +5806,7 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
                     if (Config::ENABLE_LMR_COUNTERS && do_lmr)
                         g_lmr_researches++;
                     using_tt = false;
+                    tr.research = 1;
 
                     if (!using_tt)
                     {
@@ -5756,8 +5848,10 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
         else
         {
             tt_hits++;
+            tr.kind = "tt";
         }
     }
+    tr.score = score;
     return score;
 }
 
@@ -5774,10 +5868,17 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
     std::vector<Move> dummy_moves;
     RootScore dummy_entry;
     BoardState updated_state = state_history.back();
+    TraceRec tr;
+    if (g_trace_on && (tr.k = trace_match(updated_state)) >= 0)
+    {
+        tr.side_max = true; tr.ply = cur_depth; tr.dl = depth_limit; tr.i = i; tr.alpha = alpha; tr.beta = beta;
+        tr.nullsrch = is_in_null_search; tr.inshadow = g_in_shadow; tr.cap = capture_move; tr.it = g_trace_iter;
+    }
     if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, updated_state) || fifty_move_draw(updated_state))
     {
         FIXCNT_FIFTY(updated_state);
         score = 0;
+        tr.kind = "rep";
     }
     else
     {
@@ -5806,6 +5907,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
         CheckExtensionGuard ceg(extend);
         if (extend)
             depth_limit++;
+        tr.ext = extend;
+        tr.dl = depth_limit;
 
         TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
         tt_visits++;
@@ -5833,6 +5936,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                 // Full window search for first move
                 if (!using_tt)
                 {
+                    tr.kind = "first";
                     score = minimizer(cur_depth + 1, depth_limit, alpha, beta, t0, dummy_ints, dummy_moves, dummy_entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, is_in_null_search);
                     if (cur_depth < depth_limit - 1)
                     {
@@ -5938,6 +6042,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                             g_in_shadow = false;
                             shadow_record(true, false, shadow, alpha, beta, (int)i, rd, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                         }
+                        tr.kind = "LMP";
                         return -9999999; // non-improving sentinel for the maximizer (never the new max, no false cutoff)
                     }
                 }
@@ -5950,6 +6055,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     if (rd_hp >= 1 && rd_hp <= Config::HIST_PRUNE_MAX_DEPTH &&
                         historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd_hp)
                     {
+                        tr.kind = "HIST";
                         return -9999999;
                     }
                 }
@@ -5962,7 +6068,10 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     int rd_see = depth_limit - cur_depth;
                     if (rd_see >= 1 && rd_see <= Config::SEE_PRUNE_MAX_DEPTH &&
                         see(move.to_square, updated_state.turn, updated_state) > Config::SEE_PRUNE_MARGIN)
+                    {
+                        tr.kind = "SEE";
                         return -9999999;
+                    }
                 }
 
                 // SEE pruning of losing captures: a capture whose static exchange loses material (pre-move
@@ -5973,7 +6082,10 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     int rd_cap = depth_limit - cur_depth;
                     if (rd_cap >= 1 && rd_cap <= Config::SEE_PRUNE_MAX_DEPTH &&
                         see(move.to_square, current_state.turn, current_state) < -Config::SEE_PRUNE_CAPTURE_MARGIN)
+                    {
+                        tr.kind = "SEEC";
                         return -9999999;
+                    }
                 }
 
                 // Null window search with LMR applied inside
@@ -6009,6 +6121,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                                 g_in_shadow = false;
                                 shadow_record(false, false, shadow, alpha, beta, (int)i, depth_limit - cur_depth, historyHeuristics[current_state.turn][move.from_square][move.to_square], move, previousMove, current_state, cur_depth, alpha_orig, beta_orig, (int)capture_move, (int)currently_in_check, (int)is_in_null_search, zobrist, updated_state);
                             }
+                            tr.kind = "FUT";
+                            tr.score = early_score;
                             using_fp = true;
                             return early_score;
                         }
@@ -6056,6 +6170,8 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                         }
                     }
                     was_reduced = reduced_depth < depth_limit;
+                    tr.kind = was_reduced ? "reduced" : "scout";
+                    tr.red = depth_limit - reduced_depth;
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
                     {
@@ -6095,10 +6211,12 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     else
                     {
                         tt_hits++;
+                        tr.tt = 1;
                     }
                 }
                 else
                 {
+                    tr.kind = "scout";
 
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
                     if (entry != nullptr)
@@ -6136,6 +6254,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     else
                     {
                         tt_hits++;
+                        tr.tt = 1;
                     }
                 }
 
@@ -6153,6 +6272,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
                     if (Config::ENABLE_LMR_COUNTERS && do_lmr)
                         g_lmr_researches++;
                     using_tt = false;
+                    tr.research = 1;
 
                     if (!using_tt)
                     {
@@ -6194,6 +6314,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
         else
         {
             tt_hits++;
+            tr.kind = "tt";
         }
 
         /* if (!using_tt){
@@ -6210,6 +6331,7 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
             }
         }   */
     }
+    tr.score = score;
     return score;
 }
 

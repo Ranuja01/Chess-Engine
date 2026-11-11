@@ -26,17 +26,17 @@ OUT=/mnt/e/chess_data/mopup2
 SMOKE=/mnt/e/chess_data/mopup2_smoke
 DUMPS=/mnt/c/Users/Kumodth/AppData/Local/Temp/wsl-crashes
 STOP=/mnt/e/chess_data/q197.stop
-LATEST=$(date -d '2026-11-11 07:00' +%s)
+LATEST=$(date -d '2026-11-11 19:30' +%s)
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 cd "$ND" || exit 1
 rm -f "$STOP"
-echo "[q197] $(date '+%Y-%m-%d %H:%M:%S') queued; waiting for #196"
-until grep -q "QUEUE 196 DONE" /mnt/e/chess_data/q196.log 2>/dev/null || ! pgrep -f "_queue_196.sh" >/dev/null; do
+echo "[q197] $(date '+%Y-%m-%d %H:%M:%S') queued; waiting for #198 (relaunched after the 11-11 03:29 reboot)"
+until grep -qE "QUEUE 198 (DONE|ABORTED)|skipped|stopped" /mnt/e/chess_data/q198.log 2>/dev/null || ! pgrep -f "_queue_198.sh" >/dev/null; do
 	[ -e "$STOP" ] && { echo "[q197] stopped while waiting"; exit 0; }
 	sleep 60
 done
 while pgrep -f "fastchess-linux-x86-64/fastchess|vs_sf.py|_ks_footprint_regret|_case_triage|_mopup_conversion" >/dev/null; do sleep 30; done
-[ $(date +%s) -lt $LATEST ] || { echo "[q197] $(date) past 07:00 — skipped (the owner may be using the box)"; exit 0; }
+[ $(date +%s) -lt $LATEST ] || { echo "[q197] $(date) past 19:30 — skipped (the owner may be using the box)"; exit 0; }
 START=$(date '+%Y-%m-%d %H:%M:%S')
 echo "[q197] $START start"
 fp=$(printf "bench\nquit\n" | "$BIN" 2>/dev/null | grep '^bench')

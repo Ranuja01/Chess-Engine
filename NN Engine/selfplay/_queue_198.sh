@@ -27,7 +27,7 @@ MOUT=/mnt/e/chess_data/mopup3
 SO=/mnt/e/chess_data/so_mopup
 DUMPS=/mnt/c/Users/Kumodth/AppData/Local/Temp/wsl-crashes
 STOP=/mnt/e/chess_data/q198.stop
-LATEST=$(date -d '2026-11-11 07:30' +%s)
+LATEST=$(date -d '2026-11-11 19:00' +%s)
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 cd "$ND" || exit 1
 rm -f "$STOP"
@@ -37,7 +37,7 @@ until grep -q "QUEUE 197 DONE" /mnt/e/chess_data/q197.log 2>/dev/null || ! pgrep
 	sleep 60
 done
 while pgrep -f "fastchess-linux-x86-64/fastchess|vs_sf.py|_ks_footprint_regret|_case_triage|_mopup_conversion" >/dev/null; do sleep 30; done
-[ $(date +%s) -lt $LATEST ] || { echo "[q198] $(date) past 07:30 — skipped (the owner may be using the box)"; exit 0; }
+[ $(date +%s) -lt $LATEST ] || { echo "[q198] $(date) past 19:00 — skipped (the owner may be using the box)"; exit 0; }
 START=$(date '+%Y-%m-%d %H:%M:%S')
 echo "[q198] $START start"
 fp=$(printf "bench\nquit\n" | "$BIN" 2>/dev/null | grep '^bench')

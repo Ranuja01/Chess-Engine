@@ -404,8 +404,17 @@ asymmetries A1-A4 lives there; they hold ~1,700 lines of root bookkeeping (the r
 root LMR, simplification bias). S3 rebuilds the root beside the pre-search anyway, so re-expressing it now would be done twice.
 `SEARCH_ARM` is read at those three sites only (plies 0-2), so the interior pays no switch.
 
-**Before S1 counts as done:** the other correctness gates in §3 (perft unchanged, mate and draw suites, the mirrored bench);
-the Cython module builds; then the games read, not harmful at equal time. The node-type templates (PV / non-PV) and the
+Step 3 result (11-11 17:20): plain build `chess_engine_uci_sv2`, `SEARCH_ARM` 0 and 1 node for node on every set of
+`diagnostics/_sv2_identity.sh`: WAC 39,861,964 (also 35,310,778 under the v1 eval and 251 / 36,859,850 under gen 6.7's
+knobs), WAC mirrored 38,059,595, STS300 100,753,502, STS300 mirrored 98,825,166, 48 bare-king endings (mates, the mop-up
+value) 6,715,062, the perpetual probe 41,426: **1,249 positions, ~320 M nodes, all SAME**. The Cython module builds with v2
+included (test copy `/mnt/e/chess_data/so_sv2`, 0 errors). Perft calls move generation only, which the port does not touch.
+
+**Before S1 counts as done:** the correctness gates in §3 are met by the identity above (the mate, draw and mirrored sets
+included). The games read was registered for a port expected to differ slightly; at node-for-node identity, games between
+the arms can only see a speed difference. Proposed to the owner instead (11-11): cachegrind instructions for both arms on
+the same trees (load-insensitive), real-play nps on a quiet box, and a short games smoke for crashes; the full 2,000-game read
+only if the speed reads are not level. The node-type templates (PV / non-PV) and the
 `Stack` struct (F18) are refactors of the v2 file that keep its fingerprint; each lands with the same bench check.
 
 Not ported (diagnostics): `note_node_type` (only the shadow logger reads `g_node_type`), the `FIXCNT_*` / `MG_COUNT` counters

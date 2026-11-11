@@ -415,8 +415,18 @@ included (test copy `/mnt/e/chess_data/so_sv2`, 0 errors). Perft calls move gene
 included). The games read was registered for a port expected to differ slightly; at node-for-node identity, games between
 the arms can only see a speed difference. Proposed to the owner instead (11-11): cachegrind instructions for both arms on
 the same trees (load-insensitive), real-play nps on a quiet box, and a short games smoke for crashes; the full 2,000-game read
-only if the speed reads are not level. The node-type templates (PV / non-PV) and the
-`Stack` struct (F18) are refactors of the v2 file that keep its fingerprint; each lands with the same bench check.
+only if the speed reads are not level.
+
+**Re-placed 11-11 (not S1 after all):** the `Stack` struct (F18) and the PV / non-PV templates.
+- The per-ply data a Stack would hold (`killerMoves`, `g_searchStack`, `g_captureChain`) is also read by the shared move
+  orderer and history code and written by today's root, so in S1 it would have to mirror every write. It moves to S3, with
+  v2's own move source and its separate history tables (owner 11-10).
+- Today's search decides PV-ness by the window width at each node (`beta - alpha > 1`); a node-type template decides it from
+  the call. Where they disagree the search changes, so the templates are a behaviour change, not a refactor; they belong to S2
+  ("PV-only work removed from non-PV nodes"), judged there by its gate.
+
+**S1 is complete as the port** (11-11): identity SW1 / SW2, speed SW3 part 1; the rest of SW3 (real-play nps, PGO) before
+`SEARCH_ARM=1` becomes the default.
 
 **S1 accepted as not harmful for now; watched as v2 grows (owner 11-11: "lets keep a watch on it as we continue building").**
 The fixed-depth bench cannot see everything, so these run again at every v2 step:

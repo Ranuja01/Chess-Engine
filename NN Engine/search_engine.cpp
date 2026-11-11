@@ -4242,8 +4242,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         int x2 = (move.to_square & 7) + 1;
         int y2 = (move.to_square >> 3) + 1;
 
-        // Resigns
-        if (score <= Config::RESIGN_THRESHOLD)
+        // Resigns, except with a lone king against no pawns: the opponent must still find the mate (bare-king values such
+        // as MOPUP_V2's K+B+N vs K drive pass the threshold in positions many opponents cannot convert)
+        const bool bare_king_defence = !current.pawns && !(current.occupied_colour[current.turn] & ~current.kings);
+        if (score <= Config::RESIGN_THRESHOLD && !bare_king_defence)
         {
             g_rep_in_search = false;
             MoveData defaultMove(-1, -1, -1, -1, -1, score, 0);

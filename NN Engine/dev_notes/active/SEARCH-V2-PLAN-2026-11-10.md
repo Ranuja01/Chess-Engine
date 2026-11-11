@@ -334,6 +334,50 @@ the live module, which has no tracer, so 0 records; fixed, then re-run directly)
 - **Consequence:** S-2 (reduce transformation moves less, exempt them from LMP) gains direct support as a WHERE-TO-SPEND
   item. Its own registered test stays the gate (transform sets + games, node cost under +3%).
 
+**Results, test D (queue #202, 11-11 14:36; `pot_d/auc.txt`; test UCI build 247 / 39,861,964, test module `so_potd`
+confirmed loaded):** 1,500 quiet middlegame positions at d10, 355,326 shadow events. "Wrong" = the honestly searched move
+would have entered the window (`entered` in `record_shadow`: above alpha for the maximizer, below beta for the minimizer).
+
+| mechanism | events | wrong | AUC SE | U pooled · within strata | lever | heavy_brk | brk_king |
+|---|---|---|---|---|---|---|---|
+| LMP | 300,638 | 2,728 (0.91%) | ±0.006 | 0.498 · 0.506 | 0.494 · 0.499 | 0.496 · 0.500 | 0.494 · 0.498 |
+| LMR | 19,607 | 378 (1.93%) | ±0.015 | 0.485 · 0.499 | 0.496 · 0.492 | 0.483 · 0.496 | 0.489 · 0.488 |
+| FUT | 35,081 | 26 (0.07%) | ±0.057 | 0.433 · n/a | 0.472 | 0.517 | 0.525 |
+
+- **Registered verdict: MISS** (no KEEP; STOP not met). The only marker past 0.55 / 0.45 is U on futility (0.433), on 26
+  wrong events, 1.2 SE from 0.5. On the two mechanisms with power, every marker sits within 0.02 of 0.5 pooled and within
+  0.01 inside the strata. The prediction (U 0.52-0.58 on LMR) was wrong: LMR read 0.485.
+- **Wrong rates where the markers fire (LMP):** lever 83 / 12,815 = 0.65%, heavy_brk 260 / 30,954 = 0.84%, brk_king 155 /
+  20,925 = 0.74%, against 0.91% overall. Plan-type moves are pruned wrongly a little LESS often than other late quiets.
+- **Futility here is almost never wrong:** 26 of 35,081 (0.07%). A U-scaled futility margin (S-3's margin form) has little
+  to recover on quiet middlegames.
+- **Reading, with C:** C showed SF's quiet plan moves are buried more often in the cases we miss. D shows that burying
+  plan-type moves is not locally wrong at a higher rate: the honest search at that node does not see their value either.
+  Together with the triage no-pruning arm (still 7 of 8 missed at d10), the plan miss is a HORIZON / KNOWLEDGE miss, not a
+  pruning error. Exempting plan moves from LMP / LMR (S-2) would spend nodes on moves whose value the search cannot see at
+  these depths.
+- **Limits:** the label is local (does the move improve this node's bound), not root-relevant, and it is read at d10 on
+  today's search. The registration's second read at S5 on search v2 stays (same tool, about 80 minutes).
+
+**POT due diligence, the combined read (A-D):**
+
+| test | verdict | what it says |
+|---|---|---|
+| A-rep | KEEP | structural magnitude U predicts where our ROOT SCORE is unreliable, 1.2-1.35× on two row sets |
+| B-powered | MISS, unresolved | whether extra depth pays more where U is high: right direction, too noisy to resolve |
+| C | KEEP, thin | SF's quiet plan moves are buried more in the cases we miss (55% vs 35%, 20-23 visits) |
+| D | MISS (null on LMP / LMR) | the markers do not predict which prunes or reductions are locally wrong |
+
+Placement, by the rule set before the tests (strong ⇒ build now; mixed ⇒ each part to its stage with its test attached):
+- **U as a trust signal ⇒ S-4 (time) and aspiration.** The one supported use: spend more time, or widen the window, where
+  U says the score is unreliable. A-rep's frozen β is the input; its gate is games at S-4.
+- **Move-class exemptions (S-2) ⇒ not supported on today's search.** C's burial is real but D says it is not a pruning
+  error. Re-read D at S5 on search v2; S-2 is built only if that read reaches KEEP.
+- **U-scaled futility margins (S-3 margin form) ⇒ low ceiling** (futility is 0.07% wrong here). RFP is not in the shadow
+  logger, so the margin form's RFP half stays untested.
+- **The plan knowledge itself ⇒ the eval arc after search v2** (`retune-depth-follows-play-depth`): if the search cannot
+  see a plan's value at the node, the eval has to.
+
 ## 8. Questions for the owner
 
 1. **S1 scope** (open, refined 11-10). One for one cannot be exact. Today's two halves do not mirror each other (memory

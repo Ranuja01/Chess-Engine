@@ -25,6 +25,12 @@ REGISTERED (11-11, before any pass ran):
     search (the analysis asks for a second read at S5 on search v2).
   Prediction: U pooled 0.52-0.58 on LMR (a trust signal more than a move signal), lever / heavy_brk too rare to reach 200
     wrong events on LMP and futility, ≤ 0.57 where they do; overall MISS, STOP not met (U's magnitude half is real, test A).
+
+RESULT (queue #202, 11-11 14:36; 1,500 positions, d10, 355,326 events): MISS. LMP 2,728 wrong of 300,638 and LMR 378 of
+19,607: every marker within 0.02 of 0.5 pooled, within 0.01 inside the strata (U 0.498 / 0.485). The only excursion is U on
+futility, 0.433 on 26 wrong events (1.2 SE). Plan-type moves are wrongly pruned slightly LESS often than other late quiets
+(LMP: lever 0.65%, heavy_brk 0.84%, brk_king 0.74% vs 0.91%). The prediction for LMR was wrong. Reading and placement: search
+v2 plan §7d.
 """
 import os, sys, csv, json, collections, math
 KV = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a)

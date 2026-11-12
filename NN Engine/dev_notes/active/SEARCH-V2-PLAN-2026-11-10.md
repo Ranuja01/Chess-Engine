@@ -460,7 +460,15 @@ identical trees; the real-play column is time to depth 13 with PGO (`_sv2_speed_
 |---|---|---|---|
 | S1 port (`SEARCH_ARM=1`) | −1.87% (#204) | **−2.86%** (sd 2.01, 3 reps; #207b) | −2.9% (real play) |
 | early LMP (`SV2_PRUNE_EARLY=1`) | −3.16% on top (#208) | **+0.01%** (sd 1.77, 3 reps; #209) = level; prediction −3 to −8% MISSED | −2.9% (real play) |
-| fast generator passes (`MOVEGEN_FAST=1`; shared code, both search arms) | not measured (instructions over-promise, #209) | pending (identity passed, #212: 0 mismatches in 117 M passes); prediction −2 to −5% | |
+| fast generator passes (`MOVEGEN_FAST=1`; shared code, both search arms) | **−6.47%** (#215, arm 0; D1 misses −1.77%, mispredictions −5.75%, last-level misses level) | pending (identity passed, #212: 0 mismatches in 117 M passes); prediction −2 to −5% | |
+
+**Why early pruning's instructions did not become time (queue #215, cachegrind with cache and branch simulation; WSL2 has no
+hardware counters):** on the same trees, −3.15% instructions, D1 misses +0.14%, last-level misses +0.00%, branch mispredictions
+**+1.10%** (+1.56 M). The saved work (make / unmake of a move pruned at once) is cheap, cache-warm, well-predicted code; the
+pre-make tests add mispredictions and leave memory traffic unchanged. Net, by a rough cycle count (562 M instructions at IPC
+2-3 against 1.56 M mispredictions at ~17 cycles), about −1 to −1.5% time: below what #209's three alternated repetitions resolve
+(sd 1.77%). So #209's "level" is an unresolved small gain, not a measured zero; the knob stays, uncounted in the ledger until a
+read resolves it. MOVEGEN_FAST on the same instrument removes instructions AND mispredictions.
 
 Each real-play figure is a within-session alternation; arm 0's absolute time moved ~5% between the 01:17 and 02:41 sessions
 (sv2_pgo1 1,250-1,327 ms then 1,177-1,202 ms), so figures from different sessions are not compared directly.

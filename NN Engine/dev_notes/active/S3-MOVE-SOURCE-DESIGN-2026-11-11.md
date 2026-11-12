@@ -194,6 +194,25 @@ equal to the knob-off fingerprint, and `_sv2_identity.sh` with `MOVEGEN_FAST=1` 
 direction (08-25, direct emit alone) gave 0-3% nps, so the registered prediction for the speed read (PGO, quiet box, alternated,
 time to depth 13) is −2 to −5%.
 
+**Lazy generation's payoff, measured first (queue #214, 11-12 13:05; probe build `sv2probe2`, search v2, bench unchanged 247 /
+39,861,964).** On generated (cache-miss) interior lists, the leading run of captures and promotions in today's sorted list, and
+whether the node cut inside it (then no quiet move was needed):
+
+| | WAC d10 | game24 d12 |
+|---|---|---|
+| generated interior lists | 1,825,312 | 895,863 |
+| their moves / quiet moves | 49.0 M / 44.6 M (91%) | 22.0 M / 20.3 M (92%) |
+| lists with no capture at the head | 621,237 (34%) | 370,736 (41%) |
+| lists that cut inside the leading capture run | **787,389 (43%)** | **362,910 (41%)** |
+| … as a share of all cutoffs on generated lists | 72% | 63% |
+| **quiet moves on those lists (generated, scored, sorted, never needed)** | **19.16 M (43% of quiets)** | **8.06 M (40%)** |
+
+So option B would skip about 40% of the main search's quiet-move work (qsearch already generates only captures and
+promotions, `QGEN_NOISY_ONLY`, since 10-22). Rough size, not a prediction: the list build is ~20% of search time on the 11-11
+profile, mostly quiet scoring, so ~3-6% of time. Not result-identical (the quiets' history is read after the captures' subtrees),
+so games decide. The move cache needs a rule for a node that cut before its quiets existed: cache what was generated with a
+"quiets not generated" flag, so a revisit tries the cached captures first and generates the quiets only if they are needed.
+
 ## 7. What stays ours
 
 The threat-aware quiet term, move frequency, the killer protection in LMR, the root pre-search (until its own 2×2), and the

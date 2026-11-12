@@ -442,6 +442,9 @@ namespace
                 arr(p.pruned_hist, 4) + " see " + arr(p.pruned_see, 4) + " seec " + arr(p.pruned_seec, 4) + " fut " + arr(p.pruned_fut, 4));
             say("info string sv2probe see_branch " + std::to_string(p.see_branch) + " cheaper_attacker " + std::to_string(p.see_cheaper_attacker));
             say("info string sv2probe sorted_lists " + std::to_string(p.sorted_lists) + " quiet_above_good_capture " + std::to_string(p.quiet_above_good_capture));
+            say("info string sv2probe lazy-gen miss_moves " + std::to_string(p.miss_moves) + " miss_quiets " + std::to_string(p.miss_quiets) +
+                " noisy_lead " + std::to_string(p.miss_noisy_lead) + " no_noisy " + std::to_string(p.miss_no_noisy) + " cut_in_noisy " +
+                std::to_string(p.miss_cut_in_noisy) + " quiets_unneeded " + std::to_string(p.miss_quiets_unneeded));
         }
 #endif
         if (Config::LAZY_V2)

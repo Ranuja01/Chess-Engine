@@ -463,6 +463,29 @@ namespace sv2
 		++g_sv2_probe.lists;
 		g_sv2_probe.lists_hit += probe_hit;
 		g_sv2_probe.moves_main += (long long)moves_list.size();
+		// Lazy generation's payoff (S3 picker option B): on a generated list (cache miss), the leading run of captures and
+		// promotions, and the quiet moves behind it; a cutoff inside that run would have needed no quiet generation at all.
+		int probe_noisy_lead = 0;
+		long long probe_quiets = 0;
+		if (!probe_hit)
+		{
+			const uint64_t opp = current_state.occupied_colour[!current_state.turn];
+			bool lead = true;
+			for (const Move &m : moves_list)
+			{
+				const bool noisy = m.promotion != 1 || (BB_SQUARES[m.to_square] & opp) ||
+				                   (m.to_square == current_state.ep_square && (current_state.pawns & BB_SQUARES[m.from_square]));
+				if (lead && noisy)
+					++probe_noisy_lead;
+				else
+					lead = false;
+				probe_quiets += !noisy;
+			}
+			g_sv2_probe.miss_moves += (long long)moves_list.size();
+			g_sv2_probe.miss_quiets += probe_quiets;
+			g_sv2_probe.miss_noisy_lead += probe_noisy_lead;
+			g_sv2_probe.miss_no_noisy += (probe_noisy_lead == 0);
+		}
 		if (probe_rem_idx >= 0)
 		{
 			if (probe_hit)
@@ -668,6 +691,11 @@ namespace sv2
 				{
 					const int b = i == 0 ? 0 : i == 1 ? 1 : i == 2 ? 2 : i <= 4 ? 3 : i <= 9 ? 4 : 5;
 					(probe_hit ? g_sv2_probe.cut_hit : g_sv2_probe.cut_miss)[b]++;
+					if (!probe_hit && (int)i < probe_noisy_lead)
+					{
+						++g_sv2_probe.miss_cut_in_noisy;
+						g_sv2_probe.miss_quiets_unneeded += probe_quiets;
+					}
 					if (!probe_hit && probe_rem_idx >= 0)
 					{
 						++g_sv2_probe.rem_miss_cut_any;

@@ -51,6 +51,9 @@ struct Sv2MoveProbe
 	long long see_branch = 0, see_cheaper_attacker = 0;
 	// full lists sorted by the generator, and those where a non-capture sorts above a good-tier capture (option B)
 	long long sorted_lists = 0, quiet_above_good_capture = 0;
+	// lazy generation's payoff, on generated (cache-miss) interior lists: moves, quiet moves, the leading run of captures and
+	// promotions (summed), lists with no such run, cutoffs inside the run, and the quiet moves those cutoff lists held
+	long long miss_moves = 0, miss_quiets = 0, miss_noisy_lead = 0, miss_no_noisy = 0, miss_cut_in_noisy = 0, miss_quiets_unneeded = 0;
 };
 inline Sv2MoveProbe g_sv2_probe{};
 

@@ -213,6 +213,26 @@ profile, mostly quiet scoring, so ~3-6% of time. Not result-identical (the quiet
 so games decide. The move cache needs a rule for a node that cut before its quiets existed: cache what was generated with a
 "quiets not generated" flag, so a revisit tries the cached captures first and generates the quiets only if they are needed.
 
+**Lazy generation (option B), implementation plan (11-12; to be built behind `SV2_LAZY_GEN`, search v2 only, default 0).** What
+the v2 node does with its list today, and what each place needs when the quiets come later:
+
+| place (search_v2.cpp / buildMoveListFromReordered) | today | under lazy generation |
+|---|---|---|
+| list source on a cache miss, not in check | full list generated, sorted, stored in the move cache | phase 1: the good-tier captures (score ≥ 200000) of the noisy-only list, in today's order (the generator exposes how many lead the sorted list; byte-identical when not asked); phase 2 only when phase 1 does not cut: today's full list, searched from index L on, the first L checked equal to phase 1 |
+| in check | evasions, full list | unchanged (full list) |
+| move cache | a miss stores the full list; a hit splices killers / counter after the captures, the lazy re-sort, the cutoff promotion | a node that cut in phase 1 stores its phase-1 list with a "quiets not generated" flag, so a revisit is still a hit; a flagged hit runs phase 2 on demand; the splice applies once the quiets exist |
+| IIR (reduce one ply on a first visit = no cached list) | `moveGenCacheHasMoves` | unchanged only if phase-1 entries are stored (otherwise every revisit of a capture-cut node looks like a first visit, a much larger change than the history timing) |
+| move index `i` (LMR, LMP, futility thresholds) | position in the full list | phase 2 continues at L, so every move keeps today's index |
+| empty list = mate / stalemate | the generated list is empty | only when phase 2 is empty too (an empty phase 1 goes straight to phase 2) |
+| ProbCut candidates (captures / promotions with SEE ≥ 0) | scanned from the full list | from the noisy-only list (it holds every capture and promotion); check the knob's default in the toggles dump |
+| singular (the TT move's exclusion search) | the TT move found in the list | a quiet TT move exists only in phase 2: search phase 2 when the TT move is quiet; off at the defaults today (C1) |
+| per-ply buffer `g_moveBuf[ply]` | holds the list for the node's lifetime | phase 2 overwrites it: keep phase 1 in a small local array for the equality check |
+| history malus lists | quiets / captures searched | unchanged |
+
+Verification before games: with phase 2 forced always (a debug switch) the node must be node-for-node identical to today (SW1 /
+SW2); the only remaining difference with lazy generation on is then when the quiets' scores are read. Then the cost read
+(cachegrind), time to depth, and games.
+
 ## 7. What stays ours
 
 The threat-aware quiet term, move frequency, the killer protection in LMR, the root pre-search (until its own 2×2), and the

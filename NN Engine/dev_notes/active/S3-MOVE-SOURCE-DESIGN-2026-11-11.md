@@ -130,7 +130,10 @@ What it says for the arms:
   test with the child pushed on the path as `make_move` pushes it (`is_repetition_key`, refactored out of `is_repetition`),
   the TT cut test without its side effect, `moveGivesCheckFast` for the check test; castling, near-fifty-move children and the
   passer knobs go the normal way. Verify build (`-DSV2_PRUNE_VERIFY`): 19,756,269 early prunes on the WAC bench, **0
-  mismatches**, bench 247 / 39,861,964. SW1 / SW2 and the instruction count: queue #208; speed: queue #209.
+  mismatches**, bench 247 / 39,861,964. Queue #208 (11-11 20:28): **SW1 all 6 sets SAME, SW2 12 of 12 games SAME**;
+  cachegrind on #204's 12 positions, the same 3,179,520 nodes: **−3.16% instructions** (17,829,490,063 → 17,266,969,539;
+  registered −3 to −8%, at its low end: the pre-make tests still need the child key, the repetition test, the TT probe and a
+  check test). Real-play speed with PGO: queue #209.
 - `SEE_PER_MOVE` (bitmask; 1 = capture ordering, 2 = the qsearch filter, 4 = v2's losing-capture prune): `see_move`, the
   exchange value of the capture itself (see_impl's incremental path with the first capture forced), in `move_gen.h`. Verify
   build (`-DSV2_SEE_VERIFY`): where the mover is the side's least valuable attacker, `see_move == see` on 9,779,141 checks, **0

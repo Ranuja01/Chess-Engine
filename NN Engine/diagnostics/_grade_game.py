@@ -22,22 +22,27 @@ eng = chess.engine.SimpleEngine.popen_uci(SF)
 eng.configure({"Threads": 1, "Hash": 256, "UCI_ShowWDL": True})
 board = game.board()
 rows = []
-for move in game.mainline_moves():
-	if board.turn == side and board.fullmove_number >= first:
-		n = board.fullmove_number
-		before = eng.analyse(board, chess.engine.Limit(nodes=nodes))
-		best = before["pv"][0] if before.get("pv") else None
-		e0 = 100.0 * before["wdl"].pov(side).expectation()
-		san, best_san = board.san(move), (board.san(best) if best else "?")
-		board.push(move)
-		after = eng.analyse(board, chess.engine.Limit(nodes=nodes))
-		e1 = 100.0 * after["wdl"].pov(side).expectation()
-		rows.append((n, san, best_san, e0, e1))
-		print("%3d%s %-8s best %-8s E %5.1f -> %5.1f  drop %5.1f%s" % (n, "." if side == chess.WHITE else "...", san, best_san, e0, e1, e0 - e1,
-		      "  <<" if e0 - e1 >= 10 else ""), flush=True)
-	else:
-		board.push(move)
-eng.quit()
+try:   # always close Stockfish: an exception with the engine open leaves python waiting on it
+	for move in game.mainline_moves():
+		if board.turn == side and board.fullmove_number >= first:
+			n = board.fullmove_number
+			before = eng.analyse(board, chess.engine.Limit(nodes=nodes))
+			best = before["pv"][0] if before.get("pv") else None
+			e0 = 100.0 * before["wdl"].pov(side).expectation()
+			san, best_san = board.san(move), (board.san(best) if best else "?")
+			board.push(move)
+			if board.is_game_over():   # nothing to analyse: score the result itself
+				e1 = 100.0 if board.is_checkmate() else 50.0
+			else:
+				after = eng.analyse(board, chess.engine.Limit(nodes=nodes))
+				e1 = 100.0 * after["wdl"].pov(side).expectation()
+			rows.append((n, san, best_san, e0, e1))
+			print("%3d%s %-8s best %-8s E %5.1f -> %5.1f  drop %5.1f%s" % (n, "." if side == chess.WHITE else "...", san, best_san, e0, e1, e0 - e1,
+			      "  <<" if e0 - e1 >= 10 else ""), flush=True)
+		else:
+			board.push(move)
+finally:
+	eng.quit()
 if rows:
 	peak = max(rows, key=lambda r: r[3])
 	print("peak expected score %.1f before move %d (%s played, SF18 best %s)" % (peak[3], peak[0], peak[1], peak[2]))

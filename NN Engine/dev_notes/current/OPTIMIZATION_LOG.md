@@ -4,6 +4,37 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-12 15:43 — GEN 7.3 SHIPPED (owner: "so we can properly ship"): the per-move exchange value, `SEE_PER_MOVE=3`
+**What:** gen 7.2 plus `SEE_PER_MOVE = 3` in the gen 7 block of the shipped preset: a capture's exchange value is the move's own
+(`see_move`: this piece takes first, then both sides recapture with their least valuable attacker) instead of the square's
+(`see`: our least valuable attacker takes first), in capture ordering (bit 1) and the qsearch losing-capture filter (bit 2).
+The square's value described another capture on 15-17% of the scorer's exchange-branch captures (search v2 S3 step 0, MOVEGEN
+-AUDIT C3), e.g. a queen taking a once-defended pawn that a pawn of ours also attacks read +1 instead of −7. `SEE_PER_MOVE=0`
+restores gen 7.2 exactly. The first item of the search v2 arc to reach production (shared code; the games ran on search v2's
+port, which searches the same trees as production's search).
+
+**Evidence (all registered before the games):**
+
+| test | result | bar |
+|---|---|---|
+| self-play 10+0.1, 2,800 g (#209 2,000 + #210 800, pooled as separate files) | **+12.7 (95% +1.2 … +24.2)**, z ≈ 2.2; batches +7.3 / +26.1 agree (p 0.14) | ≥ +2σ ✅ |
+| SF18 at equal nodes (ours 250k, SF18 1,100), 6 fresh seeds × 250 g per arm (#211) | **+2.60 pp ± 3.26 (95%), z +1.56** (55.2% vs 52.6%) | > −1σ ✅ |
+| Mediocre 10+0.1, 2 seeds × 150 g per arm (#211) | **+2.33 pp, z +0.88** (86.3% vs 84.0%) | not negative ✅ |
+| real-play nps (the 2,800 g) | 1,638k vs 1,627k (+0.7%), depth 11.6 vs 11.5, 0 forfeits | |
+| WAC d10 | 249 / 37,279,382 (−6.5% nodes) vs 247 / 39,861,964; pinned same binary × 4: −7.1% time, +0.7% nps (#213) | |
+| STS300 d10 / WAC mirrored d10 | 164 vs 166, −7.5% nodes / 246 vs 243, nodes level (#213) | |
+
+Expected gain in play +5 to +15 (only self-play resolves on its own; all three instruments agree in sign).
+
+**Queue #217** (`chess_engine_uci_g73pgo`, PGO; installed 15:43): default **249 / 37,279,382** (Cython the same, EBF **3.758**) ·
+`SEE_PER_MOVE=0` 247 / 39,861,964 = gen 7.2 ✅ · `SEE_PER_MOVE=0,MOPUP_V2=0` 247 / 39,852,210 = gen 7.1 ✅ · `V2_SHIP_GEN=6` 251 /
+36,859,850 = gen 6.7 ✅ · v1 250 / 35,310,778 ✅ · id "AlphaUX (v2 gen 7.3)". Pinned bench × 6 vs gen 7.2 (16:20-16:26): **27,559 vs 29,504 ms mean
+(−6.6%), nps 1,352,817 vs 1,351,505 (level)**. No eval term changed, so no mirror test. Owner's UI games the same day (gen 7.3's
+behaviour via the knob): a knight-odds win over SF18 at 60+0.6 each (SF18 grades every one of our moves as keeping 100%), and an
+equal-time loss to Stockfish 1.1 from a won ending (SF18: 52...Bc4?? 100 → 50, 67...Nc3?? 50 → 0, both letting White's passed
+e-pawn run; `E:\chess_data\owner_games\`, `diagnostics/_grade_game.py`). Backups: `chess_engine_uci_g72pgo`; gen 7.2's Cython module in
+`/mnt/e/chess_data/so_backup_g72/`.
+
 ## 🚀 2026-11-11 12:27 — GEN 7.2 SHIPPED (owner: "sure"): MOPUP_V2 100 + no resignation in a bare-king defence
 **What:** gen 7.1 plus two changes.
 - `MOPUP_V2 = 100` in the gen 7 block of the shipped preset. `MOPUP_V2=0` restores gen 7.1 exactly.

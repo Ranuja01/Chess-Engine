@@ -10,8 +10,15 @@
  * @author: Ranuja Pinnaduwage
  */
 
+#include "sv2_probe.h"
+
 namespace sv2
 {
+#ifdef SV2_MOVE_PROBE
+	// S3 step 0: remaining-depth bucket 1, 2, 3, 4+ of a pruned move.
+	static inline int probe_rd(int rd) { return std::min(std::max(rd, 1), 4) - 1; }
+#endif
+
 	// Mate scores keep today's form: MATE - plies from the game start, so a shorter mate scores higher.
 	static constexpr int MATE = 9999999;
 
@@ -340,7 +347,40 @@ namespace sv2
 		    !moveGenCacheHasMoves(zobrist, current_state.castling_rights, current_state.ep_square))
 			depth_limit -= 1;
 
+#ifdef SV2_MOVE_PROBE
+		const bool probe_hit = moveGenCacheHasMoves(zobrist, current_state.castling_rights, current_state.ep_square);
+#endif
 		std::vector<Move> &moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previous_move);
+#ifdef SV2_MOVE_PROBE
+		// The probe's remembered move for this position (written at this node's cutoff or best-move exit on an earlier visit).
+		const uint64_t probe_key = make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square);
+		Sv2ProbeSlot &probe_slot = g_sv2_probe_slots[probe_key & ((1u << SV2_PROBE_BITS) - 1)];
+		const Move probe_rem_move(probe_slot.from, probe_slot.to, probe_slot.promo);
+		int probe_rem_idx = -1;
+		if (probe_slot.key == probe_key)
+			for (size_t k = 0; k < moves_list.size(); ++k)
+				if (moves_list[k] == probe_rem_move)
+				{
+					probe_rem_idx = (int)k;
+					break;
+				}
+		++g_sv2_probe.lists;
+		g_sv2_probe.lists_hit += probe_hit;
+		g_sv2_probe.moves_main += (long long)moves_list.size();
+		if (probe_rem_idx >= 0)
+		{
+			if (probe_hit)
+			{
+				++g_sv2_probe.rem_hit_have;
+				g_sv2_probe.rem_hit_head += (probe_rem_idx == 0);
+			}
+			else
+			{
+				++g_sv2_probe.rem_miss_have;
+				g_sv2_probe.rem_miss_at0 += (probe_rem_idx == 0);
+			}
+		}
+#endif
 		MalusList malus_quiets, malus_captures;   // history-gravity malus lists (empty when the malus is off)
 		std::vector<Move> &searched_quiets = malus_quiets.v, &searched_captures = malus_captures.v;
 
@@ -493,6 +533,22 @@ namespace sv2
 			alpha = std::max(alpha, best_score);
 			if (beta <= alpha)
 			{
+#ifdef SV2_MOVE_PROBE
+				{
+					const int b = i == 0 ? 0 : i == 1 ? 1 : i == 2 ? 2 : i <= 4 ? 3 : i <= 9 ? 4 : 5;
+					(probe_hit ? g_sv2_probe.cut_hit : g_sv2_probe.cut_miss)[b]++;
+					if (!probe_hit && probe_rem_idx >= 0)
+					{
+						++g_sv2_probe.rem_miss_cut_any;
+						if (move == probe_rem_move)
+						{
+							++g_sv2_probe.rem_miss_cut;
+							g_sv2_probe.rem_miss_cut_at0 += (i == 0);
+						}
+					}
+					probe_slot = Sv2ProbeSlot{probe_key, move.from_square, move.to_square, move.promotion};
+				}
+#endif
 				++g_fh_total;
 				if (i == 0)
 					++g_fh_first;
@@ -531,6 +587,11 @@ namespace sv2
 				return best_early_eval;
 		}
 
+#ifdef SV2_MOVE_PROBE
+		(probe_hit ? g_sv2_probe.nocut_hit : g_sv2_probe.nocut_miss)++;
+		if (best_score > alpha_orig && best_move.from_square != best_move.to_square)
+			probe_slot = Sv2ProbeSlot{probe_key, best_move.from_square, best_move.to_square, best_move.promotion};
+#endif
 		const bool best_en_passant = is_en_passant(best_move.from_square, best_move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 		const bool best_capture = is_capture(best_move.from_square, best_move.to_square, current_state.occupied_colour[!current_state.turn], best_en_passant);
 		if (!best_capture)
@@ -579,6 +640,9 @@ namespace sv2
 	               std::vector<BoardState> &state_history, BoardState current_state, bool &using_fp, int &num_iterations, bool is_in_null_search)
 	{
 		constexpr int s = RootSide ? 1 : -1;
+#ifdef SV2_MOVE_PROBE
+		++g_sv2_probe.scored;
+#endif
 		if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
 			g_searchStack[cur_depth] = move;   // this node's move, for the 2-ply continuation key
 		bool using_tt = false;
@@ -694,20 +758,40 @@ namespace sv2
 			const bool lmp_reached = rd >= 1 && rd <= Config::LMP_MAX_DEPTH && (int)i >= Config::LMP_BASE + Config::LMP_SCALE * rd * rd;
 			const bool lmp_exempt = Config::ENABLE_LMP_HIST_EXEMPT && historyHeuristics[current_state.turn][move.from_square][move.to_square] >= Config::LMP_HIST_EXEMPT;
 			if (lmp_reached && !lmp_exempt)
+			{
+#ifdef SV2_MOVE_PROBE
+				++g_sv2_probe.pruned_lmp[probe_rd(rd)];
+#endif
 				return -MATE;
+			}
 		}
 		// History pruning of a late quiet with very negative butterfly history.
 		if (Config::ENABLE_HIST_PRUNE && do_lmr && !prune_gate && rd >= 1 && rd <= Config::HIST_PRUNE_MAX_DEPTH &&
 		    historyHeuristics[current_state.turn][move.from_square][move.to_square] < -Config::HIST_PRUNE_COEF * rd)
+		{
+#ifdef SV2_MOVE_PROBE
+			++g_sv2_probe.pruned_hist[probe_rd(rd)];
+#endif
 			return -MATE;
+		}
 		// SEE pruning of a quiet whose moved piece the recapture wins.
 		if (Config::ENABLE_SEE_PRUNE && do_lmr && !prune_gate && rd >= 1 && rd <= Config::SEE_PRUNE_MAX_DEPTH &&
 		    see(move.to_square, updated_state.turn, updated_state) > Config::SEE_PRUNE_MARGIN)
+		{
+#ifdef SV2_MOVE_PROBE
+			++g_sv2_probe.pruned_see[probe_rd(rd)];
+#endif
 			return -MATE;
+		}
 		// SEE pruning of a losing capture (a checking capture extends, so it is never pruned).
 		if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !prune_gate && rd >= 1 && rd <= Config::SEE_PRUNE_MAX_DEPTH &&
 		    see(move.to_square, current_state.turn, current_state) < -Config::SEE_PRUNE_CAPTURE_MARGIN)
+		{
+#ifdef SV2_MOVE_PROBE
+			++g_sv2_probe.pruned_seec[probe_rd(rd)];
+#endif
 			return -MATE;
+		}
 
 		// The scout window. A2: the minimizer scouts at the root-frame (alpha, alpha + 1), which in its own frame is (beta - 1,
 		// beta), unless FIX_MIN_SCOUT.
@@ -733,6 +817,9 @@ namespace sv2
 				{
 					if (Config::ENABLE_PRUNE_LOG)
 						g_futility_fires++;
+#ifdef SV2_MOVE_PROBE
+					++g_sv2_probe.pruned_fut[probe_rd(rd)];
+#endif
 					using_fp = true;
 					return early_score;
 				}
@@ -962,6 +1049,10 @@ namespace sv2
 
 		int best = Config::ENABLE_QSTANDPAT_SEED ? static_eval : -MATE + move_num;
 		std::vector<Move> &moves_list = buildNoisyMoveList(zobrist, state_history, cur_depth + q_depth, q_depth, prev_move);
+#ifdef SV2_MOVE_PROBE
+		++g_sv2_probe.q_lists;
+		g_sv2_probe.q_moves += (long long)moves_list.size();
+#endif
 		for (size_t i = 0; i < moves_list.size(); ++i)
 		{
 			Move &move = moves_list[i];

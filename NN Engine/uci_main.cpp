@@ -22,6 +22,8 @@
 #include <malloc.h>
 #include "cpp_bitboard.h"
 #include "cache_management.h"
+#include "sv2_probe.h"
+#include <cstring>
 
 extern std::atomic<bool> time_up;   // search_engine.cpp
 extern long long g_lazy_asks, g_lazy_fires;   // search_engine.cpp, lazy eval counters (Config::LAZY_V2)
@@ -376,6 +378,10 @@ namespace
         long long nodes = 0;
         int n = 0, solved = 0;
         const bool per_pos = std::getenv("BENCH_PER_POS") != nullptr;
+#ifdef SV2_MOVE_PROBE
+        g_sv2_probe = Sv2MoveProbe{};
+        std::memset(g_sv2_probe_slots, 0, sizeof(g_sv2_probe_slots));
+#endif
         const auto t0 = std::chrono::steady_clock::now();
         std::string line;
         while (std::getline(f, line))
@@ -412,6 +418,22 @@ namespace
         g_last_side = -1;
         say("bench: solved " + std::to_string(solved) + "/" + std::to_string(n) + " nodes " + std::to_string(nodes) +
             " time " + std::to_string((int)(sec * 1000)) + " ms nps " + std::to_string(sec > 0 ? (long long)(nodes / sec) : 0));
+#ifdef SV2_MOVE_PROBE
+        {
+            const Sv2MoveProbe &p = g_sv2_probe;
+            auto arr = [](const long long *a, int k) { std::string s; for (int j = 0; j < k; ++j) s += (j ? " " : "") + std::to_string(a[j]); return s; };
+            say("info string sv2probe lists " + std::to_string(p.lists) + " hit " + std::to_string(p.lists_hit) + " moves " + std::to_string(p.moves_main) +
+                " | qlists " + std::to_string(p.q_lists) + " qmoves " + std::to_string(p.q_moves));
+            say("info string sv2probe cut_hit [0 1 2 3-4 5-9 10+] " + arr(p.cut_hit, 6) + " nocut " + std::to_string(p.nocut_hit) +
+                " | cut_miss " + arr(p.cut_miss, 6) + " nocut " + std::to_string(p.nocut_miss));
+            say("info string sv2probe remembered miss: have " + std::to_string(p.rem_miss_have) + " at0 " + std::to_string(p.rem_miss_at0) +
+                " cut_any " + std::to_string(p.rem_miss_cut_any) + " cut_on_it " + std::to_string(p.rem_miss_cut) + " cut_on_it_at0 " +
+                std::to_string(p.rem_miss_cut_at0) + " | hit: have " + std::to_string(p.rem_hit_have) + " equals_head " + std::to_string(p.rem_hit_head));
+            say("info string sv2probe scored " + std::to_string(p.scored) + " pruned by rd [1 2 3 4+]: lmp " + arr(p.pruned_lmp, 4) + " hist " +
+                arr(p.pruned_hist, 4) + " see " + arr(p.pruned_see, 4) + " seec " + arr(p.pruned_seec, 4) + " fut " + arr(p.pruned_fut, 4));
+            say("info string sv2probe see_branch " + std::to_string(p.see_branch) + " cheaper_attacker " + std::to_string(p.see_cheaper_attacker));
+        }
+#endif
         if (Config::LAZY_V2)
             say("info string lazy eval: " + std::to_string(g_lazy_fires) + " lazy returns of " + std::to_string(g_lazy_asks) +
                 " evals asked; parent known on " + std::to_string(g_lazy_asks_parent) + "; returns/asks by site: stand-pat " +

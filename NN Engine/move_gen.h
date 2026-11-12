@@ -4,6 +4,7 @@
 
 #include "cpp_bitboard.h"
 #include "cache_management.h"
+#include "sv2_probe.h"
 #include <vector>
 #include <array>
 #include <chrono>
@@ -924,6 +925,18 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 				// Clearly good capture, skip SEE
 				return capture_base_value + value_captured - value_attacker + promo_bonus + move_freq_bonus + cap_hist;
 			} else {
+#ifdef SV2_MOVE_PROBE
+				// S3 step 0: does a cheaper piece of ours also attack the square? Then the per-square exchange value below
+				// describes that piece's capture, not this move's.
+				++g_sv2_probe.see_branch;
+				for (uint64_t ours = attackersMask(turn, to, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask,
+				                                   pawnsMask, ourPieces) & ~BB_SQUARES[from]; ours; ours &= ours - 1)
+					if (get_value_at(__builtin_ctzll(ours), state) < value_attacker)
+					{
+						++g_sv2_probe.see_cheaper_attacker;
+						break;
+					}
+#endif
 				// Unclear or losing capture, run SEE
 				int see_score = see(to, turn, state);
 				return see_score < 0 ? see_score + promo_bonus + move_freq_bonus + cap_hist : capture_base_value + see_score + promo_bonus + move_freq_bonus + cap_hist;

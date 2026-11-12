@@ -6,6 +6,53 @@
 #include "cache_management.h"
 #include "sv2_probe.h"
 #include <vector>
+
+/*
+ * The exchange value of ONE capture: the piece on from_square takes on to_square, then both sides recapture with their least
+ * valuable attacker and may stop at any point. It is see_impl's incremental path with the first capture forced; see() asks
+ * the same question for the square (its first capture is the side's least valuable attacker), so the two are equal when the
+ * moving piece is that attacker. Used where a move's own value is wanted (SEE_PER_MOVE): with a cheaper attacker of ours on
+ * the square, see() describes that piece's capture, not this one (15-17% of the scorer's exchange-branch captures, S3 step 0).
+ */
+inline int see_move(uint8_t from_square, uint8_t to_square, bool side_to_move, const BoardState &state)
+{
+	int gain[32];
+	gain[0] = get_value_at(to_square, state);
+	uint64_t occ = state.occupied;
+	const uint64_t qr = state.queens | state.rooks;
+	const uint64_t qb = state.queens | state.bishops;
+	uint64_t att = (BB_KING_ATTACKS[to_square] & state.kings) |
+	               (BB_KNIGHT_ATTACKS[to_square] & state.knights) |
+	               (BB_RANK_ATTACKS[to_square][BB_RANK_MASKS[to_square] & occ] & qr) |
+	               (BB_FILE_ATTACKS[to_square][BB_FILE_MASKS[to_square] & occ] & qr) |
+	               (BB_DIAG_ATTACKS[to_square][BB_DIAG_MASKS[to_square] & occ] & qb) |
+	               (BB_PAWN_ATTACKS[0][to_square] & state.pawns & state.occupied_colour[true]) |
+	               (BB_PAWN_ATTACKS[1][to_square] & state.pawns & state.occupied_colour[false]);
+	att &= occ;
+	int d = 0;
+	bool s = side_to_move;
+	int next = from_square;   // the forced first capture, then the least valuable attacker each turn
+	while (true)
+	{
+		++d;
+		gain[d] = get_value_at(next, state) - gain[d - 1];
+		occ &= ~(1ULL << next);
+		att &= ~(1ULL << next);
+		// Re-reveal x-ray sliders through the vacated square (leapers never change).
+		att |= ((BB_RANK_ATTACKS[to_square][BB_RANK_MASKS[to_square] & occ] |
+		         BB_FILE_ATTACKS[to_square][BB_FILE_MASKS[to_square] & occ]) & qr) |
+		       (BB_DIAG_ATTACKS[to_square][BB_DIAG_MASKS[to_square] & occ] & qb);
+		att &= occ;
+		s = !s;
+		const uint64_t side_att = att & state.occupied_colour[s] & occ;
+		if (!side_att || d >= 31)
+			break;
+		next = get_least_valuable_attacker_static(side_att, state);
+	}
+	while (--d > 0)
+		gain[d - 1] = -std::max(-gain[d - 1], gain[d]);
+	return gain[0];
+}
 #include <array>
 #include <chrono>
 #include <iostream>
@@ -937,8 +984,20 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 						break;
 					}
 #endif
-				// Unclear or losing capture, run SEE
-				int see_score = see(to, turn, state);
+				// Unclear or losing capture, run SEE: the square's value, or this move's own (SEE_PER_MOVE bit 1)
+				int see_score = (Config::SEE_PER_MOVE & 1) ? see_move(from, to, turn, state) : see(to, turn, state);
+#ifdef SV2_SEE_VERIFY
+				// When this piece is the side's least valuable attacker, the move's value must equal the square's.
+				{
+					const uint64_t ours = attackersMask(turn, to, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask,
+					                                    pawnsMask, ourPieces);
+					if (ours && get_least_valuable_attacker_static(ours, state) == (int)from)
+					{
+						++g_sv2_see_checked;
+						g_sv2_see_mismatch += (see_move(from, to, turn, state) != see(to, turn, state));
+					}
+				}
+#endif
 				return see_score < 0 ? see_score + promo_bonus + move_freq_bonus + cap_hist : capture_base_value + see_score + promo_bonus + move_freq_bonus + cap_hist;
 			}
 		}

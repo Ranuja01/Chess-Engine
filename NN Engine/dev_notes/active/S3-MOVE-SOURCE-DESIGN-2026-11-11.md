@@ -95,6 +95,48 @@ are recorded.
 3. The picker with R3 + today's scoring as its first configuration (closest to today), then the other arms.
 4. The reads of §5, then games, then the 2×2.
 
+## 6b. Step 0 results (11-11 evening; probe build `-DSV2_MOVE_PROBE`, `sv2_probe.h`, bench unchanged 247 / 39,861,964)
+
+Search v2 path (`SEARCH_ARM=1`). WAC = the 300-position bench at depth 10; G24 = 24 game positions (`game_regret_set`, every
+625th row) at depth 12. Output `E:\chess_data\s3_step0\`.
+
+| measure | WAC d10 | G24 d12 | reading |
+|---|---|---|---|
+| interior move lists built | 3,209,184 | 1,476,855 | |
+| served by the move cache | **43.1%** | **39.3%** | |
+| first-move cutoffs, cache hit | **94.8%** | **94.2%** | of nodes that cut |
+| first-move cutoffs, cache miss | **82.5%** | **81.6%** | (first visits mostly: different node populations) |
+| cutoffs at index 1-4 on a hit | 4.2% | 4.8% | the cached tail's share (R2's question) |
+| a remembered move exists at a cache miss (TT-sized 2^22 table) | **0.12%** | **0.45%** | misses are first visits, not evictions |
+| on a hit, the remembered move = the cached head | 98.5% | 99.2% | |
+| moves made, then pruned at once | **63%** (22.7 M of 36.1 M) | **56%** (7.8 M of 14.0 M) | LMP 87% of them, futility 9%, losing-capture SEE 4% |
+| exchange-branch captures where a cheaper piece of ours also attacks the square (C3) | **17.3%** | **14.9%** | the per-square value describes another capture |
+| qsearch lists | 4.31 M, 1.39 moves each | 1.83 M, 1.14 each | |
+
+What it says for the arms:
+- **R1 (TT move) as an addition to the cache: almost never fires** (a remembered move exists on 0.1-0.5% of misses). As a
+  *replacement*, it would keep nearly all of the hit nodes' first move (= the cached head 98.5-99.2%), lose the cached tail
+  (~4-5% of cutoffs on hits) and regenerate lists on revisits: a cost / ordering trade for the §5 reads.
+- **W2 is the largest single item**: over half of all made moves are pruned immediately. Built first, result-identical:
+  `SV2_PRUNE_EARLY` (`sv2::lmp_before_make`), verified on 19,756,269 WAC prunes with 0 mismatches; queue #208 runs SW1 / SW2
+  and the instruction count.
+- **C3 is frequent** (15-17% of exchange-branch captures): the per-move exchange test is worth having early.
+- Not measured yet: how often a quiet outscores a good capture (option B's second difference), the main vs qsearch split of
+  generation time.
+
+**Built 11-11 evening (both knobs, default off, byte-identical at 0):**
+- `SV2_PRUNE_EARLY` (search v2): late-move pruning decided before `make_move` (`sv2::lmp_before_make`): today's tests in
+  today's order, the child's key / castling rights / en passant square / halfmove clock built from the move, the repetition
+  test with the child pushed on the path as `make_move` pushes it (`is_repetition_key`, refactored out of `is_repetition`),
+  the TT cut test without its side effect, `moveGivesCheckFast` for the check test; castling, near-fifty-move children and the
+  passer knobs go the normal way. Verify build (`-DSV2_PRUNE_VERIFY`): 19,756,269 early prunes on the WAC bench, **0
+  mismatches**, bench 247 / 39,861,964. SW1 / SW2 and the instruction count: queue #208; speed: queue #209.
+- `SEE_PER_MOVE` (bitmask; 1 = capture ordering, 2 = the qsearch filter, 4 = v2's losing-capture prune): `see_move`, the
+  exchange value of the capture itself (see_impl's incremental path with the first capture forced), in `move_gen.h`. Verify
+  build (`-DSV2_SEE_VERIFY`): where the mover is the side's least valuable attacker, `see_move == see` on 9,779,141 checks, **0
+  mismatches**. Fingerprints (WAC d10): 1 = 248 / 38,680,259; 3 = 249 / 37,279,382; 7 (arm 1) = 247 / 39,685,447. Games: queue
+  #209 (`SEE_PER_MOVE=3` vs 0, 2,000 games, rule registered in its header).
+
 ## 7. What stays ours
 
 The threat-aware quiet term, move frequency, the killer protection in LMR, the root pre-search (until its own 2×2), and the

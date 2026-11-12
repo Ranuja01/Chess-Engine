@@ -3252,6 +3252,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::LAZY_V2_S_FUT = env_int("LAZY_V2_S_FUT", Config::LAZY_V2_S_FUT);
         Config::LAZY_V2_KEEP = env_int("LAZY_V2_KEEP", Config::LAZY_V2_KEEP);
         Config::SEARCH_ARM = env_int("SEARCH_ARM", Config::SEARCH_ARM);
+        Config::SV2_PRUNE_EARLY = env_int("SV2_PRUNE_EARLY", Config::SV2_PRUNE_EARLY);
+        Config::SEE_PER_MOVE = env_int("SEE_PER_MOVE", Config::SEE_PER_MOVE);
         Config::LAZY_V2_GATE = env_int("LAZY_V2_GATE", Config::LAZY_V2_GATE);
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
         Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
@@ -9891,10 +9893,10 @@ inline void increment_node_count_with_decay(int &num_iterations)
     }
 }
 
-inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count, const BoardState &state)
+// The repetition test for a position's repetition key (is_repetition below builds the key from the position's own castling
+// rights and en passant square; search v2's early pruning builds it from the move before the move is made).
+inline bool is_repetition_key(const std::unordered_map<uint64_t, int> &position_count, uint64_t key, const int repetition_count)
 {
-    PROF_BLOCK(PROF_REPETITION);
-    const uint64_t key = repetition_key(zobrist_key, state.castling_rights, state.ep_square);
     int count = 0;
     if (!(Config::REP_FILTER && g_rep_in_search) || rep_filter_has(key))
     {
@@ -9936,6 +9938,12 @@ inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_coun
     const bool rep = pre_root == 0;
     g_fixcnt_rep += rep;
     return rep;
+}
+
+inline bool is_repetition(const std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist_key, const int repetition_count, const BoardState &state)
+{
+    PROF_BLOCK(PROF_REPETITION);
+    return is_repetition_key(position_count, repetition_key(zobrist_key, state.castling_rights, state.ep_square), repetition_count);
 }
 
 inline bool isUnsafeForNullMovePruning(BoardState current_state)
@@ -10648,7 +10656,9 @@ inline std::vector<Move> &buildNoisyMoveList(uint64_t zobrist, std::vector<Board
             }
             else
             {
-                int sv = see(moves_list[i].to_square, current_state.turn, current_state);
+                // the square's exchange value, or this capture's own (SEE_PER_MOVE bit 2)
+                int sv = (Config::SEE_PER_MOVE & 2) ? see_move(moves_list[i].from_square, moves_list[i].to_square, current_state.turn, current_state)
+                                                    : see(moves_list[i].to_square, current_state.turn, current_state);
                 if (sv >= 0)
                 {
                     noisy_moves.push_back(moves_list[i]);

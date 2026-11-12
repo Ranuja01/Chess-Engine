@@ -7,6 +7,18 @@
  * @author: Ranuja Pinnaduwage
  */
 #pragma once
+
+#ifdef SV2_PRUNE_VERIFY
+// SV2_PRUNE_EARLY's check (-DSV2_PRUNE_VERIFY): every early prune is also made and scored the normal way; a mismatch is a
+// prune the normal path would not have made. Must stay 0, and the build must still bench the production fingerprint.
+inline long long g_sv2_prune_checked = 0, g_sv2_prune_mismatch = 0;
+#endif
+
+#ifdef SV2_SEE_VERIFY
+// see_move's check (-DSV2_SEE_VERIFY): where the moving piece is the side's least valuable attacker, see_move must equal see.
+inline long long g_sv2_see_checked = 0, g_sv2_see_mismatch = 0;
+#endif
+
 #ifdef SV2_MOVE_PROBE
 #include <cstdint>
 

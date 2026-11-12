@@ -3471,6 +3471,16 @@ namespace Config
     // (search_v2.cpp; dev_notes/active/SEARCH-V2-PLAN-2026-11-10.md §7e). Stage S1 is a one-for-one port, so 1 visits the same
     // nodes as 0 at fixed depth. Selected at the root, ply 1 and the pre-search's ply 2 only, never per interior node.
     inline int SEARCH_ARM = 0;
+    // Search v2 only: decide late-move pruning before the move is made (sv2::lmp_before_make), so a pruned move skips
+    // make_move, the child state copy, the check tests and unmake_move. The decision is today's, test for test, and anything
+    // that needs the child position goes the normal way, so 1 visits the same nodes as 0 (S3 step 0 found 56-63% of the
+    // moves made are pruned straight away).
+    inline int SV2_PRUNE_EARLY = 0;
+    // The exchange value of a capture as the MOVE's own (see_move), not the square's (see, whose first capture is the side's
+    // least valuable attacker), bitmask: 1 = capture ordering in the scorer, 2 = the qsearch losing-capture filter, 4 = search
+    // v2's losing-capture prune. 0 = the per-square value everywhere (byte-identical). S3 step 0: a cheaper attacker of ours
+    // also hits the square on 15-17% of the scorer's exchange-branch captures (MOVEGEN-AUDIT C3).
+    inline int SEE_PER_MOVE = 0;
     // Gates by the move that led to the position, bitmask: 1 = no lazy exit after a capture (a promotion that captures is not
     // gated), 2 = none after a null move. 0 = off = byte-identical. The 11-08 context probe (queue #183) put 43% of the misses
     // after a capture for 9% of the fires, and 9% after a null move for 1.4% of the fires.

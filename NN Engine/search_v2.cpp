@@ -174,6 +174,102 @@ namespace sv2
 		}
 	}
 
+	// use_tt_entry's cut test without its side effect (the node count): would this child entry decide the move?
+	static inline bool tt_entry_cuts(const TTEntry &entry, int root_alpha, int root_beta, int halfmove_clock, int plies)
+	{
+		if (Config::FIX_TT_R50 && halfmove_clock >= 90)
+			return false;
+		const int stored = tt_score_from_entry(entry.score, plies);
+		return entry.flag == TTFlag::EXACT || (entry.flag == TTFlag::LOWERBOUND && stored >= root_beta) ||
+		       (entry.flag == TTFlag::UPPERBOUND && stored <= root_alpha);
+	}
+
+	/*
+	 * Late-move pruning decided before the move is made (SV2_PRUNE_EARLY). True only when score_move, given the made move,
+	 * would return its pruned sentinel through late-move pruning: every test that comes before it there gives the same
+	 * answer here (the child is not a repetition or fifty-move draw, its TT entry does not decide the move, it is not the
+	 * first move or a full-window move, it gives no check), and the LMR eligibility, guards and the LMP condition hold. The
+	 * child's key, castling rights, en passant square and halfmove clock are built from the move as update_state and
+	 * make_move build them. Any case that needs the child position itself (castling, a pawn near the fifty-move limit, the
+	 * passer knobs) returns false and the caller makes the move as usual.
+	 */
+	template <bool RootSide>
+	static inline bool lmp_before_make(int alpha, int beta, int i, int cur_depth, int depth_limit, bool capture_move, bool currently_in_check,
+	                                   const Move &move, const Move &previous_move, std::unordered_map<uint64_t, int> &position_count,
+	                                   uint64_t child_zobrist, const BoardState &cs, int plies, int best_score)
+	{
+		if (capture_move || move.promotion != 1 || currently_in_check || i == 0 || !Config::ENABLE_LMR || !Config::ENABLE_LMP)
+			return false;
+		const int rd = depth_limit - cur_depth;
+		if (rd < 1 || rd > Config::LMP_MAX_DEPTH || i < Config::LMP_BASE + Config::LMP_SCALE * rd * rd)
+			return false;
+		const bool full_window_rd1 = RootSide ? (Config::FIX_MIN_RD1 == 2) : (Config::FIX_MIN_RD1 != 1);
+		if (full_window_rd1 && rd == 1)
+			return false;
+		if (Config::PE_PASSER_EXT > 0 || Config::ENABLE_PASSER_PRUNE_EXEMPT || Config::PROTECT_TT_DEPTH)
+			return false;
+		// LMR guards, the capture-chain gates, the verification window, the pruning gates, the history exemption
+		if (Config::PROTECT_PV && (beta - alpha > 1) && i <= Config::PROTECT_MAX_IDX)
+			return false;
+		if (Config::PROTECT_KILLERS && i <= Config::PROTECT_MAX_IDX &&
+		    (killerMoves[cur_depth][0] == move || killerMoves[cur_depth][1] == move || counterMoves[previous_move.from_square][previous_move.to_square] == move))
+			return false;
+		if (Config::ENABLE_LMR_CAPCHAIN && g_captureChain[cur_depth] >= Config::CAPCHAIN_RUN_THRESH)
+			return false;
+		if (g_verify_no_reduce_until >= 0 && cur_depth <= g_verify_no_reduce_until)
+			return false;
+		if ((Config::PE_PRUNE_GATE && pe_pawns_only(cs)) || (Config::FIX_MATE_GATE && best_score <= -9000000))
+			return false;
+		if (Config::ENABLE_LMP_HIST_EXEMPT && historyHeuristics[cs.turn][move.from_square][move.to_square] >= Config::LMP_HIST_EXEMPT)
+			return false;
+		const uint64_t from_bb = BB_SQUARES[move.from_square];
+		const bool is_pawn = (cs.pawns & from_bb) != 0;
+		const bool is_king = (cs.kings & from_bb) != 0;
+		if (is_king && std::abs((int)(move.to_square & 7) - (int)(move.from_square & 7)) == 2)
+			return false;   // castling: the rook moves too
+		if (moveGivesCheckFast(cs, move))
+			return false;   // a checking move is never reduced or pruned (and may be extended)
+		// The child, as update_state and make_move build it
+		uint64_t child_castling = cs.castling_rights & ~BB_SQUARES[move.to_square] & ~from_bb;
+		if (is_king && !(cs.promoted & from_bb))
+			child_castling &= cs.turn ? ~BB_RANK_1 : ~BB_RANK_8;
+		int child_ep = -1;
+		if (is_pawn)
+		{
+			const int diff = (int)move.to_square - (int)move.from_square;
+			if (diff == 16 && (move.from_square >> 3) == 1)
+				child_ep = move.from_square + 8;
+			else if (diff == -16 && (move.from_square >> 3) == 6)
+				child_ep = move.from_square - 8;
+		}
+		const int child_halfmove = (Config::FIX_HALFMOVE && is_pawn) ? 0 : cs.halfmove_clock + 1;
+		if (child_halfmove >= 100)
+			return false;   // the fifty-move test needs the child position
+		// Repetition, with the child counted on the path exactly as make_move counts it
+		const uint64_t rep_key = repetition_key(child_zobrist, child_castling, child_ep);
+		bool rep;
+		if (Config::REP_STACK && g_rep_in_search)
+		{
+			g_rep_path[g_rep_len++] = RepPathEntry{rep_key, is_pawn};
+			rep = is_repetition_key(position_count, rep_key, Config::REPETITION_THRESHOLD);
+			--g_rep_len;
+		}
+		else
+		{
+			position_count[rep_key]++;
+			rep = is_repetition_key(position_count, rep_key, Config::REPETITION_THRESHOLD);
+			if (--position_count[rep_key] == 0)
+				position_count.erase(rep_key);
+		}
+		if (rep)
+			return false;
+		// A child TT entry that would decide the move first
+		const TTEntry *entry = accessSearchEvalCache(child_zobrist, child_castling, child_ep);
+		if (entry != nullptr && entry->depth >= rd && tt_entry_cuts(*entry, root_lo<RootSide>(alpha, beta), root_hi<RootSide>(alpha, beta), child_halfmove, plies + 1))
+			return false;
+		return true;
+	}
+
 	/*
 	 * An interior node below the root's children (today's maximizer, and the minimizer's non-root branch). In order: the time
 	 * check, mate-distance bounds (FIX_MDP), the horizon (q-search or static eval), the node-entry eval (improving, RFP / null
@@ -484,6 +580,41 @@ namespace sv2
 				}
 			}
 
+			// Late-move pruning before the move is made: what the loop below does after a pruned return, without the move.
+			if (Config::SV2_PRUNE_EARLY && singular_extra == 0)
+			{
+				uint64_t child_zobrist = zobrist;
+				updateZobristHashForMove(child_zobrist, move.from_square, move.to_square, capture_move, current_state.pawns, current_state.knights, current_state.bishops,
+				                         current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false],
+				                         move.promotion);
+				if (lmp_before_make<RootSide>(alpha, beta, (int)i, cur_depth, depth_limit, capture_move, currently_in_check, move, previous_move, position_count,
+				                              child_zobrist, current_state, g, best_score))
+				{
+#ifdef SV2_PRUNE_VERIFY
+					// The normal path must agree: the made move comes back as the pruned sentinel.
+					{
+						make_move(state_history, position_count, move, child_zobrist, capture_move);
+						bool fp = false;
+						g_best_mated = best_score <= -9000000;
+						const int vs = score_move<RootSide>(alpha, beta, alpha_orig, beta_orig, (int)i, cur_depth, depth_limit, capture_move, currently_in_check, move,
+						                                    previous_move, position_count, child_zobrist, t0, state_history, current_state, fp, num_iterations, is_in_null_search);
+						unmake_move(state_history, position_count, child_zobrist);
+						++g_sv2_prune_checked;
+						g_sv2_prune_mismatch += (vs != -MATE || fp);
+					}
+#endif
+					g_best_mated = best_score <= -9000000;
+					if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
+						g_searchStack[cur_depth] = move;
+					if (Config::ENABLE_HISTORY_MALUS)
+						searched_quiets.push_back(move);
+					all_moves_pruned = false;
+					if (time_up.load(std::memory_order_relaxed))
+						return 0;
+					continue;
+				}
+			}
+
 			updateZobristHashForMove(zobrist, move.from_square, move.to_square, capture_move, current_state.pawns, current_state.knights, current_state.bishops,
 			                         current_state.rooks, current_state.queens, current_state.kings, current_state.occupied_colour[true], current_state.occupied_colour[false],
 			                         move.promotion);
@@ -785,7 +916,8 @@ namespace sv2
 		}
 		// SEE pruning of a losing capture (a checking capture extends, so it is never pruned).
 		if (Config::SEE_PRUNE_CAPTURES && capture_move && !currently_in_check && !extend && !prune_gate && rd >= 1 && rd <= Config::SEE_PRUNE_MAX_DEPTH &&
-		    see(move.to_square, current_state.turn, current_state) < -Config::SEE_PRUNE_CAPTURE_MARGIN)
+		    ((Config::SEE_PER_MOVE & 4) ? see_move(move.from_square, move.to_square, current_state.turn, current_state)
+		                                : see(move.to_square, current_state.turn, current_state)) < -Config::SEE_PRUNE_CAPTURE_MARGIN)
 		{
 #ifdef SV2_MOVE_PROBE
 			++g_sv2_probe.pruned_seec[probe_rd(rd)];

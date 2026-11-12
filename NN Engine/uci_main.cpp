@@ -418,6 +418,12 @@ namespace
         g_last_side = -1;
         say("bench: solved " + std::to_string(solved) + "/" + std::to_string(n) + " nodes " + std::to_string(nodes) +
             " time " + std::to_string((int)(sec * 1000)) + " ms nps " + std::to_string(sec > 0 ? (long long)(nodes / sec) : 0));
+#ifdef SV2_PRUNE_VERIFY
+        say("info string sv2 prune verify: checked " + std::to_string(g_sv2_prune_checked) + " mismatches " + std::to_string(g_sv2_prune_mismatch));
+#endif
+#ifdef SV2_SEE_VERIFY
+        say("info string see_move verify: checked " + std::to_string(g_sv2_see_checked) + " mismatches " + std::to_string(g_sv2_see_mismatch));
+#endif
 #ifdef SV2_MOVE_PROBE
         {
             const Sv2MoveProbe &p = g_sv2_probe;

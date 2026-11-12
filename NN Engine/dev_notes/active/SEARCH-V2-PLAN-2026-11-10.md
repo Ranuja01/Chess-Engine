@@ -458,7 +458,7 @@ identical trees; the real-play column is time to depth 13 with PGO (`_sv2_speed_
 
 | item | instructions (cachegrind, 12 game positions d10) | real-play time to d13 (PGO) | cumulative vs today's search |
 |---|---|---|---|
-| S1 port (`SEARCH_ARM=1`) | −1.87% (#204) | queue #207 | ≈ −1.9% |
+| S1 port (`SEARCH_ARM=1`) | −1.87% (#204) | **−2.86%** (sd 2.01, 3 reps; #207b) | −2.9% (real play) |
 | early LMP (`SV2_PRUNE_EARLY=1`) | −3.16% on top (#208) | queue #209 | ≈ −5.0% |
 
 **S1 accepted as not harmful for now; watched as v2 grows (owner 11-11: "lets keep a watch on it as we continue building").**
@@ -479,6 +479,22 @@ The fixed-depth bench cannot see everything, so these run again at every v2 step
 what the port leaves out (trace records, shadow-search tests, position-matched debug compares) and the side branches that
 become compile-time constants; not yet ablated. Instructions are not time: real-play nps on a quiet box (and a PGO build,
 production's form) remain.
+
+**Speed read 2 + games smoke (queue #207's steps 2-3, run as #207b, 11-12 01:17-02:20).** #207 built and gated both PGO
+binaries at 20:12 (`sv2_pgo0` trained on arm 0, `sv2_pgo1` on arm 1; both 247 / 39,861,964 under both arms). The owner was
+gaming past #207's fixed 00:30 start, so #207 was stopped while it waited and #207b ran the same steps on the same binaries
+after the owner's go (quiet box).
+- Real play, `_ebf_per_iter.py` 40 positions per phase (seed 1), d13, alternated 3×: **same tree True** (cumulative nodes equal
+  per position and depth in every repetition; 119 positions reach d13 in every run). Arm 1 − arm 0 time to d13: −5.02%,
+  −2.51%, −1.04%, mean **−2.86% (sd 2.01)**; knps 1,439-1,528 vs 1,515-1,555. Registered: within +1% = not slower ⇒ **PASS**;
+  prediction −1 to −4% ⇒ inside. The shrinking difference across repetitions is not explained (warm-up or clock drift on
+  the first pair are candidates); the mean is the registered statistic.
+- Games smoke, 300 games 10+0.1 UHO seed 207, arm 1 vs arm 0: **+9.3 ± 35.0** (128 W / 120 L / 52 D, ptnml [24, 18, 58, 26, 24]);
+  0 "have option" warnings, 0 disconnects / stalls, **0 time forfeits** on either side; game nps 1,587k vs 1,545k (+2.7%),
+  mean depth 11.4 both. Registered: all clean and Elo inside ±2σ or positive ⇒ **PASS**. The clock-abort paths that SW2 could
+  not reach ran 17,241 searched moves without a fault.
+- ⇒ SW3 is done for S1 (instructions −1.87%, real play −2.86%). SW5 (a games read at equal time) stays for the ship of
+  `SEARCH_ARM=1` as default.
 
 Not ported (diagnostics): `note_node_type` (only the shadow logger reads `g_node_type`), the `FIXCNT_*` / `MG_COUNT` counters
 (no-ops in production), `TraceRec`, shadow searches, `lmr_profile_event`, `log_prune_fire`, the CORR2 flip counters,

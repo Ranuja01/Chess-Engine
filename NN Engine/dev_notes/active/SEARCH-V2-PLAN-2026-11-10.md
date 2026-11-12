@@ -459,7 +459,10 @@ identical trees; the real-play column is time to depth 13 with PGO (`_sv2_speed_
 | item | instructions (cachegrind, 12 game positions d10) | real-play time to d13 (PGO) | cumulative vs today's search |
 |---|---|---|---|
 | S1 port (`SEARCH_ARM=1`) | −1.87% (#204) | **−2.86%** (sd 2.01, 3 reps; #207b) | −2.9% (real play) |
-| early LMP (`SV2_PRUNE_EARLY=1`) | −3.16% on top (#208) | queue #209 | ≈ −5.0% |
+| early LMP (`SV2_PRUNE_EARLY=1`) | −3.16% on top (#208) | **+0.01%** (sd 1.77, 3 reps; #209) = level; prediction −3 to −8% MISSED | −2.9% (real play) |
+
+Each real-play figure is a within-session alternation; arm 0's absolute time moved ~5% between the 01:17 and 02:41 sessions
+(sv2_pgo1 1,250-1,327 ms then 1,177-1,202 ms), so figures from different sessions are not compared directly.
 
 **S1 accepted as not harmful for now; watched as v2 grows (owner 11-11: "lets keep a watch on it as we continue building").**
 The fixed-depth bench cannot see everything, so these run again at every v2 step:

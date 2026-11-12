@@ -144,6 +144,22 @@ What it says for the arms:
   mismatches**. Fingerprints (WAC d10): 1 = 248 / 38,680,259; 3 = 249 / 37,279,382; 7 (arm 1) = 247 / 39,685,447. Games: queue
   #209 (`SEE_PER_MOVE=3` vs 0, 2,000 games, rule registered in its header).
 
+**Queue #209 results (11-12 02:20-07:56; PGO `sv2_pgo1pe` trained with `SEARCH_ARM=1 SV2_PRUNE_EARLY=1`; gates: default and
+arm 1 + early both 247 / 39,861,964, `SEE_PER_MOVE=3` 249 / 37,279,382, as expected):**
+- **Early pruning, real play: level, not faster.** `_ebf_per_iter.py` (the #207 set, 40 per phase, seed 1, d13), `sv2_pgo1`
+  (S1) vs `sv2_pgo1pe` with `SV2_PRUNE_EARLY=1`, alternated 3×: same tree True (119 positions at d13 in every run); arm 1 −
+  arm 0 = +0.56%, −1.98%, +1.43%, mean **+0.01% (sd 1.77)**. Registered prediction −3 to −8% ⇒ **MISSED**. The −3.16%
+  instructions (#208) did not become time. Not explained; candidates, none tested: the saved work (make / unmake of a move
+  that is then pruned) is cheap, cache-warm, well-predicted code, while the costly part, the child's TT probe, is done on
+  both paths; the two binaries also differ in PGO profile and layout (sv2_pgo1 from #207's sources, sv2_pgo1pe from today's).
+  A cycles-and-cache-misses read (perf, identical trees) would separate these. **The knob stays (result-identical, default
+  off); it is not counted as a speed win.** Lesson for the S3 reads: instructions alone over-promise; the §5 order (cost →
+  ordering → time) needs the cycles read before time is predicted.
+- **`SEE_PER_MOVE=3` vs 0, 2,000 games** (10+0.1, UHO, seed 209, both `SEARCH_ARM=1 SV2_PRUNE_EARLY=1`): **+7.3 ± 13.7 Elo**
+  (nElo +8.1 ± 15.2; 801 W / 759 L / 440 D; ptnml [154, 158, 346, 176, 166]); 0 warnings, 0 disconnects / stalls, 0 time
+  forfeits; nps 1,642k vs 1,632k, mean depth 11.6 both. About +1.05σ: inside ±2σ. Prediction +0 to +8 ⇒ inside. **Not the
+  verdict**: registered before any game, the verdict is read on #209 + #210 combined (queue #210, 800 more games, seed 210).
+
 ## 7. What stays ours
 
 The threat-aware quiet term, move frequency, the killer protection in LMR, the root pre-search (until its own 2×2), and the

@@ -3479,7 +3479,8 @@ namespace Config
     // The exchange value of a capture as the MOVE's own (see_move), not the square's (see, whose first capture is the side's
     // least valuable attacker), bitmask: 1 = capture ordering in the scorer, 2 = the qsearch losing-capture filter, 4 = search
     // v2's losing-capture prune. 0 = the per-square value everywhere (byte-identical). S3 step 0: a cheaper attacker of ours
-    // also hits the square on 15-17% of the scorer's exchange-branch captures (MOVEGEN-AUDIT C3).
+    // also hits the square on 15-17% of the scorer's exchange-branch captures (MOVEGEN-AUDIT C3). The shipped preset sets 3
+    // since gen 7.3 (11-12); 0 there restores gen 7.2.
     inline int SEE_PER_MOVE = 0;
     // Move generation's piece-type passes (generateLegalMovesReordered) through processMaskPairsFast: each piece's attack set
     // computed once per list instead of once per pass, legality by the pin test per piece instead of is_safe per move, moves

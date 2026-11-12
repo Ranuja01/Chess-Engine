@@ -2717,6 +2717,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // two bishops 30 / 30 at 100k (was 15); +0.0009% instructions elsewhere (OPTIMIZATION_LOG). Set before the
                     // start-up read, so MOPUP_V2=0 restores gen 7.1 exactly (247 / 39,852,210).
                     Config::MOPUP_V2 = 100;
+                    // ── GEN 7.3: the exchange value of a capture as the move's own (see_move), not the square's, in capture
+                    // ordering and the qsearch filter. Self-play +12.7 (95% +1.2 … +24.2) over 2,800 games, SF18 at equal nodes
+                    // +2.60 pp (z +1.56), Mediocre +2.33 pp (OPTIMIZATION_LOG). Set before the start-up read, so SEE_PER_MOVE=0
+                    // restores gen 7.2 exactly (247 / 39,861,964).
+                    Config::SEE_PER_MOVE = 3;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

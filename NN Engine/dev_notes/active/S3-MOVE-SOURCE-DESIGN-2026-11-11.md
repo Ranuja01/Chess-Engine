@@ -179,6 +179,21 @@ filter) is S3's default.** Prediction +0 to +8: the point estimate came in above
   report keys pairs by (file, opening FEN), so openings drawn in both runs fell out. The figures above pass the files
   separately (1,400 pairs = 2,800 / 2). Recorded in DIAGNOSTICS-TOOLKIT.
 
+**`MOVEGEN_FAST` (11-12, step 2 in its "reproduce today first" form; owner 11-12: "any pure speed gain is welcome").** Today's
+list build runs 16 piece-type passes (12 capture passes, 4 quiet ones by phase), and each pass reruns pseudo-legal generation,
+the piece-type lookup, the piece's attack set and `is_safe` per move through `generateLegalMovesPre`'s scratch vectors (a minor's
+attacks are computed up to 4 times per list, a rook's up to 5). `processMaskPairsFast` (move_gen.h) keeps the passes and their
+order and changes only the work around them: the attack sets of our non-pawn pieces are filled once per list
+(`fillPairGenAttacks`), legality is `is_safe`'s own test applied per piece (unpinned: every target; a slider blocker of our king:
+targets on a line through the king; king steps: `attackersMask` per target as today; en passant: `is_safe` itself), and moves go
+straight into the list. Positions in check keep today's path. So the list and its order are today's, and the knob is a pure
+speed item. Queue #212 (11-12 12:21-12:38, verify build `-DMOVEGEN_FAST_VERIFY`, every fast pass also run the normal way and
+compared move for move): **0 mismatches in 117 million passes** (WAC 11.2 M on each search arm, WAC with `SEE_PER_MOVE=3` 10.0 M,
+WAC mirrored 10.4 M, STS300 34.6 M, STS300 mirrored 33.7 M, bare kings 0.9 M, perpetual 10.6 k, game24 d12 5.0 M), every node count
+equal to the knob-off fingerprint, and `_sv2_identity.sh` with `MOVEGEN_FAST=1` SAME on all 6 sets. The earlier attempt in this
+direction (08-25, direct emit alone) gave 0-3% nps, so the registered prediction for the speed read (PGO, quiet box, alternated,
+time to depth 13) is −2 to −5%.
+
 ## 7. What stays ours
 
 The threat-aware quiet term, move frequency, the killer protection in LMR, the root pre-search (until its own 2×2), and the

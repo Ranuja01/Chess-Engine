@@ -424,6 +424,9 @@ namespace
 #ifdef SV2_SEE_VERIFY
         say("info string see_move verify: checked " + std::to_string(g_sv2_see_checked) + " mismatches " + std::to_string(g_sv2_see_mismatch));
 #endif
+#ifdef MOVEGEN_FAST_VERIFY
+        say("info string movegen_fast verify: checked " + std::to_string(g_mgf_checked) + " mismatches " + std::to_string(g_mgf_mismatch));
+#endif
 #ifdef SV2_MOVE_PROBE
         {
             const Sv2MoveProbe &p = g_sv2_probe;

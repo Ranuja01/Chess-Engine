@@ -19,6 +19,12 @@ inline long long g_sv2_prune_checked = 0, g_sv2_prune_mismatch = 0;
 inline long long g_sv2_see_checked = 0, g_sv2_see_mismatch = 0;
 #endif
 
+#ifdef MOVEGEN_FAST_VERIFY
+// MOVEGEN_FAST's check (-DMOVEGEN_FAST_VERIFY): every fast piece-type pass is also run the normal way; a mismatch is a list
+// (or an order) that differs from today's. Must stay 0, and the build must still bench the production fingerprint.
+inline long long g_mgf_checked = 0, g_mgf_mismatch = 0;
+#endif
+
 #ifdef SV2_MOVE_PROBE
 #include <cstdint>
 

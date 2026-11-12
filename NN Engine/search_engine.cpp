@@ -3254,6 +3254,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SEARCH_ARM = env_int("SEARCH_ARM", Config::SEARCH_ARM);
         Config::SV2_PRUNE_EARLY = env_int("SV2_PRUNE_EARLY", Config::SV2_PRUNE_EARLY);
         Config::SEE_PER_MOVE = env_int("SEE_PER_MOVE", Config::SEE_PER_MOVE);
+        Config::MOVEGEN_FAST = env_int("MOVEGEN_FAST", Config::MOVEGEN_FAST);
         Config::LAZY_V2_GATE = env_int("LAZY_V2_GATE", Config::LAZY_V2_GATE);
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
         Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
@@ -3317,6 +3318,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // follows, and a grepped or truncated stderr must still answer that question.
         std::cerr << "[toggles] EVAL_ARM=" << Config::EVAL_ARM
                   << " SEARCH_ARM=" << Config::SEARCH_ARM
+                  << " MOVEGEN_FAST=" << Config::MOVEGEN_FAST
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
                   << " PASSER_V2_MAG=" << Config::PASSER_V2_MAG

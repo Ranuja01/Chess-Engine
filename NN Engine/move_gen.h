@@ -749,6 +749,192 @@ void generateLegalCaptures(std::vector<uint8_t> &startPos_filtered, std::vector<
 	}
 }
 
+/*
+ * Attack sets of the side to move's non-pawn pieces, filled once per list build and read by every piece-type pass of
+ * processMaskPairsFast (processMaskPairs recomputes a piece's attacks in each pass that includes it: a minor up to four
+ * times, a rook up to five). Only the squares of our non-pawn pieces are written.
+ */
+struct PairGenAttacks
+{
+	uint64_t att[64];
+};
+
+inline void fillPairGenAttacks(PairGenAttacks &pa, uint64_t ourPieces, uint64_t occupiedMask, uint64_t knightsMask, uint64_t bishopsMask,
+                               uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask)
+{
+	uint64_t b;
+	for (b = knightsMask & ourPieces; b; b &= b - 1)
+	{
+		const int s = __builtin_ctzll(b);
+		pa.att[s] = BB_KNIGHT_ATTACKS[s];
+	}
+	for (b = bishopsMask & ourPieces; b; b &= b - 1)
+	{
+		const int s = __builtin_ctzll(b);
+		pa.att[s] = BB_DIAG_ATTACKS[s][BB_DIAG_MASKS[s] & occupiedMask];
+	}
+	for (b = rooksMask & ourPieces; b; b &= b - 1)
+	{
+		const int s = __builtin_ctzll(b);
+		pa.att[s] = BB_RANK_ATTACKS[s][BB_RANK_MASKS[s] & occupiedMask] | BB_FILE_ATTACKS[s][BB_FILE_MASKS[s] & occupiedMask];
+	}
+	for (b = queensMask & ourPieces; b; b &= b - 1)
+	{
+		const int s = __builtin_ctzll(b);
+		pa.att[s] = BB_DIAG_ATTACKS[s][BB_DIAG_MASKS[s] & occupiedMask] | BB_RANK_ATTACKS[s][BB_RANK_MASKS[s] & occupiedMask] |
+		            BB_FILE_ATTACKS[s][BB_FILE_MASKS[s] & occupiedMask];
+	}
+	for (b = kingsMask & ourPieces; b; b &= b - 1)
+	{
+		const int s = __builtin_ctzll(b);
+		pa.att[s] = BB_KING_ATTACKS[s];
+	}
+}
+
+/*
+ * processMaskPairs for a position NOT in check (the caller keeps today's path for evasions), with the same output: the same
+ * legal moves in the same order. For each pass it reproduces generatePseudoLegalMoves' order (non-pawn pieces by square and
+ * destination, then castling, then pawn captures, single pushes, double pushes, en passant) and keeps exactly the moves
+ * is_safe keeps:
+ *   - a king step: no enemy attacker of the destination on today's occupancy (is_safe's own test; with the king not in check
+ *     no slider ray runs through it, so leaving its square uncovers nothing);
+ *   - castling: always (generateCastlingMoves already tested the path, as is_safe assumes);
+ *   - any other move: the piece is not a slider blocker of our king, or the move stays on a line through the king;
+ *   - en passant: is_safe itself (rare).
+ * The saving is in the work around that: attacks come from the per-list table, the legality test is a mask test per piece,
+ * and moves go straight into the list instead of through generateLegalMovesPre's scratch vectors.
+ */
+template<std::size_t N>
+inline void processMaskPairsFast(const std::array<MaskPair, N>& mask_pairs, const PairGenAttacks &pa, std::vector<uint8_t>& startPos,
+                                 std::vector<uint8_t>& endPos, std::vector<uint8_t>& promotions, uint64_t preliminary_castling_mask,
+                                 uint64_t from_mask, uint64_t to_mask, uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces,
+                                 uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask, uint64_t bishopsMask, uint64_t rooksMask,
+                                 uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, uint8_t king, uint64_t blockers)
+{
+	const uint64_t king_bb = BB_SQUARES[king];
+	auto emit = [&](uint8_t from, uint8_t to, uint8_t promo) {
+		startPos.push_back(from);
+		endPos.push_back(to);
+		promotions.push_back(promo);
+	};
+	// A pawn move or capture onto the last rank is emitted as the four promotions, queen first (generatePawnMoves' order).
+	auto emit_pawn = [&](uint8_t from, uint8_t to) {
+		const uint8_t rank = to / 8;
+		if (rank == 7 || rank == 0)
+			for (int k = 5; k > 1; k--)
+				emit(from, to, (uint8_t)k);
+		else
+			emit(from, to, 1);
+	};
+	// is_safe's test for a move that is neither a king move nor en passant.
+	auto keeps_pin = [&](uint8_t from, uint8_t to) {
+		return !(blockers & BB_SQUARES[from]) || (BB_RAYS[from][to] & king_bb);
+	};
+
+	for (const MaskPair& pair : mask_pairs)
+	{
+		// processMaskPairs skips a pass whose piece set or target set is empty; a pass that is empty only after the caller's
+		// masks emits nothing there either.
+		if ((pair.from_mask & ourPieces) == 0 || pair.to_mask == 0)
+			continue;
+		const uint64_t from_set = from_mask & pair.from_mask & ourPieces;
+		const uint64_t to_set = to_mask & pair.to_mask;
+
+		// Non-pawn pieces by square (generatePieceMoves).
+		for (uint64_t bb = from_set & ~pawnsMask; bb; bb &= bb - 1)
+		{
+			const uint8_t r = __builtin_ctzll(bb);
+			uint64_t moves = pa.att[r] & ~ourPieces & to_set;
+			if (r == king)
+			{
+				for (; moves; moves &= moves - 1)
+				{
+					const uint8_t d = __builtin_ctzll(moves);
+					if (attackersMask(!turn, d, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask,
+					                  opposingPieces) == 0)
+						emit(r, d, 1);
+				}
+				continue;
+			}
+			const bool pinned = blockers & BB_SQUARES[r];
+			for (; moves; moves &= moves - 1)
+			{
+				const uint8_t d = __builtin_ctzll(moves);
+				if (!pinned || (BB_RAYS[r][d] & king_bb))
+					emit(r, d, 1);
+			}
+		}
+
+		// Castling (generatePseudoLegalMoves calls it whenever the king is in the pass; is_safe keeps every castling move).
+		if (from_set & kingsMask)
+			generateCastlingMoves(startPos, endPos, promotions, preliminary_castling_mask, to_set, kingsMask & ourPieces, opposingPieces, occupiedMask,
+			                      pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, turn);
+
+		const uint64_t pawns = from_set & pawnsMask;
+		if (pawns == 0)
+			continue;
+
+		// Pawn captures by pawn, then by target (generatePawnMoves).
+		for (uint64_t bb = pawns; bb; bb &= bb - 1)
+		{
+			const uint8_t r = __builtin_ctzll(bb);
+			for (uint64_t moves = BB_PAWN_ATTACKS[turn][r] & opposingPieces & to_set; moves; moves &= moves - 1)
+			{
+				const uint8_t d = __builtin_ctzll(moves);
+				if (keeps_pin(r, d))
+					emit_pawn(r, d);
+			}
+		}
+
+		// Single, then double pushes, by target square.
+		uint64_t single_moves, double_moves;
+		if (turn)
+		{
+			single_moves = pawns << 8 & ~occupiedMask;
+			double_moves = single_moves << 8 & ~occupiedMask & (BB_RANK_3 | BB_RANK_4);
+		}
+		else
+		{
+			single_moves = pawns >> 8 & ~occupiedMask;
+			double_moves = single_moves >> 8 & ~occupiedMask & (BB_RANK_6 | BB_RANK_5);
+		}
+		for (uint64_t bb = single_moves & to_set; bb; bb &= bb - 1)
+		{
+			const uint8_t d = __builtin_ctzll(bb);
+			const uint8_t r = turn ? d - 8 : d + 8;
+			if (keeps_pin(r, d))
+				emit_pawn(r, d);
+		}
+		for (uint64_t bb = double_moves & to_set; bb; bb &= bb - 1)
+		{
+			const uint8_t d = __builtin_ctzll(bb);
+			const uint8_t r = turn ? d - 16 : d + 16;
+			if (keeps_pin(r, d))
+				emit(r, d, 1);
+		}
+
+		// En passant, filtered by is_safe in place.
+		if (ep_square != -1)
+		{
+			const size_t first = startPos.size();
+			generateEnPassentMoves(startPos, endPos, promotions, from_set, to_set, ourPieces, occupiedMask, pawnsMask, ep_square, turn);
+			size_t w = first;
+			for (size_t i = first; i < startPos.size(); ++i)
+				if (is_safe(king, blockers, startPos[i], endPos[i], occupiedMask, occupiedWhite, opposingPieces, ourPieces, pawnsMask, knightsMask,
+				            bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn))
+				{
+					startPos[w] = startPos[i];
+					endPos[w] = endPos[i];
+					promotions[w] = promotions[i];
+					++w;
+				}
+			startPos.resize(w);
+			endPos.resize(w);
+			promotions.resize(w);
+		}
+	}
+}
+
 inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove,
@@ -803,6 +989,49 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	uint64_t blockers = slider_blockers(king, queensMask | rooksMask, queensMask | bishopsMask, opposingPieces, ourPieces, occupiedMask);
 	uint64_t checkers = attackersMask(!turn, king, occupiedMask, queensMask | rooksMask, queensMask | bishopsMask, kingsMask, knightsMask, pawnsMask, opposingPieces);
 
+	// MOVEGEN_FAST: the same passes through processMaskPairsFast (same list, same order) when not in check; evasions keep
+	// today's path.
+	const bool mg_fast = Config::MOVEGEN_FAST && checkers == 0;
+	PairGenAttacks pair_att;
+	if (mg_fast)
+		fillPairGenAttacks(pair_att, ourPieces, occupiedMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask);
+	auto gen_pairs = [&](const auto &pairs) {
+		if (!mg_fast)
+		{
+			processMaskPairs(pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+			                 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king,
+			                 blockers, checkers);
+			return;
+		}
+#ifdef MOVEGEN_FAST_VERIFY
+		const size_t first = startPos.size();
+#endif
+		processMaskPairsFast(pairs, pair_att, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
+		                     opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king,
+		                     blockers);
+#ifdef MOVEGEN_FAST_VERIFY
+		// Today's passes into side vectors; the fast output must match them move for move.
+		thread_local std::vector<uint8_t> vs, ve, vp;
+		vs.clear();
+		ve.clear();
+		vp.clear();
+		processMaskPairs(pairs, vs, ve, vp, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite, opposingPieces, ourPieces,
+		                 pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
+		++g_mgf_checked;
+		bool same = vs.size() == startPos.size() - first;
+		for (size_t i = 0; same && i < vs.size(); ++i)
+			same = vs[i] == startPos[first + i] && ve[i] == endPos[first + i] && vp[i] == promotions[first + i];
+		if (!same && g_mgf_mismatch++ == 0)
+		{
+			uint64_t p = pawnsMask, n = knightsMask, b = bishopsMask, r = rooksMask, q = queensMask, k = kingsMask, o = occupiedMask,
+			         w = occupiedWhite, bl = occupiedMask & ~occupiedWhite, pr = 0, cr = preliminary_castling_mask;
+			int ep = ep_square;
+			std::cerr << "[movegen_fast_verify] FIRST MISMATCH at " << create_fen(p, n, b, r, q, k, o, w, bl, pr, cr, ep, turn) << ": today "
+			          << vs.size() << " moves, fast " << (startPos.size() - first) << std::endl;
+		}
+#endif
+	};
+
 	std::array<MaskPair, 12> attack_pairs = {
 		MaskPair(pawnsMask, (queensMask | rooksMask | bishopsMask | knightsMask) & opposingPieces),
 
@@ -827,9 +1056,8 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		MaskPair(kingsMask, (queensMask | rooksMask | bishopsMask | knightsMask | pawnsMask) & opposingPieces)
 	};
 
-	processMaskPairs(attack_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-					 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
-	
+	gen_pairs(attack_pairs);
+
 	/* generateLegalMoves(preliminaryStartPos, preliminaryEndPos, preliminaryPromotions, preliminary_castling_mask,
                            from_mask & ourPieces,
                            to_mask & opposingPieces,
@@ -848,8 +1076,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 		// the noisy moves is identical to their order in the full list.
 		uint64_t noisy_quiet_to = (turn ? 0xFF00000000000000ULL : 0x00000000000000FFULL) | (ep_square >= 0 ? BB_SQUARES[ep_square] : 0ULL);
 		std::array<MaskPair, 1> promo_ep_pair = { MaskPair(pawnsMask, ~opposingPieces & noisy_quiet_to) };
-		processMaskPairs(promo_ep_pair, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-						 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
+		gen_pairs(promo_ep_pair);
 	} else if (!isEndGame){
 		std::array<MaskPair, 4> quiet_pairs = {
 			MaskPair(knightsMask | bishopsMask, ~opposingPieces),
@@ -858,8 +1085,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			MaskPair(rooksMask | kingsMask, ~opposingPieces)
 		};
 
-		processMaskPairs(quiet_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-						 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
+		gen_pairs(quiet_pairs);
 
 	} else{
 		if (isNearGameEnd){
@@ -878,8 +1104,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 				MaskPair(knightsMask | bishopsMask, ~opposingPieces)
 			};
 
-			processMaskPairs(quiet_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
+			gen_pairs(quiet_pairs);
 		} else {
 			std::array<MaskPair, 4> quiet_pairs = {
 
@@ -893,11 +1118,10 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 				MaskPair(rooksMask | queensMask, ~opposingPieces),
 
 				// 6. King movement (positional)
-				MaskPair(kingsMask, ~opposingPieces),		
+				MaskPair(kingsMask, ~opposingPieces),
 
 			};
-			processMaskPairs(quiet_pairs, startPos, endPos, promotions, preliminary_castling_mask, from_mask, to_mask, occupiedMask, occupiedWhite,
-							 opposingPieces, ourPieces, pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask, ep_square, turn, king, blockers, checkers);
+			gen_pairs(quiet_pairs);
 		}
 	}
 	} // PROF_MG_GEN

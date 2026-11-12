@@ -160,6 +160,25 @@ arm 1 + early both 247 / 39,861,964, `SEE_PER_MOVE=3` 249 / 37,279,382, as expec
   forfeits; nps 1,642k vs 1,632k, mean depth 11.6 both. About +1.05σ: inside ±2σ. Prediction +0 to +8 ⇒ inside. **Not the
   verdict**: registered before any game, the verdict is read on #209 + #210 combined (queue #210, 800 more games, seed 210).
 
+**Queue #210 and the registered verdict (11-12 07:57-10:05).** Batch 2, 800 games (same binary and knobs, seed 210): +26.1 ±
+21.3 (349 W / 289 L / 162 D; ptnml [52, 57, 141, 79, 71]); 0 warnings, 0 stalls, 0 time forfeits.
+**Combined, 2,800 games / 1,400 pairs: `SEE_PER_MOVE=3` − 0 = +12.7 Elo (95% +1.2 … +24.2), ≈ +2.2σ; ptnml [206, 215, 487,
+255, 237]** (`fastchess_report.py see.pgn see2.pgn --p1 see3 --blocks 100`; equals the sum of fastchess's own per-batch
+pentanomials, and the delta-method figure from that sum, +12.66 ± 11.5). The batches agree (between runs χ² 2.12 on 1 df, p
+0.14; within runs 100-pair blocks ratio 1.52, p 0.11). nps 1,638k vs 1,627k, depth 11.6 vs 11.5.
+⇒ **By the registered rule (≥ +2σ): KEEP — `SEE_PER_MOVE=3` (per-move exchange value in capture ordering and the qsearch
+filter) is S3's default.** Prediction +0 to +8: the point estimate came in above it. It passes with little room (the lower
+95% bound is +1.2), so it is a pass, not a measured size; the size is better read as "+1 to +24".
+- **It reaches production's search too.** Bits 1 and 2 live in shared code (the move scorer, the qsearch filter), and the
+  games ran on `SEARCH_ARM=1 SV2_PRUNE_EARLY=1`, which search the same trees as production's `SEARCH_ARM=0` (SW1 / SW2), so
+  the result holds for today's search up to v2's ~3% speed. That makes it a production candidate (a gen 7.3) under the ship
+  rule, which still needs SF18 at equal nodes > −1σ and Mediocre not negative: the owner's call.
+- Bit 4 (v2's losing-capture prune by the per-move value; fingerprint `SEE_PER_MOVE=7`, arm 1 = 247 / 39,685,447) has not been
+  played.
+- ☠️ Instrument note: #210's own combined line read **+3.2 from 600 pairs**: it reported a `cat` of the two PGNs, and the
+  report keys pairs by (file, opening FEN), so openings drawn in both runs fell out. The figures above pass the files
+  separately (1,400 pairs = 2,800 / 2). Recorded in DIAGNOSTICS-TOOLKIT.
+
 ## 7. What stays ours
 
 The threat-aware quiet term, move frequency, the killer protection in LMR, the root pre-search (until its own 2×2), and the

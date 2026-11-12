@@ -43,6 +43,8 @@ struct Sv2MoveProbe
 	// the scorer's exchange branch (victim cheaper than attacker): captures, and those where a cheaper piece of ours also
 	// attacks the square, so the per-square exchange value describes that piece's capture, not this one (audit C3)
 	long long see_branch = 0, see_cheaper_attacker = 0;
+	// full lists sorted by the generator, and those where a non-capture sorts above a good-tier capture (option B)
+	long long sorted_lists = 0, quiet_above_good_capture = 0;
 };
 inline Sv2MoveProbe g_sv2_probe{};
 

@@ -1110,6 +1110,26 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 	for (const ScoredMove& s : scored) {
 		converted_moves.push_back(Move(s.from, s.to, s.promo));
 	}
+#ifdef SV2_MOVE_PROBE
+	// S3 step 0, option B: does a non-capture sort above a capture in the good tier (score >= 200000)? Two-phase list
+	// building (captures first) would order such a list differently from today.
+	if (!noisy_only)
+	{
+		bool seen_quiet = false, quiet_above = false;
+		for (const ScoredMove &s : scored)
+		{
+			if (!(BB_SQUARES[s.to] & opposingPieces))
+				seen_quiet = true;
+			else if (seen_quiet && s.score >= 200000)
+			{
+				quiet_above = true;
+				break;
+			}
+		}
+		++g_sv2_probe.sorted_lists;
+		g_sv2_probe.quiet_above_good_capture += quiet_above;
+	}
+#endif
 	}
 
 }

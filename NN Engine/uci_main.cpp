@@ -438,6 +438,7 @@ namespace
             say("info string sv2probe scored " + std::to_string(p.scored) + " pruned by rd [1 2 3 4+]: lmp " + arr(p.pruned_lmp, 4) + " hist " +
                 arr(p.pruned_hist, 4) + " see " + arr(p.pruned_see, 4) + " seec " + arr(p.pruned_seec, 4) + " fut " + arr(p.pruned_fut, 4));
             say("info string sv2probe see_branch " + std::to_string(p.see_branch) + " cheaper_attacker " + std::to_string(p.see_cheaper_attacker));
+            say("info string sv2probe sorted_lists " + std::to_string(p.sorted_lists) + " quiet_above_good_capture " + std::to_string(p.quiet_above_good_capture));
         }
 #endif
         if (Config::LAZY_V2)

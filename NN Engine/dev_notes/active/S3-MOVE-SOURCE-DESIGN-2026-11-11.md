@@ -121,8 +121,12 @@ What it says for the arms:
   `SV2_PRUNE_EARLY` (`sv2::lmp_before_make`), verified on 19,756,269 WAC prunes with 0 mismatches; queue #208 runs SW1 / SW2
   and the instruction count.
 - **C3 is frequent** (15-17% of exchange-branch captures): the per-move exchange test is worth having early.
-- Not measured yet: how often a quiet outscores a good capture (option B's second difference), the main vs qsearch split of
-  generation time.
+- **A quiet never sorts above a good-tier capture** (score ≥ 200000): 0 of 2,566,032 full lists (WAC d10), 0 of 1,153,459
+  (G24 d12). So option B (captures first; quiets generated only if no capture cuts, merged with the losing captures by the same
+  stable sort) reproduces today's order exactly but for ONE thing: the quiets' history scores are read after the good
+  captures' subtrees have run. That makes B the cleanest first picker arm: its only difference from today is the timing of
+  the history read.
+- Not measured yet: the main vs qsearch split of generation time.
 
 **Built 11-11 evening (both knobs, default off, byte-identical at 0):**
 - `SV2_PRUNE_EARLY` (search v2): late-move pruning decided before `make_move` (`sv2::lmp_before_make`): today's tests in

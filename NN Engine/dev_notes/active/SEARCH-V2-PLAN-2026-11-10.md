@@ -453,6 +453,14 @@ only if the speed reads are not level.
 **S1 is complete as the port** (11-11): identity SW1 / SW2, speed SW3 part 1; the rest of SW3 (real-play nps, PGO) before
 `SEARCH_ARM=1` becomes the default.
 
+**Search v2 speed ledger** (owner 11-11: "speedups do add up"). One row per result-identical speed item, measured on
+identical trees; the real-play column is time to depth 13 with PGO (`_sv2_speed_read.py`), filled when measured.
+
+| item | instructions (cachegrind, 12 game positions d10) | real-play time to d13 (PGO) | cumulative vs today's search |
+|---|---|---|---|
+| S1 port (`SEARCH_ARM=1`) | −1.87% (#204) | queue #207 | ≈ −1.9% |
+| early LMP (`SV2_PRUNE_EARLY=1`) | −3.16% on top (#208) | queue #209 | ≈ −5.0% |
+
 **S1 accepted as not harmful for now; watched as v2 grows (owner 11-11: "lets keep a watch on it as we continue building").**
 The fixed-depth bench cannot see everything, so these run again at every v2 step:
 

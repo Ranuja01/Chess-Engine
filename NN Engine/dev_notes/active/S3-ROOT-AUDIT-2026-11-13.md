@@ -605,3 +605,17 @@ Readings:
 5. A1: the pre-search's SCORES save nodes on tactical positions (WAC +23% without them), not on quiet ones.
 6. The game-set venue of phase A read 0 positions (`depth_nps_bench` keeps only rows with a `stratum` column); phase B used a
    copy with the column (`E:\chess_data\r1a\game_v2_stratum.csv`).
+
+## 11. Owner's standing rules for this arc, and parked hybrid ideas (11-13)
+
+- **Never rip a part out alone** (the v1 capture-gains lesson): a part that is weaker, or that the giants do not use, may be
+  load-bearing through what was built or tuned around it. A part is replaced together with new suppliers for its consumers
+  (§3.9), and a loss is read through those consumers and the tuning before anything is concluded about the idea.
+- **Keep v1 on record**: the v1 search (`SEARCH_ARM=0`), the pre-search, root razoring and their knob variants stay in the code
+  behind switches whatever wins; a winner becomes the default, nothing is deleted with it. Removal is a separate decision,
+  after a part is measured worse, and the owner's.
+- **Parked hybrid ideas** (owner, to discuss when the root and history stages come up):
+  1. Stockfish's continuation ("cascading") history tables as the signal root razoring reads, in the role the pre-search's
+     scores play today.
+  2. The owner's razor deciding how much to reduce rather than whether to skip: first form `ROOT_RAZOR_REDUCE` (§6.3 arm B),
+     screened in queue #229.

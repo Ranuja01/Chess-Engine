@@ -21,7 +21,8 @@ arc to reach production (shared code, both search arms).
 | time to depth 13, PGO, 119 positions, 5 alternated reps (#219) | **−3.52%** (sd 1.79, 5 of 5 faster), nps 1,489 → 1,544 k; prediction −2 to −5% HIT |
 | pinned UCI bench × 6, alternating with gen 7.3's first build `g73pgo` (#222 A) | **29,450 vs 30,081 ms mean (−2.10%), nps 1,266,235 vs 1,239,678 (+2.1%)**, 4 of 6 pairs faster; registered "candidate faster" HIT |
 | fingerprints (#222 A, #223) | default **249 / 37,279,382** and `MOVEGEN_FAST=0` the same · `SEE_PER_MOVE=0` 247 / 39,861,964 = gen 7.2 · `+ MOPUP_V2=0` 247 / 39,852,210 = gen 7.1 · `V2_SHIP_GEN=6` 251 / 36,859,850 = gen 6.7 · v1 250 / 35,310,778 |
-| build identity games (#224) | pending |
+| build identity games (#224, `_fix_firecount.py` g73pgo vs production, 30k nodes, 40 starts per set, one process per side) | **diverged 0 / 120** (eg 0 / 40, kp 0 / 40, uho 0 / 40), results changed 0, crashes 0 |
+| Cython module nps (#224, `depth_nps_bench` 60 midgame FENs, LIGHTNING, pinned × 3) | median 1,117,639 / 1,106,576 / 1,093,963 nps, median depth 14 / 14 / 13 (a record; the previous module was not run in the same session) |
 
 Expected gain in play about +2 to +3 Elo, from speed alone: below what games resolve, kept on timing (owner 11-12: "Any pure
 speed gain is welcome").

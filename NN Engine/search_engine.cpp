@@ -2725,6 +2725,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // Move generation through processMaskPairsFast: the same list in the same order, about 3.5% less time to
                     // depth (BASELINE_PERF). Set before the start-up read, so MOVEGEN_FAST=0 restores the previous path.
                     Config::MOVEGEN_FAST = 1;
+                    // Search v2's negamax interior (search_v2.cpp): the same nodes as the previous interior at fixed depth, about
+                    // 3% less time to depth. Set before the start-up read, so SEARCH_ARM=0 restores the previous interior.
+                    Config::SEARCH_ARM = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

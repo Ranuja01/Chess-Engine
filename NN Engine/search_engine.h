@@ -3469,7 +3469,8 @@ namespace Config
     inline int LAZY_V2_KEEP = 0;
     // Which search runs below the root's children: 0 = today's maximizer / minimizer pair, 1 = search v2, the negamax form
     // (search_v2.cpp; dev_notes/active/SEARCH-V2-PLAN-2026-11-10.md §7e). Stage S1 is a one-for-one port, so 1 visits the same
-    // nodes as 0 at fixed depth. Selected at the root, ply 1 and the pre-search's ply 2 only, never per interior node.
+    // nodes as 0 at fixed depth. Selected at the root, ply 1 and the pre-search's ply 2 only, never per interior node. The
+    // shipped preset sets 1; 0 there restores the previous interior.
     inline int SEARCH_ARM = 0;
     // Search v2 only: decide late-move pruning before the move is made (sv2::lmp_before_make), so a pruned move skips
     // make_move, the child state copy, the check tests and unmake_move. The decision is today's, test for test, and anything

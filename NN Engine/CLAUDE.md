@@ -66,7 +66,9 @@ and the v1 control below; full table `dev_notes/current/BASELINE_PERF.md` §v2. 
 st=1 +170 / 155 g, 60+0.6 +199 / 300 g — OPTIMIZATION_LOG 10-19). v1 stays the Cython path's no-env default ONLY so the
 fingerprint scripts keep working; every new measurement, the UI and the UCI binary (default `V2_PRESET=shipped`) use v2.
 **The engine is AlphaUX** ("NN Engine" is only this folder's name). **Native UCI binary:** `selfplay/build_uci.sh` →
-`build_uci/chess_engine_uci` = **gen 7.3** (2026-11-12, PGO, `chess_engine_uci_g73pgo`; id "AlphaUX (v2 gen 7.3)") = gen 7.2 +
+`build_uci/chess_engine_uci` = **gen 7.3** (2026-11-12, PGO; id "AlphaUX (v2 gen 7.3)"), since 11-13 the speed build
+`chess_engine_uci_g73fpgo` (`MOVEGEN_FAST 1` in the shipped preset: same moves and fingerprints, −2.1% pinned bench time;
+`MOVEGEN_FAST=0` = the first build's path; first build kept as `chess_engine_uci_g73pgo`) = gen 7.2 +
 `SEE_PER_MOVE 3` (a capture's exchange value as the move's own in capture ordering and the qsearch filter; bench **249 / 37,279,382 /
 EBF 3.758**; `SEE_PER_MOVE=0` = gen 7.2; backup `chess_engine_uci_g72pgo`). Gen 7.2 (2026-11-11, PGO; id "AlphaUX (v2 gen 7.2)") = gen 7.1 +
 `MOPUP_V2 100` (bare-king technique value) + no resignation with a lone king against no pawns (bench **247 / 39,861,964 / EBF

@@ -14,7 +14,11 @@ Every new production build gets a row in the ledger below, before or at install:
    107.7, SF18 WDL 384.2; OPTIMIZATION_LOG 10-30). Gen 6.5 and the gen 6.6 candidate are search-only. **Owner 11-04: re-run
    it after the full retune steps** (the final retune at the end of the transition arc).
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7.3 + PGO (2026-11-12 15:43, owner), `chess_engine_uci_g73pgo`
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7.3 + PGO (2026-11-12 15:43, owner), since 11-13 11:50 the MOVEGEN_FAST speed build `chess_engine_uci_g73fpgo` (first build `g73pgo`)
+- 11-13: `MOVEGEN_FAST = 1` in the shipped preset (owner: "pure speed ... we can ship it"). Same moves, same fingerprints (a
+  result-identical build keeps the gen); `MOVEGEN_FAST=0` = the first build's path. Profile `/mnt/e/chess_data/pgo_g73f`. Backups:
+  `g73pgo`, its .so in `/mnt/e/chess_data/so_backup_g73/`. Queues #222 A (build, gates, pinned bench), #223 (install, Cython,
+  instructions −5.22% default vs off at equal nodes), #224 (identity games, Cython nps). OPTIMIZATION_LOG 11-13 11:50.
 - WAC d10 fingerprint **249 / 37,279,382 / EBF 3.758** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 7.2 + `SEE_PER_MOVE 3`
   (the per-move exchange value in capture ordering and the qsearch filter) in the shipped preset's gen 7 block. Knobs:
   `SEE_PER_MOVE=0` = gen 7.2 247 / 39,861,964 · `SEE_PER_MOVE=0,MOPUP_V2=0` = gen 7.1 247 / 39,852,210 · `V2_SHIP_GEN=6` = gen 6.7
@@ -23,7 +27,8 @@ Every new production build gets a row in the ledger below, before or at install:
 
   | build (production from) | change | pinned UCI bench, same session | real-play nps (venue) | games check | Cython module (UI) |
   |---|---|---|---|---|---|
-  | **`chess_engine_uci_g73pgo` (11-12) = current** | gen 7.3 (`SEE_PER_MOVE 3`) | #217, alternating × 6 vs `g72pgo`, pinned: **gen 7.3 27,559 ms mean · 1,352,817 nps; gen 7.2 29,504 ms · 1,351,505** ⇒ **−6.6% time**, nps level, on a −6.5% tree. Earlier, the same binary (`sv2_pgo1pe`, #213) knob 0 vs 3 × 4: **28.9 s vs 26.8 s (−7.1%), 1.380 M vs 1.389 M nps (+0.7%)** on −6.5% nodes | the 2,800 gating games (#209 + #210, 10+0.1 UHO, search v2's port = production's trees): **1,638k vs 1,627k (+0.7%)**, depth 11.6 / 11.5 | 0 forfeits, 0 stalls in 2,800 g | 249 / 37,279,382 / 3.758 |
+  | **`chess_engine_uci_g73fpgo` (11-13) = current** | `MOVEGEN_FAST 1` (result-identical) | #222 A, alternating × 6 vs `g73pgo`, pinned: **g73f 29,450 ms mean · 1,266,235 nps; g73 30,081 ms · 1,239,678** ⇒ **−2.10% time, nps +2.1%** on the same tree. #219 time to depth 13 (PGO, 5 reps): −3.52%, nps 1,489 → 1,544 k | next match | identity games #224: pending | 249 / 37,279,382 / 3.758, `MOVEGEN_FAST=1` in the toggles |
+  | `chess_engine_uci_g73pgo` (11-12) | gen 7.3 (`SEE_PER_MOVE 3`) | #217, alternating × 6 vs `g72pgo`, pinned: **gen 7.3 27,559 ms mean · 1,352,817 nps; gen 7.2 29,504 ms · 1,351,505** ⇒ **−6.6% time**, nps level, on a −6.5% tree. Earlier, the same binary (`sv2_pgo1pe`, #213) knob 0 vs 3 × 4: **28.9 s vs 26.8 s (−7.1%), 1.380 M vs 1.389 M nps (+0.7%)** on −6.5% nodes | the 2,800 gating games (#209 + #210, 10+0.1 UHO, search v2's port = production's trees): **1,638k vs 1,627k (+0.7%)**, depth 11.6 / 11.5 | 0 forfeits, 0 stalls in 2,800 g | 249 / 37,279,382 / 3.758 |
 
 ## ⭐⭐⭐⭐ PREVIOUS ENGINE: v2 gen 7.2 + PGO (2026-11-11 12:27 – 11-12, owner), `chess_engine_uci_g72pgo`
 - WAC d10 fingerprint **247 / 39,861,964 / EBF 3.762** (UCI `bench` == Cython `V2_PRESET=shipped`). = gen 7.1 + `MOPUP_V2 100`

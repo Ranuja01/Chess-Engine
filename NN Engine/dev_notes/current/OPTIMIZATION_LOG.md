@@ -4,6 +4,33 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-13 11:50 — GEN 7.3 SPEED BUILD INSTALLED (owner: "It seems like pure speed so i think we can ship it"): `MOVEGEN_FAST=1`
+**What:** `MOVEGEN_FAST = 1` in the gen 7 block of the shipped preset. The move generator's piece-type passes go through
+`processMaskPairsFast` (move_gen.h): each of our pieces' attack sets computed once per list instead of once per pass, legality
+by the pin test per piece instead of `is_safe` per move, moves written straight into the list; positions in check keep the
+previous path. The list and its order are unchanged, so the engine plays the same moves: a result-identical build keeps the gen
+(id "AlphaUX (v2 gen 7.3)", bench unchanged). `MOVEGEN_FAST=0` restores the previous path. The first speed item of the search v2
+arc to reach production (shared code, both search arms).
+
+**Evidence:**
+
+| test | result |
+|---|---|
+| verify build `-DMOVEGEN_FAST_VERIFY` (#212): every fast pass also run the old way | **0 mismatches in 117 M passes** over 8 sets; every node count equal; `_sv2_identity.sh` SAME on 6 sets |
+| instructions (cachegrind, equal nodes) | −6.47% (#215, 12 game positions d10); the installed binary, default vs `MOVEGEN_FAST=0`: **−5.22%** (#223, d8; proves the new default is live) |
+| time to depth 13, PGO, 119 positions, 5 alternated reps (#219) | **−3.52%** (sd 1.79, 5 of 5 faster), nps 1,489 → 1,544 k; prediction −2 to −5% HIT |
+| pinned UCI bench × 6, alternating with gen 7.3's first build `g73pgo` (#222 A) | **29,450 vs 30,081 ms mean (−2.10%), nps 1,266,235 vs 1,239,678 (+2.1%)**, 4 of 6 pairs faster; registered "candidate faster" HIT |
+| fingerprints (#222 A, #223) | default **249 / 37,279,382** and `MOVEGEN_FAST=0` the same · `SEE_PER_MOVE=0` 247 / 39,861,964 = gen 7.2 · `+ MOPUP_V2=0` 247 / 39,852,210 = gen 7.1 · `V2_SHIP_GEN=6` 251 / 36,859,850 = gen 6.7 · v1 250 / 35,310,778 |
+| build identity games (#224) | pending |
+
+Expected gain in play about +2 to +3 Elo, from speed alone: below what games resolve, kept on timing (owner 11-12: "Any pure
+speed gain is welcome").
+
+**Queue #223** (`chess_engine_uci_g73fpgo`, PGO, profile `/mnt/e/chess_data/pgo_g73f`, built in #222 A): installed 11:50; Cython
+module rebuilt, **249 / 37,279,382 / 3.758** with `[toggles] MOVEGEN_FAST=1` under `V2_PRESET=shipped` (gen 7.3's first module
+printed 0) and the same nodes at `MOVEGEN_FAST=0`; v1 250 / 35,310,778 / 3.784. Backups: `chess_engine_uci_g73pgo` (gen 7.3's
+first build); its Cython module in `/mnt/e/chess_data/so_backup_g73/`.
+
 ## 🚀 2026-11-12 15:43 — GEN 7.3 SHIPPED (owner: "so we can properly ship"): the per-move exchange value, `SEE_PER_MOVE=3`
 **What:** gen 7.2 plus `SEE_PER_MOVE = 3` in the gen 7 block of the shipped preset: a capture's exchange value is the move's own
 (`see_move`: this piece takes first, then both sides recapture with their least valuable attacker) instead of the square's

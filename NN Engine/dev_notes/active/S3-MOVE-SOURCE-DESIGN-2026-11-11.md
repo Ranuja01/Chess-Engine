@@ -173,8 +173,12 @@ filter) is S3's default.** Prediction +0 to +8: the point estimate came in above
   games ran on `SEARCH_ARM=1 SV2_PRUNE_EARLY=1`, which search the same trees as production's `SEARCH_ARM=0` (SW1 / SW2), so
   the result holds for today's search up to v2's ~3% speed. That makes it a production candidate (a gen 7.3) under the ship
   rule, which still needs SF18 at equal nodes > −1σ and Mediocre not negative: the owner's call.
-- Bit 4 (v2's losing-capture prune by the per-move value; fingerprint `SEE_PER_MOVE=7`, arm 1 = 247 / 39,685,447) has not been
-  played.
+- Bit 4 (v2's losing-capture prune by the per-move value; fingerprint `SEE_PER_MOVE=7`, arm 1 = 247 / 39,685,447), played as
+  `SEE_PER_MOVE` 7 vs 3 on `SEARCH_ARM=1 SV2_PRUNE_EARLY=1` at 10+0.1: #219 550 games (stopped cleanly for the owner's gaming;
+  +15.9 from 274 pairs) and #222 S 1,460 more on fresh openings (−6.9 ± 15.8). **Pooled, files passed separately: 2,010 games,
+  1,004 pairs (274 + 730), −0.7 (95% −14.2 … +12.8), 0 time forfeits ⇒ NEUTRAL** under the rule registered in #219 (within ±2σ
+  = a knob, default off). Prediction 0 to +5 missed by its point estimate. The interim +15.9 was early-stopping inflation. Bit 4
+  exists only in search v2, so it never touched the gen 7.3 ship (bits 1 + 2).
 - ☠️ Instrument note: #210's own combined line read **+3.2 from 600 pairs**: it reported a `cat` of the two PGNs, and the
   report keys pairs by (file, opening FEN), so openings drawn in both runs fell out. The figures above pass the files
   separately (1,400 pairs = 2,800 / 2). Recorded in DIAGNOSTICS-TOOLKIT.
@@ -251,7 +255,31 @@ Mode 2 runs phase 2 at once, so the same code visits today's nodes:
   93,222,085 · STS300 mirrored 92,722,003 · 48 bare-king endings 6,715,062 · perpetual probe 41,236 (d10; record
   `/mnt/e/chess_data/s3_b/lazy_identity.txt`).
 
-Mode 1 on WAC d10: **249 / 37,086,375** (−0.5% nodes, single unpinned run −3% time). Speed read and games: queue #221.
+Mode 1 on WAC d10: **249 / 37,086,375** (−0.5% nodes, single unpinned run −3% time). Speed read and games: queue #222 B.
+
+**Lazy generation, results (#222 B, 11-13; PGO `build_uci/sv2lazy_pgo`, every gate passed: 0 = 2 = 249 / 37,279,382, 1 = 249 /
+37,086,375).**
+- **Games, mode 1 vs 0, 2,000 at 10+0.1 (1,000 pairs, 0 forfeits): +3.6 (95% −9.9 … +17.2) ⇒ NEUTRAL** under the registered rule
+  (a knob, default 0). Prediction 0 to +5 HIT. Per searched move: nps 1,634 → 1,660 k (+1.6%), depth 11.6 both.
+- **Speed read (time to depth 13, 5 reps, trees differ): +10.37% (sd 1.72), knps level (1,640 → 1,630 k).** This is a tree-size
+  reading, not speed: the cumulative nodes cross between depths (mode 1 −6.7% nodes and −12% time to depth 12, +9.7% nodes and
+  +9.6% time to depth 13, rep 1), and the 5 reps repeat the same 119 trees, so the sd is timing noise only, not position sampling.
+- **The saving is about a third of the 3-6% estimate above.** Owner 11-13: "if ... we only generated that, shouldn't it
+  automatically save time?" Known reductions: generation happens only on a cache miss (1.83 M lists against ~40 M nodes on WAC
+  d10; revisits take the cached list with the cut move first, a free first move in both arms), only 43% of those cut in the
+  captures, and on the other 57% phase 2 regenerates the WHOLE list (the captures twice).
+- **Cost read (#223 step 4, cachegrind, `sv2lazy_pgo`, 12 game positions d10):** mode 0 13,351 M instructions / 2,696,635
+  nodes; **mode 2 +2.85% on the same nodes** (= the captures-only pass at every generated list, N); **mode 1 −0.52% per node**
+  (nodes −10.4% here, against +9.7% at depth 13 in the speed read: the tree moves ±10% either way, ordering noise). Registered
+  2 − 0 between +1 and +5% HIT; 1 − 0 per node between −1 and −4% MISSED (smaller). Rough split with f ≈ 0.43 (#214's share of
+  generated lists that cut in the captures): net = N − f·G ⇒ **gross saving f·G ≈ 3.4% of instructions** (what the owner's
+  reasoning predicts, and it is there), **eaten by N ≈ 2.85%**: the captures-only pass costs ~37% of a full generation (G ≈ 8%)
+  because the attack sets and pins are shared work, and on the 57% that go on to phase 2 it is paid twice (~1.6%).
+- **Ceiling of the next form** (phase 2 generates only the quiet moves and merges them with phase 1's list tail): saving
+  f·(G − N) ≈ **2% of instructions** at best, less if the quiet pass must recompute the attack sets. About +2 Elo by speed,
+  below what games resolve. Not queued; the owner decides whether it earns the build.
+- A related lead (owner's idea in its strongest form, Stockfish's order): search the TT move before generating anything at a
+  move-cache miss that still has a TT move (the TT is 2^22, the move cache 2^20). Not yet counted.
 
 ## 7. What stays ours
 

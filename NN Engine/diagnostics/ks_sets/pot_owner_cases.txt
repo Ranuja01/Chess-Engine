@@ -36,3 +36,10 @@ r3k2r/1pp1bppp/2p5/4Pb2/N2nN3/1P5P/P1PB1PP1/R2R2K1 w - - 1 17  # g3a White to mo
 # the static ranks the breakthrough LAST / the structural give-away FIRST (sibling ordering — static discrimination).
 3b3r/3bk1p1/4p3/1p1pB3/p4PP1/P1P2N2/1P4K1/4R3 w - - 6 31  # g2a EG, White to move: SF +2.1, ours +0.7. 31.f5! SF +2.1 / ours +0.3 (ranked below 31.Ng5: SF +0.9 / ours +0.9, played)
 3rkb1r/pppbnpp1/2p4p/4P3/3N2P1/2N4P/PPP2PK1/R1BR4 w - - 5 15  # g2b MG (parked half), White to move: 15.e6?! gives up the Berlin e5 asset: SF -0.1 / ours +1.1 (ranked first); 15.f4 SF +0.3 / ours +1.0
+# Game 8 (2026-11-12, gen 7.2/7.3 as Black vs Stockfish 1.1, 60+0.6, lost from a won ending; E:\chess_data\owner_games).
+# White's passed e-pawn decides both misses (_depth_ladder.py). 52...Bc4?? = PRUNING: our search plays Re2+ at d5-10, switches to
+# Bc4 at d11-16 (root reads Bc4 +1.2 while our own d16 search after Bc4 reads +0.55); all pruning off keeps Re2+ (d10-11), and
+# with LMR off alone it holds to d12, with SEE pruning off to d13, with LMP off to d11. 67...Nc3?? = EVAL: our d15 ranks
+# Kc2 −1.30 > Kc3 −1.35 > Nc3 −1.54 where SF18 reads 46 / 17 / 0 % — the order is right, the separation is not there.
+8/1kp5/4PN2/1bp1n3/7p/4K2P/P1r5/2BR4 b - - 8 52  # g8a Black to move: SF Re2+ (E 99; Bc4 played → 50); ours d16 Bc4 +1.23, after Re2+ +0.96 / after Bc4 +0.55
+5N2/2p5/4P3/3n4/7R/1k1b1K1P/4rB2/8 b - - 10 67  # g8b Black to move: SF Kc2 (E 46; Nc3 played → 0); ours d12 Kc3, after Kc2 −1.30 / Kc3 −1.35 / Nc3 −1.54

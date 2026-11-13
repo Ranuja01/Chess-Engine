@@ -235,6 +235,12 @@ Each records the measured system, the evidence, and **what would falsify each cl
 change the system — a stale model doc is worse than none, because it reads as authoritative. Superseded
 claims are struck through and kept, never deleted.
 
+- **Root search → [`dev_notes/current/ROOT_SEARCH_MODEL.md`](dev_notes/current/ROOT_SEARCH_MODEL.md)** — the pre-search, root
+  razoring, ply 1 and aspiration as built; what depends on what (measured); how the giants do the same jobs; the register of
+  every root configuration tried, each with a re-test trigger. The owner's pre-search and razor stay in the code whatever wins.
+- **Judging any search idea against an incumbent → [`dev_notes/current/JUDGING-SEARCH-IDEAS.md`](dev_notes/current/JUDGING-SEARCH-IDEAS.md)**
+  — why games mislead when the engine was tuned around the incumbent, and the protocol (complete before comparing, register
+  every non-winner with an event trigger, compare finalists only after tuning, never delete the incumbent).
 - **Pawns → [`dev_notes/current/PAWN_MODEL.md`](dev_notes/current/PAWN_MODEL.md)** — rank/file tables, chain & wall,
   isolated/backward, passer detection and realizability, the per-pawn clamp, plus a **refutation record**
   (§8a). Check it before re-proposing a killed idea.

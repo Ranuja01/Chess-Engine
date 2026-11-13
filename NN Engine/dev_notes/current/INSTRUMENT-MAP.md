@@ -10,6 +10,9 @@ Those two columns are what the toolkit's ~200 entries mostly lack, and their abs
 repeatedly: the deployment gate was read against an assumed zero null for months, and the same gate was
 pointed at a depth-6-gated knob it is structurally blind to.
 
+Judging a search idea against an incumbent the engine was tuned around (where the best idea can look like one of the
+worst): the protocol is [`JUDGING-SEARCH-IDEAS.md`](JUDGING-SEARCH-IDEAS.md).
+
 ---
 
 ## ☠️ THE FOUR LAWS OF READING AN INSTRUMENT

@@ -2171,6 +2171,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ROOT_RAZOR_SKIP_MARGIN = env_int("ROOT_RAZOR_SKIP_MARGIN", Config::ROOT_RAZOR_SKIP_MARGIN);
         Config::ROOT_RAZOR_LMR_BASE = env_int("ROOT_RAZOR_LMR_BASE", Config::ROOT_RAZOR_LMR_BASE);
         Config::ROOT_RAZOR_LMR_DIV = env_int("ROOT_RAZOR_LMR_DIV", Config::ROOT_RAZOR_LMR_DIV);
+        Config::ROOT_RAZOR_REDUCE = env_flag("ROOT_RAZOR_REDUCE", Config::ROOT_RAZOR_REDUCE);
         if (Config::ROOT_RAZOR_LMR_DIV < 1)
             Config::ROOT_RAZOR_LMR_DIV = 1;
         Config::ROOT_RAZOR_MAX_DEPTH_DEFICIT = env_int("ROOT_RAZOR_MAX_DEPTH_DEFICIT", Config::ROOT_RAZOR_MAX_DEPTH_DEFICIT);
@@ -3265,6 +3266,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ASPIRATION_MIN_DEPTH = env_int("ASPIRATION_MIN_DEPTH", Config::ASPIRATION_MIN_DEPTH);
         Config::ASPIRATION_MAX_WIDENINGS = env_int("ASPIRATION_MAX_WIDENINGS", Config::ASPIRATION_MAX_WIDENINGS);
         Config::ASPIRATION_WIDEN_PCT = env_int("ASPIRATION_WIDEN_PCT", Config::ASPIRATION_WIDEN_PCT);
+        Config::ASPIRATION_RECENTER = env_int("ASPIRATION_RECENTER", Config::ASPIRATION_RECENTER);
         // Main TT associativity (1 = direct-mapped = byte-identical); must be a power of two that
         // divides TT_CACHE_SIZE, so clamp anything else back to direct-mapped.
         Config::TT_WAYS = env_int("TT_WAYS", Config::TT_WAYS);
@@ -3835,6 +3837,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ROOT_RAZOR_SKIP_MARGIN=" << Config::ROOT_RAZOR_SKIP_MARGIN
                   << " ROOT_RAZOR_LMR_BASE=" << Config::ROOT_RAZOR_LMR_BASE
                   << " ROOT_RAZOR_LMR_DIV=" << Config::ROOT_RAZOR_LMR_DIV
+                  << " ROOT_RAZOR_REDUCE=" << Config::ROOT_RAZOR_REDUCE
+                  << " ASPIRATION_RECENTER=" << Config::ASPIRATION_RECENTER
                   << " ROOT_RAZOR_MAX_DEPTH_DEFICIT=" << Config::ROOT_RAZOR_MAX_DEPTH_DEFICIT
                   << " ENABLE_ROOT_RAZOR=" << Config::ENABLE_ROOT_RAZOR
                   << " PRESEARCH_OFF_FROM_DEPTH=" << Config::PRESEARCH_OFF_FROM_DEPTH
@@ -4435,12 +4439,23 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                 if (score <= alpha_win)
                 {
                     lo = lo * Config::ASPIRATION_WIDEN_PCT / 100;
-                    alpha_win = prev_score - lo;
+                    if (Config::ASPIRATION_RECENTER && score > -9000000)
+                    {
+                        // A fail-low's fail-soft score is an upper bound on the value: open the window below it.
+                        if (Config::ASPIRATION_RECENTER == 2)
+                            beta_win = alpha_win + (beta_win - alpha_win) / 2;
+                        alpha_win = std::max(score - lo, -9999998);
+                    }
+                    else
+                        alpha_win = prev_score - lo;
                 }
                 else
                 {
                     hi = hi * Config::ASPIRATION_WIDEN_PCT / 100;
-                    beta_win = prev_score + hi;
+                    if (Config::ASPIRATION_RECENTER && score < 9000000)
+                        beta_win = std::min(score + hi, 9999999); // a fail-high's score is a lower bound: open above it
+                    else
+                        beta_win = prev_score + hi;
                 }
             }
         }
@@ -5132,7 +5147,6 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             if (razorable && Config::ENABLE_RAZORING && Config::ENABLE_ROOT_RAZOR && (score_diff > razor_threshold) && (alpha < 9000000))
             {
                 ++g_razor_fires;
-                g_r1_razored.push_back(move);
                 if (root_razor_idx < 0)
                     root_razor_idx = static_cast<int>(i);
                 if (Config::ENABLE_ROOT_TABLE && Config::ROOT_RAZOR_TO_LMR)
@@ -5144,6 +5158,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                     if (Config::ROOT_RAZOR_SKIP_MARGIN > 0 && over > Config::ROOT_RAZOR_SKIP_MARGIN)
                     {
                         ++g_razor_hybrid_skipped;
+                        g_r1_razored.push_back(move);
                         continue;
                     }
                     razor_r = Config::ROOT_RAZOR_LMR_BASE + over / std::max(1, Config::ROOT_RAZOR_LMR_DIV);
@@ -5158,10 +5173,25 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                     // The slot already holds ROOT_SCORE_UNPROVEN with an inherited reply list and an aged
                     // counter, so razoring needs no write at all -- skipping the move simply leaves it
                     // unproven for this iteration. Nothing desyncs because the table is pre-sized.
+                    g_r1_razored.push_back(move);
                     continue;
+                }
+                else if (Config::ROOT_RAZOR_REDUCE)
+                {
+                    // Reduce instead of skip, without the root table: the razor's own deficit sets the plies removed
+                    // (the hybrid's base and divisor), and a reduced scout that beats alpha is searched again at full
+                    // depth below. The rest of the list is searched rather than abandoned.
+                    int over = score_diff - razor_threshold;
+                    razor_r = Config::ROOT_RAZOR_LMR_BASE + over / std::max(1, Config::ROOT_RAZOR_LMR_DIV);
+                    razor_r = std::min(razor_r, depth_limit - 2);
+                    if (razor_r < 0)
+                        razor_r = 0;
+                    if (razor_r > 0)
+                        ++g_razor_hybrid_reduced;
                 }
                 else if (Config::ROOT_RAZOR_CONTINUE)
                 {
+                    g_r1_razored.push_back(move);
                     // Push a FRESH entry: scores must stay parallel with moves_list (skipping the push
                     // desyncs them and aborts), and every entry must carry a non-empty legal reply list
                     // because alpha_beta indexes second_moves unguarded -- reusing the loop's `entry` here
@@ -5176,11 +5206,11 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                 }
                 else
                 {
-                    for (size_t j = i + 1; j < current_search_data.moves_list.size(); ++j)
+                    for (size_t j = i; j < current_search_data.moves_list.size(); ++j)
                         g_r1_razored.push_back(current_search_data.moves_list[j]);
                     break; // default: abandon all remaining root moves (byte-identical)
                 }
-                // Hybrid path alone reaches here: razor_r is set and the move is searched reduced below.
+                // The hybrid and ROOT_RAZOR_REDUCE paths reach here: razor_r is set and the move is searched reduced below.
             }
         }
 

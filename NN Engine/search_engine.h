@@ -1454,6 +1454,11 @@ namespace Config
     inline int ROOT_RAZOR_SKIP_MARGIN = 0;
     inline int ROOT_RAZOR_LMR_BASE = 1;   // plies removed as soon as the razor condition trips
     inline int ROOT_RAZOR_LMR_DIV = 400;  // +1 further ply per this much extra score deficit
+    // Root razoring's action without the root table: a move past the razor line is searched at reduced depth (the
+    // hybrid's base and divisor above) and re-searched at full depth if it beats alpha, instead of the rest of the list
+    // being abandoned. The razor's trigger and the pre-search stay as they are, so this reads "skip against reduce" on
+    // our own condition (S3-ROOT-AUDIT §6.3 arm B). Default off = byte-identical.
+    inline bool ROOT_RAZOR_REDUCE = false;
     // Reject a stored score searched shallower than (current depth - this) as evidence for pruning. Guards
     // the reduced-score-reuse hazard the depth field exists for.
     inline int ROOT_RAZOR_MAX_DEPTH_DEFICIT = 2;
@@ -3399,6 +3404,11 @@ namespace Config
     inline int ASPIRATION_MIN_DEPTH = 5;
     inline int ASPIRATION_MAX_WIDENINGS = 3;
     inline int ASPIRATION_WIDEN_PCT = 200;
+    // Where a failed aspiration window re-opens. 0 = around the previous iteration's score (byte-identical). 1 = the failing
+    // bound moves to the returned fail-soft score plus the widened margin, so a value far from the previous score is
+    // reached in fewer passes (each failed pass also repeats the root pre-search). 2 = 1, and a fail-low also brings beta
+    // down to the middle of the failed window (Stockfish's shape). Mate scores keep the old rule.
+    inline int ASPIRATION_RECENTER = 0;
 
     // Main TT (searchEvalCache) associativity. 1 = direct-mapped (one entry per index, today's
     // behavior, byte-identical). 2/4/8 = N-way set-associative: the index selects a bucket of N

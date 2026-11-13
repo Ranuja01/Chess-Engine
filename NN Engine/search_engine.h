@@ -3665,8 +3665,10 @@ struct RootScore
     // Iterations since this move last carried a verified score. 0 = proven this iteration. Root razoring
     // consults this so it can fire on recent evidence and skip (not abandon) everything staler.
     int age;
+    // Diagnostic only: top_score is a root pre-search value rather than a main-search one (read by the root counters).
+    bool from_presearch;
 
-    RootScore() : top_score(0), prev_score(ROOT_SCORE_UNPROVEN), last_real(ROOT_SCORE_UNPROVEN), last_real_depth(0), last_proven(ROOT_SCORE_UNPROVEN), last_proven_depth(0), verified(false), age(ROOT_AGE_NEVER) {}
+    RootScore() : top_score(0), prev_score(ROOT_SCORE_UNPROVEN), last_real(ROOT_SCORE_UNPROVEN), last_real_depth(0), last_proven(ROOT_SCORE_UNPROVEN), last_proven_depth(0), verified(false), age(ROOT_AGE_NEVER), from_presearch(false) {}
 
     RootScore(int top_score_, std::vector<Move> second_moves_, std::vector<int> second_scores_)
         : top_score(top_score_),
@@ -3678,7 +3680,8 @@ struct RootScore
           last_proven(ROOT_SCORE_UNPROVEN),
           last_proven_depth(0),
           verified(false),
-          age(ROOT_AGE_NEVER) {}
+          age(ROOT_AGE_NEVER),
+          from_presearch(false) {}
 };
 
 struct SearchData

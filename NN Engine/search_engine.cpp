@@ -865,6 +865,29 @@ static int g_prev_razor_idx = -1;
 static long g_razor_audit_iters = 0;   // iterations preceded by a razoring iteration (denominator)
 static long g_razor_cut_winner = 0;    // ... whose chosen move had been razored away
 static long g_razor_cut_depth_sum = 0; // how far past the razor point the winner sat
+// Root counters for the pre-search question (does its information add to what the main search already knows?);
+// counting only, no node changes. Score sources of a root entry: 0 = index 0, 1 = a main-search value, 2 = a
+// pre-search value (RootScore::from_presearch), 3 = a synthetic fill (index >= synthetic_from).
+static long g_r1_iters = 0;                      // resolved iterations
+static long g_r1_best_changed = 0;               // ... whose best move differs from the previous resolved iteration's
+static long g_r1_best_src[4] = {0, 0, 0, 0};     // ... by the source of the winning entry's score
+static long g_r1_searched_src[4] = {0, 0, 0, 0}; // root moves after index 0 searched by the main loop, by source
+static long g_r1_raised_src[4] = {0, 0, 0, 0};   // ... of which raised alpha
+static int g_r1_last_best_src = 0;               // source of the current pass's best move
+static long g_r1_searches = 0;                   // searches (get_engine_move calls)
+static long g_r1_razor_final = 0;                // ... whose move played had been razored away in one of its iterations
+static std::vector<Move> g_r1_razored;           // root moves razored away during the current search
+static long g_r1_asp_nodes = 0;                  // nodes inside aspiration-window passes
+static long g_r1_asp_fail_nodes = 0;             // ... inside passes that failed and were searched again
+static long g_r1_asp_fail_presearch = 0;         // ... of which the pre-search spent
+static inline int r1_source(const SearchData &d, size_t i)
+{
+    if (i == 0)
+        return 0;
+    if (i >= d.synthetic_from)
+        return 3;
+    return (i < d.scores.size() && d.scores[i].from_presearch) ? 2 : 1;
+}
 // Root LMR activity: moves given a reduced scout, and how many of those beat alpha and forced the
 // full-depth re-search. A high re-search rate means the reduction is too aggressive to be paying for itself.
 static long g_root_lmr_reduced = 0;
@@ -4282,6 +4305,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // would compare a move list against an unrelated one.
     g_prev_root_list.clear();
     g_prev_razor_idx = -1;
+    g_r1_razored.clear();
     TimePoint search_start_time = Clock::now();
     TimePoint t0 = Clock::now();
 
@@ -4377,7 +4401,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
             int beta_win = prev_score + hi;
             for (int attempt = 0;; ++attempt)
             {
+                const int r1_nodes_before = num_iterations;
+                const long r1_pre_before = g_presearch_nodes;
                 score = alpha_beta(alpha_win, beta_win, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
+                g_r1_asp_nodes += num_iterations - r1_nodes_before;
 
                 // A timed-out search is unresolved; the completed_move guard below refuses it.
                 if (time_up.load(std::memory_order_relaxed))
@@ -4389,6 +4416,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
                 // Reached only when the window failed (not in-window, not timed out).
                 ++g_asp_fails;
+                g_r1_asp_fail_nodes += num_iterations - r1_nodes_before;
+                g_r1_asp_fail_presearch += g_presearch_nodes - r1_pre_before;
 
                 // Out of resizes: take the full window once, which always resolves.
                 if (attempt >= Config::ASPIRATION_MAX_WIDENINGS)
@@ -4396,7 +4425,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                     ++g_asp_fallbacks;
                     alpha_win = -9999998;
                     beta_win = 9999999;
+                    const int r1_fallback_before = num_iterations;
                     score = alpha_beta(alpha_win, beta_win, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
+                    g_r1_asp_nodes += num_iterations - r1_fallback_before;
                     break;
                 }
 
@@ -4450,6 +4481,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                                    move.promotion == completed_move.promotion;
             completed_move = move;
             completed_score = score;
+            ++g_r1_iters;
+            ++g_r1_best_src[g_r1_last_best_src];
+            if (!same_best)
+                ++g_r1_best_changed;
             tm_stability = same_best ? std::min(10, tm_stability + 1) : 0;
             tm_iter_scores.push_back(score);
             if ((Config::TM_SCALE || tm_log) && depth_limit >= 5)
@@ -4523,6 +4558,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     // the clock cut short mid-reorder.
     move = completed_move;
     score = completed_score;
+    ++g_r1_searches;
+    for (const Move &m : g_r1_razored)
+        if (m == completed_move)
+        {
+            ++g_r1_razor_final;
+            break;
+        }
     g_tm_total_s += std::chrono::duration<double>(Clock::now() - search_start_time).count();
     ++g_tm_moves;
 
@@ -4636,6 +4678,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " pct=" << (g_razor_audit_iters > 0 ? (100.0 * g_razor_cut_winner / g_razor_audit_iters) : 0.0) << "%"
               << " avg_depth_past_razor=" << (g_razor_cut_winner > 0 ? (1.0 * g_razor_cut_depth_sum / g_razor_cut_winner) : 0.0)
               << std::endl;
+    std::cerr << "[root_r1] iters=" << g_r1_iters << " best_changed=" << g_r1_best_changed
+              << " best_src_idx0/main/pre/synth=" << g_r1_best_src[0] << "/" << g_r1_best_src[1] << "/" << g_r1_best_src[2] << "/" << g_r1_best_src[3]
+              << " searched_main/pre/synth=" << g_r1_searched_src[1] << "/" << g_r1_searched_src[2] << "/" << g_r1_searched_src[3]
+              << " raised_main/pre/synth=" << g_r1_raised_src[1] << "/" << g_r1_raised_src[2] << "/" << g_r1_raised_src[3]
+              << " searches=" << g_r1_searches << " played_was_razored=" << g_r1_razor_final
+              << " asp_nodes=" << g_r1_asp_nodes << " asp_fail_nodes=" << g_r1_asp_fail_nodes
+              << " asp_fail_presearch=" << g_r1_asp_fail_presearch << std::endl;
     std::cerr << "[root_table] slots=" << g_root_table_slots
               << " has_real=" << g_root_table_has_real
               << " evidence_pct=" << (g_root_table_slots > 0 ? (100.0 * g_root_table_has_real / g_root_table_slots) : 0.0)
@@ -4954,6 +5003,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     best_move = current_search_data.moves_list[0];
     best_score = score;
     best_move_index = 0;
+    g_r1_last_best_src = 0;
 
     // Simplification-bias bookkeeping: does the current best root move trade a non-pawn piece?
     uint64_t simpl_best_to = 1ULL << current_search_data.moves_list[0].to_square;
@@ -5082,6 +5132,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             if (razorable && Config::ENABLE_RAZORING && Config::ENABLE_ROOT_RAZOR && (score_diff > razor_threshold) && (alpha < 9000000))
             {
                 ++g_razor_fires;
+                g_r1_razored.push_back(move);
                 if (root_razor_idx < 0)
                     root_razor_idx = static_cast<int>(i);
                 if (Config::ENABLE_ROOT_TABLE && Config::ROOT_RAZOR_TO_LMR)
@@ -5125,6 +5176,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                 }
                 else
                 {
+                    for (size_t j = i + 1; j < current_search_data.moves_list.size(); ++j)
+                        g_r1_razored.push_back(current_search_data.moves_list[j]);
                     break; // default: abandon all remaining root moves (byte-identical)
                 }
                 // Hybrid path alone reaches here: razor_r is set and the move is searched reduced below.
@@ -5252,6 +5305,11 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             return best_score;
         }
 
+        const int r1_src = r1_source(current_search_data, i);
+        ++g_r1_searched_src[r1_src];
+        if (score > alpha_before_move)
+            ++g_r1_raised_src[r1_src];
+
         zobrist = cur_hash;
         if (Config::ENABLE_ROOT_TABLE)
             root_table_store(previous_search_data.scores[i], score, std::move(entry), score > alpha_before_move, searched_depth);
@@ -5290,6 +5348,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             best_move = move;
             best_score = score;
             best_move_index = i;
+            g_r1_last_best_src = r1_src;
             best_is_simpl = move_is_simpl;
             g_rp_move = move;   // reached only after this move's search completed uncut (the time check above)
             g_rp_score = score;
@@ -5319,6 +5378,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             // Clearly ahead and this move trades a non-pawn piece at no score cost: prefer simplifying.
             best_move = move;
             best_move_index = i;
+            g_r1_last_best_src = r1_src;
             best_is_simpl = true;
         }
 
@@ -8609,6 +8669,8 @@ SearchData reorder_legal_moves(int alpha, int beta, int depth_limit, const TimeP
 
         returnData = current_search_data;
         returnData.moves_list = moves_list;
+        for (RootScore &s : returnData.scores)
+            s.from_presearch = true;
 
         sortSearchDataByScore(returnData);
     }
@@ -9481,7 +9543,12 @@ inline void descending_sort_wrapper(const SearchData &preSearchData, SearchData 
     std::vector<Move> moves_sub(mainSearchData.moves_list.begin() + 1, mainSearchData.moves_list.end());
     std::vector<RootScore> scores_sub(mainSearchData.scores.begin() + 1, mainSearchData.scores.end());
     if (preSearchData.scores.size() > count)
+    {
+        const size_t first_pre = scores_sub.size();
         scores_sub.insert(scores_sub.end(), preSearchData.scores.begin() + count, preSearchData.scores.end());
+        for (size_t k = first_pre; k < scores_sub.size(); ++k)
+            scores_sub[k].from_presearch = true;
+    }
 
     // Keep the scores parallel to the moves (drop any score-only overhang). No-op in the normal case.
     if (scores_sub.size() > moves_sub.size())

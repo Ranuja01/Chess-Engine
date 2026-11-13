@@ -1425,6 +1425,10 @@ namespace Config
     // are written IN PLACE -- which also makes the full-length invariant structural instead of conventional,
     // so all eight of alpha_beta's exits leave a complete table rather than a truncated stump.
     inline bool ENABLE_ROOT_TABLE = false;
+    // With the root table, carry each move's reply SCORES with its reply list into the next pass, so a move the pass does
+    // not reach (an aspiration fail high ends it early) still orders its refutation first at ply 1. Default off =
+    // byte-identical (only the list is carried; S3-ROOT-WITHOUT-PRESEARCH D1).
+    inline bool ROOT_TABLE_REPLY_SCORES = false;
     // How stale a verified score may be and still be razorable, in iterations (0 = proven this iteration
     // only). Entries older than this -- and every unproven sentinel -- are SKIPPED, never razored, which is
     // the generalisation of the synthetic_from guard. Only consulted when ENABLE_ROOT_TABLE is on.
@@ -3183,6 +3187,11 @@ namespace Config
     inline bool ENABLE_TT_DEPTH_FIX = true;
     inline int NULLMOVE_CURDEPTH_MINI = 3;
     inline int NULLMOVE_CURDEPTH_MAXI = 4;
+    // Node-level cuts at ply 1, the reply node of a root move, when it is searched with a null window: bit 1 = null move,
+    // bit 2 = reverse futility, each with the interior's gates and reductions. Ply 1 is a separate branch of minimizer
+    // with neither, so without the root pre-search and razor every late root move pays for its full refutation, where
+    // the giants dismiss it with a null move at its cut node (S3-ROOT-WITHOUT-PRESEARCH H1). Default 0 = byte-identical.
+    inline int PLY1_NODE_PRUNE = 0;
 
     // Margin-gated verification re-search: when > 0, a reduced move that fails low
     // by less than this margin (a near-miss) is re-searched. The one mechanism that

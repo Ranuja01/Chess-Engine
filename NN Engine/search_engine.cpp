@@ -880,6 +880,11 @@ static std::vector<Move> g_r1_razored;           // root moves razored away duri
 static long g_r1_asp_nodes = 0;                  // nodes inside aspiration-window passes
 static long g_r1_asp_fail_nodes = 0;             // ... inside passes that failed and were searched again
 static long g_r1_asp_fail_presearch = 0;         // ... of which the pre-search spent
+static long g_r1_late_nodes = 0;                 // nodes under root moves after index 0 (main loop)
+static long g_r1_late_faillow_nodes = 0;         // ... under those that failed low (did not beat the alpha they started on)
+static long g_ply1_rfp_cuts = 0;                 // PLY1_NODE_PRUNE: reverse-futility returns at the reply node of a root move
+static long g_ply1_null_tries = 0;               // ... null moves tried there
+static long g_ply1_null_cuts = 0;                // ... and those that cut
 static inline int r1_source(const SearchData &d, size_t i)
 {
     if (i == 0)
@@ -2162,6 +2167,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ROOT_LMR_DIV = env_int("ROOT_LMR_DIV", Config::ROOT_LMR_DIV);
         Config::ROOT_LMR_EXEMPT_BEST = env_flag("ROOT_LMR_EXEMPT_BEST", Config::ROOT_LMR_EXEMPT_BEST);
         Config::ENABLE_ROOT_TABLE = env_flag("ENABLE_ROOT_TABLE", Config::ENABLE_ROOT_TABLE);
+        Config::ROOT_TABLE_REPLY_SCORES = env_flag("ROOT_TABLE_REPLY_SCORES", Config::ROOT_TABLE_REPLY_SCORES);
+        Config::PLY1_NODE_PRUNE = env_int("PLY1_NODE_PRUNE", Config::PLY1_NODE_PRUNE);
         Config::ROOT_RAZOR_MAX_AGE = env_int("ROOT_RAZOR_MAX_AGE", Config::ROOT_RAZOR_MAX_AGE);
         if (Config::ROOT_RAZOR_MAX_AGE < 0)
             Config::ROOT_RAZOR_MAX_AGE = 0;
@@ -3815,6 +3822,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ENABLE_QPREC_PHASE_GATE=" << Config::ENABLE_QPREC_PHASE_GATE
                   << " ENABLE_TT_DEPTH_FIX=" << Config::ENABLE_TT_DEPTH_FIX
                   << " NULLMOVE_CURDEPTH_MINI=" << Config::NULLMOVE_CURDEPTH_MINI
+                  << " PLY1_NODE_PRUNE=" << Config::PLY1_NODE_PRUNE
+                  << " ROOT_TABLE_REPLY_SCORES=" << Config::ROOT_TABLE_REPLY_SCORES
                   << " NULLMOVE_CURDEPTH_MAXI=" << Config::NULLMOVE_CURDEPTH_MAXI
                   << " ENABLE_QCHECK_DEPTH0=" << Config::ENABLE_QCHECK_DEPTH0
                   << " ENABLE_QCHECK_MASK=" << Config::ENABLE_QCHECK_MASK
@@ -4699,7 +4708,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " raised_main/pre/synth=" << g_r1_raised_src[1] << "/" << g_r1_raised_src[2] << "/" << g_r1_raised_src[3]
               << " searches=" << g_r1_searches << " played_was_razored=" << g_r1_razor_final
               << " asp_nodes=" << g_r1_asp_nodes << " asp_fail_nodes=" << g_r1_asp_fail_nodes
-              << " asp_fail_presearch=" << g_r1_asp_fail_presearch << std::endl;
+              << " asp_fail_presearch=" << g_r1_asp_fail_presearch
+              << " late_nodes=" << g_r1_late_nodes << " late_faillow_nodes=" << g_r1_late_faillow_nodes
+              << " ply1_rfp_cuts=" << g_ply1_rfp_cuts << " ply1_null=" << g_ply1_null_cuts << "/" << g_ply1_null_tries << std::endl;
     std::cerr << "[root_table] slots=" << g_root_table_slots
               << " has_real=" << g_root_table_has_real
               << " evidence_pct=" << (g_root_table_slots > 0 ? (100.0 * g_root_table_has_real / g_root_table_slots) : 0.0)
@@ -5070,9 +5081,15 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             slot.age = (had && current_search_data.scores[k].age < ROOT_AGE_NEVER)
                            ? current_search_data.scores[k].age + 1
                            : ROOT_AGE_NEVER;
-            // Keep a legal reply list on every entry: alpha_beta indexes second_moves unguarded.
+            // Keep a legal reply list on every entry: alpha_beta indexes second_moves unguarded. With
+            // ROOT_TABLE_REPLY_SCORES the reply scores come too, so a move the pass did not reach can still put
+            // its refutation first (ply 1 sorts the list by them).
             if (had)
+            {
                 slot.second_moves = current_search_data.scores[k].second_moves;
+                if (Config::ROOT_TABLE_REPLY_SCORES)
+                    slot.second_scores = current_search_data.scores[k].second_scores;
+            }
 
             // Evidence coverage: does this move have ANY proven score behind it, at any age? This is the
             // number the lane is about -- the push_back table could only answer yes for moves searched in
@@ -5339,6 +5356,9 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         ++g_r1_searched_src[r1_src];
         if (score > alpha_before_move)
             ++g_r1_raised_src[r1_src];
+        g_r1_late_nodes += num_iterations - root_nodes_before;
+        if (score <= alpha_before_move)
+            g_r1_late_faillow_nodes += num_iterations - root_nodes_before;
 
         zobrist = cur_hash;
         if (Config::ENABLE_ROOT_TABLE)
@@ -6656,6 +6676,103 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
         ascending_sort(second_level_preliminary_scores, second_level_moves_list);
         out_entry.second_moves = second_level_moves_list;
         bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
+
+        // Node-level cuts at the reply node of a root move searched with a null window (PLY1_NODE_PRUNE): bit 2 the
+        // interior's reverse futility, bit 1 its null move, with the same gates and reductions. A root move whose reply node
+        // cuts here is dismissed without searching its refutation, the way the giants' ply-1 cut nodes dismiss late root
+        // moves. Default 0 = byte-identical. Every return here leaves the carried reply list in out_entry.
+        if (Config::PLY1_NODE_PRUNE && (beta - alpha) == 1 && !currently_in_check && alpha > -9000000 && alpha < 9000000)
+        {
+            const int rem = depth_limit - cur_depth;
+            const bool want_rfp = (Config::PLY1_NODE_PRUNE & 2) && Config::ENABLE_RFP && rem >= Config::RFP_MIN_DEPTH && rem <= Config::RFP_MAX_DEPTH;
+            const bool want_null = (Config::PLY1_NODE_PRUNE & 1) && Config::ENABLE_NULLMOVE && depth_limit >= 5 && !last_move_was_capture &&
+                                   !last_move_was_null_move && !isUnsafeForNullMovePruning(current_state);
+            int p1_eval = NO_STATIC_EVAL;
+            if (want_rfp || (want_null && Config::ENABLE_NULL_EVAL_GATE))
+            {
+                p1_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
+                if (Config::ENABLE_CORR_HIST)
+                    p1_eval += corrhist_correction(current_state, 0);
+                if (Config::CORR2)
+                    p1_eval += corr2_root(current_state, 0);
+            }
+            if (want_rfp && p1_eval + Config::RFP_MARGIN * rem <= alpha)
+            {
+                ++g_ply1_rfp_cuts;
+                if (Config::RFP_RETURN_BLEND > 0)
+                    return (Config::RFP_RETURN_BLEND * alpha + (100 - Config::RFP_RETURN_BLEND) * p1_eval) / 100;
+                return p1_eval;
+            }
+            if (want_null && (!Config::ENABLE_NULL_EVAL_GATE || p1_eval <= alpha))
+            {
+                ++g_ply1_null_tries;
+                const LazyPly lazy_keep = g_lazy_ply[state_history.size() & 2047];
+#ifdef LAZY_PROBE
+                const LzPly lz_keep = g_lz_ply[state_history.size() & 2047];
+#endif
+                state_history.back().turn = !state_history.back().turn;
+                const int cur_ep_square = state_history.back().ep_square;
+                state_history.back().ep_square = -1;
+                updateZobristHashForNullMove(zobrist);
+
+                int reduced_depth = depth_reduction(depth_limit) - Config::NULLMOVE_EXTRA;
+                if (depth_limit >= 10)
+                    reduced_depth -= 1;
+                if (Config::ENABLE_NULLMOVE_EVAL_R && p1_eval != NO_STATIC_EVAL)
+                {
+                    const int extra_R = std::min((alpha - p1_eval) / Config::NULLMOVE_R_DIV, Config::NULLMOVE_R_CAP);
+                    if (extra_R > 0)
+                        reduced_depth -= extra_R;
+                }
+                if (Config::NULLMOVE_PROGRESSIVE)
+                {
+                    const int base_depth = depth_limit - g_check_extensions;
+                    if (base_depth >= 12)
+                        reduced_depth -= 1;
+                    if (base_depth >= 14)
+                        reduced_depth -= 1;
+                }
+
+                int null_move_score = 0;
+                bool null_from_tt = false;
+                TTEntry *entry = accessSearchEvalCache(zobrist, state_history.back().castling_rights, state_history.back().ep_square);
+                if (entry != nullptr && entry->depth >= (reduced_depth - cur_depth) && entry->flag == TTFlag::EXACT)
+                {
+                    null_move_score = tt_score_from_entry(entry->score, static_cast<int>(state_history.size()));
+                    null_from_tt = true;
+                    increment_node_count_with_decay(num_iterations);
+                }
+                if (!null_from_tt)
+                {
+                    Move dummyMove;
+                    if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
+                        g_searchStack[cur_depth] = dummyMove;
+                    null_move_score = Config::SEARCH_ARM
+                                          ? sv2::negamax<true>(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true)
+                                          : maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, dummyMove, num_iterations, false, true, true);
+                }
+
+                state_history.back().turn = !state_history.back().turn;
+                state_history.back().ep_square = cur_ep_square;
+                zobrist = cur_hash;
+                if (Config::LAZY_V2_KEEP)
+                    g_lazy_ply[state_history.size() & 2047] = lazy_keep;
+#ifdef LAZY_PROBE
+                if (Config::LAZY_V2_KEEP)
+                    g_lz_ply[state_history.size() & 2047] = lz_keep;
+#endif
+                if (time_up.load(std::memory_order_relaxed))
+                    return 0;
+                if (null_move_score <= alpha)
+                {
+                    ++g_ply1_null_cuts;
+                    if (Config::ENABLE_NULL_MATE_CLAMP && null_move_score <= -9000000)
+                        return alpha;
+                    return null_move_score;
+                }
+            }
+        }
+
         MalusList malus_quiets, malus_captures; // history-gravity malus lists (empty = no cost when gravity off)
         std::vector<Move> &searched_quiets = malus_quiets.v, &searched_captures = malus_captures.v;
         for (size_t i = 0; i < second_level_moves_list.size(); ++i)

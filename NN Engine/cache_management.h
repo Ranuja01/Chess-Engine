@@ -88,6 +88,8 @@ struct MoveEntry {
     int last_cutoff_index = -1;   // index of the move that caused the last beta cutoff here (pre-promotion); -1 = unknown
     int reuse_count = 0;          // cache hits since the last full lazy re-sort / cutoff refresh (staleness gauge)
     bool valid = false;
+    bool quiets_pending = false;  // the list holds only the leading good captures of a node that cut before its quiet moves
+                                  // were generated (Config::SV2_LAZY_GEN); readers that need the full list regenerate it
 };
 
 extern HugeVector<EvalEntry> evalCacheNew;
@@ -913,6 +915,25 @@ inline bool moveGenCacheHasMoves(uint64_t key, uint64_t castling_rights, int ep_
     return entry.valid && entry.key == updatedKey && !entry.moves.empty();
 }
 
+// What the move-gen cache holds for `key`: 0 = nothing, 1 = the complete list, 2 = only the leading good captures of a node
+// that cut before its quiet moves were generated (Config::SV2_LAZY_GEN).
+inline int moveGenCacheState(uint64_t key, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    const MoveEntry &entry = moveGenCache[updatedKey & g_mg_mask];
+    if (!entry.valid || entry.key != updatedKey)
+        return 0;
+    return entry.quiets_pending ? 2 : 1;
+}
+
+// Marks the cached list for `key` as holding only the leading good captures (Config::SV2_LAZY_GEN); a no-op when the slot
+// holds another position.
+inline void markMoveGenCacheQuietsPending(uint64_t key, uint64_t castling_rights, int ep_square) {
+    uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
+    MoveEntry &entry = moveGenCache[updatedKey & g_mg_mask];
+    if (entry.valid && entry.key == updatedKey)
+        entry.quiets_pending = true;
+}
+
 // Snapshot the cached move list for `key` into the caller-owned buffer `out` (reusing out's existing
 // capacity), or clear `out` on a miss. The copy is synchronous -- no reference into the cache slot
 // survives the call, so later cache churn cannot touch `out`. Lets a caller reuse a per-ply buffer
@@ -973,6 +994,7 @@ inline MoveEntry& accessMutableMoveGenCache(uint64_t updatedKey, uint64_t castli
     // Otherwise, overwrite the entry
     entry.key = updatedKey;
     entry.valid = true;
+    entry.quiets_pending = false;
     entry.moves.clear();  // Clear previous moves (for a different position!)
     return entry;
 }
@@ -982,6 +1004,7 @@ inline void addToMoveGenCache(uint64_t key, const std::vector<Move> &reorderedMo
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
     MoveEntry& moveEntry = accessMutableMoveGenCache(updatedKey, castling_rights, ep_square);
     moveEntry.moves.assign(reorderedMoves.begin(), reorderedMoves.end());
+    moveEntry.quiets_pending = false;
 }
 
 
@@ -1278,6 +1301,7 @@ inline void updateMoveCacheForBetaCutoff(uint64_t zobrist, uint64_t castling, ui
         } */
         moveEntry.key = updatedKey;
         moveEntry.valid = true;
+        moveEntry.quiets_pending = false;   // the caller marks a lazy node's capture-only list again (Config::SV2_LAZY_GEN)
         // Record where the cutoff move sat in the freshly generated list (a cutoff deep in the
         // list flags a poorly-ordered node for the lazy re-sort). Gated: off = no extra find.
         if (Config::ENABLE_LAZY_RESORT) {

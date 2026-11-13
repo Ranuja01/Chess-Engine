@@ -2722,6 +2722,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // +2.60 pp (z +1.56), Mediocre +2.33 pp (OPTIMIZATION_LOG). Set before the start-up read, so SEE_PER_MOVE=0
                     // restores gen 7.2 exactly (247 / 39,861,964).
                     Config::SEE_PER_MOVE = 3;
+                    // Move generation through processMaskPairsFast: the same list in the same order, about 3.5% less time to
+                    // depth (BASELINE_PERF). Set before the start-up read, so MOVEGEN_FAST=0 restores the previous path.
+                    Config::MOVEGEN_FAST = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on
@@ -3260,6 +3263,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SV2_PRUNE_EARLY = env_int("SV2_PRUNE_EARLY", Config::SV2_PRUNE_EARLY);
         Config::SEE_PER_MOVE = env_int("SEE_PER_MOVE", Config::SEE_PER_MOVE);
         Config::MOVEGEN_FAST = env_int("MOVEGEN_FAST", Config::MOVEGEN_FAST);
+        Config::SV2_LAZY_GEN = env_int("SV2_LAZY_GEN", Config::SV2_LAZY_GEN);
         Config::LAZY_V2_GATE = env_int("LAZY_V2_GATE", Config::LAZY_V2_GATE);
         Config::TM_SCALE = env_int("TM_SCALE", Config::TM_SCALE);
         Config::TM_NORM = env_int("TM_NORM", Config::TM_NORM);
@@ -3324,6 +3328,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         std::cerr << "[toggles] EVAL_ARM=" << Config::EVAL_ARM
                   << " SEARCH_ARM=" << Config::SEARCH_ARM
                   << " MOVEGEN_FAST=" << Config::MOVEGEN_FAST
+                  << " SV2_LAZY_GEN=" << Config::SV2_LAZY_GEN
                   << " EVAL_V2_RUNG=" << Config::EVAL_V2_RUNG
                   << " EVAL_V2_PAWN_MG=" << Config::EVAL_V2_PAWN_MG
                   << " PASSER_V2_MAG=" << Config::PASSER_V2_MAG
@@ -10226,6 +10231,9 @@ inline std::vector<Move> &buildMoveListFromReordered(std::vector<BoardState> &st
     std::vector<Move> &cached_moves =
         (cur_ply >= 0 && cur_ply < MOVE_POOL_PLIES) ? g_moveBuf[cur_ply] : g_moveBufFallback;
     fillMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square, cached_moves);
+    // A capture-only list left by search v2's lazy generation is not this position's full list: regenerate it.
+    if (Config::SV2_LAZY_GEN && cached_moves.size() != 0 && moveGenCacheState(zobrist, current_state.castling_rights, current_state.ep_square) == 2)
+        cached_moves.clear();
     if (cached_moves.size() != 0)
     {
         move_gen_cache_hits++;
@@ -10607,6 +10615,9 @@ inline std::vector<Move> &buildNoisyMoveList(uint64_t zobrist, std::vector<Board
 
     std::vector<Move> &moves_list = in_pool ? g_moveBuf[cur_ply] : g_moveBufFallback;
     fillMoveGenCache(zobrist, current_state.castling_rights, current_state.ep_square, moves_list);
+    // A capture-only list left by search v2's lazy generation lacks the losing captures, quiet promotions and en passant.
+    if (Config::SV2_LAZY_GEN && moves_list.size() != 0 && moveGenCacheState(zobrist, current_state.castling_rights, current_state.ep_square) == 2)
+        moves_list.clear();
     if (moves_list.size() == 0)
     {
         auto gen = [&](std::vector<Move> &out, bool noisy_only) {

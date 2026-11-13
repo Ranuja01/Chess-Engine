@@ -32,6 +32,63 @@ namespace sv2
 		return s * eval;
 	}
 
+	// ── Lazy generation (Config::SV2_LAZY_GEN) ───────────────────────────────────────────────────────────────────────────
+	/*
+	 * Phase 2: the node's full list. Today's generated list, with phase 1's moves first in the order they were searched, so
+	 * every move keeps today's index (on a first visit today's list starts with exactly those captures); stored in the move
+	 * cache as the node's complete list.
+	 */
+	static void lazy_phase2(std::vector<BoardState> &state_history, uint64_t zobrist, int ply, Move previous_move, std::vector<Move> &list, size_t phase1)
+	{
+		const BoardState &cs = state_history.back();
+		thread_local std::vector<Move> full;
+		full.clear();
+		generateLegalMovesReordered(full, cs.castling_rights, ~0ULL, ~0ULL, cs.occupied, cs.occupied_colour[true], cs.occupied_colour[!cs.turn],
+		                            cs.occupied_colour[cs.turn], cs.pawns, cs.knights, cs.bishops, cs.rooks, cs.queens, cs.kings, cs.ep_square, cs.turn,
+		                            ply, previous_move);
+		list.resize(phase1);
+		for (const Move &m : full)
+			if (std::find(list.begin(), list.begin() + phase1, m) == list.begin() + phase1)
+				list.push_back(m);
+		addToMoveGenCache(zobrist, list, cs.castling_rights, cs.ep_square);
+	}
+
+	/*
+	 * Phase 1: the node's list as far as it exists. A complete cached list goes through today's builder (phase1 stays
+	 * SIZE_MAX: nothing to add). Otherwise the list is the leading good-tier captures (score >= MG_CAPTURE_TIER) in today's
+	 * order, from the cache when an earlier visit cut on them, or from the noisy-only generator; a newly generated phase 1
+	 * is cached marked "quiets pending", so a revisit is still a cache hit. Mode 2 runs phase 2 at once.
+	 */
+	static std::vector<Move> &lazy_phase1(std::vector<BoardState> &state_history, uint64_t zobrist, int ply, Move previous_move, size_t &phase1)
+	{
+		const BoardState &cs = state_history.back();
+		const int cached = moveGenCacheState(zobrist, cs.castling_rights, cs.ep_square);
+		if (cached == 1)
+			return buildMoveListFromReordered(state_history, zobrist, ply, previous_move);
+		std::vector<Move> &list = g_moveBuf[ply];
+		if (cached == 2)
+		{
+			fillMoveGenCache(zobrist, cs.castling_rights, cs.ep_square, list);
+			phase1 = list.size();
+			return list;
+		}
+		int lead = 0;
+		list.clear();
+		generateLegalMovesReordered(list, cs.castling_rights, ~0ULL, ~0ULL, cs.occupied, cs.occupied_colour[true], cs.occupied_colour[!cs.turn],
+		                            cs.occupied_colour[cs.turn], cs.pawns, cs.knights, cs.bishops, cs.rooks, cs.queens, cs.kings, cs.ep_square, cs.turn,
+		                            ply, previous_move, true, &lead);
+		list.resize(lead);
+		if (Config::SV2_LAZY_GEN == 2 || lead == 0)
+		{
+			lazy_phase2(state_history, zobrist, ply, previous_move, list, (size_t)lead);
+			return list;
+		}
+		phase1 = (size_t)lead;
+		addToMoveGenCache(zobrist, list, cs.castling_rights, cs.ep_square);
+		markMoveGenCacheQuietsPending(zobrist, cs.castling_rights, cs.ep_square);
+		return list;
+	}
+
 	// ── Root-frame access to the shared tables ─────────────────────────────────────────────────────────────────────────
 	// A window (a, b) in the frame of a node whose side to move is (or is not) the root side, as the root-frame window.
 	template <bool RootSide> static inline int root_lo(int a, int b) { return RootSide ? a : -b; }
@@ -446,7 +503,12 @@ namespace sv2
 #ifdef SV2_MOVE_PROBE
 		const bool probe_hit = moveGenCacheHasMoves(zobrist, current_state.castling_rights, current_state.ep_square);
 #endif
-		std::vector<Move> &moves_list = buildMoveListFromReordered(state_history, zobrist, cur_depth, previous_move);
+		// Lazy generation: phase1 = the length of a list whose quiet moves are not generated yet (SIZE_MAX = complete).
+		size_t phase1 = SIZE_MAX;
+		const bool lazy = Config::SV2_LAZY_GEN && !currently_in_check && cur_depth < MOVE_POOL_PLIES && !Config::ENABLE_PROBCUT && !Config::ENABLE_SINGULAR &&
+		                  !Config::ENABLE_TT_MOVE;
+		std::vector<Move> &moves_list = lazy ? lazy_phase1(state_history, zobrist, cur_depth, previous_move, phase1)
+		                                     : buildMoveListFromReordered(state_history, zobrist, cur_depth, previous_move);
 #ifdef SV2_MOVE_PROBE
 		// The probe's remembered move for this position (written at this node's cutoff or best-move exit on an earlier visit).
 		const uint64_t probe_key = make_move_cache_key(zobrist, current_state.castling_rights, current_state.ep_square);
@@ -573,8 +635,15 @@ namespace sv2
 			killerMoves[cur_depth + 1][0] = Move{};
 			killerMoves[cur_depth + 1][1] = Move{};
 		}
-		for (size_t i = 0; i < moves_list.size(); ++i)
+		for (size_t i = 0;; ++i)
 		{
+			if (i == phase1)   // phase 1's captures did not cut: the quiet moves now (lazy generation)
+			{
+				lazy_phase2(state_history, cur_hash, cur_depth, previous_move, moves_list, phase1);
+				phase1 = SIZE_MAX;
+			}
+			if (i >= moves_list.size())
+				break;
 			Move &move = moves_list[i];
 			if (excluding && move == g_excluded_move[cur_depth])
 				continue;
@@ -720,7 +789,11 @@ namespace sv2
 						node_entry->move = move;
 				}
 				if (i != 0)
+				{
 					updateMoveCacheForBetaCutoff(zobrist, current_state.castling_rights, current_state.ep_square, move, moves_list, state_history);
+					if (phase1 != SIZE_MAX)   // a cut on phase 1's captures: the cached list is still capture-only
+						markMoveGenCacheQuietsPending(zobrist, current_state.castling_rights, current_state.ep_square);
+				}
 				if (!capture_move)
 					quiet_cutoff_history(current_state, move, previous_move, cur_depth, depth_limit, searched_quiets);
 				else if (Config::ENABLE_CAPTURE_HIST)

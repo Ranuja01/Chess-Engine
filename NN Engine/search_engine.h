@@ -3485,8 +3485,18 @@ namespace Config
     // Move generation's piece-type passes (generateLegalMovesReordered) through processMaskPairsFast: each piece's attack set
     // computed once per list instead of once per pass, legality by the pin test per piece instead of is_safe per move, moves
     // written straight into the list. Positions in check keep today's path. The list and its order are today's, so 1 visits the
-    // same nodes as 0 (a pure speed item, verified with -DMOVEGEN_FAST_VERIFY).
+    // same nodes as 0 (a pure speed item, verified with -DMOVEGEN_FAST_VERIFY). The shipped preset sets 1; 0 there restores
+    // the previous path.
     inline int MOVEGEN_FAST = 0;
+    // Search v2 only: lazy generation of an interior node's quiet moves (S3 option B). On a node not in check whose move cache
+    // holds no complete list, the loop starts on the leading good captures (score >= 200000, today's order) and generates the
+    // full list only when they do not cut (phase 2): phase 1's moves first, the rest in today's order, so every move keeps
+    // today's index. A node that cuts in phase 1 caches that list marked "quiets pending"; every other reader of the cache
+    // regenerates such a list. 1 = on; 2 = the same code with phase 2 run at once (visits the same nodes as 0: the check of
+    // the construction). Not result-identical at 1 (the quiets' history is read after the captures' subtrees). Needs ProbCut,
+    // singular extension and TT-move ordering off (shipped defaults); otherwise the node uses today's list. Queue #214: 40-43%
+    // of the generated quiet moves belong to lists that cut in the leading capture run.
+    inline int SV2_LAZY_GEN = 0;
     // Gates by the move that led to the position, bitmask: 1 = no lazy exit after a capture (a promotion that captures is not
     // gated), 2 = none after a null move. 0 = off = byte-identical. The 11-08 context probe (queue #183) put 43% of the misses
     // after a capture for 9% of the fires, and 9% after a null move for 1.4% of the fires.

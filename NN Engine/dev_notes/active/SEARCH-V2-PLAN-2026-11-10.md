@@ -459,8 +459,8 @@ identical trees; the real-play column is time to depth 13 with PGO (`_sv2_speed_
 | item | instructions (cachegrind, 12 game positions d10) | real-play time to d13 (PGO) | cumulative vs today's search |
 |---|---|---|---|
 | S1 port (`SEARCH_ARM=1`) | −1.87% (#204) | **−2.86%** (sd 2.01, 3 reps; #207b) | −2.9% (real play) |
-| early LMP (`SV2_PRUNE_EARLY=1`) | −3.16% on top (#208) | **+0.01%** (sd 1.77, 3 reps; #209) = level; prediction −3 to −8% MISSED | −2.9% (real play) |
-| fast generator passes (`MOVEGEN_FAST=1`; shared code, both search arms) | **−6.47%** (#215, arm 0; D1 misses −1.77%, mispredictions −5.75%, last-level misses level) | pending (identity passed, #212: 0 mismatches in 117 M passes); prediction −2 to −5% | |
+| early LMP (`SV2_PRUNE_EARLY=1`) | −3.16% on top (#208) | **+0.01%** (sd 1.77, 3 reps; #209) = level; prediction −3 to −8% MISSED. #219's 8-rep re-read UNREADABLE (+5.00%, sd 15.14: reps 3-5 disturbed by other load, arm 0 itself 14-26% slow); 12 quiet reps in #220 | −2.9% (real play) |
+| fast generator passes (`MOVEGEN_FAST=1`; shared code, both search arms) | **−6.47%** (#215, arm 0; D1 misses −1.77%, mispredictions −5.75%, last-level misses level) | **−3.52%** (sd 1.79, 5 of 5 reps faster, same tree on 119 positions; #219, arm 0, nps 1,489 → 1,544 k); prediction −2 to −5% HIT ⇒ production candidate (#221 A) | |
 
 **Why early pruning's instructions did not become time (queue #215, cachegrind with cache and branch simulation; WSL2 has no
 hardware counters):** on the same trees, −3.15% instructions, D1 misses +0.14%, last-level misses +0.00%, branch mispredictions

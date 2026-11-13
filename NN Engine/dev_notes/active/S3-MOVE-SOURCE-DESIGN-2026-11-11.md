@@ -233,6 +233,26 @@ Verification before games: with phase 2 forced always (a debug switch) the node 
 SW2); the only remaining difference with lazy generation on is then when the quiets' scores are read. Then the cost read
 (cachegrind), time to depth, and games.
 
+**Lazy generation, built (11-12 evening, `SV2_LAZY_GEN`, default 0).** What was built, against the plan above:
+- `search_v2.cpp` `lazy_phase1` / `lazy_phase2`. Phase 1 is the noisy-only list's leading good-tier captures; the generator
+  reports their count through a new optional argument, `good_lead`, counting entries with score ≥ `MG_CAPTURE_TIER` (the named
+  200000) that capture. Phase 2 = phase 1's moves first, then the generated full list's other moves in order, cached as complete.
+- The loop runs phase 2 when it reaches index L. A node that cuts in phase 1 keeps its capture-only list cached, marked by
+  `MoveEntry::quiets_pending` (also re-marked after a cutoff promotion that re-creates the slot).
+- Every other reader of the cache regenerates a pending list: `buildMoveListFromReordered` (root, v1, v2 in check, the qsearch
+  mate test) and `buildNoisyMoveList` (qsearch). The mate / stalemate tests' `moveGenCacheHasMoves` is still right on a pending
+  list, because a position with a good capture has legal moves.
+- Not built: ProbCut, singular extension and TT-move ordering are off in the shipped search, so a lazy node requires them off and
+  otherwise uses today's list. The IIR rule holds through the pending entry.
+
+Mode 2 runs phase 2 at once, so the same code visits today's nodes:
+- WAC d10 249 / 37,279,382 = v2 at 0.
+- The identity sets (`_sv2_identity.sh` with `A0` / `A1`), all SAME: WAC 37,279,382 · WAC mirrored 38,068,927 · STS300
+  93,222,085 · STS300 mirrored 92,722,003 · 48 bare-king endings 6,715,062 · perpetual probe 41,236 (d10; record
+  `/mnt/e/chess_data/s3_b/lazy_identity.txt`).
+
+Mode 1 on WAC d10: **249 / 37,086,375** (−0.5% nodes, single unpinned run −3% time). Speed read and games: queue #221.
+
 ## 7. What stays ours
 
 The threat-aware quiet term, move frequency, the killer protection in LMR, the root pre-search (until its own 2×2), and the

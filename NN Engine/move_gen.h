@@ -935,10 +935,13 @@ inline void processMaskPairsFast(const std::array<MaskPair, N>& mask_pairs, cons
 	}
 }
 
+// The score of a capture that wins or keeps material: at least this, above every quiet move (the scorer below).
+constexpr int MG_CAPTURE_TIER = 200000;
+
 inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint64_t preliminary_castling_mask, uint64_t from_mask, uint64_t to_mask,
 								 uint64_t occupiedMask, uint64_t occupiedWhite, uint64_t opposingPieces, uint64_t ourPieces, uint64_t pawnsMask, uint64_t knightsMask,
 								 uint64_t bishopsMask, uint64_t rooksMask, uint64_t queensMask, uint64_t kingsMask, int ep_square, bool turn, int ply, Move prevMove,
-								 bool noisy_only = false) {
+								 bool noisy_only = false, int *good_lead = nullptr) {
 	PROF_BLOCK(PROF_MOVEGEN);
 	
 	// Determine if the game is at the endgame phase as well as an advanced endgame phase
@@ -1186,7 +1189,7 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 			int value_captured = get_value_at(to, state);
 			int value_attacker = get_value_at(from, state);
 			int promo_bonus = (promotions[i] - 1) * 5000;
-			int capture_base_value = 200000;
+			int capture_base_value = MG_CAPTURE_TIER;
 			int move_freq_bonus = mf_get(turn, from, to);
 			// Capture history refines ordering WITHIN the static capture tiers; bad captures rarely
 			// accumulate it, so they stay below quiets in practice. Gated, default off = byte-identical.
@@ -1333,6 +1336,13 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 
 	for (const ScoredMove& s : scored) {
 		converted_moves.push_back(Move(s.from, s.to, s.promo));
+	}
+	// How many good-tier captures lead the sorted list (search v2's lazy generation searches them before any quiet exists).
+	if (good_lead) {
+		int n = 0;
+		while (n < (int)move_count && scored[n].score >= MG_CAPTURE_TIER && (BB_SQUARES[scored[n].to] & opposingPieces))
+			++n;
+		*good_lead = n;
 	}
 #ifdef SV2_MOVE_PROBE
 	// S3 step 0, option B: does a non-capture sort above a capture in the good tier (score >= 200000)? Two-phase list

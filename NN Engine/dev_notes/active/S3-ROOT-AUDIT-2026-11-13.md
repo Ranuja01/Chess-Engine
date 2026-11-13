@@ -557,3 +557,51 @@ right for SF18.
    −25 Elo with root LMR at equal nodes), or only if the smaller options point that way?
 8. **The observations in §7:** fix 1 and 5 with R0 (result-identical), and treat 2, 3 and 6 as options with their own
    reads?
+
+## 10. R1 results (11-13; queues #226 phase A, #227 phase B; gen 7.3 engine, v2 eval, d10 LONG_FORMAT, book off)
+
+Owner 11-13: "go" on R0 + R1; personally skeptical of the pre-search, wants to "cleanly remove or reduce reliance" by
+measurement. Logs `E:\chess_data\q226.log`, `q227.log`; per-run stderr in `E:\chess_data\r1a\`, `r1b\`. Fixed depth only:
+node and accuracy numbers here are screens, not verdicts (games decide; memory `search-changes-are-antagonistic-not-additive`).
+
+**Phase A, existing knobs** (nodes = sums over the set; quiet = cploss corpus, 100 positions, seed 1234):
+
+| arm | WAC solved / nodes | STS300 / nodes | quiet nodes | pre-search share (WAC / STS / quiet) |
+|---|---|---|---|---|
+| A0 defaults | 249 / 37,279,382 | 2037 / 93,222,085 | 25,798,338 | 40.3% / 24.6% / 23.8% |
+| A1 `PRESEARCH_TAIL_MODE=3` (scores replaced, warming kept) | 245 / +23.4% | 1954 / +2.1% | −4.0% | 30.0 / 24.3 / 23.7 |
+| A2 `ENABLE_ROOT_RAZOR=0` | 257 / +27.2% | 2079 / +11.5% | +7.2% | 12.5 / 11.0 / 11.0 |
+| A3 `ENABLE_PRESEARCH_SUBSET=1` | 250 / −3.5% | 2040 / −1.2% | −2.9% | 35.9 / 20.4 / 19.9 |
+| A4 pre-search off, razor off, off-path sorted by provenance tiers + root table | 258 / +17.7% | 2086 / +3.2% | +7.4% | 0 |
+| A5 `ROOT_PRESEARCH_REDUCTION=2` | 243 / −13.1% | 1962 / −14.7% | −22.6% | 24.0 / 14.1 / 12.8 |
+
+Registered directions (#226 header): A0 share 30-45% — HIT on WAC (40.3), MISSED on STS / quiet (24); A1 within ±5% — MISSED
+on WAC (+23%), hit on STS / quiet; A2 +15-40% — hit on WAC, below on STS (+11.5) and quiet (+7.2); A3 higher than A0 —
+MISSED (lower everywhere); A4 +0-15% — hit on STS / quiet, above on WAC (+17.7); A5 −5 to +10% — MISSED (−13 to −23%).
+
+**Phase B, the new counters (`[root_r1]`, module rebuilt and gated 249 / 37,279,382 and v1 250 / 35,310,778, then restored)**,
+defaults (B0):
+
+| | WAC | STS300 | quiet | game set (v2, 100) |
+|---|---|---|---|---|
+| resolved iterations / best move changed | 1833 / 28.6% | 2100 / 34.8% | 694 / 27.2% | 676 / 26.5% |
+| winner's score source: index 0 / main search / **pre-search** | 79.0 / 9.4 / **11.6%** | 67.1 / 20.0 / **12.9%** | 75.1 / 16.1 / **8.8%** | 76.3 / 14.5 / **9.2%** |
+| moves after index 0 searched, main-scored / pre-scored (raised alpha) | 3,548 (296) / 9,703 (601) | 9,960 (571) / 14,764 (600) | 3,568 (153) / 4,172 (150) | 2,286 (151) / 3,036 (168) |
+| **searches whose played move was razored away in one of its iterations** | **241 / 300** | **216 / 300** | **60 / 100** | **56 / 98** |
+| nodes in failed aspiration passes (pre-search's part) | 35.7% of aspiration nodes (52%) | 8.7% (29%) | 11.9% (41%) | 13.7% (28%) |
+
+Readings:
+1. **The pre-search and root razoring are one mechanism.** The razor drops moves that the search later plays (57-80% of
+   searches had their final move razored at some iteration); the pre-search re-scores the dropped tail so those moves can
+   return (9-13% of iterations' winners carry a pre-search score). With the razor off (A2 / B2) the pre-search's share falls
+   to 10-12.5%, it supplies 0.6-3% of winners, and dropping it as well (A4) costs fewer nodes than A2 on WAC and STS at equal
+   or better accuracy. So the fair comparison is the PAIR against a root without both: A4 against A0.
+2. **On today's engine the cascading-tables root (A4) is more accurate at fixed depth** (+9 WAC, +49 STS) for +3 to +18%
+   nodes; September's same arm on the v1 eval was node-level and less accurate (§5). Equal time decides.
+3. **The prefix warming no longer pays** (A3: −1.2 to −3.5% nodes at equal accuracy), against the September record
+   (memory `presearch-is-self-financing`). A small candidate on its own (C2).
+4. **Failed aspiration passes are 9-14% of nodes on game-like positions** (36% on WAC), 28-52% of them the pre-search run
+   again. Independent of the pre-search question: P3 (aspiration shape) and not repeating the pre-search on a re-search.
+5. A1: the pre-search's SCORES save nodes on tactical positions (WAC +23% without them), not on quiet ones.
+6. The game-set venue of phase A read 0 positions (`depth_nps_bench` keeps only rows with a `stratum` column); phase B used a
+   copy with the column (`E:\chess_data\r1a\game_v2_stratum.csv`).

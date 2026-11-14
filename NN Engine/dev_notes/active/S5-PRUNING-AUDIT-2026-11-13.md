@@ -429,10 +429,29 @@ share a games slot only under `bundle-to-save-box-time-only-when-the-parts-stay-
 9. **Order**: history first (A-B-C, small and reversible) or LMR v2 first (D, the larger expected effect and the
    plan's named S5 item)?
 
+## 6b. Stack 0 results (queue #232, 2026-11-14; counters only, node counts unchanged)
+
+Depth 10 on WAC / STS300 / quiet (100) / v2 game set (100), and WAC at depth 12, for today's root (S0) and H2 (S2).
+Bench with `ENABLE_LMR_COUNTERS=1` stayed 249 / 37,279,382; S2's nodes match H2's #230 ratios on every set.
+Log: `E:\chess_data\q232.log`; stderr per run in `E:\chess_data\r4a\`.
+
+| claim (§) | measured | verdict |
+|---|---|---|
+| LMR leaves the child one ply, whatever the depth (§1.8) | Child's remaining depth = 1 for 87% of LMR-eligible moves at d10 and d12 (WAC); at least 83% of the REDUCED scouts (bound: even if every unreduced move were in that bucket). Plies removed: 1 (12%), 2 (18%), 3 (33%), 4 (22%), 5 (12%), 6+ (3%) of reduced scouts at d10 WAC, i.e. the reduction is "whatever leaves one ply" | **CONFIRMED** |
+| VERIFY re-searches nearly every reduced fail low of the root side (§1.8) | Root side: 86.4% (WAC d10), 80.4% (WAC d12), 97.1% (STS), 95.5% (quiet), 96.3% (game) of reduced scouts re-searched at `depth - 2`. Full-depth (PVS) re-searches 0.1-0.2% | **CONFIRMED**: the root side's real LMR is a flat 2-ply reduction plus a 1-ply scout, and its reduced fail highs are accepted from the 1-ply scout (A1) |
+| (new) the other side | 91.2% (WAC) / 95.8% (STS) of its reduced scouts are accepted from the 1-ply scout; 8.2% / 3.5% PVS re-search; VERIFY 0.5% / 0.7% | The opponent's late replies are judged at one ply; ours at `depth - 2` |
+| (new) reduced scouts by side | root side 2.9x (WAC), 2.3x (STS), 1.6x (game) the other side's | asymmetric; not explained yet |
+| The null move is "pass, then q-search" (§1.3) | Null child's remaining depth 0 for 93.3% (WAC d10), 92.8% (STS), 91.4% (WAC d12) of tries; >= 3 plies: 0 at d10, 7.4k of 4.5M at d12 | **CONFIRMED** |
+| The null move runs at PV nodes (§1.3) | 26% of tries at PV nodes (WAC d10), cut rate 32% there vs 48% at null-window nodes | **CONFIRMED** |
+| (H2) same shape without the pre-search | S2: child rem 1 ~86%; root-side VERIFY 84.8% (WAC) / 96.1% (STS); null rem 0 ~93% | the interior is unchanged by the root |
+
+Not counted yet: the nodes spent inside VERIFY re-searches (their share of the total), and how many root-side reduced fail
+highs are accepted unverified. Both are one counter each and decide how much Stack D could save.
+
 ## 7. Not verified
 
-- Nothing was run: every "INFERRED" above, in particular the null child's depth (§1.3), the saturation of the LMR base
-  and the share of scouts VERIFY re-searches (§1.8).
+- ~~Nothing was run: every "INFERRED" above, in particular the null child's depth (§1.3), the saturation of the LMR base
+  and the share of scouts VERIFY re-searches (§1.8).~~ All three measured in §6b (Stack 0, 11-14) and confirmed.
 - `DEPTH_REDUCTION` was read for `LONG_FORMAT` only; which preset the UCI binary plays under was not checked.
 - The ordering side (how each table is weighted in `move_gen.h`, `moveFrequency`, `THREAT_ORDER_W`) was not re-read;
   MOVEGEN-AUDIT covers it.

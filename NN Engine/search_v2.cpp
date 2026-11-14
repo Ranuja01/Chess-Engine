@@ -19,6 +19,37 @@ namespace sv2
 	static inline int probe_rd(int rd) { return std::min(std::max(rd, 1), 4) - 1; }
 #endif
 
+	// Reduction and null-move counters (ENABLE_LMR_COUNTERS; counting only, no node changes). Histograms are indexed 0-7, the
+	// last bucket holding 7 and above. Side index 1 = the root side to move, 0 = the opponent. Node type 1 = a window wider
+	// than null (PV), 0 = a null window.
+	static long g_lmr_r_hist[8];          // plies removed from a reduced (do_lmr) move's scout
+	static long g_lmr_child_rem_hist[8];  // the reduced child's remaining depth at entry
+	static long g_lmr_scouts[2];          // reduced scouts, by side
+	static long g_lmr_pvs_research[2];    // ... searched again at full depth (PVS)
+	static long g_lmr_verify_research[2]; // ... searched again by the near-miss rule (VERIFY)
+	static long g_null_rem_hist[8];       // the null child's remaining depth at entry
+	static long g_null_tries[2];          // null moves tried, by node type
+	static long g_null_cuts[2];           // ... that cut
+	static inline int hist_bucket(int v) { return std::min(std::max(v, 0), 7); }
+
+	void print_counters()
+	{
+		std::cerr << "[sv2_lmr] r_hist=";
+		for (int k = 0; k < 8; ++k)
+			std::cerr << (k ? "/" : "") << g_lmr_r_hist[k];
+		std::cerr << " child_rem_hist=";
+		for (int k = 0; k < 8; ++k)
+			std::cerr << (k ? "/" : "") << g_lmr_child_rem_hist[k];
+		std::cerr << " scouts_opp/root=" << g_lmr_scouts[0] << "/" << g_lmr_scouts[1]
+		          << " pvs_research=" << g_lmr_pvs_research[0] << "/" << g_lmr_pvs_research[1]
+		          << " verify_research=" << g_lmr_verify_research[0] << "/" << g_lmr_verify_research[1] << std::endl;
+		std::cerr << "[sv2_null] child_rem_hist=";
+		for (int k = 0; k < 8; ++k)
+			std::cerr << (k ? "/" : "") << g_null_rem_hist[k];
+		std::cerr << " tries_null/pv=" << g_null_tries[0] << "/" << g_null_tries[1]
+		          << " cuts_null/pv=" << g_null_cuts[0] << "/" << g_null_cuts[1] << std::endl;
+	}
+
 	// Mate scores keep today's form: MATE - plies from the game start, so a shorter mate scores higher.
 	static constexpr int MATE = 9999999;
 
@@ -471,6 +502,11 @@ namespace sv2
 				null_tt = true;
 				increment_node_count_with_decay(num_iterations);
 			}
+			if (Config::ENABLE_LMR_COUNTERS)
+			{
+				++g_null_tries[beta - alpha > 1];
+				++g_null_rem_hist[hist_bucket(reduced_depth - cur_depth - 1)];
+			}
 			if (!null_tt)
 			{
 				Move dummy_move;
@@ -489,6 +525,8 @@ namespace sv2
 				g_lazy_ply[g & 2047] = lazy_keep;
 			if (null_move_score >= beta)
 			{
+				if (Config::ENABLE_LMR_COUNTERS)
+					++g_null_cuts[beta - alpha > 1];
 				if (Config::ENABLE_NULL_MATE_CLAMP && null_move_score >= 9000000)
 					return beta;   // an unproven mate returns the bound
 				return null_move_score;
@@ -1092,6 +1130,13 @@ namespace sv2
 				}
 			}
 			was_reduced = reduced_depth < depth_limit;
+			if (Config::ENABLE_LMR_COUNTERS)
+			{
+				++g_lmr_r_hist[hist_bucket(depth_limit - reduced_depth)];
+				++g_lmr_child_rem_hist[hist_bucket(reduced_depth - cur_depth - 1)];
+				if (was_reduced)
+					++g_lmr_scouts[RootSide ? 1 : 0];
+			}
 			TTEntry *rentry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
 			if (rentry != nullptr)
 			{
@@ -1152,6 +1197,8 @@ namespace sv2
 			// A near-miss (VERIFY) re-search runs VERIFY_RESEARCH_REDUCTION plies short; a PVS re-search at full depth.
 			const bool full = RootSide ? (Config::FIX_RESEARCH ? (rs > ra) : (rs > ra && rs < rb))
 			                           : (Config::FIX_RESEARCH ? (rs < rb) : (rs > ra && rs < rb));
+			if (Config::ENABLE_LMR_COUNTERS && was_reduced)
+				++(full ? g_lmr_pvs_research : g_lmr_verify_research)[RootSide ? 1 : 0];
 			const int research_depth = full ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
 			score = child_search<RootSide>(cur_depth, research_depth, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
 			if (cur_depth < research_depth - 1)

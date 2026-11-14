@@ -4731,10 +4731,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     if (Config::ENABLE_ROOT_ALPHA_DECAY)
         std::cerr << "[root_decay] fires=" << g_root_alpha_decays << std::endl;
     if (Config::ENABLE_LMR_COUNTERS)
+    {
         std::cerr << "[lmr_bets] applied=" << g_lmr_applied
                   << " researches=" << g_lmr_researches
                   << " lost_pct=" << (g_lmr_applied > 0 ? (100.0 * g_lmr_researches / g_lmr_applied) : 0.0)
                   << std::endl;
+        sv2::print_counters();
+    }
     if (Config::ENABLE_STATIC_ORDER)
         std::cerr << "[static_order] eligible=" << g_static_order_eligible
                   << " fires=" << g_static_order_fires

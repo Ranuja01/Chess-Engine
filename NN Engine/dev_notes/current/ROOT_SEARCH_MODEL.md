@@ -121,6 +121,7 @@ supplier.
 | claim | falsified by |
 |---|---|
 | The pre-search and root razoring are one mechanism (the pre-search's main job is reviving razored moves). | With the razor on, a sorted pre-search-off path keeps the played-move-razored rate and the node count level. |
+| H2's ply-1 cuts lose important moves (owner 11-13). | **11-14 #239, not supported at depth 7:** footprint regret vs today, changed-move win% H2 50.0 / 51.4 (game_regret_set / _v2), A4 49.8 / 50.8, neutral arm 50.4 / 49.6: within 2pp of neutral on both sets, and H2 ≈ A4 (the cuts change no more moves than the missing pre-search does). Critical positions 20-26 per set: unreadable. Re-test at a deeper fixed depth or with a false-cut audit (root moves a ply-1 cut dismissed that today's search ranks best) if H2's games turn negative. |
 | A4's deficit comes mainly from the missing ply-1 cut node. | H1 does not reduce A4's nodes under failing late root moves (`late_faillow_nodes`), or H1 stays behind A0 at equal time. **11-14: supported, not proven.** H2 (A4 + the ply-1 cut node) went from A4's −16.7 to −6.3 over 2,000 g each, LEVEL; the two intervals overlap. |
 | The pre-search's prefix warming no longer pays. | The subset arm (A3) loses at equal time. |
 | Failed aspiration passes are a real cost (9-14% of nodes on game positions). | A re-centred window (C2 / C3) cuts failed passes without cutting nodes. |

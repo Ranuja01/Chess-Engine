@@ -103,13 +103,13 @@ supplier.
 | A5 pre-search one ply shallower | `ROOT_PRESEARCH_REDUCTION=2` | 243 / 1962 / −22.6% (WAC −13%) | not yet | open: fewer nodes, less accuracy | an equal-time read |
 | Sept: root LMR with the pre-search off | (09-03 arms) | — | −25.0 ± 19.6 at equal nodes (1,668 g), −11.7 ± 30.0 (713 g) | INCOMPLETE (no root table, no best-move exemption, no ply-1 cut node), v1 eval | after H1, with C4's supports |
 | Sept: tiered sort with the pre-search off | `PRESEARCH_OFF_SORT_MODE=2` + table | v1: +2.7% nodes, WAC −7, STS −82 | — | superseded by A4 on today's engine | — |
-| C1 razor reduces instead of skipping | `ROOT_RAZOR_REDUCE=1` | #230 | — | pending | — |
-| C2 / C3 aspiration re-centred | `ASPIRATION_RECENTER=1` / `2` | #230 | — | pending | — |
-| C4 A4 + root reductions | A4 + `ENABLE_ROOT_LMR=1 ROOT_LMR_EXEMPT_BEST=1` | #230 | — | pending | — |
-| C5 A4 + re-centred aspiration | A4 + `ASPIRATION_RECENTER=2` | #230 | — | pending | — |
-| H1 / H2 A4 + ply-1 null move (+ reverse futility) | A4 + `PLY1_NODE_PRUNE=1` / `3` | #230 | — | pending: the direct test of §4 | — |
-| H3 today + ply-1 null move | `PLY1_NODE_PRUNE=1` | #230 | — | pending: a hybrid of both answers | — |
-| D1 A4 + reply scores kept | A4 + `ROOT_TABLE_REPLY_SCORES=1` | #230 | — | pending (defect fix) | — |
+| C1 razor reduces instead of skipping | `ROOT_RAZOR_REDUCE=1` | 234 / 1990 / +5.1% (WAC +10.7%, game −1.0%) | — | WORSE at depth 10 (fewer solves, more nodes): the reduced searches' bounds feed the next iteration's razor | a depth-aware store (`last_real_depth`) or the history-signalled razor |
+| C2 / C3 aspiration re-centred | `ASPIRATION_RECENTER=1` / `2` | 253 / 2050 / +1.1% · 253 / 2009 / +4.0% (game −2.9 / −1.8%) | — | NO GAIN: failed-pass nodes unchanged (WAC 12.7 / 12.5 M vs 13.0 M) | a reason the windows fail (delta vs eval scale) |
+| C4 A4 + root reductions | A4 + `ENABLE_ROOT_LMR=1 ROOT_LMR_EXEMPT_BEST=1` | **197** / 1909 / −38.7% (game −31.3%) | — | TACTICAL COLLAPSE: our index-keyed root LMR schedule is far deeper than SF19's 0-3 plies | a root LMR shaped like SF19's, on top of H2 |
+| C5 A4 + re-centred aspiration | A4 + `ASPIRATION_RECENTER=2` | 256 / 1956 / +6.8% | — | ≈ A4 | — |
+| **H1 / H2 A4 + ply-1 null move (+ reverse futility)** | A4 + `PLY1_NODE_PRUNE=1` / `3` | H1 257 / 1945 / −5.0% (WAC −11.3%, STS −16.6%, game −4.6%) · **H2 253 / 2083 / −5.0% (WAC −18.6%, STS −15.6%, game −6.9%)**; ply-1 null cuts 73% of tries on WAC | #231: H2 vs today, 2,000 g (11-13 night) | **the first pre-search-free root below today's nodes on every set**; still untuned, time-manager share unfixed | — |
+| H3 today + ply-1 null move | `PLY1_NODE_PRUNE=1` | 252 / 1980 / −5.5% (WAC −2.2%, game +1.5%) | — | small: the razor already dismisses most bad moves (null tried 5.7k vs 79k in H1) | if H2 wins, as the hybrid control |
+| D1 A4 + reply scores kept | A4 + `ROOT_TABLE_REPLY_SCORES=1` | 257 / 2020 / +5.2% (game −1.7%) | — | no material effect | — |
 | owner hybrid: history-signalled razoring | not built | — | — | parked | when the history stage (S5) starts |
 | owner hybrid: razor as a reduction | C1 is its first form | — | — | see C1 | — |
 

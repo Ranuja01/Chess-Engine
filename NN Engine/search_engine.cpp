@@ -900,6 +900,10 @@ static long g_root_lmr_researches = 0;
 // Reductions declined because the move was the previous iteration's best (SF's best_move_count exemption).
 // Counts the branch that ACTS, so g_root_lmr_reduced must fall by exactly this when the knob is enabled.
 static long g_root_lmr_exempt = 0;
+// Near-miss verifies of reduced root scouts (ROOT_LMR_VERIFY_MARGIN), and how many of them then beat alpha: each of those is
+// a root move the reduction alone would have dismissed.
+static long g_root_lmr_verifies = 0;
+static long g_root_lmr_verify_rescued = 0;
 
 // NOTE: the 2026-07-30 diagnostic counters ([prune_pair], [lmr_remdepth], [lmr_guards], [corrhist_q],
 // [qcache_hygiene], [qcache_hits]) are deliberately NOT in this tree. They cost ~15% NPS at byte-identical
@@ -2166,6 +2170,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ROOT_LMR_BASE = env_int("ROOT_LMR_BASE", Config::ROOT_LMR_BASE);
         Config::ROOT_LMR_DIV = env_int("ROOT_LMR_DIV", Config::ROOT_LMR_DIV);
         Config::ROOT_LMR_EXEMPT_BEST = env_flag("ROOT_LMR_EXEMPT_BEST", Config::ROOT_LMR_EXEMPT_BEST);
+        Config::ROOT_LMR_VERIFY_MARGIN = env_int("ROOT_LMR_VERIFY_MARGIN", Config::ROOT_LMR_VERIFY_MARGIN);
+        Config::ROOT_LMR_VERIFY_RED = env_int("ROOT_LMR_VERIFY_RED", Config::ROOT_LMR_VERIFY_RED);
         Config::ENABLE_ROOT_TABLE = env_flag("ENABLE_ROOT_TABLE", Config::ENABLE_ROOT_TABLE);
         Config::ROOT_TABLE_REPLY_SCORES = env_flag("ROOT_TABLE_REPLY_SCORES", Config::ROOT_TABLE_REPLY_SCORES);
         Config::PLY1_NODE_PRUNE = env_int("PLY1_NODE_PRUNE", Config::PLY1_NODE_PRUNE);
@@ -3838,6 +3844,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ROOT_LMR_BASE=" << Config::ROOT_LMR_BASE
                   << " ROOT_LMR_DIV=" << Config::ROOT_LMR_DIV
                   << " ROOT_LMR_EXEMPT_BEST=" << Config::ROOT_LMR_EXEMPT_BEST
+                  << " ROOT_LMR_VERIFY_MARGIN=" << Config::ROOT_LMR_VERIFY_MARGIN
+                  << " ROOT_LMR_VERIFY_RED=" << Config::ROOT_LMR_VERIFY_RED
                   << " ENABLE_ROOT_TABLE=" << Config::ENABLE_ROOT_TABLE
                   << " ROOT_RAZOR_MAX_AGE=" << Config::ROOT_RAZOR_MAX_AGE
                   << " ROOT_SORT_L2_LASTREAL=" << Config::ROOT_SORT_L2_LASTREAL
@@ -4723,7 +4731,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " exempt_best=" << g_root_lmr_exempt
               << " researches=" << g_root_lmr_researches
               << " research_pct=" << (g_root_lmr_reduced > 0 ? (100.0 * g_root_lmr_researches / g_root_lmr_reduced) : 0.0)
-              << "%" << std::endl;
+              << "% verifies=" << g_root_lmr_verifies << " verify_rescued=" << g_root_lmr_verify_rescued << std::endl;
     if (Config::ENABLE_NODE_TT)
         std::cerr << "[node_tt] stores=" << g_node_tt_stores << std::endl;
     if (Config::PROTECT_TT_DEPTH)
@@ -5312,8 +5320,27 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
 
         score = minimizer(cur_depth + 1, depth_limit - root_r, alpha, alpha + 1, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
 
-        // A reduced scout that beats alpha is unreliable -- redo it at full depth before deciding anything.
-        if (root_r > 0 && score > alpha)
+        // Near-miss verify (ROOT_LMR_VERIFY_MARGIN): a reduced scout that fails low by less than the margin is looked at
+        // again, deeper than the scout, before the move is dismissed. Same null window; the fail-low score is an upper
+        // bound, so a wide miss is a move at least that much worse at the scout's depth.
+        if (root_r > 0 && Config::ROOT_LMR_VERIFY_MARGIN > 0 && score <= alpha &&
+            static_cast<long long>(alpha) - score < Config::ROOT_LMR_VERIFY_MARGIN)
+        {
+            const int verify_depth = depth_limit - std::max(0, Config::ROOT_LMR_VERIFY_RED);
+            if (verify_depth > searched_depth)
+            {
+                ++g_root_lmr_verifies;
+                searched_depth = verify_depth;
+                entry = RootScore{};
+                score = minimizer(cur_depth + 1, verify_depth, alpha, alpha + 1, t0, current_search_data.scores[i].second_scores, current_search_data.scores[i].second_moves, entry, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+                if (score > alpha)
+                    ++g_root_lmr_verify_rescued;
+            }
+        }
+
+        // A reduced scout that beats alpha is unreliable -- redo it at full depth before deciding anything. A full-depth
+        // verify above already is that search.
+        if (root_r > 0 && score > alpha && searched_depth < depth_limit)
         {
             ++g_root_lmr_researches;
             searched_depth = depth_limit;

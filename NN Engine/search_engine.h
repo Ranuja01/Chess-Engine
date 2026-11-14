@@ -1418,6 +1418,15 @@ namespace Config
     // because losing it to a reduced fail-low costs the search the move it most likely wants. SF counts
     // best-ness across several iterations; we approximate with the immediately preceding winner only.
     inline bool ROOT_LMR_EXEMPT_BEST = false;
+    // Near-miss verification for root reductions, the root's form of the interior's VERIFY_MARGIN. The root re-searches a
+    // reduced scout only when it beats alpha, which is 1-2% of reduced moves; the interior's root side re-searches 80-97% of
+    // its reduced fail lows (S5 audit §6b). Gentle root LMR on H2 (#232, L1-L3) cut 16-27% of nodes on STS / quiet / game
+    // but lost 14-20 WAC solves, the moves whose reduced scout fails low by a little. When > 0: a reduced root scout that
+    // fails low by less than this margin is re-searched at depth_limit - ROOT_LMR_VERIFY_RED, only when that is deeper than
+    // the scout (a re-search never replaces a score with a shallower one: S5 audit D7). The verify keeps the scout's null
+    // window; one that then beats alpha is re-searched at full depth as before. 0 = off (default, byte-identical).
+    inline int ROOT_LMR_VERIFY_MARGIN = 0;
+    inline int ROOT_LMR_VERIFY_RED = 0;   // plies the verify re-search keeps off full depth (0 = full depth)
     // Persistent root table, SF's RootMoves semantics. Today alpha_beta CLEARS the caller's scores and
     // re-pushes only the moves it searched, so a move scored at iteration 5 and razored at 6 loses its
     // score permanently and our table covers ~34% of root moves against SF's 100%. On: the table is sized

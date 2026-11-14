@@ -1076,6 +1076,7 @@ namespace sv2
 		const int sa = (RootSide || Config::FIX_MIN_SCOUT) ? alpha : beta - 1;
 		const int sb = sa + 1;
 		bool was_reduced = false;
+		int first_depth = depth_limit;   // depth of this move's first search (the reduced scout's when reduced)
 		if (do_lmr)
 		{
 			const bool is_in_relavent_pin = relevant_pin(state_history);
@@ -1137,6 +1138,7 @@ namespace sv2
 				}
 			}
 			was_reduced = reduced_depth < depth_limit;
+			first_depth = reduced_depth;
 			if (Config::ENABLE_LMR_COUNTERS)
 			{
 				++g_lmr_r_hist[hist_bucket(depth_limit - reduced_depth)];
@@ -1197,15 +1199,19 @@ namespace sv2
 			research = (rs > ra && rs < rb) ||
 			           (Config::FIX_RESEARCH ? ((was_reduced && rs <= ra) || (Config::VERIFY_MARGIN > 0 && do_lmr && rs >= rb && (rs - rb) < Config::VERIFY_MARGIN))
 			                                 : (Config::VERIFY_MARGIN > 0 && do_lmr && rs <= ra && (ra - rs) < Config::VERIFY_MARGIN));
+		// A near-miss (VERIFY) re-search runs VERIFY_RESEARCH_REDUCTION plies short; a PVS re-search at full depth.
+		const bool full = RootSide ? (Config::FIX_RESEARCH ? (rs > ra) : (rs > ra && rs < rb))
+		                           : (Config::FIX_RESEARCH ? (rs < rb) : (rs > ra && rs < rb));
+		// SV2_VERIFY_DEEPER: never let a near-miss re-search replace a score with a shallower one.
+		if (research && !full && Config::SV2_VERIFY_DEEPER &&
+		    std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION) < first_depth)
+			research = false;
 		if (Config::ENABLE_LMR_COUNTERS && was_reduced && !research && (RootSide ? rs >= rb : rs <= ra))
 			++g_fh_accepted[RootSide ? 1 : 0];
 		if (research)
 		{
 			if (Config::ENABLE_LMR_COUNTERS && do_lmr)
 				g_lmr_researches++;
-			// A near-miss (VERIFY) re-search runs VERIFY_RESEARCH_REDUCTION plies short; a PVS re-search at full depth.
-			const bool full = RootSide ? (Config::FIX_RESEARCH ? (rs > ra) : (rs > ra && rs < rb))
-			                           : (Config::FIX_RESEARCH ? (rs < rb) : (rs > ra && rs < rb));
 			if (Config::ENABLE_LMR_COUNTERS && was_reduced)
 				++(full ? g_lmr_pvs_research : g_lmr_verify_research)[RootSide ? 1 : 0];
 			const bool count_verify = Config::ENABLE_LMR_COUNTERS && !full;

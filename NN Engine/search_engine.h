@@ -3277,6 +3277,11 @@ namespace Config
     // default 2 is the validated config: a clean +17 at LIGHTNING (real-play) without
     // the ply-cost of the deeper re-search that made margin-6000/reduction-1 regress.
     inline int VERIFY_RESEARCH_REDUCTION = 2;
+    // Search v2 only: a near-miss (VERIFY) re-search is skipped when it would be shallower than the move's first search. The test is
+    // do_lmr, not "was reduced", so a move whose first search was already full depth is re-searched VERIFY_RESEARCH_REDUCTION
+    // plies shallower and the shallower score replaces it; a move reduced by one ply likewise (S5 audit D7: 21-27% of the root
+    // side's VERIFYs, 23-30% of all nodes are under VERIFY). 0 = today (default, byte-identical); 1 = skip those re-searches.
+    inline int SV2_VERIFY_DEEPER = 0;
 
     // Optimism-triggered verification (OTV). When a child's backed-up score is about to be
     // trusted (become the node's new best / cause the cutoff) AND it overshoots the node's OWN

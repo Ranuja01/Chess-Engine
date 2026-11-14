@@ -3247,6 +3247,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_KILLER_SPLICE = env_int("FIX_KILLER_SPLICE", Config::FIX_KILLER_SPLICE);
         Config::FIX_TT_MATE = env_int("FIX_TT_MATE", Config::FIX_TT_MATE);
         Config::VERIFY_RESEARCH_REDUCTION = env_int("VERIFY_RESEARCH_REDUCTION", Config::VERIFY_RESEARCH_REDUCTION);
+        Config::SV2_VERIFY_DEEPER = env_int("SV2_VERIFY_DEEPER", Config::SV2_VERIFY_DEEPER);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
         Config::OTV_MARGIN = env_int("OTV_MARGIN", Config::OTV_MARGIN);

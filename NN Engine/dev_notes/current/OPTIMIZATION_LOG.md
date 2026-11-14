@@ -4,6 +4,19 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-14 12:18 — SEARCH V2'S INTERIOR IS THE DEFAULT (SW5; owner: "if the play shows its positive we can ship and continue"): `SEARCH_ARM=1`
+**What:** `Config::SEARCH_ARM = 1` in the gen 7 block of the shipped preset: plies 1 and below run `sv2::negamax<RootSide>`
+(search_v2.cpp), one function for both sides in place of the `maximizer` / `minimizer` pair, keeping the max/min score frame
+(S1 of `dev_notes/active/SEARCH-V2-PLAN-2026-11-10.md`). The root (`alpha_beta`, pre-search, razor) is unchanged. A one-for-one
+port: node-for-node identical on the six identity sets, so the bench and the id stay (249 / 37,279,382 / 3.758, "AlphaUX (v2 gen
+7.3)"). `SEARCH_ARM=0` restores the previous interior.
+**Evidence:** #207b −1.87% instructions, −2.86% time to depth 13; #225 build identity games vs `g73fpgo` 0 / 120 diverged; pinned
+bench ×6 level (28,084 vs 28,110 ms); **#225 + #236 (power outage at 1,695 g, then 306 g on seed 2251), 2,000 g 10+0.1 vs
+`g73fpgo`: +15.8 (95% +3.0 … +28.7)**, 0 forfeits, 0 disconnects, time per move 0.241 vs 0.242 s, nps 1,554k vs 1,518k (+2.4%).
+Registered rule (not harmful = above −2σ) met; registered prediction was 0 to +5, so part of the +15.8 is luck.
+**Install (#237):** `build_uci/chess_engine_uci` == `chess_engine_uci_g73spgo` (profile `/mnt/e/chess_data/pgo_g73s`); backup
+`g73fpgo`; Cython rebuilt (old .so → `/mnt/e/chess_data/so_backup_g73s/`), shipped / `SEARCH_ARM=0` / v1 fingerprints as above.
+
 ## 🚀 2026-11-13 11:50 — GEN 7.3 SPEED BUILD INSTALLED (owner: "It seems like pure speed so i think we can ship it"): `MOVEGEN_FAST=1`
 **What:** `MOVEGEN_FAST = 1` in the gen 7 block of the shipped preset. The move generator's piece-type passes go through
 `processMaskPairsFast` (move_gen.h): each of our pieces' attack sets computed once per list instead of once per pass, legality

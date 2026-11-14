@@ -307,6 +307,18 @@ for it. Not a bug; an unshipped part of the same idea.
 `search_engine.cpp:2114`, `:2775`). The engine is correct per CLAUDE.md (gen 6.6's bundle was not kept); the header
 comment misleads a reader.
 
+**D7. The near-miss rule (VERIFY) fires on moves that were not reduced** (`score_move`'s re-search rule in `search_v2.cpp`;
+the same `do_lmr` test in v1's maximizer and minimizer, `search_engine.cpp`). The condition is `do_lmr && fails low by less
+than VERIFY_MARGIN`, not `was_reduced && ...`. A do_lmr move that took no reduction (moves 1-3 without a negative history
+delta) was already searched at full depth; VERIFY then searches it again at `depth - VERIFY_RESEARCH_REDUCTION`, 2 plies
+SHALLOWER, and that score replaces the full-depth one (and goes into the TT at the shallower depth). Measured (#233): 21-27%
+of the root side's VERIFY re-searches are of this kind (487k at WAC depth 10). The same shape affects a move reduced by
+exactly 1 ply (12% of reduced scouts): its re-search is 1 ply shallower than its scout. The header's rationale for VERIFY
+("the buried winning capture that history-LMR over-reduces") is about reduced moves. Possibly a productive bug (the shallower
+score may land above alpha where the full-depth one did not, an optimism for the root side): test it behind a new knob (re-search only
+when the re-search is deeper than the first search), never as a silent fix; retune `VERIFY_MARGIN` with it. Belongs to
+Stack D.
+
 ---
 
 ## 4. Dependencies: what leans on our own systems
@@ -445,8 +457,20 @@ Log: `E:\chess_data\q232.log`; stderr per run in `E:\chess_data\r4a\`.
 | The null move runs at PV nodes (§1.3) | 26% of tries at PV nodes (WAC d10), cut rate 32% there vs 48% at null-window nodes | **CONFIRMED** |
 | (H2) same shape without the pre-search | S2: child rem 1 ~86%; root-side VERIFY 84.8% (WAC) / 96.1% (STS); null rem 0 ~93% | the interior is unchanged by the root |
 
-Not counted yet: the nodes spent inside VERIFY re-searches (their share of the total), and how many root-side reduced fail
-highs are accepted unverified. Both are one counter each and decide how much Stack D could save.
+**Follow-up counters (queue #233, 11-14; `[sv2_verify]`; node counts again equal #232's on every run):**
+
+| | S0 WAC | S0 STS | S0 quiet | S0 game | S2 WAC | S2 game |
+|---|---|---|---|---|---|---|
+| nodes under VERIFY re-searches (outermost), share of all nodes | 23.6% | 29.8% | 28.4% | 24.4% | 23.0% | 24.7% |
+| VERIFY re-searches of moves NOT reduced (root side), share of the root side's VERIFY re-searches | 20.8% (487k) | 21.9% | 21.4% | 24.0% | 24.4% | 26.9% |
+| root-side reduced scouts that fail high, kept from the 1-ply scout | 1,777 (0.08%) | 4,658 | 1,020 | 1,645 | 1,574 | 1,531 |
+
+So the root side's reduced scouts split: about 86% (WAC) to 97% (STS) re-searched at `depth - 2`; the rest fail low by
+more than 16 pawns and are dropped; fail highs kept unverified are under 0.1%. **A1's accepted fail highs are numerically
+small.** The cost sits in VERIFY: **a quarter to 30% of every search's nodes**, on both roots. The 1-ply scout's only real job
+is dropping moves that lose more than 16 pawns.
+
+**D7 (new, measured): VERIFY also re-searches moves that were never reduced** (see §3).
 
 ## 7. Not verified
 

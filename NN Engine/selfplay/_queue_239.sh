@@ -33,7 +33,7 @@ for s in game_regret_set game_regret_set_v2; do
 	[ -e "$STOP" ] && { echo "[q239] stop file — QUEUE 239 DONE"; exit 0; }
 	[ -e "$GO" ] && { echo "[q239] q238.go present (timed games next) — QUEUE 239 DONE before $s"; exit 0; }
 	echo "[q239] $(date '+%H:%M') == $s"
-	env SET=diagnostics/ks_sets/$s.csv DEPTH=7 JOBS=2 BY_PHASE=0 BY_PS=0 BASE_KNOBS="V2_PRESET=shipped" \
+	env SET=ks_sets/$s.csv DEPTH=7 JOBS=2 BY_PHASE=0 BY_PS=0 BASE_KNOBS="V2_PRESET=shipped" \
 		CAND_KNOBS="$A4E PLY1_NODE_PRUNE=3;$A4E;ASPIRATION_DELTA=300" CAND_NAME="H2;A4;neutral" DUMP=$W/fp_$s.csv \
 		nice -n 10 bash "$R" pyrun diagnostics/_ks_footprint_regret.py > "$W/fp_$s.out" 2>&1
 	grep -vE '^\s*$' "$W/fp_$s.out" | grep -iE 'arm|changed|win%|mean|crit|H2|A4|neutral' | head -40 | sed 's/^/[q239]   /'

@@ -30,6 +30,10 @@ namespace sv2
 	static long g_null_rem_hist[8];       // the null child's remaining depth at entry
 	static long g_null_tries[2];          // null moves tried, by node type
 	static long g_null_cuts[2];           // ... that cut
+	static long g_verify_nodes[2];        // nodes under near-miss (VERIFY) re-searches, outermost only, by the outermost's side
+	static long g_verify_unreduced[2];    // near-miss re-searches of a move whose first search was NOT reduced (already full depth)
+	static long g_fh_accepted[2];         // reduced scouts that beat the node's bound for the side to move, kept without a re-search
+	static int g_verify_nest = 0;         // open near-miss re-searches on the current path
 	static inline int hist_bucket(int v) { return std::min(std::max(v, 0), 7); }
 
 	void print_counters()
@@ -48,6 +52,9 @@ namespace sv2
 			std::cerr << (k ? "/" : "") << g_null_rem_hist[k];
 		std::cerr << " tries_null/pv=" << g_null_tries[0] << "/" << g_null_tries[1]
 		          << " cuts_null/pv=" << g_null_cuts[0] << "/" << g_null_cuts[1] << std::endl;
+		std::cerr << "[sv2_verify] nodes_opp/root=" << g_verify_nodes[0] << "/" << g_verify_nodes[1]
+		          << " unreduced_opp/root=" << g_verify_unreduced[0] << "/" << g_verify_unreduced[1]
+		          << " fh_accepted_opp/root=" << g_fh_accepted[0] << "/" << g_fh_accepted[1] << std::endl;
 	}
 
 	// Mate scores keep today's form: MATE - plies from the game start, so a shorter mate scores higher.
@@ -1190,6 +1197,8 @@ namespace sv2
 			research = (rs > ra && rs < rb) ||
 			           (Config::FIX_RESEARCH ? ((was_reduced && rs <= ra) || (Config::VERIFY_MARGIN > 0 && do_lmr && rs >= rb && (rs - rb) < Config::VERIFY_MARGIN))
 			                                 : (Config::VERIFY_MARGIN > 0 && do_lmr && rs <= ra && (ra - rs) < Config::VERIFY_MARGIN));
+		if (Config::ENABLE_LMR_COUNTERS && was_reduced && !research && (RootSide ? rs >= rb : rs <= ra))
+			++g_fh_accepted[RootSide ? 1 : 0];
 		if (research)
 		{
 			if (Config::ENABLE_LMR_COUNTERS && do_lmr)
@@ -1199,8 +1208,16 @@ namespace sv2
 			                           : (Config::FIX_RESEARCH ? (rs < rb) : (rs > ra && rs < rb));
 			if (Config::ENABLE_LMR_COUNTERS && was_reduced)
 				++(full ? g_lmr_pvs_research : g_lmr_verify_research)[RootSide ? 1 : 0];
+			const bool count_verify = Config::ENABLE_LMR_COUNTERS && !full;
+			if (count_verify && !was_reduced)
+				++g_verify_unreduced[RootSide ? 1 : 0];
+			const int verify_nodes_before = num_iterations;
+			if (count_verify)
+				++g_verify_nest;
 			const int research_depth = full ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
 			score = child_search<RootSide>(cur_depth, research_depth, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
+			if (count_verify && --g_verify_nest == 0)
+				g_verify_nodes[RootSide ? 1 : 0] += num_iterations - verify_nodes_before;
 			if (cur_depth < research_depth - 1)
 			{
 				// ENABLE_TT_FLAG_FIX: flag against the window actually searched (the drifted one), not the node's entry window.

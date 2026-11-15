@@ -53,7 +53,7 @@ timed games (evenings and nights), speed needs only fixed-work reads (safe while
 |---|---|---|---|---|
 | C1 | a shallower verify that crosses a bound is re-searched at full depth | `SV2_VERIFY_PROMOTE` | STS1500 +212 vs D7; bench 251 / 37,302,143 | games vs gen 7.4 |
 | C2 | reduced fail-highs verified, with the two symmetric halves (A1-A3) | `FIX_RESEARCH`, `FIX_MIN_SCOUT`, `FIX_MIN_RD1` | A1 alone on D7: WAC 255, +43% nodes | fixed-depth 2×2 on time to depth, then games |
-| C3 | a reverse-futility static value is not stored as a searched bound | `SV2_STATIC_CUT_STORE` | sts300 only (noise) | STS1500, then games if not worse |
+| C3 | a reverse-futility static value is not stored as a searched bound | `SV2_STATIC_CUT_STORE` | **#247: STS1500 9,638 (−307 vs gen 7.4; per position 192 better / 239 worse, sign z −2.26 ⇒ a real cost by #245's rule)**, WAC 254 at +4.6% nodes. Skipping the store also throws away the cheap cut it caches. For scale, the same per-position test against gen 7.4: production −20 (z −0.80), neutral arm −18 (z 0.00), D7=2 −141 (z −1.00), PROMOTE +212 (z +1.59) | as built: no games. **C3b (new, not built):** store the static cut at a shallow depth (0 or 1) instead of `rd`, so it still caches but can no longer stand in for a deep search |
 | C4 | history credit only where a move raised alpha; the node-exit write bounded (S5 D1) | `SV2_HIST_ALLNODE_GATE` (+ the bound, new) | sts300 only | STS1500, then games |
 | C5 | malus only on moves actually searched | `SV2_MALUS_SEARCHED_ONLY` | sts300 only | STS1500, then games |
 | C6 | an aspiration fail-high is kept when the clock runs out | `ASP_KEEP_FAILHIGH` | timed only; liveness unproven | a liveness count in timed play, then games |

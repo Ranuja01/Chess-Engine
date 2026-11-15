@@ -14,7 +14,10 @@ Every new production build gets a row in the ledger below, before or at install:
    107.7, SF18 WDL 384.2; OPTIMIZATION_LOG 10-30). Gen 6.5 and the gen 6.6 candidate are search-only. **Owner 11-04: re-run
    it after the full retune steps** (the final retune at the end of the transition arc).
 
-## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7.3 + PGO (2026-11-12 15:43, owner), since 11-14 12:18 the search v2 interior build `chess_engine_uci_g73spgo` (before: MOVEGEN_FAST `g73fpgo` 11-13, first build `g73pgo`)
+## ⭐⭐⭐⭐⭐ CURRENT ENGINE: v2 gen 7.4 + PGO (2026-11-15 11:26, owner), `chess_engine_uci_g74pgo` (gen 7.3 builds before it: search v2 interior `g73spgo` 11-14, MOVEGEN_FAST `g73fpgo` 11-13, first build `g73pgo`)
+- 11-15: gen 7.4 = `SV2_VERIFY_DEEPER = 1` in the shipped preset (D7: a shallower near-miss re-search no longer replaces a deeper
+  score). Bench **250 / 37,320,382 / EBF 3.743**; `SV2_VERIFY_DEEPER=0` = gen 7.3. Profile `/mnt/e/chess_data/pgo_g74`. Backups
+  `g73spgo`, its .so in `/mnt/e/chess_data/so_backup_g74/`. OPTIMIZATION_LOG 11-15 11:26.
 - 11-14: `SEARCH_ARM = 1` in the shipped preset (SW5, owner yes on a positive games read). Same nodes and moves; `SEARCH_ARM=0` =
   the previous interior. Backups `g73fpgo`, its .so in `/mnt/e/chess_data/so_backup_g73s/`. OPTIMIZATION_LOG 11-14 12:18.
 - 11-13: `MOVEGEN_FAST = 1` in the shipped preset (owner: "pure speed ... we can ship it"). Same moves, same fingerprints (a
@@ -29,7 +32,8 @@ Every new production build gets a row in the ledger below, before or at install:
 
   | build (production from) | change | pinned UCI bench, same session | real-play nps (venue) | games check | Cython module (UI) |
   |---|---|---|---|---|---|
-  | **`chess_engine_uci_g73spgo` (11-14) = current** | `SEARCH_ARM 1` (result-identical) | #225, alternating × 6 vs `g73fpgo`, pinned: **g73s 28,084 ms mean; g73f 28,110 ms** (level). #207b: −1.87% instructions, −2.86% time to depth 13 | #225 + #236, 2,000 g 10+0.1: nps 1,554k vs 1,518k (+2.4%), time per move level | 2,000 g vs `g73fpgo` **+15.8 (+3.0 … +28.7)**; identity games 0 / 120 diverged | 249 / 37,279,382 / 3.758; `SEARCH_ARM=0` the same |
+  | **`chess_engine_uci_g74pgo` (11-15) = current** | gen 7.4 (`SV2_VERIFY_DEEPER 1`) | pending (quiet box); unpinned during the build 27,559 ms, 1,354k nps | #241's d7 arm (`d7pgo`, same rule), 2,001 g 10+0.1: **nps 1,466k vs 1,518k (−3.4%) at level time per move** (0.241 vs 0.242 s), depth 11.5 both, nodes per move −4.0% | 2,001 g vs gen 7.3 **+38.4 (+25.3 … +51.6)**; SF18 z +0.12; Mediocre z +0.50 | 250 / 37,320,382 / 3.743; `SV2_VERIFY_DEEPER=0` 249 / 37,279,382 |
+  | `chess_engine_uci_g73spgo` (11-14) | `SEARCH_ARM 1` (result-identical) | #225, alternating × 6 vs `g73fpgo`, pinned: **g73s 28,084 ms mean; g73f 28,110 ms** (level). #207b: −1.87% instructions, −2.86% time to depth 13 | #225 + #236, 2,000 g 10+0.1: nps 1,554k vs 1,518k (+2.4%), time per move level | 2,000 g vs `g73fpgo` **+15.8 (+3.0 … +28.7)**; identity games 0 / 120 diverged | 249 / 37,279,382 / 3.758; `SEARCH_ARM=0` the same |
   | `chess_engine_uci_g73fpgo` (11-13) | `MOVEGEN_FAST 1` (result-identical) | #222 A, alternating × 6 vs `g73pgo`, pinned: **g73f 29,450 ms mean · 1,266,235 nps; g73 30,081 ms · 1,239,678** ⇒ **−2.10% time, nps +2.1%** on the same tree. #219 time to depth 13 (PGO, 5 reps): −3.52%, nps 1,489 → 1,544 k | next match | identity games #224: **diverged 0 / 120** (eg, kp, uho × 40 at 30k nodes, one process per side), 0 crashes | 249 / 37,279,382 / 3.758, `MOVEGEN_FAST=1` in the toggles; `depth_nps_bench` 60 FENs LIGHTNING pinned × 3: median 1.118 / 1.107 / 1.094 M nps, depth 14 / 14 / 13 |
   | `chess_engine_uci_g73pgo` (11-12) | gen 7.3 (`SEE_PER_MOVE 3`) | #217, alternating × 6 vs `g72pgo`, pinned: **gen 7.3 27,559 ms mean · 1,352,817 nps; gen 7.2 29,504 ms · 1,351,505** ⇒ **−6.6% time**, nps level, on a −6.5% tree. Earlier, the same binary (`sv2_pgo1pe`, #213) knob 0 vs 3 × 4: **28.9 s vs 26.8 s (−7.1%), 1.380 M vs 1.389 M nps (+0.7%)** on −6.5% nodes | the 2,800 gating games (#209 + #210, 10+0.1 UHO, search v2's port = production's trees): **1,638k vs 1,627k (+0.7%)**, depth 11.6 / 11.5 | 0 forfeits, 0 stalls in 2,800 g | 249 / 37,279,382 / 3.758 |
 

@@ -4,6 +4,27 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-15 11:26 — GEN 7.4 SHIPPED (owner: "it seems D7 can ship yes"): a shallower search no longer overrules a deeper one, `SV2_VERIFY_DEEPER=1`
+**What:** `Config::SV2_VERIFY_DEEPER = 1` in the gen 7 block of the shipped preset. In search v2's `score_move`, a near-miss
+(VERIFY) re-search at `depth_limit - VERIFY_RESEARCH_REDUCTION` is skipped when it would be shallower than the move's first
+search: the rule tested `do_lmr`, not "was reduced", so moves already searched at full depth (or reduced by one ply) were
+searched again two plies shallower and the shallower score replaced the deeper one (21-27% of the root side's VERIFYs; S5 audit
+D7, `dev_notes/active/S5-PRUNING-AUDIT-2026-11-13.md` §3). Search v2 only: `SEARCH_ARM=0` keeps the old rule. Bench **250 /
+37,320,382 / EBF 3.743**, id "AlphaUX (v2 gen 7.4)"; `SV2_VERIFY_DEEPER=0` restores gen 7.3 exactly (249 / 37,279,382).
+**Evidence (registered ship rule):** self-play vs gen 7.3 at 10+0.1, three parts pooled as separate PGNs (#238 1,235 g, #241
+766 g on a fresh seed): **2,001 g +879 −662 =460, +38.4 (95% +25.3 … +51.6)**, 0 forfeits, 0 stalls; per move 0.241 vs 0.242 s,
+depth 11.5 both, nodes 353k vs 368k, nps 1,466k vs 1,518k (the skipped nodes were cheap, so nps falls at level time). SF18 at
+equal nodes, 6 seeds × 250 per arm: 54.7% vs 54.5%, +0.20 pp, **z +0.12** (> −1). Mediocre, 2 seeds × 150 per arm: 84.7% vs
+83.3%, **z +0.50** (≥ 0). d7 footprint regret (#240): changed-move win% 49.6 / 49.1 vs neutral 50.4 / 49.6 (no resolvable move
+signal at d7: the gain lives where the benches cannot see, tables carried move to move). STS: sts300 −148 did NOT replicate on
+STS1500 (#245, d10: S0 9,925, D7 9,945, neutral arm 9,927; the sts300 null spread for search changes is about ±150).
+**Siblings (not shipped):** `SV2_VERIFY_DEEPER=2` (also skip the exact-repeat re-search) vs D7, 2,000 g: +0.2 (95% −13.2 …
++13.5), STS1500 −141 vs D7 ⇒ parked. D7 + `SV2_VERIFY_PROMOTE=1`: STS1500 10,157 (+212 vs D7) ⇒ next games.
+**Install (#246):** PGO `chess_engine_uci_g74pgo` (profile `/mnt/e/chess_data/pgo_g74`), every gate equal (gen 7.3 / 7.2 / 7.1 / 6.7
+knobs, `SEARCH_ARM=0`, v1 35,310,778); `build_uci/chess_engine_uci` == `g74pgo`, backup `g73spgo`; smoke 2 g, 0 warnings; Cython
+rebuilt (old .so → `/mnt/e/chess_data/so_backup_g74/`): shipped 250 / 37,320,382 / 3.743, `SV2_VERIFY_DEEPER=0` 249 / 37,279,382 /
+3.758, v1 250 / 35,310,778. Pinned bench vs `g73spgo` pending a quiet box.
+
 ## 🚀 2026-11-14 12:18 — SEARCH V2'S INTERIOR IS THE DEFAULT (SW5; owner: "if the play shows its positive we can ship and continue"): `SEARCH_ARM=1`
 **What:** `Config::SEARCH_ARM = 1` in the gen 7 block of the shipped preset: plies 1 and below run `sv2::negamax<RootSide>`
 (search_v2.cpp), one function for both sides in place of the `maximizer` / `minimizer` pair, keeping the max/min score frame

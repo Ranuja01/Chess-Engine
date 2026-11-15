@@ -269,6 +269,9 @@ namespace Config
                                              // it is not a proof) -- SF's "do not return unproven mate scores".
                                              // Measured latent (root_adjacent=0) but a root-reaching phantom
                                              // could freeze iter-deepening / RESIGN. Off = byte-identical.
+                                             // The header value is not the runtime default: the start-up read
+                                             // defaults it to false (gen 6.6's mate bundle was not kept), so the
+                                             // engine runs with it OFF unless ENABLE_NULL_MATE_CLAMP=1.
     inline bool ENABLE_TT_FLAG_FIX = true;  // compute the TT bound flag of a PVS re-search against the window
                                              // it ACTUALLY used (drifted alpha,beta), not the node's entry
                                              // window -- stops fail-soft bounds being stored as EXACT (measured
@@ -3280,9 +3283,11 @@ namespace Config
     // Search v2 only: a near-miss (VERIFY) re-search is skipped when it would be shallower than the move's first search. The test is
     // do_lmr, not "was reduced", so a move whose first search was already full depth is re-searched VERIFY_RESEARCH_REDUCTION
     // plies shallower and the shallower score replaces it; a move reduced by one ply likewise (S5 audit D7: 21-27% of the root
-    // side's VERIFYs, 23-30% of all nodes are under VERIFY). 0 = today (default, byte-identical); 1 = skip those re-searches.
+    // side's VERIFYs, 23-30% of all nodes are under VERIFY). 0 = the previous rule; 1 = skip those re-searches. The shipped
+    // preset sets 1 since gen 7.4 (2026-11-15: self-play +38.4 over 2,001 games); the header 0 is the unpreset value.
     inline int SV2_VERIFY_DEEPER = 0;
     // 2 = also skip a null-window near-miss re-search at the SAME depth as the first search (it repeats that search exactly).
+    // Games vs 1: +0.2 (95% −13.2 … +13.5) over 2,000 games; STS1500 −141 vs 1 (queues #244 / #245): parked.
 
     // The rest of the "a shallower search never overrules a deeper one" audit (2026-11-14). Each default 0 = byte-identical.
     // SV2_VERIFY_PROMOTE: a near-miss re-search that ran shallower than full depth and moved the result to the other side of

@@ -17,6 +17,63 @@ current one behind a switch, so every part of ours stays available and games dec
 | 11-11 | **Reference reads, eval-program style, per subsystem** (not one shallow all-of-search comparison): each lands before the stage it informs and is kept for discussion. First: the move generator (ours vs the giants on correctness, accuracy, speed and support architecture: history-based scoring, lazy generation, ...), then "best of all worlds" is discussed. References include SF19 (newest on disk, `stockfish_19/stockfish/src/`); SF18 stays the games arbiter. | owner, 11-11 |
 | 11-11 | The transition is closed and the search arc fully entered. The sealing UI games are deferred until search v2 brings gains worth playing (gen 7.2 added only the bare-king technique since the owner's 11-10 games). | owner, 11-11 |
 
+## 0b. Where the arc stands (2026-11-15, at the gen 7.4 ship)
+
+**Why the arc exists.** The gap to SF11 is about two-thirds node efficiency (memory `the-sf11-gap-is-two-thirds-node-efficiency`;
+S0: EBF 1.92 vs SF11 1.78 over d8-13). The arc's promise is about two more plies at equal time, after which the eval is
+retuned at the new depth (memory `retune-depth-follows-play-depth`).
+
+**What has shipped since the arc opened (self-play at 10+0.1 against the previous production):**
+
+| ship | stage | kind | self-play | SF18 at equal nodes |
+|---|---|---|---|---|
+| gen 7.3 `SEE_PER_MOVE 3` (11-12) | S3 (movegen audit) | ordering correctness | +12.7 | +2.60 pp (z +1.56) |
+| `MOVEGEN_FAST` (11-13) | S3 | speed, same trees | (−3.5% time to depth) | — |
+| `SEARCH_ARM 1` (11-14) | S1 | speed, same trees | +15.8 | — |
+| gen 7.4 D7 `SV2_VERIFY_DEEPER 1` (11-15) | **S5 Stack D** (LMR v2) | correctness: a shallower search no longer overrules a deeper one | **+38.4** | +0.20 pp (z +0.12) |
+
+**What did not ship:** the pre-search-free root (A4 −16.7; H2 = A4 + a ply-1 cut node −6.3, level), root LMR in five forms
+(all fail the WAC veto), lazy generation (+3.6, neutral), early LMP (speed unresolved), D7=2 (+0.2, STS1500 −141). All are in
+ROOT_SEARCH_MODEL §5 / this file with re-test triggers.
+
+**The honest gap.** Every ship so far is speed or correctness. None lowers the branching factor: bench EBF 3.758 is unchanged
+since gen 7.3 and game depth is 11.5 as before. The depth the arc promised comes from the parts not yet started: S4's
+node-entry eval and its consumers (Stack E: improving, the null-move eval gate, futility on the parent's eval), the history
+stacks A-C, Stack F (TT move, IIR, singular) and G (ProbCut). Also: the self-play gains run well ahead of SF18's (D7 +38 vs
+z +0.12), so each ship also gets the external yardstick (STS at equal nodes vs SF11, memory
+`sts-at-equal-nodes-vs-sf11-is-the-progress-yardstick`).
+
+**Route from here (owner 11-15: "making sure we are as fast as can be or as 'correct' before making changes so we're working
+with a good base").** Phase H (harden the base) comes before any new part. Its two tracks share the box: correctness needs
+timed games (evenings and nights), speed needs only fixed-work reads (safe while the owner games).
+
+*H-C, correctness* (each behind its knob, default 0 until games decide; register before each run):
+
+| # | item | knob(s) | evidence so far | next read |
+|---|---|---|---|---|
+| C1 | a shallower verify that crosses a bound is re-searched at full depth | `SV2_VERIFY_PROMOTE` | STS1500 +212 vs D7; bench 251 / 37,302,143 | games vs gen 7.4 |
+| C2 | reduced fail-highs verified, with the two symmetric halves (A1-A3) | `FIX_RESEARCH`, `FIX_MIN_SCOUT`, `FIX_MIN_RD1` | A1 alone on D7: WAC 255, +43% nodes | fixed-depth 2×2 on time to depth, then games |
+| C3 | a reverse-futility static value is not stored as a searched bound | `SV2_STATIC_CUT_STORE` | sts300 only (noise) | STS1500, then games if not worse |
+| C4 | history credit only where a move raised alpha; the node-exit write bounded (S5 D1) | `SV2_HIST_ALLNODE_GATE` (+ the bound, new) | sts300 only | STS1500, then games |
+| C5 | malus only on moves actually searched | `SV2_MALUS_SEARCHED_ONLY` | sts300 only | STS1500, then games |
+| C6 | an aspiration fail-high is kept when the clock runs out | `ASP_KEEP_FAILHIGH` | timed only; liveness unproven | a liveness count in timed play, then games |
+| C7 | the verify retune, LAST (memory `a-correctness-fix-into-absorbed-tuning-is-not-free`) | `VERIFY_MARGIN`, `VERIFY_RESEARCH_REDUCTION` | fitted with D7's defect in place | after C1-C6 |
+
+Latent, fixed before Stack F turns them on: S5 D2 (the exclusion search is not isolated) with MOVEGEN-AUDIT C1, and D4
+(`SINGULAR_MARGIN` in SF11's units). Doc-only: D6's misleading header comment.
+
+*H-S, speed* (result-identical: identity on the bench sets, then time to depth on a quiet box or cachegrind):
+1. A fresh profile of gen 7.4 (cachegrind on game positions, the §6.2 form): the ranked list decides the order below.
+2. Candidates already on record: the qsearch move-list build (a third of v2's search time on 10-22's profile; check what
+   `MOVEGEN_FAST` and lazy generation already took), the per-position facts computed once per node (F16), lazy generation's
+   second phase generating quiets only, the eval's biggest functions (`placement_and_piece_eval_v2` 13%), early LMP (an
+   unresolved ~1%: one read with enough repetitions, or dropped).
+
+*After phase H:* S4 then Stack E (the node-entry eval and its consumers, where the depth is expected to come from; corrhist
+and lazy eval's re-measure wait on it), the history stacks A → B → C, then F and G. Held with triggers: S3's staged picker
+(B) and the root 2×2 wait until S5's reads show ordering or the root as the limit; A3 (pre-search subset, −3% nodes at equal
+accuracy) takes the next free games slot.
+
 ## 1. Principles
 
 - **Strength while distinctive.** Standard structure, our own ideas kept where they win: the move cache with

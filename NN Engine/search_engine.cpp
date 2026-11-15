@@ -2765,6 +2765,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // Search v2's negamax interior (search_v2.cpp): the same nodes as the previous interior at fixed depth, about
                     // 3% less time to depth. Set before the start-up read, so SEARCH_ARM=0 restores the previous interior.
                     Config::SEARCH_ARM = 1;
+                    // ── GEN 7.4: a near-miss re-search shallower than the move's first search is skipped, so the shallower
+                    // score no longer replaces the deeper one (search v2 only). Self-play +38.4 (95% +25.3 … +51.6) over 2,001
+                    // games, SF18 at equal nodes +0.20 pp (z +0.12), Mediocre +1.33 pp (OPTIMIZATION_LOG). Set before the
+                    // start-up read, so SV2_VERIFY_DEEPER=0 restores gen 7.3 exactly (249 / 37,279,382).
+                    Config::SV2_VERIFY_DEEPER = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

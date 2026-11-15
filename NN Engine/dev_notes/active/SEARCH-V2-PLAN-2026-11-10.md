@@ -52,7 +52,7 @@ timed games (evenings and nights), speed needs only fixed-work reads (safe while
 | # | item | knob(s) | evidence so far | next read |
 |---|---|---|---|---|
 | C1 | a shallower verify that crosses a bound is re-searched at full depth | `SV2_VERIFY_PROMOTE` | STS1500 +212 vs D7; bench 251 / 37,302,143 | games vs gen 7.4 |
-| C2 | reduced fail-highs verified, with the two symmetric halves (A1-A3) | `FIX_RESEARCH`, `FIX_MIN_SCOUT`, `FIX_MIN_RD1` | A1 alone on D7: WAC 255, +43% nodes | fixed-depth 2×2 on time to depth, then games |
+| C2 | reduced fail-highs verified, with the two symmetric halves (A1-A3) | `FIX_RESEARCH`, `FIX_MIN_SCOUT`, `FIX_MIN_RD1` | **#249 STS1500 vs gen 7.4 (per position):** C2a `FIX_RESEARCH` **+589 (263 / 193, z +3.28)**, WAC 255 at **+27% WAC nodes**; C2b the symmetric pair −89 (z −0.91), WAC 248 at −21%; **C2c all three +210 (z +0.52), WAC 252 at −5.6%** (more accurate and cheaper: the S5 "one mechanism" prediction) | games for C2c and C2a vs gen 7.4 at equal time (fixed depth flatters C2a's +27% nodes) |
 | C3 | a reverse-futility static value is not stored as a searched bound | `SV2_STATIC_CUT_STORE` | **#247: STS1500 9,638 (−307 vs gen 7.4; per position 192 better / 239 worse, sign z −2.26 ⇒ a real cost by #245's rule)**, WAC 254 at +4.6% nodes. Skipping the store also throws away the cheap cut it caches. For scale, the same per-position test against gen 7.4: production −20 (z −0.80), neutral arm −18 (z 0.00), D7=2 −141 (z −1.00), PROMOTE +212 (z +1.59) | as built: no games. **C3b (new, not built):** store the static cut at a shallow depth (0 or 1) instead of `rd`, so it still caches but can no longer stand in for a deep search |
 | C4 | history credit only where a move raised alpha; the node-exit write bounded (S5 D1) | `SV2_HIST_ALLNODE_GATE` (+ the bound, new) | **#249: STS1500 9,810 (−135; 197 better / 222 worse, z −1.22): below the bar, sign test unresolved** (D7=2 territory); WAC 253 at +1.9% nodes | unresolved: no games on this screen; the bounded write (not built) is the other half of D1 |
 | C5 | malus only on moves actually searched | `SV2_MALUS_SEARCHED_ONLY` | **#249: STS1500 9,684 (−261; 201 better / 244 worse, z −2.04 ⇒ a real cost)**; WAC 252 at −1.0% nodes. The malus on pruned moves is doing work | as built: no games |
@@ -260,7 +260,12 @@ cachegrind instructions on `bench game12 10` (2,372,218 nodes, base 13.52 G on t
 | the C3 blocks call their side functions directly | `EVAL_FAST` bit 2 | −0.001% (not counted; the plain build already resolves the pointer; re-read with branch simulation on the PGO build) | −0.3% |
 | all three | | **−6.11%** | |
 
-Next: a PGO build and a pinned bench on a quiet box (time, not instructions); then batch 2 from the audit's list (the attack
+**Batch 2 (queue #250, plain build `e2test`, every gate identical, verify clean), on top of batch 1 (12.73 G):**
+`EVAL_FAST` bit 4 (the attack build as one loop per piece type) **−2.41%**; bit 8 (PX skips a side with no passer) **−1.26%**.
+Batches 1 + 2 together ≈ −9.5% instructions against the plain base. Speed read in time: queue #251 (PGO `e12pgo`, pinned
+bench against production with a batch-off arm).
+
+Next: a PGO build and a pinned bench on a quiet box (time, not instructions); then the rest of the audit's list (the attack
 build as one loop per piece type, the passer / KingProtector cell sums, the unread placement counters, the PST layout, the
 redundant `BB_X_MASKS` AND, an incremental PST in `make_move`).
 

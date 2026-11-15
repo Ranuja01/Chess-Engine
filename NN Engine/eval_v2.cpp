@@ -119,6 +119,7 @@ namespace {
 	anything hot).
 */
 struct PawnHashEntry;
+struct MatCacheEntry;
 
 struct V2Context {
 	// Raw board, as handed in.
@@ -144,6 +145,9 @@ struct V2Context {
 
 	// This position's pawn-hash entry (Config::PAWN_HASH), set by the main evaluator only; null everywhere else.
 	PawnHashEntry *ph = nullptr;
+	// This position's material-cache entry (Config::EVAL_MAT_CACHE), set by build_context; null when the cache is off.
+	MatCacheEntry *mc = nullptr;
+	uint64_t mat_key = 0;                // the count key mc was looked up with (its slot can be refilled by another context)
 };
 
 /* ═══ (mg,eg) PAIR ACCUMULATOR — the structural prerequisite v2 has never had ═══════════════════════
@@ -251,6 +255,31 @@ static inline void v2_piece_value_legs(int t, int &pmg, int &peg)
 	peg = values[1];
 }
 
+/* Material cache (Config::EVAL_MAT_CACHE): what the evaluator derives from the piece counts alone, kept per count signature.
+ * The key packs all twelve counts (5 bits each) and is compared exactly, so a shared slot can only miss, never return another
+ * signature's values. Every value also depends on the eval knobs and tables, so v2_c3_init clears the table whenever they are
+ * read. One table: the search is single-threaded. */
+struct MatCacheEntry {
+	uint64_t key;
+	bool     used, kauf_ok;
+	int      npm_white, npm_black, phase256;
+	int      mat_white, mat_black, mat_mg_white, mat_eg_white, mat_mg_black, mat_eg_black;
+	int      kauf;
+};
+static constexpr int MAT_CACHE_BITS = 11;
+static MatCacheEntry g_mat_cache[1 << MAT_CACHE_BITS];
+
+static void v2_mat_cache_clear() noexcept
+{
+	for (MatCacheEntry &e : g_mat_cache) e.used = false;
+}
+
+[[noreturn]] static void mat_cache_mismatch(const char *what, uint64_t key)
+{
+	std::cerr << "EVAL_MAT_CACHE mismatch (" << what << "): count key " << key << std::endl;
+	std::abort();
+}
+
 /*
 	Build the context. One pass per piece type per side; popcount rather than a bit loop because we want the
 	COUNT here and the per-square work happens later in the terms that actually need squares.
@@ -267,18 +296,39 @@ inline void build_context(V2Context &c, int moveNum, bool turn,
 	c.castling_rights = castlingRights;
 	c.turn = turn;
 	c.moveNum = moveNum;
+	c.mc = nullptr;
 
 	const uint64_t typeMasks[6] = {pawnsMask, knightsMask, bishopsMask, rooksMask, queensMask, kingsMask};
-	c.npm_white = c.npm_black = 0;
+	uint64_t key = 0;
+	bool key_ok = true;                              // every count fits its 5 bits (always, on a legal board)
 	for (int t = 0; t < 6; ++t){
 		const int w = __builtin_popcountll(typeMasks[t] & whiteMask);
 		const int b = __builtin_popcountll(typeMasks[t] & blackMask);
 		c.cnt_white[t] = (int8_t)w;
 		c.cnt_black[t] = (int8_t)b;
-		if (t != 0 && t != 5){                       // non-pawn, non-king
-			c.npm_white += w * values[t + 1];
-			c.npm_black += b * values[t + 1];
+		key_ok = key_ok && w < 32 && b < 32;
+		key |= ((uint64_t)w << (10 * t)) | ((uint64_t)b << (10 * t + 5));
+	}
+	c.mat_key = key;
+
+	// The rest of the context reads only the counts: on a cache hit it is copied from the entry.
+	MatCacheEntry *e = nullptr;
+	if (Config::EVAL_MAT_CACHE && key_ok){
+		e = &g_mat_cache[(key * 0x9E3779B97F4A7C15ULL) >> (64 - MAT_CACHE_BITS)];
+		c.mc = e;
+		if (e->used && e->key == key && Config::EVAL_MAT_CACHE != 2){
+			c.npm_white = e->npm_white;        c.npm_black = e->npm_black;   c.phase256 = e->phase256;
+			c.mat_white = e->mat_white;        c.mat_black = e->mat_black;
+			c.mat_mg_white = e->mat_mg_white;  c.mat_eg_white = e->mat_eg_white;
+			c.mat_mg_black = e->mat_mg_black;  c.mat_eg_black = e->mat_eg_black;
+			return;
 		}
+	}
+
+	c.npm_white = c.npm_black = 0;
+	for (int t = 1; t < 5; ++t){                     // non-pawn, non-king
+		c.npm_white += (int)c.cnt_white[t] * values[t + 1];
+		c.npm_black += (int)c.cnt_black[t] * values[t + 1];
 	}
 
 	// Phase from non-pawn material over BOTH sides -- pawns excluded so that trading pawns never moves
@@ -305,6 +355,22 @@ inline void build_context(V2Context &c, int moveNum, bool turn,
 		v2_piece_value_legs(t, pmg, peg);
 		c.mat_mg_white += (int)c.cnt_white[t] * pmg;  c.mat_eg_white += (int)c.cnt_white[t] * peg;
 		c.mat_mg_black += (int)c.cnt_black[t] * pmg;  c.mat_eg_black += (int)c.cnt_black[t] * peg;
+	}
+
+	if (e){
+		if (e->used && e->key == key){               // EVAL_MAT_CACHE = 2: the entry must equal the recomputation
+			if (e->npm_white != c.npm_white || e->npm_black != c.npm_black || e->phase256 != c.phase256
+			    || e->mat_white != c.mat_white || e->mat_black != c.mat_black
+			    || e->mat_mg_white != c.mat_mg_white || e->mat_eg_white != c.mat_eg_white
+			    || e->mat_mg_black != c.mat_mg_black || e->mat_eg_black != c.mat_eg_black)
+				mat_cache_mismatch("census", key);
+			return;
+		}
+		e->key = key;  e->used = true;  e->kauf_ok = false;
+		e->npm_white = c.npm_white;        e->npm_black = c.npm_black;   e->phase256 = c.phase256;
+		e->mat_white = c.mat_white;        e->mat_black = c.mat_black;
+		e->mat_mg_white = c.mat_mg_white;  e->mat_eg_white = c.mat_eg_white;
+		e->mat_mg_black = c.mat_mg_black;  e->mat_eg_black = c.mat_eg_black;
 	}
 }
 
@@ -3777,6 +3843,21 @@ static inline void ksb_side(const V2Context &c, bool white, int &mg, int &eg) no
 	return ax > ay ? ax : ay;
 }
 
+// RACE_RING[sq][d] = squares at Chebyshev distance exactly d from sq; the nearest square of a set from a king is then the first
+// d with RACE_RING & set ≠ 0. Read by kfl_cells and the pawn race below. constexpr ⇒ no runtime initialisation (memory
+// runtime-tables-are-empty-outside-an-engine-instance).
+static constexpr std::array<std::array<uint64_t, 8>, 64> RACE_RING = []{
+	std::array<std::array<uint64_t, 8>, 64> r{};
+	for (int s = 0; s < 64; ++s)
+		for (int t = 0; t < 64; ++t){
+			int df = (s & 7) - (t & 7), dr = (s >> 3) - (t >> 3);
+			if (df < 0) df = -df;
+			if (dr < 0) dr = -dr;
+			r[s][df > dr ? df : dr] |= 1ULL << t;
+		}
+	return r;
+}();
+
 /* SF's KingFlank: the files a king on file f "lives on" (SF11 bitboard.h; QueenSide = a-d, CenterFiles = c-f,
  * KingSide = e-h, the edge files trimmed by one). File-mirror symmetric: flank[7 - f] is flank[f] reflected. */
 static constexpr uint64_t C3_FILE_A = 0x0101010101010101ULL;
@@ -3805,13 +3886,24 @@ static constexpr uint64_t C3_FLANK[8] = {
 	const int ksq = __builtin_ctzll(kb);
 	const uint64_t own = c.pawns & (white ? c.white : c.black), enemy = c.pawns & (white ? c.black : c.white);
 	int n = 0;
+	const bool rings = (Config::EVAL_FAST & 1) != 0;
 	for (int e = 0; e < 2; ++e){
 		uint64_t it = e ? enemy : own;
 		if (!it) continue;
 		int d = 8;
-		for (; it; it &= it - 1){
-			const int dd = c3_cheb(ksq, __builtin_ctzll(it));
-			if (dd < d) d = dd;
+		if (rings){
+			// min(distance, 5): 1 plus the number of rings 1..4 (cumulative, the king's square included) that hold no pawn.
+			const std::array<uint64_t, 8> &R = RACE_RING[ksq];
+			uint64_t w = R[0] | R[1];
+			d = 1 + ((it & w) == 0);
+			w |= R[2];  d += (it & w) == 0;
+			w |= R[3];  d += (it & w) == 0;
+			w |= R[4];  d += (it & w) == 0;
+		} else {
+			for (; it; it &= it - 1){
+				const int dd = c3_cheb(ksq, __builtin_ctzll(it));
+				if (dd < d) d = dd;
+			}
 		}
 		if (d >= 2) cells[n++] = e * 4 + (d >= 5 ? 3 : d - 2);
 	}
@@ -4033,20 +4125,8 @@ static inline int race_dist(int a, int b) noexcept
 static inline int race_clip(int v) noexcept { return v < -3 ? -3 : (v > 3 ? 3 : v); }
 
 // ── SPEED (2026-10-17; result-identical, closure-checked): compile-time tables replace the per-pawn key-square loops ────────
-// RACE_RING[sq][d] = squares at Chebyshev distance exactly d from sq; the nearest square of a set from a king is then the first
-// d with RACE_RING & set ≠ 0. RACE_KEYSQ[white][sq] = the Averbakh key squares of a pawn on sq (the same rules as race_side's
-// former loop). constexpr ⇒ no runtime initialisation (memory runtime-tables-are-empty-outside-an-engine-instance).
-static constexpr std::array<std::array<uint64_t, 8>, 64> RACE_RING = []{
-	std::array<std::array<uint64_t, 8>, 64> r{};
-	for (int s = 0; s < 64; ++s)
-		for (int t = 0; t < 64; ++t){
-			int df = (s & 7) - (t & 7), dr = (s >> 3) - (t >> 3);
-			if (df < 0) df = -df;
-			if (dr < 0) dr = -dr;
-			r[s][df > dr ? df : dr] |= 1ULL << t;
-		}
-	return r;
-}();
+// RACE_RING (the exact-distance rings) is defined above kfl_cells, which also reads it. RACE_KEYSQ[white][sq] = the Averbakh key
+// squares of a pawn on sq (the same rules as race_side's former loop).
 static constexpr std::array<std::array<uint64_t, 64>, 2> RACE_KEYSQ = []{
 	std::array<std::array<uint64_t, 64>, 2> k{};
 	for (int w = 0; w < 2; ++w)
@@ -4670,8 +4750,9 @@ static bool c3_table_or_ship2(const char *knob, const char *env_name, int k0, in
  * separately. */
 void v2_c3_init()
 {
-	// The pawn hash holds values computed under the previous knobs and tables.
+	// The pawn hash and the material cache hold values computed under the previous knobs and tables.
 	v2_pawn_hash_clear();
+	v2_mat_cache_clear();
 	// The live attacker-weight profile (Fit K2): the shipped KS_W_OURS unless KS_V2_W_N/B/R/Q override it.
 	KS_W_LIVE[KNIGHT] = Config::KS_V2_W_N;
 	KS_W_LIVE[BISHOP] = Config::KS_V2_W_B;
@@ -4959,7 +5040,17 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	if (Config::KAUF_V2_MAG > 0){
 		{
 			PROF_BLOCK(PROF_V2_KAUF);
-			kauf_mp_v = kaufman_mp(c);
+			// Kaufman reads only the counts and the knobs, so the material cache keeps it with the census.
+			MatCacheEntry *mc = (c.mc && c.mc->used && c.mc->key == c.mat_key) ? c.mc : nullptr;
+			if (mc && mc->kauf_ok && Config::EVAL_MAT_CACHE != 2){
+				kauf_mp_v = mc->kauf;
+			} else {
+				kauf_mp_v = kaufman_mp(c);
+				if (mc){
+					if (mc->kauf_ok && mc->kauf != kauf_mp_v) mat_cache_mismatch("kaufman", mc->key);
+					mc->kauf = kauf_mp_v;  mc->kauf_ok = true;
+				}
+			}
 		}
 		// Kaufman is PHASE-FLAT (no blend site), so it enters both legs identically.
 		if (pair_mode){ acc.mg += kauf_mp_v; acc.eg += kauf_mp_v; } else total += kauf_mp_v;
@@ -5146,16 +5237,22 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 	{
 		PROF_BLOCK(PROF_V2_C3);
 		int dmg, deg;
+		// EVAL_FAST bit 2: each side function goes in as its own lambda type, so the template calls it directly; passed by
+		// name it is a function pointer, called indirectly (gen 7.4 profile: a 100% indirect-misprediction rate there).
+		const bool direct = (Config::EVAL_FAST & 2) != 0;
+		auto ksb_fn   = [](const V2Context &cc, bool w, int &mg, int &eg) noexcept { ksb_side(cc, w, mg, eg); };
+		auto kfl_fn   = [](const V2Context &cc, bool w, int &mg, int &eg) noexcept { kfl_side(cc, w, mg, eg); };
+		auto kprot_fn = [](const V2Context &cc, bool w, int &mg, int &eg) noexcept { kprot_side(cc, w, mg, eg); };
 		if (g_ksb_on){
-			ksb_mp = c3_block_mp(c, ksb_side, dmg, deg);
+			ksb_mp = direct ? c3_block_mp(c, ksb_fn, dmg, deg) : c3_block_mp(c, ksb_side, dmg, deg);
 			if (pair_mode){ acc.mg += dmg; acc.eg += deg; } else total += ksb_mp;
 		}
 		if (g_kfl_on){
-			kfl_mp = c3_block_mp(c, kfl_side, dmg, deg);
+			kfl_mp = direct ? c3_block_mp(c, kfl_fn, dmg, deg) : c3_block_mp(c, kfl_side, dmg, deg);
 			if (pair_mode){ acc.mg += dmg; acc.eg += deg; } else total += kfl_mp;
 		}
 		if (g_kprot_on){
-			kprot_mp = c3_block_mp(c, kprot_side, dmg, deg);
+			kprot_mp = direct ? c3_block_mp(c, kprot_fn, dmg, deg) : c3_block_mp(c, kprot_side, dmg, deg);
 			if (pair_mode){ acc.mg += dmg; acc.eg += deg; } else total += kprot_mp;
 		}
 	}

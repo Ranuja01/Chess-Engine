@@ -3236,6 +3236,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::KS_FAST = env_int("KS_FAST", Config::KS_FAST);
         Config::KS_VERIFY = env_int("KS_VERIFY", Config::KS_VERIFY);
         Config::PAWN_HASH = env_int("PAWN_HASH", Config::PAWN_HASH);
+        Config::EVAL_MAT_CACHE = env_int("EVAL_MAT_CACHE", Config::EVAL_MAT_CACHE);
+        Config::EVAL_FAST = env_int("EVAL_FAST", Config::EVAL_FAST);
         Config::SCRATCH_REUSE = env_int("SCRATCH_REUSE", Config::SCRATCH_REUSE);
         Config::PIN_FAST = env_int("PIN_FAST", Config::PIN_FAST);
         g_mate_quick_verify = env_int("MATE_TEST_VERIFY", 0) != 0;

@@ -3252,6 +3252,17 @@ namespace Config
     // the KS-B shelter legs per king square) in a table keyed by both pawn sets (same values, computed once per structure).
     // 2 = recompute every cached value, compare, and abort on the first difference.
     inline int PAWN_HASH = 1;
+    // EVAL_MAT_CACHE: the v2 evaluator keeps what it derives from the piece counts alone (non-pawn material, the phase, the
+    // material census and its mg / eg legs, the Kaufman imbalance) in a table keyed exactly by every count, so positions with
+    // the same material skip that work (gen 7.4 profile: the census and Kaufman ~4.5% of instructions, run on every eval).
+    // 0 = off (default, byte-identical); 1 = on; 2 = recompute every cached value, compare, and abort on the first difference.
+    inline int EVAL_MAT_CACHE = 0;
+    // EVAL_FAST: result-identical rewrites of hot eval code (bitmask; 0 = the original code, default, byte-identical).
+    // 1 = kfl_cells takes the king's nearest-pawn distance from cumulative distance rings (RACE_RING) instead of a loop over
+    //     every pawn: min(distance, 5) = 1 + the number of rings 1..4 that hold no pawn.
+    // 2 = the C3 blocks (KS-B shelter, KFL, KingProtector) call their side functions directly (a lambda per function) rather
+    //     through a function pointer.
+    inline int EVAL_FAST = 0;
     // SCRATCH_REUSE: per-node lists the search builds and throws away reuse storage instead of allocating it per node: the
     // history-malus lists (a pool taken in nesting order), the move-generation sort's merge buffer, the lazy re-sort's scores,
     // and the beta-cutoff cache update, which copied the whole move list per cutoff. Same lists in the same order.

@@ -3248,6 +3248,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_TT_MATE = env_int("FIX_TT_MATE", Config::FIX_TT_MATE);
         Config::VERIFY_RESEARCH_REDUCTION = env_int("VERIFY_RESEARCH_REDUCTION", Config::VERIFY_RESEARCH_REDUCTION);
         Config::SV2_VERIFY_DEEPER = env_int("SV2_VERIFY_DEEPER", Config::SV2_VERIFY_DEEPER);
+        Config::SV2_VERIFY_PROMOTE = env_int("SV2_VERIFY_PROMOTE", Config::SV2_VERIFY_PROMOTE);
+        Config::SV2_STATIC_CUT_STORE = env_int("SV2_STATIC_CUT_STORE", Config::SV2_STATIC_CUT_STORE);
+        Config::SV2_HIST_ALLNODE_GATE = env_int("SV2_HIST_ALLNODE_GATE", Config::SV2_HIST_ALLNODE_GATE);
+        Config::SV2_MALUS_SEARCHED_ONLY = env_int("SV2_MALUS_SEARCHED_ONLY", Config::SV2_MALUS_SEARCHED_ONLY);
+        Config::ASP_KEEP_FAILHIGH = env_int("ASP_KEEP_FAILHIGH", Config::ASP_KEEP_FAILHIGH);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
         Config::OTV_MARGIN = env_int("OTV_MARGIN", Config::OTV_MARGIN);
@@ -4414,6 +4419,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         // mate previous score is skipped (the next score can jump far). DELTA 0 = off: the single
         // full-window call in the else branch is byte-identical to the old behavior.
         int prev_score = score;
+        // ASP_KEEP_FAILHIGH: the move of this depth's last completed fail-high pass (a lower bound above the previous score).
+        bool asp_fh_valid = false;
+        Move asp_fh_move = move;
+        int asp_fh_score = 0;
         if (Config::ASPIRATION_DELTA > 0 && depth_limit >= Config::ASPIRATION_MIN_DEPTH && prev_score < 9000000 && prev_score > -9000000)
         {
             ++g_asp_windows;
@@ -4438,6 +4447,12 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
                 // Reached only when the window failed (not in-window, not timed out).
                 ++g_asp_fails;
+                if (Config::ASP_KEEP_FAILHIGH && score >= beta_win && score < 9000000)
+                {
+                    asp_fh_valid = true;
+                    asp_fh_move = move;
+                    asp_fh_score = score;
+                }
                 g_r1_asp_fail_nodes += num_iterations - r1_nodes_before;
                 g_r1_asp_fail_presearch += g_presearch_nodes - r1_pre_before;
 
@@ -4503,6 +4518,11 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                               << std::endl;
                 completed_move = g_rp_move;
                 completed_score = g_rp_score;
+            }
+            else if (asp_fh_valid)
+            {
+                completed_move = asp_fh_move;
+                completed_score = asp_fh_score;
             }
         }
 

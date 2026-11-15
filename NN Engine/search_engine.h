@@ -3282,6 +3282,25 @@ namespace Config
     // plies shallower and the shallower score replaces it; a move reduced by one ply likewise (S5 audit D7: 21-27% of the root
     // side's VERIFYs, 23-30% of all nodes are under VERIFY). 0 = today (default, byte-identical); 1 = skip those re-searches.
     inline int SV2_VERIFY_DEEPER = 0;
+    // 2 = also skip a null-window near-miss re-search at the SAME depth as the first search (it repeats that search exactly).
+
+    // The rest of the "a shallower search never overrules a deeper one" audit (2026-11-14). Each default 0 = byte-identical.
+    // SV2_VERIFY_PROMOTE: a near-miss re-search that ran shallower than full depth and moved the result to the other side of
+    // a bound (a fail low that now beats alpha, or a cut the shallower search no longer supports) is searched once more at
+    // full depth with the node's window, so the shallower result never decides the move alone.
+    inline int SV2_VERIFY_PROMOTE = 0;
+    // SV2_STATIC_CUT_STORE: a child that returned through reverse futility (a static value standing in for a search of rd
+    // plies) is not written to the TT by its parent as a searched bound of rd plies.
+    inline int SV2_STATIC_CUT_STORE = 0;
+    // SV2_HIST_ALLNODE_GATE: the end-of-node history bonus for the best quiet goes only to a node whose best move beat alpha
+    // (at a fail-low node the "best" is only the largest upper bound, mostly from reduced scouts).
+    inline int SV2_HIST_ALLNODE_GATE = 0;
+    // SV2_MALUS_SEARCHED_ONLY: the history malus at a cutoff applies only to moves that were searched (pruned and
+    // futility-cut moves carry no search evidence against them).
+    inline int SV2_MALUS_SEARCHED_ONLY = 0;
+    // ASP_KEEP_FAILHIGH: when an aspiration pass fails high and the clock runs out during the widened retry, the fail-high
+    // pass's move (proved at this depth to beat the previous score by the window) is played instead of the previous depth's.
+    inline int ASP_KEEP_FAILHIGH = 0;
 
     // Optimism-triggered verification (OTV). When a child's backed-up score is about to be
     // trusted (become the node's new best / cause the cutoff) AND it overshoots the node's OWN

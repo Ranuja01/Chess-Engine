@@ -34,6 +34,7 @@ namespace sv2
 	static long g_verify_unreduced[2];    // near-miss re-searches of a move whose first search was NOT reduced (already full depth)
 	static long g_fh_accepted[2];         // reduced scouts that beat the node's bound for the side to move, kept without a re-search
 	static int g_verify_nest = 0;         // open near-miss re-searches on the current path
+	static bool g_static_cut = false;     // the last child returned through reverse futility (SV2_STATIC_CUT_STORE)
 	static inline int hist_bucket(int v) { return std::min(std::max(v, 0), 7); }
 
 	void print_counters()
@@ -465,6 +466,8 @@ namespace sv2
 		    (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
 		    s * rfp_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) >= beta)
 		{
+			if (Config::SV2_STATIC_CUT_STORE)
+				g_static_cut = true;
 			if (Config::RFP_RETURN_BLEND > 0)   // the returned score pulled toward the bound
 				return (Config::RFP_RETURN_BLEND * beta + (100 - Config::RFP_RETURN_BLEND) * (s * rfp_eval)) / 100;
 			return s * rfp_eval;
@@ -524,6 +527,7 @@ namespace sv2
 				const int na = (!RootSide || Config::FIX_MAX_NULL) ? beta - 1 : alpha;
 				null_move_score = -negamax<!RootSide>(cur_depth + 1, reduced_depth, -(na + 1), -na, t0, state_history, position_count, zobrist, dummy_move,
 				                                     num_iterations, false, true, true);
+				g_static_cut = false;   // a reverse-futility return inside the null search is not this node's
 			}
 			state_history.back().turn = !state_history.back().turn;
 			state_history.back().ep_square = cur_ep_square;
@@ -743,7 +747,7 @@ namespace sv2
 					g_best_mated = best_score <= -9000000;
 					if (Config::ENABLE_CONT_HIST_2PLY && cur_depth < MAX_PLY)
 						g_searchStack[cur_depth] = move;
-					if (Config::ENABLE_HISTORY_MALUS)
+					if (Config::ENABLE_HISTORY_MALUS && !Config::SV2_MALUS_SEARCHED_ONLY)
 						searched_quiets.push_back(move);
 					all_moves_pruned = false;
 					if (time_up.load(std::memory_order_relaxed))
@@ -763,7 +767,8 @@ namespace sv2
 				score = score_move<RootSide>(alpha, beta, alpha_orig, beta_orig, (int)i, cur_depth, depth_limit + singular_extra, capture_move, currently_in_check, move,
 				                             previous_move, position_count, zobrist, t0, state_history, current_state, using_fp, num_iterations, is_in_null_search);
 			}
-			if (Config::ENABLE_HISTORY_MALUS)
+			// SV2_MALUS_SEARCHED_ONLY: a move pruned (the -MATE sentinel) or futility-cut was never searched.
+			if (Config::ENABLE_HISTORY_MALUS && !(Config::SV2_MALUS_SEARCHED_ONLY && (using_fp || score == -MATE)))
 				(capture_move ? searched_captures : searched_quiets).push_back(move);
 			if (using_fp)
 			{
@@ -873,7 +878,8 @@ namespace sv2
 		const bool best_capture = is_capture(best_move.from_square, best_move.to_square, current_state.occupied_colour[!current_state.turn], best_en_passant);
 		if (!best_capture)
 		{
-			historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
+			if (!Config::SV2_HIST_ALLNODE_GATE || best_score > alpha_orig)
+				historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
 			if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG || Config::CORR2) && std::abs(best_score) < 9000000 &&
 			    !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings,
 			              current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
@@ -972,8 +978,11 @@ namespace sv2
 		const bool full_window_rd1 = RootSide ? (Config::FIX_MIN_RD1 == 2) : (Config::FIX_MIN_RD1 != 1);
 		if (i == 0 || (full_window_rd1 && (depth_limit - cur_depth) == 1))
 		{
+			g_static_cut = false;
 			score = child_search<RootSide>(cur_depth, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
-			if (cur_depth < depth_limit - 1)
+			const bool static_cut = g_static_cut;
+			g_static_cut = false;
+			if (cur_depth < depth_limit - 1 && !static_cut)
 				tt_store<RootSide>(zobrist, state_history.size(), score, depth_limit - cur_depth, root_flag<RootSide>(score, alpha_orig, beta_orig),
 				                   alpha_orig, beta_orig, updated_state);
 			return score;
@@ -1155,8 +1164,11 @@ namespace sv2
 			}
 			if (!using_tt)
 			{
+				g_static_cut = false;
 				score = child_search<RootSide>(cur_depth, reduced_depth, sa, sb, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
-				if (cur_depth < reduced_depth - 1)
+				const bool static_cut = g_static_cut;
+				g_static_cut = false;
+				if (cur_depth < reduced_depth - 1 && !static_cut)
 				{
 					const TTFlag flag = root_flag<RootSide>(score, sa, sb);
 					if (flag != TTFlag::EXACT)
@@ -1177,8 +1189,11 @@ namespace sv2
 			}
 			if (!using_tt)
 			{
+				g_static_cut = false;
 				score = child_search<RootSide>(cur_depth, depth_limit, sa, sb, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
-				if (cur_depth < depth_limit - 1)
+				const bool static_cut = g_static_cut;
+				g_static_cut = false;
+				if (cur_depth < depth_limit - 1 && !static_cut)
 				{
 					const TTFlag flag = root_flag<RootSide>(score, sa, sb);
 					if (flag != TTFlag::EXACT)
@@ -1203,9 +1218,13 @@ namespace sv2
 		const bool full = RootSide ? (Config::FIX_RESEARCH ? (rs > ra) : (rs > ra && rs < rb))
 		                           : (Config::FIX_RESEARCH ? (rs < rb) : (rs > ra && rs < rb));
 		// SV2_VERIFY_DEEPER: never let a near-miss re-search replace a score with a shallower one.
-		if (research && !full && Config::SV2_VERIFY_DEEPER &&
-		    std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION) < first_depth)
-			research = false;
+		// = 2 also skips one at the first search's depth when the window is the scout's (an exact repeat).
+		if (research && !full && Config::SV2_VERIFY_DEEPER)
+		{
+			const int vd = std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
+			if (vd < first_depth || (Config::SV2_VERIFY_DEEPER >= 2 && vd == first_depth && alpha == sa && beta == sb))
+				research = false;
+		}
 		if (Config::ENABLE_LMR_COUNTERS && was_reduced && !research && (RootSide ? rs >= rb : rs <= ra))
 			++g_fh_accepted[RootSide ? 1 : 0];
 		if (research)
@@ -1220,11 +1239,29 @@ namespace sv2
 			const int verify_nodes_before = num_iterations;
 			if (count_verify)
 				++g_verify_nest;
-			const int research_depth = full ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
+			int research_depth = full ? depth_limit : std::max(cur_depth + 1, depth_limit - Config::VERIFY_RESEARCH_REDUCTION);
+			g_static_cut = false;
 			score = child_search<RootSide>(cur_depth, research_depth, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
+			bool static_cut = g_static_cut;
+			g_static_cut = false;
 			if (count_verify && --g_verify_nest == 0)
 				g_verify_nodes[RootSide ? 1 : 0] += num_iterations - verify_nodes_before;
-			if (cur_depth < research_depth - 1)
+			// SV2_VERIFY_PROMOTE: a shallower near-miss re-search that moved the result across a bound (relative to the first
+			// search's outcome) is settled by one search at full depth.
+			if (Config::SV2_VERIFY_PROMOTE && !full && research_depth < depth_limit)
+			{
+				const int rs2 = s * score;
+				const int side1 = rs <= ra ? -1 : (rs >= rb ? 1 : 0);
+				const int side2 = rs2 <= ra ? -1 : (rs2 >= rb ? 1 : 0);
+				if (side1 != side2 && !time_up.load(std::memory_order_relaxed))
+				{
+					research_depth = depth_limit;
+					score = child_search<RootSide>(cur_depth, research_depth, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
+					static_cut = g_static_cut;
+					g_static_cut = false;
+				}
+			}
+			if (cur_depth < research_depth - 1 && !static_cut)
 			{
 				// ENABLE_TT_FLAG_FIX: flag against the window actually searched (the drifted one), not the node's entry window.
 				const TTFlag flag = Config::ENABLE_TT_FLAG_FIX ? root_flag<RootSide>(score, alpha, beta) : root_flag<RootSide>(score, alpha_orig, beta_orig);

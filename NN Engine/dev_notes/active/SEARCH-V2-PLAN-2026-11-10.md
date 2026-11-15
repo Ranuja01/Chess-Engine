@@ -264,6 +264,11 @@ cachegrind instructions on `bench game12 10` (2,372,218 nodes, base 13.52 G on t
 `EVAL_FAST` bit 4 (the attack build as one loop per piece type) **−2.41%**; bit 8 (PX skips a side with no passer) **−1.26%**.
 Batches 1 + 2 together ≈ −9.5% instructions against the plain base. Speed read in time: queue #251 (PGO `e12pgo`, pinned
 bench against production with a batch-off arm).
+**#251 pinned bench (PGO `e12pgo`, 11-15 15:35-15:43): UNREADABLE, disturbed.** Rounds 3-4 slowed every arm (batch-off 57.1 s
+against ~27 s), so other load hit the box. Clean rounds 1, 2, 5: batch on 25,479 / 25,808 / 26,022 ms against production
+26,483 / 26,312 / 29,165 and batch off 26,942 / 28,014 / 29,545; medians on 26,022, production 27,706, off 28,014. The registered
+mean rule (on faster than production by > 1%) reads 28,917 vs 28,762 because of the disturbed rounds: re-run on a quiet box
+with more rounds before calling it.
 
 Next: a PGO build and a pinned bench on a quiet box (time, not instructions); then the rest of the audit's list (the attack
 build as one loop per piece type, the passer / KingProtector cell sums, the unread placement counters, the PST layout, the

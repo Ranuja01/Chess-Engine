@@ -763,11 +763,89 @@ struct MobAcc {
 	Gating: mob == nullptr leaves the loop identical to rung 1. Cost with mob: one AND + popcount + two table
 	reads per non-pawn, non-king piece.
 */
+/* One knight, bishop, rook or queen's mobility, accumulated into mob (build_side_attacks' mobility leg). */
+static inline void mob_accumulate(MobAcc *mob, uint8_t sq, uint64_t a, uint8_t pt) noexcept
+{
+	// MOB_V2_PIN (SF11:273-274): a pinned piece of ours counts only its pin line; a pinned knight's targets are
+	// never on it. The KS maps keep the full mask -- the knob changes mobility only.
+	const uint64_t am = ((mob->pinned >> sq) & 1) ? (a & ray(mob->ksq, sq)) : a;
+	const int n = __builtin_popcountll(am & mob->area);
+	const int i = pt - KNIGHT;
+	if (Config::MOB_V2_SAFE){
+		// Deferred: mob_count_safe() needs the ENEMY's maps, which are not built yet.
+		if (mob->n_pieces < 15){
+			mob->pmask[mob->n_pieces] = am;
+			mob->ptype[mob->n_pieces] = (uint8_t)i;
+			++mob->n_pieces;
+		}
+	} else if (g_c1_fit){
+		// Fitted cells are already millipawns: mobility_mp skips the SF-unit conversion.
+		mob->cnt[i] += n;
+		mob->raw_mg += c1_mob[0][i][n];
+		mob->raw_eg += c1_mob[1][i][n];
+	} else {
+		mob->cnt[i] += n;
+		mob->raw_mg += MOB_TAB_MG[Config::MOB_V2_TABLE][i][n];
+		mob->raw_eg += MOB_TAB_EG[Config::MOB_V2_TABLE][i][n];
+	}
+	// ★ Trapped rook's contract is the PLAIN area count, whatever MOB_V2_SAFE does.
+	if (pt == ROOK && mob->n_rooks < 10){
+		mob->rook_sq[mob->n_rooks]  = sq;
+		mob->rook_mob[mob->n_rooks] = (uint8_t)n;
+		++mob->n_rooks;
+	}
+}
+
+/* EVAL_FAST bit 4: one piece type's share of build_side_attacks with the type fixed at compile time, so attacks_mask's
+ * switch folds to one table read and the per-piece type tests disappear. Called in type order, so the per-piece arrays keep
+ * the same order (pawns first, the king last) and every output equals the generic loop's. */
+template <uint8_t PT>
+static inline void side_attacks_type(SideAttacks &sa, bool white, uint64_t bb, uint64_t occ_for, MobAcc *mob,
+                                     uint64_t pin_restrict, uint8_t pin_ksq) noexcept
+{
+	while (bb){
+		const uint8_t sq = __builtin_ctzll(bb);
+		bb &= bb - 1;
+		uint64_t a = attacks_mask(white, occ_for, sq, PT);
+		if constexpr (PT != PAWN && PT != KING){
+			if (pin_restrict && ((pin_restrict >> sq) & 1)) a &= ray(pin_ksq, sq);
+		}
+		sa.dbl |= sa.all & a;
+		sa.all |= a;
+		sa.by[PT] |= a;
+		sa.piece_sq[sa.n] = sq;
+		sa.piece_type[sa.n] = PT;
+		sa.piece_att[sa.n] = a;
+		++sa.n;
+		if constexpr (PT >= KNIGHT && PT <= QUEEN){
+			if (mob) mob_accumulate(mob, sq, a, PT);
+		}
+	}
+}
+
 inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, MobAcc *mob = nullptr,
                                uint64_t pin_restrict = 0, uint8_t pin_ksq = 0)
 {
 	// pin_restrict (KS_V2_PIN_DEF only): pieces of this side pinned to their king at pin_ksq attack only along the
 	// pin line, as SF restricts its defender maps. 0 = the shared maps every other consumer reads, unchanged.
+	if (Config::EVAL_FAST & 4){
+		sa.all = sa.dbl = 0;
+		for (int t = 0; t < 7; ++t) sa.by[t] = 0;
+		sa.n = 0;
+		sa.blockers_set = false;
+		const uint64_t own = white ? c.white : c.black;
+		// ★ SF11:268-271 computes slider attacks THROUGH queens (and, for rooks, through own rooks) so batteries register.
+		const uint64_t occ_b = Config::KS_V2_XRAY ? (c.occupied ^ c.queens) : c.occupied;
+		const uint64_t occ_r = Config::KS_V2_XRAY ? (c.occupied ^ c.queens ^ (c.rooks & own)) : c.occupied;
+		side_attacks_type<PAWN>  (sa, white, c.pawns   & own, c.occupied, mob, pin_restrict, pin_ksq);
+		side_attacks_type<KNIGHT>(sa, white, c.knights & own, c.occupied, mob, pin_restrict, pin_ksq);
+		side_attacks_type<BISHOP>(sa, white, c.bishops & own, occ_b,      mob, pin_restrict, pin_ksq);
+		side_attacks_type<ROOK>  (sa, white, c.rooks   & own, occ_r,      mob, pin_restrict, pin_ksq);
+		side_attacks_type<QUEEN> (sa, white, c.queens  & own, c.occupied, mob, pin_restrict, pin_ksq);
+		side_attacks_type<KING>  (sa, white, c.kings   & own, c.occupied, mob, pin_restrict, pin_ksq);
+		return;
+	}
+
 	sa.all = sa.dbl = 0;
 	for (int t = 0; t < 7; ++t) sa.by[t] = 0;
 	sa.n = 0;
@@ -797,36 +875,7 @@ inline void build_side_attacks(SideAttacks &sa, const V2Context &c, bool white, 
 			sa.piece_type[sa.n] = pt;
 			sa.piece_att[sa.n] = a;
 			++sa.n;
-			if (mob && pt >= KNIGHT && pt <= QUEEN){
-				// MOB_V2_PIN (SF11:273-274): a pinned piece of ours counts only its pin line; a pinned knight's targets are
-				// never on it. The KS maps above keep the full mask -- the knob changes mobility only.
-				const uint64_t am = ((mob->pinned >> sq) & 1) ? (a & ray(mob->ksq, sq)) : a;
-				const int n = __builtin_popcountll(am & mob->area);
-				const int i = pt - KNIGHT;
-				if (Config::MOB_V2_SAFE){
-					// Deferred: mob_count_safe() needs the ENEMY's maps, which are not built yet.
-					if (mob->n_pieces < 15){
-						mob->pmask[mob->n_pieces] = am;
-						mob->ptype[mob->n_pieces] = (uint8_t)i;
-						++mob->n_pieces;
-					}
-				} else if (g_c1_fit){
-					// Fitted cells are already millipawns: mobility_mp skips the SF-unit conversion.
-					mob->cnt[i] += n;
-					mob->raw_mg += c1_mob[0][i][n];
-					mob->raw_eg += c1_mob[1][i][n];
-				} else {
-					mob->cnt[i] += n;
-					mob->raw_mg += MOB_TAB_MG[Config::MOB_V2_TABLE][i][n];
-					mob->raw_eg += MOB_TAB_EG[Config::MOB_V2_TABLE][i][n];
-				}
-				// ★ Trapped rook's contract is the PLAIN area count, whatever MOB_V2_SAFE does.
-				if (pt == ROOK && mob->n_rooks < 10){
-					mob->rook_sq[mob->n_rooks]  = sq;
-					mob->rook_mob[mob->n_rooks] = (uint8_t)n;
-					++mob->n_rooks;
-				}
-			}
+			if (mob && pt >= KNIGHT && pt <= QUEEN) mob_accumulate(mob, sq, a, pt);
 		}
 	}
 }
@@ -5265,6 +5314,8 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		if (!(Config::PS_V2_MAG != 0 || Config::PASSER_V2_MAG != 0 || rf_on || pl_on)) build_pawn_entry(pe, c);
 		int dmg, deg;
 		auto px_side = [&](const V2Context &cc, bool white, int &mg, int &eg){
+			// EVAL_FAST bit 8: every PX count is per passed pawn, so a side with none has an all-zero vector and scores 0.
+			if ((Config::EVAL_FAST & 8) && !pe.passed[white ? 0 : 1]){ mg = eg = 0; return; }
 			int cnt[PX_CELLS];
 			px_counts(cc, pe, wa, ba, white, cnt);
 			mg = eg = 0;

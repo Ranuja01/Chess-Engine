@@ -3262,6 +3262,9 @@ namespace Config
     //     every pawn: min(distance, 5) = 1 + the number of rings 1..4 that hold no pawn.
     // 2 = the C3 blocks (KS-B shelter, KFL, KingProtector) call their side functions directly (a lambda per function) rather
     //     through a function pointer.
+    // 4 = build_side_attacks loops once per piece type with the type fixed at compile time (attacks_mask's switch folds to
+    //     one table read; same pieces in the same order, so the same maps and per-piece arrays).
+    // 8 = PX scores a side with no passed pawn as 0 without zeroing and summing its 51 cells (every count is per passer).
     inline int EVAL_FAST = 0;
     // SCRATCH_REUSE: per-node lists the search builds and throws away reuse storage instead of allocating it per node: the
     // history-malus lists (a pool taken in nesting order), the move-generation sort's merge buffer, the lazy re-sort's scores,

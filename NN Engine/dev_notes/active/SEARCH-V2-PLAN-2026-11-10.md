@@ -248,6 +248,22 @@ Reads:
 - Mispredictions cost roughly a quarter of the cycles (100 M × ~17 cycles against ~13 G instructions at IPC 2-3), so the
   audit counts branches as well as instructions.
 
+**Eval speed batch 1 (queue #249, 11-15; from a read-only audit of the profile above, ten result-identical items ranked).**
+Plain test build `chess_engine_uci_e1test`; every combination of the switches reads bench 250 / 37,320,382, the verify mode
+(`EVAL_MAT_CACHE=2`) completes the bench and `bench game12 10` with no mismatch, gen 7.3's knob 249 / 37,279,382, v1 35,310,778.
+cachegrind instructions on `bench game12 10` (2,372,218 nodes, base 13.52 G on the plain build):
+
+| item | switch | instructions | audit estimate |
+|---|---|---|---|
+| the piece-count part of the eval cached per exact count key | `EVAL_MAT_CACHE 1` | **−4.28%** | −4.5% |
+| king-to-nearest-pawn distance from cumulative rings | `EVAL_FAST` bit 1 | **−1.83%** | −2.6% |
+| the C3 blocks call their side functions directly | `EVAL_FAST` bit 2 | −0.001% (not counted; the plain build already resolves the pointer; re-read with branch simulation on the PGO build) | −0.3% |
+| all three | | **−6.11%** | |
+
+Next: a PGO build and a pinned bench on a quiet box (time, not instructions); then batch 2 from the audit's list (the attack
+build as one loop per piece type, the passer / KingProtector cell sums, the unread placement counters, the PST layout, the
+redundant `BB_X_MASKS` AND, an incremental PST in `make_move`).
+
 ### 6.3 Stack frames (11-10, `-fstack-usage`)
 
 `E:\chess_data\s0_profile_2026-11-10\stack_top40.txt`. Per ply the search uses about 1.8 KB: `maximizer` 1,168 B +

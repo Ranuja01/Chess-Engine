@@ -222,6 +222,32 @@ check bonuses, killers are spliced after the captures, and the move cache reorde
 order: it is S3's staged picker (a behaviour change, judged in games), not a result-identical S2 item. The result-identical S2
 items (F16 per-position facts, F17 16-bit moves, prefetch) each address a few percent at most here.
 
+### 6.2c Gen 7.4's profile (11-15, queue #247; phase H-S step 1)
+
+Copy `chess_engine_uci_g74prof` (production flags + the gen 7.4 PGO profile + `-g -fno-omit-frame-pointer`; bench 250 /
+37,320,382). cachegrind with cache and branch simulation on `bench game12 10` (12 game positions, depth 10, 2,372,218 nodes):
+12.98 G instructions (about 5,100 per node after start-up), D1 misses 121 M, last-level data misses 44 M, **branch
+mispredictions 100 M (7.5%)**. Per function, summed over the source files code was inlined from
+(`/mnt/e/chess_data/q247/cg_annotate.txt`; `python diagnostics/_cg_by_function.py <report>`):
+
+| group | share of instructions | biggest parts (instructions · mispredictions) |
+|---|---|---|
+| eval v2 | **≈ 46%** (was ≈ 37% on gen 7.1, §6.2) | `placement_and_piece_eval_v2` 11.8% · 3.7 M; `ks_channels` 7.6% · 12.7 M; `build_side_attacks` 7.6% · 13.1 M; `placement_detect` 3.6%; `kfl_side` 3.1%; `get_board_evaluation` 2.9%; `ks_units` 2.0%; `threats_mp` 1.6%; `px_counts` 1.2%; `passer_value_mp` 1.1% |
+| move generation | ≈ 20% | `generateLegalMovesReordered` 12.7% · **24.5 M (the largest single source of mispredictions)**; `buildNoisyMoveList` 1.6%; `attackersMask` 1.5%; `see_move` 1.3%; `processMaskPairsFast` 1.0% |
+| search v2 | ≈ 11.5% | `score_move` 4.9%, `negamax` 4.9%, `qsearch` 1.7% |
+| make / unmake | ≈ 7.5% | `make_move` 4.5%, `update_state` 2.5%, `hash_castling` 0.5% |
+| start-up and per-position clears (bench only) | ≈ 6.7% | `clearSearchTables` 3.7% (12.8 M last-level misses), static init 1.6%, `kpk_build` 0.7% |
+
+Reads:
+- **The eval is now about half the work**, and its two attack-map functions (`build_side_attacks`, `ks_channels`) carry a
+  quarter of all mispredictions. It is the biggest result-identical lever; an eval speed audit (what is computed twice,
+  what branches on data) comes first in H-S, with the legal generator's branches second (a quarter of the mispredictions
+  on its own).
+- **The 10-22 lead is closed:** the qsearch list build (`buildNoisyMoveList`) is 1.6%, not a third (memory
+  `qsearch-movelist-build-is-a-third-of-v2-search-time` predates `MOVEGEN_FAST` and the per-move SEE work).
+- Mispredictions cost roughly a quarter of the cycles (100 M × ~17 cycles against ~13 G instructions at IPC 2-3), so the
+  audit counts branches as well as instructions.
+
 ### 6.3 Stack frames (11-10, `-fstack-usage`)
 
 `E:\chess_data\s0_profile_2026-11-10\stack_top40.txt`. Per ply the search uses about 1.8 KB: `maximizer` 1,168 B +

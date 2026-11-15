@@ -214,6 +214,7 @@ winner is real. Noise: mean DEPTH stable ±0.001 (rank on it); solves ±4; STS-s
 | `sf_ceiling_win.py` | same for Windows-only .exe engines (SF1.1, SF17) via Windows python-chess |
 | `_sts_theme_diff.py [tagA tagB]` | per-theme STS diff from the CSVs `sts_test.py` already wrote — **zero CPU**. ⚠️ per-theme deltas do NOT replicate; always check a second knob value |
 | `refresh_bank_ours.py` | relabel `position_bank.csv` with current eval (2.7s) — **never fit against stale labels** |
+| `_cg_by_function.py <cg_annotate.txt> [TOP=40]` | (11-15) ranks a cachegrind report (made with `--cache-sim=yes --branch-sim=yes`) by function, summing the rows of code inlined from several files: instructions, D1 / last-level misses, branch mispredictions. Workload form: queue #247 (profiling copy = production flags + PGO + `-g -fno-omit-frame-pointer`, `bench game12 10`). Excludes nothing: bench-only start-up and `clearSearchTables` (~7%) show up |
 
 ---
 

@@ -269,6 +269,13 @@ against ~27 s), so other load hit the box. Clean rounds 1, 2, 5: batch on 25,479
 26,483 / 26,312 / 29,165 and batch off 26,942 / 28,014 / 29,545; medians on 26,022, production 27,706, off 28,014. The registered
 mean rule (on faster than production by > 1%) reads 28,917 vs 28,762 because of the disturbed rounds: re-run on a quiet box
 with more rounds before calling it.
+**#252 re-run (11-15 18:58-19:11, quiet box, 9 rounds on core 5, arm order rotating, same tree 250 / 37,320,382 every run):
+batch ON is FASTER — a speed-ship candidate by the registered rule.** Medians: production `g74pgo` 27,497 ms, e12 batch on
+26,355, batch off 27,943. Within-round ratios: **on / production median 0.953 (−4.7% time), on faster in 9 of 9 rounds**; on /
+off 0.945; off / production 1.004 (the new build with the switches off is level with production, so the gain is the switches,
+not the build's layout or profile). Prediction −3 to −6% ⇒ inside. Ship = `EVAL_MAT_CACHE 1` + `EVAL_FAST 15` in the shipped
+preset, PGO-trained on that path; the bench node count does not change (result-identical), so the ship's liveness proof is the
+time and the verify mode, not the fingerprint. Waits for the owner's yes and for #252 / #253 to finish (both use production).
 
 Next: a PGO build and a pinned bench on a quiet box (time, not instructions); then the rest of the audit's list (the attack
 build as one loop per piece type, the passer / KingProtector cell sums, the unread placement counters, the PST layout, the

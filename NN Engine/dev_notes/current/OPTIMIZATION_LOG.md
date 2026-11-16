@@ -4,6 +4,40 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-16 13:57 — GEN 7.5 SHIPPED (owner: "as long as the mediocre numbers make sense"; "Ship both now"): the two halves of the search made symmetric (C2c) + the eval speed preset
+**What (search, C2c):** `Config::FIX_RESEARCH = 1`, `FIX_MIN_SCOUT = 1`, `FIX_MIN_RD1 = 1` in the shipped preset, after the eval
+speed pair. The search keeps a maximizer and a minimizer frame, and three spots were lopsided between them (H-C2,
+`dev_notes/active/SEARCH-V2-PLAN-2026-11-10.md` §0b): **A1** a reduced move that beats the node's bound is re-searched at full
+depth on both sides (it was only partly verified); **A2** the minimizer scouts at its own bound, as the maximizer does; **A3**
+the minimizer-only full-window search at remaining depth 1 is dropped. Bench **252 / 35,235,460 / EBF 3.701**, id "AlphaUX (v2
+gen 7.5)"; `FIX_RESEARCH=0,FIX_MIN_SCOUT=0,FIX_MIN_RD1=0` restores gen 7.4 exactly (250 / 37,320,382 / 3.743).
+**What (speed, result-identical):** `Config::EVAL_MAT_CACHE = 1` + `Config::EVAL_FAST = 31` (in the sources since 11-15, owner yes
+11-15): the piece-count part of the eval cached per exact material, the king-pawn distance from rings, direct C3 calls, the attack
+build per piece type, PX skipping a side with no passer, the placement detector skipping counts the C1 values never read. Same
+score for every position; `EVAL_MAT_CACHE=0,EVAL_FAST=0` restores the old paths. Never installed on its own: #255's pinned bench
+was disturbed by outside load (6 of 36 runs 25-40% slow, on every arm; default / g74 median 0.972, faster in 5 of 9, below the
+registered 7 of 9), so it shipped inside gen 7.5 on the owner's word. Evidence: #252 quiet bench −4.7% (9 of 9), cachegrind
+−9.574% instructions (#255 A), #257's ledger bench below.
+**Evidence for C2c (#252, registered ship rule, vs gen 7.4):** self-play 10+0.1, 1,000 pairs: **2,000 g +911 −478 =611, 60.8%,
++76.4 (95% +64.4 … +88.6)**, pentanomial [47, 129, 348, 296, 180], 0 forfeits, 0 stalls; per move 0.232 vs 0.239 s, depth 11.5
+vs 11.8, nodes 350k vs 382k, nps 1,513k vs 1,597k. **SF18 at equal nodes** (ours 250k, SF18 1,100), 6 seeds × 250: ctl 55.2%,
+C2c 64.8%, **+9.63 pp ± 3.11, z +6.07** (every seed up: 57.8→68.6, 51.4→67.0, 57.0→64.2, 54.8→59.8, 60.4→64.2, 49.8→65.2).
+**Mediocre 0.5** at 10+0.1, 2 seeds × 150: ctl 84.33 / 82.00 = 83.2%, C2c 90.33 / 90.00 = 90.2%, **+7.00 pp ± 4.83, z +2.84**.
+Registered prediction was 0 to +20; the artifacts checked and absent: knobs echoed, C2c spends less time per move, 0 forfeits,
+resign adjudication on each engine's own score. Sibling C2a (`FIX_RESEARCH` alone): +41.4 (+28.8 … +54.1), SF18 +2.77 pp (z
++1.71), Mediocre +4.50 pp (z +1.79); not shipped (C2c contains it and leads every read; head-to-head skipped, owner).
+STS1500 (#249) C2c +210 (z +0.52), WAC 252 at −5.6% nodes; C2a +589 at +27% WAC nodes.
+**Install (#257):** PGO `chess_engine_uci_g75pgo` (profile `/mnt/e/chess_data/pgo_g75`); gates: default == C2c knobs on g75pgo
+== C2c knobs on g74epgo == `EVAL_MAT_CACHE=2` verify (252 / 35,235,460); three off 250 / 37,320,382; v1 250 / 35,310,775; game12
+d10 verify == default (8/12, 2,445,722). `build_uci/chess_engine_uci` == `g75pgo`, **backup `g74pgo`** (gen 7.4 as it played;
+`g74epgo` = gen 7.4 + speed). Cython rebuilt (old .so → `/mnt/e/chess_data/so_backup_g75/`): shipped 252 / 35,235,460 / **3.701**,
+three off 250 / 37,320,382 / 3.743, v1 250 / 35,310,778 / 3.784.
+**Pinned bench ×9 on core 5, three arms rotating (#257, ledger):** medians g75 26,467 ms / 1,331,254 nps · g74e 25,770 /
+1,448,187 · g74 27,498 / 1,357,173. Within-round: **speed alone g74e / g74 time 0.957 (8 of 9), nps 1.045**; **gen 7.5 / gen 7.4
+time 0.981 (9 of 9), nps 0.962**; g75 / g74e time 1.014, nps 0.931 (C2c's nodes cost ~7% more each, as in games, on 5.6% fewer
+of them). Rounds 1 and 9 were slow for all arms (outside load); the ratios are within-round.
+**Next:** PROMOTE (`SV2_VERIFY_PROMOTE=1`) re-tested on gen 7.5 (#257 step 4).
+
 ## 🚀 2026-11-15 11:26 — GEN 7.4 SHIPPED (owner: "it seems D7 can ship yes"): a shallower search no longer overrules a deeper one, `SV2_VERIFY_DEEPER=1`
 **What:** `Config::SV2_VERIFY_DEEPER = 1` in the gen 7 block of the shipped preset. In search v2's `score_move`, a near-miss
 (VERIFY) re-search at `depth_limit - VERIFY_RESEARCH_REDUCTION` is skipped when it would be shallower than the move's first

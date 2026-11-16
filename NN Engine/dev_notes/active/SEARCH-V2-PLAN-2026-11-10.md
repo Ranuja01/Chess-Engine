@@ -17,7 +17,7 @@ current one behind a switch, so every part of ours stays available and games dec
 | 11-11 | **Reference reads, eval-program style, per subsystem** (not one shallow all-of-search comparison): each lands before the stage it informs and is kept for discussion. First: the move generator (ours vs the giants on correctness, accuracy, speed and support architecture: history-based scoring, lazy generation, ...), then "best of all worlds" is discussed. References include SF19 (newest on disk, `stockfish_19/stockfish/src/`); SF18 stays the games arbiter. | owner, 11-11 |
 | 11-11 | The transition is closed and the search arc fully entered. The sealing UI games are deferred until search v2 brings gains worth playing (gen 7.2 added only the bare-king technique since the owner's 11-10 games). | owner, 11-11 |
 
-## 0b. Where the arc stands (2026-11-15, at the gen 7.4 ship)
+## 0b. Where the arc stands (2026-11-16, at the gen 7.5 ship)
 
 **Why the arc exists.** The gap to SF11 is about two-thirds node efficiency (memory `the-sf11-gap-is-two-thirds-node-efficiency`;
 S0: EBF 1.92 vs SF11 1.78 over d8-13). The arc's promise is about two more plies at equal time, after which the eval is
@@ -31,13 +31,16 @@ retuned at the new depth (memory `retune-depth-follows-play-depth`).
 | `MOVEGEN_FAST` (11-13) | S3 | speed, same trees | (−3.5% time to depth) | — |
 | `SEARCH_ARM 1` (11-14) | S1 | speed, same trees | +15.8 | — |
 | gen 7.4 D7 `SV2_VERIFY_DEEPER 1` (11-15) | **S5 Stack D** (LMR v2) | correctness: a shallower search no longer overrules a deeper one | **+38.4** | +0.20 pp (z +0.12) |
+| eval speed `EVAL_MAT_CACHE 1` + `EVAL_FAST 31` (11-16, inside gen 7.5) | H-S (speed) | speed, same scores | (−4.3% bench time, +4.5% nps) | — |
+| gen 7.5 C2c `FIX_RESEARCH` + `FIX_MIN_SCOUT` + `FIX_MIN_RD1` (11-16) | **H-C2** | correctness: the two halves of the search made symmetric | **+76.4** | **+9.63 pp (z +6.07)**; Mediocre +7.00 pp (z +2.84) |
 
 **What did not ship:** the pre-search-free root (A4 −16.7; H2 = A4 + a ply-1 cut node −6.3, level), root LMR in five forms
 (all fail the WAC veto), lazy generation (+3.6, neutral), early LMP (speed unresolved), D7=2 (+0.2, STS1500 −141). All are in
 ROOT_SEARCH_MODEL §5 / this file with re-test triggers.
 
-**The honest gap.** Every ship so far is speed or correctness. None lowers the branching factor: bench EBF 3.758 is unchanged
-since gen 7.3 and game depth is 11.5 as before. The depth the arc promised comes from the parts not yet started: S4's
+**The honest gap.** Every ship so far is speed or correctness. The branching factor has barely moved: bench EBF 3.758 at
+gen 7.3, 3.743 at gen 7.4, 3.701 at gen 7.5 (the first visible step, from C2c's symmetric re-search), and game depth at 10+0.1 is
+11.5 (C2c played 11.5 against gen 7.4's 11.8 at 6% lower nps: its gain is accuracy, not depth). The depth the arc promised comes from the parts not yet started: S4's
 node-entry eval and its consumers (Stack E: improving, the null-move eval gate, futility on the parent's eval), the history
 stacks A-C, Stack F (TT move, IIR, singular) and G (ProbCut). Also: the self-play gains run well ahead of SF18's (D7 +38 vs
 z +0.12), so each ship also gets the external yardstick (STS at equal nodes vs SF11, memory
@@ -51,8 +54,8 @@ timed games (evenings and nights), speed needs only fixed-work reads (safe while
 
 | # | item | knob(s) | evidence so far | next read |
 |---|---|---|---|---|
-| C1 | a shallower verify that crosses a bound is re-searched at full depth | `SV2_VERIFY_PROMOTE` | STS1500 +212 vs D7; bench 251 / 37,302,143. **Self-play vs gen 7.4 (#248 + #251, seeds 2481 + 2482, 2,001 g, 1,000 pairs): +800 −723 =478, +13.6 (95% +0.5 … +26.7) ⇒ passes the self-play bar, narrowly** (seed 2481 alone +23.7 over 773, seed 2482 +7.4 over 1,228); 0 forfeits; per move 0.243 vs 0.244 s, depth 11.5 vs 11.6, nodes −0.2% | SF18 equal nodes + Mediocre (#253, after #252, paired with #252's ctl chunks on the same seeds) |
-| C2 | reduced fail-highs verified, with the two symmetric halves (A1-A3) | `FIX_RESEARCH`, `FIX_MIN_SCOUT`, `FIX_MIN_RD1` | **#249 STS1500 vs gen 7.4 (per position):** C2a `FIX_RESEARCH` **+589 (263 / 193, z +3.28)**, WAC 255 at **+27% WAC nodes**; C2b the symmetric pair −89 (z −0.91), WAC 248 at −21%; **C2c all three +210 (z +0.52), WAC 252 at −5.6%** (more accurate and cheaper: the S5 "one mechanism" prediction) | games for C2c and C2a vs gen 7.4 at equal time (fixed depth flatters C2a's +27% nodes) |
+| C1 | a shallower verify that crosses a bound is re-searched at full depth | `SV2_VERIFY_PROMOTE` | STS1500 +212 vs D7; bench 251 / 37,302,143. **Self-play vs gen 7.4 (#248 + #251, seeds 2481 + 2482, 2,001 g, 1,000 pairs): +800 −723 =478, +13.6 (95% +0.5 … +26.7) ⇒ passes the self-play bar, narrowly** (seed 2481 alone +23.7 over 773, seed 2482 +7.4 over 1,228); 0 forfeits; per move 0.243 vs 0.244 s, depth 11.5 vs 11.6, nodes −0.2% | #253 (SF18 + Mediocre on gen 7.4) stopped at the gen 7.5 ship; **re-tested on gen 7.5 (#257, 11-16)**: self-play, SF18, Mediocre against gen 7.5. Prediction −5 to +10 (A1 now re-searches every reduced move that beats the bound) |
+| C2 | reduced fail-highs verified, with the two symmetric halves (A1-A3) | `FIX_RESEARCH`, `FIX_MIN_SCOUT`, `FIX_MIN_RD1` | **#249 STS1500 vs gen 7.4 (per position):** C2a `FIX_RESEARCH` **+589 (263 / 193, z +3.28)**, WAC 255 at **+27% WAC nodes**; C2b the symmetric pair −89 (z −0.91), WAC 248 at −21%; **C2c all three +210 (z +0.52), WAC 252 at −5.6%** (more accurate and cheaper: the S5 "one mechanism" prediction). **Games (#252, 10+0.1 vs gen 7.4, 1,000 pairs each): C2c +76.4 (95% +64.4 … +88.6), C2a +41.4 (+28.8 … +54.1); SF18 equal nodes 6 seeds C2c +9.63 pp (z +6.07), C2a +2.77 (z +1.71); Mediocre 2 seeds C2c +7.00 pp (z +2.84), C2a +4.50 (z +1.79). Registered prediction for C2c was 0 to +20.** | ✅ **SHIPPED as gen 7.5 (11-16).** C2a vs C2c head-to-head skipped (owner: C2c contains C2a and leads every read). Later, for understanding: the 1+2 and 1+3 splits |
 | C3 | a reverse-futility static value is not stored as a searched bound | `SV2_STATIC_CUT_STORE` | **#247: STS1500 9,638 (−307 vs gen 7.4; per position 192 better / 239 worse, sign z −2.26 ⇒ a real cost by #245's rule)**, WAC 254 at +4.6% nodes. Skipping the store also throws away the cheap cut it caches. For scale, the same per-position test against gen 7.4: production −20 (z −0.80), neutral arm −18 (z 0.00), D7=2 −141 (z −1.00), PROMOTE +212 (z +1.59) | as built: no games. **C3b (#254, 11-15), against gen 7.4 per position: `=2` (stored at depth 1) STS1500 9,743, −202 (190 better / 227 worse, sign z −1.81), WAC 252 / 38,556,508; `=3` (one ply shallower) 9,807, −138 (204 / 233, z −1.39), WAC 254 / 38,602,525.** Neither past 2σ, both below: the shallower the stored static cut, the worse (no store −307, depth 1 −202, rd−1 −138, rd = the base). The store at full `rd` is a productive behaviour, not a defect to fix ⇒ the C3 family is PARKED, no games. Re-test trigger: when S4's node-entry eval changes what reverse futility returns |
 | C4 | history credit only where a move raised alpha; the node-exit write bounded (S5 D1) | `SV2_HIST_ALLNODE_GATE` (+ the bound, new) | **#249: STS1500 9,810 (−135; 197 better / 222 worse, z −1.22): below the bar, sign test unresolved** (D7=2 territory); WAC 253 at +1.9% nodes | unresolved: no games on this screen; the bounded write (not built) is the other half of D1 |
 | C5 | malus only on moves actually searched | `SV2_MALUS_SEARCHED_ONLY` | **#249: STS1500 9,684 (−261; 201 better / 244 worse, z −2.04 ⇒ a real cost)**; WAC 252 at −1.0% nodes. The malus on pruned moves is doing work | as built: no games |

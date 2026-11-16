@@ -3280,9 +3280,9 @@ namespace Config
     // answer). 2 = run both and abort on the first difference.
     inline int PIN_FAST = 1;
     inline int FIX_MAX_NULL = 0;   // A4: maximizer null move searches (beta-1, beta) — it cuts on >= beta
-    inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1
-    inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound
-    inline int FIX_RESEARCH = 0;   // A1: LMR re-search mirrored — a REDUCED move that beats the node's bound (max: >= beta,
+    inline int FIX_MIN_RD1 = 0;    // A3: drop the minimizer-only full-window branch at remaining depth 1 (shipped preset sets 1 since gen 7.5, with A1 and A2)
+    inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound (shipped preset: 1 since gen 7.5)
+    inline int FIX_RESEARCH = 0;   // A1 (shipped preset: 1 since gen 7.5; A1+A2+A3 +76.4 vs gen 7.4): LMR re-search mirrored — a REDUCED move that beats the node's bound (max: >= beta,
                                    //     min: <= alpha) is re-searched at full depth; VERIFY near-misses mirrored for min
     // Open correctness items (dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md §2). All default 0 = today's search.
     inline int FIX_MDP = 0;           // mate-distance pruning: a node whose window the mate bounds alone settle returns that bound

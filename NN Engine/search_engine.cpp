@@ -2777,6 +2777,14 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // EVAL_MAT_CACHE=0,EVAL_FAST=0 restores the previous code paths.
                     Config::EVAL_MAT_CACHE = 1;
                     Config::EVAL_FAST = 31;
+                    // ── GEN 7.5: the two halves of the search made symmetric. A reduced move that beats the node's bound is
+                    // re-searched at full depth on both sides (A1), the minimizer scouts at its own bound (A2), and the
+                    // minimizer-only full window at remaining depth 1 is dropped (A3). Self-play +76.4 (95% +64.4 … +88.6) over
+                    // 2,000 games, SF18 at equal nodes +9.63 pp (z +6.07), Mediocre +7.00 pp (OPTIMIZATION_LOG). Set before the
+                    // start-up read, so FIX_RESEARCH=0,FIX_MIN_SCOUT=0,FIX_MIN_RD1=0 restores gen 7.4 (250 / 37,320,382).
+                    Config::FIX_RESEARCH = 1;
+                    Config::FIX_MIN_SCOUT = 1;
+                    Config::FIX_MIN_RD1 = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

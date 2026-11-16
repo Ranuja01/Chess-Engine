@@ -66,7 +66,12 @@ and the v1 control below; full table `dev_notes/current/BASELINE_PERF.md` §v2. 
 st=1 +170 / 155 g, 60+0.6 +199 / 300 g — OPTIMIZATION_LOG 10-19). v1 stays the Cython path's no-env default ONLY so the
 fingerprint scripts keep working; every new measurement, the UI and the UCI binary (default `V2_PRESET=shipped`) use v2.
 **The engine is AlphaUX** ("NN Engine" is only this folder's name). **Native UCI binary:** `selfplay/build_uci.sh` →
-`build_uci/chess_engine_uci` = **gen 7.4** (2026-11-15, PGO `chess_engine_uci_g74pgo`; id "AlphaUX (v2 gen 7.4)") = gen 7.3 +
+`build_uci/chess_engine_uci` = **gen 7.5** (2026-11-16, PGO `chess_engine_uci_g75pgo`; id "AlphaUX (v2 gen 7.5)") = gen 7.4 +
+C2c `FIX_RESEARCH 1, FIX_MIN_SCOUT 1, FIX_MIN_RD1 1` (the two halves of the search made symmetric: a reduced move that beats the
+bound is re-searched at full depth on both sides, the minimizer scouts at its own bound, no minimizer-only full window at rd 1;
+2,000 g +76.4 vs gen 7.4, SF18 z +6.07, Mediocre +7.0 pp) + the result-identical eval speed preset `EVAL_MAT_CACHE 1, EVAL_FAST 31`;
+bench **252 / 35,235,460 / EBF 3.701**; the three FIX at 0 = gen 7.4; backup `g74pgo` (gen 7.4 as it played; `g74epgo` = gen 7.4 +
+speed). Gen 7.4 (2026-11-15, PGO `chess_engine_uci_g74pgo`; id "AlphaUX (v2 gen 7.4)") = gen 7.3 +
 `SV2_VERIFY_DEEPER 1` (search v2 skips a near-miss re-search shallower than the move's first search, so a shallower score no
 longer replaces a deeper one; 2,001 g +38.4 vs gen 7.3; bench **250 / 37,320,382 / EBF 3.743**; `SV2_VERIFY_DEEPER=0` = gen 7.3;
 backup `g73spgo`). Gen 7.3 (2026-11-12, PGO; id "AlphaUX (v2 gen 7.3)"), from 11-14 `chess_engine_uci_g73spgo`
@@ -91,7 +96,7 @@ identical, the UCI binary's v1 bench reads 35,310,775): production == `chess_eng
 `chess_engine_uci_g65b8pgo`, without batch 8 `chess_engine_uci_g65fpgo`, without either `chess_engine_uci_g65pgo`. Gen 6.4 = gen 6.3 (threat-aware quiet ordering) + threats in eval + `RFP_MARGIN` 600, on top of gen 6.2: gen 6.1 (2026-10-25: gen 6 + the time
 manager's `TM_MODE=1` clock rule) + TM arm E as defaults (`TM_START=175 TM_SINGLE=1 TM_SCALE=7 TM_NORM=95 TM_OPT_PLY=1`, clock
 games only). Gen 6.1 behaviour: `Knobs TM_START=0,TM_SINGLE=0,TM_SCALE=0,TM_NORM=100,TM_OPT_PLY=0` (backup binary
-`chess_engine_uci_g61pgo`); `Knobs TM_MODE=0` = the pre-6.1 clock rule. Verify with `bench` (== 250 / 37,320,382 for gen 7.4; 249 / 37,279,382 for gen 7.3; 247 / 39,861,964 for gen 7.2; 247 / 39,852,210 for gen 7.1; 246 / 36,509,830 for gen 7; 251 / 36,859,850 for gen 6.7; the UCI v1
+`chess_engine_uci_g61pgo`); `Knobs TM_MODE=0` = the pre-6.1 clock rule. Verify with `bench` (== 252 / 35,235,460 for gen 7.5; 250 / 37,320,382 for gen 7.4; 249 / 37,279,382 for gen 7.3; 247 / 39,861,964 for gen 7.2; 247 / 39,852,210 for gen 7.1; 246 / 36,509,830 for gen 7; 251 / 36,859,850 for gen 6.7; the UCI v1
 bench wobbles 35,310,775-778 from run to run) —
 memory `uci-binary-and-fastchess`. ☠️ Knobs in fastchess ONLY via `option.Knobs=NAME=V,NAME=V` (undeclared `Knob_*` are silently
 dropped — every 10-19…10-22 `Knob_` match was void); assert 0 "doesn't have option" warnings. Anything TIMED (vs other engines,

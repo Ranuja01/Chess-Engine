@@ -276,6 +276,14 @@ off 0.945; off / production 1.004 (the new build with the switches off is level 
 not the build's layout or profile). Prediction −3 to −6% ⇒ inside. Ship = `EVAL_MAT_CACHE 1` + `EVAL_FAST 15` in the shipped
 preset, PGO-trained on that path; the bench node count does not change (result-identical), so the ship's liveness proof is the
 time and the verify mode, not the fingerprint. Waits for the owner's yes and for #252 / #253 to finish (both use production).
+**Owner's yes 11-15 ("if its looking clean then we can ship").**
+**Batch 3 (queue #254, plain build `e3test`, every gate identical incl. gen 7.3 / v1 / game12 verify), on top of batches 1 + 2
+(12.29 G):** `EVAL_FAST` bit 16 (the search-path placement detector skips reach_n / longdiag, which the C1 values never read)
+**−0.247% ⇒ counts** (prediction −0.2 to −0.8%: inside, at the low end); bit 32 (PST summed from one packed eg·2^32+mg table)
+**−0.106% ⇒ does not count** (prediction −0.3 to −1%: MISSED; the two-table loop was already cheap), left off. Ship preset =
+`EVAL_MAT_CACHE 1` + `EVAL_FAST 31`; queue #255 builds `g74epgo` (PGO), proves the default is live by instruction count
+(default vs all off ≤ −5%), and after #253 runs a pinned bench x9 (production / default / bit 16 off / all off) before the
+install.
 
 Next: a PGO build and a pinned bench on a quiet box (time, not instructions); then the rest of the audit's list (the attack
 build as one loop per piece type, the passer / KingProtector cell sums, the unread placement counters, the PST layout, the

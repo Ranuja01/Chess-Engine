@@ -36,6 +36,13 @@ namespace sv2
 	static int g_verify_nest = 0;         // open near-miss re-searches on the current path
 	static bool g_static_cut = false;     // the last child returned through reverse futility (SV2_STATIC_CUT_STORE)
 	static inline int hist_bucket(int v) { return std::min(std::max(v, 0), 7); }
+	// Whether the parent writes a child's result to the TT, and at what remaining depth, when the child returned through reverse
+	// futility (SV2_STATIC_CUT_STORE 1: no write; 2: written at depth 1; 3: one ply shallower than searched).
+	static inline bool static_cut_writes(bool static_cut) { return !static_cut || Config::SV2_STATIC_CUT_STORE >= 2; }
+	static inline int static_cut_depth(bool static_cut, int rd)
+	{
+		return !static_cut ? rd : (Config::SV2_STATIC_CUT_STORE == 3 ? rd - 1 : 1);
+	}
 
 	void print_counters()
 	{
@@ -982,9 +989,9 @@ namespace sv2
 			score = child_search<RootSide>(cur_depth, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
 			const bool static_cut = g_static_cut;
 			g_static_cut = false;
-			if (cur_depth < depth_limit - 1 && !static_cut)
-				tt_store<RootSide>(zobrist, state_history.size(), score, depth_limit - cur_depth, root_flag<RootSide>(score, alpha_orig, beta_orig),
-				                   alpha_orig, beta_orig, updated_state);
+			if (cur_depth < depth_limit - 1 && static_cut_writes(static_cut))
+				tt_store<RootSide>(zobrist, state_history.size(), score, static_cut_depth(static_cut, depth_limit - cur_depth),
+				                   root_flag<RootSide>(score, alpha_orig, beta_orig), alpha_orig, beta_orig, updated_state);
 			return score;
 		}
 
@@ -1168,11 +1175,11 @@ namespace sv2
 				score = child_search<RootSide>(cur_depth, reduced_depth, sa, sb, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
 				const bool static_cut = g_static_cut;
 				g_static_cut = false;
-				if (cur_depth < reduced_depth - 1 && !static_cut)
+				if (cur_depth < reduced_depth - 1 && static_cut_writes(static_cut))
 				{
 					const TTFlag flag = root_flag<RootSide>(score, sa, sb);
 					if (flag != TTFlag::EXACT)
-						tt_store<RootSide>(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, sa, sb, updated_state);
+						tt_store<RootSide>(zobrist, state_history.size(), score, static_cut_depth(static_cut, reduced_depth - cur_depth), flag, sa, sb, updated_state);
 				}
 			}
 			else
@@ -1193,11 +1200,11 @@ namespace sv2
 				score = child_search<RootSide>(cur_depth, depth_limit, sa, sb, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, is_in_null_search);
 				const bool static_cut = g_static_cut;
 				g_static_cut = false;
-				if (cur_depth < depth_limit - 1 && !static_cut)
+				if (cur_depth < depth_limit - 1 && static_cut_writes(static_cut))
 				{
 					const TTFlag flag = root_flag<RootSide>(score, sa, sb);
 					if (flag != TTFlag::EXACT)
-						tt_store<RootSide>(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, sa, sb, updated_state);
+						tt_store<RootSide>(zobrist, state_history.size(), score, static_cut_depth(static_cut, depth_limit - cur_depth), flag, sa, sb, updated_state);
 				}
 			}
 			else
@@ -1261,11 +1268,11 @@ namespace sv2
 					g_static_cut = false;
 				}
 			}
-			if (cur_depth < research_depth - 1 && !static_cut)
+			if (cur_depth < research_depth - 1 && static_cut_writes(static_cut))
 			{
 				// ENABLE_TT_FLAG_FIX: flag against the window actually searched (the drifted one), not the node's entry window.
 				const TTFlag flag = Config::ENABLE_TT_FLAG_FIX ? root_flag<RootSide>(score, alpha, beta) : root_flag<RootSide>(score, alpha_orig, beta_orig);
-				tt_store<RootSide>(zobrist, state_history.size(), score, research_depth - cur_depth, flag, alpha_orig, beta_orig, updated_state);
+				tt_store<RootSide>(zobrist, state_history.size(), score, static_cut_depth(static_cut, research_depth - cur_depth), flag, alpha_orig, beta_orig, updated_state);
 			}
 		}
 		return score;

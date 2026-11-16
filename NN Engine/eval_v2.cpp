@@ -383,6 +383,9 @@ inline void build_context(V2Context &c, int moveNum, bool turn,
 // v2_pst_init() at engine init, read-only afterwards.
 static int v2PstMg[6][64];
 static int v2PstEg[6][64];
+// The same tables packed as eg * 2^32 + mg (EVAL_FAST bit 32): one load and one add per piece; a side's sum unpacks exactly
+// because each leg's total fits in 32 bits. Built at the end of v2_pst_init_impl from the final mg / eg tables.
+static int64_t v2PstPack[6][64];
 
 // Texel fit C1 (Config::C1_V2_FIT): fitted values the four C1 scorers read INSTEAD of their constants, in
 // millipawns with every percent / magnitude knob already folded in. Filled once by v2_c1_init(); unread while
@@ -495,6 +498,18 @@ void v2_pst_init_impl()
 				}
 			}
 	}
+
+	for (int t = 0; t < 6; ++t)
+		for (int sq = 0; sq < 64; ++sq)
+			v2PstPack[t][sq] = (int64_t)v2PstEg[t][sq] * (1LL << 32) + v2PstMg[t][sq];
+}
+
+/* Unpack a side's summed packed PST (eg * 2^32 + mg): the low 32 bits are the mg total as a signed value, and what is
+ * left is exactly eg * 2^32. */
+static inline void pst_unpack(int64_t s, int &mg, int &eg)
+{
+	mg = (int32_t)(uint32_t)(uint64_t)s;
+	eg = (int)((s - mg) >> 32);
 }
 
 /*
@@ -508,7 +523,26 @@ static inline void rung0_tapered_pst(const V2Context &c, int &w_pst, int &b_pst,
 {
 	const uint64_t typeMasks[6] = {c.pawns, c.knights, c.bishops, c.rooks, c.queens, c.kings};
 	w_mg = w_eg = b_mg = b_eg = 0;
-	if (!Config::PST_V2_ZERO){
+	if (!Config::PST_V2_ZERO && (Config::EVAL_FAST & 32)){
+		int64_t ws = 0, bs = 0;
+		for (int t = 0; t < 6; ++t){
+			uint64_t wb = typeMasks[t] & c.white;
+			while (wb){
+				const int sq = __builtin_ctzll(wb);
+				wb &= wb - 1;
+				ws += v2PstPack[t][sq];
+			}
+			uint64_t bb = typeMasks[t] & c.black;
+			while (bb){
+				const int sq = __builtin_ctzll(bb) ^ 56;
+				bb &= bb - 1;
+				bs += v2PstPack[t][sq];
+			}
+		}
+		pst_unpack(ws, w_mg, w_eg);
+		pst_unpack(bs, b_mg, b_eg);
+	}
+	else if (!Config::PST_V2_ZERO){
 		for (int t = 0; t < 6; ++t){
 			uint64_t wb = typeMasks[t] & c.white;
 			while (wb){
@@ -2783,8 +2817,9 @@ static inline int trap_rook_units(int f, int rrank, int mob, int ksq, bool white
  */
 static inline void placement_detect(PlaceCounts &pc, const V2Context &c, const PawnEntry &e,
                                     const MobAcc *acc_w = nullptr, const MobAcc *acc_b = nullptr,
-                                    bool want_latent = false) noexcept
+                                    bool want_latent = false, bool lean = false) noexcept
 {
+	// lean: the caller scores with the C1 values, which never read reach_n or longdiag, so both stay 0.
 	for (int s = 0; s < 2; ++s){
 		const bool     white = (s == 0);
 		const int      t     = 1 - s;
@@ -2820,7 +2855,7 @@ static inline void placement_detect(PlaceCounts &pc, const V2Context &c, const P
 			if (ofrm == 1){
 				if (raw_safe & m) ++pc.eth_n[s][((m & (BB_FILE_A | BB_FILE_H)) ? 2 : 0) + ((e.attacks[s] & m) ? 1 : 0)];
 			} else if (outposts & m) ++pc.outpost_n[s];
-			else if (outposts & attacks_mask(white, c.occupied, sq, KNIGHT) & ~own) ++pc.reach_n[s];
+			else if (!lean && (outposts & attacks_mask(white, c.occupied, sq, KNIGHT) & ~own)) ++pc.reach_n[s];
 			if (pawn_in_front & m) ++pc.behind[s];
 		}
 
@@ -2848,7 +2883,7 @@ static inline void placement_detect(PlaceCounts &pc, const V2Context &c, const P
 			} else if (bfrm == 2) pc.badb_units[s] += same * centre_blk;
 			else if (bfrm == 3)   pc.badb_units[s] += __builtin_popcountll(own_p & colour & e.blocked[s]);
 			else                  pc.badb_units[s] += same * (1 + centre_blk);
-			if (__builtin_popcountll(attacks_mask(white, c.pawns, sq, BISHOP) & PL_CENTRE) > 1) ++pc.longdiag[s];
+			if (!lean && __builtin_popcountll(attacks_mask(white, c.pawns, sq, BISHOP) & PL_CENTRE) > 1) ++pc.longdiag[s];
 		}
 
 		uint64_t rb = c.rooks & own;
@@ -5269,7 +5304,8 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 		if (pl_on){
 			PROF_BLOCK(PROF_V2_PLACEMENT);
 			PlaceCounts pc;
-			placement_detect(pc, c, pe, acc_ready ? &mw : nullptr, acc_ready ? &mb : nullptr, Config::LATENT_V2_PCT != 0);
+			placement_detect(pc, c, pe, acc_ready ? &mw : nullptr, acc_ready ? &mb : nullptr, Config::LATENT_V2_PCT != 0,
+			                 (Config::EVAL_FAST & 16) && g_c1_fit);
 			pl_mp = placement_mp(pc, c, &lp);
 		}
 		if (pair_mode){ acc += lps; acc += lpp; acc += lpr; if (pl_on) acc += lp; }

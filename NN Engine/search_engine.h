@@ -3265,6 +3265,10 @@ namespace Config
     // 4 = build_side_attacks loops once per piece type with the type fixed at compile time (attacks_mask's switch folds to
     //     one table read; same pieces in the same order, so the same maps and per-piece arrays).
     // 8 = PX scores a side with no passed pawn as 0 without zeroing and summing its 51 cells (every count is per passer).
+    // 16 = with the Texel C1 values loaded (the shipped preset), the search-path placement detector skips the two counts the
+    //     C1 scorer never reads: reachable outposts (a knight attack lookup) and long-diagonal bishops (a bishop attack lookup
+    //     and a popcount). The probe and feature exports still compute every count.
+    // 32 = the tapered PST is summed from one packed table (eg * 2^32 + mg): one load and one add per piece instead of two.
     inline int EVAL_FAST = 0;
     // SCRATCH_REUSE: per-node lists the search builds and throws away reuse storage instead of allocating it per node: the
     // history-malus lists (a pool taken in nesting order), the move-generation sort's merge buffer, the lazy re-sort's scores,
@@ -3309,7 +3313,9 @@ namespace Config
     // full depth with the node's window, so the shallower result never decides the move alone.
     inline int SV2_VERIFY_PROMOTE = 0;
     // SV2_STATIC_CUT_STORE: a child that returned through reverse futility (a static value standing in for a search of rd
-    // plies) is not written to the TT by its parent as a searched bound of rd plies.
+    // plies) is not written to the TT by its parent as a searched bound of rd plies. 1 = no write (#247: STS1500 −307 vs gen
+    // 7.4, sign z −2.26, a real cost: the cached cut is doing work); 2 = written at remaining depth 1 (still caches for
+    // shallow probes, never stands in for a deep search); 3 = written one ply shallower than searched.
     inline int SV2_STATIC_CUT_STORE = 0;
     // SV2_HIST_ALLNODE_GATE: the end-of-node history bonus for the best quiet goes only to a node whose best move beat alpha
     // (at a fail-low node the "best" is only the largest upper bound, mostly from reduced scouts).

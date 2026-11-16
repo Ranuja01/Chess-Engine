@@ -2770,6 +2770,13 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // games, SF18 at equal nodes +0.20 pp (z +0.12), Mediocre +1.33 pp (OPTIMIZATION_LOG). Set before the
                     // start-up read, so SV2_VERIFY_DEEPER=0 restores gen 7.3 exactly (249 / 37,279,382).
                     Config::SV2_VERIFY_DEEPER = 1;
+                    // Eval speed: the piece-count part of the eval cached per exact material, the king-pawn distance from rings,
+                    // direct C3 calls, the attack build per piece type, PX skipping a side with no passer, and the placement
+                    // detector skipping the counts the C1 values never read. The same score for every position (bench unchanged,
+                    // 250 / 37,320,382); 4.7% less bench time for batches 1-2 (BASELINE_PERF). Set before the start-up read, so
+                    // EVAL_MAT_CACHE=0,EVAL_FAST=0 restores the previous code paths.
+                    Config::EVAL_MAT_CACHE = 1;
+                    Config::EVAL_FAST = 31;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

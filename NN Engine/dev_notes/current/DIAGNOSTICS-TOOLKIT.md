@@ -173,6 +173,7 @@ winner is real. Noise: mean DEPTH stable ±0.001 (rank on it); solves ±4; STS-s
 | script | what it gives |
 |---|---|
 | **`_pgn_walk.py SIDE=black DEPTH=12 PGN=<file> [KEY=VAL]`** | walks a **hand-pasted** game (UI/bot game, not a harness `games/<tag>/` dir — that's `annotate`), SF-evaluates every ply, and ranks plies by cp lost **on our own move** — the blunder list, not the eval curve. Dumps our static total + king_safety at the worst plies to start the ours/SF11/SF18 triangulation. |
+| **`_sts_paired.py <tagA> <tagB>`** (11-16) | two `sts_results_<tag>.csv` runs paired by position: totals, better / worse, the sign-test z (#245's rule: a real STS cost = below base − noise AND \|z\| > 2), and the share of positions whose move differs (0% = an exact reproduction). B is the base. |
 
 ## Collapse corpora
 | script | what it gives |

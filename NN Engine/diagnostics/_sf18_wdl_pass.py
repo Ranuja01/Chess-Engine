@@ -43,14 +43,23 @@ new = not os.path.exists(OUT)
 fh = open(OUT, "a", newline=""); w = csv.writer(fh)
 if new:
     w.writerow(["fen", "sf_cp_white", "w", "d", "l", "depth"])
-eng = chess.engine.SimpleEngine.popen_uci(os.environ.get("STOCKFISH_PATH") or find_stockfish())
-eng.configure({"Threads": 1, "Hash": 64, "UCI_ShowWDL": True})
+def start():
+    e = chess.engine.SimpleEngine.popen_uci(os.environ.get("STOCKFISH_PATH") or find_stockfish())
+    e.configure({"Threads": 1, "Hash": 64, "UCI_ShowWDL": True})
+    return e
+eng = start()
 print("SF18 WDL pass: %d %s rows (%d done) at depth %d → %s" % (len(fens), SPLIT, len(done), DEPTH, OUT), flush=True)
-n = 0
+n = skipped = 0
 for f in fens:
     if f in done:
         continue
-    info = eng.analyse(chess.Board(f), chess.engine.Limit(depth=DEPTH))
+    try:
+        info = eng.analyse(chess.Board(f), chess.engine.Limit(depth=DEPTH))
+    except chess.engine.EngineTerminatedError:
+        # SF19 exits on positions with impossible material (e.g. seven knights beside six pawns, from the variant games);
+        # the row is left unlabelled and the engine restarted.
+        skipped += 1; eng = start()
+        continue
     sc = info["score"].white()
     cp = sc.score(mate_score=100000)
     wdl = info.get("wdl")
@@ -62,4 +71,4 @@ for f in fens:
     if n % 200 == 0:
         fh.flush(); print("  %d rows" % n, flush=True)
 fh.close(); eng.quit()
-print("done: %d new rows" % n)
+print("done: %d new rows · %d skipped (engine refused the position)" % (n, skipped))

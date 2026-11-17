@@ -23,8 +23,10 @@ wp = lambda cp: 100.0 / (1.0 + np.exp(-K * np.clip(np.asarray(cp, float), -1500,
 
 
 def rows():
+    """The labelled rows: LABELS=<file in D> picks another label set of the same FENs (default SF18 d14, cal_wdl.csv;
+    cal_wdl_sf19.csv = SF19 d14)."""
     meta = {r["fen"]: r for r in csv.DictReader(open(os.path.join(D, "cal_in.csv"), newline=""))}
-    return [(r, meta[r["fen"]]) for r in csv.DictReader(open(os.path.join(D, "cal_wdl.csv"), newline=""))
+    return [(r, meta[r["fen"]]) for r in csv.DictReader(open(os.path.join(D, KV.get("LABELS", "cal_wdl.csv")), newline=""))
             if r["fen"] in meta and abs(float(r["sf_cp_white"])) < 20000]
 
 
@@ -106,8 +108,8 @@ def bands():
     edges = (50, 60, 70, 80, 90, 100.01)
     grid = np.arange(0.30, 6.005, 0.01)
     sel = np.isin(stage, stages)
-    print("rows %d in stages %s · label SF18 d14 WDL expected score · bands by the arm's own side-ahead prediction"
-          % (sel.sum(), ",".join(stages)))
+    print("rows %d in stages %s · label %s (WDL expected score) · bands by the arm's own side-ahead prediction"
+          % (sel.sum(), ",".join(stages), KV.get("LABELS", "cal_wdl.csv")))
 
     def table(x, y):
         up = x >= 50

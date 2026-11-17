@@ -885,8 +885,16 @@ namespace sv2
 		const bool best_capture = is_capture(best_move.from_square, best_move.to_square, current_state.occupied_colour[!current_state.turn], best_en_passant);
 		if (!best_capture)
 		{
-			if (!Config::SV2_HIST_ALLNODE_GATE || best_score > alpha_orig)
-				historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square] += (depth_limit - cur_depth);
+			// SV2_HIST_ALLNODE_GATE bit 1: only a node whose best move beat alpha earns the bonus. Bit 2: the bonus goes through
+			// the gravity bound (hist_update) like every cutoff write, instead of a raw add that can pass MAX_HISTORY.
+			if (!(Config::SV2_HIST_ALLNODE_GATE & 1) || best_score > alpha_orig)
+			{
+				int &exit_hist = historyHeuristics[current_state.turn][best_move.from_square][best_move.to_square];
+				if (Config::SV2_HIST_ALLNODE_GATE & 2)
+					hist_update(exit_hist, depth_limit - cur_depth);
+				else
+					exit_hist += (depth_limit - cur_depth);
+			}
 			if ((Config::ENABLE_CORR_HIST || Config::ENABLE_CORRHIST_LOG || Config::CORR2) && std::abs(best_score) < 9000000 &&
 			    !is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops, current_state.kings,
 			              current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))

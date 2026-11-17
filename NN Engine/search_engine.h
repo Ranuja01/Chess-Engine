@@ -3317,8 +3317,10 @@ namespace Config
     // 7.4, sign z −2.26, a real cost: the cached cut is doing work); 2 = written at remaining depth 1 (still caches for
     // shallow probes, never stands in for a deep search); 3 = written one ply shallower than searched.
     inline int SV2_STATIC_CUT_STORE = 0;
-    // SV2_HIST_ALLNODE_GATE: the end-of-node history bonus for the best quiet goes only to a node whose best move beat alpha
-    // (at a fail-low node the "best" is only the largest upper bound, mostly from reduced scouts).
+    // SV2_HIST_ALLNODE_GATE: the end-of-node history bonus for the best quiet. Bit 1: only a node whose best move beat alpha
+    // earns it (at a fail-low node the "best" is only the largest upper bound, mostly from reduced scouts; #249 STS1500 −135,
+    // z −1.22, unresolved). Bit 2: the bonus goes through the gravity bound hist_update, not a raw add (S5 audit D1's
+    // other half). 0 = both off = byte-identical.
     inline int SV2_HIST_ALLNODE_GATE = 0;
     // SV2_MALUS_SEARCHED_ONLY: the history malus at a cutoff applies only to moves that were searched (pruned and
     // futility-cut moves carry no search evidence against them).

@@ -4,8 +4,10 @@ on 5,988 held-out quiet own-play rows (corpus_v2 val, 1,500 per stage; E:\\chess
 SF18 run: the historical fixed-formula cp label and SF18's own WDL expected score (memory sf-cp-labels-are-material-scaled-use-wdl).
   MODE=static TAG=v2 V2_PRESET=shipped pyrun diagnostics/_v1_v2_accuracy.py    → static_v2.csv     (v1: TAG=v1, no V2_PRESET)
   MODE=sf11 pyrun diagnostics/_v1_v2_accuracy.py                                → static_sf11.csv
+  MODE=sf11d [DEPTH=10] pyrun …                                                 → d10_sf11.csv (SF11's search score per row)
   MODE=prep pyrun …                                                             → cal_d10_in.csv for _depth_residual_pass.py
   MODE=read pyrun …   reads every static_*.csv and d10_*.csv present; REF=d10_g62 adds a paired table against that arm
+  MODE=bands ARMS=static_g75,d10_g75,static_sf11 [STAGES=mg,mgl] pyrun …   calibration by band (compressed in decisive positions?)
 """
 import os, sys, csv, glob
 import numpy as np
@@ -49,12 +51,80 @@ def sf11():
     e.close(); print("wrote static_sf11.csv")
 
 
+def sf11_search():
+    """SF11's own search score at DEPTH (default 10) on every row → d10_sf11.csv (the search-vs-static control for MODE=bands).
+    Nominal depth, not equal work: SF11's d10 tree is smaller and better ordered than ours. A fresh game per row (no carried hash)."""
+    import chess.engine
+    from eval_vs_sf11 import SF11
+    depth = int(KV.get("DEPTH", "10"))
+    eng = chess.engine.SimpleEngine.popen_uci(SF11)
+    eng.configure({"Threads": 1, "Hash": 16})
+    out = os.path.join(D, "d%d_sf11.csv" % depth)
+    with open(out, "w", newline="") as f:
+        w = csv.writer(f); w.writerow(["fen", "ours_cp_white"])
+        for r, _ in rows():
+            info = eng.analyse(chess.Board(r["fen"]), chess.engine.Limit(depth=depth), game=object())
+            w.writerow([r["fen"], info["score"].white().score(mate_score=32000)])
+    eng.quit(); print("wrote", out)
+
+
 def prep():
     with open(os.path.join(D, "cal_d10_in.csv"), "w", newline="") as f:
         w = csv.writer(f); w.writerow(["fen", "best_cp"])
         for r, _ in rows():
             w.writerow([r["fen"], r["sf_cp_white"]])
     print("wrote cal_d10_in.csv")
+
+
+def load_arms(want=None):
+    """Every static_*.csv and d10_*.csv in D as (name, {fen: White cp}); `want` keeps only those names, in that order."""
+    arms = []
+    for p in sorted(glob.glob(os.path.join(D, "static_*.csv"))) + sorted(glob.glob(os.path.join(D, "d10_*.csv"))):
+        name = os.path.basename(p)[:-4]
+        if "_s" in name and "of" in name.rsplit("_s", 1)[1]:   # d10 shard files, already concatenated into the arm
+            continue
+        if want and name not in want:
+            continue
+        col = "cp_white" if name.startswith("static_") else "ours_cp_white"
+        arms.append((name, {r["fen"]: float(r[col]) for r in csv.DictReader(open(p, newline="")) if r.get(col)}))
+    return sorted(arms, key=lambda a: want.index(a[0])) if want else arms
+
+
+def bands():
+    """Calibration BY BAND (2026-11-17, memory ui-games-2026-11-16-eval-compression-lead): are our scores compressed toward 0
+    in decisive positions? Rows are oriented to the side the arm thinks is ahead and binned by the arm's OWN predicted win%
+    (binning by the label manufactures compression from noise alone). Per band: rows, mean prediction, mean SF18 WDL expected
+    score, gap = label − prediction (positive = under-confident). Shown raw (the fixed k) and at the arm's own best global scale
+    s, so a SHAPE defect (gaps that still grow with the band after scaling) is told apart from a plain scale. Every arm is
+    under-confident against SF18's WDL, which scores strong-engine conversion, so read ours against static_sf11."""
+    R = rows()
+    fen = [r["fen"] for r, _ in R]
+    stage = np.array([m["stage"] for _, m in R])
+    yw = np.array([(float(r["w"]) + 0.5 * float(r["d"])) / 10.0 for r, _ in R])
+    want = KV["ARMS"].split(",") if KV.get("ARMS") else None
+    stages = KV.get("STAGES", "mg,mgl,egl,eg").split(",")
+    edges = (50, 60, 70, 80, 90, 100.01)
+    grid = np.arange(0.30, 6.005, 0.01)
+    sel = np.isin(stage, stages)
+    print("rows %d in stages %s · label SF18 d14 WDL expected score · bands by the arm's own side-ahead prediction"
+          % (sel.sum(), ",".join(stages)))
+
+    def table(x, y):
+        up = x >= 50
+        p, l = np.where(up, x, 100 - x), np.where(up, y, 100 - y)
+        return [(int(k.sum()), p[k].mean() if k.any() else 0.0, l[k].mean() if k.any() else 0.0)
+                for k in ((p >= a) & (p < b) for a, b in zip(edges[:-1], edges[1:]))]
+    for name, m in load_arms(want):
+        ok = np.array([f in m for f in fen]) & sel
+        cp, y = np.array([m.get(f, 0.0) for f in fen])[ok], yw[ok]
+        s = grid[int(np.argmin([np.mean((wp(g * cp) - y) ** 2) for g in grid]))]
+        print("\n%s — %d rows · own best global scale s=%.2f" % (name, ok.sum(), s))
+        print("  %-8s  %-28s  %-28s" % ("", "raw (fixed k)", "at own s"))
+        print("  %-8s  " % "pred%" + "  ".join("%5s %6s %6s %6s" % ("rows", "pred", "label", "gap") for _ in (0, 1)))
+        for (a, b), r0, r1 in zip(zip(edges[:-1], edges[1:]), table(wp(cp), y), table(wp(s * cp), y)):
+            print("  %3d-%-4d  " % (a, min(b, 100)) + "  ".join(
+                "%5d %6.1f %6.1f %+6.1f" % (n, pp, ll, ll - pp) if n else "%5d %6s %6s %6s" % (n, "-", "-", "-")
+                for n, pp, ll in (r0, r1)))
 
 
 def read():
@@ -64,14 +134,7 @@ def read():
     ycp = wp([float(r["sf_cp_white"]) for r, _ in R])
     yw = np.array([(float(r["w"]) + 0.5 * float(r["d"])) / 10.0 for r, _ in R])
     group = np.array([m["group"].split("#")[0] for _, m in R])
-    arms = []
-    for p in sorted(glob.glob(os.path.join(D, "static_*.csv"))) + sorted(glob.glob(os.path.join(D, "d10_*.csv"))):
-        name = os.path.basename(p)[:-4]
-        if "_s" in name and "of" in name.rsplit("_s", 1)[1]:   # d10 shard files, already concatenated into the arm
-            continue
-        col = "cp_white" if name.startswith("static_") else "ours_cp_white"
-        m = {r["fen"]: float(r[col]) for r in csv.DictReader(open(p, newline="")) if r.get(col)}
-        arms.append((name, m))
+    arms = load_arms()
     print("rows %d (held-out quiet own-play, 1,500 per stage requested) · SF18 d14 labels" % len(R))
     for lname, y in (("historical label (SF18 cp → fixed win% formula)", ycp), ("SF18 WDL expected score", yw)):
         print("\n%s — win%% MSE (side-ahead bias; negative = under-confident)" % lname)
@@ -123,4 +186,4 @@ def read():
 
 
 if __name__ == "__main__":
-    {"static": static, "sf11": sf11, "prep": prep}.get(MODE, read)()
+    {"static": static, "sf11": sf11, "sf11d": sf11_search, "prep": prep, "bands": bands}.get(MODE, read)()

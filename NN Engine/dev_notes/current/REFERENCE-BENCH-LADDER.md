@@ -264,6 +264,25 @@ unmoved, the option would not be wired to what we assume and every row above wou
 are the ones whose magnitudes most deserve room to move, and `PASSER_V2_MAG`'s wide range is now justified
 as cheap insurance on a never-gamed knob rather than as a high-expectation bet.
 
+## 📈 2026-11-16 — GEN 7.5 AT EQUAL NODES: PAST SF1.1, SF11 GAP −685 → −263
+Same instrument as the 09-22 correction below: sts300, the Cython module at gen 7.5 (`V2_PRESET=shipped`, rebuilt 11-16 14:00,
+fingerprint 252 / 35,235,460), `NODE_LIMIT=249014 MAX_DEPTH=64` through the runner's `sts` sub (LONG_FORMAT, no book). One run
+per setting, deterministic at a node limit.
+
+| at 249,014 nodes | STS | gen 7.5 vs it | 09-22 gap |
+|---|---|---|---|
+| **v2 gen 7.5** | **2111 (70.4%)** | — | (v2 then: 1689) |
+| SF1.1 (2008) | 1991 | **+120** | −302 |
+| SF11 | 2374 | **−263** | −685 |
+| SF15.1 classical | 2492 | −381 | −803 |
+| SF18 | 2605 | −494 | −916 |
+
+Gen 7.5 at depth 10: 2164 (72.1%; gen 4 on 10-20: 2115). The d10 score is above the 249k score, so on sts300 our depth 10
+still costs more than 249k nodes (the 09-22 lesson holds). Over eight weeks the equal-node score rose +422 against +310 at
+d10: the retunes raised the eval, and the search ships (SEE_PER_MOVE, D7, C2c) raised what each node buys.
+The SF rows were measured 09-21/22 and these engines have not changed since. Re-run this row at each ship (memory
+`sts-at-equal-nodes-vs-sf11-is-the-progress-yardstick`).
+
 ## ☠️☠️ 2026-09-22 CORRECTION — v2's EQUAL-NODES ROW WAS WRONG, AND EVERY GAP WIDENS
 
 **v2 at `NODE_LIMIT=249014` on sts300 scores `1689 / 3000 (56.3%)`, NOT 1854.**

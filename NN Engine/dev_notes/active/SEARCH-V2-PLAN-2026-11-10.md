@@ -67,6 +67,26 @@ Latent, fixed before Stack F turns them on: S5 D2 (the exclusion search is not i
 
 *H-S, speed* (result-identical: identity on the bench sets, then time to depth on a quiet box or cachegrind):
 1. A fresh profile of gen 7.4 (cachegrind on game positions, the §6.2 form): the ranked list decides the order below.
+   ✅ Done for gen 7.4 (#247) and **gen 7.5 (#258, 11-16; `/mnt/e/chess_data/q258/cg_annotate.txt`; 13.06 G Ir on game12 d10,
+   2,445,722 nodes)**. Gen 7.5's ranking, by share of instructions:
+
+   | block | share | functions |
+   |---|---|---|
+   | move list build and ordering | ~14% | `generateLegalMovesReordered` 7.6% + its scoring lambda 4.7% + the cache-path lambda 1.2% + vector 0.6% |
+   | king safety and attacks | ~12.8% | `ks_channels` 6.9%, `build_side_attacks` 4.0%, `ks_units` 1.9% |
+   | v2 search bodies | ~9.6% | `sv2::score_move` 5.6%, `sv2::negamax` 4.0% |
+   | make / unmake | ~8.1% | `make_move` 5.0%, `update_state` 3.2% (in `cpp_bitboard.h`, the owner's file: not ours to touch) |
+   | other eval | ~12% | `placement_and_piece_eval_v2` 3.8% (10% of all I-cache misses), `placement_detect` 3.1%, `rung0` 2.0%, `threats_mp` 1.5%, `kprot_side` 1.5%, `build_context` 1.4%, `kfl_side` 1.2%, `passer_value_mp` 1.0% |
+   | bench-only | ~6% | `clearSearchTables` 3.7% (per bench position; in play only at `ucinewgame`), static init 1.6%, `kpk_build` 0.7% |
+
+   Against gen 7.4 (#247, 2,372,218 nodes, a different tree): `placement_and_piece_eval_v2` 1,536 → 500 M (the eval speed
+   batches), `kfl_side` 400 → 152 M. Move-list build +24%, its scoring lambda +30%, `make_move` +31% and minimizer `score_move`
+   +72%, on only +3.1% nodes. **Checked the same evening (the engine's own counters, UCI `Debug`, game12 d10):** C2c on / off:
+   move-gen visits 316,537 / 234,619 (+35%), hit rate **32.5% / 32.2% (unchanged)**, qsearch visits 639,625 / 735,586 (−13%).
+   ⇒ not a cache defect: C2c moves work from qsearch leaves into interior nodes (full-depth re-searches), and an interior node
+   costs more (a full list build and ordering), which is the ~7% nps drop. The list build stays the top speed block. Two-thirds
+   of interior visits build a list from scratch; a larger move-gen cache is NOT result-identical (cached lists carry
+   promote-to-front state), so it would be a games item, not a speed one.
 2. Candidates already on record: the qsearch move-list build (a third of v2's search time on 10-22's profile; check what
    `MOVEGEN_FAST` and lazy generation already took), the per-position facts computed once per node (F16), lazy generation's
    second phase generating quiets only, the eval's biggest functions (`placement_and_piece_eval_v2` 13%), early LMP (an

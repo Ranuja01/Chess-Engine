@@ -3281,6 +3281,12 @@ namespace Config
     // that made it the largest single source of branch mispredictions on gen 7.5's profile (~12%). SCRATCH_REUSE=2 checks
     // every list against std::stable_sort.
     inline int SORT_KEYED = 0;
+    // RFP_THREAT_GATE (search v2): no reverse futility while the side to move has a piece attacked by a cheaper enemy piece.
+    // 1 = the queen attacked by a pawn, minor or rook; 2 = also a rook attacked by a pawn or minor, a minor by a pawn. The 11-17
+    // UI game's queen trap (memory ui-game-2026-11-17-poisoned-pawn-queen-trap): with ENABLE_RFP=0 the search finds the
+    // trapping rook move at d12, with RFP never by d18, because the static eval of the side whose queen is chased sits far
+    // above beta. 0 = byte-identical.
+    inline int RFP_THREAT_GATE = 0;
     // PIN_FAST: the LMR pin test looks from each king, queen and rook for an enemy slider on its line with exactly one own
     // piece between, instead of scanning every piece on a king or queen line for an attacker and x-raying behind it (same
     // answer). 2 = run both and abort on the first difference.

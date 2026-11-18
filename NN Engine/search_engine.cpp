@@ -3260,6 +3260,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::EVAL_FAST = env_int("EVAL_FAST", Config::EVAL_FAST);
         Config::SCRATCH_REUSE = env_int("SCRATCH_REUSE", Config::SCRATCH_REUSE);
         Config::SORT_KEYED = env_int("SORT_KEYED", Config::SORT_KEYED);
+        Config::RFP_THREAT_GATE = env_int("RFP_THREAT_GATE", Config::RFP_THREAT_GATE);
         Config::PIN_FAST = env_int("PIN_FAST", Config::PIN_FAST);
         g_mate_quick_verify = env_int("MATE_TEST_VERIFY", 0) != 0;
         Config::REP_STACK = env_int("REP_STACK", Config::REP_STACK);

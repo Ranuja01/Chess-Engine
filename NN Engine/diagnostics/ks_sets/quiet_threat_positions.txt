@@ -1,0 +1,8 @@
+# Quiet-threat regression set (2026-11-17; memory pruning-quality-is-what-it-leaves-behind). Positions from real games where
+# material is won or lost by QUIET moves (a trap, a quiet attack on a piece), which forward pruning can cut. One per line:
+#   label | FEN | find or avoid | SAN move(s), comma-separated | note
+# find  = the engine should play one of the moves; avoid = it should play none of them. Keys checked against SF18 d22-24.
+qt1117_b | 1k1r3r/ppq2pQ1/2n1p3/2n1P3/3p1P2/P5P1/2PB1KBP/1R5R b - - 5 26 | find | Rdg8 | 11-17 UI game (Black SF1.1): the trapping move; SF18 -3.6; ours d3 at d10-18, finds it with ENABLE_RFP=0 from d12
+qt1117_a | 1k1r2r1/ppq2p1Q/2n1p3/2n1P3/3p1P2/P5P1/2PB1KBP/1R5R b - - 4 25 | find | Rh8 | 11-17: one move earlier; SF1.1 finds the full line at d16 (-4.21); ours only with all pruning off
+qt1117_w24 | 1k4r1/ppq2p2/2n1p3/2nrP3/3p1P2/P2Q2P1/2PB1K1P/1R3B1R w - - 1 24 | avoid | Qh7 | 11-17 (White AlphaUX): Qh7 -2.17 vs Qf3 -0.52 (SF18 d24); ours Qh7 at d12-20
+qt1116_15 | r1b2rk1/ppp1b3/2pqn2p/5pp1/5N2/3P1NQ1/PPP2PPP/R1B1R1K1 b - - 1 15 | avoid | Rf6 | 11-16 UI game (Black AlphaUX vs SF1.1): Rf6 +2.41 vs Re8 +0.81 (SF18 d22); h4, g4, c3, Nh5 win the exchange

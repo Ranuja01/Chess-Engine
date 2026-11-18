@@ -44,6 +44,38 @@ namespace sv2
 		return !static_cut ? rd : (Config::SV2_STATIC_CUT_STORE == 3 ? rd - 1 : 1);
 	}
 
+	/* RFP_THREAT_GATE: whether the side to move has a piece attacked by a cheaper enemy piece, the case where a static eval far
+	   above beta can hide a piece that is about to be lost (a queen chased by rooks with no safe square left). queens_only:
+	   the queen attacked by a pawn, minor or rook; otherwise also a rook attacked by a pawn or minor and a minor attacked by
+	   a pawn. Attack sets as the threat-aware move ordering builds them. */
+	static inline bool threatened_by_cheaper(const BoardState &st, bool queens_only)
+	{
+		const bool us = st.turn, them = !st.turn;
+		const uint64_t occ = st.occupied, theirs = st.occupied_colour[them], ours = st.occupied_colour[us];
+		uint64_t b, by_pawn = 0;
+		for (b = st.pawns & theirs; b; b &= b - 1)
+			by_pawn |= BB_PAWN_ATTACKS[them][__builtin_ctzll(b)];
+		uint64_t by_minor = by_pawn;
+		for (b = st.knights & theirs; b; b &= b - 1)
+			by_minor |= BB_KNIGHT_ATTACKS[__builtin_ctzll(b)];
+		for (b = st.bishops & theirs; b; b &= b - 1)
+		{
+			const int sq = __builtin_ctzll(b);
+			by_minor |= BB_DIAG_ATTACKS[sq][BB_DIAG_MASKS[sq] & occ];
+		}
+		uint64_t by_rook = by_minor;
+		for (b = st.rooks & theirs; b; b &= b - 1)
+		{
+			const int sq = __builtin_ctzll(b);
+			by_rook |= BB_RANK_ATTACKS[sq][BB_RANK_MASKS[sq] & occ] | BB_FILE_ATTACKS[sq][BB_FILE_MASKS[sq] & occ];
+		}
+		if (st.queens & ours & by_rook)
+			return true;
+		if (queens_only)
+			return false;
+		return (st.rooks & ours & by_minor) || ((st.knights | st.bishops) & ours & by_pawn);
+	}
+
 	void print_counters()
 	{
 		std::cerr << "[sv2_lmr] r_hist=";
@@ -450,12 +482,18 @@ namespace sv2
 		                           ((Config::ENABLE_RFP && (beta - alpha) == 1 && (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH &&
 		                             (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
 		                            Config::ENABLE_NULL_EVAL_GATE);
+		// RFP_THREAT_GATE: no reverse futility while the side to move has a piece attacked by a cheaper one (1: the queen only;
+		// 2: any piece). Such a node also skips the lazy eval, so its static eval stays exact for the rest of the node.
+		const bool rfp_threat = Config::RFP_THREAT_GATE && rfp_want_eval && Config::ENABLE_RFP && (beta - alpha) == 1 &&
+		                        (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
+		                        threatened_by_cheaper(current_state, Config::RFP_THREAT_GATE == 1);
 		if (rfp_want_eval)
 		{
 			// Lazy eval (LAZY_V2 bit 2), only where the reverse-futility prune is checked. The corrections are read first, so
 			// a lazy exit is decided on the corrected value.
 			const bool lazy_rfp = (Config::LAZY_V2 & 2) && Config::ENABLE_RFP && (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
-			                      (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH;
+			                      (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
+			                      !rfp_threat;
 			const int corr_ch = Config::ENABLE_CORR_HIST ? corrhist_correction(current_state, side_bit) : 0;
 			const int corr_c2 = Config::CORR2 ? corr2_root(current_state, side_bit) : 0;
 			if (lazy_rfp)
@@ -471,7 +509,7 @@ namespace sv2
 		// Reverse futility (static null move): far enough above beta, a quiet move is assumed to hold.
 		if (Config::ENABLE_RFP && rfp_eval != NO_STATIC_EVAL && (beta - alpha) == 1 && beta > -9000000 && beta < 9000000 &&
 		    (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH && (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH &&
-		    s * rfp_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) >= beta)
+		    s * rfp_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) >= beta && !rfp_threat)
 		{
 			if (Config::SV2_STATIC_CUT_STORE)
 				g_static_cut = true;

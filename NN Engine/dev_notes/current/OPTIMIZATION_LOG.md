@@ -4,6 +4,32 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-17 18:23 — GEN 7.6 SHIPPED (owner: "Ship after C4"): a shallower verify that crosses a bound is settled at full depth, `SV2_VERIFY_PROMOTE=1`
+**What:** `Config::SV2_VERIFY_PROMOTE = 1` in the shipped preset, after the gen 7.5 lines. In search v2, a near-miss re-search
+that ran shallower than full depth and moved the result to the other side of the node's bound (a fail low that now beats alpha,
+or a cut the shallower search no longer supports) is searched once more at full depth with the node's window, so the shallower
+result never decides the move alone. The third item of the "a shallower search never overrules a deeper one" audit (after D7,
+gen 7.4). Bench **246 / 35,138,434 / EBF 3.698** (gen 7.5 252 / 35,235,460 / 3.701), id "AlphaUX (v2 gen 7.6)";
+`SV2_VERIFY_PROMOTE=0` restores gen 7.5 exactly.
+**Evidence (#257, registered ship rule, vs gen 7.5):** self-play 10+0.1, 1,000 pairs: **2,001 g +684 −581 =736, 52.6%, +18.1 (95%
++6.3 … +30.0)**, pentanomial [87, 192, 353, 266, 102], 9 forfeits (all inside the gaming-slowed windows); per move 0.226 vs 0.229 s,
+depth 11.3 both, nps 1,343k vs 1,340k. The owner's gaming slowed 00:15-00:50 and 01:05-02:15 (nps ~0.6-0.9M, ~1 ply shallower);
+the side check registered before the result, every pair started in those windows dropped: **1,391 g +20.0 (+6.0 … +34.1)**
+(slowed pairs alone 608 g +13.7). **SF18 at equal nodes** 6 seeds × 250: ctl 62.9%, prom 64.3%, **+1.40 pp ± 3.05, z +0.90**.
+**Mediocre** 2 seeds × 150: ctl 90.7%, prom 91.8%, **+1.17 pp ± 3.85, z +0.59**. Prediction −5 to +10 (A1 already re-searches
+every reduced move that beats the bound): it came in above. On gen 7.4 (#248 + #251) it was +13.6 (+0.5 … +26.7) over 2,001 g,
+so the gain replicates across two bases. STS1500 on gen 7.4: +212.
+**Install (#263):** PGO `chess_engine_uci_g76pgo` (profile `/mnt/e/chess_data/pgo_g76`); gates: default == the knob on g76pgo ==
+on g75pgo == on c4pgo == `EVAL_MAT_CACHE=2` verify (246 / 35,138,434); `SV2_VERIFY_PROMOTE=0` 252 / 35,235,460; v1 250 /
+35,310,778; game12 d10 verify == default (8/12, 2,272,158). `build_uci/chess_engine_uci` == `g76pgo`, **backup `g75pgo`**.
+Cython rebuilt (pre-7.6 .so → `/mnt/e/chess_data/so_backup_g76/`): shipped 246 / 35,138,434 / **3.698**, PROMOTE off 252 /
+35,235,460 / 3.701, v1 250 / 35,310,778 / 3.784. C4 on gen 7.6 (recorded for a later re-test): `SV2_HIST_ALLNODE_GATE=1` 251 /
+35,394,481, `=2` 246 / 35,138,412.
+**Pinned bench ×9 on core 5, g76 / g75 alternating (#263, ledger):** medians g76 26,806 ms / 1,310,805 nps · g75 27,073 /
+1,301,493. Within-round **g76 / g75 time 0.995 (6 of 9 faster), nps 1.002**: speed unchanged, on 0.3% fewer bench nodes.
+**Parked the same day:** C4 (`SV2_HIST_ALLNODE_GATE`), both arms neutral vs gen 7.5 over 2,000 g each (#262): gate +6.9 (−4.7 …
++18.7), bound +4.9 (−6.7 … +16.4); re-test at C7.
+
 ## 🚀 2026-11-16 13:57 — GEN 7.5 SHIPPED (owner: "as long as the mediocre numbers make sense"; "Ship both now"): the two halves of the search made symmetric (C2c) + the eval speed preset
 **What (search, C2c):** `Config::FIX_RESEARCH = 1`, `FIX_MIN_SCOUT = 1`, `FIX_MIN_RD1 = 1` in the shipped preset, after the eval
 speed pair. The search keeps a maximizer and a minimizer frame, and three spots were lopsided between them (H-C2,
@@ -36,7 +62,7 @@ three off 250 / 37,320,382 / 3.743, v1 250 / 35,310,778 / 3.784.
 1,448,187 · g74 27,498 / 1,357,173. Within-round: **speed alone g74e / g74 time 0.957 (8 of 9), nps 1.045**; **gen 7.5 / gen 7.4
 time 0.981 (9 of 9), nps 0.962**; g75 / g74e time 1.014, nps 0.931 (C2c's nodes cost ~7% more each, as in games, on 5.6% fewer
 of them). Rounds 1 and 9 were slow for all arms (outside load); the ratios are within-round.
-**Next:** PROMOTE (`SV2_VERIFY_PROMOTE=1`) re-tested on gen 7.5 (#257 step 4).
+**Next:** PROMOTE (`SV2_VERIFY_PROMOTE=1`) re-tested on gen 7.5 (#257 step 4) → shipped as gen 7.6 (entry above).
 
 ## 🚀 2026-11-15 11:26 — GEN 7.4 SHIPPED (owner: "it seems D7 can ship yes"): a shallower search no longer overrules a deeper one, `SV2_VERIFY_DEEPER=1`
 **What:** `Config::SV2_VERIFY_DEEPER = 1` in the gen 7 block of the shipped preset. In search v2's `score_move`, a near-miss

@@ -2785,6 +2785,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     Config::FIX_RESEARCH = 1;
                     Config::FIX_MIN_SCOUT = 1;
                     Config::FIX_MIN_RD1 = 1;
+                    // ── GEN 7.6: a shallower near-miss re-search that moves the result to the other side of the node's bound
+                    // is settled by one search at full depth, so a shallower result never decides the move alone. Self-play
+                    // vs gen 7.5 +18.1 (95% +6.3 … +30.0) over 2,001 games, SF18 at equal nodes +1.40 pp (z +0.90), Mediocre
+                    // +1.17 pp (OPTIMIZATION_LOG). Set before the start-up read, so SV2_VERIFY_PROMOTE=0 restores gen 7.5.
+                    Config::SV2_VERIFY_PROMOTE = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on

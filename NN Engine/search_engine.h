@@ -3310,7 +3310,8 @@ namespace Config
     // The rest of the "a shallower search never overrules a deeper one" audit (2026-11-14). Each default 0 = byte-identical.
     // SV2_VERIFY_PROMOTE: a near-miss re-search that ran shallower than full depth and moved the result to the other side of
     // a bound (a fail low that now beats alpha, or a cut the shallower search no longer supports) is searched once more at
-    // full depth with the node's window, so the shallower result never decides the move alone.
+    // full depth with the node's window, so the shallower result never decides the move alone. Shipped preset: 1 since gen 7.6
+    // (2,001 g vs gen 7.5 +18.1, 95% +6.3 … +30.0; SF18 z +0.90; Mediocre +1.17 pp).
     inline int SV2_VERIFY_PROMOTE = 0;
     // SV2_STATIC_CUT_STORE: a child that returned through reverse futility (a static value standing in for a search of rd
     // plies) is not written to the TT by its parent as a searched bound of rd plies. 1 = no write (#247: STS1500 −307 vs gen

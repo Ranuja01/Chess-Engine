@@ -265,6 +265,8 @@ double g_tm_total_s = 0, g_tm_wasted_s = 0;
 long g_tm_moves = 0, g_tm_cut = 0, g_tm_cut_differs = 0;
 long g_tm_partial_used = 0, g_tm_partial_differs = 0;   // cut iterations whose result was played (TM_PARTIAL), and how
                                                         // many of those changed the move
+long g_asp_keep_used = 0, g_asp_keep_differs = 0;       // cut iterations that played the fail-high pass's move
+                                                        // (ASP_KEEP_FAILHIGH), and how many of those changed the move
 // The last root pass (one alpha_beta call): whether any root move's search completed in it, the best completed move and
 // its score, and the alpha the pass started with.
 bool g_rp_valid = false;
@@ -4550,6 +4552,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
             }
             else if (asp_fh_valid)
             {
+                ++g_asp_keep_used;
+                g_asp_keep_differs += (asp_fh_move.from_square != completed_move.from_square || asp_fh_move.to_square != completed_move.to_square ||
+                                       asp_fh_move.promotion != completed_move.promotion);
                 completed_move = asp_fh_move;
                 completed_score = asp_fh_score;
             }
@@ -4905,7 +4910,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << " qsmate=" << g_fixcnt_qsmate << " depthcap=" << g_fixcnt_depthcap << std::endl
                   << "TMCNT moves=" << g_tm_moves << " total_s=" << g_tm_total_s << " wasted_s=" << g_tm_wasted_s
                   << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs
-                  << " partial_used=" << g_tm_partial_used << " partial_differs=" << g_tm_partial_differs << std::endl;
+                  << " partial_used=" << g_tm_partial_used << " partial_differs=" << g_tm_partial_differs
+                  << " asp_keep_used=" << g_asp_keep_used << " asp_keep_differs=" << g_asp_keep_differs << std::endl;
 #ifdef FIXCNT_BUILD
     if (fix_count_log)
         std::cerr << "ITEMCNT nodes=" << g_cnt_nodes << " mdp=" << g_cnt_mdp << " prunes=" << g_cnt_prunes

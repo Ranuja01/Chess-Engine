@@ -262,10 +262,19 @@ inline void stableSortScoredDesc(std::vector<ScoredMove>& a)
 /* One move as a unique 64-bit sort key: the high half is the score mapped so that a higher score gives a smaller key, the low
    half the move's place in the build order (8 bits; a position has at most 218 legal moves) and the move itself. Unique keys
    sorted ascending give exactly the stable descending order, whatever the sorting method. */
+inline uint64_t moveSortKey(int score, size_t idx, uint8_t from, uint8_t to, uint8_t promo)
+{
+	const uint32_t desc = ~((uint32_t)score ^ 0x80000000u);
+	return ((uint64_t)desc << 32) | ((uint64_t)idx << 24) | ((uint64_t)from << 16) | ((uint64_t)to << 8) | promo;
+}
 inline uint64_t scoredMoveKey(const ScoredMove& m, size_t idx)
 {
-	const uint32_t desc = ~((uint32_t)m.score ^ 0x80000000u);
-	return ((uint64_t)desc << 32) | ((uint64_t)idx << 24) | ((uint64_t)m.from << 16) | ((uint64_t)m.to << 8) | m.promo;
+	return moveSortKey(m.score, idx, m.from, m.to, m.promo);
+}
+// The score a moveSortKey carries.
+inline int moveSortKeyScore(uint64_t key)
+{
+	return (int)(~(uint32_t)(key >> 32) ^ 0x80000000u);
 }
 
 // Compare-exchange that compiles to conditional moves: a keeps the smaller key, b the larger.
@@ -288,33 +297,16 @@ inline void sortNetwork8(uint64_t* k)
 	compareExchangeKey(k[1], k[2]); compareExchangeKey(k[3], k[4]); compareExchangeKey(k[5], k[6]);
 }
 
-/* stableSortScoredDesc's order without its data-dependent branches (Config::SORT_KEYED): the moves become unique keys, each run
-   of 8 is sorted by the network (the last run padded with keys above every real one), and runs are joined by bottom-up merges
-   whose only branches are the loop bounds. The insertion sort and merge carried about 12% of all branch mispredictions on gen
-   7.5's profile. Lists of 256 or more moves (never legal) take the plain sort. */
-inline void stableSortScoredDescKeyed(std::vector<ScoredMove>& a)
+/* Sorts n unique keys ascending without data-dependent branches: each run of 8 by the network (the caller pads keys[n .. n+7]
+   with UINT64_MAX, which sorts behind every real key), then bottom-up merges whose only branches are the loop bounds. buf holds
+   n keys. Returns whichever of the two arrays holds the result. */
+inline uint64_t* sortKeysAscending(uint64_t* keys, uint64_t* buf, size_t n)
 {
 	constexpr size_t RUN = 8;
-	const size_t n = a.size();
-	if (n >= 256)
-	{
-		stableSortScoredDesc(a);
-		return;
-	}
-	thread_local std::vector<uint64_t> keys, buffer;
-	if (keys.size() < n + RUN)
-	{
-		keys.resize(n + RUN);
-		buffer.resize(n + RUN);
-	}
-	for (size_t i = 0; i < n; ++i)
-		keys[i] = scoredMoveKey(a[i], i);
-	for (size_t i = n; i < n + RUN; ++i)
-		keys[i] = UINT64_MAX;
 	for (size_t lo = 0; lo < n; lo += RUN)
 		sortNetwork8(&keys[lo]);
-	uint64_t* src = keys.data();
-	uint64_t* dst = buffer.data();
+	uint64_t* src = keys;
+	uint64_t* dst = buf;
 	for (size_t width = RUN; width < n; width *= 2) {
 		for (size_t lo = 0; lo < n; lo += 2 * width) {
 			const size_t mid = std::min(lo + width, n), hi = std::min(lo + 2 * width, n);
@@ -333,9 +325,43 @@ inline void stableSortScoredDescKeyed(std::vector<ScoredMove>& a)
 		}
 		std::swap(src, dst);
 	}
+	return src;
+}
+
+// Scratch for the keyed sort: n keys, 8 padding keys, and the merge buffer.
+inline void keySortScratch(size_t n, uint64_t*& keys, uint64_t*& buf)
+{
+	thread_local std::vector<uint64_t> k, b;
+	if (k.size() < n + 8)
+	{
+		k.resize(n + 8);
+		b.resize(n + 8);
+	}
+	keys = k.data();
+	buf = b.data();
+}
+
+/* stableSortScoredDesc's order through the keyed sort (Config::SORT_KEYED with the SCRATCH_REUSE=2 check, which compares this
+   against std::stable_sort). The move generator's own SORT_KEYED path builds the keys while scoring instead. Lists of 256 or
+   more moves (never legal) take the plain sort. */
+inline void stableSortScoredDescKeyed(std::vector<ScoredMove>& a)
+{
+	const size_t n = a.size();
+	if (n >= 256)
+	{
+		stableSortScoredDesc(a);
+		return;
+	}
+	uint64_t *keys, *buf;
+	keySortScratch(n, keys, buf);
+	for (size_t i = 0; i < n; ++i)
+		keys[i] = scoredMoveKey(a[i], i);
+	for (size_t i = n; i < n + 8; ++i)
+		keys[i] = UINT64_MAX;
+	const uint64_t* sorted = sortKeysAscending(keys, buf, n);
 	for (size_t i = 0; i < n; ++i) {
-		const uint64_t key = src[i];
-		a[i].score = (int)(~(uint32_t)(key >> 32) ^ 0x80000000u);
+		const uint64_t key = sorted[i];
+		a[i].score = moveSortKeyScore(key);
 		a[i].from = (uint8_t)(key >> 16);
 		a[i].to = (uint8_t)(key >> 8);
 		a[i].promo = (uint8_t)key;
@@ -1383,8 +1409,39 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 
 	// Score each move once up front — score_move runs SEE for unclear captures, so
 	// calling it inside the comparator would repeat that work O(log n) times per move
+	const size_t move_count = startPos.size();
+#ifndef SV2_MOVE_PROBE
+	// SORT_KEYED: each score goes straight into the move's unique sort key, and the sorted keys straight into the move list.
+	// The SCRATCH_REUSE=2 check takes the ScoredMove path below instead, where the same keyed sort is compared with
+	// std::stable_sort.
+	if (Config::SORT_KEYED && Config::SCRATCH_REUSE == 1 && move_count < 256)
+	{
+		uint64_t *keys, *buf;
+		keySortScratch(move_count, keys, buf);
+		{
+		PROF_BLOCK(PROF_MG_SCORE);
+		for (size_t i = 0; i < move_count; ++i)
+			keys[i] = moveSortKey(score_move(i), i, startPos[i], endPos[i], promotions[i]);
+		}
+		{
+		PROF_BLOCK(PROF_MG_SORT);
+		for (size_t i = move_count; i < move_count + 8; ++i)
+			keys[i] = UINT64_MAX;
+		const uint64_t* sorted = sortKeysAscending(keys, buf, move_count);
+		for (size_t i = 0; i < move_count; ++i)
+			converted_moves.push_back(Move((uint8_t)(sorted[i] >> 16), (uint8_t)(sorted[i] >> 8), (uint8_t)sorted[i]));
+		if (good_lead) {
+			int n = 0;
+			while (n < (int)move_count && moveSortKeyScore(sorted[n]) >= MG_CAPTURE_TIER
+			       && (BB_SQUARES[(uint8_t)(sorted[n] >> 8)] & opposingPieces))
+				++n;
+			*good_lead = n;
+		}
+		}
+		return;
+	}
+#endif
 	thread_local std::vector<ScoredMove> scored;
-	size_t move_count = startPos.size();
 	scored.resize(move_count);
 	{
 	PROF_BLOCK(PROF_MG_SCORE);

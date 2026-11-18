@@ -1490,6 +1490,8 @@ namespace sv2
 		}
 		if (moves_list.empty())
 			return static_eval;
+		if (best == -MATE + move_num)
+			++g_q_phantom;
 		return best;
 	}
 }

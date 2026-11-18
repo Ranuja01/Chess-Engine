@@ -60,11 +60,39 @@ timed games (evenings and nights), speed needs only fixed-work reads (safe while
 | C3 | a reverse-futility static value is not stored as a searched bound | `SV2_STATIC_CUT_STORE` | **#247: STS1500 9,638 (−307 vs gen 7.4; per position 192 better / 239 worse, sign z −2.26 ⇒ a real cost by #245's rule)**, WAC 254 at +4.6% nodes. Skipping the store also throws away the cheap cut it caches. For scale, the same per-position test against gen 7.4: production −20 (z −0.80), neutral arm −18 (z 0.00), D7=2 −141 (z −1.00), PROMOTE +212 (z +1.59) | as built: no games. **C3b (#254, 11-15), against gen 7.4 per position: `=2` (stored at depth 1) STS1500 9,743, −202 (190 better / 227 worse, sign z −1.81), WAC 252 / 38,556,508; `=3` (one ply shallower) 9,807, −138 (204 / 233, z −1.39), WAC 254 / 38,602,525.** Neither past 2σ, both below: the shallower the stored static cut, the worse (no store −307, depth 1 −202, rd−1 −138, rd = the base). The store at full `rd` is a productive behaviour, not a defect to fix ⇒ the C3 family is PARKED, no games. Re-test trigger: when S4's node-entry eval changes what reverse futility returns |
 | C4 | history credit only where a move raised alpha; the node-exit write bounded (S5 D1) | `SV2_HIST_ALLNODE_GATE` bit 1 = the gate, bit 2 = the bound (built 11-16, `hist_update` instead of a raw add) | **#249 (gen 7.4 base): gate STS1500 9,810 (−135; 197 better / 222 worse, z −1.22)**, WAC 253 at +1.9% nodes. **On the gen 7.5 base (11-16, #259/#260, base 10,155 = #249's C2c arm move for move): bound alone (`=2`) 10,203, +48 (59 / 54, z +0.47), WAC 252 / 35,235,446 (−14 nodes); gate alone (`=1`) 10,254, +99 (227 / 217, z +0.47), WAC 252 at +4.0% nodes; gate + bound (`=3`) identical to the gate on every position and on WAC (under the gate the bound never binds: only the fail-low credits grow an entry far enough).** Prediction for the gate was −150 … 0: the sign flipped against gen 7.4, both readings within noise | all arms passed the screen ⇒ games (UCI test build `chess_engine_uci_c4pgo`, #261, every gate equal). **Self-play vs gen 7.5 (#262, 11-17, 10+0.1, 2,000 g each, seeds 2621+): gate `=1` +6.9 (95% −4.7 … +18.7), prediction −10 … +10; bound `=2` +4.9 (−6.7 … +16.4), prediction −5 … +5; per move and nps equal ⇒ BOTH NEUTRAL, PARKED.** The gate's +19 at 1,200 g came from its first chunk (58.5%). Re-test trigger: C7 (the verify retune; the bound is a correctness cap whose value may only show after a retune) or any change to the history scale |
 | C5 | malus only on moves actually searched | `SV2_MALUS_SEARCHED_ONLY` | **#249: STS1500 9,684 (−261; 201 better / 244 worse, z −2.04 ⇒ a real cost)**; WAC 252 at −1.0% nodes. The malus on pruned moves is doing work | as built: no games |
-| C6 | an aspiration fail-high is kept when the clock runs out | `ASP_KEEP_FAILHIGH` | **PARKED 11-18: dead under this TM** (#270: used 0 in 5,610 moves; the clock cut an iteration 4 times) | re-test only if the time manager starts cutting iterations |
-| C7 | the verify retune, LAST (memory `a-correctness-fix-into-absorbed-tuning-is-not-free`) | `VERIFY_MARGIN`, `VERIFY_RESEARCH_REDUCTION` | fitted with D7's defect in place | after C1-C6 |
+| C6 | an aspiration fail-high is kept when the clock runs out | `ASP_KEEP_FAILHIGH` | ~~PARKED 11-18: dead under this TM (#270: used 0 in 5,610 moves; the clock cut an iteration 4 times)~~ **VOID (#273):** #270's counting arm wrote its Debug stderr to a file on /mnt/e and was crippled (9% score). With the stderr on /tmp, the same setup scored 44% / 100 g, and the clock cut **33 iterations in 6,360 moves (5.2 per 1,000; the cut pass's best differed in 19)**. C6's liveness is unmeasured | re-count asp_keep_used with the stderr on /tmp (100 g), then the registered rule |
+| C7 | the verify retune, LAST (memory `a-correctness-fix-into-absorbed-tuning-is-not-free`) | `VERIFY_MARGIN`, `VERIFY_RESEARCH_REDUCTION` | fitted with D7's defect in place; S5 Stack D also asks for LMP, the futility margins and `RFP_MARGIN` to be retuned with it | after C8 (the seed changes the fail-low sizes VERIFY reads) |
+| C8 | qsearch stand-pat seed: a node whose captures are all delta-pruned returns its stand-pat, not the mated sentinel (10-22 audit Q2; memory `search-value-bugs-and-the-productive-bug-pattern` #2) | `ENABLE_QSTANDPAT_SEED` (exists since 08-18; tested only in v1, never in games; the 10-08 pre-plan said "adopt in v2") | **#273 (11-18), count `q_phantom`: 9.74% of qsearch visits on the WAC bench, 5.46% on game12 d10; the seed reads 0.** Seed bench 254 / 35,922,538 (+8 solved, +2.2% nodes); game12 d10 7/12 at +6.2% nodes | **#274: self-play vs gen 7.6 to 2,000 g, SF18 at equal nodes, Mediocre** (registered: ship rule; prediction −10 … +25) |
+| C9 | the root's clock exits (after move 0, and between root moves) return without setting `time_up`, so the driver adopts a partial root pass as complete and `g_tm_cut` / TM_PARTIAL / C6 never see it (S3-ROOT-AUDIT §7.3) | none yet; counters `root_clock_m0` / `root_clock_later` on the TMCNT line | **#273 (100 g at 10+0.1): m0 0, later 6 = 0.94 per 1,000 moves**, below the registered bar (≥ 1) | no fix knob for now; re-count if the time manager changes |
+
+**The 11-18 re-sweep** (an Opus agent over the plan, the audits, the registers and memory; its claims checked in code before
+listing; one claim was wrong: the pre-search TT-hit history scaling it flagged is inside a comment block). Open beyond C7-C9:
+- LAZY-EVAL W1 is overdue: it should re-run after each pruning change, and D7, C2c and PROMOTE shipped since 11-10. Riding
+  in #274's SF18 legs as the `lazy0` arm.
+- `ENABLE_NULL_MATE_CLAMP` was only ever played inside the gen 6.6 bundle. The sweep reports 3 of 64 WAC mates scored one
+  move short (not yet checked).
+- TT cutoffs at open windows (22% of TT cutoffs, CORRECTNESS-ITEMS §4); count them first.
+- Child futility skipped at ply 1 on the non-root side (S4 audit A6), an asymmetry.
+- C3 and C5 were screened only on the gen 7.4 base (C4's screen flipped sign between bases).
+- SW4: the shadow logger, line tracer and prune log are not ported to v2. "Run on SEARCH_ARM=0" stopped measuring
+  production at gen 7.4, so the false-cut audits the pruning work needs are blocked.
+- The Stack 0 counters were last read on gen 7.3.
+- A3 (pre-search subset) is still waiting for "the next free games slot".
+- The 32-bit node counter (`int &num_iterations` in ~41 signatures).
+- Smaller items:
+  - `FIX_REP_KEY` bit 2 was never judged where it fires.
+  - Qsearch Q5: an in-check node at `MAX_QDEPTH` returns the static eval.
+  - TT replacement: always replaces, no aging.
+  - The unstable root `std::sort`, which makes the bench depend on libstdc++ (release sweep).
+  - MOVEGEN C2 / C4 / C6.
+- Speed (H-S):
+  - W3: the qsearch filter recomputes `see_move` for every capture, even victim ≥ attacker.
+  - W8: threat sets are built for capture-only lists.
+  - Batch 9 (b) / (c) were orphaned when S2 folded into S3.
+  - F27-F29.
 
 Latent, fixed before Stack F turns them on: S5 D2 (the exclusion search is not isolated) with MOVEGEN-AUDIT C1, and D4
-(`SINGULAR_MARGIN` in SF11's units). Doc-only: D6's misleading header comment.
+(`SINGULAR_MARGIN` in SF11's units). (D6's header comment is fixed.)
 
 *H-S, speed* (result-identical: identity on the bench sets, then time to depth on a quiet box or cachegrind):
 1. A fresh profile of gen 7.4 (cachegrind on game positions, the §6.2 form): the ranked list decides the order below.
@@ -90,8 +118,12 @@ Latent, fixed before Stack F turns them on: S5 D2 (the exclusion search is not i
    promote-to-front state), so it would be a games item, not a speed one.
 2. Candidates already on record: the qsearch move-list build (a third of v2's search time on 10-22's profile; check what
    `MOVEGEN_FAST` and lazy generation already took), the per-position facts computed once per node (F16), lazy generation's
-   second phase generating quiets only, the eval's biggest functions (`placement_and_piece_eval_v2` 13%), early LMP (an
-   unresolved ~1%: one read with enough repetitions, or dropped).
+   second phase generating quiets only, the eval's biggest functions (`placement_and_piece_eval_v2` 13% on 10-22's profile,
+   3.8% on gen 7.5's after the eval speed batches), early LMP (an unresolved ~1%: one read with enough repetitions, or dropped).
+3. **`SORT_KEYED`** (11-17/18; the move-ordering sort on unique keys, result-identical): #268 on a quiet box read 0.982 (skpgo /
+   g76, 12 of 15), about 0.6% from the switch itself and the rest from that build's profile. The ship build `g76spgo` (#271)
+   read 0.9993 on a DISTURBED box (rounds 24.9 → 28.9 s), so it was not installed (registered bar < 0.995). The binary is kept;
+   next is a re-read on a quiet box, ≥ 21 rounds.
 
 *After phase H:* S4 then Stack E (the node-entry eval and its consumers, where the depth is expected to come from; corrhist
 and lazy eval's re-measure wait on it), the history stacks A → B → C, then F and G. Held with triggers: S3's staged picker

@@ -226,6 +226,16 @@ nodes). **Accuracy, not volume, is the remaining route.**
 🐛 **Never scale Elo from a bundle's headline** — a joint measurement cannot be apportioned to its parts.
 ⚠️ Node-savers → judge at **FIXED TIME**. Node-increasers → **EQUAL WORK** (step-shaped; use multiple budgets).
 ⚠️ `NODES` excludes the q-tree (`qnodes=` is separate) — judge q-tree levers on `qnodes` + fixed-time depth.
+☠️ **STS1500 at equal nodes does NOT screen a node-cost search change of −5 … −30 Elo (calibrated 2026-11-18, #272).**
+- The calibration arm was `RFP_THREAT_GATE`, whose games are known: =1 −5.8, =2 −30.0 over ~1,600 g each.
+- Equal-node STS1500 at 125k / 249k / 500k:
+  - =1: −222 / +52 / −189;
+  - =2: −172 / +35 / −148;
+  - every sign z within ±1.2.
+- =2 read above =1 at all three budgets, the reverse of the games. The registered "agrees" rule was met at 0 of 3 budgets.
+- Fixed-depth STS1500 (#269) read +163 / +115, because it charges nothing for the extra nodes.
+- ⇒ Such changes go straight to games. Equal-node STS stays a progress yardstick against other engines
+  (`sts-at-equal-nodes-vs-sf11`), not an A/B screen.
 
 ---
 

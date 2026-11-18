@@ -267,6 +267,9 @@ long g_tm_partial_used = 0, g_tm_partial_differs = 0;   // cut iterations whose 
                                                         // many of those changed the move
 long g_asp_keep_used = 0, g_asp_keep_differs = 0;       // cut iterations that played the fail-high pass's move
                                                         // (ASP_KEEP_FAILHIGH), and how many of those changed the move
+long g_root_clock_m0 = 0, g_root_clock_later = 0;       // root passes ended by the root's own clock check with time_up
+                                                        // unset (after move 0 / after a later move): the driver then
+                                                        // treats the pass as complete, and g_tm_cut does not count it
 // The last root pass (one alpha_beta call): whether any root move's search completed in it, the best completed move and
 // its score, and the alpha the pass started with.
 bool g_rp_valid = false;
@@ -795,6 +798,10 @@ static long g_root_alpha_decays = 0;
 // never claim a prune's behaviour again without one.
 static long g_qdelta_permove_fires = 0;
 static long g_qdelta_permove_seen = 0; // block REACHED (capture, non-ep, non-promo)
+// Search v2 qsearch nodes that returned the mated sentinel although not in check: every capture was delta-pruned and no
+// stand-pat seed (ENABLE_QSTANDPAT_SEED) replaced the sentinel, so the parent reads a mate. Counted per search (reset with
+// qsearchVisits) to size the defect.
+static long g_q_phantom = 0;
 // Quietness probe (ENABLE_QUIET_PROBE, diagnostic): how quiet are the positions qsearch RETURNS a static
 // eval from? tension = g_capg_tension (SEE>=0 captures both sides); tension>0 = "active" = pending captures.
 // horizon = forced stop at MAX_QDEPTH (high active here = qsearch under-resolves); standpat = fail-hi/lo
@@ -4310,6 +4317,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     tt_hits = 0;
 
     qsearchVisits = 0;
+    g_q_phantom = 0;   // per search, like qsearchVisits (the stats line prints both)
 
     if (Config::FIX_REP_KEY & 2)
         g_pre_root_counts = position_count;   // the game's counts at the root, root included
@@ -4708,7 +4716,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cerr << std::endl;
     }
     std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires
-              << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires << std::endl;
+              << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires
+              << " q_phantom=" << g_q_phantom << " qnodes=" << qsearchVisits << std::endl;
     if (Config::NULL_NPM_GUARD || Config::PE_PRUNE_GATE || Config::PE_PASSER_EXT)
         std::cerr << "[pe_rules] null_refused=" << g_pe_null_refused << " null_allowed=" << g_pe_null_allowed
                   << " prune_gated=" << g_pe_prune_gated << " passer_ext=" << g_pe_passer_ext << std::endl;
@@ -4911,7 +4920,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << "TMCNT moves=" << g_tm_moves << " total_s=" << g_tm_total_s << " wasted_s=" << g_tm_wasted_s
                   << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs
                   << " partial_used=" << g_tm_partial_used << " partial_differs=" << g_tm_partial_differs
-                  << " asp_keep_used=" << g_asp_keep_used << " asp_keep_differs=" << g_asp_keep_differs << std::endl;
+                  << " asp_keep_used=" << g_asp_keep_used << " asp_keep_differs=" << g_asp_keep_differs
+                  << " root_clock_m0=" << g_root_clock_m0 << " root_clock_later=" << g_root_clock_later << std::endl;
 #ifdef FIXCNT_BUILD
     if (fix_count_log)
         std::cerr << "ITEMCNT nodes=" << g_cnt_nodes << " mdp=" << g_cnt_mdp << " prunes=" << g_cnt_prunes
@@ -5174,7 +5184,10 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     }
 
     if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
+    {
+        g_root_clock_m0 += !time_up.load(std::memory_order_relaxed);
         return score;
+    }
 
     for (size_t i = 1; i < current_search_data.moves_list.size(); ++i)
     {
@@ -5543,6 +5556,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
                 std::cout << "TIME LIMIT EXCEEDED" << std::endl;
                 std::cout << "Best: " << best_move_index << std::endl;
             }
+            g_root_clock_later += !time_up.load(std::memory_order_relaxed);
             return best_score;
         }
     }

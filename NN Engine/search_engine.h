@@ -275,7 +275,9 @@ namespace Config
     inline bool ENABLE_TT_FLAG_FIX = true;  // compute the TT bound flag of a PVS re-search against the window
                                              // it ACTUALLY used (drifted alpha,beta), not the node's entry
                                              // window -- stops fail-soft bounds being stored as EXACT (measured
-                                             // 61k/300pos on WAC). Off = legacy = byte-identical. Needs games.
+                                             // 61k/300pos on WAC). The header value is not the runtime default:
+                                             // the start-up read defaults it to false (v1 keeps it off), and the
+                                             // shipped v2 preset sets it since gen 6.7 (2026-11-05).
     inline bool ENABLE_QSTANDPAT_SEED = false; // seed qsearch `best` with the stand-pat eval (SF's
                                              // bestValue=static_eval) + have futility-pruned moves contribute
                                              // their optimistic bound. Fixes the measured short-of-standpat
@@ -3214,8 +3216,9 @@ namespace Config
     // +3.7 +/-31 (no regression). Set 6000 for the old blitz default, or 0 to disable
     // and recover the old byte-identical search (e.g. for a d10 isolation control).
     inline int VERIFY_MARGIN = 16000;
-    // ── SEARCH CORRECTNESS fixes (2026-10-19; dev_notes/active/SEARCH-CORRECTNESS-PLAN-2026-10-19.md). All default 0 = today's
-    // behaviour (byte-identical). The search is max/min, not negamax; these repair asymmetries between the two halves.
+    // ── SEARCH CORRECTNESS fixes (2026-10-19; dev_notes/active/SEARCH-CORRECTNESS-PLAN-2026-10-19.md). Header 0 = the unfixed
+    // search (v1 runs it); the shipped v2 preset turns on FIX_DRAW_EXIT and FIX_QS_CHECK (gen 5), FIX_HALFMOVE and FIX_REP_KEY
+    // bit 1 (gen 6.5). The search is max/min, not negamax; these repair asymmetries between the two halves.
     inline int FIX_HALFMOVE = 0;   // B1: make_move resets the halfmove clock on PAWN moves too (tested pre-move)
     inline int FIX_REP_KEY = 0;    // B2, bit flags: 1 = repetition counts keyed with castling rights + ep square, not placement
                                    //     alone; 2 = a position whose earlier occurrence is before the root needs a 3-fold (SF's
@@ -3298,7 +3301,9 @@ namespace Config
     inline int FIX_MIN_SCOUT = 0;  // A2: minimizer PVS / LMR scouts use (beta-1, beta), the min node's bound (shipped preset: 1 since gen 7.5)
     inline int FIX_RESEARCH = 0;   // A1 (shipped preset: 1 since gen 7.5; A1+A2+A3 +76.4 vs gen 7.4): LMR re-search mirrored — a REDUCED move that beats the node's bound (max: >= beta,
                                    //     min: <= alpha) is re-searched at full depth; VERIFY near-misses mirrored for min
-    // Open correctness items (dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md §2). All default 0 = today's search.
+    // Correctness items (dev_notes/active/SEARCH-CORRECTNESS-ITEMS-2026-11-02.md §2). Header 0 = the unfixed search; the shipped
+    // v2 preset turns on FIX_MATE_GATE, FIX_MATE_50 and FIX_KILLER_SPLICE (gen 6.5). FIX_MDP and FIX_TT_MATE (gen 6.6's mate
+    // bundle) stay off.
     inline int FIX_MDP = 0;           // mate-distance pruning: a node whose window the mate bounds alone settle returns that bound
     inline int FIX_MATE_GATE = 0;     // no move-loop pruning (LMP, history, SEE, futility) while every move searched so far is mated
     inline int FIX_MATE_50 = 0;       // a checkmate delivered on the 100th half-move scores as mate, not as a 50-move draw
@@ -3330,20 +3335,26 @@ namespace Config
     // SV2_STATIC_CUT_STORE: a child that returned through reverse futility (a static value standing in for a search of rd
     // plies) is not written to the TT by its parent as a searched bound of rd plies. 1 = no write (#247: STS1500 −307 vs gen
     // 7.4, sign z −2.26, a real cost: the cached cut is doing work); 2 = written at remaining depth 1 (still caches for
-    // shallow probes, never stands in for a deep search); 3 = written one ply shallower than searched.
+    // shallow probes, never stands in for a deep search); 3 = written one ply shallower than searched. #254 vs gen 7.4: =2
+    // STS1500 −202 (z −1.81), =3 −138 (z −1.39). The shallower the stored cut, the worse, so the full-rd store is doing work:
+    // parked, no games, until the node-entry eval (S4) changes what reverse futility returns.
     inline int SV2_STATIC_CUT_STORE = 0;
     // SV2_HIST_ALLNODE_GATE: the end-of-node history bonus for the best quiet. Bit 1: only a node whose best move beat alpha
     // earns it (at a fail-low node the "best" is only the largest upper bound, mostly from reduced scouts; #249 STS1500 −135,
     // z −1.22, unresolved). Bit 2: the bonus goes through the gravity bound hist_update, not a raw add (S5 audit D1's
-    // other half). 0 = both off = byte-identical.
+    // other half). 0 = both off = byte-identical. Self-play vs gen 7.5 (#262, 2,000 g each at 10+0.1): =1 +6.9 (95% −4.7 …
+    // +18.7), =2 +4.9 (−6.7 … +16.4), nps equal: both neutral, parked until the verify retune (C7) or a history-scale change.
     inline int SV2_HIST_ALLNODE_GATE = 0;
     // SV2_MALUS_SEARCHED_ONLY: the history malus at a cutoff applies only to moves that were searched (pruned and
-    // futility-cut moves carry no search evidence against them).
+    // futility-cut moves carry no search evidence against them). #249 (gen 7.4 base): STS1500 −261 (201 better / 244 worse,
+    // z −2.04), WAC 252 at −1.0% nodes: the malus on pruned moves is doing work. No games yet.
     inline int SV2_MALUS_SEARCHED_ONLY = 0;
     // ASP_KEEP_FAILHIGH: when an aspiration pass fails high and the clock runs out during the widened retry, the fail-high
     // pass's move (proved at this depth to beat the previous score by the window) is played instead of the previous depth's.
-    // Liveness (2026-11-18, 100 g at 10+0.1): used 0 times in 5,610 moves; the clock cut an iteration only 4 times, so under
-    // the current time manager it cannot fire often enough to matter. Parked until the time manager cuts iterations.
+    // Liveness is not yet measured. The first count (2026-11-18, used 0 times in 5,610 moves, the clock cut 4 iterations) is
+    // void: that run wrote the engine's Debug output to a 9P mount, which slowed the counting engine to a 9% score. With the
+    // output on a local disk the clock cuts an iteration 5.2 times per 1,000 moves (33 of 6,360), 19 of them with a
+    // different move; the re-count runs with the same setup.
     inline int ASP_KEEP_FAILHIGH = 0;
 
     // Optimism-triggered verification (OTV). When a child's backed-up score is about to be

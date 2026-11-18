@@ -3285,7 +3285,9 @@ namespace Config
     // 1 = the queen attacked by a pawn, minor or rook; 2 = also a rook attacked by a pawn or minor, a minor by a pawn. The 11-17
     // UI game's queen trap (memory ui-game-2026-11-17-poisoned-pawn-queen-trap): with ENABLE_RFP=0 the search finds the
     // trapping rook move at d12, with RFP never by d18, because the static eval of the side whose queen is chased sits far
-    // above beta. 0 = byte-identical.
+    // above beta. 0 = byte-identical. Measured (2026-11-18): fixed d10 STS1500 +163 (=1) / +115 (=2), WAC nodes +10% / +25%,
+    // but self-play vs gen 7.6 =1 −5.8 (−18.4 … +6.8) / 1,680 g and =2 −30.0 (−43.2 … −16.8) / 1,500 g: the node cost outweighs
+    // the accuracy. Not shipped; a narrower trigger (the attacked piece has few safe squares) is the next shape.
     inline int RFP_THREAT_GATE = 0;
     // PIN_FAST: the LMR pin test looks from each king, queen and rook for an enemy slider on its line with exactly one own
     // piece between, instead of scanning every piece on a king or queen line for an attacker and x-raying behind it (same
@@ -3340,6 +3342,8 @@ namespace Config
     inline int SV2_MALUS_SEARCHED_ONLY = 0;
     // ASP_KEEP_FAILHIGH: when an aspiration pass fails high and the clock runs out during the widened retry, the fail-high
     // pass's move (proved at this depth to beat the previous score by the window) is played instead of the previous depth's.
+    // Liveness (2026-11-18, 100 g at 10+0.1): used 0 times in 5,610 moves; the clock cut an iteration only 4 times, so under
+    // the current time manager it cannot fire often enough to matter. Parked until the time manager cuts iterations.
     inline int ASP_KEEP_FAILHIGH = 0;
 
     // Optimism-triggered verification (OTV). When a child's backed-up score is about to be

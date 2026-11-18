@@ -259,6 +259,89 @@ inline void stableSortScoredDesc(std::vector<ScoredMove>& a)
 		std::copy(src, src + n, a.data());
 }
 
+/* One move as a unique 64-bit sort key: the high half is the score mapped so that a higher score gives a smaller key, the low
+   half the move's place in the build order (8 bits; a position has at most 218 legal moves) and the move itself. Unique keys
+   sorted ascending give exactly the stable descending order, whatever the sorting method. */
+inline uint64_t scoredMoveKey(const ScoredMove& m, size_t idx)
+{
+	const uint32_t desc = ~((uint32_t)m.score ^ 0x80000000u);
+	return ((uint64_t)desc << 32) | ((uint64_t)idx << 24) | ((uint64_t)m.from << 16) | ((uint64_t)m.to << 8) | m.promo;
+}
+
+// Compare-exchange that compiles to conditional moves: a keeps the smaller key, b the larger.
+inline void compareExchangeKey(uint64_t& a, uint64_t& b)
+{
+	const uint64_t lo = a < b ? a : b;
+	const uint64_t hi = a < b ? b : a;
+	a = lo;
+	b = hi;
+}
+
+// Sorts 8 keys ascending with the 19-comparator network (checked on all 256 zero-one inputs).
+inline void sortNetwork8(uint64_t* k)
+{
+	compareExchangeKey(k[0], k[2]); compareExchangeKey(k[1], k[3]); compareExchangeKey(k[4], k[6]); compareExchangeKey(k[5], k[7]);
+	compareExchangeKey(k[0], k[4]); compareExchangeKey(k[1], k[5]); compareExchangeKey(k[2], k[6]); compareExchangeKey(k[3], k[7]);
+	compareExchangeKey(k[0], k[1]); compareExchangeKey(k[2], k[3]); compareExchangeKey(k[4], k[5]); compareExchangeKey(k[6], k[7]);
+	compareExchangeKey(k[2], k[4]); compareExchangeKey(k[3], k[5]);
+	compareExchangeKey(k[1], k[4]); compareExchangeKey(k[3], k[6]);
+	compareExchangeKey(k[1], k[2]); compareExchangeKey(k[3], k[4]); compareExchangeKey(k[5], k[6]);
+}
+
+/* stableSortScoredDesc's order without its data-dependent branches (Config::SORT_KEYED): the moves become unique keys, each run
+   of 8 is sorted by the network (the last run padded with keys above every real one), and runs are joined by bottom-up merges
+   whose only branches are the loop bounds. The insertion sort and merge carried about 12% of all branch mispredictions on gen
+   7.5's profile. Lists of 256 or more moves (never legal) take the plain sort. */
+inline void stableSortScoredDescKeyed(std::vector<ScoredMove>& a)
+{
+	constexpr size_t RUN = 8;
+	const size_t n = a.size();
+	if (n >= 256)
+	{
+		stableSortScoredDesc(a);
+		return;
+	}
+	thread_local std::vector<uint64_t> keys, buffer;
+	if (keys.size() < n + RUN)
+	{
+		keys.resize(n + RUN);
+		buffer.resize(n + RUN);
+	}
+	for (size_t i = 0; i < n; ++i)
+		keys[i] = scoredMoveKey(a[i], i);
+	for (size_t i = n; i < n + RUN; ++i)
+		keys[i] = UINT64_MAX;
+	for (size_t lo = 0; lo < n; lo += RUN)
+		sortNetwork8(&keys[lo]);
+	uint64_t* src = keys.data();
+	uint64_t* dst = buffer.data();
+	for (size_t width = RUN; width < n; width *= 2) {
+		for (size_t lo = 0; lo < n; lo += 2 * width) {
+			const size_t mid = std::min(lo + width, n), hi = std::min(lo + 2 * width, n);
+			size_t i = lo, j = mid, k = lo;
+			while (i < mid && j < hi) {
+				const uint64_t x = src[i], y = src[j];
+				const bool take_right = y < x;
+				dst[k++] = take_right ? y : x;
+				i += !take_right;
+				j += take_right;
+			}
+			while (i < mid)
+				dst[k++] = src[i++];
+			while (j < hi)
+				dst[k++] = src[j++];
+		}
+		std::swap(src, dst);
+	}
+	for (size_t i = 0; i < n; ++i) {
+		const uint64_t key = src[i];
+		a[i].score = (int)(~(uint32_t)(key >> 32) ^ 0x80000000u);
+		a[i].from = (uint8_t)(key >> 16);
+		a[i].to = (uint8_t)(key >> 8);
+		a[i].promo = (uint8_t)key;
+	}
+}
+
 // Move-list body with the node-invariant king square, slider blockers and checker mask supplied by
 // the caller. These depend only on the board, not on from_mask/to_mask, so the partitioned move-gen
 // (processMaskPairs invokes this once per piece-type pair) computes them once per node instead of
@@ -1320,7 +1403,10 @@ inline void generateLegalMovesReordered(std::vector<Move>& converted_moves, uint
 				return a.score > b.score;
 			});
 		}
-		stableSortScoredDesc(scored);
+		if (Config::SORT_KEYED)
+			stableSortScoredDescKeyed(scored);
+		else
+			stableSortScoredDesc(scored);
 		if (Config::SCRATCH_REUSE == 2) {
 			for (size_t i = 0; i < move_count; ++i)
 				if (scored[i].score != expected[i].score || scored[i].from != expected[i].from || scored[i].to != expected[i].to

@@ -3275,6 +3275,12 @@ namespace Config
     // and the beta-cutoff cache update, which copied the whole move list per cutoff. Same lists in the same order.
     // 2 = also sort every move list with std::stable_sort and abort on the first difference.
     inline int SCRATCH_REUSE = 1;
+    // SORT_KEYED (with SCRATCH_REUSE): the move-ordering sort turns each move into a unique 64-bit key (score descending, then
+    // its place in the build order) and sorts the keys with a compare-exchange network per run of 8 and branch-free merges.
+    // Unique keys give exactly the stable sort's order, so the moves are the same; the sort loses the data-dependent branches
+    // that made it the largest single source of branch mispredictions on gen 7.5's profile (~12%). SCRATCH_REUSE=2 checks
+    // every list against std::stable_sort.
+    inline int SORT_KEYED = 0;
     // PIN_FAST: the LMR pin test looks from each king, queen and rook for an enemy slider on its line with exactly one own
     // piece between, instead of scanning every piece on a king or queen line for an attacker and x-raying behind it (same
     // answer). 2 = run both and abort on the first difference.

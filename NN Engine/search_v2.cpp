@@ -478,6 +478,7 @@ namespace sv2
 		bool all_moves_pruned = true;
 		bool using_fp = false;
 		int best_early_eval = no_move_score;
+		int best_fut_bound = no_move_score;   // SV2_FUT_BOUND: the largest bound a futility prune justified (eval + margin)
 		const bool currently_in_check = is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops,
 		                                         current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
 		if (Config::ENABLE_IMPROVING && cur_depth < MAX_PLY)
@@ -832,6 +833,8 @@ namespace sv2
 			if (using_fp)
 			{
 				best_early_eval = std::max(best_early_eval, score);
+				if (Config::SV2_FUT_BOUND)
+					best_fut_bound = std::max(best_fut_bound, g_sv2_fut_bound);
 				unmake_move(state_history, position_count, zobrist);
 				zobrist = cur_hash;
 				continue;
@@ -982,6 +985,11 @@ namespace sv2
 				g_fut_gap_sum += best_early_eval - best_score;
 			}
 		}
+		// SV2_FUT_BOUND (S2-3): the fail-low bound includes what the pruned moves can be worth. Each pruned bound is below the
+		// alpha it was pruned against, and a node that pruned and still failed low never raised alpha, so the result stays a
+		// fail low. History and correction history above have already read the searched best.
+		if (Config::SV2_FUT_BOUND && best_fut_bound > best_score && std::abs(best_score) < 9000000)
+			best_score = best_fut_bound;
 		store_node_tt(zobrist, current_state, state_history, s * best_score, cur_depth, depth_limit, root_lo<RootSide>(alpha_orig, beta_orig),
 		              root_hi<RootSide>(alpha_orig, beta_orig), best_move);
 		return best_score;
@@ -1193,6 +1201,7 @@ namespace sv2
 					++g_sv2_probe.pruned_fut[probe_rd(rd)];
 #endif
 					using_fp = true;
+					g_sv2_fut_bound = early_score + fut_margin;   // read by the caller right after this return (SV2_FUT_BOUND)
 					return early_score;
 				}
 			}

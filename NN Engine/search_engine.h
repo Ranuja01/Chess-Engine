@@ -3350,15 +3350,25 @@ namespace Config
     inline int SV2_HIST_ALLNODE_GATE = 0;
     // SV2_MALUS_SEARCHED_ONLY: the history malus at a cutoff applies only to moves that were searched (pruned and
     // futility-cut moves carry no search evidence against them). #249 (gen 7.4 base): STS1500 −261 (201 better / 244 worse,
-    // z −2.04), WAC 252 at −1.0% nodes: the malus on pruned moves is doing work. No games yet.
+    // z −2.04), WAC 252 at −1.0% nodes: the malus on pruned moves is doing work. Self-play vs gen 7.6 (#275, 2,000 g at
+    // 10+0.1): −3.0 (95% −14.5 … +8.6), neutral, parked. That run covered plies 2 and below only: the ply-1 malus does not
+    // read this knob (S2-31); re-test the all-plies form once that is fixed.
     inline int SV2_MALUS_SEARCHED_ONLY = 0;
     // ASP_KEEP_FAILHIGH: when an aspiration pass fails high and the clock runs out during the widened retry, the fail-high
     // pass's move (proved at this depth to beat the previous score by the window) is played instead of the previous depth's.
     // Liveness is not yet measured. The first count (2026-11-18, used 0 times in 5,610 moves, the clock cut 4 iterations) is
     // void: that run wrote the engine's Debug output to a 9P mount, which slowed the counting engine to a 9% score. With the
     // output on a local disk the clock cuts an iteration 5.2 times per 1,000 moves (33 of 6,360), 19 of them with a
-    // different move; the re-count runs with the same setup.
+    // different move. The re-count with the same setup (#275, 100 g at 10+0.1, 7,043 moves): used 6 times, 0.85 per 1,000
+    // moves, below the 1-per-1,000 bar for games: parked until aspiration or the time manager's cut is reshaped.
     inline int ASP_KEEP_FAILHIGH = 0;
+    // SV2_FUT_BOUND (S2-3): a futility-pruned move's value counts toward the node's fail-low bound. The prune is justified
+    // because the child's eval + the margin is below alpha, so the move is worth at most that; today only the searched moves
+    // set the returned upper bound, which can sit below a pruned move's bound (20-26% of no-cut exits with a pruned move,
+    // mean ~0.4 pawn, #277), and the parent stores the too-low bound at full depth. 1 = at a fail-low exit the node returns
+    // max(best searched score, best pruned bound), as SF raises bestValue to the futility value (not when the best searched
+    // score is a mate score). 0 = byte-identical.
+    inline int SV2_FUT_BOUND = 0;
 
     // Optimism-triggered verification (OTV). When a child's backed-up score is about to be
     // trusted (become the node's new best / cause the cutoff) AND it overshoots the node's OWN

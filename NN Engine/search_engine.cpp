@@ -817,6 +817,9 @@ static long g_hz_total = 0, g_hz_static = 0, g_hz_static_check = 0, g_hz_static_
                                                                   // check / inside a null-move search
 static long g_fut_exit = 0, g_fut_gap = 0;                        // S2-3: no-cut exits with a futility-pruned move, and those
 static long long g_fut_gap_sum = 0;                               // whose pruned value exceeds the returned best (gap summed)
+static int g_sv2_fut_bound = 0;                                   // SV2_FUT_BOUND: the bound a futility prune justifies (the
+                                                                  // child's eval + the margin, node frame), set by score_move
+                                                                  // just before it returns a pruned move to its caller
 static long g_ps_store = 0, g_ps_exact_mislabel = 0;              // S2-4: pre_minimizer's TT stores, and EXACT ones whose score
                                                                   // reached the current beta (a lower bound)
 static long g_rfp_ret = 0, g_rfp_lazy_ret = 0;                    // S2-9 / S2-26: reverse-futility returns, of which a lazy estimate
@@ -3325,6 +3328,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SV2_HIST_ALLNODE_GATE = env_int("SV2_HIST_ALLNODE_GATE", Config::SV2_HIST_ALLNODE_GATE);
         Config::SV2_MALUS_SEARCHED_ONLY = env_int("SV2_MALUS_SEARCHED_ONLY", Config::SV2_MALUS_SEARCHED_ONLY);
         Config::ASP_KEEP_FAILHIGH = env_int("ASP_KEEP_FAILHIGH", Config::ASP_KEEP_FAILHIGH);
+        Config::SV2_FUT_BOUND = env_int("SV2_FUT_BOUND", Config::SV2_FUT_BOUND);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
         Config::OTV_MARGIN = env_int("OTV_MARGIN", Config::OTV_MARGIN);

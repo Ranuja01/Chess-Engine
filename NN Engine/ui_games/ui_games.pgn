@@ -1,96 +1,162 @@
-[Event "AlphaUX UI game"]
+[Event "#1 · 10-01 · v2 shipped 10-01 vs Stockfish 18 (0.005 s/move) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.10.01"]
 [Round "1"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[White "Stockfish 18 (0.005 s/move)"]
+[Black "AlphaUX v2 shipped 10-01 (time unknown)"]
+[Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI"]
+[AlphaUXTime "not stated (that evening used LIGHTNING and STANDARD)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "none (standard start)"]
+[OurSide "Black"]
+[Outcome "loss (PGN stops at 81.Kd4, before White's g-pawn queens)"]
+[Confidence "side inferred (the assistant's 10-01 analysis lists our decisions as Black's); opponent stated; time unknown (AlphaUX time not stated, the opponent time is); build inferred (the assistant's launch line and its 10-01 analysis note); result stated (owner: 'another loss')"]
+[OwnerNote "here's the first game. We've never been able to beat SF18 at 0.005 seconds of time per move ... with 0.005 here's a nother loss"]
+[Evidence "owner 10-02 00:08Z: 'We've never been able to beat SF18 at 0.005 seconds of time per move ... here's a nother loss'"]
+[Pasted "2026-10-01 20:08 EDT"]
+[Session "97a258a9"]
+[Source "pasted 2026-10-01 20:08 EDT in session 97a258a9; not in the old archive (bare movetext)"]
+
+{ AlphaUX played Black (v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI; not stated (that evening used LIGHTNING and STANDARD)) against Stockfish 18 at 0.005 s per move (fixed), from none (standard start). Result: loss (PGN stops at 81.Kd4, before White's g-pawn queens). Confidence: side inferred, opponent stated, time unknown, build inferred, result stated; details in the Confidence tag. }
+1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bf1 Nxe5
+8. Rxe5 O-O 9. d4 Bf6 10. Re1 Re8 11. Nc3 Rxe1 12. Qxe1 Bxd4 13. Bf4 Ne8 14.
+Nd5 d6 15. Bg5 f6 16. Qe4 fxg5 17. Bc4 Kh8 18. Bd3 Nf6 ( 18... Bf5 19. Qxf5 )
+19. Nxf6 Bf5 20. Qxd4 c5 21. Qc3 Bxd3 22. Nh5 Qe7 23. Qxd3 Rf8 24. Ng3 Rf4 25.
+Kf1 Qf6 26. Qe3 h6 27. c3 Qf7 28. Kg1 Rf6 29. f3 Re6 30. Qf2 Qf4 31. Rb1 Qa4
+32. b4 cxb4 33. cxb4 Re8 34. Kh1 d5 35. Qd2 Qc6 36. Rd1 Qc4 37. Kg1 Rc8 38.
+Qxd5 Qxb4 39. Qd7 Qb6+ 40. Kh1 Qc6 41. h3 Qxd7 42. Rxd7 a5 43. Rxb7 Kg8 44. Kh2
+Rf8 45. Ra7 Rc8 46. Rxa5 Rc1 47. Ne4 Ra1 48. a3 Kf7 49. Ra6 Rd1 50. a4 Ke7 51.
+Ra5 Kd8 52. h4 gxh4 53. Ra8+ Ke7 54. a5 g5 55. Ra7+ Rd7 56. Rxd7+ Kxd7 57. Nf2
+h5 58. Kh3 Kc6 59. Nd3 Kb5 60. f4 gxf4 61. Kxh4 Kxa5 62. Nxf4 Kb5 63. Nd3 Kc4
+64. Kxh5 Kd4 65. g4 Kxd3 66. g5 Ke3 67. Kg6 Kd2 68. Kf5 Ke1 69. Ke4 Kf2 70. g6
+Ke2 71. g7 Kd2 72. Kd4 Ke2 73. Ke4 Kd2 74. Kf4 Kc3 75. Ke3 Kb4 76. Kf4 Kc3 77.
+Kf5 Kd3 78. Kg4 Kd2 79. Kf3 Kc3 80. Ke3 Kb4 81. Kd4 1-0
+
+[Event "#2 · 10-01 · v2 shipped 10-01 vs Stockfish 18 (0.005 s/move) · win · knight odds"]
+[Site "ChessUI (local)"]
+[Date "2026.10.01"]
+[Round "2"]
+[White "Stockfish 18 (0.005 s/move)"]
+[Black "AlphaUX v2 shipped 10-01 (LIGHTNING)"]
+[Result "0-1"]
 [FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset (~1 s/move)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "knight odds to AlphaUX: White (Stockfish) starts without the b1 knight"]
+[OurSide "Black"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives White no b1 knight = odds to us, owner says win and Black mates); opponent stated; time stated; build inferred (the assistant's launch line and its 10-01 analysis note); result stated ('Clean win')"]
+[OwnerNote "this time here's a lightning game against SF18 0.005 with knight odds, which we sometimes dont beat still ... Clean win"]
+[Evidence "owner 10-02 00:11Z: 'a lightning game against SF18 0.005 with knight odds'; 'Clean win'"]
 [Pasted "2026-10-01 20:11 EDT"]
-[AlphaUXBuild "pre-10-11 (in-process UI; build not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "this time here's a lightning game against SF18 0.005 with knight odds, which we sometimes dont beat still: '"]
 [Session "97a258a9"]
 
+{ AlphaUX played Black (v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI; LIGHTNING preset (~1 s/move)) against Stockfish 18 at 0.005 s per move (fixed), from knight odds to AlphaUX: White (Stockfish) starts without the b1 knight. Result: win by checkmate. Confidence: side inferred, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 c5 2. b4 cxb4 3. Nf3 d5 4. Ne5 dxe4 5. Qh5 g6 6. Bc4 Qd4 7. Bxf7+ Kd8 8.
 c3 bxc3 9. Qg5 Bh6 10. Qg3 cxd2+ 11. Bxd2 Qxd2+ 12. Kf1 Qd4 13. Re1 Nc6 14.
 Nxc6+ bxc6 15. Kg1 Nf6 16. Qh4 Qd2 17. Rb1 Ng4 18. h3 e3 19. hxg4 exf2+ 20.
 Qxf2 Be3 21. Qxe3 Qxe3+ 22. Kh2 Qf4+ 23. Kg1 Qxf7 24. Rh3 Bxg4 25. Rh4 Qxa2 26.
 Rf1 Qe2 27. g3 Bf3 28. Rxf3 Qxf3 29. Kh2 Rf8 30. Rd4+ Kc8 31. Rd2 Rb8 32. Rc2
-Rb1 33. Rxc6+ Kd7 34. Rc1 Rxc1 35. g4 Rh1# *
+Rb1 33. Rxc6+ Kd7 34. Rc1 Rxc1 35. g4 Rh1# 0-1
 
-[Event "AlphaUX UI game"]
-[Site "ChessUI (local)"]
-[Date "2026.10.01"]
-[Round "2"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
-[FEN "rbbqkbbr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
-[SetUp "1"]
-[Pasted "2026-10-01 20:16 EDT"]
-[AlphaUXBuild "pre-10-11 (in-process UI; build not recorded) - inferred from the install dates, not recorded at play time"]
-[Session "97a258a9"]
-
-1. e4 e5 2. Nc3 f6 3. Nf3 c5 4. b3 Be7 5. Bc4 Bxc4 6. bxc4 b6 7. d3 O-O 8. Nh4
-g6 9. g4 f5 10. Nxf5 gxf5 11. gxf5 Kh8 12. Qh5 Rg8 13. Bh6 b5 14. Ke2 Bb7 15.
-Rhg1 bxc4 16. Rxg8+ Qxg8 17. Rg1 Qxg1 18. Qe8+ Qg8 19. Qxe7 Qg4+ 20. Kd2 Bc7
-21. Qxd7 Rc8 22. Qf7 cxd3 23. f6 Rg8 24. Qxc7 Bc8 25. f7 *
-
-[Event "AlphaUX UI game"]
+[Event "#3 · 10-01 · v2 shipped 10-01 vs Stockfish 18 (0.005 s/move, carried) · loss · variant start"]
 [Site "ChessUI (local)"]
 [Date "2026.10.01"]
 [Round "3"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
-[FEN "2kr3r/pp4pp/1b2bp2/4p3/4P3/B1P2N1P/P3RPP1/R5K1 b - - 0 20"]
+[White "Stockfish 18 (0.005 s/move, carried)"]
+[Black "AlphaUX v2 shipped 10-01 (LIGHTNING)"]
+[Result "1-0"]
+[FEN "rbbqkbbr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
 [SetUp "1"]
-[Pasted "2026-10-01 20:20 EDT"]
-[AlphaUXBuild "pre-10-11 (in-process UI; build not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "here's a position that is winning for black from a point where V1 won against an online IM John bartholomew BOT by chessiverse that black now lost a gainst SF: '"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset (carried)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed) (not restated; carried from the game before)"]
+[Odds "variant start, no material odds: Black's knights replaced by bishops (rbbqkbbr)"]
+[OurSide "Black"]
+[Outcome "loss"]
+[Confidence "side stated ('we only have bishops', FEN); opponent carried; time carried; build inferred (the assistant's launch line and its 10-01 analysis note); result stated ('a quick loss')"]
+[OwnerNote "this time no odds, but instead of knights we only have bishops, which constitutes a whacky game ... it was a quick loss"]
+[Evidence "owner 10-02 00:16Z: 'this time no odds, but instead of knights we only have bishops ... it was a quick loss'"]
+[Pasted "2026-10-01 20:16 EDT"]
 [Session "97a258a9"]
 
+{ AlphaUX played Black (v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI; LIGHTNING preset (carried)) against Stockfish 18 at 0.005 s per move (fixed) (not restated; carried from the game before), from variant start, no material odds: Black's knights replaced by bishops (rbbqkbbr). Result: loss. Confidence: side stated, opponent carried, time carried, build inferred, result stated; details in the Confidence tag. }
+1. e4 e5 2. Nc3 f6 3. Nf3 c5 4. b3 Be7 5. Bc4 Bxc4 6. bxc4 b6 7. d3 O-O 8. Nh4
+g6 9. g4 f5 10. Nxf5 gxf5 11. gxf5 Kh8 12. Qh5 Rg8 13. Bh6 b5 14. Ke2 Bb7 15.
+Rhg1 bxc4 16. Rxg8+ Qxg8 17. Rg1 Qxg1 18. Qe8+ Qg8 19. Qxe7 Qg4+ 20. Kd2 Bc7
+21. Qxd7 Rc8 22. Qf7 cxd3 23. f6 Rg8 24. Qxc7 Bc8 25. f7 1-0
+
+[Event "#4 · 10-01 · v2 shipped 10-01 vs Stockfish (setting not stated) · loss · custom FEN"]
+[Site "ChessUI (local)"]
+[Date "2026.10.01"]
+[Round "4"]
+[White "Stockfish (setting not stated)"]
+[Black "AlphaUX v2 shipped 10-01 (time unknown)"]
+[Result "1-0"]
+[FEN "2kr3r/pp4pp/1b2bp2/4p3/4P3/B1P2N1P/P3RPP1/R5K1 b - - 0 20"]
+[SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI"]
+[AlphaUXTime "not stated"]
+[OpponentSettings "Stockfish ('SF'); setting not restated, likely SF18 at 0.005 s as in the games before"]
+[Odds "custom FEN: move 20 of V1's win against the Chessiverse Bartholomew bot, winning for Black"]
+[OurSide "Black"]
+[Outcome "loss"]
+[Confidence "side stated ('black now lost'); opponent inferred; time unknown; build inferred (the assistant's launch line and its 10-01 analysis note); result stated"]
+[OwnerNote "here's a position that is winning for black from a point where V1 won against an online IM John bartholomew BOT by chessiverse that black now lost a gainst SF"]
+[Evidence "owner 10-02 00:20Z: 'a position that is winning for black ... that black now lost a gainst SF'"]
+[Pasted "2026-10-01 20:20 EDT"]
+[Session "97a258a9"]
+
+{ AlphaUX played Black (v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI; not stated) against Stockfish ('SF'); setting not restated, likely SF18 at 0.005 s as in the games before, from custom FEN: move 20 of V1's win against the Chessiverse Bartholomew bot, winning for Black. Result: loss. Confidence: side stated, opponent inferred, time unknown, build inferred, result stated; details in the Confidence tag. }
 20... Rd3 21. Rc1 Rhd8 22. Rb2 Kb8 23. Bb4 Bc4 24. Kh2 Ka8 25. Rcc2 Be6 26. a4
 Rd1 27. a5 Bc7 28. Rd2 Ra1 29. Rxd8+ Bxd8 30. Rd2 Bc7 31. Bf8 g6 32. Be7 f5 33.
 Bd8 Kb8 34. Ng5 Bb3 35. exf5 gxf5 36. Nxh7 Bxd8 37. Rxd8+ Kc7 38. Re8 Rxa5 39.
 Re7+ Kb6 40. Nf6 Kc6 41. h4 Ra2 42. h5 Rxf2 43. h6 Rf4 44. g3 Rf2+ 45. Kg1 Rc2
 46. h7 Rc1+ 47. Kh2 Rc2+ 48. Kh3 Rc1 49. Rxe5 Bf7 50. Re2 Bc4 51. Rh2 Rxc3 52.
 h8=Q Bf1+ 53. Kh4 Rxg3 54. Kxg3 Kb5 55. Qe8+ Kc4 56. Rh4+ Kd3 57. Qb5+ Kc2 58.
-Rh2+ *
+Rh2+ 1-0
 
-[Event "Play vs Bot"]
+[Event "#5 · 10-01 · v2 shipped 10-01 vs chess.com world-champion-carlsen bot · loss"]
 [Site "Chess.com"]
-[Date "2026.10.02"]
-[Round "4"]
-[White "ranmal100"]
-[Black "world-champion-carlsen"]
+[Date "2026.10.01"]
+[Round "5"]
+[White "AlphaUX v2 shipped 10-01 (STANDARD)"]
+[Black "chess.com world-champion-carlsen bot"]
 [Result "0-1"]
-[CurrentPosition "8/8/8/8/2p5/1K3k2/4p3/8 w - - 0 71"]
-[Timezone "UTC"]
-[ECO "C94"]
-[ECOUrl "https://www.chess.com/openings/Ruy-Lopez-Opening-Morphy-Defense-Keres-Breyer-Defense"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI"]
+[AlphaUXTime "STANDARD preset"]
+[OpponentSettings "chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss (chess.com: Magnus Carlsen won by resignation)"]
+[Confidence "side stated (chess.com account ranmal100 is White); opponent stated (untimed inferred); time stated; build inferred (the assistant's launch line and its 10-01 analysis note); result stated"]
+[OwnerNote "final game using the STANDARD preset against the Magnus Carlsen bot in chess.com. Disappointing loss ... We were winning at one point"]
+[Evidence "owner 10-02 01:18Z: 'final game using the STANDARD preset against the Magnus Carlsen bot in chess.com. Disappointing loss'"]
+[SiteWhite "ranmal100"]
+[SiteBlack "world-champion-carlsen"]
 [UTCDate "2026.10.02"]
 [UTCTime "00:22:27"]
+[Timezone "UTC"]
+[StartTime "00:22:27"]
+[EndTime "01:14:11"]
+[EndDate "2026.10.02"]
 [WhiteElo "1268"]
 [BlackElo "2882"]
-[TimeControl "?"]
-[Termination "Magnus Carlsen won by resignation"]
-[StartTime "00:22:27"]
-[EndDate "2026.10.02"]
-[EndTime "01:14:11"]
+[ECO "C94"]
 [Link "https://www.chess.com/analysis/game/computer/2245644068/analysis?move=139"]
-[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
-[WhiteCountry "3"]
-[WhiteTitle ""]
-[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/315574933.59dc97b4.50x50o.3696cc31e5c5.png"]
-[BlackCountry "104"]
-[BlackTitle ""]
+[Termination "Magnus Carlsen won by resignation"]
 [Pasted "2026-10-01 21:18 EDT"]
-[AlphaUXBuild "pre-10-11 (in-process UI; build not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "final game using the STANDARD preset against the Magnus Carlsen bot in chess.com. Disappointing loss: '"]
 [Session "97a258a9"]
 
+{ AlphaUX played White (v2 V2_PRESET=shipped as of 10-01 (Fit A PSTs + KS + winnability; fingerprint 251 / 49,211,859), in-process Cython UI; STANDARD preset) against chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed, from none (standard start). Result: loss (chess.com: Magnus Carlsen won by resignation). Confidence: side stated, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3
 O-O 9. h3 Nb8 10. d4 Nbd7 11. Nbd2 Bb7 12. Bc2 Re8 13. Nf1 Bf8 14. Ng3 g6 15.
 a4 c5 16. d5 c4 17. Be3 Nc5 18. Bxc5 dxc5 19. Nf1 Bd6 20. Ne3 Qe7 21. Qe2 Red8
@@ -103,19 +169,28 @@ Kd6 54. Nxe7 Kxe7 55. Nf3 Bxf3+ 56. Kxf3 f5 57. Ke3 Kf6 58. exf5 Kxf5 59. f3 g5
 60. Kf2 Kf4 61. Kg2 g4 62. fxg4 Kxg4 63. Kf2 Kf4 64. Ke2 Ke4 65. Kd2 Kf3 66. b3
 cxb3 67. Kc1 e4 68. Kb2 e3 69. Kxb3 e2 70. c4 bxc4+ 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#6 · 10-04 · v2 shipped 10-04 vs Stockfish 18 (0.005 s/move) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.10.04"]
-[Round "5"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "6"]
+[White "AlphaUX v2 shipped 10-04 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "0-1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss"]
+[Confidence "side stated ('lost as white'); opponent stated; time stated (owner's command PRESET=LIGHTNING); build stated (owner's command V2_PRESET=shipped PRESET=LIGHTNING, fingerprint from the assistant's notes); result stated"]
+[OwnerNote "first game lost as white ... This is against SF18 at 0.005s. Still haven't been able to beat this version"]
+[Evidence "owner 10-05 01:44Z: 'first game lost as white ... This is against SF18 at 0.005s'"]
 [Pasted "2026-10-04 21:44 EDT"]
-[AlphaUXBuild "pre-10-11 (in-process UI; build not recorded) - inferred from the install dates, not recorded at play time"]
-[ParseNote "the pasted PGN has an illegal move; the game stops before it"]
-[OwnerNote "first game lost as white: '"]
 [Session "10e4d60e"]
+[ParseNote "the pasted PGN has an illegal move; the game stops before it"]
 
+{ AlphaUX played White (v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI; LIGHTNING preset) against Stockfish 18 at 0.005 s per move (fixed), from none (standard start). Result: loss. Confidence: side stated, opponent stated, time stated, build stated, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Nxe4 6. d4 exd4 7. Re1 d5 8.
 Nxd4 Bc5 9. Nxc6 Bxf2+ 10. Kf1 Qh4 11. Ne5+ c6 12. Qxd5 O-O 13. Rxe4 Qxh2 14.
 Qd3 Qg1+ 15. Ke2 Bf5 16. Bd2 Bh4 17. Qf3 Bxe4 18. Qxe4 Rae8 19. Bb3 Qf2+ 20.
@@ -129,23 +204,92 @@ Rxc2 52. Bf5 Rc3 53. Bg4 Kg6 54. Bd7 Kg5 55. Ka5 h3 56. Bxh3 Ra3+ 57. Kb6 Rxh3
 Kc5 Re6 65. Kd4 Rd6+ 66. Kc5 Rd8 67. Kc4 Rb8 68. Kc3 Ra8 69. Kb3 Kf8 70. Kc4
 Ra5 71. Kd3 Ra4 72. Kc3 Rg4 73. Kb3 Rh4 74. Kc3 Ke8 75. Kd3 Ke7 76. Kd2 Rh3 77.
 Kc2 Kd8 78. Kd2 Kc8 79. Kc2 Kb7 80. Kd2 Kc8 81. Kc2 Re3 82. Kd2 Rg3 83. Ke2 Kb7
-84. Kf1 Re3 85. Kg1 Kb8 *
+84. Kf1 Re3 85. Kg1 Kb8 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#7 · 10-04 · v2 shipped 10-04 vs Stockfish 18 (0.005 s/move, carried) · win · knight odds"]
 [Site "ChessUI (local)"]
 [Date "2026.10.04"]
-[Round "6"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "7"]
+[White "AlphaUX v2 shipped 10-04 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move, carried)"]
+[Result "1-0"]
+[FEN "r1bqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset (carried)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed) (carried from the game before)"]
+[Odds "knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives Black no b8 knight = odds to us, White mates); opponent carried; time carried; build carried (owner's command V2_PRESET=shipped PRESET=LIGHTNING for this sitting, fingerprint from the assistant's notes); result stated"]
+[OwnerNote "here's a win with knight odds"]
+[Evidence "owner 10-05 01:48Z (queued): 'here's a win with knight odds'"]
+[Pasted "2026-10-04 21:48 EDT"]
+[Session "10e4d60e"]
+[Source "pasted 2026-10-04 21:48 EDT in session 10e4d60e; not in the old archive (queued mid-turn message)"]
+
+{ AlphaUX played White (v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI; LIGHTNING preset (carried)) against Stockfish 18 at 0.005 s per move (fixed) (carried from the game before), from knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight. Result: win by checkmate. Confidence: side inferred, opponent carried, time carried, build carried, result stated; details in the Confidence tag. }
+1. d4 Nf6 2. c4 e5 3. dxe5 Ne4 4. Nc3 Bb4 5. Qc2 f5 6. exf6 Bxc3+ 7. bxc3 d5 8.
+fxg7 Rg8 9. cxd5 Bf5 10. g4 Qxd5 11. gxf5 Qc4 12. e3 Qc6 13. Bg2 O-O-O 14. Bxe4
+Qh6 15. Qa4 Qxg7 16. Bxb7+ Kb8 17. Ne2 Rd6 18. Bc6 Kc8 19. Nd4 Qg5 20. Qxa7
+Rxc6 21. Qa8+ Kd7 22. Qxc6+ Kc8 23. Ne6 Qe7 24. Ba3 Rg2 25. Bxe7 Rg1+ 26. Rxg1
+Kb8 27. Rb1+ Ka7 28. Qb7# 1-0
+
+[Event "#8 · 10-04 · v2 shipped 10-04 vs Stockfish 18 (0.005 s/move, carried) · win · variant start"]
+[Site "ChessUI (local)"]
+[Date "2026.10.04"]
+[Round "8"]
+[White "AlphaUX v2 shipped 10-04 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move, carried)"]
+[Result "1-0"]
+[FEN "rnnqknnr/pppppppp/8/8/8/8/PPPPPPPP/RBBQKBBR w KQkq - 0 1"]
+[SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset (carried)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed) (carried)"]
+[Odds "variant start: White has bishops for knights, Black knights for bishops (rnnqknnr / RBBQKBBR)"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side stated ('where we win as white'); opponent carried; time carried; build carried (owner's command V2_PRESET=shipped PRESET=LIGHTNING for this sitting, fingerprint from the assistant's notes); result stated"]
+[OwnerNote "interesting game of all knights vs all bishops where we win as white"]
+[Evidence "owner 10-05 01:50Z (queued): 'interesting game of all knights vs all bishops where we win as white'"]
+[Pasted "2026-10-04 21:50 EDT"]
+[Session "10e4d60e"]
+[Source "pasted 2026-10-04 21:50 EDT in session 10e4d60e; not in the old archive (queued mid-turn message)"]
+
+{ AlphaUX played White (v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI; LIGHTNING preset (carried)) against Stockfish 18 at 0.005 s per move (fixed) (carried), from variant start: White has bishops for knights, Black knights for bishops (rnnqknnr / RBBQKBBR). Result: win by checkmate. Confidence: side stated, opponent carried, time carried, build carried, result stated; details in the Confidence tag. }
+1. c3 e5 2. d4 exd4 3. cxd4 d5 4. e4 dxe4 5. Bxe4 Qe7 6. f3 f5 7. Bd3 Nd6 8.
+Bge3 fxe4 9. fxe4 Nxe4 10. O-O Nbd7 11. Re1 O-O-O 12. Bg5 Qxg5 13. Bxg5 Nxg5
+14. Rc1 Ngf6 15. Qa4 Kb8 16. Qc4 c6 17. Qb3 Nb6 18. Bf5 h6 19. h4 Ngh7 20. Qg3+
+Ka8 21. Qxg7 Rg8 22. Qe7 Rb8 23. Qe3 h5 24. Qd3 Nbd5 25. g3 Rg7 26. Qa3 Ng6 27.
+Kh2 Rf8 28. Bh3 Ng4+ 29. Bxg4 hxg4 30. Qxf8+ Ngxf8 31. Re8# 1-0
+
+[Event "#9 · 10-04 · v2 shipped 10-04 vs Stockfish 18 (0.005 s/move, carried) · loss · custom FEN"]
+[Site "ChessUI (local)"]
+[Date "2026.10.04"]
+[Round "9"]
+[White "AlphaUX v2 shipped 10-04 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move, carried)"]
+[Result "0-1"]
 [FEN "8/1b1q1pk1/1Q1b1npp/1ppPp3/2p1P3/2P1N2P/1P1N1PP1/3B2K1 w - - 10 33"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset (carried)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed) (carried)"]
+[Odds "custom FEN (move 33, White to move, a middlegame White was winning)"]
+[OurSide "White"]
+[Outcome "loss"]
+[Confidence "side inferred (the assistant's analysis: the losing 78.Kd2 was our move); opponent carried; time carried; build carried (owner's command V2_PRESET=shipped PRESET=LIGHTNING for this sitting, fingerprint from the assistant's notes); result stated"]
+[OwnerNote "bit of a dissapointing loss from a winning position, but then it was purely drawn, but the engine refused to take the draw ... and allowed itself to lose"]
+[Evidence "owner 10-05 01:58Z: 'a dissapointing loss from a winning position ... allowed itself to lose'"]
 [Pasted "2026-10-04 21:58 EDT"]
-[AlphaUXBuild "pre-10-11 (in-process UI; build not recorded) - inferred from the install dates, not recorded at play time"]
-[ParseNote "the pasted PGN has an illegal move; the game stops before it"]
-[OwnerNote "bit of a dissapointing loss from a winning position, but then it was purely drawn, but the engine refused to take the draw (by repeating moves or just playing it out until 50 move rule) and allowed itself to lose: '"]
 [Session "10e4d60e"]
+[ParseNote "the pasted PGN has an illegal move; the game stops before it"]
 
+{ AlphaUX played White (v2 V2_PRESET=shipped as of 10-04 (connected-pawn ship; fingerprint 254 / 50,622,239), in-process Cython UI; LIGHTNING preset (carried)) against Stockfish 18 at 0.005 s per move (fixed) (carried), from custom FEN (move 33, White to move, a middlegame White was winning). Result: loss. Confidence: side inferred, opponent carried, time carried, build carried, result stated; details in the Confidence tag. }
 33. Bg4 Nxg4 34. hxg4 Bc8 35. Nb1 Be7 36. f3 Qb7 37. Qc6 Bg5 38. Kf2 Bxe3+ 39.
 Kxe3 Qxc6 40. dxc6 Kf8 41. Na3 Ba6 42. c7 Ke8 43. c8=Q+ Bxc8 44. Nxb5 Ke7 45.
 Na3 Be6 46. Ke2 f6 47. Nc2 Kd8 48. Ne3 Bf7 49. Kd1 Kc7 50. g5 fxg5 51. Ng4 Kd6
@@ -154,22 +298,31 @@ Ke3 Kc6 59. Kd2 Kb5 60. Kc1 Ka5 61. Kd1 Ka6 62. Ke2 Ka5 63. Ke1 Ka4 64. Kd1 Ka5
 65. Ke2 Kb5 66. Kd2 Ka5 67. Kc1 Kb5 68. Kc2 Kb6 69. b3 cxb3+ 70. Kxb3 Kb5 71.
 c4+ Kb6 72. Ka4 Ka6 73. g3 Kb6 74. Kb3 Ka7 75. Kc2 Kb8 76. Kc3 Kc7 77. Kd3 Kb6
 78. Kd2 Ka5 79. Kc3 Ka4 80. Kd2 Kb3 81. Kd3 Kb4 82. Kd2 Kxc4 83. Kc2 Kd4 84.
-Kc1 Kd3 85. Kb2 c4 86. Kc1 c3 *
+Kc1 Kd3 85. Kb2 c4 86. Kc1 c3 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#10 · 10-15 · gen 3 vs Stockfish 18 (0.005 s/move) · loss · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.10.15"]
-[Round "7"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "10"]
+[White "AlphaUX gen 3 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "0-1"]
 [FEN "8/1b1q1pk1/1Q1b1npp/1ppPp3/2p1P3/2P1N2P/1P1N1PP1/3B2K1 w - - 10 33"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "custom FEN (the 10-04 position, move 33)"]
+[OurSide "White"]
+[Outcome "loss (Black's h-pawn runs through; PGN ends K v K+P)"]
+[Confidence "side stated ('we were white here', said after); opponent inferred (owner later: SF18 at 0.005 s 'like in that first game'); time stated (said afterwards for this sitting); build inferred (the assistant's launch line V2_PRESET=shipped, ship date); result inferred (the assistant's read, the owner implied it)"]
+[OwnerNote "first game in ... we were white here"]
+[Evidence "owner 10-16 00:58Z: 'SF18 @ 0.005s (which is often stronger than us like in that first game)'; 01:12Z: 'all of these were LIGHTNING games'"]
 [Pasted "2026-10-15 19:28 EDT"]
-[AlphaUXBuild "v2 gen 3 (in-process UI; preset not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "first game in: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI; LIGHTNING preset) against Stockfish 18 at 0.005 s per move (fixed), from custom FEN (the 10-04 position, move 33). Result: loss (Black's h-pawn runs through; PGN ends K v K+P). Confidence: side stated, opponent inferred, time stated, build inferred, result inferred; details in the Confidence tag. }
 33. Bg4 Nxg4 34. hxg4 Bc8 35. Nb1 Bc7 36. Qxc5 Bb8 37. Na3 Ba7 38. Qxb5 Qxb5
 39. Nxb5 Bxe3 40. fxe3 Bxg4 41. Nd6 Be2 42. Ne8+ Kf8 43. Nf6 Kg7 44. Nd7 f6 45.
 Nc5 Bd1 46. Kf1 Kf8 47. Ke1 Bg4 48. Kd2 Bc8 49. d6 Ke8 50. Kc2 h5 51. b3 cxb3+
@@ -178,31 +331,38 @@ gxh3 59. Kd5 h2 60. Nf2 Bh3 61. Kc6 Be6 62. Nh1 Bb3 63. d7 Bc2 64. Nf2 Bxe4+
 65. Kd6 Bf5 66. c4 Bxd7 67. c5 Ke8 68. c6 Bf5 69. c7 Kf7 70. Nh1 Kg6 71. Kd5
 Kg5 72. Kd6 Kg4 73. Ke7 Kf3 74. Kxf6 Bc8 75. Kxe5 Kg2 76. Kf6 Kxh1 77. Ke7 Kg2
 78. Kd8 Bg4 79. c8=Q Bxc8 80. Kxc8 Kf3 81. Kd8 Ke4 82. Kc7 Kxe3 83. Kd7 Ke2 84.
-Ke7 Kd3 85. Kf6 Ke3 86. Ke7 Kd4 87. Ke6 Ke4 88. Ke7 Ke5 89. Kd8 Ke6 *
+Ke7 Kd3 85. Kf6 Ke3 86. Ke7 Kd4 87. Ke6 Ke4 88. Ke7 Ke5 89. Kd8 Ke6 0-1
 
-[Event "casual correspondence game"]
+[Event "#11 · 10-15 · gen 3 vs lichess AI level 6 · win"]
 [Site "https://lichess.org/Gz5S1fjS"]
 [Date "2026.10.15"]
-[Round "8"]
-[White "Ranmal101"]
+[Round "11"]
+[White "AlphaUX gen 3 (LIGHTNING)"]
 [Black "lichess AI level 6"]
 [Result "1-0"]
-[GameId "Gz5S1fjS"]
+[TimeControl "-"]
+[AlphaUXBuild "v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "lichess AI level 6 (of 8), no time limit"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side stated (lichess account Ranmal101 is White); opponent stated; time stated; build inferred (the assistant's launch line V2_PRESET=shipped, ship date); result stated"]
+[OwnerNote "Here's another as white ... a game played against the lichess level 6 computer (out of 8) in lightning format (No time limits imposed on the lichess bot)"]
+[Evidence "owner 10-16 00:09Z: 'against the lichess level 6 computer (out of 8) in lightning format (No time limits imposed on the lichess bot)'"]
+[SiteWhite "Ranmal101"]
+[SiteBlack "lichess AI level 6"]
 [UTCDate "2026.10.15"]
 [UTCTime "23:54:51"]
 [WhiteElo "1500"]
 [BlackElo "?"]
-[Variant "Standard"]
-[TimeControl "-"]
 [ECO "C67"]
 [Opening "Ruy Lopez: Berlin Defense, l'Hermet Variation, Berlin Wall Defense"]
 [Termination "Normal"]
-[Annotator "lichess.org"]
 [Pasted "2026-10-15 20:09 EDT"]
-[AlphaUXBuild "v2 gen 3 (in-process UI; preset not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "we were white here. Here's another as white: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI; LIGHTNING preset) against lichess AI level 6 (of 8), no time limit, from none (standard start). Result: win by checkmate. Confidence: side stated, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. d4 Nd6 6. Bxc6 dxc6 7. dxe5 Nf5
 8. Qxd8+ Kxd8 9. Nc3 Ke8 10. Rd1 h6 11. h3 Be6 12. g4 Ne7 13. Nd4 Bd7 14. Kg2
 Rd8 15. e6 fxe6 16. Bf4 Nd5 17. Nxd5 cxd5 18. Bxc7 Rc8 19. Be5 h5 20. f4 a5 21.
@@ -212,22 +372,33 @@ a4 28. Rf1 Bb6 29. Nf3 Ke7 30. Re1 Bd8 31. Ng5 Ke8 32. Bxg7 Rh4 33. Kg3 Bxg5
 bxa3 41. g8=Q Kd7 42. Qxe6+ Kc7 43. Qb6+ Kc8 44. Qxb5 Kc7 45. Re7+ Kd6 46. Qc5#
 1-0
 
-[Event "Chessiverse Unrated Game"]
+[Event "#12 · 10-15 · gen 3 vs Chessiverse Paul Morphy bot · loss"]
 [Site "https://chessiverse.com/analysis?id=2a9e95c9-8c86-448e-a770-b9b19c427c3c"]
-[Date "2026.10.16"]
-[Round "9"]
-[White "RoyalBishop6821"]
-[Black "Paul Morphy"]
+[Date "2026.10.15"]
+[Round "12"]
+[White "AlphaUX gen 3 (LIGHTNING)"]
+[Black "Chessiverse Paul Morphy bot"]
 [Result "0-1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "Chessiverse Paul Morphy bot ('3231' on Chessiverse's scale); its time not stated"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss (resigned)"]
+[Confidence "side stated (Chessiverse account RoyalBishop6821 is White); opponent stated (time unknown); time stated (said afterwards, the assistant had first assumed LONG_FORMAT); build inferred (the assistant's launch line V2_PRESET=shipped, ship date); result stated"]
+[OwnerNote "here's one as white against the Chessiverse Morphy bot (tuned to be online standard accurate ...) with an apparant rating of 3231"]
+[Evidence "owner 10-16 00:44Z: 'here's one as white against the Chessiverse Morphy bot'; 01:12Z: 'all of these were LIGHTNING games.'"]
+[SiteWhite "RoyalBishop6821"]
+[SiteBlack "Paul Morphy"]
 [Time "00:29:59"]
 [WhiteElo "1564"]
 [BlackElo "3231"]
 [Termination "Resign"]
 [Pasted "2026-10-15 20:44 EDT"]
-[AlphaUXBuild "v2 gen 3 (in-process UI; preset not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "ok, here's one as white against the Chessiverse Morphy bot (tuned to be online standard accurate, whatever that means given its a player from 200 years ago hehe) with an apparant rating of 3231: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI; LIGHTNING preset) against Chessiverse Paul Morphy bot ('3231' on Chessiverse's scale); its time not stated, from none (standard start). Result: loss (resigned). Confidence: side stated, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. d4 Nd6 6. Bxc6 dxc6 7. dxe5 Nf5
 8. Qxd8+ Kxd8 9. Nc3 Ke8 10. Rd1 a5 11. h3 a4 12. Bd2 Be6 13. Ng5 Bc8 14. Nge4
 Be7 15. b3 Nd4 16. Nxa4 Bf5 17. f3 Nxc2 18. Rac1 Bxe4 19. fxe4 Nd4 20. Kh1 Ne6
@@ -237,39 +408,87 @@ Kg1 g6 35. Be3 Ra5 36. Rd1 Rh5 37. Rdf1 Rxe5 38. Rxf7 Rxe4 39. Bd2 Nd4 40. R1f2
 Ne2+ 41. Kh1 Ng3+ 42. Kh2 Bd6 43. Rh7 c4 44. Kg1 c3 45. Nxc3 bxc3 46. Bxc3 Rd5
 47. Rh8+ Kd7 48. Rf7+ Kc6 49. Re7 Rd1+ 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#13 · 10-15 · gen 3 vs Stockfish 18 (0.005 s/move) · win · knight odds"]
 [Site "ChessUI (local)"]
-[Date "2026.10.18"]
-[Round "10"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Date "2026.10.15"]
+[Round "13"]
+[White "AlphaUX gen 3 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "1-0"]
 [FEN "r1bqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives Black no b8 knight = odds to us, White mates); opponent stated; time stated (said afterwards for this sitting); build inferred (the assistant's launch line V2_PRESET=shipped, ship date); result inferred (from the PGN, the assistant: 'a clean win')"]
+[OwnerNote "here's a game agaisnt SF18 @ 0.005s (which is often stronger than us like in that first game) with knight odds"]
+[Evidence "owner 10-16 00:58Z (queued): 'a game agaisnt SF18 @ 0.005s ... with knight odds'"]
+[Pasted "2026-10-15 20:58 EDT"]
+[Session "ed0b1a06"]
+[Source "pasted 2026-10-15 20:58 EDT in session ed0b1a06; not in the old archive (queued mid-turn message)"]
+
+{ AlphaUX played White (v2 gen 3 (V2_PRESET=shipped, fingerprint 259 / 47,869,841), in-process Cython UI; LIGHTNING preset) against Stockfish 18 at 0.005 s per move (fixed), from knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight. Result: win by checkmate. Confidence: side inferred, opponent stated, time stated, build inferred, result inferred; details in the Confidence tag. }
+1. d4 c5 2. d5 g6 3. e4 Bg7 4. Nc3 Nf6 5. e5 Nh5 6. g4 Bxe5 7. gxh5 Qa5 8. Bd2
+O-O 9. Nf3 Bg7 10. h6 Bh8 11. Qe2 d6 12. Rd1 Bf5 13. Nh4 e6 14. Qc4 Rae8 15.
+Nxf5 exf5+ 16. Be2 Bxc3 17. Qxc3 Rxe2+ 18. Kxe2 Qb5+ 19. Kf3 f6 20. Rhe1 Kf7
+21. Re6 Kg8 22. Rxf6 Qe8 23. Re1 Qxe1 24. Bxe1 Rf7 25. Re6 Rd7 26. Qh8+ Kf7 27.
+Qg7# 1-0
+
+[Event "#14 · 10-18 · gen 3 or gen 3+C64 vs Stockfish 18 (0.005 s/move) · win · knight odds"]
+[Site "ChessUI (local)"]
+[Date "2026.10.18"]
+[Round "14"]
+[White "AlphaUX gen 3 or gen 3+C64 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "1-0"]
+[FEN "r1bqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives Black no b8 knight = odds to us, 'Good win', White mates); opponent stated; time stated; build unknown which (the assistant offered V2_PRESET=candidate PRESET=LIGHTNING, the owner's launch was not recorded); result stated ('Good win')"]
+[OwnerNote "ok, knight odds game against SF18 with 0.005s vs our lightning ... Good win but i will say, i felt some lag"]
+[Evidence "owner 10-18 19:50Z: 'knight odds game against SF18 with 0.005s vs our lightning'"]
 [Pasted "2026-10-18 15:50 EDT"]
-[AlphaUXBuild "v2 gen 3 (in-process UI; preset not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "ok, knight odds game against SF18 with 0.005s vs our lightning: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded; LIGHTNING preset) against Stockfish 18 at 0.005 s per move (fixed), from knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight. Result: win by checkmate. Confidence: side inferred, opponent stated, time stated, build unknown, result stated; details in the Confidence tag. }
 1. d4 c5 2. e4 cxd4 3. Qxd4 e5 4. Qxe5+ Qe7 5. Qxe7+ Bxe7 6. Nc3 Bc5 7. Nd5 Nf6
 8. Nc7+ Kd8 9. Nxa8 Nxe4 10. Be3 Bxe3 11. fxe3 b6 12. Nf3 Bb7 13. Ne5 Re8 14.
 Nxf7+ Ke7 15. Nc7 Rc8 16. Ba6 Bxa6 17. Nxa6 Rxc2 18. O-O Rxb2 19. Rad1 Nc3 20.
 Rd3 Ne2+ 21. Kh1 d6 22. Nxd6 g5 23. Nc7 Kd8 24. Nc4+ Kxc7 25. Nxb2 b5 26. Rf2
 b4 27. Rxe2 b3 28. axb3 g4 29. Nc4 Kb7 30. Ra2 g3 31. Rd7+ Kb8 32. Raxa7 h6 33.
-Rab7+ Kc8 34. Nb6# *
+Rab7+ Kc8 34. Nb6# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#15 · 10-18 · gen 3 or gen 3+C64 vs Stockfish 18 (0.005 s/move) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.10.18"]
-[Round "11"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "15"]
+[White "AlphaUX gen 3 or gen 3+C64 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "0-1"]
+[TimeControl "?"]
+[AlphaUXBuild "gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded"]
+[AlphaUXTime "LIGHTNING preset (carried)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss"]
+[Confidence "side inferred (the assistant: 'all six had the engine as White', final material); opponent stated; time carried; build unknown which (the assistant offered V2_PRESET=candidate PRESET=LIGHTNING, the owner's launch was not recorded); result stated"]
+[OwnerNote "here's a loss against SF18 0.005s with no odds ... we get a clearly winning position, but then misevaluate in gaining pawns"]
+[Evidence "owner 10-18 20:10Z: 'here's a loss against SF18 0.005s with no odds'"]
 [Pasted "2026-10-18 16:10 EDT"]
-[AlphaUXBuild "v2 gen 3 (in-process UI; preset not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "here's a loss against SF18 0.005s with no odds: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded; LIGHTNING preset (carried)) against Stockfish 18 at 0.005 s per move (fixed), from none (standard start). Result: loss. Confidence: side inferred, opponent stated, time carried, build unknown, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nge7 5. c3 Ng6 6. d4 d5 7. exd5 Qxd5 8.
 O-O Bg4 9. dxe5 O-O-O 10. Qxd5 Rxd5 11. Bxc6 bxc6 12. Nbd2 Nxe5 13. c4 Ra5 14.
 Nb3 Bxf3 15. Nxa5 Bb4 16. gxf3 Bxa5 17. Kg2 Nxc4 18. Rd1 Re8 19. Rd4 Nd6 20.
@@ -280,20 +499,29 @@ Re1+ 39. Kf5 Kc6 40. Ra2 Kb5 41. Rd5+ c5 42. Rg2 Bb4 43. Re5 Rd1 44. Rge2 a5
 45. Ke6 Rd2 46. Re1 c2 47. Rc1 Ba3 48. Rxc2 Rxc2 49. Rg5 Bb2 50. Rg8 Re2+ 51.
 Kd6 c4 52. Rg5+ Ka4 53. f5 c3 54. Rg4+ Kb5 55. Rg8 c2 56. Rb8+ Ka4 57. Rc8 c1=R
 58. Rxc1 Bxc1 59. Kd5 Bb2 60. Kd6 Kb3 61. Kc6 Bf6 62. Kb7 a4 63. Kc6 a3 64. Kd5
-a2 65. Kd6 a1=Q *
+a2 65. Kd6 a1=Q 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#16 · 10-18 · gen 3 or gen 3+C64 vs Stockfish 18 (0.005 s/move, likely) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.10.18"]
-[Round "12"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "16"]
+[White "AlphaUX gen 3 or gen 3+C64 (BLITZ)"]
+[Black "Stockfish 18 (0.005 s/move, likely)"]
+[Result "0-1"]
+[TimeControl "?"]
+[AlphaUXBuild "gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded"]
+[AlphaUXTime "BLITZ preset"]
+[OpponentSettings "not stated; likely Stockfish 18 at 0.005 s as in the sitting's other games"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss"]
+[Confidence "side inferred (the assistant: 'all six had the engine as White', final material); opponent inferred; time stated (opponent's inferred); build unknown which (the assistant offered V2_PRESET=candidate PRESET=LIGHTNING, the owner's launch was not recorded); result stated"]
+[OwnerNote "heres a loss at BLITZ time"]
+[Evidence "owner 10-18 20:41Z: 'heres a loss at BLITZ time'"]
 [Pasted "2026-10-18 16:41 EDT"]
-[AlphaUXBuild "v2 gen 3 (in-process UI; preset not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "heres a loss at BLITZ time: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded; BLITZ preset) against not stated; likely Stockfish 18 at 0.005 s as in the sitting's other games, from none (standard start). Result: loss. Confidence: side inferred, opponent inferred, time stated, build unknown, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nge7 4. O-O a6 5. Bc4 Ng6 6. d4 exd4 7. Nxd4 Bc5 8.
 Nf5 O-O 9. Qh5 Bd4 10. Bd5 Bf6 11. Nc3 d6 12. Re1 Re8 13. Be3 Be6 14. Rad1 Bxc3
 15. bxc3 Bxd5 16. exd5 Nce7 17. Ng3 Qd7 18. Rb1 f5 19. Bd4 b5 20. Qg5 f4 21.
@@ -302,40 +530,42 @@ g3 Rg8 28. c4 bxc4 29. gxf4 Nxf4 30. Bf6 Nfd5 31. Re4 c3 32. Bxe7 Kxg7 33. Kh2
 Kg6 34. Bf6 h5 35. Kh3 Rb8 36. Rc4 Rb2 37. Bd8 Rxc2 38. Bxc7 Nxc7 39. Rxc7 Kxg5
 40. Kg2 h4 41. Kf3 h3 42. Kg3 a5 43. Kxh3 Kf4 44. Kg2 Ke4 45. Kg3 d5 46. f3+
 Kd3 47. Rc5 d4 48. Rxa5 Rb2 49. f4 c2 50. Rc5 Rb1 51. f5 c1=Q 52. Rxc1 Rxc1 53.
-Kf4 Kc4 54. Kg5 d3 55. Kh6 Rf1 56. Kg6 d2 57. f6 d1=Q *
+Kf4 Kc4 54. Kg5 d3 55. Kh6 Rf1 56. Kg6 d2 57. f6 d1=Q 0-1
 
-[Event "Play vs Bot"]
+[Event "#17 · 10-18 · gen 3 or gen 3+C64 vs chess.com Hikaru-bot · loss"]
 [Site "Chess.com"]
 [Date "2026.10.18"]
-[Round "13"]
-[White "ranmal100"]
-[Black "Hikaru-bot"]
+[Round "17"]
+[White "AlphaUX gen 3 or gen 3+C64 (STANDARD)"]
+[Black "chess.com Hikaru-bot"]
 [Result "0-1"]
-[CurrentPosition "6rk/7p/p4p2/1p1p3p/1P2p2q/2P2PnP/2R2R2/5Q1K w - - 1 45"]
-[Timezone "UTC"]
-[ECO "B06"]
-[ECOUrl "https://www.chess.com/openings/Modern-Defense-Standard-Line-3...d6"]
+[TimeControl "?"]
+[AlphaUXBuild "gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded"]
+[AlphaUXTime "STANDARD preset"]
+[OpponentSettings "chess.com Hikaru-bot (2820 on chess.com's bot scale), untimed"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss (chess.com: Hikaru won by resignation)"]
+[Confidence "side stated (chess.com account ranmal100 is White); opponent stated (untimed inferred); time stated; build unknown which (the assistant offered V2_PRESET=candidate PRESET=LIGHTNING, the owner's launch was not recorded); result stated"]
+[OwnerNote "Gane played against the hikaru bot on chess.com ... this was played with STANDARD, where i felt the depth reached was much lower than v2 before"]
+[Evidence "owner 10-18 21:53Z: 'Gane played against the hikaru bot on chess.com ... this was played with STANDARD'"]
+[SiteWhite "ranmal100"]
+[SiteBlack "Hikaru-bot"]
 [UTCDate "2026.10.18"]
 [UTCTime "21:15:18"]
+[Timezone "UTC"]
+[StartTime "21:15:18"]
+[EndTime "21:46:43"]
+[EndDate "2026.10.18"]
 [WhiteElo "1268"]
 [BlackElo "2820"]
-[TimeControl "?"]
-[Termination "Hikaru won by resignation"]
-[StartTime "21:15:18"]
-[EndDate "2026.10.18"]
-[EndTime "21:46:43"]
+[ECO "B06"]
 [Link "https://www.chess.com/analysis/game/computer/2370086634/review?move=87"]
-[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
-[WhiteCountry "3"]
-[WhiteTitle ""]
-[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/67841086.1210b8fc.50x50o.4a64582dd2bc.png"]
-[BlackCountry "2"]
-[BlackTitle ""]
+[Termination "Hikaru won by resignation"]
 [Pasted "2026-10-18 17:53 EDT"]
-[AlphaUXBuild "v2 gen 3 (in-process UI; preset not recorded) - inferred from the install dates, not recorded at play time"]
-[OwnerNote "Gane played against the hikaru bot on chess.com. One thing ill say is that this was played with STANDARD, where i felt the depth reached was much lower than v2 before and definitely lower than v1. i was asking about other things running bec"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (gen 3 (V2_PRESET=shipped, 259 / 47,869,841) or gen 3 + C64 (V2_PRESET=candidate, 258 / 47,689,413) - not recorded; STANDARD preset) against chess.com Hikaru-bot (2820 on chess.com's bot scale), untimed, from none (standard start). Result: loss (chess.com: Hikaru won by resignation). Confidence: side stated, opponent stated, time stated, build unknown, result stated; details in the Confidence tag. }
 1. e4 g6 2. d4 d6 3. Nc3 Bg7 4. Be3 a6 5. Qd2 b5 6. f3 Bb7 7. a4 c6 8. axb5
 cxb5 9. Nh3 Nd7 10. Bd3 Ngf6 11. Nf2 O-O 12. O-O Rc8 13. Rfb1 Qc7 14. Rc1 e5
 15. d5 Nb6 16. Ne2 Nfd7 17. Bh6 Nc4 18. Bxc4 Bxh6 19. Qxh6 Qxc4 20. Ng3 Qd4 21.
@@ -344,18 +574,27 @@ c3 Qb6 22. h4 Kh8 23. b4 Rg8 24. h5 Rce8 25. Rd1 Nf6 26. Re1 Qd8 27. Nh3 Rg7
 34. Ra2 Qf6 35. Qd3 Rg3 36. Re1 d5 37. Rf2 Qh4 38. Qf1 f6 39. Ree2 Ne8 40. Qc1
 Nd6 41. Qb1 e4 42. Qf1 Nxf5 43. Rc2 Rxh3+ 44. gxh3 Ng3+ 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#18 · 10-19 · gen 4 vs Stockfish 18 (0.005 s/move) · win"]
 [Site "ChessUI (local)"]
 [Date "2026.10.19"]
-[Round "14"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "18"]
+[White "AlphaUX gen 4 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 4, native UCI binary through NNEngineUCI (its first evening in the UI)"]
+[AlphaUXTime "LIGHTNING preset (~1 s/move)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate (first win over SF18 at 5 ms)"]
+[Confidence "side inferred (owner: 'we just beat SF18', White mates); opponent stated; time stated; build inferred (ship date, the owner had just switched the UI to the binary); result stated"]
+[OwnerNote "also if this really was us, for the first time ever, we just beat SF18 at 0.005 seconds with lightning"]
+[Evidence "owner 10-19 23:29Z: 'for the first time ever, we just beat SF18 at 0.005 seconds with lightning'"]
 [Pasted "2026-10-19 19:29 EDT"]
-[AlphaUXBuild "gen 4 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "also if this really was us, for the first time ever, we just beat SF18 at 0.005 seconds with lightning: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (v2 gen 4, native UCI binary through NNEngineUCI (its first evening in the UI); LIGHTNING preset (~1 s/move)) against Stockfish 18 at 0.005 s per move (fixed), from none (standard start). Result: win by checkmate (first win over SF18 at 5 ms). Confidence: side inferred, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 c6 2. d4 d5 3. e5 g6 4. h4 h5 5. c4 Nh6 6. cxd5 cxd5 7. Nc3 Nc6 8. a3 Bg7
 9. Nf3 Bg4 10. Be2 Nf5 11. O-O Bxf3 12. Bxf3 e6 13. Bg5 Qb6 14. Bxd5 exd5 15.
 Nxd5 Qa5 16. Nf6+ Bxf6 17. Bxf6 O-O 18. d5 Ncd4 19. d6 Rac8 20. Qd3 Rc5 21. b4
@@ -363,20 +602,29 @@ Qb5 22. Qxb5 Rxb5 23. Rfd1 Rd5 24. Rac1 Ng7 25. g3 Nge6 26. Kg2 Re8 27. a4 Kf8
 28. a5 Rb8 29. Bg5 Rxe5 30. Bf6 Rd5 31. Rc4 b5 32. Rcxd4 Nxd4 33. Bxd4 f6 34.
 Bxa7 Rxd1 35. Bxb8 Ke8 36. a6 Ra1 37. a7 Ra3 38. Kh2 g5 39. g4 hxg4 40. h5 f5
 41. h6 g3+ 42. Kg2 gxf2 43. h7 f4 44. h8=Q+ Kf7 45. Kxf2 Ra2+ 46. Ke1 Ra3 47.
-d7 Re3+ 48. Kd2 Re7 49. d8=Q Re2+ 50. Kxe2 f3+ 51. Kf2 Ke6 52. Qhf6# *
+d7 Re3+ 48. Kd2 Re7 49. d8=Q Re2+ 50. Kxe2 f3+ 51. Kf2 Ke6 52. Qhf6# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#19 · 10-19 · gen 4 vs Stockfish 18 (0.005 s/move, carried) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.10.19"]
-[Round "15"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "19"]
+[White "AlphaUX gen 4 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move, carried)"]
+[Result "0-1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 4, native UCI binary through NNEngineUCI (its first evening in the UI)"]
+[AlphaUXTime "LIGHTNING preset (carried)"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed) (carried)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss, mated"]
+[Confidence "side inferred (owner: 'a game we lost' and Black mates, the assistant's saved PGN has us as White although its Event line names SF18 first); opponent carried; time carried; build inferred (ship date, the owner had just switched the UI to the binary); result stated"]
+[OwnerNote "Here's a game we lost right after ... One thing i noticed is that the resigning is gone"]
+[Evidence "owner 10-19 23:33Z: 'Here's a game we lost right after'; 'the resigning is gone' (it played on to mate)"]
 [Pasted "2026-10-19 19:33 EDT"]
-[AlphaUXBuild "gen 4 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "sure. Here's a game we lost right after: '"]
 [Session "ed0b1a06"]
 
+{ AlphaUX played White (v2 gen 4, native UCI binary through NNEngineUCI (its first evening in the UI); LIGHTNING preset (carried)) against Stockfish 18 at 0.005 s per move (fixed) (carried), from none (standard start). Result: loss, mated. Confidence: side inferred, opponent carried, time carried, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 d6 7. c3 Bg4 8. d4
 Bxf3 9. Qxf3 b5 10. d5 bxa4 11. dxc6 Qb8 12. Qe2 Qb5 13. Qxb5 axb5 14. Na3 Ra6
 15. Nxb5 Rxc6 16. b3 Kd7 17. Bd2 Rb8 18. c4 Rcb6 19. b4 c6 20. Na3 d5 21. c5
@@ -389,20 +637,29 @@ Ne4+ 47. Kh3 Bd4 48. Rc8+ Kd5 49. Rh8 Nd6 50. Ra8 Ne4 51. Rh8 Kc4 52. Rf4 Nf2+
 gxf4 a3 60. h4 a2 61. Kf5 Kb3 62. Rb8+ Kc4 63. Ra8 Bc3 64. Ra3 Kb4 65. Ra6 Kb3
 66. Rb6+ Bb4 67. Ra6 c4 68. h5 Rh1 69. Kg6 c3 70. Kg5 c2 71. h6 c1=Q 72. Rxa2
 Qg1+ 73. Kf5 Kxa2 74. Ke5 Kb3 75. Ke4 Rxh6 76. Kf3 Re6 77. f5 Re3+ 78. Kf4 Bd6#
-*
+0-1
 
-[Event "AlphaUX UI game"]
+[Event "#20 · 10-24 · gen 6 vs Stockfish 18 (0.005 s/move) · win"]
 [Site "ChessUI (local)"]
 [Date "2026.10.24"]
-[Round "16"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "20"]
+[White "AlphaUX gen 6 (2.5 s/move)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6 + PGO, production UCI binary build_uci/chess_engine_uci"]
+[AlphaUXTime "fixed 2.5 s per move (NNEngineUCI(movetime=2.5))"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate on move 56"]
+[Confidence "side inferred (the assistant read the UI setup as NNEngineUCI White, Stockfish Black, not corrected); opponent stated; time stated; build inferred (ship date, the assistant's memory note of the evening); result inferred (from the PGN and our side)"]
+[OwnerNote "first game against 0.005s time SF18 with 2.5s movetime for us"]
+[Evidence "owner 10-25 01:58Z: 'first game against 0.005s time SF18 with 2.5s movetime for us'"]
 [Pasted "2026-10-24 21:58 EDT"]
-[AlphaUXBuild "gen 6 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "first game against 0.005s time SF18 with 2.5s movetime for us: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6 + PGO, production UCI binary build_uci/chess_engine_uci; fixed 2.5 s per move (NNEngineUCI(movetime=2.5))) against Stockfish 18 at 0.005 s per move (fixed), from none (standard start). Result: win by checkmate on move 56. Confidence: side inferred, opponent stated, time stated, build inferred, result inferred; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Bc5 6. c3 b5 7. Bb3 Bb6 8. d4
 d6 9. a4 Bb7 10. Re1 O-O 11. Bg5 h6 12. Bh4 exd4 13. cxd4 g5 14. Nxg5 hxg5 15.
 Bxg5 Nxd4 16. Bd5 Ne6 17. Bxb7 Nxg5 18. h4 Ne6 19. Bxa8 Qxa8 20. axb5 Kg7 21.
@@ -411,40 +668,42 @@ Qxd6 Nxe4 28. Qe5+ Nf6 29. Ra3 Rxa3 30. bxa3 Qxa6+ 31. Kg1 Qxa3 32. Re3 Qc1+
 33. Kg2 Qc6+ 34. Kh2 Nf8 35. Rg3+ Kh8 36. Qe7 N8h7 37. Qxf7 Qd7 38. Rg8+ Nxg8
 39. Qxd7 b5 40. Qxb5 Ngf6 41. Qb7 Ng8 42. f4 Nhf6 43. Qf7 Ne4 44. Kg2 Nef6 45.
 Kf3 Ng4 46. Qh5+ N4h6 47. Qg6 Nf5 48. Qxf5 Kg7 49. h5 Nh6 50. Qg6+ Kf8 51.
-Qxh6+ Ke7 52. Qc6 Kd8 53. h6 Ke7 54. h7 Kf7 55. h8=Q Ke7 56. Qhf6# *
+Qxh6+ Ke7 52. Qc6 Kd8 53. h6 Ke7 54. h7 Kf7 55. h8=Q Ke7 56. Qhf6# 1-0
 
-[Event "Play vs Bot"]
+[Event "#21 · 10-24 · gen 6 vs chess.com world-champion-carlsen bot · win"]
 [Site "Chess.com"]
-[Date "2026.10.25"]
-[Round "17"]
-[White "ranmal100"]
-[Black "world-champion-carlsen"]
+[Date "2026.10.24"]
+[Round "21"]
+[White "AlphaUX gen 6 (STANDARD)"]
+[Black "chess.com world-champion-carlsen bot"]
 [Result "1-0"]
-[CurrentPosition "8/8/kQ6/2K5/8/1p5P/8/8 b - - 1 78"]
-[Timezone "UTC"]
-[ECO "C94"]
-[ECOUrl "https://www.chess.com/openings/Ruy-Lopez-Opening-Morphy-Defense-Keres-Breyer-Defense"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6 + PGO, production UCI binary build_uci/chess_engine_uci"]
+[AlphaUXTime "STANDARD preset, no movetime"]
+[OpponentSettings "chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate (first ever win over this bot)"]
+[Confidence "side stated (chess.com account ranmal100 is White); opponent stated (untimed inferred); time stated; build inferred (ship date, the assistant's memory note of the evening); result stated"]
+[OwnerNote "im now gonna use standard preset (no movetime set) against the chess.com magnus bot ... i am proud to persent our first win ever against this bot"]
+[Evidence "owner 10-25 02:02Z: 'im now gonna use standard preset (no movetime set) against the chess.com magnus bot'"]
+[SiteWhite "ranmal100"]
+[SiteBlack "world-champion-carlsen"]
 [UTCDate "2026.10.25"]
 [UTCTime "02:00:43"]
+[Timezone "UTC"]
+[StartTime "02:00:43"]
+[EndTime "02:42:55"]
+[EndDate "2026.10.25"]
 [WhiteElo "1268"]
 [BlackElo "2882"]
-[TimeControl "?"]
-[Termination "ranmal100 won by checkmate"]
-[StartTime "02:00:43"]
-[EndDate "2026.10.25"]
-[EndTime "02:42:55"]
+[ECO "C94"]
 [Link "https://www.chess.com/analysis/game/computer/2422508654/review?move=154"]
-[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
-[WhiteCountry "3"]
-[WhiteTitle ""]
-[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/315574933.59dc97b4.50x50o.3696cc31e5c5.png"]
-[BlackCountry "104"]
-[BlackTitle ""]
+[Termination "ranmal100 won by checkmate"]
 [Pasted "2026-10-24 22:51 EDT"]
-[AlphaUXBuild "gen 6 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "i am proud to persent our first win ever against this bot: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6 + PGO, production UCI binary build_uci/chess_engine_uci; STANDARD preset, no movetime) against chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed, from none (standard start). Result: win by checkmate (first ever win over this bot). Confidence: side stated, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3
 O-O 9. h3 Nb8 10. d4 Nbd7 11. Nbd2 Bb7 12. Bc2 Re8 13. Nf1 Bf8 14. Ng3 g6 15.
 a4 c5 16. b4 exd4 17. cxd4 c4 18. Bd2 Qc7 19. Bc3 Bg7 20. Qd2 h6 21. d5 h5 22.
@@ -458,39 +717,58 @@ hxg4 Kxg4 60. Nd5 Kf5 61. Nc7 Kf6 62. Nxa6 Ke7 63. Nc5 dxc5 64. a6 cxb4 65. a7
 Kd6 66. a8=Q Kc5 67. Qd8 h3 68. gxh3 b3 69. Kd2 Kc4 70. Kc1 Kc3 71. Qd7 b2+ 72.
 Kb1 Kb4 73. Kxb2 Kc5 74. Kc3 Kb6 75. Kb4 Ka6 76. Kc5 b4 77. Qc7 b3 78. Qb6# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#22 · 10-27 · gen 6.2 vs Stockfish 18 (60+0.6) · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.10.27"]
-[Round "18"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "22"]
+[White "Stockfish 18 (60+0.6)"]
+[Black "AlphaUX gen 6.2 (60+0.6)"]
+[Result "0-1"]
 [FEN "8/6p1/7p/5B1P/2p1P1P1/1k1b4/2p5/2K5 b - - 0 1"]
 [SetUp "1"]
+[TimeControl "60+0.6"]
+[AlphaUXBuild "v2 gen 6.2, production UCI binary (gen 6.3 shipped the evening of 10-28)"]
+[AlphaUXTime "60 s + 0.6 s clock (NNEngineUCI(clock=(60, 0.6)))"]
+[OpponentSettings "Stockfish 18, full strength, on its own 60+0.6 clock"]
+[Odds "custom FEN: a won bishop ending for Black (owner: 'from winning positions')"]
+[OurSide "Black"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (the assistant read the owner's config screenshot, 'first win', Black mates); opponent inferred (version from the assistant, clock stated); time stated; build inferred (ship dates in OPTIMIZATION_LOG); result stated ('first win')"]
+[OwnerNote "perhaps ill do this from winning positions so our engine has a chance ... first win ... SF utilized all its time but our engine was able to capitalize"]
+[Evidence "assistant 10-27 20:22Z: 'Stockfish plays White and AlphaUX plays Black, each on its own 60+0.6 clock.' owner 20:26Z: 'first win'"]
 [Pasted "2026-10-27 16:26 EDT"]
-[AlphaUXBuild "gen 6.2 or 6.3 - inferred from the install dates, not recorded at play time"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played Black (v2 gen 6.2, production UCI binary (gen 6.3 shipped the evening of 10-28); 60 s + 0.6 s clock (NNEngineUCI(clock=(60, 0.6)))) against Stockfish 18, full strength, on its own 60+0.6 clock, from custom FEN: a won bishop ending for Black (owner: 'from winning positions'). Result: win by checkmate. Confidence: side inferred, opponent inferred, time stated, build inferred, result stated; details in the Confidence tag. }
 1... Kb4 2. e5 Kc5 3. e6 Kd6 4. Kb2 c3+ 5. Kc1 Bc4 6. Kxc2 Bxe6 7. Bg6 Bxg4 8.
 Kxc3 Ke5 9. Kc4 Kf4 10. Kd4 Kg5 11. Ke3 Bxh5 12. Bh7 Kh4 13. Kf2 Kh3 14. Bf5+
 Kh2 15. Ke3 g5 16. Kd4 g4 17. Kc5 g3 18. Kd6 g2 19. Kd7 g1=Q 20. Kc6 Bf3+ 21.
 Kb5 Qg5 22. Ka4 Qxf5 23. Kb3 Qc5 24. Kb2 Bd1 25. Ka2 Qc3 26. Kb1 Bc2+ 27. Ka2
-Qb3+ 28. Ka1 Qa3# *
+Qb3+ 28. Ka1 Qa3# 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#23 · 10-27 · gen 6.2 vs Stockfish 18 (60+0.6) · loss · knight odds"]
 [Site "ChessUI (local)"]
 [Date "2026.10.27"]
-[Round "19"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "23"]
+[White "AlphaUX gen 6.2 (60+0.6)"]
+[Black "Stockfish 18 (60+0.6)"]
+[Result "0-1"]
 [FEN "r1bqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
 [SetUp "1"]
+[TimeControl "60+0.6"]
+[AlphaUXBuild "v2 gen 6.2, production UCI binary (gen 6.3 shipped the evening of 10-28)"]
+[AlphaUXTime "60 s + 0.6 s clock"]
+[OpponentSettings "Stockfish 18, full strength, 60+0.6 clock"]
+[Odds "knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight"]
+[OurSide "White"]
+[Outcome "loss, AlphaUX resigned (saw mate in 3)"]
+[Confidence "side inferred (AlphaUX's own clock line is White's, the assistant: 'AlphaUX (White)'); opponent carried (version from the assistant); time carried; build inferred (ship dates in OPTIMIZATION_LOG); result stated"]
+[OwnerNote "we lost an odds game"]
+[Evidence "owner 10-27 20:35Z: 'we lost an odds game'; assistant 20:36Z: 'full-strength Stockfish 18 on the same 60+0.6 clock'"]
 [Pasted "2026-10-27 16:35 EDT"]
-[AlphaUXBuild "gen 6.2 or 6.3 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "we lost an odds game: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.2, production UCI binary (gen 6.3 shipped the evening of 10-28); 60 s + 0.6 s clock) against Stockfish 18, full strength, 60+0.6 clock, from knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight. Result: loss, AlphaUX resigned (saw mate in 3). Confidence: side inferred, opponent carried, time carried, build inferred, result stated; details in the Confidence tag. }
 1. d4 Nf6 2. c4 c5 3. d5 b5 4. cxb5 e6 5. dxe6 fxe6 6. e4 c4 7. e5 Ne4 8. Nd2
 Bb4 9. Be2 Qb6 10. Nh3 Qd4 11. a3 Ba5 12. f3 c3 13. fxe4 cxb2 14. Bxb2 Qxb2 15.
 Rc1 O-O 16. Qc2 Qxe5 17. Kd1 d5 18. Nf3 Rxf3 19. gxf3 a6 20. Qc6 Bb7 21. Qc5
@@ -504,43 +782,93 @@ Rh7 Qd2 60. Rf7+ Ke6 61. Rfb7 Qxh2 62. R4b6+ Kf5 63. Rf7+ Ke4 64. Rb4+ Kd5 65.
 Rb5+ Ke6 66. Rf8 Qc2 67. Rb6+ Kd5 68. Rd8+ Ke4 69. Kb7 Qxa4 70. Rh6 Kf4 71.
 Rf6+ Kg5 72. Ra6 Qb3+ 73. Rb6 Qf7+ 74. Kb8 h2 75. Rh8 g3 76. Rb7 Qf6 77. Rbh7
 Qxh8+ 78. Rxh8 g2 79. Rg8+ Kf4 80. Rxg2 h1=Q 81. Re2 Qd5 82. Rxe5 Kxe5 83. Kc7
-Qb5 *
+Qb5 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#24 · 10-27 · gen 6.2 vs Stockfish 18 (1+0.6) · win · knight + time odds"]
+[Site "ChessUI (local)"]
+[Date "2026.10.27"]
+[Round "24"]
+[White "AlphaUX gen 6.2 (5+0.6, time odds)"]
+[Black "Stockfish 18 (1+0.6)"]
+[Result "1-0"]
+[FEN "r1bqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.2, production UCI binary (gen 6.3 shipped the evening of 10-28)"]
+[AlphaUXTime "'5 + 0.6' (read as 5 min + 0.6 s; the UI file later held clock=(300, 0.6))"]
+[OpponentSettings "Stockfish 18, '1 + 0.6' (read as 1 min + 0.6 s)"]
+[Odds "knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight, plus 5x time odds"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives Black no b8 knight, the assistant: AlphaUX's king walked to e3, White mates); opponent inferred (value 1 + 0.6 stated, minutes and SF18 inferred); time inferred (value 5 + 0.6 stated, minutes inferred from the later UI file); build inferred (ship dates in OPTIMIZATION_LOG); result stated ('we won')"]
+[OwnerNote "this time igave 5 + 0.6 vs 1 + 0.6 and we won"]
+[Evidence "owner 10-27 20:43Z (queued): 'this time igave 5 + 0.6 vs 1 + 0.6 and we won'"]
+[Pasted "2026-10-27 16:43 EDT"]
+[Session "2a8f69b3"]
+[Source "pasted 2026-10-27 16:43 EDT in session 2a8f69b3; not in the old archive (queued mid-turn message)"]
+
+{ AlphaUX played White (v2 gen 6.2, production UCI binary (gen 6.3 shipped the evening of 10-28); '5 + 0.6' (read as 5 min + 0.6 s; the UI file later held clock=(300, 0.6))) against Stockfish 18, '1 + 0.6' (read as 1 min + 0.6 s), from knight odds to AlphaUX: Black (Stockfish) starts without the b8 knight, plus 5x time odds. Result: win by checkmate. Confidence: side inferred, opponent inferred, time inferred, build inferred, result stated; details in the Confidence tag. }
+1. d4 Nf6 2. Bf4 c5 3. dxc5 e6 4. Nd2 Bxc5 5. Ngf3 O-O 6. e3 Nd5 7. Bg3 b5 8.
+Bxb5 f5 9. Bc4 f4 10. Bxd5 exd5 11. Bxf4 d4 12. Ne4 Bb6 13. Bd6 Bb7 14. Qd3
+dxe3 15. Neg5 exf2+ 16. Kd2 Be3+ 17. Kxe3 Rxf3+ 18. Nxf3 Qb6+ 19. Qd4 Qc6 20.
+Rhf1 Re8+ 21. Ne5 Re6 22. Rad1 h6 23. Rxf2 a5 24. Rf8+ Kh7 25. Qd3+ g6 26. Rdf1
+Qf3+ 27. gxf3 Ba6 28. Qxa6 h5 29. Rf7+ Kh6 30. Rg1 Rxe5+ 31. Bxe5 d6 32. Bf4+
+g5 33. Qxd6# 1-0
+
+[Event "#25 · 10-30 · gen 6.4 vs Stockfish (60+0.6) · loss · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.10.30"]
-[Round "20"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "25"]
+[White "AlphaUX gen 6.4 (3x opp. time)"]
+[Black "Stockfish (60+0.6)"]
+[Result "0-1"]
 [FEN "7k/p1ppp1pp/1pp2pp1/5p1p/PP1P4/1KP1PPPP/PP1P1P1P/8 b - - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.4, production UCI binary"]
+[AlphaUXTime "3x the opponent's time (base not stated; the UI file had held 300+0.6 = 5x)"]
+[OpponentSettings "Stockfish (version not stated), 60+0.6 per the assistant's read of chess_ui_v2.py"]
+[Odds "custom FEN: pawn ending, winning for White"]
+[OurSide "White"]
+[Outcome "loss"]
+[Confidence "side inferred (the assistant: 'our engine (White)', the UI file had our engine as White); opponent inferred; time stated (ratio 3x only, base unknown); build inferred (the assistant: 'NNEngineUCI uses the production binary, gen 6.4'); result stated"]
+[OwnerNote "here's the first. I believe it started as a winning position and was 3x the time given but still a loss"]
+[Evidence "owner 10-31 00:22Z: 'it started as a winning position and was 3x the time given but still a loss'"]
 [Pasted "2026-10-30 20:22 EDT"]
-[AlphaUXBuild "gen 6.4 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "here's the first. I believe it started as a winning position and was 3x the time given but still a loss: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.4, production UCI binary; 3x the opponent's time (base not stated; the UI file had held 300+0.6 = 5x)) against Stockfish (version not stated), 60+0.6 per the assistant's read of chess_ui_v2.py, from custom FEN: pawn ending, winning for White. Result: loss. Confidence: side inferred, opponent inferred, time stated, build inferred, result stated; details in the Confidence tag. }
 1... Kg8 2. Kc4 d5+ 3. Kd3 g5 4. h4 gxh4 5. gxh4 Kf7 6. f4 e6 7. c4 h6 8. b3 g5
 9. hxg5 fxg5 10. fxg5 hxg5 11. a5 b5 12. c5 g4 13. Ke2 Kf6 14. f3 Kg5 15. Kf2
 Kh4 16. Kg2 gxf3+ 17. Kxf3 Kh3 18. Kf4 Kxh2 19. Kg5 Kg3 20. Kxh5 Kf3 21. Kg5
 Ke2 22. Kf4 a6 23. Kg3 Kd1 24. Kf2 Kc2 25. Ke2 Kb1 26. Kd1 Kb2 27. d3 Kc3 28.
 Ke2 Kxb4 29. Kf3 Ka3 30. b4 Kxa2 31. Kf4 Ka3 32. Ke5 Kxb4 33. Kxe6 Kxa5 34.
-Kxf5 b4 35. e4 dxe4 36. dxe4 b3 37. Kf6 b2 38. e5 b1=Q 39. e6 Qh7 40. e7 Qg8 *
+Kxf5 b4 35. e4 dxe4 36. dxe4 b3 37. Kf6 b2 38. e5 b1=Q 39. e6 Qh7 40. e7 Qg8
+0-1
 
-[Event "AlphaUX UI game"]
+[Event "#26 · 10-30 · gen 6.4 vs Stockfish (setting not stated) · loss · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.10.30"]
-[Round "21"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "26"]
+[White "AlphaUX gen 6.4 (time unknown)"]
+[Black "Stockfish (setting not stated)"]
+[Result "0-1"]
 [FEN "r4rk1/pp4pp/2nqb3/3p4/8/2NB4/PP1Q1PPP/4RRK1 w - - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.4, production UCI binary"]
+[AlphaUXTime "not stated"]
+[OpponentSettings "Stockfish (version and clock not stated; the UI file had it on 60+0.6)"]
+[Odds "custom FEN: White to move with a winning attack"]
+[OurSide "White"]
+[Outcome "loss"]
+[Confidence "side inferred (the assistant graded White's moves as ours); opponent inferred; time unknown; build inferred (the assistant: 'NNEngineUCI uses the production binary, gen 6.4'); result stated"]
+[OwnerNote "another loss from a winning position, but i think this one was just poor calculation based"]
+[Evidence "owner 10-31 00:40Z: 'another loss from a winning position, but i think this one was just poor calculation based'"]
 [Pasted "2026-10-30 20:40 EDT"]
-[AlphaUXBuild "gen 6.4 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "another loss from a winning position, but i think this one was just poor calculation based: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.4, production UCI binary; not stated) against Stockfish (version and clock not stated; the UI file had it on 60+0.6), from custom FEN: White to move with a winning attack. Result: loss. Confidence: side inferred, opponent inferred, time unknown, build inferred, result stated; details in the Confidence tag. }
 1. Bxh7+ Kxh7 2. Ne4 Qb4 3. Ng5+ Kg8 4. Qxb4 Nxb4 5. Rxe6 Nxa2 6. Re7 Rab8 7.
 Rd7 Nb4 8. Re1 Rfd8 9. Rxd8+ Rxd8 10. Re7 d4 11. Rxb7 d3 12. Ne4 d2 13. Nxd2
 Rxd2 14. h4 Nd3 15. Rd7 Rd1+ 16. Kh2 Nxf2 17. Rxa7 Rd4 18. Rb7 Kh7 19. Rb8 Ne4
@@ -548,61 +876,156 @@ Rxd2 14. h4 Nd3 15. Rd7 Rd1+ 16. Kh2 Nxf2 17. Rxa7 Rd4 18. Rb7 Kh7 19. Rb8 Ne4
 Nf6 27. g5 Nh5 28. Kh3 Kg6 29. b5 Rd3+ 30. Kg2 Kf5 31. b6 Kg4 32. Kf2 Kxh4 33.
 g6 Rb3 34. Ke2 Kg5 35. Ke1 Kxg6 36. Ke2 Kf5 37. b7 Nf6 38. Ke1 g5 39. Ke2 Nd7
 40. Rg8 Rxb7 41. Ke3 Rb5 42. Kd2 Nf6 43. Rxg5+ Kxg5 44. Kc3 Kf4 45. Kc4 Rg5 46.
-Kc3 Kg4 47. Kc2 Kf3 48. Kd3 Ne4 49. Kd4 Nf2 50. Kc4 Ke3 51. Kb3 Kd3 *
+Kc3 Kg4 47. Kc2 Kf3 48. Kd3 Ne4 49. Kd4 Nf2 50. Kc4 Ke3 51. Kb3 Kd3 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#27 · 10-30 · gen 6.4 vs Stockfish (setting not stated) · loss · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.10.30"]
-[Round "22"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "27"]
+[White "AlphaUX gen 6.4 (5x the previous game)"]
+[Black "Stockfish (setting not stated)"]
+[Result "0-1"]
+[FEN "r4rk1/pp4pp/2nqb3/3p4/8/2NB4/PP1Q1PPP/4RRK1 w - - 0 1"]
+[SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.4, production UCI binary"]
+[AlphaUXTime "'5 times more time' than the game before (base not stated)"]
+[OpponentSettings "Stockfish (version and clock not stated; the UI file had it on 60+0.6)"]
+[Odds "custom FEN: same position as the game before"]
+[OurSide "White"]
+[Outcome "loss (PGN ends K v K+R)"]
+[Confidence "side inferred (same position as the game before, the assistant graded White as ours); opponent inferred; time stated (ratio 5x only, base unknown); build inferred (the assistant: 'NNEngineUCI uses the production binary, gen 6.4'); result stated ('still a loss')"]
+[OwnerNote "here is the same position but this time 5 times more time given ... Closer but still a loss by calculation errors i reckon"]
+[Evidence "owner 10-31 00:50Z (queued): 'the same position but this time 5 times more time given ... still a loss'"]
+[Pasted "2026-10-30 20:50 EDT"]
+[Session "2a8f69b3"]
+[Source "pasted 2026-10-30 20:50 EDT in session 2a8f69b3; not in the old archive (queued mid-turn message)"]
+
+{ AlphaUX played White (v2 gen 6.4, production UCI binary; '5 times more time' than the game before (base not stated)) against Stockfish (version and clock not stated; the UI file had it on 60+0.6), from custom FEN: same position as the game before. Result: loss (PGN ends K v K+R). Confidence: side inferred, opponent inferred, time stated, build inferred, result stated; details in the Confidence tag. }
+1. Bxh7+ Kxh7 2. Ne4 Qb4 3. Ng5+ Kg8 4. Qxb4 Nxb4 5. Nxe6 Rf6 6. Ng5 Nxa2 7.
+Re7 d4 8. Rd1 Rd6 9. Rxb7 a5 10. Re1 d3 11. Rbe7 Kf8 12. Rc7 Rb8 13. Ne6+ Rxe6
+14. Rxe6 d2 15. Rd6 Re8 16. g3 Re1+ 17. Kg2 d1=Q 18. Rxd1 Rxd1 19. Ra7 Rd5 20.
+Kf3 Rf5+ 21. Ke2 Rb5 22. Kf3 Nb4 23. Ke4 Kg8 24. Rd7 Nc6 25. Rc7 Nb8 26. Ra7
+Rxb2 27. Rxa5 Rxf2 28. Ra8 Rb2 29. h3 Rb3 30. Kf4 Kh7 31. h4 Nd7 32. Ra4 Nf6
+33. g4 Kg6 34. h5+ Nxh5+ 35. gxh5+ Kxh5 36. Ra5+ Kh4 37. Kf5 g5 38. Ra4+ Kh5
+39. Kf6 g4 40. Kf5 Rf3+ 41. Ke4 Kh4 42. Ra6 Kh3 43. Rd6 Rb3 44. Rh6+ Kg2 45.
+Rh7 g3 46. Rg7 Kg1 47. Kd5 g2 48. Ke4 Rh3 49. Kf5 Kh2 50. Rxg2+ Kxg2 51. Ke6
+Re3+ 52. Kf7 Kf3 0-1
+
+[Event "#28 · 10-30 · gen 6.4 vs Stockfish (setting not stated) · loss · custom FEN"]
+[Site "ChessUI (local)"]
+[Date "2026.10.30"]
+[Round "28"]
+[White "Stockfish (setting not stated)"]
+[Black "AlphaUX gen 6.4 (time unknown)"]
+[Result "1-0"]
+[FEN "2kr3r/pp4pp/1b2bp2/4p3/4P3/B1P2N1P/P3RPP1/R5K1 b - - 0 20"]
+[SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.4, production UCI binary"]
+[AlphaUXTime "not stated"]
+[OpponentSettings "Stockfish (version and clock not stated)"]
+[Odds "custom FEN: the Bartholomew position of 10-01 (Black to move, winning for Black)"]
+[OurSide "Black"]
+[Outcome "loss"]
+[Confidence "side inferred (the assistant: 'Game 4 starts at 0% for White, so this time our engine must be Black'); opponent inferred; time unknown; build inferred (the assistant: 'NNEngineUCI uses the production binary, gen 6.4'); result stated"]
+[OwnerNote "here's another loss from a winning position"]
+[Evidence "owner 10-31 01:34Z (queued): 'here's another loss from a winning position'"]
+[Pasted "2026-10-30 21:34 EDT"]
+[Session "2a8f69b3"]
+[Source "pasted 2026-10-30 21:34 EDT in session 2a8f69b3; not in the old archive (queued mid-turn message)"]
+
+{ AlphaUX played Black (v2 gen 6.4, production UCI binary; not stated) against Stockfish (version and clock not stated), from custom FEN: the Bartholomew position of 10-01 (Black to move, winning for Black). Result: loss. Confidence: side inferred, opponent inferred, time unknown, build inferred, result stated; details in the Confidence tag. }
+20... Rd3 21. Rc1 Rhd8 22. Rb2 h6 23. Kh2 h5 24. Bb4 Bc4 25. a4 Bc7 26. a5 f5
+27. Nh4 fxe4 28. Nf5 Kb8 29. Ne3 Be6 30. c4 a6 31. Rcb1 R8d7 32. c5 Bd5 33.
+Nxd5 R7xd5 34. Be1 Rxc5 35. Rxb7+ Ka8 36. R7b2 Rdd5 37. Re2 Rd8 38. Rxe4 Rd4
+39. Re2 g5 40. g3 Rd7 41. Kg2 Rdd5 42. Rb3 Bd8 43. Rf3 Kb7 44. Rf7+ Kb8 45. Rg7
+h4 46. g4 Ka8 47. Rb2 Rb5 48. Rc2 Kb8 49. Bd2 Rb7 50. Rg8 Rc7 51. Rb2+ Rb7 52.
+Ra2 e4 53. Bxg5 Rxg5 54. Rxd8+ Ka7 55. Re8 Rb4 56. Rh8 Re5 57. Rxh4 Rb7 58. Rh6
+Rg7 59. Rf6 Ree7 60. Ra3 Re5 61. Kg3 Rb5 62. Re6 Rb1 63. Rxe4 Rg1+ 64. Kh2 Rd1
+65. f4 Kb7 66. f5 Rh7 67. Rf3 Kc6 68. f6 Rd2+ 69. Kg3 Rdd7 70. g5 Rb7 71. g6
+Rh8 72. Rg4 Rbb8 73. g7 Rhg8 74. f7 Rxg7 75. Rxg7 1-0
+
+[Event "#29 · 10-30 · gen 6.4 vs Stockfish (equal time) · win · rook odds"]
+[Site "ChessUI (local)"]
+[Date "2026.10.30"]
+[Round "29"]
+[White "AlphaUX gen 6.4 (equal time)"]
+[Black "Stockfish (equal time)"]
+[Result "1-0"]
 [FEN "1nbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQk - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.4, production UCI binary"]
+[AlphaUXTime "equal to the opponent's (value not stated)"]
+[OpponentSettings "Stockfish (version not stated), same clock as ours"]
+[Odds "rook odds to AlphaUX: Black (Stockfish) starts without the a8 rook"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives Black no a8 rook = odds to us, 'we won', White mates); opponent inferred (version, clock stated as equal); time stated (equal, value unknown); build inferred (the assistant: 'NNEngineUCI uses the production binary, gen 6.4'); result stated"]
+[OwnerNote "i did one more game here with rook odds but equal time which we won"]
+[Evidence "owner 10-31 01:58Z: 'one more game here with rook odds but equal time which we won'"]
 [Pasted "2026-10-30 21:58 EDT"]
-[AlphaUXBuild "gen 6.4 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "i did one more game here with rook odds but equal time which we won: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.4, production UCI binary; equal to the opponent's (value not stated)) against Stockfish (version not stated), same clock as ours, from rook odds to AlphaUX: Black (Stockfish) starts without the a8 rook. Result: win by checkmate. Confidence: side inferred, opponent inferred, time stated, build inferred, result stated; details in the Confidence tag. }
 1. d4 d5 2. Nc3 Nf6 3. Bf4 Bg4 4. h3 Bh5 5. Nf3 e6 6. Ne5 Bb4 7. a3 Bxc3+ 8.
 bxc3 Ne4 9. Qb1 f6 10. Nd3 e5 11. Bh2 O-O 12. Qxb7 Bf7 13. dxe5 c5 14. f3 fxe5
 15. fxe4 Nd7 16. exd5 h6 17. d6 e4 18. Ne5 Qh4+ 19. Kd1 Nxe5 20. Bxe5 Re8 21.
 g3 Qg5 22. Bf4 Qf6 23. Rb1 e3 24. d7 Rf8 25. Qc8 g5 26. Rb8 Rxc8 27. dxc8=Q+
 Kg7 28. Be5 Kg6 29. Bxf6 Bd5 30. Be5 h5 31. Qa6+ Bc6 32. Qxc6+ Kf5 33. Qf6+ Ke4
-34. Bg2# *
+34. Bg2# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#30 · 11-03 · gen 6.5 vs Stockfish 18 (0.005 s/move) · win · rook odds"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "23"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "30"]
+[White "AlphaUX gen 6.5 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "1-0"]
 [FEN "1nbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQk - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "LIGHTNING preset ('the classic timing')"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "rook odds to AlphaUX: Black (Stockfish) starts without the a8 rook"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives Black no a8 rook = odds to us, White mates); opponent stated; time stated; build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result stated"]
+[OwnerNote "quick warmup win with odds. This is using the classic tiiming of the engine. 0.005s speed for SF and LIGHTNING presets for us"]
+[Evidence "owner 11-04 02:13Z: 'quick warmup win with odds ... 0.005s speed for SF and LIGHTNING presets for us'"]
 [Pasted "2026-11-03 21:13 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "quick warmup win with odds. T his is using the classic tiiming of the engine. 0.005s speed for SF and LIGHTNING presets for us: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); LIGHTNING preset ('the classic timing')) against Stockfish 18 at 0.005 s per move (fixed), from rook odds to AlphaUX: Black (Stockfish) starts without the a8 rook. Result: win by checkmate. Confidence: side inferred, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 Nf6 2. e5 Nd5 3. c4 Nb4 4. d4 c5 5. d5 d6 6. a3 Qa5 7. Bd2 Bf5 8. Nf3
 dxe5 9. Nxe5 g6 10. g4 Be4 11. f3 Bg7 12. fxe4 Bxe5 13. Qb3 Bd4 14. Ra2 Qb6 15.
 axb4 Na6 16. Qa4+ Kd8 17. b5 Nb4 18. Qxa7 Qc7 19. Bxb4 cxb4 20. Qxd4 f6 21.
 Ra8+ Kd7 22. Rxh8 b6 23. Nd2 Qa7 24. g5 h5 25. e5 Qa1+ 26. Kf2 Qxf1+ 27. Rxf1
-Kc7 28. d6+ Kd7 29. dxe7+ Ke6 30. Ke1 Kxe7 31. Rxf6 b3 32. Qd6# *
+Kc7 28. d6+ Kd7 29. dxe7+ Ke6 30. Ke1 Kxe7 31. Rxf6 b3 32. Qd6# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#31 · 11-03 · gen 6.5 vs Stockfish 18 (0.005 s/move) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "24"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "31"]
+[White "AlphaUX gen 6.5 (LIGHTNING)"]
+[Black "Stockfish 18 (0.005 s/move)"]
+[Result "0-1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "Stockfish 18 at 0.005 s per move (fixed)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "loss"]
+[Confidence "side inferred (the assistant: 'We were White', final material); opponent stated ('same time controls'); time stated; build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result stated"]
+[OwnerNote "same time controls but no odds this time. Keep in mind, with lightning, we've only won once against 0.005s SF18 ... This time a loss"]
+[Evidence "owner 11-04 02:14Z: 'same time controls but no odds this time'; 02:15Z: 'This time a loss'"]
 [Pasted "2026-11-03 21:15 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "This time a loss: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); LIGHTNING preset) against Stockfish 18 at 0.005 s per move (fixed), from none (standard start). Result: loss. Confidence: side inferred, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nge7 4. O-O a6 5. Bc4 Ng6 6. d4 Be7 7. d5 Nb8 8. d6
 cxd6 9. Nc3 Nc6 10. a4 Rb8 11. Nd5 b5 12. Bd3 bxa4 13. h3 Nb4 14. Nxe7 Qxe7 15.
 Bc4 d5 16. exd5 Qc5 17. Qe2 Nxd5 18. Nxe5 O-O 19. Nxg6 hxg6 20. Rxa4 Nb6 21.
@@ -611,24 +1034,35 @@ Qe7 28. Rxa6 Bb5 29. Raa4 Bxc4 30. Qxc4 Ra8 31. Qb5 Rxa4 32. bxa4 Qd6 33. a5
 Rb8 34. Bb6 Rc8 35. Qd3 Qxd3 36. cxd3 Rc1+ 37. Kh2 Ra1 38. h4 f6 39. Bc7 Ra3
 40. Bb6 Kf7 41. g4 Ke6 42. Kg2 Kd5 43. Kh2 d6 44. Kg2 Rxd3 45. a6 Ra3 46. a7
 Kc4 47. Kf1 d5 48. f4 d4 49. Ke1 Kc3 50. Kf2 d3 51. Bc5 Ra2+ 52. Kf3 d2 53. Ke2
-Kc2 54. Kf2 d1=Q *
+Kc2 54. Kf2 d1=Q 0-1
 
-[Event "Chessiverse Unrated Game"]
+[Event "#32 · 11-03 · gen 6.5 vs Chessiverse Paul Morphy bot · win"]
 [Site "https://chessiverse.com/analysis?id=523a0b9c-564f-4144-b166-d06db612f0eb"]
-[Date "2026.11.04"]
-[Round "25"]
-[White "RoyalBishop6821"]
-[Black "Paul Morphy"]
+[Date "2026.11.03"]
+[Round "32"]
+[White "AlphaUX gen 6.5 (BLITZ)"]
+[Black "Chessiverse Paul Morphy bot"]
 [Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "BLITZ preset"]
+[OpponentSettings "Chessiverse Paul Morphy bot ('3231' on Chessiverse's scale); its time not stated"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win (Morphy bot resigned)"]
+[Confidence "side stated (Chessiverse account RoyalBishop6821 is White); opponent stated (time unknown); time carried (owner announced BLITZ, then asked LIGHTNING or BLITZ, the assistant advised BLITZ, not confirmed after); build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result stated"]
+[OwnerNote "Im gonna try a BLITZ preset game against an online bot now ... ok, this was a win, but honestly the bot played some bad moves"]
+[Evidence "owner 11-04 02:18Z: 'Im gonna try a BLITZ preset game against an online bot now'; 02:43Z: 'ok, this was a win'"]
+[SiteWhite "RoyalBishop6821"]
+[SiteBlack "Paul Morphy"]
 [Time "02:24:29"]
 [WhiteElo "1564"]
 [BlackElo "3231"]
 [Termination "Resign"]
 [Pasted "2026-11-03 21:43 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "ok, this was a win, but honestly the bot played some bad moves in the beginning i think: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); BLITZ preset) against Chessiverse Paul Morphy bot ('3231' on Chessiverse's scale); its time not stated, from none (standard start). Result: win (Morphy bot resigned). Confidence: side stated, opponent stated, time carried, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O b5 6. Bb3 Be7 7. Re1 O-O 8. c3
 d5 9. exd5 Nxd5 10. Nxe5 Nxe5 11. Rxe5 Nf6 12. d4 Bd6 13. Re1 Ng4 14. h3 Qh4
 15. Qf3 Nxf2 16. Re2 Nxh3+ 17. gxh3 Bxh3 18. Re4 Bh2+ 19. Kxh2 Bg4+ 20. Kg1 h5
@@ -636,38 +1070,40 @@ d5 9. exd5 Nxd5 10. Nxe5 Nxe5 11. Rxe5 Nf6 12. d4 Bd6 13. Re1 Ng4 14. h3 Qh4
 g6 28. Rxd5 Qc8 29. Bf4 a3 30. bxa3 Bd7 31. Rc5 c6 32. Bd6 Re8 33. Re5 Rxe5 34.
 Qxe5 Bh3 35. Kh2 1-0
 
-[Event "Play vs Bot"]
+[Event "#33 · 11-03 · gen 6.5 vs chess.com Francis-BOT (2300) · win"]
 [Site "Chess.com"]
-[Date "2026.11.04"]
-[Round "26"]
-[White "Francis-BOT"]
-[Black "ranmal100"]
+[Date "2026.11.03"]
+[Round "33"]
+[White "chess.com Francis-BOT (2300)"]
+[Black "AlphaUX gen 6.5 (60+0.6)"]
 [Result "0-1"]
-[CurrentPosition "8/8/8/6p1/8/2r4K/4q3/2k5 w - - 8 69"]
-[Timezone "UTC"]
-[ECO "D43"]
-[ECOUrl "https://www.chess.com/openings/Semi-Slav-Defense"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "60 s + 0.6 s clock (the bot untimed)"]
+[OpponentSettings "chess.com Francis-BOT (2300), untimed"]
+[Odds "none (standard start)"]
+[OurSide "Black"]
+[Outcome "win by checkmate"]
+[Confidence "side stated ('as black', chess.com account ranmal100 is Black); opponent stated; time stated; build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result stated"]
+[OwnerNote "a game against Francis, rated 2300 on chess.com. There's no timer for Francis, but i'm setting our clock to 60 +0.6 as black"]
+[Evidence "owner 11-04 02:48Z: 'There's no timer for Francis, but i'm setting our clock to 60 +0.6 as black'"]
+[SiteWhite "Francis-BOT"]
+[SiteBlack "ranmal100"]
 [UTCDate "2026.11.04"]
 [UTCTime "02:48:30"]
+[Timezone "UTC"]
+[StartTime "02:48:30"]
+[EndTime "03:06:18"]
+[EndDate "2026.11.04"]
 [WhiteElo "2300"]
 [BlackElo "1268"]
-[TimeControl "?"]
-[Termination "ranmal100 won by checkmate"]
-[StartTime "02:48:30"]
-[EndDate "2026.11.04"]
-[EndTime "03:06:18"]
+[ECO "D43"]
 [Link "https://www.chess.com/analysis/game/computer/2520777340/review?move=125"]
-[WhiteUrl "https://images.chesscomfiles.com/uploads/v1/user/66745948.2cd33375.50x50o.0f98e63b392b.png"]
-[WhiteCountry "111"]
-[WhiteTitle ""]
-[BlackUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
-[BlackCountry "3"]
-[BlackTitle ""]
+[Termination "ranmal100 won by checkmate"]
 [Pasted "2026-11-03 22:11 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "the interesting part is that during the bookphase, it was able to get some increment time added up ok, now this was an interesting positional grind. One weird part is that i think a book move of ours got listed as a mistake at 10 ... Nf6. O"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played Black (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 60 s + 0.6 s clock (the bot untimed)) against chess.com Francis-BOT (2300), untimed, from none (standard start). Result: win by checkmate. Confidence: side stated, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. d4 d5 2. c4 e6 3. Nc3 c6 4. Nf3 Nf6 5. Bg5 h6 6. Bxf6 Qxf6 7. e3 Nd7 8. cxd5
 exd5 9. Bd3 Qd8 10. O-O Nf6 11. e4 dxe4 12. Qe2 Be7 13. Nxe4 O-O 14. Nxf6+ Bxf6
 15. Qe3 Be6 16. Rfe1 Qd5 17. Be4 Qh5 18. Ne5 Rad8 19. Bc2 Rfe8 20. Qd3 g6 21.
@@ -680,38 +1116,56 @@ Rc5 54. Rh1 c2 55. Kh5 a4 56. a3 Kc3 57. Rg1 Kb2 58. Kg6 Kxa3 59. Rf1 Kb2 60.
 Kh6 a3 61. Kh5 c1=Q 62. Rxc1 Kxc1 63. Kg4 a2 64. Kg3 a1=Q 65. Kg4 Qf6 66. Kg3
 Qf1 67. Kg4 Qe2+ 68. Kh3 Rc3# 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#34 · 11-03 · gen 6.5 vs Stockfish (setting not stated) · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "27"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "34"]
+[White "AlphaUX gen 6.5 (60+0.6)"]
+[Black "Stockfish (setting not stated)"]
+[Result "1-0"]
 [FEN "8/8/8/4k3/8/8/8/R3K3 w - - 60 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "60 s + 0.6 s clock"]
+[OpponentSettings "Stockfish ('against SF'); its time not stated (no Stockfish clock lines, so fixed per move)"]
+[Odds "custom FEN: K+R v K with the 50-move count at 60"]
+[OurSide "White"]
+[Outcome "win, mate in 17"]
+[Confidence "side inferred (the test had our engine as White, AlphaUX's own clock line is White's); opponent stated (time unknown); time stated (said just after); build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result stated ('clean win')"]
+[OwnerNote "1. clean win and quickly ... that was in 60 + 0.6 by the way, and so will the rest be"]
+[Evidence "owner 11-04 03:24Z: '1. clean win and quickly'; 03:25Z: 'that was in 60 + 0.6 by the way'"]
 [Pasted "2026-11-03 22:24 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "1. clean win and quickly: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 60 s + 0.6 s clock) against Stockfish ('against SF'); its time not stated (no Stockfish clock lines, so fixed per move), from custom FEN: K+R v K with the 50-move count at 60. Result: win, mate in 17. Confidence: side inferred, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. Kd2 Ke4 2. Rf1 Kd4 3. Re1 Kc4 4. Re4+ Kd5 5. Kd3 Kc5 6. Re3 Kd5 7. Kc3 Kc5
 8. Rd3 Kb5 9. Rd5+ Kc6 10. Kc4 Kb6 11. Rc5 Ka6 12. Rb5 Ka7 13. Kc5 Ka6 14. Kc6
-Ka7 15. Rd5 Kb8 16. Ra5 Kc8 17. Ra8# *
+Ka7 15. Rd5 Kb8 16. Ra5 Kc8 17. Ra8# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#35 · 11-03 · gen 6.5 vs Stockfish (setting not stated) · draw · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "28"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "35"]
+[White "AlphaUX gen 6.5 (60+0.6)"]
+[Black "Stockfish (setting not stated)"]
+[Result "1/2-1/2"]
 [FEN "8/8/8/4k3/8/8/8/1NB1K3 w - - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "60 s + 0.6 s clock (carried)"]
+[OpponentSettings "Stockfish (carried); its time not stated"]
+[Odds "custom FEN: K+B+N v K"]
+[OurSide "White"]
+[Outcome "draw: no mate, the bishop was lost, ends K+N v K"]
+[Confidence "side inferred (the test had our engine as White); opponent carried (time unknown); time carried; build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result stated ('it had no idea what to do')"]
+[OwnerNote "2. yeah it had no idea what to do"]
+[Evidence "owner 11-04 03:25Z: 'so will the rest be unless you suggest otherwise'; 03:29Z: '2. yeah it had no idea what to do'"]
 [Pasted "2026-11-03 22:29 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "2. yeah it had no idea what to do: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 60 s + 0.6 s clock (carried)) against Stockfish (carried); its time not stated, from custom FEN: K+B+N v K. Result: draw: no mate, the bishop was lost, ends K+N v K. Confidence: side inferred, opponent carried, time carried, build inferred, result stated; details in the Confidence tag. }
 1. Kf2 Ke4 2. Bh6 Kd4 3. Nd2 Kc5 4. Ke3 Kb4 5. Kd4 Ka3 6. Kc3 Ka4 7. Kc4 Ka3 8.
 Bg7 Ka4 9. Bf8 Ka5 10. Kc5 Ka4 11. Kc6 Ka5 12. Nf3 Ka6 13. Bb4 Ka7 14. Nd4 Kb8
 15. Bc5 Kc8 16. Nf5 Kb8 17. Ne3 Kc8 18. Bd6 Kd8 19. Nf5 Kc8 20. Bf8 Kb8 21. Kb6
@@ -720,20 +1174,29 @@ Nh5 Kb8 29. Bb6 Kc8 30. Nf4 Kb8 31. Bd4 Ka8 32. Nh3 Kb8 33. Bc5 Ka8 34. Ng5 Kb8
 35. Ne6 Kc8 36. Nd4 Kb8 37. Bb6 Kc8 38. Nb5 Kb8 39. Bc7+ Ka8 40. Ba5 Kb8 41.
 Kb6 Kc8 42. Bb4 Kd7 43. Nc7 Kd8 44. Kc6 Kc8 45. Nb5 Kb8 46. Bf8 Kc8 47. Nc7 Kb8
 48. Bd6 Ka7 49. Bc5+ Kb8 50. Nd5 Kc8 51. Ne3 Kd8 52. Kd6 Ke8 53. Ke5 Kf7 54.
-Kf5 Kg8 55. Kg5 Kf7 56. Kh6 Ke6 57. Nd1 Kd5 58. Nb2 Kxc5 *
+Kf5 Kg8 55. Kg5 Kf7 56. Kh6 Ke6 57. Nd1 Kd5 58. Nb2 Kxc5 1/2-1/2
 
-[Event "AlphaUX UI game"]
+[Event "#36 · 11-03 · gen 6.5 vs Stockfish (0.0005 s/move) · win"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "29"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "36"]
+[White "AlphaUX gen 6.5 (180+0)"]
+[Black "Stockfish (0.0005 s/move)"]
+[Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "180 s, no increment (NNEngineUCI(clock=(180)))"]
+[OpponentSettings "Stockfish at 0.0005 s per move, no clock (version not stated)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side stated (white_chess_engine = NNEngineUCI); opponent stated; time stated; build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result stated"]
+[OwnerNote "im doing white_chess_engine = NNEngineUCI(clock=(180)) vs just stockfish (no clock) at 0.0005 seconds in a normal game ... the engine won long before any time trouble"]
+[Evidence "owner 11-04 03:31Z: 'NNEngineUCI(clock=(180)) vs just stockfish (no clock) at 0.0005 seconds in a normal game'"]
 [Pasted "2026-11-03 22:35 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "3. it seems the engine won long before any time trouble came to be an issue: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 180 s, no increment (NNEngineUCI(clock=(180)))) against Stockfish at 0.0005 s per move, no clock (version not stated), from none (standard start). Result: win by checkmate. Confidence: side stated, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nge7 4. O-O a6 5. Bc4 Ng6 6. d4 exd4 7. Nxd4 Qf6 8.
 Nf5 d5 9. Bxd5 Bxf5 10. exf5 Qxf5 11. Be4 Qe6 12. c4 Bb4 13. Bd5 Qd7 14. a3 Be7
 15. Bxf7+ Kd8 16. Be6 Qxd1 17. Rxd1+ Bd6 18. Nc3 Ke8 19. Ne4 Bf4 20. g3 Ke7 21.
@@ -742,22 +1205,31 @@ Rxc7 Re7 28. Rxe7 Kxe7 29. Re1+ Kd6 30. b4 Ne5 31. Nxb7+ Nxb7 32. c5+ Nxc5 33.
 bxc5+ Kxc5 34. Rxe5+ Kc4 35. Bf1+ Kb3 36. Ra5 h5 37. h4 g6 38. Bd3 Rd8 39. Bxg6
 Rd6 40. Bxh5 Kc3 41. Kg2 Kb2 42. Bf3 Rg6 43. h5 Rf6 44. g4 Kc2 45. g5 Rf4 46.
 g6 Rd4 47. g7 Rf4 48. Rc5+ Kd3 49. g8=Q Rg4+ 50. Bxg4 Kd2 51. Qd5+ Ke1 52. Rc1#
-*
+1-0
 
-[Event "AlphaUX UI game"]
+[Event "#37 · 11-03 · gen 6.5 vs Stockfish (setting not stated) · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "30"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "37"]
+[White "AlphaUX gen 6.5 (60+0)"]
+[Black "Stockfish (setting not stated)"]
+[Result "1-0"]
 [FEN "8/4bk2/4p1p1/p2pPpP1/P7/1P3K2/3B1P2/8 w - - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "60 s, no increment"]
+[OpponentSettings "Stockfish (not stated for this game); its time not stated (no Stockfish clock lines)"]
+[Odds "custom FEN: a won bishop ending for White"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side stated ('as white, our engine would win'); opponent inferred (the evening's tests were 'against SF'); time stated; build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result inferred (from the PGN)"]
+[OwnerNote "im pretty sure as white, our engine would win ... For now illl try the UI with 60 + 0 and see how it goes"]
+[Evidence "owner 11-04 03:53Z: 'For now illl try the UI with 60 + 0 and see how it goes'"]
 [Pasted "2026-11-03 22:56 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "here it is in full: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 60 s, no increment) against Stockfish (not stated for this game); its time not stated (no Stockfish clock lines), from custom FEN: a won bishop ending for White. Result: win by checkmate. Confidence: side stated, opponent inferred, time stated, build inferred, result inferred; details in the Confidence tag. }
 1. Bxa5 Bxg5 2. b4 Bd2 3. Bb6 Bxb4 4. a5 Bxa5 5. Bxa5 g5 6. Bb6 Kg6 7. Bc5 Kh5
 8. Bf8 Kh4 9. Be7 Kh5 10. Kg3 Kh6 11. Bd8 Kg6 12. Kf3 Kh6 13. Ba5 Kh5 14. Bc7
 Kh6 15. Bd8 Kg6 16. Bf6 Kh6 17. Ke3 Kg6 18. f4 gxf4+ 19. Kxf4 d4 20. Bh4 Kh7
@@ -765,59 +1237,86 @@ Kh6 15. Bd8 Kg6 16. Bf6 Kh6 17. Ke3 Kg6 18. f4 gxf4+ 19. Kxf4 d4 20. Bh4 Kh7
 Ke8 28. Kf6 Kd7 29. Bf4 Kd8 30. Kxe6 Ke8 31. Kxf5 Kf7 32. Ke4 Ke6 33. Kxd3 Kd5
 34. Ke3 Ke6 35. Ke4 Kf7 36. Kf5 Ke8 37. Ke6 Kf8 38. Bh6+ Ke8 39. Bg7 Kd8 40.
 Kd6 Kc8 41. Bf6 Kb7 42. Bd8 Kc8 43. Bc7 Kb7 44. e6 Kc8 45. e7 Kb7 46. e8=Q Ka6
-47. Qc6+ Ka7 48. Qb5 Ka8 49. Qa6# *
+47. Qc6+ Ka7 48. Qb5 Ka8 49. Qa6# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#38 · 11-03 · gen 6.5 vs opponent not stated · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "31"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "38"]
+[White "AlphaUX gen 6.5 (30+0)"]
+[Black "opponent not stated"]
+[Result "1-0"]
 [FEN "6qk/6pp/8/8/8/1P6/PRP5/KR6 b - - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "30 s, no increment"]
+[OpponentSettings "not stated (presumably the UI's Stockfish)"]
+[Odds "custom FEN: two rooks v queen"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (AlphaUX's own clock line is White's); opponent unknown; time stated (opponent's unknown); build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result inferred (from the PGN)"]
+[OwnerNote "custom endgame position with 30 seconds + 0"]
+[Evidence "owner 11-04 04:08Z: 'custom endgame position with 30 seconds + 0'"]
 [Pasted "2026-11-03 23:08 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "custom endgame position with 30 seconds + 0: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 30 s, no increment) against not stated (presumably the UI's Stockfish), from custom FEN: two rooks v queen. Result: win by checkmate. Confidence: side inferred, opponent unknown, time stated, build inferred, result inferred; details in the Confidence tag. }
 1... g5 2. c3 Qg7 3. b4 h5 4. b5 h4 5. b6 Qb7 6. Rb5 g4 7. R1b4 Qf3 8. b7 Qxc3+
 9. Rb2 Kh7 10. b8=Q Qe1+ 11. Rb1 Qc3+ 12. R5b2 Kh6 13. Qf4+ Kh5 14. Rd1 h3 15.
-Rd5+ Kg6 16. Qf5+ Kh6 17. Qg5+ Kh7 18. Rd7+ Qg7 19. Qxg7# *
+Rd5+ Kg6 16. Qf5+ Kh6 17. Qg5+ Kh7 18. Rd7+ Qg7 19. Qxg7# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#39 · 11-03 · gen 6.5 vs opponent not stated · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "32"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "39"]
+[White "AlphaUX gen 6.5 (20+0)"]
+[Black "opponent not stated"]
+[Result "1-0"]
 [FEN "6qk/6pp/8/8/8/1P6/PRP5/KR6 b - - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "20 s, no increment"]
+[OpponentSettings "not stated (presumably the UI's Stockfish)"]
+[Odds "custom FEN: two rooks v queen (same position)"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (AlphaUX's own clock line is White's); opponent unknown; time stated (opponent's unknown); build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result inferred (from the PGN)"]
+[OwnerNote "same position with 20 seconds + 0"]
+[Evidence "owner 11-04 04:08Z: 'same position with 20 seconds + 0'"]
 [Pasted "2026-11-03 23:08 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "custom endgame position with 30 seconds + 0: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 20 s, no increment) against not stated (presumably the UI's Stockfish), from custom FEN: two rooks v queen (same position). Result: win by checkmate. Confidence: side inferred, opponent unknown, time stated, build inferred, result inferred; details in the Confidence tag. }
 1... g5 2. c3 Qg7 3. b4 h5 4. b5 h4 5. b6 Qb7 6. Rg1 Kh7 7. Rxg5 Qh1+ 8. Rb1
 Qc6 9. Rgb5 Qxc3+ 10. R5b2 Qh8 11. b7 Qb8 12. Rh1 Kg8 13. Rxh4 Kg7 14. Rc4 Kf7
 15. Rc8 Qg3 16. b8=Q Qg1+ 17. Rb1 Qg7+ 18. Qb2 Qxb2+ 19. Kxb2 Ke6 20. Rd1 Kf7
-21. Rd6 Ke7 22. Rcc6 Kf8 23. Rc7 Ke8 24. a4 Kf8 25. Rd8# *
+21. Rd6 Ke7 22. Rcc6 Kf8 23. Rc7 Ke8 24. a4 Kf8 25. Rd8# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#40 · 11-03 · gen 6.5 vs opponent not stated · unfinished · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.03"]
-[Round "33"]
-[White "White"]
-[Black "Black"]
+[Round "40"]
+[White "AlphaUX gen 6.5 (10+0)"]
+[Black "opponent not stated"]
 [Result "*"]
 [FEN "6qk/6pp/8/8/8/1P6/PRP5/KR6 b - - 0 1"]
 [SetUp "1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5)"]
+[AlphaUXTime "10 s, no increment"]
+[OpponentSettings "not stated (presumably the UI's Stockfish)"]
+[Odds "custom FEN: two rooks v queen (same position)"]
+[OurSide "White"]
+[Outcome "unfinished: the PGN stops with Black's queen giving check (perhaps a perpetual); no result given"]
+[Confidence "side inferred (AlphaUX's own clock line is White's); opponent unknown; time stated (opponent's unknown); build inferred (installed minutes before, the assistant: 'The UI will use the new, faster engine'); result unknown"]
+[OwnerNote "and finally 10 + 0"]
+[Evidence "owner 11-04 04:08Z: 'and finally 10 + 0'"]
 [Pasted "2026-11-03 23:08 EST"]
-[AlphaUXBuild "gen 6.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "custom endgame position with 30 seconds + 0: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 6.5 + speed batch 8 (production chess_engine_uci_g65b8pgo, installed that evening; same moves as gen 6.5); 10 s, no increment) against not stated (presumably the UI's Stockfish), from custom FEN: two rooks v queen (same position). Result: unfinished: the PGN stops with Black's queen giving check (perhaps a perpetual); no result given. Confidence: side inferred, opponent unknown, time stated, build inferred, result unknown; details in the Confidence tag. }
 1... g5 2. b4 g4 3. a4 Qc4 4. Rb3 Qxc2 5. b5 Qf2 6. R1b2 Qf4 7. Rb4 Qf1+ 8. Ka2
 Qf7+ 9. R4b3 Qc4 10. Ka3 Qc5+ 11. Rb4 Qe3+ 12. R2b3 Qc1+ 13. Ka2 Qd2+ 14. Rb2
 Qd5+ 15. Ka3 Qd3+ 16. R2b3 Qf1 17. Rb1 Qd3+ 18. R4b3 Qd6+ 19. Ka2 Qd4 20. Rb4
@@ -827,18 +1326,27 @@ Qa3+ 27. Ra2 Qc3+ 28. Rab2 Qd4 29. a5 g3 30. b6 Qa4+ 31. Ra2 Qd4+ 32. Rab2 Qa4+
 39. Rbb2 Qe1+ 40. Rb1 Qe5+ 41. Rbb2 Qe1+ 42. Rb1 Qe5+ 43. Rbb2 Qe1+ 44. Rb1
 Qc3+ 45. Rbb2 Qc1+ 46. Rb1 Qc3+ 47. Rbb2 Qe1+ 48. Rb1 Qc3+ *
 
-[Event "AlphaUX UI game"]
+[Event "#41 · 11-07 · gen 7 vs Stockfish (0.0005 s/move) · win"]
 [Site "ChessUI (local)"]
 [Date "2026.11.07"]
-[Round "34"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "41"]
+[White "AlphaUX gen 7 (LIGHTNING)"]
+[Black "Stockfish (0.0005 s/move)"]
+[Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 7, production UCI binary chess_engine_uci_g7pgo"]
+[AlphaUXTime "LIGHTNING preset"]
+[OpponentSettings "Stockfish at 0.0005 s per move (version not stated)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (the assistant: 'Both games so far were with White', White mates); opponent stated; time stated; build inferred (ship date, the assistant's game file for 11-07); result stated (owner: 'a decent warmup', 'we've won against this time too')"]
+[OwnerNote "first game agaisnt SF at 0.0005s ... We have been able to beat this version for a while so its a decent warmup ... that was versus our 'LIGHTNING' preset"]
+[Evidence "owner 11-07 22:14Z: 'first game agaisnt SF at 0.0005s'; 22:15Z: 'that was versus our LIGHTNING preset by the way'"]
 [Pasted "2026-11-07 17:14 EST"]
-[AlphaUXBuild "gen 7 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "first game agaisnt SF at 0.0005s: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 7, production UCI binary chess_engine_uci_g7pgo; LIGHTNING preset) against Stockfish at 0.0005 s per move (version not stated), from none (standard start). Result: win by checkmate. Confidence: side inferred, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nge7 4. O-O a6 5. Bc4 Ng6 6. d4 exd4 7. Nxd4 Qf6 8.
 Nf5 d5 9. Bxd5 Bxf5 10. exf5 Qxf5 11. c4 O-O-O 12. Nc3 Bb4 13. Qb3 Nge7 14. Be4
 Qe5 15. Re1 f5 16. Qxb4 Nxb4 17. Bxb7+ Kxb7 18. Rxe5 Nec6 19. Rxf5 g6 20. Rf6
@@ -847,20 +1355,29 @@ Rd4 21. Bh6 Rh4 22. Bf4 Rd8 23. Rf7 Rd4 24. Bg3 Rh5 25. a3 Nd3 26. Rxc7+ Kb6
 33. Bc7+ Kc5 34. Rc1+ Nc4 35. Re4 Nd4 36. Re5+ Kc6 37. Rxc4+ Kb7 38. Re7 Nf5
 39. Rxh7 a5 40. g4 Nxh4 41. Rxh4 Rb1+ 42. Kg2 a4 43. Rh8 Ka7 44. Rxa4+ Kb7 45.
 Rb8+ Kxc7 46. Rxb1 Kd7 47. Rb6 Kd8 48. Rxg6 Ke8 49. Ra7 Kf8 50. a4 Ke8 51. Rg8#
-*
+1-0
 
-[Event "AlphaUX UI game"]
+[Event "#42 · 11-07 · gen 7 vs Stockfish (0.005 s/move) · win"]
 [Site "ChessUI (local)"]
 [Date "2026.11.07"]
-[Round "35"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "42"]
+[White "AlphaUX gen 7 (LIGHTNING)"]
+[Black "Stockfish (0.005 s/move)"]
+[Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 7, production UCI binary chess_engine_uci_g7pgo"]
+[AlphaUXTime "LIGHTNING preset (carried)"]
+[OpponentSettings "Stockfish at 0.005 s per move (version not stated)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred ('we've won' and White mates); opponent carried ('Next Ill try 0.005 now'); time carried; build inferred (ship date, the assistant's game file for 11-07); result stated"]
+[OwnerNote "ok, it seems we've won against this time too"]
+[Evidence "owner 11-07 22:14Z: 'Next Ill try 0.005 now'; 22:16Z: 'ok, it seems we've won against this time too'"]
 [Pasted "2026-11-07 17:16 EST"]
-[AlphaUXBuild "gen 7 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "ok, it seems we've won against this time too: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 7, production UCI binary chess_engine_uci_g7pgo; LIGHTNING preset (carried)) against Stockfish at 0.005 s per move (version not stated), from none (standard start). Result: win by checkmate. Confidence: side inferred, opponent carried, time carried, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 b5 5. Bb3 Bc5 6. c3 Ba7 7. d4 exd4 8. cxd4
 Nge7 9. O-O O-O 10. Nc3 d6 11. h3 h6 12. Nd5 Be6 13. Nf6+ gxf6 14. d5 Bxh3 15.
 dxc6 Be6 16. Bxh6 Bg4 17. Qd2 Ng6 18. a4 Bxf3 19. gxf3 bxa4 20. Rxa4 Rb8 21.
@@ -868,20 +1385,29 @@ Bd5 Kh8 22. Kg2 Nh4+ 23. Kg3 Rg8+ 24. Kxh4 Qe7 25. Bf4 Rg7 26. Kh3 Rbg8 27. Bg3
 Qe5 28. Qh6+ Rh7 29. Qxh7+ Kxh7 30. Bxe5 fxe5 31. b4 Rh8 32. b5 Rg8 33. bxa6
 Rg6 34. Rb1 Kg7 35. Rb7 Bxf2 36. a7 Rg3+ 37. Kh2 Rg5 38. a8=Q Bg3+ 39. Kh3 Bf4
 40. Rxc7 Rg3+ 41. Kh4 Bg5+ 42. Kxg3 Bd8 43. Qxd8 Kh7 44. Qf8 Kg6 45. Bxf7+ Kh7
-46. Be8# *
+46. Be8# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#43 · 11-07 · gen 7 vs Stockfish (0.05 s/move) · win"]
 [Site "ChessUI (local)"]
 [Date "2026.11.07"]
-[Round "36"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "43"]
+[White "AlphaUX gen 7 (BLITZ)"]
+[Black "Stockfish (0.05 s/move)"]
+[Result "1-0"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 7, production UCI binary chess_engine_uci_g7pgo"]
+[AlphaUXTime "BLITZ preset (up to 3.5 s/move)"]
+[OpponentSettings "Stockfish at 0.05 s per move (version not stated)"]
+[Odds "none (standard start)"]
+[OurSide "White"]
+[Outcome "win by checkmate on move 124 (Stockfish dropped a rook in a drawn ending)"]
+[Confidence "side inferred (owner discusses White's 23.Qb7 as ours, 'allowed us to win', White mates); opponent stated; time stated; build inferred (ship date, the assistant's game file for 11-07); result stated"]
+[OwnerNote "an interesting game agaisnt SF at 0.05s against our BLITZ preset ... SF apparantly didn't want a draw and played into a losing position which allowed us to win"]
+[Evidence "owner 11-07 22:37Z: 'an interesting game agaisnt SF at 0.05s against our BLITZ preset'"]
 [Pasted "2026-11-07 17:37 EST"]
-[AlphaUXBuild "gen 7 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "here's an interesting game agaisnt SF at 0.05s against our BLITZ preset: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 7, production UCI binary chess_engine_uci_g7pgo; BLITZ preset (up to 3.5 s/move)) against Stockfish at 0.05 s per move (version not stated), from none (standard start). Result: win by checkmate on move 124 (Stockfish dropped a rook in a drawn ending). Confidence: side inferred, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Nxe4 6. d4 b5 7. Bb3 d5 8. dxe5
 Be6 9. Nbd2 Nc5 10. c3 d4 11. Bxe6 Nxe6 12. cxd4 Ncxd4 13. a4 Bc5 14. Ne4 O-O
 15. Nxc5 Nxf3+ 16. Qxf3 Nxc5 17. axb5 axb5 18. Bg5 Rxa1 19. Bxd8 Rxf1+ 20. Kxf1
@@ -901,80 +1427,161 @@ Kg3 Nd7 92. Qc7 Ke7 93. Kf3 Rd6 94. Kf2 Re6 95. Kg3 Rb6 96. Qc1 Kd8 97. Qc3 Rd6
 104. Qc4 Kd8 105. Qb4 Ke7 106. Kg3 Nb6 107. Qc5 Kd7 108. Kh3 Nc8 109. Kg3 Rd3+
 110. Kg2 Ra3 111. Qxa3 Ne7 112. Qa1 Nd5 113. Kf3 Ne7 114. Qg7 Kd6 115. Qf7 Kd7
 116. Ke3 Kd6 117. Qf6+ Kd7 118. Kd4 Nc6+ 119. Kc5 Nd8 120. Kd5 Kc7 121. Qe7+
-Kc8 122. Kc5 Nf7 123. Kb6 Ne5 124. Qe8# *
+Kc8 122. Kc5 Nf7 123. Kb6 Ne5 124. Qe8# 1-0
 
-[Event "AlphaUX UI game"]
-[Site "ChessUI (local)"]
+[Event "#44 · 11-07 · gen 7 vs chess.com world-champion-carlsen bot · win"]
+[Site "Chess.com"]
 [Date "2026.11.07"]
-[Round "37"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "44"]
+[White "chess.com world-champion-carlsen bot"]
+[Black "AlphaUX gen 7 (STANDARD)"]
+[Result "0-1"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 7, production UCI binary chess_engine_uci_g7pgo"]
+[AlphaUXTime "STANDARD preset (45 s cap per move)"]
+[OpponentSettings "chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed"]
+[Odds "none (standard start)"]
+[OurSide "Black"]
+[Outcome "win by checkmate (the bot hung its queen)"]
+[Confidence "side stated ('as black', chess.com account ranmal100 is Black); opponent stated (untimed inferred); time inferred (45 s caps in the printout, owner: 'the suboptimal time system i created'); build inferred (ship date, the assistant's game file for 11-07); result stated"]
+[OwnerNote "ill give it a try again as black ... we won the game but this one was pretty weird ... the magnus bot just blundered a queen"]
+[Evidence "owner 11-07 22:57Z: 'now ill give it a try again as black'; 23:24Z: 'the magnus bot just blundered a queen. We win'"]
+[SiteWhite "world-champion-carlsen"]
+[SiteBlack "ranmal100"]
+[UTCDate "2026.11.07"]
+[UTCTime "22:58:41"]
+[Timezone "UTC"]
+[StartTime "22:58:41"]
+[EndTime "23:21:54"]
+[EndDate "2026.11.07"]
+[WhiteElo "2882"]
+[BlackElo "1268"]
+[ECO "D43"]
+[Link "https://www.chess.com/analysis/game/computer/2566297760/review?move=77"]
+[Termination "ranmal100 won by checkmate"]
 [Pasted "2026-11-07 18:24 EST"]
-[AlphaUXBuild "gen 7 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "ok, we won the game but this one was pretty weird. I've included the move evals from our end: '"]
 [Session "2a8f69b3"]
+[Source "chess.com PGN pasted with the UI copy; the old archive kept the UI copy as round 37"]
 
-1. d4 d5 2. c4 e6 3. Nc3 c6 4. Nf3 Nf6 5. e3 Nbd7 6. Qc2 Bd6 7. g4 h6 8. g5
-hxg5 9. Nxg5 O-O 10. Bd2 b6 11. Rg1 Bb7 12. O-O-O a5 13. e4 e5 14. dxe5 Bxe5
-15. exd5 cxd5 16. f4 Bd6 17. cxd5 a4 18. a3 Rc8 19. Bd3 Bxd5 20. Bh7+ Kh8 21.
-Qf5 Bb3 22. Qh3 Bc5 23. Bg6+ Kg8 24. Bh7+ Kh8 25. Bf5+ Kg8 26. Rg3 g6 27. Qh6
-Re8 28. Bxg6 fxg6 29. Qxg6+ Kf8 30. Qh6+ Ke7 31. Qh7+ Nxh7 32. Re1+ Kd6 33.
-Nxh7 Rxe1+ 34. Bxe1 Qe7 35. Rg6+ Kc7 36. Bd2 Qxh7 37. f5 Qxh2 38. f6 Qh1+ 39.
-Nd1 Qxd1# *
+{ AlphaUX played Black (v2 gen 7, production UCI binary chess_engine_uci_g7pgo; STANDARD preset (45 s cap per move)) against chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed, from none (standard start). Result: win by checkmate (the bot hung its queen). Confidence: side stated, opponent stated, time inferred, build inferred, result stated; details in the Confidence tag. }
+1. d4 d5 2. c4 e6 3. Nc3 c6 4. Nf3 Nf6 5. e3 Nbd7 6. Qc2 Bd6 7. g4 h6 8. g5 $6
+hxg5 9. Nxg5 O-O $2 10. Bd2 b6 $2 11. Rg1 Bb7 12. O-O-O a5 13. e4 e5 14. dxe5
+Bxe5 15. exd5 cxd5 16. f4 Bd6 $6 17. cxd5 $6 a4 18. a3 Rc8 19. Bd3 Bxd5 20.
+Bh7+ Kh8 21. Qf5 Bb3 22. Qh3 $3 Bc5 $2 23. Bg6+ Kg8 24. Bh7+ $1 Kh8 25. Bf5+
+Kg8 26. Rg3 $2 g6 $4 27. Qh6 Re8 28. Bxg6 fxg6 29. Qxg6+ Kf8 30. Qh6+ Ke7 31.
+Qh7+ $4 Nxh7 32. Re1+ Kd6 33. Nxh7 Rxe1+ 34. Bxe1 Qe7 35. Rg6+ Kc7 36. Bd2 Qxh7
+37. f5 Qxh2 38. f6 $6 Qh1+ 39. Nd1 $6 Qxd1# 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#45 · 11-10 · gen 7.1 vs opponent not stated (60+0.6) · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.10"]
-[Round "38"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "45"]
+[White "opponent not stated (60+0.6)"]
+[Black "AlphaUX gen 7.1 (60+0.6)"]
+[Result "0-1"]
 [FEN "8/6p1/7p/5B1P/2p1P1P1/1k1b4/2p5/2K5 b - - 0 1"]
 [SetUp "1"]
+[TimeControl "60+0.6"]
+[AlphaUXBuild "v2 gen 7.1 (lazy eval), production"]
+[AlphaUXTime "60 s + 0.6 s clock, both sides"]
+[OpponentSettings "not stated (the saved PGN says 'Opponent'), 60+0.6"]
+[Odds "custom FEN: the won bishop ending for Black of 10-27"]
+[OurSide "Black"]
+[Outcome "win by checkmate"]
+[Confidence "side stated ('where we are black'); opponent unknown (clock stated); time stated; build stated (owner: games 'to see how lazy eval operates'); result inferred (from the PGN)"]
+[OwnerNote "ill run some games to see how lazy eval operates ... Here's a test game at 60 +0.6 each where we are black"]
+[Evidence "owner 11-10 21:09Z: 'ill run some games to see how lazy eval operates ... a test game at 60 +0.6 each where we are black'"]
 [Pasted "2026-11-10 16:09 EST"]
-[AlphaUXBuild "gen 7.1 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "for POT, this was an idea of my design. It seemed to fail in eval, but we did consider looking at it again in search. Perhaps we rereead the purpose, see where things failed, and if you think its helpful, i could try a onetime handoff to fa"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played Black (v2 gen 7.1 (lazy eval), production; 60 s + 0.6 s clock, both sides) against not stated (the saved PGN says 'Opponent'), 60+0.6, from custom FEN: the won bishop ending for Black of 10-27. Result: win by checkmate. Confidence: side stated, opponent unknown, time stated, build stated, result inferred; details in the Confidence tag. }
 1... Kb4 2. e5 Kc5 3. Bd7 Kd5 4. e6 Kd6 5. Bc8 Ke7 6. Bd7 Be2 7. Kxc2 Bxg4 8.
 Kc3 Bxe6 9. Ba4 Kf6 10. Bc2 Kg5 11. Kd4 Kxh5 12. Ke5 Bf7 13. Kd4 Kg4 14. Ba4
 Kf4 15. Kc5 g5 16. Bc6 c3 17. Kd6 c2 18. Bb5 c1=Q 19. Kd7 Qc5 20. Bf1 Ke5 21.
-Bh3 Qa7+ 22. Kc8 Kd6 23. Bg2 Qc7# *
+Bh3 Qa7+ 22. Kc8 Kd6 23. Bg2 Qc7# 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#46 · 11-10 · gen 7.1 vs opponent not stated (60+0.6) · win · knight odds"]
 [Site "ChessUI (local)"]
-[Date "2026.11.12"]
-[Round "39"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Date "2026.11.10"]
+[Round "46"]
+[White "opponent not stated (60+0.6)"]
+[Black "AlphaUX gen 7.1 (60+0.6)"]
+[Result "0-1"]
 [FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1"]
 [SetUp "1"]
+[TimeControl "60+0.6"]
+[AlphaUXBuild "v2 gen 7.1 (lazy eval), production"]
+[AlphaUXTime "60 s + 0.6 s clock, both sides"]
+[OpponentSettings "not stated, 60+0.6 ('same time controls')"]
+[Odds "knight odds to AlphaUX: White starts without the b1 knight"]
+[OurSide "Black"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives White no b1 knight = odds to us, Black mates, the assistant assumed Black, not corrected); opponent unknown (clock stated); time stated; build carried (owner's lazy-eval test session); result inferred (from the PGN)"]
+[OwnerNote "here's another game ... This time knight odds with the same time controls"]
+[Evidence "owner 11-10 21:21Z (queued): 'This time knight odds with the same time controls'"]
+[Pasted "2026-11-10 16:21 EST"]
+[Session "2a8f69b3"]
+[Source "pasted 2026-11-10 16:21 EST in session 2a8f69b3; not in the old archive (queued mid-turn message)"]
+
+{ AlphaUX played Black (v2 gen 7.1 (lazy eval), production; 60 s + 0.6 s clock, both sides) against not stated, 60+0.6 ('same time controls'), from knight odds to AlphaUX: White starts without the b1 knight. Result: win by checkmate. Confidence: side inferred, opponent unknown, time stated, build carried, result inferred; details in the Confidence tag. }
+1. e4 e5 2. Nf3 Nc6 3. d4 exd4 4. Bb5 a6 5. Ba4 Bc5 6. O-O Nge7 7. b4 Bxb4 8.
+Bb3 Bc3 9. Ng5 d5 10. Qh5 g6 11. Qh4 Bxa1 12. Ba3 Bc3 13. exd5 Ne5 14. Ne4 Nxd5
+15. Qg3 f6 16. Bxd5 Bf5 17. Rb1 Bxe4 18. Bxe4 b5 19. h4 Rb8 20. f4 f5 21. fxe5
+fxe4 22. Qf4 b4 23. h5 d3 24. Bb2 dxc2 25. Re1 Bxb2 26. Kh2 Qd1 27. Qxe4 Qxe1
+28. Qxe1 Rb5 29. Qe4 c1=Q 30. Qf3 Rxe5 31. Qa8+ Kd7 32. Qf3 Rxh5+ 33. Qxh5 gxh5
+34. a3 Rf8 35. axb4 Qe1 36. b5 Qh4+ 37. Kg1 Bd4# 0-1
+
+[Event "#47 · 11-12 · gen 7.2 or 7.2+SEE3 vs Stockfish 18 (60+0.6) · win · knight odds"]
+[Site "ChessUI (local)"]
+[Date "2026.11.12"]
+[Round "47"]
+[White "Stockfish 18 (60+0.6)"]
+[Black "AlphaUX gen 7.2 or 7.2+SEE3 (60+0.6)"]
+[Result "0-1"]
+[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+[TimeControl "60+0.6"]
+[AlphaUXBuild "gen 7.2, or gen 7.2 + SEE_PER_MOVE=3 (gen 7.3 behaviour) - not recorded"]
+[AlphaUXTime "60 s + 0.6 s clock"]
+[OpponentSettings "Stockfish 18, 60+0.6 clock"]
+[Odds "knight odds to AlphaUX: White (Stockfish 18) starts without the b1 knight"]
+[OurSide "Black"]
+[Outcome "win by checkmate"]
+[Confidence "side inferred (FEN gives White no b1 knight = SF18's odds, 'odds win', Black mates); opponent stated; time stated; build unknown which (the assistant asked twice which launch, never answered); result stated"]
+[OwnerNote "first odds win at 60+0.6 each against SF18"]
+[Evidence "owner 11-12 20:19Z: 'first odds win at 60+0.6 each against SF18'"]
 [Pasted "2026-11-12 15:19 EST"]
-[AlphaUXBuild "gen 7.2 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "first odds win at 60+0.6 each against SF18: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played Black (gen 7.2, or gen 7.2 + SEE_PER_MOVE=3 (gen 7.3 behaviour) - not recorded; 60 s + 0.6 s clock) against Stockfish 18, 60+0.6 clock, from knight odds to AlphaUX: White (Stockfish 18) starts without the b1 knight. Result: win by checkmate. Confidence: side inferred, opponent stated, time stated, build unknown, result stated; details in the Confidence tag. }
 1. e4 e5 2. d4 exd4 3. Nf3 Nc6 4. Bb5 a6 5. Ba4 Bb4+ 6. c3 dxc3 7. O-O Nge7 8.
 Ng5 O-O 9. bxc3 Bxc3 10. Ba3 Bxa1 11. Qxa1 d6 12. Bb2 f6 13. f4 d5 14. exd5
 Nxd5 15. Bb3 fxg5 16. Bxg7 Rf7 17. Bb2 Na5 18. Bxd5 Qxd5 19. Qc1 Qc4 20. Qe3
 Nc6 21. Qe8+ Rf8 22. Qe1 Be6 23. h4 Rxf4 24. Rxf4 gxf4 25. Ba3 Rd8 26. Kh2 Rd3
 27. Bc1 Nd4 28. Bxf4 Rh3+ 29. gxh3 Nf3+ 30. Kg3 Nxe1 31. Kf2 Nc2 32. Bxc7 Qxc7
-33. Ke2 Qe5+ 34. Kd1 Bf5 35. Kc1 Qa1+ 36. Kd2 Qe1# *
+33. Ke2 Qe5+ 34. Kd1 Bf5 35. Kc1 Qa1+ 36. Kd2 Qe1# 0-1
 
-[Event "AlphaUX UI game"]
+[Event "#48 · 11-12 · gen 7.2 or 7.2+SEE3 vs Stockfish 1.1 (60+0.6) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.11.12"]
-[Round "40"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "48"]
+[White "Stockfish 1.1 (60+0.6)"]
+[Black "AlphaUX gen 7.2 or 7.2+SEE3 (60+0.6)"]
+[Result "1-0"]
+[TimeControl "60+0.6"]
+[AlphaUXBuild "gen 7.2, or gen 7.2 + SEE_PER_MOVE=3 (gen 7.3 behaviour) - not recorded"]
+[AlphaUXTime "60 s + 0.6 s clock"]
+[OpponentSettings "Stockfish 1.1, 60+0.6 clock"]
+[Odds "none (standard start)"]
+[OurSide "Black"]
+[Outcome "loss, AlphaUX resigned (saw mate in 7; SF1.1's clock read 0:00.0, a possible flag never checked)"]
+[Confidence "side inferred (the assistant: 'From the moves, our engine was Black', final material); opponent stated; time stated; build unknown which (the assistant asked twice which launch, never answered); result stated"]
+[OwnerNote "A loss on equal time 60 + 0.6 against SF1.1 ... We ended up in a winning position but it wasn't seen through properly"]
+[Evidence "owner 11-12 20:29Z: 'A loss on equal time 60 + 0.6 against SF1.1'"]
 [Pasted "2026-11-12 15:29 EST"]
-[AlphaUXBuild "gen 7.2 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "A loss on equal time 60 + 0.6 against SF1.1: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played Black (gen 7.2, or gen 7.2 + SEE_PER_MOVE=3 (gen 7.3 behaviour) - not recorded; 60 s + 0.6 s clock) against Stockfish 1.1, 60+0.6 clock, from none (standard start). Result: loss, AlphaUX resigned (saw mate in 7; SF1.1's clock read 0:00.0, a possible flag never checked). Confidence: side inferred, opponent stated, time stated, build unknown, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. d4 Nd6 6. Bxc6 dxc6 7. dxe5 Nf5
 8. Qxd8+ Kxd8 9. Nc3 Bd7 10. Rd1 Kc8 11. Bf4 h6 12. h3 g5 13. Bh2 a5 14. Ne4 c5
 15. Rd2 Be7 16. Nc3 Bc6 17. Nd5 Bd8 18. c4 h5 19. Rd3 g4 20. Nd2 Nd4 21. Ne4 b6
@@ -989,116 +1596,155 @@ Bf2 Bd3 67. Rh4 Nc3 68. Nd7 Bb5 69. Nc5+ Ka3 70. Bd4 Rc2 71. Nd7 Nd5 72. Ke4
 Bc6 73. Kf5 Ne7+ 74. Kf6 Nd5+ 75. Kf7 Rc1 76. Rg4 Rf1+ 77. Nf6 Kb3 78. h4 Bb5
 79. e7 c5 80. Rg3+ Ka4 81. Bb2 Kb4 82. h5 Be2 83. e8=Q Bxh5+ 84. Rg6 Bxg6+ 85.
 Kxg6 Nxf6 86. Bxf6 Rg1+ 87. Kf7 Rf1 88. Qe2 Rg1 89. Qd3 Rg4 90. Bc3+ Ka4 91.
-Qd1+ Ka3 92. Qxg4 Kb3 93. Bf6 Ka3 94. Qf4 Kb3 95. Qe4 *
+Qd1+ Ka3 92. Qxg4 Kb3 93. Bf6 Ka3 94. Qf4 Kb3 95. Qe4 1-0
 
-[Event "UI 600+0.6"]
+[Event "#49 · 11-16 · gen 7.5 vs Stockfish 1.1 (600+0.6) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.11.16"]
-[Round "41"]
-[White "Stockfish 1.1"]
-[Black "AlphaUX gen 7.5"]
-[Result "*"]
+[Round "49"]
+[White "Stockfish 1.1 (600+0.6)"]
+[Black "AlphaUX gen 7.5 (600+0.6)"]
+[Result "1-0"]
+[TimeControl "600+0.6"]
+[AlphaUXBuild "v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'"]
+[AlphaUXTime "600 s + 0.6 s clock"]
+[OpponentSettings "Stockfish 1.1, 600+0.6 clock"]
+[Odds "none (standard start)"]
+[OurSide "Black"]
+[Outcome "loss, AlphaUX resigned at -15.17"]
+[Confidence "side inferred (the assistant's read of the config: 'AlphaUX played Black with PLAYER_COLOR = True'); opponent stated; time stated; build carried (owner named the plain launch minutes later); result stated"]
+[OwnerNote "first somewhat disappointing game. It was 600 + 0.6, where we actually had a fair advantage because SF1.1 doesn't know the opening that well"]
+[Evidence "owner 11-17 01:05Z: 'It was 600 + 0.6 ... SF1.1 doesn't know the opening that well'"]
 [Pasted "2026-11-16 20:05 EST"]
-[AlphaUXBuild "gen 7.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "first somewhat disappointing game. It was 600 + 0.6, where we actually had a fair advantage because SF1.1 doesn't know the opening that well and calculates it all compared to our opening book which is instant so we had a time advantage at t"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played Black (v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'; 600 s + 0.6 s clock) against Stockfish 1.1, 600+0.6 clock, from none (standard start). Result: loss, AlphaUX resigned at -15.17. Confidence: side inferred, opponent stated, time stated, build carried, result stated; details in the Confidence tag. }
 1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Qe2 Ng5 6. Bxc6 dxc6 7. Qxe5+ Ne6
 8. Re1 Be7 9. Nc3 O-O 10. d3 h6 11. Ne4 Qd5 12. Qg3 f5 13. Nc3 Qd6 14. Ne2 g5
 15. Nf4 Rf6 16. h4 g4 17. c3 Qd8 18. Nh5 Bd6 19. Nxf6+ Qxf6 20. Ne5 c5 21. Bd2
 h5 22. Qe3 b5 23. Rac1 a5 24. g3 a4 25. d4 c4 26. Qe2 a3 27. Rb1 c5 28. Bg5 Qg7
 29. dxc5 Bxc5 30. bxa3 Ra5 31. Red1 Qc7 32. Bf6 Bf8 33. a4 Rxa4 34. Rxb5 Qa7
 35. Rd2 Kh7 36. Rbd5 Qb6 37. Rb2 Qa6 38. Nd7 Bxd7 39. Rxd7+ Kg6 40. Bh8 Ra5 41.
-Rbb7 Rc5 42. Rf7 *
+Rbb7 Rc5 42. Rf7 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#50 · 11-16 · gen 7.5 vs Stockfish 1.1 (10+0.1) · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.16"]
-[Round "42"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "50"]
+[White "AlphaUX gen 7.5 (10+0.1)"]
+[Black "Stockfish 1.1 (10+0.1)"]
+[Result "1-0"]
 [FEN "8/8/8/4k3/8/8/8/1N2KB2 w - - 0 1"]
 [SetUp "1"]
+[TimeControl "10+0.1"]
+[AlphaUXBuild "v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'"]
+[AlphaUXTime "10 s + 0.1 s clock"]
+[OpponentSettings "Stockfish 1.1, 10+0.1 clock"]
+[Odds "custom FEN: K+B+N v K"]
+[OurSide "White"]
+[Outcome "win, mate in 38"]
+[Confidence "side inferred (the assistant's read of chess_ui_v2.py: AlphaUX White, the attacker); opponent inferred (the assistant's read of chess_ui_v2.py); time inferred (the assistant's read, owner: 'that short amount of time'); build stated (owner: 'im running this python ChessUI/chess_ui_v2.py'); result stated ('it was able to mate')"]
+[OwnerNote "with that short amount of time it was able to mate"]
+[Evidence "owner 11-17 01:24Z: 'im running this python ChessUI/chess_ui_v2.py'; 01:25Z: 'with that short amount of time it was able to mate'"]
 [Pasted "2026-11-16 20:25 EST"]
-[AlphaUXBuild "gen 7.5 - inferred from the install dates, not recorded at play time"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'; 10 s + 0.1 s clock) against Stockfish 1.1, 10+0.1 clock, from custom FEN: K+B+N v K. Result: win, mate in 38. Confidence: side inferred, opponent inferred, time inferred, build stated, result stated; details in the Confidence tag. }
 1. Nd2 Kf6 2. Kf2 Kf7 3. Nc4 Kg8 4. Bh3 Kf8 5. Ke3 Kf7 6. Kf3 Kg7 7. Nb6 Kf7 8.
 Kf4 Kf6 9. Bg4 Ke7 10. Ke5 Kf7 11. Nc4 Kg6 12. Nd6 Kh6 13. Bf5 Kg7 14. Bb1 Kg8
 15. Kf6 Kf8 16. Bd3 Kg8 17. Bg6 Kh8 18. Bb1 Kg8 19. Nc8 Kf8 20. Ba2 Ke8 21. Nb6
 Kd8 22. Ke6 Ke8 23. Nd7 Kd8 24. Bd5 Kc7 25. Ke7 Kc8 26. Kd6 Kd8 27. Be4 Ke8 28.
 Bg6+ Kd8 29. Nc5 Kc8 30. Be8 Kd8 31. Bb5 Kc8 32. Bd7+ Kb8 33. Be6 Ka8 34. Kc7
-Ka7 35. Bg4 Ka8 36. Kb6 Kb8 37. Na6+ Ka8 38. Bf3# *
+Ka7 35. Bg4 Ka8 36. Kb6 Kb8 37. Na6+ Ka8 38. Bf3# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#51 · 11-16 · gen 7.5 vs Stockfish 1.1 (10+0.1) · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.16"]
-[Round "43"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "51"]
+[White "AlphaUX gen 7.5 (10+0.1)"]
+[Black "Stockfish 1.1 (10+0.1)"]
+[Result "1-0"]
 [FEN "7k/8/5K2/8/8/8/8/3BN3 w - - 0 1"]
 [SetUp "1"]
+[TimeControl "10+0.1"]
+[AlphaUXBuild "v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'"]
+[AlphaUXTime "10 s + 0.1 s clock (carried)"]
+[OpponentSettings "Stockfish 1.1, 10+0.1 clock (carried)"]
+[Odds "custom FEN: K+B+N v K, defender in the wrong corner"]
+[OurSide "White"]
+[Outcome "win, mate in 18"]
+[Confidence "side carried (same setup as the game before); opponent carried; time carried; build carried (owner named the plain launch minutes later); result stated ('faster win')"]
+[OwnerNote "faster win on the first"]
+[Evidence "owner 11-17 01:28Z: 'faster win on the first'"]
 [Pasted "2026-11-16 20:28 EST"]
-[AlphaUXBuild "gen 7.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "faster win on the first: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'; 10 s + 0.1 s clock (carried)) against Stockfish 1.1, 10+0.1 clock (carried), from custom FEN: K+B+N v K, defender in the wrong corner. Result: win, mate in 18. Confidence: side carried, opponent carried, time carried, build carried, result stated; details in the Confidence tag. }
 1. Bf3 Kg8 2. Bg2 Kf8 3. Bd5 Ke8 4. Be6 Kd8 5. Nd3 Ke8 6. Nc5 Kd8 7. Bd7 Kc7 8.
 Ke7 Kb6 9. Nb3 Kc7 10. Ba4 Kb6 11. Kd8 Ka6 12. Kc7 Ka7 13. Bb5 Ka8 14. Na5 Ka7
-15. Nc6+ Ka8 16. Ne7 Ka7 17. Nc8+ Ka8 18. Bc6# *
+15. Nc6+ Ka8 16. Ne7 Ka7 17. Nc8+ Ka8 18. Bc6# 1-0
 
-[Event "AlphaUX UI game"]
+[Event "#52 · 11-16 · gen 7.5 vs Stockfish 1.1 (10+0.1) · win · custom FEN"]
 [Site "ChessUI (local)"]
 [Date "2026.11.16"]
-[Round "44"]
-[White "White"]
-[Black "Black"]
-[Result "*"]
+[Round "52"]
+[White "AlphaUX gen 7.5 (10+0.1)"]
+[Black "Stockfish 1.1 (10+0.1)"]
+[Result "1-0"]
 [FEN "8/8/3k4/8/8/8/8/2B1KB2 w - - 0 1"]
 [SetUp "1"]
+[TimeControl "10+0.1"]
+[AlphaUXBuild "v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'"]
+[AlphaUXTime "10 s + 0.1 s clock (carried)"]
+[OpponentSettings "Stockfish 1.1, 10+0.1 clock (carried)"]
+[Odds "custom FEN: K+B+B v K"]
+[OurSide "White"]
+[Outcome "win, mate in 15"]
+[Confidence "side carried (same setup); opponent carried; time carried; build carried (owner named the plain launch minutes later); result inferred (from the PGN, the assistant: 'Both mated')"]
+[OwnerNote "and second"]
+[Evidence "owner 11-17 01:28Z: 'and second'; assistant 01:29Z: 'Both mated, well inside the limit.'"]
 [Pasted "2026-11-16 20:28 EST"]
-[AlphaUXBuild "gen 7.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "faster win on the first: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, plain 'python ChessUI/chess_ui_v2.py'; 10 s + 0.1 s clock (carried)) against Stockfish 1.1, 10+0.1 clock (carried), from custom FEN: K+B+B v K. Result: win, mate in 15. Confidence: side carried, opponent carried, time carried, build carried, result inferred; details in the Confidence tag. }
 1. Kd2 Ke6 2. Ke3 Kf5 3. Kd4 Kf6 4. Bh3 Ke7 5. Ke5 Kd8 6. Kd6 Ke8 7. Bf5 Kf7 8.
 Bg5 Kg8 9. Ke7 Kg7 10. Bd3 Kg8 11. Bh6 Kh8 12. Kf6 Kg8 13. Kg6 Kh8 14. Bg7+ Kg8
-15. Bc4# *
+15. Bc4# 1-0
 
-[Event "Play vs Bot"]
+[Event "#53 · 11-16 · gen 7.5 vs chess.com world-champion-carlsen bot · win"]
 [Site "Chess.com"]
-[Date "2026.11.17"]
-[Round "45"]
-[White "world-champion-carlsen"]
-[Black "AlphaUX gen 7.5"]
+[Date "2026.11.16"]
+[Round "53"]
+[White "chess.com world-champion-carlsen bot"]
+[Black "AlphaUX gen 7.5 (STANDARD)"]
 [Result "0-1"]
-[CurrentPosition "2k5/3n3p/p4p2/8/4r3/2p4Q/P5PP/4q1K1 w - - 4 35"]
-[Timezone "UTC"]
-[ECO "D43"]
-[ECOUrl "https://www.chess.com/openings/Semi-Slav-Defense"]
+[TimeControl "?"]
+[AlphaUXBuild "v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, PRESET=STANDARD with NNEngineUCI() and no clock"]
+[AlphaUXTime "STANDARD preset, no clock"]
+[OpponentSettings "chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed"]
+[Odds "none (standard start)"]
+[OurSide "Black"]
+[Outcome "win by checkmate (98.6% accuracy by chess.com)"]
+[Confidence "side stated (chess.com account ranmal100 is Black); opponent stated (untimed inferred); time stated; build inferred for the binary (ship date), launch PRESET=STANDARD stated by the owner; result stated"]
+[OwnerNote "ill do one game against the chess.com magnus bot ... id like to see if we can beat it right with the 'STANDARD' time controls ... a nice win"]
+[Evidence "owner 11-17 01:33Z: 'beat it right with the STANDARD time controls'; 01:38Z: 'PRESET=STANDARD python ChessUI/chess_ui_v2.py'"]
+[SiteWhite "world-champion-carlsen"]
+[SiteBlack "AlphaUX gen 7.5"]
 [UTCDate "2026.11.17"]
 [UTCTime "01:34:51"]
+[Timezone "UTC"]
+[StartTime "01:34:51"]
+[EndTime "01:55:23"]
+[EndDate "2026.11.17"]
 [WhiteElo "2882"]
 [BlackElo "1268"]
-[TimeControl "?"]
-[Termination "ranmal100 won by checkmate"]
-[StartTime "01:34:51"]
-[EndDate "2026.11.17"]
-[EndTime "01:55:23"]
+[ECO "D43"]
 [Link "https://www.chess.com/analysis/game/computer/2674798176/review?move=67"]
-[WhiteUrl "https://images.chesscomfiles.com/uploads/v1/user/315574933.59dc97b4.50x50o.3696cc31e5c5.png"]
-[WhiteCountry "104"]
-[WhiteTitle ""]
-[BlackUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
-[BlackCountry "3"]
-[BlackTitle ""]
+[Termination "ranmal100 won by checkmate"]
 [Pasted "2026-11-16 20:58 EST"]
-[AlphaUXBuild "gen 7.5 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "a nice win: '"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played Black (v2 gen 7.5, production UCI binary chess_engine_uci_g75pgo, PRESET=STANDARD with NNEngineUCI() and no clock; STANDARD preset, no clock) against chess.com 'world-champion-carlsen' bot (2882 on chess.com's bot scale), untimed, from none (standard start). Result: win by checkmate (98.6% accuracy by chess.com). Confidence: side stated, opponent stated, time stated, build inferred, result stated; details in the Confidence tag. }
 1. d4 d5 2. c4 e6 3. Nc3 c6 4. Nf3 Nf6 5. e3 Nbd7 6. Bd3 dxc4 7. Bxc4 b5 8. Bd3
 Bb7 9. O-O a6 10. e4 c5 11. Be3 c4 12. Bc2 b4 13. e5 bxc3 14. exf6 cxb2 15. Rb1
 c3 16. d5 gxf6 17. dxe6 fxe6 18. Bd4 Qc7 19. Ng5 O-O-O 20. Nxe6 Qc6 21. Qg4 Re8
@@ -1106,18 +1752,27 @@ c3 16. d5 gxf6 17. dxe6 fxe6 18. Bd4 Qc7 19. Ng5 O-O-O 20. Nxe6 Qc6 21. Qg4 Re8
 28. Rxd4 b1=Q+ 29. Kf2 Qxc2+ 30. Ke1 Re8+ 31. Re4 Bxe4 32. fxe4 Rxe4+ 33. Kf1
 Qe2+ 34. Kg1 Qe1# 0-1
 
-[Event "UI game 2026-11-17"]
+[Event "#54 · 11-17 · gen 7.6 vs Stockfish 1.1 (600+0.6) · loss"]
 [Site "ChessUI (local)"]
 [Date "2026.11.17"]
-[Round "46"]
-[White "AlphaUX (v2 gen 7.6)"]
-[Black "Stockfish 1.1"]
-[Result "*"]
+[Round "54"]
+[White "AlphaUX gen 7.6 (600+0.6)"]
+[Black "Stockfish 1.1 (600+0.6)"]
+[Result "0-1"]
+[TimeControl "600+0.6"]
+[AlphaUXBuild "v2 gen 7.6, production UCI binary chess_engine_uci_g76pgo (shipped 11-17 18:23); no knobs stated"]
+[AlphaUXTime "600 s + 0.6 s clock"]
+[OpponentSettings "Stockfish 1.1 on its own clock, 600 s base (increment inferred 0.6)"]
+[Odds "none (standard start; book to ply 23, French Winawer Poisoned Pawn)"]
+[OurSide "White"]
+[Outcome "loss, AlphaUX resigned at -15.89"]
+[Confidence "side stated ('We played as white this time'); opponent stated (clock inferred from the pasted clock lines); time inferred (clock lines start at 10:00 with increments, the assistant had suggested 600+0.6); build inferred (the assistant: 'gen 7.6 just shipped, so the UI will be playing the new build'); result stated"]
+[OwnerNote "a very interesting opening was taken. We played as white this time ... at ply 57, white succumbs to a queen trap"]
+[Evidence "owner 11-18 00:45Z: 'We played as white this time ... SF1.1s lack of quick opening prep'"]
 [Pasted "2026-11-17 19:45 EST"]
-[AlphaUXBuild "gen 7.6 - inferred from the install dates, not recorded at play time"]
-[OwnerNote "a very interesting opening was taken. We played as white this time, and since the opening went on much longer (opening book usage until ply 23), SF1.1's lack of quick opening prep meant we saved a lot of time in that part which gave an earl"]
 [Session "2a8f69b3"]
 
+{ AlphaUX played White (v2 gen 7.6, production UCI binary chess_engine_uci_g76pgo (shipped 11-17 18:23); no knobs stated; 600 s + 0.6 s clock) against Stockfish 1.1 on its own clock, 600 s base (increment inferred 0.6), from none (standard start; book to ply 23, French Winawer Poisoned Pawn). Result: loss, AlphaUX resigned at -15.89. Confidence: side stated, opponent stated, time inferred, build inferred, result stated; details in the Confidence tag. }
 1. e4 e6 2. d4 d5 3. Nc3 Bb4 4. e5 c5 5. a3 Bxc3+ 6. bxc3 Ne7 7. Qg4 Qc7 8.
 Qxg7 Rg8 9. Qxh7 cxd4 10. Ne2 dxc3 11. f4 Bd7 12. Qd3 Ba4 13. Rb1 Nd7 14. Rb4
 Nb6 15. Nxc3 Bd7 16. Nb5 Bxb5 17. Qxb5+ Nc6 18. Be3 O-O-O 19. Rb1 d4 20. Bd2
@@ -1125,12 +1780,13 @@ Kb8 21. Kf2 Rd5 22. Qd3 Na4 23. g3 Nc5 24. Qh7 Rdd8 25. Bg2 Rh8 26. Qg7 Rdg8
 27. Qf6 Rh7 28. h4 Rg6 29. Qxg6 fxg6 30. Rhd1 Ne7 31. g4 Rxh4 32. Rh1 Rxh1 33.
 Rxh1 g5 34. Bf3 gxf4 35. Rh8+ Nc8 36. Bxf4 Qa5 37. g5 Qc3 38. Kg3 Qxc2 39. Rg8
 d3 40. Be3 d2 41. Rd8 Qc3 42. Kf2 Nd3+ 43. Ke2 d1=Q+ 44. Kxd1 Nf4 45. Bxf4
-Qxf3+ 46. Kc2 Qxf4 47. g6 Qf5+ 48. Kb2 Qxe5+ 49. Ka2 Qg5 50. Rg8 e5 51. g7 e4 *
+Qxf3+ 46. Kc2 Qxf4 47. g6 Qf5+ 48. Kb2 Qxe5+ 49. Ka2 Qg5 50. Rg8 e5 51. g7 e4
+0-1
 
-[Event "#47 · 11-18 · gen 7.6 + stand-pat seed vs SF1.1 · loss (resigned)"]
+[Event "#55 · 11-18 · gen 7.6 + stand-pat seed vs SF1.1 · loss (resigned)"]
 [Site "ChessUI (local)"]
 [Date "2026.11.18"]
-[Round "47"]
+[Round "55"]
 [White "AlphaUX gen 7.6 + ENABLE_QSTANDPAT_SEED=1 (600+0.6)"]
 [Black "Stockfish 1.1 (600+0.6)"]
 [Result "0-1"]

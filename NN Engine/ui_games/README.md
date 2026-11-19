@@ -160,3 +160,4 @@ All 55 games in `ui_games.new.pgn`, in local play order (the time is when the ow
 | 53 | old 45 |
 | 54 | old 46 |
 | 55 | old 47 (recorded 11-18, verbatim) |
+| 56 | 11-18 ~23:50 | gen 7.6 (production; seed flag not confirmed) | 900+10 | lichess AI level 7 (lichess default time, relayed) | White | start | 56 | 1-0 (mate) | side stated; build stated; seed flag unconfirmed; opp time unknown | clean win. Ply 91: 150 s think reported as 8 nodes/s (S2-33). |

@@ -1864,3 +1864,78 @@ Kf2 { [%eval -3.46] d15 3.2M 1.9s [%clk 0:00:37] } 55... Nxd2 56. Rxd2
 { [%eval -6.97] d15 2.7M 1.8s [%clk 0:00:29] } 60... Be2 61. Qh2
 { [%eval -10.38] d14 6.8M 5.3s [%clk 0:00:24] } 61... Bxg4
 { AlphaUX resigned: 62.Qg2 at -23.40 (d14, 8.5M nodes), 0:18 left. } 0-1
+
+[Event "#56 · 11-18 · gen 7.6 (900+10) vs lichess AI level 7 · win"]
+[Site "ChessUI (local)"]
+[Date "2026.11.18"]
+[Round "56"]
+[White "AlphaUX gen 7.6 (900+10)"]
+[Black "lichess AI level 7 (lichess default time)"]
+[Result "1-0"]
+[TimeControl "?"]
+[ECO "C40"]
+[Opening "Elephant Gambit, 3.exd5 e4 4.Qe2"]
+[Termination "Normal (56.Qff1#)"]
+[AlphaUXTime "900+10 (the owner's UI clock)"]
+[OpponentSettings "lichess AI level 7, lichess's default time for the AI; moves relayed by hand"]
+[OurSide "White"]
+[Confidence "side stated (AlphaUX clock line is White's); opponent stated; our time stated; opponent time unknown; build stated (production); seed flag not confirmed"]
+[OwnerNote "clean win. One odd thing: ply 91 has an average analysis speed of 8."]
+[AlphaUXBuild "AlphaUX (v2 gen 7.6) (build_uci/chess_engine_uci = chess_engine_uci_g76pgo, bench 246 / 35,138,434) + ENABLE_QSTANDPAT_SEED=1 if the UI was relaunched with it as for game 55 (not confirmed; the UI output does not echo knobs) - recorded at play time"]
+[Played "2026-11-18 23:50"]
+[Source "2026-11-18_2350_pasted.pgn"]
+
+{ AlphaUX White: gen 7.6 (production binary g76pgo; ENABLE_QSTANDPAT_SEED=1 if relaunched with it as for game 55, not confirmed), 900+10, own book to 4.Qe2. Black: lichess AI level 7 at lichess's default time, relayed by hand. +0.8 to +2.2 through the middlegame, 38.Rxe7+ into a won pawn ending, mate at move 56. Two long thinks: 29.Rg5 145 s (eval fell +2.18 to +1.70) and 46.Kxg6 150 s with 1,228 nodes reported, which left 1:25 on the clock; 47.f5 then took 59 s. Comments on our moves: eval (ours, White's view), depth, nodes, seconds, our clock after the move. }
+1. e4 { book [%clk 0:15:10] } 1... e5 2. Nf3 { book } 2... d5 3. exd5 { book }
+3... e4 4. Qe2 { book [%clk 0:15:40] } 4... Qe7 5. Nd4
+{ [%eval 0.83] d18 18.9M 14.6s [%clk 0:15:35] } 5... Nf6 6. Nc3
+{ [%eval 0.83] d17 28.3M 22.1s [%clk 0:15:23] } 6... Qe5 7. Nf3
+{ [%eval 1.30] d17 62.8M 47.7s [%clk 0:14:45] } 7... Qf5 8. d3
+{ [%eval 1.36] d16 19.6M 14.7s [%clk 0:14:41] } 8... Bb4 9. Nd2
+{ [%eval 1.30] d17 27.1M 20.0s [%clk 0:14:31] } 9... Bxc3 10. bxc3
+{ [%eval 1.22] d19 44.0M 30.9s [%clk 0:14:10] } 10... Qxd5 11. Nxe4
+{ [%eval 1.29] d18 41.3M 31.5s [%clk 0:13:48] } 11... Nxe4 12. Qxe4+
+{ [%eval 1.05] d18 31.0M 22.0s [%clk 0:13:36] } 12... Qxe4+ 13. dxe4
+{ [%eval 1.05] d16 6.8M 5.3s [%clk 0:13:41] } 13... Be6 14. f4
+{ [%eval 1.17] d16 32.7M 24.1s [%clk 0:13:27] } 14... f5 15. Bd3
+{ [%eval 1.18] d18 47.1M 33.8s [%clk 0:13:03] } 15... fxe4 16. Bxe4
+{ [%eval 1.24] d17 9.6M 6.7s [%clk 0:13:06] } 16... c6 17. Rb1
+{ [%eval 1.49] d17 45.9M 32.2s [%clk 0:12:44] } 17... b5 18. a4
+{ [%eval 1.71] d17 38.6M 27.2s [%clk 0:12:27] } 18... a6 19. O-O
+{ [%eval 1.93] d17 69.9M 50.3s [%clk 0:11:47] } 19... O-O 20. Re1
+{ [%eval 1.89] d16 17.7M 13.4s [%clk 0:11:43] } 20... Bd5 21. Bxd5+
+{ [%eval 1.95] d18 36.0M 24.8s [%clk 0:11:28] } 21... cxd5 22. axb5
+{ [%eval 1.94] d17 19.4M 14.0s [%clk 0:11:24] } 22... axb5 23. Rxb5
+{ [%eval 1.75] d16 31.1M 22.6s [%clk 0:11:12] } 23... Nd7 24. Be3
+{ [%eval 1.63] d16 58.4M 40.9s [%clk 0:10:41] } 24... Rfb8 25. Rxd5
+{ [%eval 2.02] d17 25.7M 16.1s [%clk 0:10:35] } 25... Nf6 26. Rc5
+{ [%eval 2.04] d16 17.9M 11.7s [%clk 0:10:33] } 26... Rb2 27. Bd4
+{ [%eval 2.21] d16 36.6M 24.3s [%clk 0:10:19] } 27... Rxc2 28. h4
+{ [%eval 2.18] d16 44.5M 32.0s [%clk 0:09:57] } 28... Raa2 29. Rg5
+{ [%eval 1.70] d18 217.1M 145.4s [%clk 0:07:41] long think: the eval fell from +2.18 }
+29... Kf7 30. Rb1 { [%eval 1.96] d16 28.9M 18.7s [%clk 0:07:33] } 30... Rcb2
+31. Rxb2 { [%eval 2.08] d17 32.3M 22.4s [%clk 0:07:20] } 31... Rxb2 32. Kh2
+{ [%eval 2.08] d15 18.4M 13.1s [%clk 0:07:17] } 32... g6 33. Ra5
+{ [%eval 2.42] d15 26.8M 18.8s [%clk 0:07:08] } 33... Rb7 34. Kg3
+{ [%eval 2.55] d15 37.5M 26.8s [%clk 0:06:52] } 34... Rd7 35. Kf3
+{ [%eval 2.75] d15 29.0M 20.8s [%clk 0:06:41] } 35... Re7 36. g4
+{ [%eval 2.94] d15 25.0M 17.6s [%clk 0:06:33] } 36... Ne4 37. Re5
+{ [%eval 2.96] d17 70.3M 46.9s [%clk 0:05:56] } 37... Nd6 38. Rxe7+
+{ [%eval 6.98] d20 136.4M 69.3s [%clk 0:04:57] } 38... Kxe7 39. Bc5
+{ [%eval 10.77] d24 93.1M 34.8s [%clk 0:04:32] } 39... Kd7 40. Bxd6
+{ [%eval 11.61] d24 51.4M 20.3s [%clk 0:04:22] } 40... Kxd6 41. Ke4
+{ [%eval 12.86] d24 20.6M 8.7s [%clk 0:04:23] } 41... Kc5 42. Ke5
+{ [%eval 15.09] d24 25.7M 10.6s [%clk 0:04:23] } 42... Kb6 43. Kf6
+{ [%eval 19.66] d26 99.5M 36.0s [%clk 0:03:57] } 43... Kb5 44. Kg7
+{ [%eval 23.52] d26 31.7M 10.7s [%clk 0:03:56] } 44... h5 45. g5
+{ [%eval 25.43] d27 62.4M 21.8s [%clk 0:03:44] } 45... Kc4 46. Kxg6
+{ [%eval 25.43] d25 1228 nodes 149.6s [%clk 0:01:25] the UI reported 1,228 nodes (8 per second) for a 150 s think }
+46... Kb3 47. f5 { [%eval #12] d22 172.3M 58.9s [%clk 0:00:36] } 47... Kb2 48.
+Kh7 { [%eval #10] d20 42.9M 13.3s [%clk 0:00:32] } 48... Kb3 49. g6
+{ [%eval #9] d19 21.6M 7.5s [%clk 0:00:35] } 49... Kc4 50. f6
+{ [%eval #9] d16 1.2M 0.4s [%clk 0:00:45] } 50... Kd5 51. f7
+{ [%eval #8] d14 [%clk 0:00:54] } 51... Kc4 52. g7
+{ [%eval #7] d12 [%clk 0:01:04] } 52... Kb3 53. f8=Q
+{ [%eval #6] [%clk 0:01:14] } 53... Kc2 54. g8=Q { [%eval #5] [%clk 0:01:24] }
+54... Kb2 55. Qg2+ { [%eval #3] [%clk 0:01:34] } 55... Kc1 56. Qff1#
+{ [%clk 0:01:44] } 1-0

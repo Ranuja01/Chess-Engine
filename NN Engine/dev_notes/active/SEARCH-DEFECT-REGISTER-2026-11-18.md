@@ -257,6 +257,32 @@ branch to its cutoff test. Not read: the ply-1 cutoff-history block (~7002-7078)
 - **Ply-1 entry:** no RFP, null move or futility runs at shipped values. LMP and capture-SEE pruning reach ply 1 only at
   iteration depth ≤ 6 and ≤ 4.
 
+## 6d. From the owner's UI games (11-19)
+
+| id | finding | status |
+| --- | --- | --- |
+| S2-33 | **An iteration that explodes runs to the hard stop.** UI game 56 (`ui_games/ui_games.pgn`, 900+10 vs lichess AI level 7), 46.Kxg6 in a won pawn ending (FEN `8/6K1/6p1/6Pp/2k2P1P/2P5/8/8 w - - 1 46`, +24.5). | **reproduced 11-19** |
+
+S2-33 in detail:
+- **What happened:** depths 3-25 finished in 0.68 s (2.2M nodes). Depth 26 then ran 149 s, printed nothing and never
+  finished. It was cut by the TM_MODE 1 hard stop, `min(5 × optimum, 0.8 × clock)`, which here was 5 × 29.9 s = 149.6 s
+  (`uci_main.cpp`, the optimum / maximum block). The replay with the production binary and the game's clocks matched it to
+  0.1 s.
+- **Cost:** 150 s of the 224 s left. The next move, 47.f5, took 59 s for depth 22, its first mate score. A won ending
+  reached 0:32 on the clock.
+- **Why the 8 nodes/s:** the UI prints the last info line's nodes divided by the whole think, so its "8 nodes/s" is the
+  depth-25 count over 150 s.
+- **Two parts:**
+  - (a) SEARCH: one iteration costs more than 200 times the one before it, at the depth where mate scores first appear. Look
+    at aspiration windows and re-searches around mate-range scores, and at pruning switched off by mate-range bounds.
+  - (b) TM: nothing stops an iteration that is far past the optimum. SF also has a maximum of about 5 × optimum, but its
+    iterations do not jump 200 times in cost.
+- **Same family:** 29.Rg5 in the same game took 145 s for one depth-18 iteration after the eval fell (+2.18 → +1.70).
+  Optimum there was 39.5 s.
+- **Count next:**
+  - iterations whose nodes exceed 20 times the previous iteration's, per 1,000 moves, in the #275 games;
+  - moves that hit the hard stop (the TMCNT line).
+
 ## 7. Records found wrong
 
 - `search_engine.h:3193-3196` calls `ENABLE_QPREC_PHASE_GATE` "default-off, a documented negative"; it is on (S2-2).
@@ -285,3 +311,10 @@ branch to its cutoff test. Not read: the ply-1 cutoff-history block (~7002-7078)
 3. Register a prediction, then play games: self-play 10+0.1, SF18 at equal nodes, Mediocre.
 4. Expect some findings to be "productive bugs". The engine was tuned around them (S2-1 and S2-5 especially), so fixing
    one may need its margins retuned with it.
+5. **A node-increasing fix that reads flat or bad is parked, not rejected** (owner, 11-18). Its value can be masked until a
+   node-saving change frees the budget, so park it with a trigger that names its partner. Expected node direction of each
+   fix:
+   - **more nodes:** S2-1 fixed (more extensions), S2-2 (qsearch at more horizons), S2-26 / S2-9 (smaller stored bounds,
+     fewer TT cuts), S2-4 (fewer EXACT cuts);
+   - **fewer nodes:** S2-6 (no move-1 search after a move-0 fail-high), S2-10 (LMR back at open-window pre-search nodes);
+   - **unclear:** S2-3, S2-5.

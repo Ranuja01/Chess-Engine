@@ -40,6 +40,7 @@ Everything compiles and runs under **WSL** (Anaconda `base` env), from this dire
 cd "/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine/"
 python setupAI.py build_ext --inplace     # compile Cython + C++ → ChessAI*.so
 python ChessUI/chess_ui_v2.py             # playable UI (pygame)
+bash selfplay/play_ui.sh [KNOB=V ...]     # the same UI, every game saved to ui_games/ui_games.pgn with its build
 python main.py                            # isolated single-position test
 ```
 

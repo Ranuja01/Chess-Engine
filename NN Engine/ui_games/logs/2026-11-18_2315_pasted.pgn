@@ -1,0 +1,53 @@
+# build: AlphaUX (v2 gen 7.6) (build_uci/chess_engine_uci = chess_engine_uci_g76pgo, bench 246 / 35,138,434; seed on: 254 / 35,922,538)
+# knobs: ENABLE_QSTANDPAT_SEED=1 (the owner's stated launch; the UI output does not echo knobs)
+# started: 2026-11-18 23:15
+# Source: the UI's terminal output pasted by the owner at 23:36; per-move eval / depth / nodes / time / own clock kept as comments.
+
+[Event "#47 · 11-18 · gen 7.6 + stand-pat seed vs SF1.1 · loss (resigned)"]
+[Site "?"]
+[Date "2026.11.18"]
+[Round "?"]
+[White "AlphaUX gen 7.6 + ENABLE_QSTANDPAT_SEED=1 (600+0.6)"]
+[Black "Stockfish 1.1 (600+0.6)"]
+[Result "0-1"]
+[TimeControl "600+0.6"]
+[ECO "C17"]
+[Opening "French Defense: Winawer, Advance Variation, 5.a3 cxd4"]
+[Termination "AlphaUX resigned at -23.40 (would have played 62.Qg2)"]
+[OwnerNote "We were winning as white but couldn't make a breakthrough and eventually got into a losing position."]
+
+{ AlphaUX White: gen 7.6 (production binary g76pgo) with the stand-pat seed candidate ENABLE_QSTANDPAT_SEED=1, 600+0.6, own book to 5.a3. Black: Stockfish 1.1 (stockfish-1.1_ja), 600+0.6, its own clock. Our eval held +1.2 to +2.2 from move 11 to 47 without a breakthrough; 48.Rd2 (34 s) +1.04, 50.d4 +0.12, 52.Rhd1 -0.39 with 59 s left, then 53.Be7 -2.84 after 52...Na5. Comments on our moves: eval (ours, White's view), depth, nodes, seconds, our clock after the move. }
+1. e4 { book [%clk 0:10:00] } 1... e6 2. d4 { book } 2... d5 3. Nc3 { book } 3... Bb4 4. e5 { book } 4... c5 5. a3 { book [%clk 0:10:03] } 5... cxd4
+6. axb4 { [%eval 0.47] d17 15.6M 10.5s [%clk 0:09:53] } 6... dxc3 7. Nf3 { [%eval 0.46] d16 12.6M 8.7s [%clk 0:09:45] } 7... cxb2
+8. Bxb2 { [%eval 0.52] d16 3.6M 2.5s [%clk 0:09:43] } 8... Ne7 9. Bd3 { [%eval 0.50] d16 25.0M 19.2s [%clk 0:09:24] } 9... Ng6
+10. h4 { [%eval 0.82] d15 10.3M 7.7s [%clk 0:09:17] } 10... O-O 11. h5 { [%eval 1.33] d16 13.6M 10.5s [%clk 0:09:07] } 11... Ne7
+12. h6 { [%eval 1.43] d16 9.1M 7.0s [%clk 0:09:01] } 12... g6 13. Qd2 { [%eval 1.70] d15 5.8M 4.6s [%clk 0:08:57] } 13... Nd7
+14. Ng5 { [%eval 1.27] d16 35.3M 29.0s [%clk 0:08:28] } 14... Nc6 15. f4 { [%eval 1.47] d15 14.9M 10.8s [%clk 0:08:18] } 15... Qb6
+16. b5 { [%eval 1.32] d15 16.3M 12.2s [%clk 0:08:07] } 16... Ne7 17. Ke2 { [%eval 1.54] d15 25.6M 20.1s [%clk 0:07:47] } 17... Nc5
+18. Bd4 { [%eval 1.53] d15 10.6M 7.5s [%clk 0:07:40] } 18... Bd7 19. Rab1 { [%eval 1.64] d15 14.7M 9.8s [%clk 0:07:31] } 19... Rfc8
+20. g4 { [%eval 1.54] d16 38.2M 27.0s [%clk 0:07:05] } 20... Qd8 21. Kf3 { [%eval 1.74] d16 31.5M 22.0s [%clk 0:06:43] } 21... Nxd3
+22. cxd3 { [%eval 1.50] d16 13.3M 8.7s [%clk 0:06:35] } 22... Qf8 23. Qb4 { [%eval 1.66] d16 17.3M 11.7s [%clk 0:06:24] } 23... b6
+24. Qd6 { [%eval 1.57] d14 18.9M 14.0s [%clk 0:06:11] } 24... Qe8 25. Rh2 { [%eval 1.58] d16 36.8M 25.7s [%clk 0:05:46] } 25... Rab8
+26. Kg3 { [%eval 1.37] d15 26.3M 18.0s [%clk 0:05:28] } 26... Rb7 27. Qb4 { [%eval 1.22] d16 16.9M 10.1s [%clk 0:05:19] } 27... Rbc7
+28. Ra2 { [%eval 1.22] d15 12.9M 9.5s [%clk 0:05:10] } 28... Qf8 29. Qb3 { [%eval 1.64] d15 14.7M 11.0s [%clk 0:04:59] } 29... Rb8
+30. Rba1 { [%eval 1.77] d14 6.5M 4.5s [%clk 0:04:55] } 30... Nc8 31. Rh2 { [%eval 1.70] d16 18.5M 11.9s [%clk 0:04:44] } 31... Qe8
+32. Rb2 { [%eval 1.26] d16 27.8M 18.8s [%clk 0:04:26] } 32... Ne7 33. Bc3 { [%eval 1.49] d15 10.6M 7.6s [%clk 0:04:19] } 33... Ra8
+34. Bb4 { [%eval 1.61] d16 9.7M 6.1s [%clk 0:04:13] } 34... Rb7 35. Bd6 { [%eval 2.04] d16 23.5M 15.6s [%clk 0:03:58] } 35... Nc8
+36. Ba3 { [%eval 2.22] d17 10.4M 6.1s [%clk 0:03:53] } 36... Rc7 37. Rab1 { [%eval 2.09] d17 25.3M 16.8s [%clk 0:03:37] } 37... a6
+38. bxa6 { [%eval 1.94] d16 5.9M 3.5s [%clk 0:03:34] } 38... Rxa6 39. Rh2 { [%eval 2.04] d16 11.0M 7.0s [%clk 0:03:28] } 39... Ba4
+40. Qb4 { [%eval 1.90] d14 2.8M 1.7s [%clk 0:03:26] } 40... Ra8 41. Rf1 { [%eval 1.77] d14 18.5M 13.5s [%clk 0:03:14] } 41... Bd7
+42. Qb2 { [%eval 1.75] d16 30.4M 20.4s [%clk 0:02:54] } 42... Rca7 43. Bb4 { [%eval 1.80] d16 7.4M 4.9s [%clk 0:02:49] } 43... Ne7
+44. Rb1 { [%eval 1.73] d15 13.2M 9.2s [%clk 0:02:41] } 44... Ra6 45. Rd1 { [%eval 1.82] d15 17.2M 12.1s [%clk 0:02:29] } 45... b5
+46. Rc1 { [%eval 1.77] d15 9.1M 6.2s [%clk 0:02:24] } 46... Nc6
+47. Bd6 { [%eval 1.60] d16 19.0M 12.4s [%clk 0:02:12] PV 47.Bd6 Ra4 48.Rch1 b4 49.Qd2 Ra3 50.Qe3 Kh8 } 47... b4
+48. Rd2 { [%eval 1.04] d15 17.1M 34.0s [%clk 0:01:39] PV 48.Rd2 Ra3 49.Rh1 R8a4 50.Kg2 Bc8 51.Kf3 Ba6 } 48... Qd8
+49. Rh1 { [%eval 0.88] d14 5.9M 3.8s [%clk 0:01:35] PV 49.Rh1 Ra3 } 49... Qb6
+50. d4 { [%eval 0.12] d15 16.5M 11.1s [%clk 0:01:25] PV 50.d4 Ra5 51.Bc5 Qa6 52.Kg2 Ra1 53.Rf2 } 50... Ra3+
+51. Kg2 { [%eval 0.00] d15 4.2M 2.5s [%clk 0:01:23] PV 51.Kg2 Qa6 52.Bc5 Ra2 53.Qxa2 Qxa2 54.Rxa2 Rxa2+ } 51... R8a4
+52. Rhd1 { [%eval -0.39] d14 8.3M 24.2s [%clk 0:00:59] PV 52.Rhd1 Qa6 53.Bc5 Ra2 54.Qb1 Rxd2+ 55.Rxd2 Ra1 } 52... Na5
+53. Be7 { [%eval -2.84] d15 15.2M 19.2s [%clk 0:00:41] PV 53.Be7 Nc4 54.Qb1 Qa6 55.Kh2 Nxd2 56.Rxd2 Ra1 } 53... Nc4
+54. Qb1 { [%eval -3.88] d15 5.2M 3.2s [%clk 0:00:38] } 54... Qa6 55. Kf2 { [%eval -3.46] d15 3.2M 1.9s [%clk 0:00:37] } 55... Nxd2
+56. Rxd2 { [%eval -4.32] d16 4.3M 2.5s [%clk 0:00:35] } 56... Ra1 57. Qd3 { [%eval -4.17] d15 2.7M 1.7s [%clk 0:00:34] } 57... Bb5
+58. Qb3 { [%eval -5.45] d16 4.1M 2.5s [%clk 0:00:32] } 58... Bc4 59. Qh3 { [%eval -6.90] d16 4.4M 2.6s [%clk 0:00:30] } 59... R4a3
+60. Qh4 { [%eval -6.97] d15 2.7M 1.8s [%clk 0:00:29] } 60... Be2 61. Qh2 { [%eval -10.38] d14 6.8M 5.3s [%clk 0:00:24] } 61... Bxg4
+{ AlphaUX resigned: 62.Qg2 at -23.40 (d14, 8.5M nodes), 0:18 left. } 0-1

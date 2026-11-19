@@ -76,3 +76,4 @@ times in `dev_notes/current/OPTIMIZATION_LOG.md` at the moment of the paste, not
 | 44 | 11-16 20:28 | gen 7.5 | White - Black | from FEN | 15 | 1-0 (mate) | faster win on the first: " |
 | 45 | 11-16 20:58 | gen 7.5 via Chess.com | world-champion-carlsen - AlphaUX gen 7.5 | start | 34 | 0-1 | a nice win: " |
 | 46 | 11-17 19:45 | gen 7.6 | AlphaUX (v2 gen 7.6) - Stockfish 1.1 | start | 51 | * | a very interesting opening was taken. We played as white this time, and since the opening  |
+| 47 | 11-18 23:15 | gen 7.6 + ENABLE_QSTANDPAT_SEED=1 (recorded at play time) | AlphaUX - Stockfish 1.1 (both 600+0.6) | start | 61 | 0-1 (resigned) | We were winning as white but couldn't make a breakthrough and eventually got into a losing position. |

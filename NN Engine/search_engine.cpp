@@ -2822,6 +2822,16 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                     // vs gen 7.5 +18.1 (95% +6.3 … +30.0) over 2,001 games, SF18 at equal nodes +1.40 pp (z +0.90), Mediocre
                     // +1.17 pp (OPTIMIZATION_LOG). Set before the start-up read, so SV2_VERIFY_PROMOTE=0 restores gen 7.5.
                     Config::SV2_VERIFY_PROMOTE = 1;
+                    // ── GEN 7.7: qsearch seeds its best score with the stand-pat eval, so a node whose captures are all
+                    // pruned returns the eval instead of the mated sentinel (which handed the parent a mate-sized fail-high on
+                    // 5-10% of qsearch visits). Self-play vs gen 7.6 +21.9 (95% +10.4 … +33.5) over 2,000 games, SF18 at equal
+                    // nodes +3.50 pp (z +2.26), Mediocre −0.50 pp (z −0.27) (OPTIMIZATION_LOG). Read again after the preset,
+                    // so ENABLE_QSTANDPAT_SEED=0 restores gen 7.6 (246 / 35,138,434).
+                    Config::ENABLE_QSTANDPAT_SEED = true;
+                    // Move-ordering sort on unique 64-bit keys (score, then build order) with a compare-exchange network and
+                    // branch-free merges: exactly the stable sort's order, so the same moves; 1.1% less pinned bench time
+                    // (BASELINE_PERF). Set before the start-up read, so SORT_KEYED=0 restores the previous sort.
+                    Config::SORT_KEYED = 1;
                 }
                 // ── V2_PRESET=candidate (2026-10-18, owner's "LAZY SHIP"): the DEVELOPMENT BASE = the official ship + items that
                 // are NOT HARMFUL and positive where they fire but not yet proven alone (narrow-item pool). New items are tested on
@@ -2837,6 +2847,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         // read again after the preset so the environment can still turn the shipped value off (the first read is above)
         Config::ENABLE_NULL_MATE_CLAMP = env_flag("ENABLE_NULL_MATE_CLAMP", Config::ENABLE_NULL_MATE_CLAMP);
         Config::ENABLE_TT_FLAG_FIX = env_flag("ENABLE_TT_FLAG_FIX", Config::ENABLE_TT_FLAG_FIX);
+        Config::ENABLE_QSTANDPAT_SEED = env_flag("ENABLE_QSTANDPAT_SEED", Config::ENABLE_QSTANDPAT_SEED);
         Config::ENABLE_RFP = env_flag("ENABLE_RFP", Config::ENABLE_RFP);
         Config::RFP_MARGIN = env_int("RFP_MARGIN", Config::RFP_MARGIN);
         Config::NULL_NPM_GUARD = env_int("NULL_NPM_GUARD", Config::NULL_NPM_GUARD);

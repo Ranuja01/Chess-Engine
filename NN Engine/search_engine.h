@@ -283,6 +283,9 @@ namespace Config
                                              // their optimistic bound. Fixes the measured short-of-standpat
                                              // (14%) and fake-mate (~59%) fail-soft return bugs. Off = ±mate
                                              // init = byte-identical. CHANGES SEARCH VALUES => needs games.
+                                             // The header value is not the runtime default: the start-up read
+                                             // defaults it to false (v1 keeps it off), and the shipped v2 preset
+                                             // sets it since gen 7.7 (2026-11-19).
     inline bool ENABLE_QDELTA = true;   // delta pruning in quiescence
     inline int DELTA_MARGIN = 1500;     // qsearch delta-pruning margin (lower = prune more captures); EBF lever
     inline int MAX_QDEPTH = 10;         // qsearch depth cap (lower = shallower qsearch); EBF lever

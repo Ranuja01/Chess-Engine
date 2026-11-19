@@ -76,8 +76,14 @@ namespace
     void ensure_init()
     {
         if (g_inited) return;
-        if (!std::getenv("V2_PRESET") && !std::getenv("EVAL_ARM"))
-            setenv("V2_PRESET", "shipped", 0);          // default = the official ship (gen 4)
+        // The official ship unless a preset was chosen or the GUI asked for v1 (EvalArm 0): EvalArm 1 means v2 as shipped,
+        // not the bare v2 skeleton, which an explicit `setoption name EvalArm value 1` used to give.
+        if (!std::getenv("V2_PRESET"))
+        {
+            const char *arm = std::getenv("EVAL_ARM");
+            if (!arm || std::strcmp(arm, "0") != 0)
+                setenv("V2_PRESET", "shipped", 0);
+        }
         BoardState s(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, true, 0, -1, 0, 1);
         std::string err;
         pos::parse_fen(pos::START_FEN, s, err);
@@ -501,7 +507,7 @@ int main()
         in >> cmd;
         if (cmd == "uci")
         {
-            say("id name AlphaUX (v2 gen 7.6)");
+            say("id name AlphaUX (v2 gen 7.7)");
             say("id author Ranuja");
             say("option name Preset type combo default STANDARD var LIGHTNING var BLITZ var STANDARD var LONG_FORMAT");
             say("option name EvalArm type spin default 1 min 0 max 1");

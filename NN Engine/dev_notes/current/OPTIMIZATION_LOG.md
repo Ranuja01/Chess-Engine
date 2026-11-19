@@ -4,6 +4,38 @@ Baseline (pre-everything): eval **−56**, **3,144,112** positions, ~**16.7 s**,
 
 > **⚠️ DEPTH-LABEL CONVENTION CHANGED 2026-06-03.** `MAX_DEPTH` is now **literal** — `MAX_DEPTH=10` searches to depth 10. Older commands/notes in this file used the off-by-one convention where the cap was `+1` (the iterative loop used `depth_limit + 1 < MAX_ITERATIVE_DEPTH`), so **a historical `MAX_DEPTH=11` ≡ today's `MAX_DEPTH=10`** ("d10"), `=12`≡`=11`, etc. When re-running any banked command below, subtract one from its `MAX_DEPTH`. New commands use the literal value.
 
+## 🚀 2026-11-19 11:07 — GEN 7.7 SHIPPED (owner: "i reckon we can ship and continue on"): the qsearch stand-pat seed `ENABLE_QSTANDPAT_SEED` + `SORT_KEYED 1`
+**What (search, C8):** `Config::ENABLE_QSTANDPAT_SEED = true` in the shipped preset, after the gen 7.6 line, and read again after
+the preset. qsearch seeds its best score with the stand-pat eval (SF's `bestValue = staticEval`), and a futility-pruned capture
+contributes its optimistic bound. Before it, a node whose captures were all delta-pruned returned the mated sentinel while not
+in check, handing its parent a mate-sized fail-high (#273 `q_phantom`: 9.74% of qsearch visits on the WAC bench, 5.46% on
+game12 d10); the much rarer second case (a return below its own stand-pat, `q_short` 0.046% on game12, #276) went with it.
+**What (speed, result-identical):** `Config::SORT_KEYED = 1`, the move-ordering sort on unique 64-bit keys (#265/#266; #271's
+15-round bench on a busy box read 0.999 and did not install; #275's quiet 21 rounds read 0.989).
+**Also:** `uci_main.cpp` `ensure_init` keeps the shipped preset under an explicit `setoption name EvalArm value 1` (it gave the
+bare v2 skeleton: 238 / 66,189,654 on g76pgo). No game path sends it (python-chess and fastchess skip default options).
+Bench **254 / 35,922,538 / EBF 3.670** (gen 7.6 246 / 35,138,434 / 3.698: +8 solved, +2.2% nodes), id "AlphaUX (v2 gen 7.7)";
+`ENABLE_QSTANDPAT_SEED=0` restores gen 7.6 exactly.
+**Evidence (#274, registered ship rule, vs gen 7.6, fresh seeds):** self-play 10+0.1, 1,000 pairs: **2,000 g +685 −559 =756, 53.1%,
++21.9 (95% +10.4 … +33.5)**, pentanomial [70, 206, 353, 270, 101], 0 forfeits; per move 0.227 vs 0.229 s, depth 11.6 vs 11.7,
+nps 1,581k vs 1,574k. **SF18 at equal nodes** (ours 250k, SF18 1,100) 6 seeds × 250: ctl 61.8%, seed 65.3%, **+3.50 pp ± 3.03,
+z +2.26**. **Mediocre** 10+0.1, 2 seeds × 150: ctl 92.8%, seed 92.3%, **−0.50 pp ± 3.63, z −0.27** (the seeds split −3.7 / +2.7);
+the registered "≥ 0" missed on the point, a null at a 92% score where 1 pp ≈ 24 Elo. The owner shipped and **retired Mediocre as
+the third judge for Stockfish 1.1** (node-limited, calibrated by the #279 ladder). Prediction −10 … +25: inside. **W1** (lazy eval's
+monitor, LAZY-EVAL.md §7): SF18 ctl − LAZY_V2=0 −0.47 pp (z −0.30) → lazy eval stays.
+**Install (#278):** PGO `chess_engine_uci_g77pgo` (profile `/mnt/e/chess_data/pgo_g77`); gates: default == the seed knob on g76pgo
+== `SORT_KEYED=0` == `SCRATCH_REUSE=2` (every sorted list checked against std::stable_sort) == `EVAL_MAT_CACHE=2` == explicit
+`EvalArm 1` (254 / 35,922,538); seed off 246 / 35,138,434; + `SV2_VERIFY_PROMOTE=0` 252 / 35,235,460; v1 250 / 35,310,778; game12
+d10 7/12 2,412,001 == g76 + seed (seed off 8/12 2,272,158). `build_uci/chess_engine_uci` == `g77pgo`, **backup `g76pgo`**. Cython
+rebuilt (pre-7.7 .so → `/mnt/e/chess_data/so_backup_g77/`): shipped 254 / 35,922,538 / **3.670**, seed off 246 / 35,138,434 / 3.698,
+v1 250 / 35,310,778 / 3.784.
+**Pinned bench ×11 on core 5, g77 / g76 alternating (#278, ledger; the box noisier than #275's night run):** medians g77 26,898
+ms / 1,335,477 nps · g76 26,352 / 1,333,423. Within-round **g77 / g76 time 0.992 (7 of 11 faster), nps 1.030**: the same time on
+2.2% more bench nodes.
+**Parked the same day (#275, vs gen 7.6):** C5 `SV2_MALUS_SEARCHED_ONLY=1` (plies 2 and below) self-play −3.0 (−14.5 … +8.6) over
+2,000 g, neutral (trigger: S2-31 fixed); C6 `ASP_KEEP_FAILHIGH=1` used 0.85 per 1,000 moves, below the 1-per-1,000 bar (trigger:
+aspiration or the TM cut reshaped). **Trigger fired:** the gen 6.6 mate-score bundle was to be re-tested on top of C8.
+
 ## 🚀 2026-11-17 18:23 — GEN 7.6 SHIPPED (owner: "Ship after C4"): a shallower verify that crosses a bound is settled at full depth, `SV2_VERIFY_PROMOTE=1`
 **What:** `Config::SV2_VERIFY_PROMOTE = 1` in the shipped preset, after the gen 7.5 lines. In search v2, a near-miss re-search
 that ran shallower than full depth and moved the result to the other side of the node's bound (a fail low that now beats alpha,

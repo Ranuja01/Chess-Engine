@@ -74,13 +74,13 @@ and §8 lists what nobody has audited yet.
 | gen 7.5 (11-16) | `FIX_RESEARCH`, `FIX_MIN_SCOUT`, `FIX_MIN_RD1` | the two halves were asymmetric: a reduced move beating the bound was re-searched at full depth on one side only; the minimizer scouted at the maximizer's bound; a minimizer-only full window at rd 1 | **+76.4**; SF18 z +6.07 |
 | gen 7.6 (11-17) | `SV2_VERIFY_PROMOTE` | a shallower verify that crossed the bound decided the move; now one full-depth search settles it | +18.1 |
 | June (v1 era) | `ENABLE_TT_DEPTH_FIX` | the pre-pass searched depth−1 but stored depth in the TT | bench win |
-| **C8, testing 11-18** | `ENABLE_QSTANDPAT_SEED` | qsearch `best` started at "mated". (a) Every capture delta-pruned: the node returned a mate while not in check (`q_phantom`: 9.7% of qsearch nodes on WAC, 5.5% in game positions). (b) The stand-pat raised alpha and every capture scored below it: the node returned less than its own stand-pat (`q_short`: 0.10% WAC, 0.046% game12), and in about half of those a fake fail-low the parent cuts on (`q_short_flip`: 0.051% / 0.024%; #276, below the registered 0.1% bar). So (a) is about 100× more frequent and carries the defect. | **self-play +21.9 (+10.4 … +33.5) over 2,000 g**; SF18 and Mediocre tonight |
+| **C8, SHIPPED 11-19 (gen 7.7)** | `ENABLE_QSTANDPAT_SEED` | qsearch `best` started at "mated". (a) Every capture delta-pruned: the node returned a mate while not in check (`q_phantom`: 9.7% of qsearch nodes on WAC, 5.5% in game positions). (b) The stand-pat raised alpha and every capture scored below it: the node returned less than its own stand-pat (`q_short`: 0.10% WAC, 0.046% game12), and in about half of those a fake fail-low the parent cuts on (`q_short_flip`: 0.051% / 0.024%; #276, below the registered 0.1% bar). So (a) is about 100× more frequent and carries the defect. | **self-play +21.9 (+10.4 … +33.5) over 2,000 g**; SF18 +3.50 pp (z +2.26, 1,500 g per arm); Mediocre −0.50 pp (z −0.27, 300 g per arm, a null at 92%). Shipped as gen 7.7 (#278, bench 254 / 35,922,538 / EBF 3.670); the owner retired Mediocre as the third judge for SF1.1 the same day |
 
 ## 4. Found, tested, not shipped (and whether the verdict still stands)
 
 | item | knob | result | still valid? |
 |---|---|---|---|
-| mate-score bundle (gen 6.6) | `FIX_TT_MATE`, `FIX_MDP`, `ENABLE_NULL_MATE_CLAMP` | below the SF18 bar | **doubtful**: measured while phantom mates (C8) were storable as real mates; re-test on top of C8 |
+| mate-score bundle (gen 6.6) | `FIX_TT_MATE`, `FIX_MDP`, `ENABLE_NULL_MATE_CLAMP` | below the SF18 bar | **doubtful**: measured while phantom mates (C8) were storable as real mates; re-test on top of C8. **Trigger fired 11-19 (C8 shipped in gen 7.7): due** |
 | 50-move TT guard | `FIX_TT_R50` | +1.7, below the bar | yes |
 | static cut not stored as a searched bound (C3) | `SV2_STATIC_CUT_STORE` | STS only | **no**: STS cannot screen search changes; needs games |
 | malus only on searched moves (C5) | `SV2_MALUS_SEARCHED_ONLY` | STS only | **no**: games running tonight (#275) |
@@ -308,7 +308,8 @@ S2-33 in detail:
 
 1. Count it with a count-only counter on a fixed-depth bench. That is safe to run beside the owner's games.
 2. If it fires, build a fix behind a knob (default 0 = byte-identical), with the result recorded in the knob's comment.
-3. Register a prediction, then play games: self-play 10+0.1, SF18 at equal nodes, Mediocre.
+3. Register a prediction, then play games: self-play 10+0.1, SF18 at equal nodes, Stockfish 1.1 node-limited (the third
+   judge since 11-19, replacing Mediocre; its node count from the #279 ladder).
 4. Expect some findings to be "productive bugs". The engine was tuned around them (S2-1 and S2-5 especially), so fixing
    one may need its margins retuned with it.
 5. **A node-increasing fix that reads flat or bad is parked, not rejected** (owner, 11-18). Its value can be masked until a

@@ -1,0 +1,162 @@
+SF eval trajectory (White-POV cp, depth 20).  side of interest = WHITE
+ply   move   san         before     after    delta
+1     1.     e4              34        30        4
+2     2...   e6              39        36         
+3     2.     d4              40        35        5
+4     3...   d5              31        42         
+5     3.     Nc3             41        40        1
+6     4...   Bb4             42        67         
+7     4.     e5              64        61        3
+8     5...   c5              67        68         
+9     5.     a3              67        73       -6
+10    6...   cxd4            70       111         
+11    6.     axb4           126       120        6
+12    7...   dxc3           113       116         
+13    7.     Nf3            123        79       44
+14    8...   cxb2            81       102         
+15    8.     Bxb2           100       100        0
+16    9...   Ne7            103       102         
+17    9.     Bd3            100        85       15
+18    10...  Ng6             66       178         
+19    10.    h4             181       182       -1
+20    11...  O-O            177       225         
+21    11.    h5             232       234       -2
+22    12...  Ne7            234       225         
+23    12.    h6             241       225       16
+24    13...  g6             214       223         
+25    13.    Qd2            216       237      -21
+26    14...  Nd7            226       238         
+27    14.    Ng5            236       174       62  <- ours
+28    15...  Nc6            187       190         
+29    15.    f4             189       181        8
+30    16...  Qb6            199       202         
+31    16.    b5             208       209       -1
+32    17...  Ne7            204       208         
+33    17.    Ke2            208       160       48
+34    18...  Nc5            150       145         
+35    18.    Bd4            145       142        3
+36    19...  Bd7            142       144         
+37    19.    Rab1           142       111       31
+38    20...  Rfc8           123       115         
+39    20.    g4             123        90       33
+40    21...  Qd8             83        78         
+41    21.    Kf3             81        71       10
+42    22...  Nxd3            68       100         
+43    22.    cxd3           105       106       -1
+44    23...  Qf8            113       123         
+45    23.    Qb4            129       133       -4
+46    24...  b6             134       141         
+47    24.    Qd6            151       143        8
+48    25...  Qe8            143       135         
+49    25.    Rh2            139       151      -12
+50    26...  Rab8           148       154         
+51    26.    Kg3            148       150       -2
+52    27...  Rb7            161       154         
+53    27.    Qb4            155       155        0
+54    28...  Rbc7           152       165         
+55    28.    Ra2            160       161       -1
+56    29...  Qf8            163       165         
+57    29.    Qb3            166       170       -4
+58    30...  Rb8            168       174         
+59    30.    Rba1           183       186       -3
+60    31...  Nc8            173       209         
+61    31.    Rh2            212       153       59  <- ours
+62    32...  Qe8            164       170         
+63    32.    Rb2            173       166        7
+64    33...  Ne7            162       185         
+65    33.    Bc3            177       196      -19
+66    34...  Ra8            179       203         
+67    34.    Bb4            217       228      -11
+68    35...  Rb7            229       297         
+69    35.    Bd6            332       233       99  <- ours
+70    36...  Nc8            249       239         
+71    36.    Ba3            233       203       30
+72    37...  Rc7            209       210         
+73    37.    Rab1           234       157       77  <- ours
+74    38...  a6             163       161         
+75    38.    bxa6           158       162       -4
+76    39...  Rxa6           159       162         
+77    39.    Rh2            159       118       41
+78    40...  Ba4            111       155         
+79    40.    Qb4            153       157       -4
+80    41...  Ra8            157       187         
+81    41.    Rf1            269       159      110  <- ours
+82    42...  Bd7            152       173         
+83    42.    Qb2            150       153       -3
+84    43...  Rca7           183       178         
+85    43.    Bb4            161       184      -23
+86    44...  Ne7            174       180         
+87    44.    Rb1            200       157       43
+88    45...  Ra6            151       158         
+89    45.    Rd1            168       143       25
+90    46...  b5             153       152         
+91    46.    Rc1            147       119       28
+92    47...  Nc6            123       119         
+93    47.    Bd6            126       131       -5
+94    48...  b4             131       145         
+95    48.    Rd2            148       110       38
+96    49...  Qd8            105       103         
+97    49.    Rh1             98        58       40
+98    50...  Qb6             43        44         
+99    50.    d4              42       -19       61  <- ours
+100   51...  Ra3+           -33       -18         
+101   51.    Kg2              0      -110      110  <- ours
+102   52...  R8a4          -127      -116         
+103   52.    Rhd1           -99      -205      106  <- ours
+104   53...  Na5           -205      -211         
+105   53.    Be7           -252      -340       88  <- ours
+106   54...  Nc4           -355      -389         
+107   54.    Qb1           -402      -457       55  <- ours
+108   55...  Qa6           -484      -376         
+109   55.    Kf2           -430      -489       59  <- ours
+110   56...  Nxd2          -556      -582         
+111   56.    Rxd2          -568      -610       42
+112   57...  Ra1           -631      -519         
+113   57.    Qd3           -613      -633       20
+114   58...  Bb5           -641      -504         
+115   58.    Qb3           -552      -510      -42
+116   59...  Bc4           -496      -558         
+117   59.    Qh3           -571      -635       64  <- ours
+118   60...  R4a3          -650      -567         
+119   60.    Qh4           -612      -758      146  <- ours
+120   61...  Be2           -912      -751         
+121   61.    Qh2          -1085     -1135       50
+122   62...  Bxg4         -1379     -1518         
+
+WORST 12 moves by WHITE (SF cp lost on our own move):
+  ply 119  60. Qh4         -612 ->   -758   LOST 146 cp
+      fen_before: 6k1/4Bp1p/q3p1pP/3pP1N1/1pbP1PP1/r6Q/3R1K2/r7 w - - 7 60
+      ours static total=+2.57  king_safety=-1.16 (Black-positive)
+  ply 101  51. Kg2           +0 ->   -110   LOST 110 cp
+      fen_before: r5k1/3b1p1p/1qnBp1pP/3pP1N1/1p1P1PP1/r5K1/1Q1R4/7R w - - 1 51
+      ours static total=-1.72  king_safety=-2.29 (Black-positive)
+  ply 81   41. Rf1         +269 ->   +159   LOST 110 cp
+      fen_before: r1n1q1k1/2r2p1p/1p2p1pP/3pP1N1/bQ3PP1/B2P2K1/7R/1R6 w - - 4 41
+      ours static total=-3.79  king_safety=-2.52 (Black-positive)
+  ply 103  52. Rhd1         -99 ->   -205   LOST 106 cp
+      fen_before: 6k1/3b1p1p/1qnBp1pP/3pP1N1/rp1P1PP1/r7/1Q1R2K1/7R w - - 3 52
+      ours static total=-1.89  king_safety=-2.55 (Black-positive)
+  ply 69   35. Bd6         +332 ->   +233   LOST 99 cp
+      fen_before: r3q1k1/pr1bnp1p/1p2p1pP/1P1pP1N1/1B3PP1/1Q1P2K1/1R6/R7 w - - 22 35
+      ours static total=-1.57  king_safety=-0.32 (Black-positive)
+  ply 105  53. Be7         -252 ->   -340   LOST 88 cp
+      fen_before: 6k1/3b1p1p/1q1Bp1pP/n2pP1N1/rp1P1PP1/r7/1Q1R2K1/3R4 w - - 5 53
+      ours static total=-1.35  king_safety=-1.51 (Black-positive)
+  ply 73   37. Rab1        +234 ->   +157   LOST 77 cp
+      fen_before: r1n1q1k1/p1rb1p1p/1p2p1pP/1P1pP1N1/5PP1/BQ1P2K1/1R6/R7 w - - 26 37
+      ours static total=-2.24  king_safety=-0.89 (Black-positive)
+  ply 117  59. Qh3         -571 ->   -635   LOST 64 cp
+      fen_before: 6k1/4Bp1p/q3p1pP/3pP1N1/rpbP1PP1/1Q6/3R1K2/r7 w - - 5 59
+      ours static total=+3.73  king_safety=-0.15 (Black-positive)
+  ply 27   14. Ng5         +236 ->   +174   LOST 62 cp
+      fen_before: r1bq1rk1/pp1nnp1p/4p1pP/3pP3/1P6/3B1N2/1BPQ1PP1/R3K2R w KQ - 2 14
+      ours static total=-0.72  king_safety=-0.42 (Black-positive)
+  ply 99   50. d4           +42 ->    -19   LOST 61 cp
+      fen_before: r5k1/3b1p1p/rqnBp1pP/3pP1N1/1p3PP1/3P2K1/1Q1R4/7R w - - 4 50
+      ours static total=-2.48  king_safety=-2.36 (Black-positive)
+  ply 109  55. Kf2         -430 ->   -489   LOST 59 cp
+      fen_before: 6k1/3bBp1p/q3p1pP/3pP1N1/rpnP1PP1/r7/3R2K1/1Q1R4 w - - 9 55
+      ours static total=+0.22  king_safety=-1.81 (Black-positive)
+  ply 61   31. Rh2         +212 ->   +153   LOST 59 cp
+      fen_before: 1rn2qk1/p1rb1p1p/1p2p1pP/1P1pP1N1/3B1PP1/1Q1P2K1/R7/R7 w - - 14 31
+      ours static total=-1.57  king_safety=-0.11 (Black-positive)

@@ -3369,6 +3369,28 @@ namespace Config
     // max(best searched score, best pruned bound), as SF raises bestValue to the futility value (not when the best searched
     // score is a mate score). 0 = byte-identical.
     inline int SV2_FUT_BOUND = 0;
+    // ROOT_M0_CUT (S2-6): when the root's move 0 already reaches beta (an aspiration fail high), the root returns at once,
+    // as its loop does after any later move that reaches beta. Today the loop searches move 1 at full depth before its first
+    // beta test (5.7% of WAC root passes, 9.2% of game12's, #277), which costs the time and can switch the best move.
+    // 1 = return after move 0's store. 0 = byte-identical. Expected to save nodes.
+    inline int ROOT_M0_CUT = 0;
+    // PS_TT_FLAG_FIX (S2-4): pre_minimizer flags its children's TT stores against the window the child was searched with
+    // (beta narrows as moves come in), as ENABLE_TT_FLAG_FIX does in the main search since gen 6.7. Today a child that fails
+    // high against the narrowed beta is stored as EXACT and later cuts at any window (3.4-4.5% of pre-search stores, 6-7%
+    // with the stand-pat seed, #277). 1 = flag against (alpha, beta) as searched. 0 = byte-identical. Expected to add nodes.
+    inline int PS_TT_FLAG_FIX = 0;
+    // LAZY_FAIL_HARD (S2-9): a lazy eval estimate (up to ~2.6 pawns off at p99) proves that its site cuts or prunes, not by
+    // how much, yet search v2 returns it as a value: reverse futility returns it and the parent stores it in the TT at full
+    // depth (33-38% of RFP returns are lazy, #277), and qsearch's stand-pat cut returns it and the q-cache stores it (~5% of
+    // q-cache stores). 1 = each site returns the bound the estimate proved: beta at reverse futility and at the stand-pat cut,
+    // and alpha - 1 as a futility-pruned move's bound for SV2_FUT_BOUND. The lazy exits themselves (the speed) are unchanged.
+    // 0 = byte-identical. Expected to add nodes (smaller stored bounds cut less). Bench (11-19, gen 7.7 base): 1 = 249 /
+    // 46,312,304, +28.9% nodes (predicted +0.5 … +5%); per site, reverse futility alone +24.3%, the stand-pat cut alone
+    // +20.6%, and +26.8% with the near-miss re-search off, so the cost is the lost fail-soft information itself.
+    // 2 = each site returns what the lazy exit proved: the estimate less the margin M it cleared its bound by
+    // (LAZY_V2_M or LAZY_V2_M_CHEAP times the site scale; never below beta). It keeps the fail-soft size minus the estimate's
+    // uncertainty. The futility site under SV2_FUT_BOUND keeps alpha - 1 in both modes.
+    inline int LAZY_FAIL_HARD = 0;
 
     // Optimism-triggered verification (OTV). When a child's backed-up score is about to be
     // trusted (become the node's new best / cause the cutoff) AND it overshoots the node's OWN

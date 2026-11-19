@@ -212,6 +212,36 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
 | S2-31 | The ply-1 malus list ignores `SV2_MALUS_SEARCHED_ONLY` (`search_engine.cpp:6935-6936`), so tonight's C5 arm covers plies ≥ 2 only. Small: pruning at ply 1 needs iteration depth ≤ 6. | verified |
 | S2-32 | qsearch searches all four promotions and exempts them from delta pruning. | reported |
 
+- **S2-26, what other engines return from reverse futility (read from source 11-19; % = share of the way from the eval to
+  beta, our `RFP_RETURN_BLEND` scale):** the raw eval (0%): SF11, Ethereal, Weiss, Koivisto (Koivisto returns beta in a
+  separate depth-1 case), and us today. The midpoint (50%): Berserk, Obsidian, PlentyChess, Caissa (51%). Further toward beta:
+  SF18 67% (`(2 * beta + eval) / 3`), SF19 65% (`(661 * beta + 363 * eval) / 1024`), Reckless 69% (`lerp(eval, beta,
+  0.6945)`). Stormphrax interpolates by a tuned factor (its value was not in the fetched file). So the pull toward beta is the
+  modern direction, not universal, and its size is tuned per engine (50-69%). #282 tests the FORM once at 67. **Final-tuning
+  candidates (owner 11-19: exact values wait for a tuning pass near the end, since the engine keeps moving the optimum):** the
+  other values (50 / 65 / 69), returning what the prune proved (`eval − margin · rd`, a fixed amount off the eval rather than
+  a fraction of the gap), and treating a lazy-estimate return (S2-9: 33-38% of our RFP returns) differently from a full eval.
+  **S2-9 is NOT a tuning item (owner 11-19: "a more serious problem ... still part of the bug fixing"):** knob
+  `LAZY_FAIL_HARD` (default 0) returns the bound a lazy estimate proved (beta at reverse futility and at qsearch's stand-pat
+  cut, alpha − 1 as a futility-pruned move's bound under `SV2_FUT_BOUND`); games in #281, before S2-26's blend (#282).
+  Lazy eval itself is not ours alone: SF11 has a global `LazyThreshold` (1400 + non-pawn material / 64) and returns the lazy
+  value raw through RFP too; ours differs in being asked per site with the window's bound. NNUE engines evaluate fully.
+- **S2-9, the form (measured 11-19 16:35-17:03 on a plain check build, every gate equal):** the first form, mode 1 (return
+  beta), costs **+28.9% bench nodes** (249 / 46,312,304; registered +0.5 … +5%, a large miss). Ablated by site: reverse
+  futility alone +24.3%, the stand-pat cut alone +20.6%, no change with lazy eval off (35,160,332 both), and +26.8% with the
+  near-miss re-search off (`VERIFY_MARGIN=0`; its margin is 16 pawns, so it already re-searched nearly every reduced fail
+  low). The cost is the lost fail-soft information itself: later probes cut on the stored size. **Mode 2** returns what the
+  lazy exit proved, the estimate less the margin M it cleared its bound by (`g_lazy_margin`; never below beta): 249 /
+  37,325,964 (**+3.9%**; registered +5 … +15%), reverse futility alone −0.6%, the stand-pat cut alone +2.9%; game12 d10 **9/12**
+  at 2,785,346 (+15%) vs 7/12 (mode 1 also 9/12, at 3,221,293). #281 plays mode 2. **Mode 1 PARKED**, trigger: mode 2 passes
+  and the question becomes whether a tighter bound helps further, or a node saver frees ~25% of the budget.
+- **S2-3, #280 (2026-11-19):** self-play even, 50.3% after 1,580 of 2,000 games (gaming pause at 16:30). The registered
+  prediction was −10 … +15, and the #277 count was below its prediction (20-26% of no-cut exits, ~0.4 pawn, against 30-80%,
+  0.3-1.5 pawns). The games' own depth (1,587 games, 106k moves per arm): **11.674 vs 11.652**, time per move 0.226 s vs
+  0.225 s, so the +22% game12 node cost does not appear in play. A plain null, not a masked per-depth gain: if neutral it is
+  parked at LOW priority (not a front-line pairing partner), with triggers: futility pruning reshaped (its bound is eval +
+  margin) or the root-razor work (PS-6, which S2-3's bounds feed).
+
 - **Latent:** the correction-history update at a fail-low node learns from an upper bound; `moveGivesCheckFast` can report
   a false check on captures (its live callers pass quiets only).
 - **For C7 (the verify retune):** since gen 7.5 no scout reduced by 3 or more is trusted on either side (a fail-high goes to

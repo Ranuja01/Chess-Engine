@@ -490,6 +490,7 @@ namespace sv2
 		// corrected value, and the raw one the correction update at node exit reuses.
 		int rfp_eval = NO_STATIC_EVAL;
 		int rfp_raw_eval = NO_STATIC_EVAL;
+		bool rfp_lazy = false;   // the node-entry eval is a lazy estimate (it then always cuts by reverse futility)
 		const bool rfp_want_eval = !currently_in_check &&
 		                           ((Config::ENABLE_RFP && (beta - alpha) == 1 && (depth_limit - cur_depth) >= Config::RFP_MIN_DEPTH &&
 		                             (depth_limit - cur_depth) <= Config::RFP_MAX_DEPTH) ||
@@ -513,6 +514,7 @@ namespace sv2
 			rfp_raw_eval = eval_by_mode(Config::RFP_EVAL_MODE, state_history, zobrist, num_iterations);
 			if (lazy_rfp)
 				lazy_request_end();
+			rfp_lazy = lazy_rfp && g_lazy_fired;
 			rfp_eval = rfp_raw_eval + corr_ch + corr_c2;
 			if (lazy_rfp && g_lazy_fired && s * rfp_eval - Config::RFP_MARGIN * (depth_limit - cur_depth) < beta)
 				++g_lazy_nocut;
@@ -528,6 +530,10 @@ namespace sv2
 			++g_rfp_ret;
 			// S2-9 (count only): with LAZY_V2 bit 2 every RFP return had its eval requested lazily, so g_lazy_fired is this node's
 			g_rfp_lazy_ret += ((Config::LAZY_V2 & 2) && g_lazy_fired);
+			// LAZY_FAIL_HARD (S2-9): a lazy estimate proved the cut, not its size. 1 returns beta; 2 returns what the exit proved,
+			// the estimate less the margin it cleared its bound by (never below beta).
+			if (Config::LAZY_FAIL_HARD && rfp_lazy)
+				return Config::LAZY_FAIL_HARD == 2 ? std::max(beta, s * rfp_eval - g_lazy_margin) : beta;
 			if (Config::RFP_RETURN_BLEND > 0)   // the returned score pulled toward the bound
 				return (Config::RFP_RETURN_BLEND * beta + (100 - Config::RFP_RETURN_BLEND) * (s * rfp_eval)) / 100;
 			return s * rfp_eval;
@@ -1201,7 +1207,8 @@ namespace sv2
 					++g_sv2_probe.pruned_fut[probe_rd(rd)];
 #endif
 					using_fp = true;
-					g_sv2_fut_bound = early_score + fut_margin;   // read by the caller right after this return (SV2_FUT_BOUND)
+					// read by the caller right after this return (SV2_FUT_BOUND); a lazy estimate proved only eval + margin < alpha
+					g_sv2_fut_bound = (Config::LAZY_FAIL_HARD && lazy_fut && g_lazy_fired) ? alpha - 1 : early_score + fut_margin;
 					return early_score;
 				}
 			}
@@ -1477,6 +1484,10 @@ namespace sv2
 		{
 			if (q_depth == 0)
 				g_qroot_lazy = lazy_qs && g_lazy_fired;   // S2-9 (count only)
+			// LAZY_FAIL_HARD (S2-9): a lazy stand-pat estimate proved the cut, not its size. 1 returns beta (the q-cache then
+			// stores beta); 2 returns the estimate less the margin it cleared its bound by (never below beta).
+			if (Config::LAZY_FAIL_HARD && lazy_qs && g_lazy_fired)
+				return Config::LAZY_FAIL_HARD == 2 ? std::max(beta, static_eval - g_lazy_margin) : beta;
 			return static_eval;   // fail-hard stand pat
 		}
 		const int alpha_entry = alpha;   // for the q_short counters below

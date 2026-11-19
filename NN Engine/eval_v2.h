@@ -177,6 +177,7 @@ struct LazyReq {
 };
 extern LazyReq g_lazy_req;
 extern bool g_lazy_fired;
+extern int  g_lazy_margin;
 extern int  g_v2_last_pos;
 
 #ifdef LAZY_PROBE

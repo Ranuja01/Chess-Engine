@@ -3329,6 +3329,9 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SV2_MALUS_SEARCHED_ONLY = env_int("SV2_MALUS_SEARCHED_ONLY", Config::SV2_MALUS_SEARCHED_ONLY);
         Config::ASP_KEEP_FAILHIGH = env_int("ASP_KEEP_FAILHIGH", Config::ASP_KEEP_FAILHIGH);
         Config::SV2_FUT_BOUND = env_int("SV2_FUT_BOUND", Config::SV2_FUT_BOUND);
+        Config::ROOT_M0_CUT = env_int("ROOT_M0_CUT", Config::ROOT_M0_CUT);
+        Config::PS_TT_FLAG_FIX = env_int("PS_TT_FLAG_FIX", Config::PS_TT_FLAG_FIX);
+        Config::LAZY_FAIL_HARD = env_int("LAZY_FAIL_HARD", Config::LAZY_FAIL_HARD);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
         Config::OTV_MARGIN = env_int("OTV_MARGIN", Config::OTV_MARGIN);
@@ -5243,6 +5246,18 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
     {
         entry.top_score = score;
         previous_search_data.scores.push_back(std::move(entry));
+    }
+
+    // ROOT_M0_CUT (S2-6): move 0 already reached beta, so the pass fails high here, the same exit the loop takes for any
+    // later move (move 0's entry is stored above, the rest of the table stays unproven).
+    if (Config::ROOT_M0_CUT && beta <= alpha)
+    {
+        if (depth_limit >= 13)
+        {
+            std::cout << std::endl;
+            std::cout << "Best: " << best_move_index << std::endl;
+        }
+        return best_score;
     }
 
     if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
@@ -9252,12 +9267,13 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                                            : maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
                             if (cur_depth < depth_limit - 1)
                             {
+                                // PS_TT_FLAG_FIX (S2-4): the child ran on the narrowed (alpha, beta), so flag against it.
                                 TTFlag flag;
-                                if (score <= alpha_orig)
+                                if (score <= (Config::PS_TT_FLAG_FIX ? alpha : alpha_orig))
                                 {
                                     flag = TTFlag::UPPERBOUND;
                                 }
-                                else if (score >= beta_orig)
+                                else if (score >= (Config::PS_TT_FLAG_FIX ? beta : beta_orig))
                                 {
                                     flag = TTFlag::LOWERBOUND;
                                 }
@@ -9282,12 +9298,13 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                                            : maximizer(cur_depth + 1, depth_limit, alpha, beta, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
                         if (cur_depth < depth_limit - 1)
                         {
+                            // PS_TT_FLAG_FIX (S2-4): the child ran on the narrowed (alpha, beta), so flag against it.
                             TTFlag flag;
-                            if (score <= alpha_orig)
+                            if (score <= (Config::PS_TT_FLAG_FIX ? alpha : alpha_orig))
                             {
                                 flag = TTFlag::UPPERBOUND;
                             }
-                            else if (score >= beta_orig)
+                            else if (score >= (Config::PS_TT_FLAG_FIX ? beta : beta_orig))
                             {
                                 flag = TTFlag::LOWERBOUND;
                             }

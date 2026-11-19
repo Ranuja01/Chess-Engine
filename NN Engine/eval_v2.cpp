@@ -4920,6 +4920,7 @@ static void conn_load_table()
 // ── LAZY EVAL (Config::LAZY_V2; see LazyReq in eval_v2.h) ──────────────────────────────────────────────────────────
 LazyReq g_lazy_req{false, false, false, 0, LAZY_POS_NA, 100};
 bool g_lazy_fired = false;
+int  g_lazy_margin = 0;   // the margin M the last lazy exit cleared its bound by (LAZY_FAIL_HARD 2 subtracts it)
 int  g_v2_last_pos = LAZY_POS_NA;
 
 // Guard bit 1: 2+ enemy knights, bishops, rooks or queens within 2 squares (king distance) of either king. Step 0 (11-07): these
@@ -5160,6 +5161,7 @@ int placement_and_piece_eval_v2(int moveNum, bool turn, uint64_t pawnsMask, uint
 			    && !((Config::LAZY_V2_GUARDS & 1) && lazy_king_crowded(c))
 			    && !((Config::LAZY_V2_GUARDS & 4) && lazy_advanced_passer(c))){
 				g_lazy_fired = true;
+				g_lazy_margin = M;
 				g_v2_last_pos = LAZY_POS_NA;
 				return est;
 			}

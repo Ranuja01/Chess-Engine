@@ -802,6 +802,29 @@ static long g_qdelta_permove_seen = 0; // block REACHED (capture, non-ep, non-pr
 // stand-pat seed (ENABLE_QSTANDPAT_SEED) replaced the sentinel, so the parent reads a mate. Counted per search (reset with
 // qsearchVisits) to size the defect.
 static long g_q_phantom = 0;
+// The same qsearch's other sentinel case: the stand-pat raised alpha (it was inside the window), every capture searched
+// scored below it, and the node returned the best capture's score, below its own stand-pat (q_short). q_short_flip is the
+// subset that returned at or below the entry alpha: a fail low the stand-pat contradicts, which the parent reads as a fail
+// high. Both read 0 with ENABLE_QSTANDPAT_SEED. Per search, like g_q_phantom.
+static long g_q_short = 0, g_q_short_flip = 0;
+// Count-only sizing of the 2026-11-18 sweep's findings (dev_notes/active/SEARCH-DEFECT-REGISTER-2026-11-18.md). Per search,
+// reset with qsearchVisits, printed on the [sweep2] stats line; none of them changes a search decision.
+static long g_cx_checks = 0, g_cx_drop = 0, g_cx_drop_noatt = 0;   // S2-1: checking moves the extension could take, those the
+                                                                  // SEE filter dropped, and of those the ones whose checker no
+                                                                  // enemy piece attacks (see() then reads the checker's value)
+static long g_hz_total = 0, g_hz_static = 0, g_hz_static_check = 0, g_hz_static_null = 0;   // S2-2: search v2 horizon nodes,
+                                                                  // those returning the static eval (no qsearch), of which in
+                                                                  // check / inside a null-move search
+static long g_fut_exit = 0, g_fut_gap = 0;                        // S2-3: no-cut exits with a futility-pruned move, and those
+static long long g_fut_gap_sum = 0;                               // whose pruned value exceeds the returned best (gap summed)
+static long g_ps_store = 0, g_ps_exact_mislabel = 0;              // S2-4: pre_minimizer's TT stores, and EXACT ones whose score
+                                                                  // reached the current beta (a lower bound)
+static long g_rfp_ret = 0, g_rfp_lazy_ret = 0;                    // S2-9 / S2-26: reverse-futility returns, of which a lazy estimate
+static long g_qstore = 0, g_lazy_qstore = 0;                      // S2-9: q-cache stores, of which a lazy stand-pat estimate
+static bool g_qroot_lazy = false;                                 // set when the q-root returned through a lazy stand-pat cut
+static long g_root_pass = 0, g_root_m0_fh = 0;                    // S2-6: root passes, and those whose move 0 reached beta
+static long g_decay_stale = 0;                                    // S2-5: 1 when a non-endgame root runs with a raised DECAY_INTERVAL
+static long g_id_mate_stop = 0;                                   // S2-24: iterative deepening stopped on a mate-range score
 // Quietness probe (ENABLE_QUIET_PROBE, diagnostic): how quiet are the positions qsearch RETURNS a static
 // eval from? tension = g_capg_tension (SEE>=0 captures both sides); tension>0 = "active" = pending captures.
 // horizon = forced stop at MAX_QDEPTH (high active here = qsearch under-resolves); standpat = fail-hi/lo
@@ -4318,6 +4341,16 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
     qsearchVisits = 0;
     g_q_phantom = 0;   // per search, like qsearchVisits (the stats line prints both)
+    g_q_short = 0;
+    g_q_short_flip = 0;
+    g_cx_checks = g_cx_drop = g_cx_drop_noatt = 0;
+    g_hz_total = g_hz_static = g_hz_static_check = g_hz_static_null = 0;
+    g_fut_exit = g_fut_gap = 0;
+    g_fut_gap_sum = 0;
+    g_ps_store = g_ps_exact_mislabel = 0;
+    g_rfp_ret = g_rfp_lazy_ret = g_qstore = g_lazy_qstore = 0;
+    g_root_pass = g_root_m0_fh = 0;
+    g_id_mate_stop = 0;
 
     if (Config::FIX_REP_KEY & 2)
         g_pre_root_counts = position_count;   // the game's counts at the root, root included
@@ -4341,6 +4374,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
     int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to
 
+    static const int s_decay_base = Config::DECAY_INTERVAL;   // the interval before any search changed it (count only)
     if (phase_score > 117)
     {
         Config::DECAY_INTERVAL = 200000;
@@ -4357,6 +4391,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     }
     if (!Config::ENABLE_QPREC_PHASE_GATE)
         use_q_precautions = true;
+    g_decay_stale = (phase_score < 64 && Config::DECAY_INTERVAL != s_decay_base);
     uint64_t zobrist = generateZobristHash(current.pawns, current.knights, current.bishops, current.rooks, current.queens, current.kings, current.occupied_colour[true], current.occupied_colour[false], current.turn);
 
     Move move(0, 0, 0);
@@ -4715,9 +4750,19 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                       << g_cutoff_class_hist[c][4];
         std::cerr << std::endl;
     }
+    g_id_mate_stop = (score >= 9000000);   // S2-24: the search ended on a mate-range score (iterative deepening stops on one)
     std::cerr << "[passer_exempt] fires=" << g_passer_exempt_fires
               << "  [qdelta_permove] seen=" << g_qdelta_permove_seen << " fires=" << g_qdelta_permove_fires
-              << " q_phantom=" << g_q_phantom << " qnodes=" << qsearchVisits << std::endl;
+              << " q_phantom=" << g_q_phantom << " q_short=" << g_q_short << " q_short_flip=" << g_q_short_flip
+              << " qnodes=" << qsearchVisits << std::endl;
+    std::cerr << "[sweep2] cx_checks=" << g_cx_checks << " cx_drop=" << g_cx_drop << " cx_drop_noatt=" << g_cx_drop_noatt
+              << " hz_total=" << g_hz_total << " hz_static=" << g_hz_static << " hz_static_check=" << g_hz_static_check
+              << " hz_static_null=" << g_hz_static_null << " fut_exit=" << g_fut_exit << " fut_gap=" << g_fut_gap
+              << " fut_gap_sum=" << g_fut_gap_sum << " ps_store=" << g_ps_store << " ps_exact_mislabel=" << g_ps_exact_mislabel
+              << " rfp_ret=" << g_rfp_ret << " rfp_lazy_ret=" << g_rfp_lazy_ret << " qstore=" << g_qstore
+              << " lazy_qstore=" << g_lazy_qstore << " root_pass=" << g_root_pass << " root_m0_fh=" << g_root_m0_fh
+              << " decay_stale=" << g_decay_stale << " id_mate_stop=" << g_id_mate_stop
+              << " qprec=" << (use_q_precautions.load(std::memory_order_relaxed) ? 1 : 0) << std::endl;
     if (Config::NULL_NPM_GUARD || Config::PE_PRUNE_GATE || Config::PE_PASSER_EXT)
         std::cerr << "[pe_rules] null_refused=" << g_pe_null_refused << " null_allowed=" << g_pe_null_allowed
                   << " prune_gated=" << g_pe_prune_gated << " passer_ext=" << g_pe_passer_ext << std::endl;
@@ -5116,6 +5161,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         updatePV(current_search_data.moves_list[0], cur_depth);
 
     alpha = std::max(alpha, best_score);
+    ++g_root_pass;
+    g_root_m0_fh += (alpha >= beta);   // S2-6 (count only): the loop below still searches move 1
 
     if (time_up.load(std::memory_order_relaxed))
     {
@@ -9204,6 +9251,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                                     flag = TTFlag::EXACT;
                                 }
                                 // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
+                                ++g_ps_store;
+                                g_ps_exact_mislabel += (flag == TTFlag::EXACT && score >= beta);   // S2-4 (count only)
                                 addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                             }
                         }
@@ -9232,6 +9281,8 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                                 flag = TTFlag::EXACT;
                             }
                             // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
+                            ++g_ps_store;
+                            g_ps_exact_mislabel += (flag == TTFlag::EXACT && score >= beta);   // S2-4 (count only)
                             addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                         }
                     }

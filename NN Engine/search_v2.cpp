@@ -220,13 +220,18 @@ namespace sv2
 	static inline int qsearch_entry(int alpha, int beta, int cur_depth, const TimePoint &t0, std::vector<BoardState> &state_history, const BoardState &current_state,
 	                                std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prev_move, int &num_iterations)
 	{
+		g_qroot_lazy = false;
 		const int result = qsearch(alpha, beta, cur_depth, 0, t0, state_history, position_count, zobrist, prev_move, num_iterations, RootSide);
 		const int root_result = RootSide ? result : -result;
 		const TTFlag flag = root_flag<RootSide>(result, alpha, beta);
 		const bool unsound_store = Config::QCACHE_SOUND_STORE && (time_up.load(std::memory_order_relaxed) ||
 		                                                          (root_result == 0 && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state)));
 		if (!Config::DISABLE_QCACHE && !unsound_store)
+		{
+			++g_qstore;
+			g_lazy_qstore += g_qroot_lazy;   // S2-9 (count only)
 			addToQCache(zobrist, root_result, flag, current_state.castling_rights, current_state.ep_square);
+		}
 		return result;
 	}
 
@@ -453,8 +458,14 @@ namespace sv2
 		BoardState current_state = state_history.back();
 		if (cur_depth >= depth_limit)
 		{
+			++g_hz_total;
 			if (USE_Q_SEARCH && (!use_q_precautions.load(std::memory_order_relaxed) || depth_limit >= 6))
 				return qsearch_entry<RootSide>(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previous_move, num_iterations);
+			// S2-2 (count only): a horizon that takes the static eval instead of the qsearch
+			++g_hz_static;
+			g_hz_static_null += is_in_null_search;
+			g_hz_static_check += is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops,
+			                              current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
 			return s * get_board_evaluation(state_history, zobrist, num_iterations);
 		}
 
@@ -513,6 +524,9 @@ namespace sv2
 		{
 			if (Config::SV2_STATIC_CUT_STORE)
 				g_static_cut = true;
+			++g_rfp_ret;
+			// S2-9 (count only): with LAZY_V2 bit 2 every RFP return had its eval requested lazily, so g_lazy_fired is this node's
+			g_rfp_lazy_ret += ((Config::LAZY_V2 & 2) && g_lazy_fired);
 			if (Config::RFP_RETURN_BLEND > 0)   // the returned score pulled toward the bound
 				return (Config::RFP_RETURN_BLEND * beta + (100 - Config::RFP_RETURN_BLEND) * (s * rfp_eval)) / 100;
 			return s * rfp_eval;
@@ -958,6 +972,16 @@ namespace sv2
 					corrhist_log(current_state, side_bit, se, root_best, depth_limit - cur_depth, ra, rb);
 			}
 		}
+		// S2-3 (count only): a futility-pruned move whose own value exceeds the bound this node returns
+		if (best_early_eval != no_move_score)
+		{
+			++g_fut_exit;
+			if (best_early_eval > best_score && std::abs(best_score) < 9000000)
+			{
+				++g_fut_gap;
+				g_fut_gap_sum += best_early_eval - best_score;
+			}
+		}
 		store_node_tt(zobrist, current_state, state_history, s * best_score, cur_depth, depth_limit, root_lo<RootSide>(alpha_orig, beta_orig),
 		              root_hi<RootSide>(alpha_orig, beta_orig), best_move);
 		return best_score;
@@ -998,8 +1022,15 @@ namespace sv2
 		{
 			extend = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops,
 			                  updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
+			g_cx_checks += extend;
 			if (extend && Config::SEE_EXTEND_MARGIN < Config::SEE_EXTEND_DISABLED && see(move.to_square, updated_state.turn, updated_state) > Config::SEE_EXTEND_MARGIN)
+			{
 				extend = false;
+				++g_cx_drop;
+				g_cx_drop_noatt += !attackersMask(updated_state.turn, move.to_square, updated_state.occupied, updated_state.queens | updated_state.rooks,
+				                                  updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns,
+				                                  updated_state.occupied_colour[updated_state.turn]);   // S2-1 (count only)
+			}
 		}
 		if (!extend && Config::PE_PASSER_EXT > 0 && g_check_extensions < Config::PE_PASSER_EXT && depth_limit + 2 < MAX_PLY &&
 		    pe_passer_push(move, current_state, updated_state, cur_depth))
@@ -1434,7 +1465,12 @@ namespace sv2
 			++g_lazy_nocut;
 
 		if (static_eval >= beta)
+		{
+			if (q_depth == 0)
+				g_qroot_lazy = lazy_qs && g_lazy_fired;   // S2-9 (count only)
 			return static_eval;   // fail-hard stand pat
+		}
+		const int alpha_entry = alpha;   // for the q_short counters below
 		if (static_eval > alpha)
 			alpha = static_eval;
 		if (Config::ENABLE_QDELTA && !Config::ENABLE_QDELTA_PERMOVE && static_eval < alpha - Config::DELTA_MARGIN)
@@ -1492,6 +1528,11 @@ namespace sv2
 			return static_eval;
 		if (best == -MATE + move_num)
 			++g_q_phantom;
+		else if (static_eval > alpha_entry && best < static_eval)
+		{
+			++g_q_short;
+			g_q_short_flip += (best <= alpha_entry);
+		}
 		return best;
 	}
 }

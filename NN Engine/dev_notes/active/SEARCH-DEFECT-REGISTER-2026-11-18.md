@@ -256,7 +256,14 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   [[a-correctness-fix-into-absorbed-tuning-is-not-free]]). Re-test triggers: the end-of-arc tuning pass with the other values
   listed above (50 / 65 / 69, `eval − margin · rd`, lazy and full evals apart); a return-value form paired with an
   `RFP_MARGIN` re-sweep; or S2-27 / S2-29 changing what a stored static-cut bound does in the TT.
-- **S2-3, #280 (2026-11-19) — FINAL: NEUTRAL, PARKED (LOW).** 2,001 games +620 −611 =770, 50.2%, **+1.4 Elo (95% −10.7 …
+- **S2-6 `ROOT_M0_CUT=1`, #283 (2026-11-20) — NEUTRAL by the +2σ rule; HYGIENE ⇒ ELIGIBLE for the confirmation bundle
+  (§10 item 4).** 2,000 games +621 −611 =768, 50.2%, **+1.7 Elo (95% −9.8 … +13.3)**, z ≈ +0.3, pentanomial [89, 217, 373,
+  237, 84]; registered −5 … +10 (inside). The time saving did not show: time per move 0.227 vs 0.226 s, depth 11.6 / 11.6
+  (registered +0.0 … +0.1 ply), nodes per move 353,498 vs 353,858, nps 1,559,782 vs 1,562,631. Hygiene because the root loop
+  already returns after any later move that reaches beta; move 0 is the one exception. Outside judges skipped by the queue
+  (≈ 5.1 h saved); they come with the confirmation bundle.
+- **S2-3, #280 (2026-11-19) — FINAL: NEUTRAL, ~~PARKED (LOW)~~ → HYGIENE, ELIGIBLE for the confirmation bundle (owner's rule
+  11-20, §10 item 4).** 2,001 games +620 −611 =770, 50.2%, **+1.4 Elo (95% −10.7 …
   +13.5)**, pentanomial [95, 241, 325, 239, 100]; depth 11.7 / 11.7, nps 1,603,024 vs 1,606,204. Outside judges skipped (no
   self-play pass), ≈ 5.1 h saved against the old form. Mid-run read: self-play even, 50.3% after 1,580 of 2,000 games (gaming pause at 16:30). The registered
   prediction was −10 … +15, and the #277 count was below its prediction (20-26% of no-cut exits, ~0.4 pawn, against 30-80%,

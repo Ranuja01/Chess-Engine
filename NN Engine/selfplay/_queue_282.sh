@@ -55,7 +55,9 @@ SF18_LEG_MIN=13   # an SF18 leg (250 g) in #274: 12.5-13.5 min
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 cd "$ND" || exit 1
 rm -f "$STOP" "$GO"; mkdir -p "$W" "$GW"   # the pause files are the owner's: never removed here
-rm -f "$GW"/blend_s*.pgn "$GW"/blend_s*.log $O/g18_q282_s* $O/s11_q282_s*
+# A resume (the 11-20 04:14 restart by Windows Update) keeps the complete chunks: q282.resume holds the self-play seconds they took.
+RESUME=/mnt/e/chess_data/q282.resume
+if [ -e "$RESUME" ]; then SP_PRIOR=$(tr -dc '0-9' < "$RESUME"); else SP_PRIOR=0; rm -f "$GW"/blend_s*.pgn "$GW"/blend_s*.log $O/g18_q282_s* $O/s11_q282_s*; fi
 BASE=""
 show() { sed "s/^/[q282]   /"; }
 stopped() { [ -e "$STOP" ] && { echo "[q282] $(date) stop file before $1 — QUEUE 282 DONE"; exit 0; }; }
@@ -165,7 +167,8 @@ NOW=$(date +%s); GS=$(date -d 'today 20:50' +%s)
 [ "$NOW" -lt "$(date -d 'today 00:15' +%s)" ] && GS=$(date -d 'yesterday 20:50' +%s)
 GE=$(( GS + 12300 )); CUT=$(( GE + 37500 ))
 echo "[q282] $(date '+%H:%M') self-play blend vs ${BASE:-gen 7.7} (no timed work $(date -d @$GS '+%a %H:%M') to $(date -d @$GE '+%a %H:%M') unless q282.go; q282.pause or gaming.pause holds; cutoff $(date -d @$CUT '+%a %H:%M'))"
-SEQ=0; T_SP=0; T_WAIT=0
+SEQ=$(ls "$GW"/blend_s*.pgn 2>/dev/null | wc -l); T_SP=${SP_PRIOR:-0}; T_WAIT=0
+[ -e "$RESUME" ] && echo "[q282] RESUMED after the 04:14 restart by Windows Update (the 26H2 feature update, installing from 03:50): $(sp_count blend) games kept from $SEQ complete chunks (01:08-03:40, part 1 log q282_part1.log); chunk 2824 (193 games, 03:40-04:14, overlapping the install) set aside unread in /mnt/e/chess_data/r282_aside_winupdate and replayed whole; the next chunk seed is $((2821 + SEQ))"
 sp_chunk() {  # arm; returns 1 when the arm already has 2,000
 	local a=$1 n left pairs seed f t
 	n=$(sp_count $a); left=$(( (2000 - n + 1) / 2 )); [ $left -le 0 ] && return 1
@@ -255,4 +258,5 @@ echo "[q282] TIME: gates $(hrs $T_BUILD) · self-play $(hrs $T_SP) · timed work
 echo "[q282] TIME: the old form's outside judges (6 SF18 seeds + 3 SF1.1 seeds per arm, after self-play) ≈ $(hrs $OLD_EX) at these leg times ⇒ box time this queue spent on judges outside held time $(hrs $T_EX), saved ≈ $(hrs $(( OLD_EX - T_EX )))"
 echo "[q282] new WSL crash dumps since $START:"
 find "$DUMPS" -newermt "$START" -name '*.dmp' 2>/dev/null | show
+rm -f "$RESUME"
 echo "[q282] $(date) QUEUE 282 DONE"

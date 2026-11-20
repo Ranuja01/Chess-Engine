@@ -397,6 +397,17 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
    (`CHECK_EXTENSION=0`, forms 1 and 3) → S2-5 (`DECAY_FIX=3`, then 1) → S2-2 (`QPREC_FIX` 1 / 3 / 8) → S2-33(b) the TM cap →
    S2-29 (after its count) → S2-4 + S2-10 → S2-7 + S2-18 (after its count) → the hygiene bundle → C7 last (the verify retune,
    with the LMR saturation question and the margin grid at its head).
-4. Open owner decision: whether a neutral pure-correctness ("hygiene") fix ships on "not harmful" (the gen 6.5 rule) or is
-   parked (today's practice). My recommendation: hygiene fixes with one obviously right behaviour ship on not-harmful; form
-   choices (the S2-3, S2-9, S2-26 kind) stay parked when neutral.
+4. **Owner decision 11-20: hygiene fixes ship on "not harmful"** ("if there is a justifiable reason to say something is
+   cleaner, then I suppose we should go with it"). Rule in `dev_notes/current/JUDGING-SEARCH-IDEAS.md` §4: the fix restores a
+   statable invariant with one right form and no constant; self-play z > −1, then pooled outside z > −1, then the owner's yes;
+   items that clear their own self-play are confirmed together in one bundle against production before the ship. Applied:
+   - **S2-3 (#280, +1.4, z ≈ +0.2) is hygiene** (a fail-soft upper bound below the true value is unsound; SF raises
+     `bestValue` to the futility value) → eligible, joins the confirmation bundle. (I had listed it as a form choice before
+     the rule was written; it is not one: there is one right bound.)
+   - S2-6 (#283) and S2-4 (#284) are hygiene (the root loop's own rule after move 0; EXACT only for an in-window result): read
+     their z under this rule.
+   - The mate bundle (+ S2-14) and the sweep-3 hygiene bundle (S2-8, S2-11, S2-16, S2-17, S2-32; S2-20 / S2-21 by bench
+     identity) are hygiene.
+   - S2-9 mode 2 and S2-26 stay parked: more than one defensible form / a constant.
+   - Run order gains one item: the **hygiene confirmation bundle** (everything eligible, together vs gen 7.7, self-play +
+     outside judges) before C7, so C7 tunes the clean base.

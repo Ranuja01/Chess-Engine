@@ -68,3 +68,24 @@ and how it misleads) are in [`INSTRUMENT-MAP.md`](INSTRUMENT-MAP.md).
 - A win on one venue and a loss on another is information about the mechanism, not noise to average away. Read it per venue
   and per stratum (memory `criticality-split-reads-signal-not-average`).
 - Before calling anything a null, count the effect the test could resolve (memory `count-the-resolvable-effect-before-calling-a-null`).
+
+## 4. Hygiene fixes ship on "not harmful" (owner, 2026-11-20)
+
+Owner: "if there is a justifiable reason to say something is cleaner, then I suppose we should go with it. It may if truly
+cleaner, support future development better."
+
+- **What counts as hygiene:** today's behaviour breaks an invariant we can state, and the fix has one right form with no
+  constant to choose. The invariants: a chess rule (repetition, 50-move, en passant); the definition of a returned bound or a
+  TT flag (a fail-soft upper bound must not be below the true value; EXACT only for an in-window result); the symmetry of
+  the two search halves; no state leaking across searches or games. Three audits finding the same thing is supporting
+  evidence, not the test.
+- **What does not:** a form or a constant choice, even when it fixes a real defect, if more than one form is defensible (how
+  far toward beta to return, what a lazy cut should return, how aggressive a pruning rule is). Those keep the +2σ self-play
+  bar and are parked when neutral, with a trigger.
+- **The bar:** self-play z > −1 (the point estimate above −1σ; at 2,000 games σ ≈ 6 Elo), then the outside judges pooled
+  z > −1 (SF18 + SF1.1), then the owner's yes.
+- **How:** each hygiene item still gets its own self-play read (so a harmful one is caught alone). The items that clear z > −1
+  are then confirmed together in one bundle against production, self-play and outside judges, before shipping. That checks
+  their interaction (memory `search-changes-are-antagonistic-not-additive`) and costs one set of judges instead of one per item.
+- **Why it helps later work:** every constant tuned afterwards is fitted to the corrected search instead of absorbing the
+  defect (memory `a-correctness-fix-into-absorbed-tuning-is-not-free`: retune last, on the clean base).

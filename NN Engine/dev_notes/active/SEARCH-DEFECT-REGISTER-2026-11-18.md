@@ -235,7 +235,9 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   37,325,964 (**+3.9%**; registered +5 … +15%), reverse futility alone −0.6%, the stand-pat cut alone +2.9%; game12 d10 **9/12**
   at 2,785,346 (+15%) vs 7/12 (mode 1 also 9/12, at 3,221,293). #281 plays mode 2. **Mode 1 PARKED**, trigger: mode 2 passes
   and the question becomes whether a tighter bound helps further, or a node saver frees ~25% of the budget.
-- **S2-3, #280 (2026-11-19):** self-play even, 50.3% after 1,580 of 2,000 games (gaming pause at 16:30). The registered
+- **S2-3, #280 (2026-11-19) — FINAL: NEUTRAL, PARKED (LOW).** 2,001 games +620 −611 =770, 50.2%, **+1.4 Elo (95% −10.7 …
+  +13.5)**, pentanomial [95, 241, 325, 239, 100]; depth 11.7 / 11.7, nps 1,603,024 vs 1,606,204. Outside judges skipped (no
+  self-play pass), ≈ 5.1 h saved against the old form. Mid-run read: self-play even, 50.3% after 1,580 of 2,000 games (gaming pause at 16:30). The registered
   prediction was −10 … +15, and the #277 count was below its prediction (20-26% of no-cut exits, ~0.4 pawn, against 30-80%,
   0.3-1.5 pawns). The games' own depth (1,587 games, 106k moves per arm): **11.674 vs 11.652**, time per move 0.226 s vs
   0.225 s, so the +22% game12 node cost does not appear in play. A plain null, not a masked per-depth gain: if neutral it is

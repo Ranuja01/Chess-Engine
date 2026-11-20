@@ -235,6 +235,16 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   37,325,964 (**+3.9%**; registered +5 … +15%), reverse futility alone −0.6%, the stand-pat cut alone +2.9%; game12 d10 **9/12**
   at 2,785,346 (+15%) vs 7/12 (mode 1 also 9/12, at 3,221,293). #281 plays mode 2. **Mode 1 PARKED**, trigger: mode 2 passes
   and the question becomes whether a tighter bound helps further, or a node saver frees ~25% of the budget.
+- **S2-9 mode 2, #281 (2026-11-19/20) — NEUTRAL (leaning negative), PARKED.** 2,000 games +570 −633 =797, 48.4%, **−10.9 Elo
+  (95% −22.4 … +0.5)**, pentanomial [90, 248, 375, 209, 78]; registered −6 … +12 (a miss, low). **Not a node cost:** game depth
+  11.7 (lfh) vs 11.6, nodes per move 360,716 vs 361,418, nps 1,590,156 vs 1,594,991. So the lean is per depth, and the
+  "node-adding fix, pair with a node saver" park reason does not fit. A reading (not yet ablated): "estimate − M" is proven
+  but biased low by M (1.5-3 pawns × site scale) on every lazy fail high, while the raw estimate is unproven but roughly
+  unbiased; SF11 returns its lazy value raw. If so, the defect is the full-depth TT store of an unproven size, not the
+  returned value. Outside judges skipped (≈ 5.1 h saved). #282 and #283 therefore run on gen 7.7. Re-test triggers: a form
+  that keeps the raw return but stores a lazily cut node's bound at reduced depth (or flags it so a probe cuts only at the
+  window it was proved for); or lazy eval's margins reshaped. Split by site first (reverse futility vs stand-pat) if it is
+  reopened: the stand-pat half carries the +2.9% bench nodes.
 - **S2-3, #280 (2026-11-19) — FINAL: NEUTRAL, PARKED (LOW).** 2,001 games +620 −611 =770, 50.2%, **+1.4 Elo (95% −10.7 …
   +13.5)**, pentanomial [95, 241, 325, 239, 100]; depth 11.7 / 11.7, nps 1,603,024 vs 1,606,204. Outside judges skipped (no
   self-play pass), ≈ 5.1 h saved against the old form. Mid-run read: self-play even, 50.3% after 1,580 of 2,000 games (gaming pause at 16:30). The registered

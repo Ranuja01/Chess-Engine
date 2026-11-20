@@ -411,3 +411,15 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked âœ
    - S2-9 mode 2 and S2-26 stay parked: more than one defensible form / a constant.
    - Run order gains one item: the **hygiene confirmation bundle** (everything eligible, together vs gen 7.7, self-play +
      outside judges) before C7, so C7 tunes the clean base.
+5. **Owner 11-20: targeted items get venue legs where they fire** ("endgame starts, smaller but longer runs to see
+   behaviour"), registered per queue; standard self-play stays the not-harmful check:
+   - S2-2 `QPREC_FIX`: an endgame-start leg is the primary read.
+   - The mate bundle: endgame starts (moves and time to mate in won endings) and a smaller 60+0.6 run read for behaviour
+     (longest think, hard-stop hits).
+   - S2-33(b) the TM cap: a smaller long-TC run (60+0.6 or 180+1.8) read for the time-per-move distribution, cap fires and
+     hard-stop hits.
+   - S2-5 `DECAY_FIX`: a fastchess `restart=on` leg (a fresh process per game, as the UI plays).
+   - Every venue's resolving power is counted before its null is read (pairs not decided by colour).
+6. **End of phase H: a dedicated CCRL estimate (owner 11-20)** from a timed session against Stockfish 1.1 (â‰ˆ 2760 CCRL 40/15,
+   to re-check): ~600 games at 60+0.6 plus ~150 at 180+1.8, a balanced book (not UHO), Mediocre at time odds as a second anchor;
+   errors reported separately (statistics, anchor, TC / hardware). Plan in memory `later-test-vs-mediocre-for-an-absolute-rating`.

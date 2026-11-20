@@ -245,6 +245,17 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   that keeps the raw return but stores a lazily cut node's bound at reduced depth (or flags it so a probe cuts only at the
   window it was proved for); or lazy eval's margins reshaped. Split by site first (reverse futility vs stand-pat) if it is
   reopened: the stand-pat half carries the +2.9% bench nodes.
+- **S2-26 `RFP_RETURN_BLEND=67`, #282 (2026-11-20) — NEUTRAL, PARKED (a final-tuning candidate).** 2,000 games +577 −600
+  =823, 49.4%, **−4.0 Elo (95% −15.3 … +7.3)**, pentanomial [79, 247, 368, 230, 76]; registered −5 … +20 on the gen 7.7 base
+  (inside, at its low end). Game depth 11.7 / 11.7, nodes per move 372,522 vs 373,127, nps 1,645,865 vs 1,653,442; bench
+  +0.34% (registered +1 … +6%, a miss low). The 11-20 04:14 Windows Update restart cut the run: the 900 games of chunks
+  2821-2823 were kept, chunk 2824 (193 games overlapping the install) was set aside unread and its seed replayed whole, and
+  speed was unchanged after the update (every chunk 1.69-1.72 M nps on both sides). Outside judges skipped (≈ 5.1 h saved).
+  A reading (not ablated): the two forms that shrink a static cut's returned value both read below zero (S2-9 mode 2 −10.9,
+  S2-26 −4.0), so our pruning margins may be tuned around the raw return (an absorbed tuning,
+  [[a-correctness-fix-into-absorbed-tuning-is-not-free]]). Re-test triggers: the end-of-arc tuning pass with the other values
+  listed above (50 / 65 / 69, `eval − margin · rd`, lazy and full evals apart); a return-value form paired with an
+  `RFP_MARGIN` re-sweep; or S2-27 / S2-29 changing what a stored static-cut bound does in the TT.
 - **S2-3, #280 (2026-11-19) — FINAL: NEUTRAL, PARKED (LOW).** 2,001 games +620 −611 =770, 50.2%, **+1.4 Elo (95% −10.7 …
   +13.5)**, pentanomial [95, 241, 325, 239, 100]; depth 11.7 / 11.7, nps 1,603,024 vs 1,606,204. Outside judges skipped (no
   self-play pass), ≈ 5.1 h saved against the old form. Mid-run read: self-play even, 50.3% after 1,580 of 2,000 games (gaming pause at 16:30). The registered

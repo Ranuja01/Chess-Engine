@@ -256,6 +256,15 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   [[a-correctness-fix-into-absorbed-tuning-is-not-free]]). Re-test triggers: the end-of-arc tuning pass with the other values
   listed above (50 / 65 / 69, `eval − margin · rd`, lazy and full evals apart); a return-value form paired with an
   `RFP_MARGIN` re-sweep; or S2-27 / S2-29 changing what a stored static-cut bound does in the TT.
+- **The mate bundle `FIX_TT_MATE=1, FIX_MDP=1, ENABLE_NULL_MATE_CLAMP=1`, #285 (2026-11-21) — PARKED (hygiene, z −1.26 ≤
+  −1).** 2,000 games +571 −613 =816, 48.9%, **−7.3 Elo (95% −18.7 … +4.1)**, pentanomial [92, 231, 376, 229, 72]; registered
+  −5 … +8 (below its floor). Time per move 0.224 vs 0.225 s, max 1.839 vs 1.765 s, depth 11.6 vs 11.7, nodes per move
+  368,237 vs 370,363 (−0.6%), nps −0.3%. By its registered rule the targeted legs (eg_critical endgame starts, the 60+0.6
+  behaviour run) and the outside judges did not run, so the venue where it was expected to matter (long thinks such as UI
+  game 56's 150 s move; side check A: FEN 47 at d22 167.0M → 16.0M nodes) is UNREAD. Second non-positive read: as gen 6.6
+  (11-04) it was below the SF18 bar. Both TT-hygiene items of the night (S2-4, this) read −5 … −7 at 10+0.1: the shape of
+  [[a-correctness-fix-into-absorbed-tuning-is-not-free]]. Re-test triggers: the targeted legs read for information (the
+  owner's call: ≈ 5.5 h); a mate-range cost found in long games or UI games; S2-33 recurring; the end-of-arc tuning pass.
 - **S2-4 `PS_TT_FLAG_FIX=1`, #284 (2026-11-20/21) — self-play NEUTRAL (hygiene self-play bar met, z −0.84), but the
   outside judges read CLEARLY WORSE (pooled z −2.64 on one seed each) ⇒ NOT ELIGIBLE; PARKED pending the cause.** 2,001
   games +599 −627 =775, 49.3%, **−5.0 Elo (95% −16.7 … +6.6)**, pentanomial [92, 243, 351, 230, 84]; registered −5 … +12

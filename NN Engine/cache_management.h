@@ -1074,8 +1074,9 @@ inline bool probeQCache(uint64_t key, uint64_t castling_rights, int ep_square, i
 
 inline void addToQCache(uint64_t key, int score, TTFlag flag, uint64_t castling_rights, int ep_square) {
 
-	// Skip mate scores — stored without ply adjustment, as the main TT does
-    if (score >= 9000000 || score <= -9000000)
+	// Skip mate scores — stored without ply adjustment, as the main TT does. HYG_FIX bit HYG_QCACHE_ZERO (S2-16): skip a score
+	// of 0 too, as the main TT does: a draw found below the q-root (a perpetual among the evasions) belongs to that path.
+    if (score >= 9000000 || score <= -9000000 || (score == 0 && (Config::HYG_FIX & Config::HYG_QCACHE_ZERO)))
 		return;
     uint64_t updatedKey = make_move_cache_key(key, castling_rights, ep_square);
 	size_t idx = updatedKey & g_q_mask;

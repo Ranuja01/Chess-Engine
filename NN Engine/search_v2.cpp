@@ -220,7 +220,8 @@ namespace sv2
 	static inline int qsearch_entry(int alpha, int beta, int cur_depth, const TimePoint &t0, std::vector<BoardState> &state_history, const BoardState &current_state,
 	                                std::unordered_map<uint64_t, int> &position_count, uint64_t zobrist, Move prev_move, int &num_iterations)
 	{
-		g_qroot_lazy = false;
+		if (Config::ENABLE_LMR_COUNTERS)
+			g_qroot_lazy = false;
 		const int result = qsearch(alpha, beta, cur_depth, 0, t0, state_history, position_count, zobrist, prev_move, num_iterations, RootSide);
 		const int root_result = RootSide ? result : -result;
 		const TTFlag flag = root_flag<RootSide>(result, alpha, beta);
@@ -228,8 +229,11 @@ namespace sv2
 		                                                          (root_result == 0 && is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, current_state)));
 		if (!Config::DISABLE_QCACHE && !unsound_store)
 		{
-			++g_qstore;
-			g_lazy_qstore += g_qroot_lazy;   // S2-9 (count only)
+			if (Config::ENABLE_LMR_COUNTERS)   // S2-9 (count only)
+			{
+				++g_qstore;
+				g_lazy_qstore += g_qroot_lazy;
+			}
 			addToQCache(zobrist, root_result, flag, current_state.castling_rights, current_state.ep_square);
 		}
 		return result;
@@ -439,7 +443,7 @@ namespace sv2
 		else if (nodes_since_time_check++ >= Config::TIME_CHECK_NODES)
 		{
 			nodes_since_time_check = 0;
-			if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
+			if (search_clock_expired(t0))   // the hard limit, or TM_ITER_CAP's iteration cap
 				time_up.store(true, std::memory_order_relaxed);
 		}
 
@@ -458,14 +462,31 @@ namespace sv2
 		BoardState current_state = state_history.back();
 		if (cur_depth >= depth_limit)
 		{
-			++g_hz_total;
-			if (USE_Q_SEARCH && (!use_q_precautions.load(std::memory_order_relaxed) || depth_limit >= 6))
+			if (Config::ENABLE_LMR_COUNTERS)
+				++g_hz_total;
+			// An endgame-rooted search (use_q_precautions) takes the static eval at a horizon whose line target is below
+			// QPREC_MIN_TARGET. QPREC_FIX (S2-2) sends some of those horizons to qsearch; its tests run only on this rare branch.
+			bool static_leaf = use_q_precautions.load(std::memory_order_relaxed) && depth_limit < Config::QPREC_MIN_TARGET;
+			if (static_leaf && Config::QPREC_FIX)
+			{
+				if ((Config::QPREC_FIX & Config::QPREC_OFF) || ((Config::QPREC_FIX & Config::QPREC_ITER) && g_iter_depth >= Config::QPREC_MIN_TARGET) ||
+				    ((Config::QPREC_FIX & Config::QPREC_NULL) && is_in_null_search))
+					static_leaf = false;
+				else if ((Config::QPREC_FIX & Config::QPREC_IN_CHECK) &&
+				         is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops,
+				                  current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]))
+					static_leaf = false;
+			}
+			if (USE_Q_SEARCH && !static_leaf)
 				return qsearch_entry<RootSide>(alpha, beta, cur_depth, t0, state_history, current_state, position_count, zobrist, previous_move, num_iterations);
 			// S2-2 (count only): a horizon that takes the static eval instead of the qsearch
-			++g_hz_static;
-			g_hz_static_null += is_in_null_search;
-			g_hz_static_check += is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops,
-			                              current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
+			if (Config::ENABLE_LMR_COUNTERS)
+			{
+				++g_hz_static;
+				g_hz_static_null += is_in_null_search;
+				g_hz_static_check += is_check(current_state.turn, current_state.occupied, current_state.queens | current_state.rooks, current_state.queens | current_state.bishops,
+				                              current_state.kings, current_state.knights, current_state.pawns, current_state.occupied_colour[!current_state.turn]);
+			}
 			return s * get_board_evaluation(state_history, zobrist, num_iterations);
 		}
 
@@ -527,9 +548,12 @@ namespace sv2
 		{
 			if (Config::SV2_STATIC_CUT_STORE)
 				g_static_cut = true;
-			++g_rfp_ret;
 			// S2-9 (count only): with LAZY_V2 bit 2 every RFP return had its eval requested lazily, so g_lazy_fired is this node's
-			g_rfp_lazy_ret += ((Config::LAZY_V2 & 2) && g_lazy_fired);
+			if (Config::ENABLE_LMR_COUNTERS)
+			{
+				++g_rfp_ret;
+				g_rfp_lazy_ret += ((Config::LAZY_V2 & 2) && g_lazy_fired);
+			}
 			// LAZY_FAIL_HARD (S2-9): a lazy estimate proved the cut, not its size. 1 returns beta; 2 returns what the exit proved,
 			// the estimate less the margin it cleared its bound by (never below beta).
 			if (Config::LAZY_FAIL_HARD && rfp_lazy)
@@ -539,13 +563,19 @@ namespace sv2
 			return s * rfp_eval;
 		}
 
-		// Null move. The depth gate has one knob per side (NULLMOVE_CURDEPTH_MAXI / _MINI).
+		// Null move. The depth gate has one knob per side (NULLMOVE_CURDEPTH_MAXI / _MINI). FIX_NULL_LOSS_BETA (S2-14): not
+		// against a losing-mate beta, where a reduced null search would only "prove" the side is not mated within its horizon.
 		const int null_min_depth = RootSide ? Config::NULLMOVE_CURDEPTH_MAXI : Config::NULLMOVE_CURDEPTH_MINI;
 		if (Config::ENABLE_NULLMOVE && cur_depth >= null_min_depth && depth_limit >= 5 && !last_move_was_capture && !last_move_was_null_move &&
-		    !currently_in_check && !isUnsafeForNullMovePruning(current_state) && (!Config::ENABLE_NULL_EVAL_GATE || s * rfp_eval >= beta))
+		    !currently_in_check && !isUnsafeForNullMovePruning(current_state) && (!Config::ENABLE_NULL_EVAL_GATE || s * rfp_eval >= beta) &&
+		    !(Config::FIX_NULL_LOSS_BETA && beta <= -9000000))
 		{
 			// The null search reuses this history slot: keep this node's lazy-eval record and put it back (LAZY_V2_KEEP).
 			const LazyPly lazy_keep = g_lazy_ply[g & 2047];
+			// HYG_FIX bit HYG_REP_NULL (S2-11): repetition scans inside the null search start at this point of the path.
+			const int rep_null_floor = g_rep_null_floor;
+			if (Config::HYG_FIX & Config::HYG_REP_NULL)
+				g_rep_null_floor = g_rep_len;
 			state_history.back().turn = !state_history.back().turn;
 			const int cur_ep_square = state_history.back().ep_square;
 			state_history.back().ep_square = -1;
@@ -598,6 +628,7 @@ namespace sv2
 			state_history.back().turn = !state_history.back().turn;
 			state_history.back().ep_square = cur_ep_square;
 			zobrist = cur_hash;
+			g_rep_null_floor = rep_null_floor;
 			if (Config::LAZY_V2_KEEP)
 				g_lazy_ply[g & 2047] = lazy_keep;
 			if (null_move_score >= beta)
@@ -982,7 +1013,7 @@ namespace sv2
 			}
 		}
 		// S2-3 (count only): a futility-pruned move whose own value exceeds the bound this node returns
-		if (best_early_eval != no_move_score)
+		if (Config::ENABLE_LMR_COUNTERS && best_early_eval != no_move_score)
 		{
 			++g_fut_exit;
 			if (best_early_eval > best_score && std::abs(best_score) < 9000000)
@@ -1029,21 +1060,25 @@ namespace sv2
 			return 0;
 		}
 
-		// Check extension (capped per path by CHECK_EXTENSION, optionally dropped for a losing-SEE spite check), else the
+		// Check extension (capped per path by CHECK_EXTENSION, dropped for a check CHECK_EXT_FORM's rule rejects), else the
 		// passed-pawn push extension (same per-path counter).
 		bool extend = false;
 		if (Config::CHECK_EXTENSION > 0 && g_check_extensions < Config::CHECK_EXTENSION && depth_limit + 2 < MAX_PLY)
 		{
 			extend = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops,
 			                  updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-			g_cx_checks += extend;
-			if (extend && Config::SEE_EXTEND_MARGIN < Config::SEE_EXTEND_DISABLED && see(move.to_square, updated_state.turn, updated_state) > Config::SEE_EXTEND_MARGIN)
+			if (Config::ENABLE_LMR_COUNTERS)
+				g_cx_checks += extend;   // S2-1 (count only)
+			if (extend && Config::SEE_EXTEND_MARGIN < Config::SEE_EXTEND_DISABLED && !check_extension_applies(move, current_state, updated_state))
 			{
 				extend = false;
-				++g_cx_drop;
-				g_cx_drop_noatt += !attackersMask(updated_state.turn, move.to_square, updated_state.occupied, updated_state.queens | updated_state.rooks,
-				                                  updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns,
-				                                  updated_state.occupied_colour[updated_state.turn]);   // S2-1 (count only)
+				if (Config::ENABLE_LMR_COUNTERS)   // S2-1 (count only)
+				{
+					++g_cx_drop;
+					g_cx_drop_noatt += !attackersMask(updated_state.turn, move.to_square, updated_state.occupied, updated_state.queens | updated_state.rooks,
+					                                  updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns,
+					                                  updated_state.occupied_colour[updated_state.turn]);
+				}
 			}
 		}
 		if (!extend && Config::PE_PASSER_EXT > 0 && g_check_extensions < Config::PE_PASSER_EXT && depth_limit + 2 < MAX_PLY &&
@@ -1382,7 +1417,10 @@ namespace sv2
 	{
 		const int s = root_side ? 1 : -1;
 		qsearchVisits++;
-		if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, state_history.back()))
+		// HYG_FIX bit HYG_Q_FIFTY (S2-17): the fifty-move rule as well (every q-ply but an evasion resets the clock, so inside
+		// qsearch only an evasion can reach it).
+		if (is_repetition(position_count, zobrist, Config::REPETITION_THRESHOLD, state_history.back()) ||
+		    ((Config::HYG_FIX & Config::HYG_Q_FIFTY) && fifty_move_draw(state_history.back())))
 			return 0;
 		if (time_up.load(std::memory_order_relaxed))
 			return 0;
@@ -1394,7 +1432,7 @@ namespace sv2
 		else if (nodes_since_time_check++ >= Config::TIME_CHECK_NODES)
 		{
 			nodes_since_time_check = 0;
-			if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
+			if (search_clock_expired(t0))   // the hard limit, or TM_ITER_CAP's iteration cap
 				time_up.store(true, std::memory_order_relaxed);
 		}
 
@@ -1482,7 +1520,7 @@ namespace sv2
 
 		if (static_eval >= beta)
 		{
-			if (q_depth == 0)
+			if (Config::ENABLE_LMR_COUNTERS && q_depth == 0)
 				g_qroot_lazy = lazy_qs && g_lazy_fired;   // S2-9 (count only)
 			// LAZY_FAIL_HARD (S2-9): a lazy stand-pat estimate proved the cut, not its size. 1 returns beta (the q-cache then
 			// stores beta); 2 returns the estimate less the margin it cleared its bound by (never below beta).
@@ -1505,11 +1543,21 @@ namespace sv2
 		for (size_t i = 0; i < moves_list.size(); ++i)
 		{
 			Move &move = moves_list[i];
+			// HYG_FIX bit HYG_Q_UNDERPROMO (S2-32): of the four promotions only the queen and the knight are searched (a rook or
+			// bishop is never worth more than the queen here; the knight can give a check the queen cannot).
+			if (move.promotion == BISHOP || move.promotion == ROOK)
+			{
+				if (Config::ENABLE_LMR_COUNTERS)
+					++g_q_underpromo;   // S2-32 (count only)
+				if (Config::HYG_FIX & Config::HYG_Q_UNDERPROMO)
+					continue;
+			}
 			const bool en_passant_move = is_en_passant(move.from_square, move.to_square, current_state.ep_square, current_state.occupied, current_state.pawns);
 			const bool capture_move = is_capture(move.from_square, move.to_square, current_state.occupied_colour[!current_state.turn], en_passant_move);
 
 			// Per-capture delta pruning: skip a capture only when winning the victim plus the margin cannot reach alpha.
-			// Promotions (promotion > 1) and en passant are exempt.
+			// Promotions (promotion > 1) and en passant are exempt, and under HYG_FIX bit HYG_DELTA_CHECK (S2-8) a capture that
+			// gives check.
 			if (Config::ENABLE_QDELTA_PERMOVE && Config::ENABLE_QDELTA && capture_move && !en_passant_move && move.promotion <= 1)
 			{
 				const int victim = get_value_at(move.to_square, current_state);
@@ -1517,10 +1565,17 @@ namespace sv2
 				++g_qdelta_permove_seen;
 				if (static_eval + pm_margin + victim <= alpha)
 				{
-					++g_qdelta_permove_fires;
-					if (Config::ENABLE_QSTANDPAT_SEED && static_eval + pm_margin + victim > best)
-						best = static_eval + pm_margin + victim;
-					continue;
+					const bool exempt_checks = (Config::HYG_FIX & Config::HYG_DELTA_CHECK) != 0;
+					const bool gives_check = (exempt_checks || Config::ENABLE_LMR_COUNTERS) && moveGivesCheckFast(current_state, move);
+					if (Config::ENABLE_LMR_COUNTERS)
+						g_qdelta_check += gives_check;   // S2-8 (count only)
+					if (!(exempt_checks && gives_check))
+					{
+						++g_qdelta_permove_fires;
+						if (Config::ENABLE_QSTANDPAT_SEED && static_eval + pm_margin + victim > best)
+							best = static_eval + pm_margin + victim;
+						continue;
+					}
 				}
 			}
 

@@ -219,7 +219,19 @@ namespace Config
 {
     inline const ConfigData *ACTIVE = &Configs::STANDARD; // Default to classical
     inline bool side_to_play = false;                     // Default; can be set at runtime
-    inline int DECAY_INTERVAL = 35000;
+    // Nodes between halvings of the butterfly and capture history (increment_node_count_with_decay). get_engine_move's phase
+    // ladder raises it for a root with phase <= 12 (125000 / 150000 / 200000) and writes nothing for any other root.
+    inline constexpr int DECAY_INTERVAL_BASE = 35000;
+    inline int DECAY_INTERVAL = DECAY_INTERVAL_BASE;
+    // DECAY_FIX (S2-5): nothing resets DECAY_INTERVAL, so a root with phase >= 13 runs with whatever the last root with
+    // phase <= 12 wrote (125k-200k, 1-3 halvings per 10+0.1 move instead of ~10), even across ucinewgame; in fastchess that
+    // is ~99% of middlegame searches, and the bench depends on the WAC file order through it (254 of 300 searches, #277).
+    // 0 = the value sticks (byte-identical). 1 = every search starts from DECAY_INTERVAL_BASE, then the ladder. 2 = reset to
+    // the base on ucinewgame (clearAllCaches) only, as a fresh process (the UI) plays. 3 = a root with phase >= 13 takes
+    // DECAY_MG; the ladder is unchanged. Design: dev_notes/active/SWEEP3-S2-5-S2-2-2026-11-20.md §1.8. Predicted: 1 bench
+    // nodes +-3-10%, -25 … +5 Elo; 3 (DECAY_MG 150000) bench within +-2%, -6 … +6 Elo; 2 bench identical. Result: untested.
+    inline int DECAY_FIX = 0;
+    inline int DECAY_MG = 150000;   // the interval of a root with phase >= 13 under DECAY_FIX 3
 
     // Search-ablation toggles (default ON = current behavior). Each disables a
     // pruning/reduction mechanism at all of its live sites so the eval-vs-search
@@ -3201,6 +3213,19 @@ namespace Config
     // odd cur_depths, maximizer at even), confirmed: MAXI=3 is byte-identical (no maximizer node at
     // cur_depth 3) and MINI=4 is worse (-1 solve, +13% nodes). Knobs retained for future MAXI=2 tuning.
     inline bool ENABLE_QPREC_PHASE_GATE = true;   // SHIPPED (collapse bundle): restores midgame qsearch phase logic
+    // QPREC_FIX (S2-2), bit flags: with use_q_precautions (a root with phase <= 6) search v2 takes the bare static eval at a
+    // horizon whose line target is below QPREC_MIN_TARGET, even in check, and at line targets 5-8 and 10 the null child is
+    // itself such a horizon, so the null move becomes a zero-margin static cut (#277: 5.45% of eg60's horizons, 20% of them
+    // in a null subtree, 6% in check). 1 = a horizon in check takes qsearch; 2 = a horizon inside a null-move search takes
+    // qsearch; 4 = the gate reads the iteration depth as well (static only while the iteration is below QPREC_MIN_TARGET);
+    // 8 = every horizon takes qsearch. 0 = byte-identical. Design: dev_notes/active/SWEEP3-S2-5-S2-2-2026-11-20.md §2.5.
+    // Predicted bench nodes: 1 0 … +0.3%, 3 +0.2 … +1%, 8 +0.5 … +2% (eg60 +0.3 … +10%). Result: untested.
+    inline int QPREC_FIX = 0;
+    inline constexpr int QPREC_IN_CHECK = 1;
+    inline constexpr int QPREC_NULL = 2;
+    inline constexpr int QPREC_ITER = 4;
+    inline constexpr int QPREC_OFF = 8;
+    inline constexpr int QPREC_MIN_TARGET = 6;   // the line target from which an endgame-rooted horizon takes qsearch
     inline bool ENABLE_TT_DEPTH_FIX = true;
     inline int NULLMOVE_CURDEPTH_MINI = 3;
     inline int NULLMOVE_CURDEPTH_MAXI = 4;
@@ -3313,6 +3338,29 @@ namespace Config
     inline int FIX_TT_R50 = 0;        // no TT cutoffs at halfmove clock >= 90, where a stored score may not hold on this path
     inline int FIX_KILLER_SPLICE = 0; // move-gen cache hit: killers / counter are inserted after the captures, not swapped in
     inline int FIX_TT_MATE = 0;       // mate scores go into the TT as the distance from the stored position (today: never stored)
+    // FIX_NULL_LOSS_BETA (S2-14): no null move when beta is in the losing-mate range (beta <= -9000000 for the side to move).
+    // A reduced null search that reaches such a beta only "proves" the side is not mated within the null search's horizon;
+    // reverse futility already refuses mate-range windows, and SF tests !is_loss(beta). 0 = byte-identical. A mate-bundle
+    // partner (FIX_TT_MATE, FIX_MDP, ENABLE_NULL_MATE_CLAMP): fires only in mate-range windows. Expected ~0 Elo, shorter mates.
+    // Result: untested.
+    inline int FIX_NULL_LOSS_BETA = 0;
+    // HYG_FIX: sweep-3 hygiene fixes, one bit each (dev_notes/active/SWEEP3-TRIAGE-2026-11-20.md §2a). 0 = byte-identical.
+    // Result: untested for every bit.
+    // 1 (S2-8): qsearch's per-capture delta pruning does not prune a capture that gives check (promotions and en passant were
+    //   already exempt; SF exempts checks too). Expected 0 … +4 Elo, +0.5 … +2% nodes.
+    // 2 (S2-11): repetition detection does not cross a null move: inside a null-move search only the positions reached after
+    //   the null count, and the game before the root does not (SF stops at pliesFromNull). Needs REP_STACK (shipped 1). ~0.
+    // 4 (S2-16): the q-cache refuses a score of 0, as the TT does: a draw found below the q-root (a perpetual among the
+    //   evasions) belongs to that path, not to the position. Expected 0 … +3 Elo, in perpetual-check lines.
+    // 8 (S2-17): qsearch tests the fifty-move rule at its entry as well as repetition (only an evasion ply can cross it). ~0.
+    // 16 (S2-32): qsearch searches only the queen and knight promotions (the knight can give check the queen cannot).
+    //   Expected 0 … +1 Elo, a small endgame speed gain.
+    inline int HYG_FIX = 0;
+    inline constexpr int HYG_DELTA_CHECK = 1;
+    inline constexpr int HYG_REP_NULL = 2;
+    inline constexpr int HYG_QCACHE_ZERO = 4;
+    inline constexpr int HYG_Q_FIFTY = 8;
+    inline constexpr int HYG_Q_UNDERPROMO = 16;
 
     // Graduated verification: re-search the near-miss at depth_limit - this (a
     // shallow re-look) instead of full depth, to cut the cost of a wide VERIFY_MARGIN.
@@ -3379,6 +3427,20 @@ namespace Config
     // high against the narrowed beta is stored as EXACT and later cuts at any window (3.4-4.5% of pre-search stores, 6-7%
     // with the stand-pat seed, #277). 1 = flag against (alpha, beta) as searched. 0 = byte-identical. Expected to add nodes.
     inline int PS_TT_FLAG_FIX = 0;
+    // PS_SCOUT_FIX (S2-10): pre_minimizer's reduced scout asks the minimizing node's own question, whether the reply scores
+    // below beta as narrowed so far: the window (beta - 1, beta) instead of (alpha, alpha + 1). In an open-window call
+    // (root move 0 of each pass, in-window root re-searches) a scout at alpha comes back below beta almost every time, so the
+    // full-depth re-search follows; at a null window the two are the same search. The scout's TT stores flag against its
+    // own window; the re-search test (score < beta) is unchanged. 0 = byte-identical. Design:
+    // dev_notes/active/SWEEP3-TRIAGE-2026-11-20.md §3. Expected bench nodes -1 … -5%, -3 … +5 Elo. Result: untested.
+    inline int PS_SCOUT_FIX = 0;
+    // PS_TT_PROBE_FIX (S2-4's partner): pre_minimizer's reduced-depth TT probe takes any entry whose bound decides the scout
+    // at the scout's own window (use_tt_entry), as the main search's reduced probe does; today it takes EXACT entries only,
+    // so with PS_TT_FLAG_FIX an honest LOWERBOUND that would dismiss the reply is ignored and the reply is searched twice
+    // (dev_notes/active/S2-4-INVESTIGATION-2026-11-21.md §b). The window is PS_SCOUT_FIX's when that is on. 0 =
+    // byte-identical. Expected bench nodes with PS_TT_FLAG_FIX=1 below its 36,566,334, probably below 35,922,538.
+    // Result: untested.
+    inline int PS_TT_PROBE_FIX = 0;
     // LAZY_FAIL_HARD (S2-9): a lazy eval estimate (up to ~2.6 pawns off at p99) proves that its site cuts or prunes, not by
     // how much, yet search v2 returns it as a value: reverse futility returns it and the parent stores it in the TT at full
     // depth (33-38% of RFP returns are lazy, #277), and qsearch's stand-pat cut returns it and the q-cache stores it (~5% of
@@ -3456,6 +3518,18 @@ namespace Config
     // play. Set to SEE_EXTEND_DISABLED to restore the old extend-every-check behavior.
     inline constexpr int SEE_EXTEND_DISABLED = 1000000;
     inline int SEE_EXTEND_MARGIN = 300;
+    // CHECK_EXT_FORM (S2-1): which checking moves the check extension takes (check_extension_applies). CHECK_EXTENSION (the
+    // per-path cap) and SEE_EXTEND_MARGIN keep their values in every form. 0 = extend unless see() on the moved piece's
+    // square exceeds SEE_EXTEND_MARGIN; see() reads a piece nothing attacks at its full value, so a checker nobody attacks
+    // is never extended and only "contested" checks are (9-10% of eligible checks, #277). 1 = safe checks: a discovered,
+    // double or castling check, a moved piece nothing attacks, else the SEE test. 2 = contact checks (the moved piece next
+    // to the king) that pass the SEE test. 3 = checks the king must move out of: a double check, or a contact or knight
+    // check whose piece is unattacked or passes the SEE test. 4 = SF11's rule: a discovered check, or the move's own
+    // exchange value (see_move) >= -SEE_EXTEND_MARGIN. 0 = byte-identical. Design:
+    // dev_notes/active/SWEEP3-S2-1-CHECK-EXTENSION-2026-11-20.md §5. Predicted bench nodes vs 0: 1 +8 … +20%,
+    // 2 -4 … -0.5%, 3 +1 … +8%, 4 +12 … +30%. Result: untested.
+    inline int CHECK_EXT_FORM = 0;
+    inline constexpr int CHECK_EXT_FORM_MAX = 4;
 
     // Phase-0 diagnostic (default off = byte-identical): measure the "light eval" gap = the signed sum of
     // the skippable tail terms (capture_gains + passed_support + latent_threat + advanced_endgame delta) per
@@ -3668,6 +3742,17 @@ namespace Config
     // left reserves the whole clock and the move is played after the first iteration. With an increment above the overhead
     // the reserve is already negative, so those games are unchanged.
     inline int TM_LOWCLOCK = 0;
+    // TM_ITER_CAP (S2-33b, clock games under TM_MODE >= 1): an iteration in which nothing has yet put the best move in doubt
+    // is cut, as the hard limit cuts it, once the search has run TM_ITER_CAP percent of the scaled soft limit (optimum x
+    // g_tm_scale, set when the iteration starts), never less than TM_ITER_FLOOR percent of the optimum. Doubt lifts the cap
+    // back to the hard limit for the rest of the iteration: an aspiration pass that fails low, root move 0 completing at or
+    // below the pass's alpha, a later root move beating alpha. Today only the hard limit (5x the optimum) stops an iteration
+    // (game 56's 46.Kxg6 ran 149.6 s against a 29.9 s optimum). 0 = off (byte-identical); negative = count only: the cap
+    // never fires, TMCNT reports how often it would have, the seconds it would have saved, and how many of those iterations
+    // went on to change the move. Design: dev_notes/active/SWEEP3-S2-33-EXPLODING-ITERATION-2026-11-20.md §5.3 (suggested
+    // 300 / 100). Predicted 1-5 fires per 1,000 moves at 10+0.1, -3 … +3 Elo. Result: untested.
+    inline int TM_ITER_CAP = 0;
+    inline int TM_ITER_FLOOR = 0;   // percent of the optimum the cap never goes below; 0 = no floor
     // EVAL_CACHE_FORM (v2 only): 0 = the eval cache holds side_to_play-relative values (wrong sign for a search for the
     // other side), 1 = it holds the fixed Black-positive value, flipped on read, 2 = 1 and checkmate scores (ply-dependent)
     // are not cached. See get_board_evaluation.

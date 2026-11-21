@@ -231,6 +231,10 @@ struct RepPathEntry
 static constexpr int REP_PATH_MAX = 1024;
 static RepPathEntry g_rep_path[REP_PATH_MAX];
 static int g_rep_len = 0;
+// Config::HYG_FIX bit HYG_REP_NULL (S2-11): the path length at the innermost null move on the current path (-1 = none). A
+// repetition scan inside a null-move search counts only the entries from there on, since a cycle through the null move is
+// not a line either side can play.
+static int g_rep_null_floor = -1;
 static bool g_rep_in_search = false;   // true between the start of get_engine_move's search and its final make_move
 // Config::REP_FILTER: a 4096-bit filter of the repetition keys position_count holds at the root (it does not change during the
 // search). A clear bit means the key is not in the map, so is_repetition skips the hash lookup for almost every node.
@@ -284,6 +288,32 @@ static inline void root_nodes_add(const Move &m, long long n)
 {
     g_root_move_nodes[m.from_square][m.to_square] += n;
     g_root_main_nodes += n;
+}
+// Config::TM_ITER_CAP (S2-33b): the time (seconds since the search started) the running iteration may reach while nothing in
+// it has put the best move in doubt; TM_CAP_OFF = only the hard limit. g_tm_cap_cross_s = when the count-only form first
+// crossed it in this iteration (-1 = not crossed). Cumulative, printed on the TMCNT line: iterations the cap cut, iterations
+// it would have cut (count only), of those the ones whose own result changed the move, and the seconds they ran past it.
+static constexpr double TM_CAP_OFF = 1e18;
+static double g_tm_iter_limit_s = TM_CAP_OFF;
+static double g_tm_cap_cross_s = -1.0;
+long g_tm_cap_fired = 0, g_tm_cap_would = 0, g_tm_cap_would_changed = 0;
+double g_tm_cap_saved_s = 0;
+// Whether the search clock has run out at an in-node clock test: the hard limit, or the iteration cap while it is armed.
+static inline bool search_clock_expired(const TimePoint &t0)
+{
+    const double el = std::chrono::duration<double>(Clock::now() - t0).count();
+    if (el >= Config::ACTIVE->TIME_LIMIT)
+        return true;
+    if (el < g_tm_iter_limit_s)
+        return false;
+    if (Config::TM_ITER_CAP > 0)
+    {
+        ++g_tm_cap_fired;
+        return true;
+    }
+    if (g_tm_cap_cross_s < 0)
+        g_tm_cap_cross_s = el;   // count only: the first crossing of this iteration; the search goes on
+    return false;
 }
 
 // Per-node counters, written and read only by the search thread. Plain integers on purpose: an increment of a
@@ -630,6 +660,45 @@ struct CheckExtensionGuard
     }
 };
 
+/*
+ * Whether a move that gives check earns the check extension (Config::CHECK_EXT_FORM, S2-1). `after` is the position with
+ * the move made (the checked side to move), `before` the position it was made from. Form 0 is the SEE filter as it has run
+ * since June: see() on the moved piece's square from the checked side, which reads a piece nothing attacks at its full
+ * value, so such a checker is never extended. The other forms ask the safety question directly.
+ */
+static inline bool check_extension_applies(const Move &move, const BoardState &before, const BoardState &after)
+{
+    const bool them = after.turn;
+    const uint8_t to = move.to_square;
+    if (Config::CHECK_EXT_FORM == 0)
+        return see(to, them, after) <= Config::SEE_EXTEND_MARGIN;
+
+    const uint64_t qr = after.queens | after.rooks, qb = after.queens | after.bishops;
+    const uint64_t to_bb = BB_SQUARES[to];
+    const uint8_t king = 63 - __builtin_clzll(after.kings & after.occupied_colour[them]);
+    const uint64_t checkers = attackersMask(!them, king, after.occupied, qr, qb, after.kings, after.knights, after.pawns,
+                                            after.occupied_colour[!them]);
+    const bool direct = (checkers & to_bb) != 0;          // the moved piece gives check
+    const bool other_checker = (checkers & ~to_bb) != 0;  // a discovered or double check, or castling's rook
+    if (Config::CHECK_EXT_FORM == 4)
+        return other_checker || see_move(move.from_square, to, !them, before) >= -Config::SEE_EXTEND_MARGIN;
+
+    // The exchange on the moved piece's square, from the checked side: nothing to win when nothing attacks it.
+    const uint64_t attackers = attackersMask(them, to, after.occupied, qr, qb, after.kings, after.knights, after.pawns,
+                                             after.occupied_colour[them]);
+    const bool holds = attackers == 0 || see(to, them, after) <= Config::SEE_EXTEND_MARGIN;
+    const bool contact = (BB_KING_ATTACKS[king] & to_bb) != 0;
+    switch (Config::CHECK_EXT_FORM)
+    {
+    case 1:
+        return other_checker || holds;
+    case 2:
+        return direct && contact && holds;
+    default:   // 3 (the start-up read keeps the knob within 0 … CHECK_EXT_FORM_MAX)
+        return (direct && other_checker) || (direct && (contact || (after.knights & to_bb) != 0) && holds);
+    }
+}
+
 // Per-path count of active singular extensions. Singular does not go through CheckExtensionGuard, so
 // without its own counter a forced line of singular TT-moves could extend without bound (each singular
 // move re-arms the next); this caps the depth of a pure singular chain independently of check extensions.
@@ -808,7 +877,8 @@ static long g_q_phantom = 0;
 // high. Both read 0 with ENABLE_QSTANDPAT_SEED. Per search, like g_q_phantom.
 static long g_q_short = 0, g_q_short_flip = 0;
 // Count-only sizing of the 2026-11-18 sweep's findings (dev_notes/active/SEARCH-DEFECT-REGISTER-2026-11-18.md). Per search,
-// reset with qsearchVisits, printed on the [sweep2] stats line; none of them changes a search decision.
+// reset with qsearchVisits, printed on the [sweep2] stats line; none of them changes a search decision. Those on per-node or
+// per-move paths count only under Config::ENABLE_LMR_COUNTERS (they read 0 otherwise); the per-search ones always count.
 static long g_cx_checks = 0, g_cx_drop = 0, g_cx_drop_noatt = 0;   // S2-1: checking moves the extension could take, those the
                                                                   // SEE filter dropped, and of those the ones whose checker no
                                                                   // enemy piece attacks (see() then reads the checker's value)
@@ -828,6 +898,11 @@ static bool g_qroot_lazy = false;                                 // set when th
 static long g_root_pass = 0, g_root_m0_fh = 0;                    // S2-6: root passes, and those whose move 0 reached beta
 static long g_decay_stale = 0;                                    // S2-5: 1 when a non-endgame root runs with a raised DECAY_INTERVAL
 static long g_id_mate_stop = 0;                                   // S2-24: iterative deepening stopped on a mate-range score
+static long g_qdelta_check = 0;                                   // S2-8: qsearch delta prunes of a capture that gives check
+                                                                  // (under HYG_FIX bit 1: the captures searched instead)
+static long g_q_underpromo = 0;                                   // S2-32: bishop and rook promotions reached in qsearch's
+                                                                  // noisy loop (the children HYG_FIX bit 16 removes)
+static int g_iter_depth = 0;                                      // the running iteration's nominal depth (QPREC_FIX bit 4)
 // Quietness probe (ENABLE_QUIET_PROBE, diagnostic): how quiet are the positions qsearch RETURNS a static
 // eval from? tension = g_capg_tension (SEE>=0 captures both sides); tension>0 = "active" = pending captures.
 // horizon = forced stop at MAX_QDEPTH (high active here = qsearch under-resolves); standpat = fail-hi/lo
@@ -3250,6 +3325,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::ROOK_ENDGAME_CAP = env_int("ROOK_ENDGAME_CAP", Config::ROOK_ENDGAME_CAP);
         Config::ENABLE_ROOK_RANKWIN_FIX = env_flag("ENABLE_ROOK_RANKWIN_FIX", Config::ENABLE_ROOK_RANKWIN_FIX);
         Config::ENABLE_QPREC_PHASE_GATE = env_flag("ENABLE_QPREC_PHASE_GATE", Config::ENABLE_QPREC_PHASE_GATE);
+        Config::QPREC_FIX = env_int("QPREC_FIX", Config::QPREC_FIX);
         Config::ENABLE_TT_DEPTH_FIX = env_flag("ENABLE_TT_DEPTH_FIX", Config::ENABLE_TT_DEPTH_FIX);
         Config::NULLMOVE_CURDEPTH_MINI = env_int("NULLMOVE_CURDEPTH_MINI", Config::NULLMOVE_CURDEPTH_MINI);
         Config::NULLMOVE_CURDEPTH_MAXI = env_int("NULLMOVE_CURDEPTH_MAXI", Config::NULLMOVE_CURDEPTH_MAXI);
@@ -3280,6 +3356,12 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         if (Config::CONT2_GRAVITY_DIV < 1)
             Config::CONT2_GRAVITY_DIV = 1;
         Config::ENABLE_HISTORY_DECAY = env_flag("ENABLE_HISTORY_DECAY", Config::ENABLE_HISTORY_DECAY);
+        Config::DECAY_FIX = env_int("DECAY_FIX", Config::DECAY_FIX);
+        Config::DECAY_MG = env_int("DECAY_MG", Config::DECAY_MG);
+        if (Config::DECAY_MG < 1){
+            std::cerr << "☠️ DECAY_MG must be >= 1 -- restoring " << Config::DECAY_INTERVAL_BASE << ".\n";
+            Config::DECAY_MG = Config::DECAY_INTERVAL_BASE;
+        }
         Config::MALUS_DIV = env_int("MALUS_DIV", Config::MALUS_DIV);
         if (Config::MALUS_DIV < 1)
             Config::MALUS_DIV = 1;
@@ -3321,6 +3403,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::FIX_TT_R50 = env_int("FIX_TT_R50", Config::FIX_TT_R50);
         Config::FIX_KILLER_SPLICE = env_int("FIX_KILLER_SPLICE", Config::FIX_KILLER_SPLICE);
         Config::FIX_TT_MATE = env_int("FIX_TT_MATE", Config::FIX_TT_MATE);
+        Config::FIX_NULL_LOSS_BETA = env_int("FIX_NULL_LOSS_BETA", Config::FIX_NULL_LOSS_BETA);
+        Config::HYG_FIX = env_int("HYG_FIX", Config::HYG_FIX);
         Config::VERIFY_RESEARCH_REDUCTION = env_int("VERIFY_RESEARCH_REDUCTION", Config::VERIFY_RESEARCH_REDUCTION);
         Config::SV2_VERIFY_DEEPER = env_int("SV2_VERIFY_DEEPER", Config::SV2_VERIFY_DEEPER);
         Config::SV2_VERIFY_PROMOTE = env_int("SV2_VERIFY_PROMOTE", Config::SV2_VERIFY_PROMOTE);
@@ -3331,6 +3415,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::SV2_FUT_BOUND = env_int("SV2_FUT_BOUND", Config::SV2_FUT_BOUND);
         Config::ROOT_M0_CUT = env_int("ROOT_M0_CUT", Config::ROOT_M0_CUT);
         Config::PS_TT_FLAG_FIX = env_int("PS_TT_FLAG_FIX", Config::PS_TT_FLAG_FIX);
+        Config::PS_SCOUT_FIX = env_int("PS_SCOUT_FIX", Config::PS_SCOUT_FIX);
+        Config::PS_TT_PROBE_FIX = env_int("PS_TT_PROBE_FIX", Config::PS_TT_PROBE_FIX);
         Config::LAZY_FAIL_HARD = env_int("LAZY_FAIL_HARD", Config::LAZY_FAIL_HARD);
         // Optimism-triggered verification (default off = byte-identical).
         Config::ENABLE_OTV = env_flag("ENABLE_OTV", Config::ENABLE_OTV);
@@ -3350,6 +3436,11 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CHECK_EXTENSION = env_int("CHECK_EXTENSION", Config::CHECK_EXTENSION);
         // SEE filter on the check extension; default disabled (extend all checks).
         Config::SEE_EXTEND_MARGIN = env_int("SEE_EXTEND_MARGIN", Config::SEE_EXTEND_MARGIN);
+        Config::CHECK_EXT_FORM = env_int("CHECK_EXT_FORM", Config::CHECK_EXT_FORM);
+        if (Config::CHECK_EXT_FORM < 0 || Config::CHECK_EXT_FORM > Config::CHECK_EXT_FORM_MAX){
+            std::cerr << "☠️ CHECK_EXT_FORM must be 0-" << Config::CHECK_EXT_FORM_MAX << " -- restoring 0.\n";
+            Config::CHECK_EXT_FORM = 0;
+        }
         Config::LIGHT_GAP_PROBE = env_flag("LIGHT_GAP_PROBE", Config::LIGHT_GAP_PROBE);
         Config::SEE_COUNT = env_flag("SEE_COUNT", Config::SEE_COUNT);
         Config::ENABLE_SEE_CACHE = env_flag("ENABLE_SEE_CACHE", Config::ENABLE_SEE_CACHE);
@@ -3403,6 +3494,8 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
         Config::CORR2_GLOBAL = env_int("CORR2_GLOBAL", Config::CORR2_GLOBAL);
         Config::TM_SINGLE = env_int("TM_SINGLE", Config::TM_SINGLE);
         Config::TM_LOWCLOCK = env_int("TM_LOWCLOCK", Config::TM_LOWCLOCK);
+        Config::TM_ITER_CAP = env_int("TM_ITER_CAP", Config::TM_ITER_CAP);
+        Config::TM_ITER_FLOOR = env_int("TM_ITER_FLOOR", Config::TM_ITER_FLOOR);
         Config::EVAL_CACHE_FORM = env_int("EVAL_CACHE_FORM", Config::EVAL_CACHE_FORM);
         // Table sizes, once per process, after the presets: v2 gen 6 sizes its tables for a normal engine footprint (TT 2^22 =
         // 128 MB, eval / q / move-gen caches 2^20; ≈ 1.23 GB → ≈ 0.25 GB per process; queue #96 arms A/B no harm). Set as
@@ -3911,6 +4004,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " ROOK_ENDGAME_CAP=" << Config::ROOK_ENDGAME_CAP
                   << " ENABLE_ROOK_RANKWIN_FIX=" << Config::ENABLE_ROOK_RANKWIN_FIX
                   << " ENABLE_QPREC_PHASE_GATE=" << Config::ENABLE_QPREC_PHASE_GATE
+                  << " QPREC_FIX=" << Config::QPREC_FIX
                   << " ENABLE_TT_DEPTH_FIX=" << Config::ENABLE_TT_DEPTH_FIX
                   << " NULLMOVE_CURDEPTH_MINI=" << Config::NULLMOVE_CURDEPTH_MINI
                   << " PLY1_NODE_PRUNE=" << Config::PLY1_NODE_PRUNE
@@ -3974,6 +4068,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " MAX_HISTORY=" << Config::MAX_HISTORY
                   << " CONT2_GRAVITY_DIV=" << Config::CONT2_GRAVITY_DIV
                   << " ENABLE_HISTORY_DECAY=" << Config::ENABLE_HISTORY_DECAY
+                  << " DECAY_FIX=" << Config::DECAY_FIX << " DECAY_MG=" << Config::DECAY_MG
                   << " MALUS_DIV=" << Config::MALUS_DIV
                   << " VERIFY_MARGIN=" << Config::VERIFY_MARGIN
                   << " FIX_HALFMOVE=" << Config::FIX_HALFMOVE << " FIX_REP_KEY=" << Config::FIX_REP_KEY
@@ -3984,6 +4079,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " FIX_MDP=" << Config::FIX_MDP << " FIX_MATE_GATE=" << Config::FIX_MATE_GATE
                   << " FIX_MATE_50=" << Config::FIX_MATE_50 << " FIX_TT_R50=" << Config::FIX_TT_R50
                   << " FIX_KILLER_SPLICE=" << Config::FIX_KILLER_SPLICE << " FIX_TT_MATE=" << Config::FIX_TT_MATE
+                  << " FIX_NULL_LOSS_BETA=" << Config::FIX_NULL_LOSS_BETA << " HYG_FIX=" << Config::HYG_FIX
                   << " VERIFY_RESEARCH_REDUCTION=" << Config::VERIFY_RESEARCH_REDUCTION
                   << " ENABLE_OTV=" << Config::ENABLE_OTV
                   << " OTV_MARGIN=" << Config::OTV_MARGIN
@@ -3997,6 +4093,7 @@ void initialize_engine(std::vector<BoardState> &state_history, std::unordered_ma
                   << " REPETITION_THRESHOLD=" << Config::REPETITION_THRESHOLD
                   << " CHECK_EXTENSION=" << Config::CHECK_EXTENSION
                   << " SEE_EXTEND_MARGIN=" << Config::SEE_EXTEND_MARGIN
+                  << " CHECK_EXT_FORM=" << Config::CHECK_EXT_FORM
                   << " LIGHT_GAP_PROBE=" << Config::LIGHT_GAP_PROBE
                   << " SEE_COUNT=" << Config::SEE_COUNT
                   << " ENABLE_SEE_CACHE=" << Config::ENABLE_SEE_CACHE
@@ -4300,6 +4397,9 @@ void clearAllCaches()
 	std::fill(moveGenCache.begin(), moveGenCache.end(), MoveEntry{});
 	// The oracle memo is unbounded and search positions almost never repeat across games, so a new game empties it.
 	Oracle::g_memo.clear();
+	// DECAY_FIX 2 (S2-5): a new game starts from the base history decay interval, as a fresh process does.
+	if (Config::DECAY_FIX == 2)
+		Config::DECAY_INTERVAL = Config::DECAY_INTERVAL_BASE;
 }
 
 // Repetition counts as of the root of the current search (FIX_REP_KEY bit 2 only): the game history before the root.
@@ -4369,6 +4469,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     g_rfp_ret = g_rfp_lazy_ret = g_qstore = g_lazy_qstore = 0;
     g_root_pass = g_root_m0_fh = 0;
     g_id_mate_stop = 0;
+    g_qdelta_check = g_q_underpromo = 0;
 
     if (Config::FIX_REP_KEY & 2)
         g_pre_root_counts = position_count;   // the game's counts at the root, root included
@@ -4380,6 +4481,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                 g_rep_filter[kv.first >> 58] |= 1ULL << ((kv.first >> 52) & 63);
     }
     g_rep_len = 0;
+    g_rep_null_floor = -1;
     g_malus_top = 0;
     g_rep_in_search = true;   // until the final make_move: search-path positions go on the stack, not into position_count
 
@@ -4393,6 +4495,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     int phase_score = 128 * (MAX_PHASE - phase) / MAX_PHASE; // 0 to
 
     static const int s_decay_base = Config::DECAY_INTERVAL;   // the interval before any search changed it (count only)
+    // DECAY_FIX 1 (S2-5): every search starts from the base interval, so a root with phase >= 13 no longer runs with the
+    // value the last endgame-rooted search wrote.
+    if (Config::DECAY_FIX == 1)
+        Config::DECAY_INTERVAL = Config::DECAY_INTERVAL_BASE;
     if (phase_score > 117)
     {
         Config::DECAY_INTERVAL = 200000;
@@ -4406,6 +4512,10 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     else if (phase_score >= 64)
     {
         Config::DECAY_INTERVAL = 125000;
+    }
+    else if (Config::DECAY_FIX == 3)
+    {
+        Config::DECAY_INTERVAL = Config::DECAY_MG;   // DECAY_FIX 3: a root with phase >= 13 takes the stated middlegame value
     }
     if (!Config::ENABLE_QPREC_PHASE_GATE)
         use_q_precautions = true;
@@ -4429,6 +4539,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
     TimePoint t0 = Clock::now();
 
     decayMoveFrequency();
+    g_iter_depth = depth_limit;
+    g_tm_iter_limit_s = TM_CAP_OFF;   // the first iteration is never capped
+    g_tm_cap_cross_s = -1.0;
     int score = alpha_beta(alpha, beta, 0, depth_limit, state_history, position_count, zobrist, search_start_time, preliminary_search_data, move, num_iterations);
     double elapsed = std::chrono::duration<double>(Clock::now() - t0).count();
 
@@ -4492,6 +4605,7 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
         depth_limit++;
         g_trace_iter = depth_limit;
+        g_iter_depth = depth_limit;
         if (depth_limit == id_depth_cap && id_depth_cap < Config::MAX_ITERATIVE_DEPTH)
             ++g_fixcnt_depthcap;   // this search reached the table bound and would have gone deeper before
 
@@ -4500,6 +4614,14 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
         std::cout << "SEARCHING DEPTH: " << depth_limit << std::endl;
 
         t0 = Clock::now();
+        // TM_ITER_CAP (S2-33b): the time this iteration may reach while nothing in it has put the best move in doubt (the
+        // doubt sites set it back to TM_CAP_OFF), and the move it starts from, for the count-only form's "changed" count.
+        g_tm_iter_limit_s = TM_CAP_OFF;
+        g_tm_cap_cross_s = -1.0;
+        if (Config::TM_ITER_CAP != 0 && Config::TM_SOFT_LIMIT > 0)
+            g_tm_iter_limit_s = std::max(Config::TM_ITER_FLOOR / 100.0 * Config::TM_SOFT_LIMIT,
+                                         std::abs(Config::TM_ITER_CAP) / 100.0 * Config::TM_SOFT_LIMIT * g_tm_scale);
+        const Move iter_start_move = completed_move;
 
         if (depth_limit >= 13 && (depth_limit - 3) % 5 == 0)
             decayMoveFrequency();
@@ -4539,6 +4661,8 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
 
                 // Reached only when the window failed (not in-window, not timed out).
                 ++g_asp_fails;
+                if (score <= alpha_win)
+                    g_tm_iter_limit_s = TM_CAP_OFF;   // TM_ITER_CAP: a fail-low puts the best move in doubt
                 if (Config::ASP_KEEP_FAILHIGH && score >= beta_win && score < 9000000)
                 {
                     asp_fh_valid = true;
@@ -4664,6 +4788,13 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                 g_iter_callback(depth_limit, score, static_cast<long long>(num_iterations), pv_table[0], pv_length[0],
                                 static_cast<int>(state_history.size()));
         }
+        // TM_ITER_CAP count-only form: the cap would have cut this iteration and played iter_start_move.
+        if (g_tm_cap_cross_s >= 0)
+        {
+            ++g_tm_cap_would;
+            g_tm_cap_saved_s += std::chrono::duration<double>(Clock::now() - search_start_time).count() - g_tm_cap_cross_s;
+            g_tm_cap_would_changed += !(completed_move == iter_start_move);
+        }
 
         bool side = current.turn;
         for (int i = 0; i < pv_length[0]; i++)
@@ -4780,7 +4911,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
               << " rfp_ret=" << g_rfp_ret << " rfp_lazy_ret=" << g_rfp_lazy_ret << " qstore=" << g_qstore
               << " lazy_qstore=" << g_lazy_qstore << " root_pass=" << g_root_pass << " root_m0_fh=" << g_root_m0_fh
               << " decay_stale=" << g_decay_stale << " id_mate_stop=" << g_id_mate_stop
-              << " qprec=" << (use_q_precautions.load(std::memory_order_relaxed) ? 1 : 0) << std::endl;
+              << " qprec=" << (use_q_precautions.load(std::memory_order_relaxed) ? 1 : 0)
+              << " decay_interval=" << Config::DECAY_INTERVAL << " qdelta_check=" << g_qdelta_check
+              << " q_underpromo=" << g_q_underpromo << std::endl;
     if (Config::NULL_NPM_GUARD || Config::PE_PRUNE_GATE || Config::PE_PASSER_EXT)
         std::cerr << "[pe_rules] null_refused=" << g_pe_null_refused << " null_allowed=" << g_pe_null_allowed
                   << " prune_gated=" << g_pe_prune_gated << " passer_ext=" << g_pe_passer_ext << std::endl;
@@ -4984,7 +5117,9 @@ MoveData get_engine_move(std::vector<BoardState> &state_history, std::unordered_
                   << " cut=" << g_tm_cut << " cut_differs=" << g_tm_cut_differs
                   << " partial_used=" << g_tm_partial_used << " partial_differs=" << g_tm_partial_differs
                   << " asp_keep_used=" << g_asp_keep_used << " asp_keep_differs=" << g_asp_keep_differs
-                  << " root_clock_m0=" << g_root_clock_m0 << " root_clock_later=" << g_root_clock_later << std::endl;
+                  << " root_clock_m0=" << g_root_clock_m0 << " root_clock_later=" << g_root_clock_later
+                  << " cap_fired=" << g_tm_cap_fired << " cap_would=" << g_tm_cap_would
+                  << " cap_would_changed=" << g_tm_cap_would_changed << " cap_saved_s=" << g_tm_cap_saved_s << std::endl;
 #ifdef FIXCNT_BUILD
     if (fix_count_log)
         std::cerr << "ITEMCNT nodes=" << g_cnt_nodes << " mdp=" << g_cnt_mdp << " prunes=" << g_cnt_prunes
@@ -5179,6 +5314,8 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
         updatePV(current_search_data.moves_list[0], cur_depth);
 
     alpha = std::max(alpha, best_score);
+    if (best_score <= root_alpha_entry)
+        g_tm_iter_limit_s = TM_CAP_OFF;   // TM_ITER_CAP: move 0 (the previous best) failed low, so the best move is in doubt
     ++g_root_pass;
     g_root_m0_fh += (alpha >= beta);   // S2-6 (count only): the loop below still searches move 1
 
@@ -5582,6 +5719,7 @@ int alpha_beta(int alpha, int beta, int cur_depth, int depth_limit, std::vector<
             if (score > alpha)
             {
                 updatePV(move, cur_depth);
+                g_tm_iter_limit_s = TM_CAP_OFF;   // TM_ITER_CAP: a new best move is being established
                 // Once a root move has proved an improvement, the remaining moves only have to BEAT it --
                 // a cheaper question than measuring each exactly. Shortening the rest of the loop is SF's
                 // answer to an expensive root tail (SF18 search.cpp:1379-1381, no rootNode guard) and is
@@ -5734,11 +5872,11 @@ inline int get_score_for_minimizer(int alpha, int beta, int alpha_orig, int beta
         if (Config::CHECK_EXTENSION > 0 && g_check_extensions < Config::CHECK_EXTENSION && depth_limit + 2 < MAX_PLY)
         {
             extend = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-            // SEE filter (disabled by default): drop the extension for a spite check whose
-            // checker the opponent can win for more than SEE_EXTEND_MARGIN. see() runs only on
-            // the checking-move minority, and only when the filter is enabled.
+            // SEE filter: drop the extension for a check CHECK_EXT_FORM's rule rejects (check_extension_applies;
+            // form 0 drops a checker the opponent can win for more than SEE_EXTEND_MARGIN, and one nothing attacks).
+            // It runs only on the checking-move minority, and only when the filter is enabled.
             if (extend && Config::SEE_EXTEND_MARGIN < Config::SEE_EXTEND_DISABLED &&
-                see(move.to_square, updated_state.turn, updated_state) > Config::SEE_EXTEND_MARGIN)
+                !check_extension_applies(move, current_state, updated_state))
                 extend = false;
         }
         // SF11 passed-pawn push extension (Config::PE_PASSER_EXT = its per-path cap, shared counter with checks).
@@ -6203,11 +6341,11 @@ inline int get_score_for_maximizer(int alpha, int beta, int alpha_orig, int beta
         if (Config::CHECK_EXTENSION > 0 && g_check_extensions < Config::CHECK_EXTENSION && depth_limit + 2 < MAX_PLY)
         {
             extend = is_check(updated_state.turn, updated_state.occupied, updated_state.queens | updated_state.rooks, updated_state.queens | updated_state.bishops, updated_state.kings, updated_state.knights, updated_state.pawns, updated_state.occupied_colour[!updated_state.turn]);
-            // SEE filter (disabled by default): drop the extension for a spite check whose
-            // checker the opponent can win for more than SEE_EXTEND_MARGIN. see() runs only on
-            // the checking-move minority, and only when the filter is enabled.
+            // SEE filter: drop the extension for a check CHECK_EXT_FORM's rule rejects (check_extension_applies;
+            // form 0 drops a checker the opponent can win for more than SEE_EXTEND_MARGIN, and one nothing attacks).
+            // It runs only on the checking-move minority, and only when the filter is enabled.
             if (extend && Config::SEE_EXTEND_MARGIN < Config::SEE_EXTEND_DISABLED &&
-                see(move.to_square, updated_state.turn, updated_state) > Config::SEE_EXTEND_MARGIN)
+                !check_extension_applies(move, current_state, updated_state))
                 extend = false;
         }
         // SF11 passed-pawn push extension (Config::PE_PASSER_EXT = its per-path cap, shared counter with checks).
@@ -6669,7 +6807,7 @@ int minimizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     {
         nodes_since_time_check = 0;
 
-        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
+        if (search_clock_expired(t0))   // the hard limit, or TM_ITER_CAP's iteration cap
         {
             time_up.store(true, std::memory_order_relaxed);
         }
@@ -7808,7 +7946,7 @@ int maximizer(int cur_depth, int depth_limit, int alpha, int beta, const TimePoi
     {
         nodes_since_time_check = 0;
 
-        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
+        if (search_clock_expired(t0))   // the hard limit, or TM_ITER_CAP's iteration cap
         {
             time_up.store(true, std::memory_order_relaxed);
         }
@@ -9213,6 +9351,10 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                     bool is_in_relavent_pin = relevant_pin(state_history);
                     int reduced_depth = reduced_search_depth(depth_limit, cur_depth, is_in_relavent_pin, i, current_state);
                     // int reduced_depth = depth_reduction(depth_limit);
+                    // The reduced scout's window is (sa, sa + 1). PS_SCOUT_FIX (S2-10): this minimizing node's own question,
+                    // whether the reply scores below beta as narrowed so far (sa = beta - 1); otherwise whether it refutes the
+                    // root move outright (sa = alpha). The same window in a null-window call.
+                    const int sa = Config::PS_SCOUT_FIX ? beta - 1 : alpha;
 
                     TTEntry *entry = accessSearchEvalCache(zobrist, updated_state.castling_rights, updated_state.ep_square);
 
@@ -9222,7 +9364,12 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                         tt_probes++;
                         if (entry->depth >= (reduced_depth - cur_depth))
                         {
-                            if (entry->flag == TTFlag::EXACT)
+                            // PS_TT_PROBE_FIX (S2-4's partner): any entry whose bound decides the scout at the scout's own
+                            // window answers it, as in the main search's reduced probe; otherwise an EXACT entry only.
+                            if (Config::PS_TT_PROBE_FIX)
+                                use_tt_entry(*entry, score, using_tt, sa, sa + 1, num_iterations, false, false, updated_state.halfmove_clock,
+                                             static_cast<int>(state_history.size()));
+                            else if (entry->flag == TTFlag::EXACT)
                             {
                                 score = tt_score_from_entry(entry->score, static_cast<int>(state_history.size()));
                                 using_tt = true;
@@ -9233,23 +9380,23 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                     }
                     if (!using_tt)
                     {
-                        score = Config::SEARCH_ARM ? sv2::negamax<true>(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false)
-                                                   : maximizer(cur_depth + 1, reduced_depth, alpha, alpha + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
+                        score = Config::SEARCH_ARM ? sv2::negamax<true>(cur_depth + 1, reduced_depth, sa, sa + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false)
+                                                   : maximizer(cur_depth + 1, reduced_depth, sa, sa + 1, t0, state_history, position_count, zobrist, move, num_iterations, capture_move, false, false);
 
                         if (cur_depth < reduced_depth - 1)
                         {
                             TTFlag flag;
-                            if (score <= alpha)
+                            if (score <= sa)
                             {
                                 flag = TTFlag::UPPERBOUND;
                                 // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
-                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, alpha, alpha + 1 /* , line */, updated_state.castling_rights, updated_state.ep_square);
+                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, sa, sa + 1 /* , line */, updated_state.castling_rights, updated_state.ep_square);
                             }
-                            else if (score >= alpha + 1)
+                            else if (score >= sa + 1)
                             {
                                 flag = TTFlag::LOWERBOUND;
                                 // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
-                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, alpha, alpha + 1 /* , line */, updated_state.castling_rights, updated_state.ep_square);
+                                addToSearchEvalCache(zobrist, state_history.size(), score, reduced_depth - cur_depth, flag, sa, sa + 1 /* , line */, updated_state.castling_rights, updated_state.ep_square);
                             }
                         }
                     }
@@ -9282,8 +9429,11 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                                     flag = TTFlag::EXACT;
                                 }
                                 // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
-                                ++g_ps_store;
-                                g_ps_exact_mislabel += (flag == TTFlag::EXACT && score >= beta);   // S2-4 (count only)
+                                if (Config::ENABLE_LMR_COUNTERS)
+                                {
+                                    ++g_ps_store;
+                                    g_ps_exact_mislabel += (flag == TTFlag::EXACT && score >= beta);   // S2-4 (count only)
+                                }
                                 addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                             }
                         }
@@ -9313,8 +9463,11 @@ int pre_minimizer(int cur_depth, int depth_limit, int alpha, int beta, const Tim
                                 flag = TTFlag::EXACT;
                             }
                             // std::vector<Move> line(pv_table[cur_depth + 1], pv_table[cur_depth + 1] + pv_length[cur_depth + 1]);
-                            ++g_ps_store;
-                            g_ps_exact_mislabel += (flag == TTFlag::EXACT && score >= beta);   // S2-4 (count only)
+                            if (Config::ENABLE_LMR_COUNTERS)
+                            {
+                                ++g_ps_store;
+                                g_ps_exact_mislabel += (flag == TTFlag::EXACT && score >= beta);   // S2-4 (count only)
+                            }
                             addToSearchEvalCache(zobrist, state_history.size(), score, depth_limit - cur_depth, flag, alpha_orig, beta_orig /* , line */, updated_state.castling_rights, updated_state.ep_square);
                         }
                     }
@@ -9416,7 +9569,7 @@ int qSearch(int alpha, int beta, int cur_depth, int qDepth, const TimePoint &t0,
     {
         nodes_since_time_check = 0;
 
-        if (std::chrono::duration<double>(Clock::now() - t0).count() >= Config::ACTIVE->TIME_LIMIT)
+        if (search_clock_expired(t0))   // the hard limit, or TM_ITER_CAP's iteration cap
         {
             time_up.store(true, std::memory_order_relaxed);
         }
@@ -10327,9 +10480,17 @@ inline bool is_repetition_key(const std::unordered_map<uint64_t, int> &position_
     int pre_root = -1;   // occurrences before the root; resolved lazily below in map mode
     if (Config::REP_STACK && g_rep_in_search)
     {
+        // HYG_FIX bit HYG_REP_NULL (S2-11): inside a null-move search only the path after the innermost null counts, and
+        // the game before the root does not (g_rep_null_floor is set only under that bit).
+        int scan_floor = 0;
+        if (g_rep_null_floor >= 0)
+        {
+            scan_floor = g_rep_null_floor;
+            count = 0;
+        }
         // The map holds only the game before the root; add this position's occurrences on the current search path.
         pre_root = count;
-        for (int i = g_rep_len - 1; i >= 0; --i)
+        for (int i = g_rep_len - 1; i >= scan_floor; --i)
         {
             count += (g_rep_path[i].key == key);
             if (g_rep_path[i].irreversible)
@@ -10955,9 +11116,13 @@ inline bool quietCheckIsSafe(const BoardState &current_state, const Move &m)
     king's from/to are modelled here. The mask path shares this gap; it is a known exclusion, not a silent
     one, and it is rare enough not to justify the extra branch in the hot loop.
 
+    A plain capture is answered correctly too (qsearch's delta pruning asks it under HYG_FIX bit 1): the victim
+    leaves its type mask first, so it is never read as one of the mover's attackers. En passant (the victim is
+    not on the destination) and promotions (the mover is modelled as a pawn) are not covered.
+
     Parameters:
         current_state - board state the move is generated from
-        m             - the quiet move under consideration
+        m             - the quiet move (or plain capture) under consideration
     Returns: true when the move leaves the enemy king attacked.
 */
 inline bool moveGivesCheckFast(const BoardState &current_state, const Move &m)
@@ -10969,13 +11134,15 @@ inline bool moveGivesCheckFast(const BoardState &current_state, const Move &m)
 
     uint8_t enemy_king = __builtin_ctzll(current_state.kings & current_state.occupied_colour[!current_state.turn]);
 
-    // Relocate the mover inside whichever type mask holds it; the others pass through untouched.
-    uint64_t pawns = current_state.pawns;
-    uint64_t knights = current_state.knights;
-    uint64_t bishops = current_state.bishops;
-    uint64_t rooks = current_state.rooks;
-    uint64_t queens = current_state.queens;
-    uint64_t kings = current_state.kings;
+    // Lift a captured piece off its type mask (a quiet move's destination is empty, so nothing changes for it), then
+    // relocate the mover inside whichever type mask holds it; the others pass through untouched.
+    const uint64_t keep = ~to_bb;
+    uint64_t pawns = current_state.pawns & keep;
+    uint64_t knights = current_state.knights & keep;
+    uint64_t bishops = current_state.bishops & keep;
+    uint64_t rooks = current_state.rooks & keep;
+    uint64_t queens = current_state.queens & keep;
+    uint64_t kings = current_state.kings & keep;
     if (pawns & from_bb)
         pawns ^= moved;
     else if (knights & from_bb)

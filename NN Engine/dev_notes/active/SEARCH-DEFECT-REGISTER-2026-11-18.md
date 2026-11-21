@@ -474,3 +474,41 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
 6. **End of phase H: a dedicated CCRL estimate (owner 11-20)** from a timed session against Stockfish 1.1 (≈ 2760 CCRL 40/15,
    to re-check): ~600 games at 60+0.6 plus ~150 at 180+1.8, a balanced book (not UHO), Mediocre at time odds as a second anchor;
    errors reported separately (statistics, anchor, TC / hardware). Plan in memory `later-test-vs-mediocre-for-an-absolute-rating`.
+7. **The s7 test build (2026-11-21, `chess_engine_uci_s7pgo`, commit 5ed88fc; knobs in `dev_notes/active/BUILD-S7-KNOBS-2026-11-21.md`).**
+   Built 13:59-14:03 under the owner's gaming pause (`_build_s7.sh`, log `/mnt/e/chess_data/build_s7.log`). Every gate passed:
+   default 254 / 35,922,538 == g77pgo, game12 7/12 2,412,001, v1 250 / 35,310,775, and the s6pgo knobs reproduce (PS_TT_FLAG_FIX
+   252 / 36,566,334; the mate bundle 252 / 35,107,909; CHECK_EXTENSION=0 248 / 35,451,696). One-sample bench time (owner gaming,
+   so noisy): s7 31.85 s, g77pgo 33.27 s, s6pgo 34.95 s, i.e. the count-only counters moved behind `ENABLE_LMR_COUNTERS` may be
+   worth ≈ 4% over production at identical results. To measure on an idle box before calling it (a result-identical speed ship
+   candidate, memory `pure-speed-gains-are-always-welcome`). Bench WAC d10 (solved / nodes vs 254 / 35,922,538) and game12 d10
+   (vs 7/12 2,412,001), with the registered direction:
+
+   | knob | WAC | Δ nodes | game12 | registered | read |
+   |---|---|---|---|---|---|
+   | CHECK_EXT_FORM=1 | 265 / 39,564,281 | +10.1% | 8/12 3,203,176 | +8 … +20% | inside |
+   | CHECK_EXT_FORM=2 | 250 / 35,406,337 | −1.4% | 7/12 2,300,608 | −4 … −0.5% | inside |
+   | CHECK_EXT_FORM=3 | 255 / 35,250,045 | −1.9% | 9/12 2,379,333 | +1 … +8% | **miss (sign)** |
+   | CHECK_EXT_FORM=4 | 258 / 42,039,169 | +17.0% | 7/12 3,236,122 | +12 … +30% | inside |
+   | DECAY_FIX=1 | 255 / 36,331,723 | +1.1% | 7/12 2,360,854 | moves 3-10% | miss (smaller) |
+   | DECAY_FIX=2 | identical | 0 | identical | identical by design | as designed |
+   | DECAY_FIX=3 | 254 / 35,954,994 | +0.09% | 8/12 2,385,385 | within ±2% | inside |
+   | QPREC_FIX=1 | 255 / 36,423,130 | +1.4% | 7/12 2,404,833 | 0 … +0.3% | miss (larger) |
+   | QPREC_FIX=3 | 254 / 36,028,614 | +0.3% | 7/12 2,404,833 | +0.2 … +1% | inside |
+   | QPREC_FIX=8 | 255 / 36,005,849 | +0.2% | 7/12 2,379,134 | +0.5 … +2% | miss (smaller) |
+   | PS_SCOUT_FIX=1 | 251 / 34,863,260 | −2.9% | 7/12 2,178,204 | −1 … −5% | inside |
+   | PS_TT_PROBE_FIX=1 | 259 / 37,686,747 | +4.9% | 8/12 2,558,002 | not predicted | — |
+   | PS_TT_FLAG_FIX=1 + PS_TT_PROBE_FIX=1 | 259 / 37,139,599 | +3.4% | 8/12 2,286,422 | below 36,566,334 | **miss** |
+   | all three pre-search knobs | 253 / 35,467,310 | −1.3% | 9/12 2,235,693 | — | — |
+   | FIX_NULL_LOSS_BETA=1 | 253 / 36,986,577 | +3.0% | identical | small, likely up | larger than expected |
+   | HYG_FIX=1 (S2-8) | 256 / 36,808,181 | +2.5% | **11/12** 2,814,720 | +0.5 … +2% | slightly above |
+   | HYG_FIX=2 (S2-11) | 254 / 35,922,546 | +8 nodes | identical | may be identical | live, rare |
+   | HYG_FIX=4 (S2-16) | 254 / 35,910,206 | −0.03% | 7/12 2,412,262 | — | live, small |
+   | HYG_FIX=8 (S2-17) | identical | 0 | identical | may be identical | not proved live |
+   | HYG_FIX=16 (S2-32) | 254 / 36,210,626 | +0.8% | 7/12 2,410,488 | a small decrease | **miss (sign)** |
+   | HYG_FIX=31 (all five) | 257 / 35,665,589 | −0.7% | **11/12** 2,864,498 | — | — |
+
+   Readings to keep (none is a verdict; WAC d10 is a fingerprint and tactical veto only): PS_TT_PROBE_FIX ADDS nodes because a
+   stored upper bound now answers the scout and sends the move straight to the full-depth re-search that the reduced scout
+   used to avoid by failing high (so it is not the node saver the S2-4 report expected; with PS_SCOUT_FIX the trio is −1.3%).
+   S2-8's exemption solves 4 more game12 positions (11/12), the largest tactical change in the build. HYG_FIX bit 8 (S2-17) is
+   not proved live: it needs a position near the 50-move limit with an evasion in qsearch.

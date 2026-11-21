@@ -23,6 +23,9 @@
 #    FAIL = upper < 0.
 #  - bench WAC d10 nodes +1 … +8% (the s7 build recorded the value); games: depth −0.01 … −0.06 ply, time per move unchanged.
 #  - outside judges at equal nodes: pooled cx3 − ctl z > −1.
+# LIGHT HOLDS (owner 11-21 18:50, gaming at 21:00: "not timing or CPU intensive"): while gaming.pause exists or in the
+# evening block, the outside-judge legs play ONE game at a time (-concurrency 1, about one core, ~90 min a leg), and in the
+# block no leg starts within 100 min of its end, so self-play starts on time at 00:15. Other holds keep -concurrency 3.
 # Stop: touch /mnt/e/chess_data/q288.stop (between steps). Never edit this file or the binaries while it runs.
 ND="/mnt/c/Users/Kumodth/OneDrive/Desktop/Programming/Chess Engine/Chess-Engine/NN Engine"
 R="$ND/selfplay/overnight_runner.sh"
@@ -61,6 +64,8 @@ fp() { local k=""; [ -n "$2" ] && k="setoption name Knobs value $2"; printf '%s\
 gfp() { local k=""; [ -n "$2" ] && k="setoption name Knobs value $2"; printf "%s\nbench $G 10\nquit\n" "$k" | "$1" 2>&1 | grep -oE 'solved [0-9]+/[0-9]+ nodes [0-9]+|mismatch.*' | head -1; }
 busy() { pgrep -f "[f]astchess-linux-x86-64/fastchess" >/dev/null || pgrep -f "[s]ts_test|[t]actical_test|[v]algrind|[_]ks_footprint|[b]uild_uci.sh" >/dev/null; }
 timed_ok() { local t; t=$(date +%s); [ ! -e "$PAUSE" ] && [ ! -e "$GPAUSE" ] && [ "$t" -lt "$CUT" ] && ! { [ "$t" -ge "$GS" ] && [ "$t" -lt "$GE" ] && [ ! -e "$GO" ]; }; }
+light() { local t; t=$(date +%s); [ -e "$GPAUSE" ] || { [ "$t" -ge "$GS" ] && [ "$t" -lt "$GE" ] && [ ! -e "$GO" ]; }; }
+late_in_block() { local t; t=$(date +%s); [ ! -e "$GPAUSE" ] && [ "$t" -ge "$GS" ] && [ "$t" -lt "$GE" ] && [ $((GE - t)) -lt 6000 ]; }
 guard() { ( until ! timed_ok; do sleep 15; done; pkill -INT -f "[f]astchess-linux-x86-64/fastchess" && echo "[q288] $(date '+%H:%M') guard: games interrupted" ) & GUARD=$!; }
 finished() { local c; c=$(grep -cE '^\[Result "(1-0|0-1|1/2-1/2)"\]' "$1" 2>/dev/null); echo "${c:-0}"; }
 sp_count() { local n=0 f; for f in "$GW/$1"_s*.pgn; do [ -e "$f" ] && n=$((n + $(finished "$f"))); done; echo $n; }
@@ -146,7 +151,8 @@ run_leg() {  # judge, index, arm: plays the leg; a leg that ends incomplete twic
 	esac
 }
 ext_chunk() {  # judge (g18 | s11), seed, arm
-	local j=$1 seed=$2 a=$3 k f=$O/${1}_q288_s$2_$3.log opp t
+	local j=$1 seed=$2 a=$3 k f=$O/${1}_q288_s$2_$3.log opp t cj=3
+	light && cj=1
 	stopped "$j $seed $a"
 	k=$(kn $a); [ -n "$k" ] && k="option.Knobs=$k"
 	case $j in
@@ -155,9 +161,9 @@ ext_chunk() {  # judge (g18 | s11), seed, arm
 	esac
 	t=$(date +%s)
 	nice -n 5 "$FC" -engine "cmd=$NEW" name=ours option.OwnBook=false $k nodes=250000 "${opp[@]}" \
-		-each tc=inf $COMMON -srand $seed -rounds 125 -games 2 -pgnout file=$O/${j}_q288_s${seed}_$a.pgn notation=san nodes=true append=false > "$f" 2>&1
+		-each tc=inf ${COMMON/-concurrency 3/-concurrency $cj} -srand $seed -rounds 125 -games 2 -pgnout file=$O/${j}_q288_s${seed}_$a.pgn notation=san nodes=true append=false > "$f" 2>&1
 	LEG_S=$(( $(date +%s) - t ))
-	echo "[q288] $(date '+%H:%M') $j seed $seed $a: $(grep -E '^Games:' "$f" | tail -1) · warnings $(grep -c 'have option' "$f") · disconnects/stalls $(grep -ciE 'disconnect|stall|not responsive' "$f") · ${LEG_S}s"
+	echo "[q288] $(date '+%H:%M') $j seed $seed $a: $(grep -E '^Games:' "$f" | tail -1) · warnings $(grep -c 'have option' "$f") · disconnects/stalls $(grep -ciE 'disconnect|stall|not responsive' "$f") · ${LEG_S}s · concurrency $cj"
 }
 
 # ── 2 self-play first; held time plays outside-judge legs ────────────────────────────────────────────────────────────────
@@ -188,8 +194,9 @@ held() {  # waits out a hold on timed work, playing outside-judge legs meanwhile
 	until timed_ok || [ "$(date +%s)" -ge "$CUT" ]; do
 		stopped "the self-play"
 		L=$(next_leg)
+		late_in_block && L=""
 		if [ -n "$L" ]; then
-			echo "[q288] $(date '+%H:%M') timed work held ⇒ an outside-judge leg on the free box: $L"
+			echo "[q288] $(date '+%H:%M') timed work held ⇒ an outside-judge leg on the free box: $L$(light && echo ' (light: one game at a time)')"
 			run_leg $L; T_EXP=$(( T_EXP + LEG_S )); N_EXP=$((N_EXP + 1))
 			timed_ok && echo "[q288] $(date '+%H:%M') the hold lifted during that leg; self-play resumes now"
 		else

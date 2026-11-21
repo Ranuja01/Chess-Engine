@@ -256,6 +256,14 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   [[a-correctness-fix-into-absorbed-tuning-is-not-free]]). Re-test triggers: the end-of-arc tuning pass with the other values
   listed above (50 / 65 / 69, `eval − margin · rd`, lazy and full evals apart); a return-value form paired with an
   `RFP_MARGIN` re-sweep; or S2-27 / S2-29 changing what a stored static-cut bound does in the TT.
+- **S2-1's off arm `CHECK_EXTENSION=0`, #286 (2026-11-21) — NEUTRAL (a form item, +2σ rule).** 2,000 games +643 −627
+  =730, 50.4%, **+2.8 Elo (95% −9.1 … +14.6)**, pentanomial [91, 229, 348, 237, 95]; registered −15 … +5 (inside; my lean
+  "slightly negative" was wrong in sign, not resolvably). Depth 11.8 vs 11.7 (registered +0.0 … +0.2: inside), nodes per
+  move 370,279 vs 365,427 (+1.3%), nps +1.6%, time per move 0.225 vs 0.226 s. Chunks 56.2 / 48.2 / 51.2 / 50.5 / 46.3 /
+  51.8 / last 200. Reading: today's contested-check rule earns nothing measurable over no extension at all, at 10+0.1. It is
+  the reference arm for the fixed forms (`CHECK_EXT_FORM` 3, then 1, in s7pgo); not a ship candidate by itself (removing an
+  extension is a form choice, and a neutral one). Re-test triggers: the forms' results (if both read below today, off
+  becomes the simplest form); the C7 retune.
 - **The mate bundle `FIX_TT_MATE=1, FIX_MDP=1, ENABLE_NULL_MATE_CLAMP=1`, #285 (2026-11-21) — PARKED (hygiene, z −1.26 ≤
   −1).** 2,000 games +571 −613 =816, 48.9%, **−7.3 Elo (95% −18.7 … +4.1)**, pentanomial [92, 231, 376, 229, 72]; registered
   −5 … +8 (below its floor). Time per move 0.224 vs 0.225 s, max 1.839 vs 1.765 s, depth 11.6 vs 11.7, nodes per move

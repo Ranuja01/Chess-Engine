@@ -256,6 +256,32 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   [[a-correctness-fix-into-absorbed-tuning-is-not-free]]). Re-test triggers: the end-of-arc tuning pass with the other values
   listed above (50 / 65 / 69, `eval − margin · rd`, lazy and full evals apart); a return-value form paired with an
   `RFP_MARGIN` re-sweep; or S2-27 / S2-29 changing what a stored static-cut bound does in the TT.
+- **S2-4 `PS_TT_FLAG_FIX=1`, #284 (2026-11-20/21) — self-play NEUTRAL (hygiene self-play bar met, z −0.84), but the
+  outside judges read CLEARLY WORSE (pooled z −2.64 on one seed each) ⇒ NOT ELIGIBLE; PARKED pending the cause.** 2,001
+  games +599 −627 =775, 49.3%, **−5.0 Elo (95% −16.7 … +6.6)**, pentanomial [92, 243, 351, 230, 84]; registered −5 … +12
+  (at its floor). Chunks 48.8 / 47.0 / 52.5 (40 g) / 47.2 / 50.2 / 49.2 / 52.7 / 50.7 (146 g): the early deficit faded.
+  Time per move 0.226 vs 0.225 s, depth 11.6 / 11.6, nodes per move 352,215 vs 351,163 (+0.3%), nps equal (registered depth
+  −0.05 … +0.0: inside). Outside legs, played during the gaming hold (ours 250k nodes): SF18 (1,100 nodes) seed 284111
+  62.6% vs gen 7.7's 70.6% (−8.0 pp, z −2.16); SF1.1 (320k) seed 284211 41.0% vs 47.6% (−6.6 pp, z −1.71); pooled 51.8% vs
+  59.1%, −7.3 pp ± 5.4, z −2.64. One seed per judge is a third of the hygiene bar's judge set, so it may be partly noise,
+  but all three instruments lean the same way and the split (time-limited self-play ≈ −5, node-limited judges ≈ −25 Elo
+  equivalent) is odd for a fix touching 3-7% of pre-search stores. Cause investigation (owner 11-20: an Opus agent when a
+  fix fails oddly): `dev_notes/active/S2-4-INVESTIGATION-2026-11-21.md` (Opus, read-only, 11-21 01:22-01:45). **Findings:
+  no defect in the port** (✔ only beta narrows, `beta = std::min(beta, lowest_score)` at the end of the move loop; ✔ the
+  stored `alpha_orig, beta_orig` are dead fields, their one reader `use_tt_entry1` has no caller; the agent: replacement is
+  by depth only). **The structural difference from gen 6.7:** the pre-search's own reduced probe takes EXACT entries only
+  (✔ `search_engine.cpp` ~9225, the bound-aware `use_tt_entry` call commented out beside it), so a false EXACT was a free
+  dismissal and the honest LOWERBOUND is ignored; with S2-10's `score < beta` re-search rule each lost dismissal becomes a
+  reduced plus a full-depth search. The fix's accuracy gain mostly has no reader (the merge discards pre-search values for
+  root moves the last main pass scored, incl. root move 0, the main source of mislabels). Nothing is specific to fixed
+  nodes. The agent's ranking: a small real cost plus one-seed noise ~55% (−7.3 pp at these score levels ≈ −51 Elo, 95%
+  ≈ −89 … −13; overlaps self-play near −13 … −17); a productive bug (the false EXACT forced full-depth PV replies at ply 1,
+  `search_v2.cpp` ~1314) ~25%; root-razor inputs ~10%; clock compensation ~7%; a port defect ~3%. **New partner knob for
+  the next build: `PS_TT_PROBE_FIX`** (the reduced probe made bound-aware at the scout's own window; code in the report
+  §b; gate: it alone must change the bench). Three registered fixed-depth checks in the report §c (6 single-threaded bench
+  runs, holds only). Re-test triggers: S2-4 paired with `PS_TT_PROBE_FIX` (and/or S2-10 `PS_SCOUT_FIX`) vs gen 7.7, with
+  the full outside set (the unplayed seeds 284112-3 / 284212-3 settle the size question); or the end-of-arc tuning pass.
+  The base for #285 / #286 stays gen 7.7.
 - **S2-6 `ROOT_M0_CUT=1`, #283 (2026-11-20) — NEUTRAL by the +2σ rule; HYGIENE ⇒ ELIGIBLE for the confirmation bundle
   (§10 item 4).** 2,000 games +621 −611 =768, 50.2%, **+1.7 Elo (95% −9.8 … +13.3)**, z ≈ +0.3, pentanomial [89, 217, 373,
   237, 84]; registered −5 … +10 (inside). The time saving did not show: time per move 0.227 vs 0.226 s, depth 11.6 / 11.6
@@ -398,7 +424,7 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
 **Run order for the rest of phase H (my merge, 11-20; ≈ 6-7 days of box time, so ≈ 11-27/28):**
 1. Running / queued: #283 S2-6 → #284 S2-4.
 2. One build (all new knobs default 0, byte-identical; the S2-1 count code guarded): `CHECK_EXT_FORM`, `DECAY_FIX` + `DECAY_MG`,
-   `QPREC_FIX`, `PS_SCOUT_FIX`, `TM_ITER_CAP` / `TM_ITER_FLOOR`, the S2-14 guard, the hygiene fixes, and S3-1 if tonight's count
+   `QPREC_FIX`, `PS_SCOUT_FIX`, `PS_TT_PROBE_FIX` (S2-4's partner, 11-21), `TM_ITER_CAP` / `TM_ITER_FLOOR`, the S2-14 guard, the hygiene fixes, and S3-1 if tonight's count
    supports it. Built inside a queue step while no timed work runs.
 3. Games, in order: the mate bundle (+ S2-14; promoted by S2-33's H1 if `_side_1120_fixed.sh` A confirms it) → S2-1
    (`CHECK_EXTENSION=0`, forms 1 and 3) → S2-5 (`DECAY_FIX=3`, then 1) → S2-2 (`QPREC_FIX` 1 / 3 / 8) → S2-33(b) the TM cap →
@@ -412,7 +438,8 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
      `bestValue` to the futility value) → eligible, joins the confirmation bundle. (I had listed it as a form choice before
      the rule was written; it is not one: there is one right bound.)
    - S2-6 (#283) and S2-4 (#284) are hygiene (the root loop's own rule after move 0; EXACT only for an in-window result): read
-     their z under this rule.
+     their z under this rule. Result: S2-6 eligible (z +0.3); S2-4 self-play z −0.84 but outside z −2.64 ⇒ not eligible,
+     parked pending the cause (§ results above).
    - The mate bundle (+ S2-14) and the sweep-3 hygiene bundle (S2-8, S2-11, S2-16, S2-17, S2-32; S2-20 / S2-21 by bench
      identity) are hygiene.
    - S2-9 mode 2 and S2-26 stay parked: more than one defensible form / a constant.

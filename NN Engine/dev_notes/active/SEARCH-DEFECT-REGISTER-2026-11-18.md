@@ -273,6 +273,11 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   (11-04) it was below the SF18 bar. Both TT-hygiene items of the night (S2-4, this) read −5 … −7 at 10+0.1: the shape of
   [[a-correctness-fix-into-absorbed-tuning-is-not-free]]. Re-test triggers: the targeted legs read for information (the
   owner's call: ≈ 5.5 h); a mate-range cost found in long games or UI games; S2-33 recurring; the end-of-arc tuning pass.
+  **Information legs, #287 (owner 11-21 "sure"; s6pgo vs g77pgo, no base knobs):** eg_critical endgame starts at 10+0.1,
+  1,001 games +152 −165 =684 (68% drawn), 49.4%, **−4.5 Elo (95% −12.3 … +3.2)**, pentanomial [0, 70, 374, 55, 1];
+  registered −5 … +15 (at its floor). Per move 0.212 vs 0.211 s, p95 0.506 vs 0.505, **max 3.044 vs 3.226 s**, depth 16.0 /
+  16.0, nodes +1.5%. No conversion gain shows in endgame starts; the shorter longest think is one value, not evidence. The
+  60+0.6 behaviour run (200 g, UHO) started 16:47.
 - **S2-4 `PS_TT_FLAG_FIX=1`, #284 (2026-11-20/21) — self-play NEUTRAL (hygiene self-play bar met, z −0.84), but the
   outside judges read CLEARLY WORSE (pooled z −2.64 on one seed each) ⇒ NOT ELIGIBLE; PARKED pending the cause.** 2,001
   games +599 −627 =775, 49.3%, **−5.0 Elo (95% −16.7 … +6.6)**, pentanomial [92, 243, 351, 230, 84]; registered −5 … +12
@@ -299,6 +304,18 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   runs, holds only). Re-test triggers: S2-4 paired with `PS_TT_PROBE_FIX` (and/or S2-10 `PS_SCOUT_FIX`) vs gen 7.7, with
   the full outside set (the unplayed seeds 284112-3 / 284212-3 settle the size question); or the end-of-arc tuning pass.
   The base for #285 / #286 stays gen 7.7.
+  **The three §c checks (11-21 14:33-14:42; results in the report §d):**
+  - Check 1 failed as registered on WAC d10: 10 of 24 positions with no relabelled store still differ, against a 1%
+    allowance. Seven differ by 1-5 nodes; the others by 548, 922 and 7,778. At d6 all 38 such positions are identical.
+  - ✔ The counter is complete (only beta narrows), so the remaining channel is the eval and move-gen caches the bench keeps
+    between positions. That is unproven: the isolation run `selfplay/_iso_s24.sh` (each position alone, fresh process; 11-21
+    evening block) is registered "every pair equal".
+  - Check 2: the pre-search grows on every set (WAC +2.34%, d6 +0.55%, game12 +8.27%). The main tree grows on WAC (+1.49%)
+    and d6 (+0.80%) but shrinks on game12 (−2.32%). Neither "both sets" reading triggered.
+  - Check 3: inside its bounds on WAC (best_changed +0.05 pp, razor −0.5%, winner_was_razored +0.23 pp). On game12 (12
+    positions, information only) best_changed is +4.88 pp and winner_was_razored +2.0 pp: root decisions move on game
+    positions.
+  - Still PARKED; the pairing run with `PS_TT_PROBE_FIX` waits behind the isolation result.
 - **S2-6 `ROOT_M0_CUT=1`, #283 (2026-11-20) — NEUTRAL by the +2σ rule; HYGIENE ⇒ ELIGIBLE for the confirmation bundle
   (§10 item 4).** 2,000 games +621 −611 =768, 50.2%, **+1.7 Elo (95% −9.8 … +13.3)**, z ≈ +0.3, pentanomial [89, 217, 373,
   237, 84]; registered −5 … +10 (inside). The time saving did not show: time per move 0.227 vs 0.226 s, depth 11.6 / 11.6
@@ -512,3 +529,20 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
    used to avoid by failing high (so it is not the node saver the S2-4 report expected; with PS_SCOUT_FIX the trio is −1.3%).
    S2-8's exemption solves 4 more game12 positions (11/12), the largest tactical change in the build. HYG_FIX bit 8 (S2-17) is
    not proved live: it needs a position near the 50-move limit with an evasion in qsearch.
+
+   **First counts for the two count-first hygiene bits (11-21 14:43-14:52, `selfplay/_side_1121.sh` step 2; s7pgo,
+   `ENABLE_LMR_COUNTERS=1`; raw `/mnt/e/chess_data/side_1121/HYG_*.out`).** `ENABLE_LMR_COUNTERS=1` leaves the default bench
+   unchanged (254 / 35,922,538: count-only ✔). `[qdelta_permove] fires=` is CUMULATIVE across a run's searches (read the last
+   print, not a sum); the per-search `[sweep2] qdelta_check` / `q_underpromo` are summed.
+   - S2-8 (checking captures among per-move delta prunes): WAC d10 173,338 of 1,352,726 final cumulative fires = **12.8%**
+     (registered 2-10%: miss, above); game12 4,057 of 52,804 final cumulative fires = **7.7%** (inside). (The side log's
+     "1.11%" divided by a sum of cumulative prints: void.) The exemption matters more on the tactical suite than predicted;
+     HYG_FIX=1 solves 11/12 on game12.
+   - S2-32 (bishop / rook promotions searched in qsearch): WAC d10 31,258 of 8,328,822 qnodes = **0.375%** (registered
+     < 0.1%: miss, above); game12 474 of 627,659 = 0.076%. HYG_FIX=16 raises WAC nodes +0.8% (the liveness miss, sign).
+   - Neither count closes its item; both stay in the hygiene bundle, read by games.
+
+8. **Outside-judge legs for #288 pre-played in the 11-21 gaming hold (s7pgo, `CHECK_EXT_FORM=3` vs none; ours 250k nodes).**
+   SF18 seed 288111: ctl 67.2%, cx3 69.4% (250 g each). SF1.1 seed 288211: cx3 stopped at 180 g (51.1%) when **SF1.1
+   segfaulted at 16:26:22** (a crash dump; fastchess did not recover the leg). #288 replays any leg without a "Games: 250,"
+   summary, so this one is re-played in full. They count only after #288's self-play passes.

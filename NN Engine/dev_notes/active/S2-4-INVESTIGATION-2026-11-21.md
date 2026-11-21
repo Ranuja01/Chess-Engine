@@ -246,3 +246,62 @@ Reading:
 - All three inside: no root-decision channel, which supports explanation 1.
 - `best_changed` up by at least 1.5 pp, together with a razor shift: explanations 3 and 4 gain weight. The next step is
   then the node-limited replication on the remaining seeds, before any pairing run.
+
+## (d) Results of the three checks (run 2026-11-21 14:33-14:42, `selfplay/_side_1121.sh`; raw outputs `/mnt/e/chess_data/side_1121/S24_*.out`)
+
+Per-position node counts come from the Debug `[search] nodes=` lines (one per position; their sum equals the bench total).
+`BENCH_PER_POS` is read with `getenv`, not as a knob, so passing it through `Knobs` only echoed it; the Debug lines made it
+unnecessary. Parser: the session scratchpad's `s24check.py`.
+
+| | A WAC d10 | B WAC d6 | C game12 d10 |
+|---|---|---|---|
+| totals, arm 0 → arm 1 | 254 / 35,922,538 → 252 / 36,566,334 | 185 / 2,746,561 → 186 / 2,764,984 | 7/12 2,412,001 → 7/12 2,408,351 |
+| relabelled stores (arm-0 `ps_exact_mislabel`) | 5,118 | 3,561 | 162 |
+| positions with none | 24 (8.0%) | 38 (12.7%) | 1 (vacuous) |
+| of those, nodes differ in arm 1 | **10 (41.7%)** | 0 | 0 |
+| Δ pre-search nodes | +297,862 (+2.34%) | +7,654 (+0.55%) | +40,780 (+8.27%) |
+| Δ main-search nodes | +345,934 (+1.49%) | +10,769 (+0.80%) | −44,430 (−2.32%) |
+| pre-search share of Δ total | 46% | 42% | (total −3,650) |
+| `best_changed / iters` | 27.84 → 27.89% (+0.05 pp) | 38.66 → 38.90% (+0.24 pp) | 25.61 → 30.49% (+4.88 pp) |
+| `razor_fires` | 3,081 → 3,066 (−0.5%) | 1,492 → 1,495 (+0.2%) | 110 → 110 |
+| `winner_was_razored` | 16.24 → 16.47% (+0.23 pp) | 20.55 → 20.66% (+0.11 pp) | 16.0 → 18.0% (+2.0 pp) |
+
+**Check 1: FAILED as registered on A, passed on B.**
+- The totals reproduce the #284 gates.
+- At d10 the zero-mislabel share is 8% (≤ 10%: hit). At d6 it is 12.7% (predicted ≥ 25%: miss, though not vacuous).
+- On A, 10 of the 24 zero-mislabel positions differ, against a 1% allowance. Their node deltas (WAC index, 0-based):
+  - Within 5 nodes: 36 (+2), 86 (−1), 125 (−5), 235 (−1), 252 (+2), 254 (+4), 273 (−3).
+  - Larger: 269 (+548), 277 (−922), 177 (−7,778, of which −7,894 is pre-search).
+- On B, all 38 are identical.
+- **The counter is complete (VERIFIED).** `pre_minimizer` narrows only beta (`beta = std::min(beta, lowest_score)`), so
+  alpha == alpha_orig at every store. The UPPERBOUND test is therefore the same in both arms. The only relabel is "EXACT
+  with score ≥ the narrowed beta" → LOWERBOUND, which is exactly what `ps_exact_mislabel` counts. `PS_TT_FLAG_FIX` has no
+  other site (grep).
+- So a position whose own search relabels nothing can differ only through state carried from earlier positions.
+  `clearSearchTables` empties the TT and the q-cache. It keeps the eval cache and the move-gen cache, which the earlier
+  positions filled differently in the two arms.
+- The shape fits that carry-over: mostly 1-5 nodes, more of it at d10 than d6 (bigger trees, more cache churn), none at d6.
+  This is HYPOTHESIS until the isolation run settles it. `selfplay/_iso_s24.sh` runs each of the ten, plus 24 and 27 (which
+  matched), alone in a fresh process per arm. REGISTERED: every pair is equal. Result in §e.
+
+**Check 2: neither registered reading triggered; the cost splits by corpus.**
+- Δpre-search > 0 on every set (explanation 1's pre-search cost is real). It is below the predicted +2.5 … +6% on WAC
+  (+2.34%) and carries 46% of the Δ there, not ≥ 60%.
+- The main tree grows on WAC (+1.49%, outside the predicted −1.0 … +0.8%) and at d6 (+0.80%). It shrinks on game12 (−2.32%,
+  the predicted sign).
+- So "Δmain ≥ +0.5% on both sets" holds on A and B but not C, and "Δmain ≤ −0.5% on both" holds on C only.
+- On the tactical suite the fix adds main-tree work as well as pre-search work. On the game positions the extra pre-search
+  work (+8.3%) buys a smaller main tree.
+
+**Check 3: inside on WAC (no root-decision channel there); not on game12 (information, 12 positions).**
+- WAC: best_changed +0.05 pp, razor_fires −0.5%, winner_was_razored +0.23 pp, all inside the registered bounds. This
+  supports explanation 1 on the tactical suite.
+- game12 (not registered for check 3; n = 12 positions): best_changed +4.88 pp and winner_was_razored +2.0 pp. That is the
+  direction of explanations 3 and 4, on the corpus closest to what the judges play.
+- Too few positions to read alone. The registered next step for that direction stands: a node-limited replication on the
+  remaining seeds before any pairing run.
+
+**Where this leaves S2-4: still PARKED.** The port is correct by code and by counter. The node cost is real and splits by
+corpus. On game positions the knob moves root decisions while saving main-tree nodes, which is the one place a
+judge-specific effect could live. Its partner `PS_TT_PROBE_FIX` is built (s7): `PS_TT_FLAG_FIX=1,PS_TT_PROBE_FIX=1` reads
+WAC 259 / 37,139,599 · game12 8/12 2,286,422. The pairing run waits behind §e and its turn in the run order.

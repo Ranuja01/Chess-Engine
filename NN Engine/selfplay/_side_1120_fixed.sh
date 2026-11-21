@@ -22,8 +22,9 @@ mkdir -p "$OUT"; cd "$ND" || exit 1
 echo '8/8/6K1/6Pp/5P1P/1kP5/8/8 w - - 1 47 | f4f5' > "$OUT/fen47.txt"
 echo '8/6K1/6p1/6Pp/2k2P1P/2P5/8/8 w - - 1 46 | g7g6' > "$OUT/fen46.txt"
 timed_running() { pgrep -f '[f]astchess.*tc=10[+]0[.]1' >/dev/null; }
-in_block() { local m; m=$((10#$(date +%H) * 60 + 10#$(date +%M))); [ $m -ge $((20 * 60 + 55)) ] && [ $m -lt $((23 * 60 + 40)) ]; }
-echo "[side] $(date '+%Y-%m-%d %H:%M:%S') queued; waiting for the evening block (20:55-23:40) with no timed game running"
+# Timed work is held: the owner's gaming.pause (19:36, "move the non timed stuff up") or the evening block.
+in_block() { local m; m=$((10#$(date +%H) * 60 + 10#$(date +%M))); [ -e /mnt/e/chess_data/gaming.pause ] || { [ $m -ge $((20 * 60 + 55)) ] && [ $m -lt $((23 * 60 + 40)) ]; }; }
+echo "[side] $(date '+%Y-%m-%d %H:%M:%S') queued; waiting for gaming.pause or the evening block (20:55-23:40), with no timed game running"
 until in_block && ! timed_running; do
 	[ "$(date +%H)" = "00" ] && { echo "[side] $(date '+%H:%M') the block passed without a free slot — nothing run"; exit 0; }
 	sleep 60

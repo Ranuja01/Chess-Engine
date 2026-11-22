@@ -577,3 +577,16 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
     11:26; fastchess interrupted, the spinning SF1.1 then exited; the leg is incomplete (replayed in full if self-play
     passes). Self-play started 11:27. ★ For the next queue template: a leg watchdog (the leg's log unchanged for ~10 min ⇒
     SIGINT fastchess, then kill the engines) so an opponent hang costs minutes, not a morning (11-21 16:26 was a segfault).
+11. **#289 DONE (11-22 17:11): S2-1 form 1 (`CHECK_EXT_FORM=1`) vs today's rule — NEUTRAL, PARKED.** Self-play 10+0.1 UHO,
+    2,000 g (seeds 2891-2897, one uninterrupted daytime run 11:27-17:09): +604 −636 =760, 49.2%, **−5.6 (95% −17.3 … +6.1)**,
+    pentanomial [102, 221, 364, 233, 80]; chunks 49.7 / 52.0 / 50.5 / 49.3 / 49.3 / 47.7 / last 200 44.3. Registered:
+    self-play −12 … +10 **inside**; bench WAC nodes +8 … +20% **inside** (+10.1%); time per move unchanged **inside** (mean
+    0.229 vs 0.226 s, p95 0.582 vs 0.567, max 2.32 vs 1.86); **depth −0.06 … −0.14 ply: MISS, far larger — 11.0 vs 11.5
+    (−0.5 ply)**, nodes per move 330,905 vs 340,507 (−2.8%), **NPS −4.1%** (1,445k vs 1,506k: extended checks are costlier
+    nodes). Judge legs played in the morning hold (information only, 5 seeds): SF18 63.3% vs 62.1%, +1.27 pp ± 4.35, z
+    +0.57; SF1.1 (2 seeds; the third was the hung leg) 49.6% vs 48.0%, +1.60 pp ± 5.41, z +0.58; pooled +1.40 pp, z +0.80.
+    By the queue's own pre-registered reading ("if negative, read depth: lower depth = a node cost, park with a partner"),
+    form 1 is a NODE COST: half a ply lost for −5.6, and at equal nodes (the judges) it leans the right way. **S2-1 as a
+    whole:** off +2.8, form 3 +3.1, form 1 −5.6, all inside ±2σ against today's rule ⇒ **today's rule stays**; no form
+    resolves at 10+0.1. Re-test triggers: form 1 with a node saver or a check cap (its per-depth lean is the reason to
+    keep it); S5's extension set (singular, check extensions reshaped together); a long-TC venue. Log `q289.log`.

@@ -276,8 +276,18 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   **Information legs, #287 (owner 11-21 "sure"; s6pgo vs g77pgo, no base knobs):** eg_critical endgame starts at 10+0.1,
   1,001 games +152 −165 =684 (68% drawn), 49.4%, **−4.5 Elo (95% −12.3 … +3.2)**, pentanomial [0, 70, 374, 55, 1];
   registered −5 … +15 (at its floor). Per move 0.212 vs 0.211 s, p95 0.506 vs 0.505, **max 3.044 vs 3.226 s**, depth 16.0 /
-  16.0, nodes +1.5%. No conversion gain shows in endgame starts; the shorter longest think is one value, not evidence. The
-  60+0.6 behaviour run (200 g, UHO) started 16:47.
+  16.0, nodes +1.5%. No conversion gain shows in endgame starts; the shorter longest think is one value, not evidence.
+  60+0.6 behaviour run, UHO, 200 games +55 −62 =83, 48.2%, −12.2 (95% −48.1 … +23.5), pentanomial [9, 25, 36, 24, 6].
+  - Per move: mean 1.359 vs 1.361 s, p95 3.458 vs 3.471, **max 11.69 vs 13.20 s** (−11%), depth 14.2 vs 14.3.
+  - Registered: max −0 … −30%, mean and p95 ±3%, depth ±0.1. All inside.
+  - **But the tail is the same** (scratchpad `think_tail.py`): moves over 8 s 46 vs 44, over 10 s 14 vs 15; the top ten
+    run 11.69 … 10.40 vs 13.20 … 10.74. Only the single longest think differs, in both legs (3.04 vs 3.23, 11.69 vs
+    13.20).
+  - At 60+0.6 the clock manager caps a move near 13 s, so the pathological long searches the bundle shortens (side check A:
+    FEN 47 at d22 167.0M → 16.0M nodes; UI game 56's 150 s move at a long time control) are out of reach here.
+  - Three non-positive game reads in all (self-play −7.3, endgame −4.5, long −12.2). **Stays PARKED.**
+  - Re-test triggers, sharpened: a long-TC venue where a move can run past ~30 s (UI games, the end-of-phase CCRL session);
+    a mate-range cost found there.
 - **S2-4 `PS_TT_FLAG_FIX=1`, #284 (2026-11-20/21) — self-play NEUTRAL (hygiene self-play bar met, z −0.84), but the
   outside judges read CLEARLY WORSE (pooled z −2.64 on one seed each) ⇒ NOT ELIGIBLE; PARKED pending the cause.** 2,001
   games +599 −627 =775, 49.3%, **−5.0 Elo (95% −16.7 … +6.6)**, pentanomial [92, 243, 351, 230, 84]; registered −5 … +12

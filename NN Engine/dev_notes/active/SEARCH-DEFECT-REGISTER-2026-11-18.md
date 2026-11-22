@@ -568,3 +568,12 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
    (`CHECK_EXTENSION=0`, +2.8, −9.1 … +14.6): neither removing today's rule nor form 3 moves self-play; form 1 (#289) is the
    third reading. Re-test triggers: pair form 3 with a node-adding fix (it saves 1.9% WAC nodes and solves 9/12 game12 vs 7/12),
    or read it again at a longer TC, where the extension's depth matters more. Log `/mnt/e/chess_data/q288.log`.
+10. **#289 (S2-1 form 1, `CHECK_EXT_FORM=1`) started 11-22 07:14; gates equal (265 / 39,564,281; game12 8/12 3,203,176).** The
+    weekend-morning hold (q289.pause, lifted 10:55 on the owner's word; q289.go set because the owner does not game tonight)
+    played the judge legs at concurrency 3, information only until self-play passes: SF18 seeds 289111-3 ctl 61.4 / 61.0 /
+    63.8%, cx1 64.0 / 63.6 / 62.4%; SF1.1 seeds 289211-2 ctl 48.2 / 47.8%, cx1 50.2 / 49.0%. **Second SF1.1 fault in two days:
+    in s11 seed 289213 cx1, game 239 (ours White) HUNG from ~10:38** — SF1.1 kept searching (58 CPU-min, state R) past its
+    320k-node limit, and fastchess (tc=inf, no move timeout) waited for it after all 249 other games finished at 10:40. Found
+    11:26; fastchess interrupted, the spinning SF1.1 then exited; the leg is incomplete (replayed in full if self-play
+    passes). Self-play started 11:27. ★ For the next queue template: a leg watchdog (the leg's log unchanged for ~10 min ⇒
+    SIGINT fastchess, then kill the engines) so an opponent hang costs minutes, not a morning (11-21 16:26 was a segfault).

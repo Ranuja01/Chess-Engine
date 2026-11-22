@@ -318,14 +318,15 @@ S2-24 and S2-25 by reading. It did not read `pre_minimizer` (S2-4, S2-10, S2-20)
   - Check 1 failed as registered on WAC d10: 10 of 24 positions with no relabelled store still differ, against a 1%
     allowance. Seven differ by 1-5 nodes; the others by 548, 922 and 7,778. At d6 all 38 such positions are identical.
   - ✔ The counter is complete (only beta narrows), so the remaining channel is the eval and move-gen caches the bench keeps
-    between positions. That is unproven: the isolation run `selfplay/_iso_s24.sh` (each position alone, fresh process; 11-21
-    evening block) is registered "every pair equal".
+    between positions. **Isolation run (11-21 20:52): 12 of 12 pairs equal** (registered "every pair equal": hit), so
+    check 1 passes on its intent: the knob acts only through the stores it relabels. (Instrument note added to
+    INSTRUMENT-MAP: a bench position's nodes carry cache state from the positions before it.)
   - Check 2: the pre-search grows on every set (WAC +2.34%, d6 +0.55%, game12 +8.27%). The main tree grows on WAC (+1.49%)
     and d6 (+0.80%) but shrinks on game12 (−2.32%). Neither "both sets" reading triggered.
   - Check 3: inside its bounds on WAC (best_changed +0.05 pp, razor −0.5%, winner_was_razored +0.23 pp). On game12 (12
     positions, information only) best_changed is +4.88 pp and winner_was_razored +2.0 pp: root decisions move on game
     positions.
-  - Still PARKED; the pairing run with `PS_TT_PROBE_FIX` waits behind the isolation result.
+  - Still PARKED. The pairing run with `PS_TT_PROBE_FIX` is unblocked and waits for its turn in the run order.
 - **S2-6 `ROOT_M0_CUT=1`, #283 (2026-11-20) — NEUTRAL by the +2σ rule; HYGIENE ⇒ ELIGIBLE for the confirmation bundle
   (§10 item 4).** 2,000 games +621 −611 =768, 50.2%, **+1.7 Elo (95% −9.8 … +13.3)**, z ≈ +0.3, pentanomial [89, 217, 373,
   237, 84]; registered −5 … +10 (inside). The time saving did not show: time per move 0.227 vs 0.226 s, depth 11.6 / 11.6

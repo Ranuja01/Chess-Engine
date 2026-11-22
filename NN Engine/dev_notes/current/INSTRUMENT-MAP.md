@@ -444,6 +444,15 @@ the conclusion, were safe to assume.
 - ☠️ **Pre-2026-08-14 positional/regret numbers are confounded** by history contamination across FENs in one
   process. Fixed by `clearSearchTables()` (diagnostic-only, `DIAG_NO_CLEAR=1` opts out). Magnitude:
   STS 1670 → **1771**. Games/SPRT, static-eval diagnostics and byte-id fingerprints are **not** affected.
+- ☠️ **A bench position's node count depends on the positions before it (2026-11-21).** `clearSearchTables()` empties
+  the TT, the q-cache and the history tables, but keeps the eval cache and the move-gen cache (for parity with the Python
+  path). A knob that changes earlier searches therefore changes later positions' nodes, even where it never fires.
+  - S2-4 example: WAC d10, `PS_TT_FLAG_FIX`. 10 of 24 positions where the knob relabelled nothing differed in-bench, by
+    1 node up to 7,778 (3%). Run alone, one fresh process per arm, all 12 tested were equal (`selfplay/_iso_s24.sh`). At
+    d6 the in-bench carry-over was nil.
+  - ⇒ To prove "the knob acts only where it fires", run positions in isolation, or allow carry-over at d10. A per-position
+    in-bench delta is not attributable to that position.
+  - In-bench and isolated nodes also differ for the SAME arm (pos 177: 259,774 in-bench vs 254,836 alone).
 - ☠️ **conc ≤ 4 · never `nohup` · never rebuild while a job runs · never `| tail` a long run.** RAM, not
   cores, is the binding constraint — cap ~2 engine-loading runs.
 - ⚠️ Timed benches are non-deterministic and load-sensitive. Run arms **back-to-back on an idle box**.

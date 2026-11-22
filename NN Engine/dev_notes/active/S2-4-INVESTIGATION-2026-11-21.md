@@ -305,3 +305,21 @@ unnecessary. Parser: the session scratchpad's `s24check.py`.
 corpus. On game positions the knob moves root decisions while saving main-tree nodes, which is the one place a
 judge-specific effect could live. Its partner `PS_TT_PROBE_FIX` is built (s7): `PS_TT_FLAG_FIX=1,PS_TT_PROBE_FIX=1` reads
 WAC 259 / 37,139,599 · game12 8/12 2,286,422. The pairing run waits behind §e and its turn in the run order.
+
+## (e) Check 1 follow-up: the isolation run (2026-11-21 20:52-20:53, `selfplay/_iso_s24.sh`; outputs `/mnt/e/chess_data/side_1121/iso/`)
+
+**REGISTERED "every pair equal": HIT, 12 of 12.** Each WAC position ran alone in a fresh s6pgo process per arm at d10. That
+covers the ten that differed in-bench plus 24 and 27, which matched. With fresh caches, arm 0 and arm 1 search the
+identical node count in every position. Examples (0-based index, nodes in both arms):
+
+| position | 36 | 86 | 125 | 177 | 235 | 252 | 254 | 269 | 273 | 277 | 24 | 27 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| nodes | 67,794 | 65,806 | 43,165 | 254,836 | 103,200 | 10,566 | 35,645 | 48,350 | 19,941 | 74,183 | 9,201 | 28,522 |
+
+**Reading:**
+- The in-bench differences were carry-over through the eval and move-gen caches that the bench keeps between positions.
+- **Check 1 passes on its intent:** `PS_TT_FLAG_FIX` acts only through the stores it relabels. No side path exists; the
+  counter is complete (§d).
+- The instrument lesson is now in `dev_notes/current/INSTRUMENT-MAP.md`: a bench position's node count depends on the
+  positions before it.
+- The S2-4 pairing run with `PS_TT_PROBE_FIX` is no longer blocked by check 1. It waits for its turn in the run order.

@@ -556,4 +556,15 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
 8. **Outside-judge legs for #288 pre-played in the 11-21 gaming hold (s7pgo, `CHECK_EXT_FORM=3` vs none; ours 250k nodes).**
    SF18 seed 288111: ctl 67.2%, cx3 69.4% (250 g each). SF1.1 seed 288211: cx3 stopped at 180 g (51.1%) when **SF1.1
    segfaulted at 16:26:22** (a crash dump; fastchess did not recover the leg). #288 replays any leg without a "Games: 250,"
-   summary, so this one is re-played in full. They count only after #288's self-play passes.
+   summary, so this one is re-played in full. They count only after #288's self-play passes (it did not: item 9).
+9. **#288 DONE (11-21 20:18 → 11-22 07:14): S2-1 form 3 (`CHECK_EXT_FORM=3`, s7pgo) vs today's rule (gen 7.7) — NEUTRAL,
+   PARKED.** Self-play 10+0.1 UHO, 2,001 g (seeds 2881-2888; chunks cut by the evening block and the owner's gaming pause, all
+   complete): +605 −587 =809, 50.4%, **+3.1 (−8.2 … +14.4)**, pentanomial [73, 237, 372, 235, 83]. A FORM item, so the +2σ rule:
+   neutral ⇒ parked, no further judge legs. Registered checks: self-play −4 … +12 **inside**; bench WAC nodes +1 … +8% **miss
+   (sign, −1.9%)**; time per move unchanged **inside** (mean 0.225 s both, p95 0.562 vs 0.564); depth −0.01 … −0.06 read
+   11.6 vs 11.7 at the report's one-decimal precision (≈ −0.1, at or just past the registered edge); nodes per move −0.8%, NPS −0.8%.
+   The four judge legs played in the holds (information only, ours 250k nodes): SF18 seeds 288111-2 cx3 69.0% vs ctl 65.1%,
+   +3.90 pp ± 5.11, z +1.50; SF1.1 seed 288211 49.6% vs 51.0%, −1.40 pp ± 7.59, z −0.36; pooled +2.13 pp, z +0.97. Beside #286
+   (`CHECK_EXTENSION=0`, +2.8, −9.1 … +14.6): neither removing today's rule nor form 3 moves self-play; form 1 (#289) is the
+   third reading. Re-test triggers: pair form 3 with a node-adding fix (it saves 1.9% WAC nodes and solves 9/12 game12 vs 7/12),
+   or read it again at a longer TC, where the extension's depth matters more. Log `/mnt/e/chess_data/q288.log`.

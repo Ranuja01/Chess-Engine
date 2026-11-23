@@ -615,3 +615,18 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
     streamlined rule), so the outside half and the owner's yes wait for the hygiene confirmation bundle, unless the owner
     wants mode 3 confirmed sooner because the UI plays the regime where it gains. Box time 8.72 h (judges skipped: ≈ 5.1 h
     saved). Log `q290.log`. #291 started 02:00.
+14. **#291 DONE (11-23 02:03 → 07:44): S2-5 mode 1 (`DECAY_FIX=1`: every search restarts from the designed 35,000, then the
+    endgame ladder) vs today's sticking interval — NEUTRAL, +8.3 (95% −3.4 … +20.1); the registered −25 … +5 (centre −8) is a
+    MISS: the sign was wrong.** s7pgo, gates equal (WAC 255 / 36,331,723; game12 7/12 2,360,854). 2,000 g (seeds 2911-2917):
+    +632 −584 =784, 51.2%, pentanomial [82, 226, 352, 242, 98]; chunks 49.2 / 54.7 / 46.3 / 49.5 / 53.8 / 52.5 / last 200
+    53.0, all clean. Depth 11.7 = 11.7 **inside**, time per move 0.225 vs 0.226 **inside**, NPS +0.3% (both arms 1.61M here vs
+    1.52M in #290: box load, equal across arms). The S2-5 report's §1.8 reason for predicting a loss ("35k makes butterfly
+    history a memory of the last ~20 ms") is **not supported** in a long-lived process. **S2-5 across its three legs**
+    (all vs gen 7.7, which in a long-lived process sits at the 125k-200k its endgame roots left): mode 3 (150k) +6.6 ± 11.4;
+    mode 1 (35k) +8.3 ± 11.8; restarted, mode 3 against gen 7.7's own 35k middlegames +16.0 ± 16.5. The implied mode 1 −
+    mode 3 in the long-process regime is +1.7 ± 16 and the restart leg says the long interval leads the short by +16: the
+    three disagree at ≈ 1.5σ, i.e. **the interval's value does not resolve at 10+0.1 within about ±10**. What does hold in
+    every leg: neither deterministic mode is worse than today's history-dependent interval (+6.6, +8.3, +16.0). Standing:
+    mode 1 parked (a FORM read: +2σ not met); mode 3 stays the hygiene candidate (deterministic, never negative, the UI-regime
+    lean), its 150,000 a constant for the tuning pass near the end (owner 11-19: settle the form now). A direct mode 3 vs
+    mode 1 match under restart=on would settle the form if the owner wants it settled before the bundle. Log `q291.log`.

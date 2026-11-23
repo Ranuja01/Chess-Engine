@@ -630,3 +630,12 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
     mode 1 parked (a FORM read: +2σ not met); mode 3 stays the hygiene candidate (deterministic, never negative, the UI-regime
     lean), its 150,000 a constant for the tuning pass near the end (owner 11-19: settle the form now). A direct mode 3 vs
     mode 1 match under restart=on would settle the form if the owner wants it settled before the bundle. Log `q291.log`.
+15. **#292 primary leg DONE (11-23 07:47 → 10:56): S2-2 arm 3 (`QPREC_FIX=3`: an in-check horizon takes qsearch, and the
+    endgame qsearch skip is fixed in null subtrees) vs gen 7.7 from endgame starts — +5.2 (95% −1.0 … +11.5), INSIDE the
+    registered −4 … +12, centre +3.** s7pgo, gates equal (WAC 254 / 36,028,614 = +0.3%, registered +0.2 … +1% inside; game12
+    7/12 2,404,833). `eg_critical.epd` (464 starts, order=random per seed), 10+0.1, 2,000 g (seeds 292501-292507): +341 −311
+    =1348, 50.7%, pentanomial [2, 136, 703, 148, 11]; chunks 49.8 / 49.8 / 51.5 / 50.8 / 50.5 / 52.8 / last 200 49.5, all clean
+    (chunks 1 and 2 have the same W/L/D by coincidence: 150 distinct starts each, 51 shared, ≈ the 48 a random draw
+    gives). Depth 15.8 vs 15.9 (registered 0 … −0.05: **borderline, slightly larger**), time per move 0.212 vs 0.213, NPS
+    +0.1%. Endgame z ≈ +1.6: the hygiene rule's self-play half is met on the venue where it fires. The UHO not-harmful leg
+    (2,000 g, registered −3 … +8) started 10:57; the reading is the owner's. Log `q292.log`.

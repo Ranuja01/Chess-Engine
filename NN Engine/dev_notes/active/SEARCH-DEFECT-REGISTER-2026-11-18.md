@@ -603,3 +603,15 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
     self-play half** (statable invariant: the interval is a function of the root, not of the process's history); the
     outside half and the owner's yes wait for the hygiene confirmation bundle. The restart=on leg (the UI regime, where
     gen 7.7 plays 35k in middlegames) started 23:01, 1,000 g, registered −5 … +25, centre +8; then #291 (mode 1).
+13. **#290 DONE (11-23 01:59): the restart=on leg (a fresh process per game, the UI's regime) — mode 3 +16.0 (95% −0.4 …
+    +32.5), INSIDE the registered −5 … +25, above its centre +8.** 1,000 g (seeds 2951-2954): +323 −277 =400, 52.3%,
+    pentanomial [35, 112, 176, 126, 51]; chunks 52.5 / 53.3 / 51.8 / last 100 50.0, all clean. Depth 11.6 = 11.6, time per
+    move 0.226 = 0.226, NPS +0.1%. Restarted, gen 7.7 runs its middlegames at the designed 35,000 until the game's first
+    endgame root (every UI game does), while mode 3 runs them at 150,000; so this leg is the long interval against the
+    short one where they actually differ, and the long one leads by +16 at z ≈ +1.9 (one-sided p ≈ 0.03). It agrees with
+    S2-5's report (§1.8: the stuck long interval is the productive part, close to SF18 / SF19's once-per-search aging) and
+    with #291's registered prediction (mode 1, 35k everywhere, −25 … +5). **Mode 3 standing:** hygiene-eligible on
+    self-play (z ≈ +1.1) with a near-resolved UI-regime gain; the outside judges did not run (self-play NEUTRAL, by the
+    streamlined rule), so the outside half and the owner's yes wait for the hygiene confirmation bundle, unless the owner
+    wants mode 3 confirmed sooner because the UI plays the regime where it gains. Box time 8.72 h (judges skipped: ≈ 5.1 h
+    saved). Log `q290.log`. #291 started 02:00.

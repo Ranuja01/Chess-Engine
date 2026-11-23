@@ -590,3 +590,16 @@ below is unmeasured unless marked. Claims I re-checked in the code are marked �
     whole:** off +2.8, form 3 +3.1, form 1 −5.6, all inside ±2σ against today's rule ⇒ **today's rule stays**; no form
     resolves at 10+0.1. Re-test triggers: form 1 with a node saver or a check cap (its per-depth lean is the reason to
     keep it); S5's extension set (singular, check extensions reshaped together); a long-TC venue. Log `q289.log`.
+12. **#290 self-play DONE (11-22 17:19 → 23:00): S2-5 mode 3 (`DECAY_FIX=3`: middlegame roots take `DECAY_MG` 150,000, so
+    the interval no longer depends on what the process played before) vs today's sticking interval (gen 7.7) — NEUTRAL.**
+    s7pgo, gates equal (WAC 254 / 35,954,994 = +0.09% vs 35,922,538; game12 8/12 vs 7/12). Self-play 10+0.1 UHO, 2,000 g
+    (seeds 2901-2907, one uninterrupted evening run, q290.go): +623 −585 =792, 50.9%, **+6.6 (95% −4.8 … +18.0)**,
+    pentanomial [83, 208, 378, 250, 81]; chunks 50.2 / 55.2 / 51.2 / 51.7 / 44.7 / 54.7 / last 200 48.3 (the −37 and +36
+    chunks are inside a 300-game chunk's ±30; all clean, 0 warnings / forfeits / stalls). Registered: self-play −6 … +6
+    **centre just above (+6.6), interval inside**; bench ±2% **inside**; depth ±0.05 **inside** (11.6 = 11.6); time per move
+    unchanged **inside** (mean 0.226 = 0.226, p95 0.565 = 0.565, max 1.89 vs 1.82); nodes per move +0.3%, NPS +0.2%. As
+    designed for the deterministic null control: in a long-lived process gen 7.7 already sits at 125k-200k after its first
+    endgame root, and mode 3's 150k is the same regime. Self-play z ≈ +1.1 > −1 ⇒ **mode 3 meets the hygiene rule's
+    self-play half** (statable invariant: the interval is a function of the root, not of the process's history); the
+    outside half and the owner's yes wait for the hygiene confirmation bundle. The restart=on leg (the UI regime, where
+    gen 7.7 plays 35k in middlegames) started 23:01, 1,000 g, registered −5 … +25, centre +8; then #291 (mode 1).
